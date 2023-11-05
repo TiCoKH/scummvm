@@ -62,6 +62,7 @@ class Resources;
 
 namespace Gfx {
 class Screen;
+class Ultima::Shared::Gfx::TownsScreen;
 }
 
 class UltimaEarlyEngine : public Engine, public EventsCallback {
@@ -85,6 +86,7 @@ public:
 	MouseCursor *_mouseCursor;
 	Gfx::Screen *_screen;
 	EventsManager *_events;
+	Ultima::Shared::Gfx::TownsScreen *_townsScreen;
 public:
 	UltimaEarlyEngine(OSystem *syst, const UltimaGameDescription *gameDesc);
 	~UltimaEarlyEngine() override;

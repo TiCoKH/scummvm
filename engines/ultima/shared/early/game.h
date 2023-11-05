@@ -24,6 +24,7 @@
 
 #include "ultima/shared/early/game_base.h"
 #include "ultima/shared/core/party.h"
+#include "ultima/shared/core/towns_window.h"
 
 namespace Ultima {
 namespace Shared {
@@ -79,6 +80,12 @@ public:
 	 */
 	uint32 _randomSeed;
 
+	/**
+	 * Stores the FMTowns version Ultima Trilogy games window configurations
+	 */
+	typedef Common::HashMap<Common::String, TownsWindow> TownsWindows;
+	TownsWindows _windows;
+
 public:
 	CLASSDEF;
 
@@ -106,6 +113,16 @@ public:
 	 * Sets up a CGA palette
 	 */
 	void setCGAPalette();
+
+	/**
+	 * Sets an FMTowns default 16 color palette
+	 */
+	void setFMTownsPalette();
+
+	/**
+	 * Sets an FMTowns window configuration
+	 */
+	void setFMTownsWindows();
 
 	/**
 	 * Returns the map

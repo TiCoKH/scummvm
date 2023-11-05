@@ -30,6 +30,11 @@ Screen::Screen(): Graphics::Screen(320, 200), _cursor(nullptr), _drawCursor(fals
 	initGraphics(320, 200);
 }
 
+Screen::Screen(int w, int h): Graphics::Screen(w, h), _cursor(nullptr), _drawCursor(false) {
+	initGraphics(w, h);
+}
+
+
 void Screen::update() {
 	_drawCursor = false;
 
