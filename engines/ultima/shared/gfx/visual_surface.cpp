@@ -37,6 +37,17 @@ VisualSurface::VisualSurface(const Graphics::ManagedSurface &src, const Rect &bo
 	}
 }
 
+void VisualSurface::drawBorderS(const Point &pt, int xsize, int ysize, byte color) {
+	int x2, y2;
+	x2 = pt.x + xsize - 1;
+	y2 = pt.y + ysize - 1;
+	drawLine(pt.x, pt.y, x2, pt.y, color);
+	drawLine(x2, pt.y, x2, y2, color);
+	drawLine(pt.x, pt.y, pt.x, y2, color);
+	drawLine(pt.x, y2, x2, y2, color);
+	//TODO add EGB_arc and_fan functinality
+}
+
 void VisualSurface::drawPoint(const Point &pt, byte color) {
 	fillRect(Rect(pt.x, pt.y, pt.x + 1, pt.y + 1), color);
 }

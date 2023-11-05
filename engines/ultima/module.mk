@@ -25,6 +25,7 @@ MODULE_OBJS += \
 	shared/core/named_item.o \
 	shared/core/party.o \
 	shared/core/str.o \
+	shared/core/towns_window.o \
 	shared/core/tree_item.o \
 	shared/core/utils.o \
 	shared/core/widgets.o \
@@ -46,6 +47,9 @@ MODULE_OBJS += \
 	shared/gfx/sprites.o \
 	shared/gfx/text_cursor.o \
 	shared/gfx/text_input.o \
+	shared/gfx/tiff.o \
+	shared/gfx/tiff_loader.o \
+	shared/gfx/towns_screen.o \
 	shared/gfx/viewport_dungeon.o \
 	shared/gfx/viewport_map.o \
 	shared/gfx/visual_container.o \

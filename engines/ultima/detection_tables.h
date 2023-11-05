@@ -84,6 +84,23 @@ static const UltimaGameDescription GAME_DESCRIPTIONS[] = {
 	},
 
 	{
+		// Ultima I - The First Age of Darkness (Ultima Trilogy), FMTowns version
+		{
+			"ultima1",
+			0,
+			AD_ENTRY2s("map1.mp1", "37aa42ad4279a40be703883645d3793e", 26208,
+					   "maptown.mp1", "5842cc60d0bf1ecc4e473db1579afc96", 26208),
+			Common::JA_JPN,
+			Common::kPlatformFMTowns,
+			ADGF_UNSTABLE,
+			GUIO0()
+		},
+		GUI_OPTIONS_ULTIMA1,
+		0
+	},
+
+
+	{
 		// Ultima I - The First Age of Darkness
 		{
 			"ultima1",

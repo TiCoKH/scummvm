@@ -30,7 +30,7 @@ namespace Ultima {
 namespace Ultima1 {
 
 enum VideoMode {
-	VIDEOMODE_EGA = 0, VIDEOMODE_VGA = 1
+	VIDEOMODE_EGA = 0, VIDEOMODE_VGA = 1, VIDEOMODE_FMT = 2, VIDEOMODE_P98 = 3,
 };
 
 enum CharacterClass {
@@ -43,6 +43,7 @@ class Ultima1Game : public Shared::Game {
 	DECLARE_MESSAGE_MAP;
 public:
 	GameResources *_res;
+	Shared::Gfx::VisualItem *_demoView;
 	Shared::Gfx::VisualItem *_gameView;
 	Shared::Gfx::VisualItem *_titleView;
 	Shared::Gfx::VisualItem *_charGenView;

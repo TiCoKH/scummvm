@@ -19,49 +19,43 @@
  *
  */
 
-#include "engines/util.h"
-#include "ultima/shared/gfx/screen.h"
+#ifndef ULTIMA_SHARED_GFX_TIFF_LOADER_H
+#define ULTIMA_SHARED_GFX_TIFF_LOADER_H
+
+#include "common/str.h"
+#include "graphics/surface.h"
+#include "ultima/shared/gfx/tiff.h"
 
 namespace Ultima {
 namespace Shared {
 namespace Gfx {
 
-Screen::Screen(): Graphics::Screen(320, 200), _cursor(nullptr), _drawCursor(false) {
-	initGraphics(320, 200);
-}
+/**
+ * Class for loading TIFF files.
+ *
+ */
+class TIFFLoader {
+	
+protected:
+	TIFFLoader() {} // Protected constructor to prevent instances
 
-Screen::Screen(int w, int h): Graphics::Screen(w, h), _cursor(nullptr), _drawCursor(false) {
-	initGraphics(w, h);
-}
+public:
+	/**
+	 * Decode an image.
+	 * @param[in] filepath          file name.
+	 * @param[out] dest         if successful, surface will contain the image
+	 *                          data (storage is allocated via create).
+	 * @return false in case of an error
+	 *
+	 * @remark This function does not free the image buffer passed to it,
+	 *         it is the callers responsibility to do so.
+	 */
 
-
-void Screen::update() {
-	_drawCursor = false;
-
-	if (_cursor) {
-		// Check whether the area the cursor occupies will be being updated
-		Common::Rect cursorBounds = _cursor->getBounds();
-		for (Common::List<Common::Rect>::iterator i = _dirtyRects.begin(); i != _dirtyRects.end(); ++i) {
-			const Common::Rect &r = *i;
-			if (r.intersects(cursorBounds)) {
-				addDirtyRect(cursorBounds);
-				_drawCursor = true;
-				break;
-			}
-		}
-	}
-
-	Graphics::Screen::update();
-}
-
-void Screen::updateScreen() {
-	if (_drawCursor)
-		_cursor->draw();
-
-	Graphics::Screen::updateScreen();
-}
-
-
-} // End of namespace Gfx
+	static bool loadTIFFImage(const Common::String &filepath, Graphics::Surface *dest);
+};
+/** @} */
+} // End of namespace Gfx 
 } // End of namespace Shared
-} // End of namespace Ultima
+} // End of namespace Ultima 
+
+#endif
