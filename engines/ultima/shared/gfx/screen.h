@@ -67,6 +67,12 @@ public:
 	 */
 	Screen();
 
+
+	/**
+	 * Constructor with width, height 
+	 */
+	Screen(int w, int h);
+
 	/**
 	 * Updates the screen by copying any affected areas to the system
 	 */

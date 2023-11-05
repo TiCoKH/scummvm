@@ -49,9 +49,20 @@ public:
 	VisualSurface(const Graphics::ManagedSurface &src, const Rect &bounds, GameBase *game = nullptr);
 
 	/**
+	 * Draws a border with start point and size on the surface
+	 */
+	void drawBorderS(const Point &pt, int xsize, int ysize, byte color);
+
+	/**
 	 * Draws a point on the surface
 	 */
 	void drawPoint(const Point &pt, byte color);
+
+	/**
+	 * Draws a fan on the surface
+	 */
+	void drawFan(const Point &pt, byte color);
+
 
 	/**
 	 * Set the position for writing text to

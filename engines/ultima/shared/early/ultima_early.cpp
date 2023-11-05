@@ -58,6 +58,7 @@ UltimaEarlyEngine::~UltimaEarlyEngine() {
 	delete _game;
 	delete _mouseCursor;
 	delete _screen;
+	delete _townsScreen;
 }
 
 bool UltimaEarlyEngine::initialize() {
@@ -74,7 +75,19 @@ bool UltimaEarlyEngine::initialize() {
 
 	setDebugger(new Debugger());
 	_events = new EventsManager(this);
-	_screen = new Gfx::Screen();
+	if (g_vm->getGamePlatform() == Common::kPlatformFMTowns)
+	{
+		_screen = new Gfx::Screen(640, 480);
+
+		_townsScreen = new Gfx::TownsScreen(_screen);
+		_townsScreen->setWritePage(0);
+		_townsScreen->setupLayer(640, 480, 1, 1, 16);
+		_townsScreen->setWritePage(1);
+		_townsScreen->setupLayer(640, 480, 1, 1, 16);
+	} else {
+		_screen = new Gfx::Screen();
+		_townsScreen = nullptr;
+	}
 
 	// Create the game, and signal to it that the game is starting
 	_game = createGame();

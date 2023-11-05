@@ -23,6 +23,8 @@
 #include "ultima/ultima1/core/party.h"
 #include "ultima/ultima1/core/resources.h"
 #include "ultima/ultima1/maps/map.h"
+#include "ultima/ultima1/u1gfx/fmt/view_towns_demo.h"
+#include "ultima/ultima1/u1gfx/fmt/view_towns_title.h"
 #include "ultima/ultima1/u1gfx/view_game.h"
 #include "ultima/ultima1/u1gfx/view_char_gen.h"
 #include "ultima/ultima1/u1gfx/view_title.h"
@@ -52,6 +54,15 @@ Ultima1Game::Ultima1Game() : Shared::Game(), _quests(this) {
 		setFont(new Shared::Gfx::Font((const byte *)&_fontResources->_fontU6[0][0]));
 		_gameView = new U6Gfx::GameView(this);
 		_titleView = nullptr;
+		_charGenView = nullptr;
+	}
+	else if (g_vm->getGamePlatform() == Common::kPlatformFMTowns) {
+		_videoMode = VIDEOMODE_FMT;
+		setFMTownsPalette();
+		setFMTownsWindows();
+		//_demoView = new U1Gfx::ViewDemo(this);
+		_titleView = nullptr;
+		_gameView = nullptr;
 		_charGenView = nullptr;
 	} else {
 		setEGAPalette();
@@ -86,7 +97,12 @@ void Ultima1Game::starting(bool isLoading) {
 
 	_res->load();
 	_party = new Party(this);
-	_gameView->setView(isLoading ? "Game" : "Title");
+	if (_videoMode == VIDEOMODE_FMT)
+	{
+		_gameView->setView(isLoading ? "Game" : "Demo");
+	} else {
+		_gameView->setView(isLoading ? "Game" : "Title");
+	}
 }
 
 bool Ultima1Game::canSaveGameStateCurrently() {

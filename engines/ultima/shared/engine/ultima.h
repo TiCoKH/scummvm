@@ -23,6 +23,10 @@
 #define ULTIMA_SHARED_ENGINE_ULTIMA_H
 
 #include "ultima/detection.h"
+#include "ultima/shared/gfx/screen.h"
+#include "ultima/shared/gfx/towns_screen.h"
+#include "ultima/shared/engine/debugger.h"
+#include "ultima/shared/engine/events.h"
 #include "common/archive.h"
 #include "common/random.h"
 #include "engines/engine.h"
@@ -77,6 +81,11 @@ public:
 	 * Returns the game type being played
 	 */
 	GameId getGameId() const;
+
+	/**
+	 * Returns the game platform
+	 */
+	Common::Platform getGamePlatform() const;
 
 	/**
 	 * Returns true if the game is running an enhanced version

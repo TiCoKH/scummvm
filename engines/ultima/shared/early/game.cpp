@@ -95,6 +95,28 @@ void Game::setEGAPalette(const byte *palette) {
 	}
 }
 
+void Game::setFMTownsPalette() {
+	static const byte FMTOWNS_16COLOR_DEFAULT[16][3] = {
+	{0x00,0x00,0x00}, {0x00,0x00,0xFF}, {0xFF,0x00,0x00}, {0x00,0x00,0x00}, {0x00,0xFF,0x00}, {0x00,0xFF,0xFF}, {0xFF,0xFF,0x00}, {0xFF,0xFF,0xFF},
+	{0x00,0x00,0x00}, {0x00,0x00,0x00}, {0x0A,0x78,0x78}, {0xFF,0xFF,0x50}, {0x14,0xC8,0x28}, {0x00,0x28,0xE8}, {0xFF,0x00,0x00}, {0xFF,0xFF,0xFF}
+	};
+	g_vm->_townsScreen->setWritePage(0);
+	g_vm->_townsScreen->setPalette(&FMTOWNS_16COLOR_DEFAULT[0][0]);
+	g_vm->_townsScreen->setWritePage(1);
+	g_vm->_townsScreen->setPalette(&FMTOWNS_16COLOR_DEFAULT[0][0]);
+	g_vm->_townsScreen->setWritePage(0);
+}
+
+void Game::setFMTownsWindows() {
+	static Ultima::Shared::TownsWindow sline(16,432,608,20,77,0,15,15,14);
+	_windows.setVal("StatusLine", sline);
+	static Ultima::Shared::TownsWindow mainw(24,64,216,326,26,19,15,11,14);
+	_windows.setVal("MainWindow", mainw);
+	static Ultima::Shared::TownsWindow titletxt(92,99,566,230,69,12,15,11,10);
+	_windows.setVal("TitleText", titletxt);
+
+}
+
 void Game::loadU6Palette() {
 	// Read in the palette
 	File f("u6pal");
