@@ -25,7 +25,6 @@
 #include "common/system.h"
 #include "common/list.h"
 #include "common/hashmap.h"
-#include "common/scummsys.h"
 
 #include "graphics/managed_surface.h"
 #include "ultima/shared/core/rect.h"
@@ -44,7 +43,6 @@ public:
 		kDirtyRectsMax = 20,
 		kFullRedraw = (kDirtyRectsMax + 1)
 	};
-
 public:
 	TownsScreen(Screen *scr);
 	~TownsScreen();
@@ -61,10 +59,9 @@ public:
 	void drawRectangleC(Rect rect, int color);
 	void drawRectangleS(Point ps, int w, int h);
 	void drawRectangleSC(Point ps, int w, int h, int color);
-	void setWritePage(int page); 
+	void setWritePage(int page);
 	void drawWindow(Common::String name);
-	void drawArc(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius);
-	void drawFan(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius);
+	void drawRoundedCorner(int16 xc, int16 yc, int16 radius, byte quarter);
 	void addDirtyRect(int x, int y, int w, int h);
 	void displayPage(int flags);
 	void scrollLayers(int flags, int offset, bool fast);
@@ -112,6 +109,9 @@ private:
 	Common::List<Common::Rect> _dirtyRects;
 	TownsScreenLayer *_writePage;
 	OSystem *_system;
+
+	void TownsScreen::drawCornerPoints(int xc, int yc, int x, int y, byte corner);
+	void TownsScreen::drawCirclePoints(int xc, int yc, int x, int y);
 };
 
 } // End of namespace Gfx
