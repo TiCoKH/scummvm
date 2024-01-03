@@ -61,7 +61,8 @@ public:
 	void drawRectangleSC(Point ps, int w, int h, int color);
 	void setWritePage(int page); 
 	void drawWindow(Common::String name);
-	void drawRoundedCorner(int16 xc, int16 yc, int16 radius, byte quarter);
+	void drawArc(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius);
+	void drawFan(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius);
 	void addDirtyRect(int x, int y, int w, int h);
 	void displayPage(int flags);
 	void scrollLayers(int flags, int offset, bool fast);
