@@ -144,7 +144,7 @@ void TownsScreen::drawCirclePoints(int xc, int yc, int x, int y) {
 	_writePage->layer.setPixel(xc-y, yc-x, _writePage->foreColor);
 }
 
-void TownsScreen::drawRoundedCorner(int16 xc, int16 yc, int16 radius, byte corner) {
+void TownsScreen::drawArc(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius) {
 	int x = 0, y = radius;
 	int d = 3 - 2 * radius;
 	drawCornerPoints(xc, yc, x, y, corner);
