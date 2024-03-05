@@ -70,6 +70,7 @@ static const PlainGameDescriptor directorGames[] = {
 	{ "bananasfun",			"Bananas in Pyjamas: It's Fun Time" },
 	{ "bananaspack",		"Bananas in Pyjamas: Fun Pack" },
 	{ "bananasparty",		"Bananas in Pyjamas: It's Party Time" },
+	{ "barbmagichouse",     "Barbie and her Magical House"},
 	{ "barbnail",			"Barbie Nail Designer" },
 	{ "barbpauper",			"Barbie as the Princess and the Pauper" },
 	{ "barbrapunzel",		"Barbie as Rapunzel: A Creative Adventure" },
@@ -110,6 +111,7 @@ static const PlainGameDescriptor directorGames[] = {
 	{ "chemicus",			"Chemicus: Journey to the Other Side" },
 	{ "chopsuey",			"Chop Suey" },
 	{ "circus",				"Circus!" },
+	{ "clamps",				"The Interactive Encyclopedia of Clamps" },
 	{ "connections",		"Connections" },
 	{ "cracking",			"Cracking the Conspiracy" },
 	{ "criticalpath",		"Critical Path" },
@@ -392,6 +394,7 @@ static const PlainGameDescriptor directorGames[] = {
 	{ "searchlearn",		"Search & Learn Adventures" },
 	{ "secretkeys",			"Search for the Secret Keys with Mickey" },
 	{ "secretpaths1",		"Secret Paths in the Forest" },
+	{ "selfish",			"Oscar Wilde's The Selfish Giant" },
 	{ "sfpd",               "SFPD Homicide Case File: The Body in the Bay" },
 	{ "shellwhirl",			"Shell Whirl" },
 	{ "shr1st2nd",			"Schoolhouse Rock!: 1st & 2nd Grade Essentials" },
@@ -1039,6 +1042,7 @@ static const PlainGameDescriptor directorGames[] = {
 	{ "kishido",			"棋士道" },											// Art of Shogi (Go)
 	{ "lzone",				"L-ZONE" },
 	{ "macaroni",			"マカロニほうれん荘 Interactive" },					// Romaji title in manual is Macaroni Hourensou
+	{ "magicgambo",			"Magic Gambo" },
 	{ "macrotv",			"MACRO-TV" },
 	{ "mamauta1",			"ママうたおう! 第一巻みんなともだち" }, // Mama Utaou: Daiikkan Minna Tomodachi
 	{ "maria",				"MA-RI-A 人形館の呪い" },
@@ -1314,6 +1318,7 @@ static const PlainGameDescriptor directorGames[] = {
 	{ "voyagerkids",		"ボイジャーのキッズ CD-ROM" },
 
 	// Norwegian titles
+	{ "cyberfalsk", 		"Cyberfalsk" },
 	{ "norgesjakten",		"Norgesjakten" },
 
 	// Polish titles
@@ -2085,6 +2090,9 @@ static const DirectorGameDescription gameDescriptions[] = {
 	// BackPacker (Windows, Swedish)
 	// Reported via TRAC #14819
 	WINGAME1_l("backpacker", "", "BACKPACK.EXE", "t:8e6fb18a41a9baff740aecd4ce68e100", 698999, Common::SE_SWE, 404),
+
+	WINGAME2("barbmagichouse", "", "BARBIE.EXE", "t:daa44668235cb5debf68e9e92cce4643", 909919,
+			                       "BDATA/OUTSIDE.DIR", "b914daee4a5531493247d537ee48a185", 3084168, 404),
 
 	// Original filename is 'BD-J/Demo'
 	// Developed by ART Sector ONE / Richard M. Coombs
@@ -3024,6 +3032,8 @@ static const DirectorGameDescription gameDescriptions[] = {
 	MACDEMO1("sculpt4d",   "Vol.5 Demo", "Sculpt Demo Vol.5", "f54ac20d51c496911f9144ee595ade60", 1456309, 300),
 	MACDEMO1("sculpt4d",   "Using Demo", "UsingSculpt1.0",    "2ce360c9ea2da80a2c6d1040b0ad92dd", 383380, 313),
 
+	WINGAME1("selfish", "", "selfish.exe", "t:260d50f7d51adba057a06bbcb6da3d43", 371037, 300),
+
 	MACGAME1("sfk", "", "More SFK Products!", "1ae45c23586b41997ba52e2e7c771c4c", 377667, 310),
 
 	MACGAME1_l("directorshokai", "", "Director Movie", "276bee761e48a6fd709df77d5c2f60dd", 395882, Common::JA_JPN, 313),
@@ -3766,6 +3776,8 @@ static const DirectorGameDescription gameDescriptions[] = {
 	// issued by Mitsui & Co. to promote its Curio City shopping services.
 	MACGAME1_l("curiocity", "Vol.1", "CURIO CITY", "8719de9c083aca942fc0e5c0a127b6dc", 502589, Common::JA_JPN, 404),
 	WINGAME1_l("curiocity", "Vol.1", "CURIO.EXE", "15a14209211895887d80e650984b9e32", 747389, Common::JA_JPN, 404),
+
+	WINGAME1_l("cyberfalsk", "", "FALSK.EXE", "t:5c9e7e9184f52f3d325bf5474d4ed34a", 692567, Common::NB_NOR, 404),
 
 	WINDEMO1t("d", "Demo", "DDEMO.EXE", "66359d2e80ba536e34cb4f70772a80e1", 697001, 404),
 
@@ -4683,6 +4695,12 @@ static const DirectorGameDescription gameDescriptions[] = {
 	WINDEMO1("madpup", "Demo 2", "MADPUP2.EXE", "a399589a31c26a01663c00a265ac3640", 696857, 404),
 
 	WINDEMO1("madtg", "1996 Demo", "MADTG.EXE", "f53afbe0ae5126fa04adce4952a84b7f", 5867859, 404),
+
+	// Original filename is マジックガンボ
+	MACGAME1t_l("magicgambo", "", "xn--mckf0a7b3hh5m", "53c5358b9c3e42489fd0336711f3fddb", 307247, Common::JA_JPN, 402),
+	// Decomposed variant of the above
+	MACGAME1t_l("magicgambo", "", "xn--2bkaa4eta0c3e9iua0t", "53c5358b9c3e42489fd0336711f3fddb", 307247, Common::JA_JPN, 402),
+	WINGAME1t_l("magicgambo", "", "GAMBO.EXE", "95de6388a87a1da68a0fff34481a1734", 697025, Common::JA_JPN, 404),
 
 	// Original filename is Make•A•Mug™ V1.0
 	MACGAME1("makeamug", "v1.0", "xn--MakeAMug V1.0-lt6gb312b", "4f8bb7ad0cbcec1815538ba15a899061", 304279, 400),
@@ -6061,6 +6079,9 @@ static const DirectorGameDescription gameDescriptions[] = {
 	MACGAME1_l("chuchutataki", "", "xn--w8j9aa6za4nb00ac",    "c148f66ae3511fb88733102aa27efe7e", 106172, Common::JA_JPN, 501),
 	WINGAME1t_l("chuchutataki", "", "TYUUTYUU.EXE",    "bfb442750a6a264825fac3cc12a69d71", 1411220, Common::JA_JPN, 501),
 
+	MACGAME1("clamps", "", "Clamp256", "tr:b69f9cb79da512852ed383a1cfef14b9", 718125, 500),
+	WINGAME1("clamps", "", "clamps.exe", "t:6c8184462730c86387dff6e8c50e236a", 1394481, 500),
+
 	// Series includes Schubert, Tchaikovsky, Mozart, Vivaldi and probably more
 	WINGAME1_l("clasplusbee2", "", "BEE2_95.EXE", "1a7acbba10a7246ba58c1d53fc7203f5", 1694421, Common::ES_ESP, 501),
 
@@ -6776,7 +6797,7 @@ static const DirectorGameDescription gameDescriptions[] = {
 	WINGAME1t_l("ronron", "", "xn--.EXE-9u4ca5bb", "a7f01320844d04408e1519e398a5e0d0", 1451774, Common::JA_JPN, 501),
 
 	// Requires installation, sc32inst.exe, Vise installer
-	WINGAME1("safecracker", "", "sc_eng.exe", "1a7acbba10a7246ba58c1d53fc7203f5", 1415977, 501),
+	WINGAME1("safecracker", "", "sc_eng.exe", "t:01871e94a5d9b0fad2b063b486cda3f1", 1415977, 501),
 
 	// Published by the University of Arizona and the Environmental Education Exchange
 	MACGAME1("saguaro", "", "Settings/SCInstall", "ec6fba1c2d0fd9dbe987f4336cb08e2b", 719005, 501),
@@ -8998,6 +9019,7 @@ static const DirectorGameDescription gameDescriptions[] = {
 
 	WINGAME1_l("barbswanlake", "", "SwanLake.exe", "310659620631c126edb6943af1f83e38", 4096651, Common::FR_FRA, 900),
 	WINDEMO1("barbswanlake", "Demo", "SwanLake.exe", "c612aa43e7ef55aa4fd2e1085fb1ef7a", 2385166, 900),
+
 
 	WINGAME1_l("bpapao", "", "bpapao.exe", "c612aa43e7ef55aa4fd2e1085fb1ef7a", 4829907, Common::PT_BRA, 900),
 

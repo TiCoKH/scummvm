@@ -151,6 +151,12 @@ void AgiEngine::interpretCycle() {
 		_veryFirstInitialCycle = false;
 		artificialDelay_CycleDone();
 		resetControllers();
+
+		// Reset mouse button state after new.room, because we don't poll input.
+		// Otherwise, AGIMOUSE games that call new.room in response to a click
+		// will enter an infinite loop due to the mouse button global (27) never
+		// resetting to zero. Bug #10737
+		_mouse.button = kAgiMouseButtonUp;
 	}
 	_veryFirstInitialCycle = false;
 	artificialDelay_CycleDone();
@@ -180,13 +186,6 @@ uint16 AgiEngine::processAGIEvents() {
 
 	wait(10);
 	uint16 key = doPollKeyboard();
-
-	// In AGI Mouse emulation mode we must update the mouse-related
-	// vars in every interpreter cycle.
-	//
-	// We run AGIMOUSE always as a side effect
-	setVar(VM_VAR_MOUSE_X, _mouse.pos.x / 2);
-	setVar(VM_VAR_MOUSE_Y, _mouse.pos.y);
 
 	if (!cycleInnerLoopIsActive()) {
 		// Click-to-walk mouse interface
@@ -488,10 +487,7 @@ int AgiEngine::runGame() {
 			setVar(VM_VAR_SOUNDGENERATOR, kAgiSoundPC);
 			break;
 		case Common::kPlatformAmiga:
-			if (getFeatures() & GF_OLDAMIGAV20)
-				setVar(VM_VAR_COMPUTER, kAgiComputerAmigaOld);
-			else
-				setVar(VM_VAR_COMPUTER, kAgiComputerAmiga);
+			setVar(VM_VAR_COMPUTER, kAgiComputerAmiga);
 			setVar(VM_VAR_SOUNDGENERATOR, kAgiSoundTandy);
 			break;
 		case Common::kPlatformApple2GS:

@@ -636,7 +636,9 @@ bool MacLoomGui::runOptionsDialog() {
 	int scrolling = _vm->_snapScroll == 0;
 	int fullAnimation = _vm->VAR(_vm->VAR_MACHINE_SPEED) == 1 ? 0 : 1;
 	int textSpeed = _vm->_defaultTextSpeed;
-	int musicQuality = _vm->VAR(_vm->VAR_SOUNDCARD) == 10 ? 0 : 2;
+	int musicQuality = ConfMan.hasKey("mac_snd_quality") ? ConfMan.getInt("mac_snd_quality") : 0;
+	int musicQualityOption = (musicQuality == 0) ? 1 : (musicQuality - 1) % 3;
+	musicQuality = (musicQuality == 0) ? (_vm->VAR(_vm->VAR_SOUNDCARD) == 10 ? 0 : 2) : (musicQuality - 1) / 3;
 
 	MacDialogWindow *window = createDialog(1000);
 
@@ -652,7 +654,7 @@ bool MacLoomGui::runOptionsDialog() {
 	window->setWidgetValue(11, textSpeed);
 
 	window->addPictureSlider(8, 9, true, 5, 69, 0, 2, 6, 4);
-	window->setWidgetValue(12, musicQuality);
+	window->setWidgetValue(12, musicQualityOption);
 
 	// Machine rating
 	window->addSubstitution(Common::String::format("%d", _vm->VAR(53)));
@@ -721,13 +723,13 @@ bool MacLoomGui::runOptionsDialog() {
 		// selection 0 activates the low quality channel in
 		// the sequence files and mutes everything else)
 		//
-		// This is currently incomplete. Let's just set the proper
-		// value for VAR_SOUNDCARD...
-		_vm->VAR(_vm->VAR_SOUNDCARD) = window->getWidgetValue(12) == 0 ? 10 : 11;
-		((Player_V3M *)_vm->_musicEngine)->overrideQuality(_vm->VAR(_vm->VAR_SOUNDCARD) == 10);
+
+		//((Player_V3M *)_vm->_musicEngine)->overrideQuality(_vm->VAR(_vm->VAR_SOUNDCARD) == 10);
+		musicQuality = musicQuality * 3 + 1 + window->getWidgetValue(12);
+		_vm->_musicEngine->setQuality(musicQuality);
+		ConfMan.setInt("mac_snd_quality", musicQuality);
 
 		debug(6, "MacLoomGui::runOptionsDialog(): music quality: %d - unimplemented!", window->getWidgetValue(12));
-
 
 		_vm->syncSoundSettings();
 		ConfMan.flushToDisk();
@@ -839,6 +841,9 @@ void MacLoomGui::update(int delta) {
 bool MacLoomGui::handleEvent(Common::Event event) {
 	if (MacGuiImpl::handleEvent(event))
 		return true;
+
+	if (_vm->isPaused())
+		return false;
 
 	if (!_practiceBox || _vm->_userPut <= 0)
 		return false;

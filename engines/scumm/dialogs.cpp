@@ -444,14 +444,17 @@ const char *InfoDialog::getPlainEngineString(int stringno, bool forceHardcodedSt
 		return nullptr;
 
 	if (_vm->_game.version == 8) {
+		assert(stringno - 1 < ARRAYSIZE(string_map_table_v8));
 		return string_map_table_v8[stringno - 1].string;
 	} else if (_vm->_game.version == 7) {
+		assert(stringno - 1 < ARRAYSIZE(string_map_table_v7));
 		result = (const char *)_vm->getStringAddressVar(string_map_table_v7[stringno - 1].num);
 
 		if (!result) {
 			result = string_map_table_v7[stringno - 1].string;
 		}
 	} else if (_vm->_game.version == 6) {
+		assert(stringno - 1 < ARRAYSIZE(string_map_table_v6));
 		result = (const char *)_vm->getStringAddressVar(string_map_table_v6[stringno - 1].num);
 
 		if (!result) {
@@ -784,11 +787,14 @@ const ResString &InfoDialog::getStaticResString(Common::Language lang, int strin
 	}
 
 	if (useHardcodedV3QuitPrompt) {
+		assert(langIndex < ARRAYSIZE(hardcodedV3QuitPrompt));
 		return hardcodedV3QuitPrompt[langIndex];
 	}
 
 	if (useFixedDottMenuStrings) {
 		stringno -= 21;
+		assert(langIndex < ARRAYSIZE(fixedDottMenuStrings));
+		assert(stringno < ARRAYSIZE(fixedDottMenuStrings[0]));
 		return fixedDottMenuStrings[langIndex][stringno];
 	}
 
@@ -812,6 +818,9 @@ const ResString &InfoDialog::getStaticResString(Common::Language lang, int strin
 			return altStr;
 		}
 	}
+
+	assert(langIndex < ARRAYSIZE(strMap1));
+	assert(stringno < ARRAYSIZE(strMap1[0]));
 	return strMap1[langIndex][stringno];
 }
 
@@ -1345,7 +1354,6 @@ void LoomEgaGameOptionsWidget::defineLayout(GUI::ThemeEval &layouts, const Commo
 }
 
 void LoomEgaGameOptionsWidget::handleCommand(GUI::CommandSender *sender, uint32 cmd, uint32 data) {
-
 	switch (cmd) {
 	case kOvertureTicksChanged:
 		updateOvertureTicksValue();
@@ -1360,6 +1368,86 @@ void LoomEgaGameOptionsWidget::updateOvertureTicksValue() {
 	int ticks = DEFAULT_LOOM_OVERTURE_TRANSITION + _overtureTicksSlider->getValue();
 
 	_overtureTicksValue->setLabel(Common::String::format("%d:%02d.%d", ticks / 600, (ticks % 600) / 10, ticks % 10));
+}
+
+// Mac Loom options
+LoomMacGameOptionsWidget::LoomMacGameOptionsWidget(GuiObject *boss, const Common::String &name, const Common::String &domain) :
+	ScummOptionsContainerWidget(boss, name, "LoomMacGameOptionsWidget", domain), _sndQualitySlider(nullptr), _sndQualityValue(nullptr), _enableOriginalGUICheckbox(nullptr), _quality(0) {
+	GUI::StaticTextWidget *text = new GUI::StaticTextWidget(widgetsBoss(), "LoomMacGameOptionsWidget.SndQualityLabel", _("Music Quality:"));
+	text->setAlign(Graphics::TextAlign::kTextAlignEnd);
+
+	_sndQualitySlider = new GUI::SliderWidget(widgetsBoss(), "LoomMacGameOptionsWidget.SndQuality", _("Select music quality. The original would determine the basic setup by hardware detection and speed tests, but it could also be changed in the game menu to some degree."), kQualitySliderUpdate);
+	_sndQualitySlider->setMinValue(0);
+	_sndQualitySlider->setMaxValue(9);
+	_sndQualityValue = new GUI::StaticTextWidget(widgetsBoss(), "LoomMacGameOptionsWidget.SndQualityValue", Common::U32String());
+	_sndQualityValue->setFlags(GUI::WIDGET_CLEARBG);
+	updateQualitySlider();
+
+	createEnhancementsWidget(widgetsBoss(), "LoomMacGameOptionsWidget");
+	_enableOriginalGUICheckbox = createOriginalGUICheckbox(widgetsBoss(), "LoomMacGameOptionsWidget.EnableOriginalGUI");
+}
+
+void LoomMacGameOptionsWidget::load() {
+	ScummOptionsContainerWidget::load();
+
+	_quality = 0;
+
+	if (ConfMan.hasKey("mac_snd_quality", _domain))
+		_quality = ConfMan.getInt("mac_snd_quality", _domain);
+
+	// Migrate old bool setting...
+	if (_quality == 0 && ConfMan.hasKey("mac_v3_low_quality_music", _domain)) {
+		if (ConfMan.getBool("mac_v3_low_quality_music"))
+			_quality = 1;
+	}
+	ConfMan.removeKey("mac_v3_low_quality_music", _domain);
+
+	_sndQualitySlider->setValue(_quality);
+	updateQualitySlider();
+	_enableOriginalGUICheckbox->setState(ConfMan.getBool("original_gui", _domain));
+}
+
+bool LoomMacGameOptionsWidget::save() {
+	bool res = ScummOptionsContainerWidget::save();
+	ConfMan.setInt("mac_snd_quality", _quality, _domain);
+	ConfMan.setBool("original_gui", _enableOriginalGUICheckbox->getState(), _domain);
+	return res;
+}
+
+void LoomMacGameOptionsWidget::defineLayout(GUI::ThemeEval &layouts, const Common::String &layoutName, const Common::String &overlayedLayout) const {
+	layouts.addDialog(layoutName, overlayedLayout)
+		.addLayout(GUI::ThemeLayout::kLayoutVertical, 5)
+		.addPadding(0, 0, 0, 0)
+		.addLayout(GUI::ThemeLayout::kLayoutVertical, 4)
+		.addPadding(0, 0, 10, 0)
+		.addWidget("EnableOriginalGUI", "Checkbox");
+	addEnhancementsLayout(layouts)
+		.closeLayout()
+		.addLayout(GUI::ThemeLayout::kLayoutHorizontal, 12)
+		.addPadding(0, 0, 10, 0)
+		.addWidget("SndQualityLabel", "OptionsLabel")
+		.addWidget("SndQuality", "Slider")
+		.addWidget("SndQualityValue", "ShortOptionsLabel")
+		.closeLayout()
+		.closeLayout()
+		.closeDialog();
+}
+
+void LoomMacGameOptionsWidget::handleCommand(GUI::CommandSender *sender, uint32 cmd, uint32 data) {
+	switch (cmd) {
+	case kQualitySliderUpdate:
+		updateQualitySlider();
+		break;
+	default:
+		GUI::OptionsContainerWidget::handleCommand(sender, cmd, data);
+		break;
+	}
+}
+
+void LoomMacGameOptionsWidget::updateQualitySlider() {
+	_quality = _sndQualitySlider->getValue();
+	Common::U32String label(_quality == 0 ? "auto" : Common::String::format("%4d", _quality));
+	_sndQualityValue->setLabel(label);
 }
 
 // VGA Loom Playback Adjustment settings

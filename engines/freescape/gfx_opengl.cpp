@@ -31,6 +31,8 @@
 #include "freescape/gfx_opengl.h"
 #include "freescape/gfx_opengl_texture.h"
 
+#ifdef USE_OPENGL_GAME
+
 namespace Freescape {
 
 Renderer *CreateGfxOpenGL(int screenW, int screenH, Common::RenderMode renderMode) {
@@ -326,15 +328,6 @@ void OpenGLRenderer::drawCelestialBody(Math::Vector3d position, float radius, by
 	glPopMatrix();
 }
 
-void OpenGLRenderer::drawEclipse(byte color1, byte color2) {
-	Math::Vector3d sunPosition(-5000, 2000, 500);
-	float radius = 500.0;
-	drawCelestialBody(sunPosition, radius, color1);
-
-	Math::Vector3d moonPosition(-5000, 2000, 1000);
-	drawCelestialBody(moonPosition, radius, color2);
-}
-
 void OpenGLRenderer::renderPlayerShootBall(byte color, const Common::Point position, int frame, const Common::Rect viewArea) {
 	uint8 r, g, b;
 
@@ -367,10 +360,9 @@ void OpenGLRenderer::renderPlayerShootBall(byte color, const Common::Point posit
 	copyToVertexArray(0, Math::Vector3d(ball_position.x, ball_position.y, 0));
 
 	for(int i = 0; i <= triangleAmount; i++) {
-		copyToVertexArray(i + 1,
-			Math::Vector3d(ball_position.x + (radius * cos(i *  twicePi / triangleAmount)),
-						ball_position.y + (radius * sin(i * twicePi / triangleAmount)), 0)
-		);
+		float x = ball_position.x + (radius * cos(i *  twicePi / triangleAmount));
+		float y = ball_position.y + (radius * sin(i * twicePi / triangleAmount));
+		copyToVertexArray(i + 1, Math::Vector3d(x, y, 0));
 	}
 
 	glVertexPointer(3, GL_FLOAT, 0, _verts);
@@ -498,3 +490,5 @@ Graphics::Surface *OpenGLRenderer::getScreenshot() {
 }
 
 } // End of namespace Freescape
+
+#endif
