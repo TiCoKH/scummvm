@@ -24,6 +24,7 @@
 #include "common/config-manager.h"
 #include "common/rect.h"
 #include "common/math.h"
+#include "math/angle.h"
 
 namespace Ultima {
 namespace Shared {
@@ -111,54 +112,53 @@ void TownsScreen::drawWindow(Common::String name) {
 
 }
 
-/* Sholud be better mathematical way to decide arc boundaries but now I just need quarters it's works */
-void TownsScreen::drawCornerPoints(int xc, int yc, int x, int y, byte corner) {
-	switch (corner) {
-		case 1: // down-right
-			_writePage->layer.setPixel(xc+x, yc+y, _writePage->foreColor);
-			_writePage->layer.setPixel(xc+y, yc+x, _writePage->foreColor);
-			break;
-		case 2: // down-left
-			_writePage->layer.setPixel(xc-x, yc+y, _writePage->foreColor);
-			_writePage->layer.setPixel(xc-y, yc+x, _writePage->foreColor);
-			break;
-		case 3: // up-left
-			_writePage->layer.setPixel(xc+x, yc-y, _writePage->foreColor);
-			_writePage->layer.setPixel(xc+y, yc-x, _writePage->foreColor);
-			break;
-		case 4: // up-right
-			_writePage->layer.setPixel(xc-x, yc-y, _writePage->foreColor);
-			_writePage->layer.setPixel(xc-y, yc-x, _writePage->foreColor);
-			break;
-	}
-}	
+void TownsScreen::drawArc(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius) {
+	Math::Angle startAngle, endAngle;
+	startAngle.arcTangent2(start_y, start_x);
+	endAngle.arcTangent2(end_y, end_x);
 
-void TownsScreen::drawCirclePoints(int xc, int yc, int x, int y) {
-	_writePage->layer.setPixel(xc+x, yc+y, _writePage->foreColor);
-	_writePage->layer.setPixel(xc+y, yc+x, _writePage->foreColor);
-	_writePage->layer.setPixel(xc-x, yc+y, _writePage->foreColor);
-	_writePage->layer.setPixel(xc-y, yc+x, _writePage->foreColor);	
-	_writePage->layer.setPixel(xc+x, yc-y, _writePage->foreColor);
-	_writePage->layer.setPixel(xc+y, yc-x, _writePage->foreColor);
-	_writePage->layer.setPixel(xc-x, yc-y, _writePage->foreColor);
-	_writePage->layer.setPixel(xc-y, yc-x, _writePage->foreColor);
+	if (endAngle < startAngle) {
+		endAngle += 2 * M_PI;
+	}
+	// Calculate the angle span
+	float angleSpan = endAngle.getRadians() - startAngle.getRadians();
+	// Choose a factor to control the number of points
+	// Adjust this factor to control the density of points
+	float factor = 0.06;
+
+	// Calculate the number of points based on the angle span and factor
+	int numPoints = static_cast<int>(angleSpan / factor);
+
+	for (int i = 0; i <= numPoints; ++i) {
+		Math::Angle t = startAngle + i * angleSpan / numPoints;
+		int x = static_cast<int>(center_x + radius * t.getCosine() + 0.5);
+		int y = static_cast<int>(center_y + radius * t.getSine() + 0.5);
+		_writePage->layer.setPixel(x, y, _writePage->foreColor);
+	}
 }
 
-void TownsScreen::drawArc(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius) {
-	int x = 0, y = radius;
-	int d = 3 - 2 * radius;
-	drawCornerPoints(xc, yc, x, y, corner);
-	while (y >= x)
-	{
-		x++;
-		if (d > 0)
-		{
-			y--;
-			d = d + 4 * (x - y) + 10;
-		}
-		else
-			d = d + 4 * x + 6;
-		drawCornerPoints(xc, yc, x, y, corner);
+void TownsScreen::drawFan(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius) {
+	Math::Angle startAngle, endAngle;
+	startAngle.arcTangent2(start_y, start_x);
+	endAngle.arcTangent2(end_y, end_x);
+
+	if (endAngle < startAngle) {
+		endAngle += 2 * M_PI;
+	}
+	// Calculate the angle span
+	float angleSpan = endAngle.getRadians() - startAngle.getRadians();
+	// Choose a factor to control the number of points
+	// Adjust this factor to control the density of points
+	float factor = 0.06;
+
+	// Calculate the number of points based on the angle span and factor
+	int numPoints = static_cast<int>(angleSpan / factor);
+
+	for (int i = 0; i <= numPoints; ++i) {
+		Math::Angle t = startAngle + i * angleSpan / numPoints;
+		int x = static_cast<int>(center_x + radius * t.getCosine() + 0.5);
+		int y = static_cast<int>(center_y + radius * t.getSine() + 0.5);
+		_writePage->layer.drawLine(x, y, center_x, center_y, _writePage->foreColor);
 	}
 }
 
