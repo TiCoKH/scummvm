@@ -68,6 +68,8 @@ const PlatformDescription g_platforms[] = {
 	{ "shockwave", "shockwave", "shock", "Shockwave", kPlatformShockwave },
 	{ "zx", "zx", "zx", "ZX Spectrum", kPlatformZX },
 	{ "ti994", "ti994", "ti994", "TI-99/4A", kPlatformTI994 },
+	{ "falcon", "falcon30", "Falcon", "Atari Falcon", kPlatformAtariFalcon },
+	{ "aga", "amiga1200", "a1200", "Amiga AGA", kPlatformAmigaAGA },
 
 	{ nullptr, nullptr, nullptr, "Default", kPlatformUnknown }
 };

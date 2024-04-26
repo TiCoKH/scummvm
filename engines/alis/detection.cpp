@@ -55,15 +55,6 @@ static const PlainGameDescriptor ALIS_GAMES[] = {
 
 } // End of namespace Alis
 
-const DebugChannelDef AlisMetaEngineDetection::debugFlagList[] = {
-	{Alis::kDebugPath, "Path", "Pathfinding debug level"},
-	{Alis::kDebugGraphics, "Graphics", "Graphics debug level"},
-	{Alis::kDebugVideo, "Video", "Video playback debug level"},
-	{Alis::kDebugActor, "Actor", "Actor debug level"},
-	{Alis::kDebugObject, "Object", "Object debug level"},
-	{Alis::kDebugCollision, "Collision", "Collision debug level"},
-	DEBUG_CHANNEL_END
-};
 
 AlisMetaEngineDetection::AlisMetaEngineDetection() : AdvancedMetaEngineDetection(Alis::GAME_DESCRIPTIONS,
 	        sizeof(Alis::AlisGameDescription), Alis::ALIS_GAMES) {

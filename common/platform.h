@@ -81,6 +81,8 @@ enum Platform : int8 {
 	kPlatformShockwave,
 	kPlatformZX,
 	kPlatformTI994,
+	kPlatformAtariFalcon,
+	kPlatformAmigaAGA,
 
 	kPlatformUnknown = -1
 };

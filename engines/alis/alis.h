@@ -22,38 +22,99 @@
 #ifndef ALIS_ALIS_H
 #define ALIS_ALIS_H
 
-#include "common/error.h"
-#include "common/keyboard.h"
-#include "common/file.h"
-#include "common/random.h"
-#include "common/rect.h"
-#include "common/scummsys.h"
-#include "common/system.h"
-#include "common/memstream.h"
-
 #include "engines/engine.h"
+#include "engines/advancedDetector.h"
 
-#include "graphics/surface.h"
 
-#include "platform.h"
-#include "script.h"
+#include "common/events.h"
+#include "common/platform.h"
+#include "common/queue.h"
+#include "common/rect.h"
+#include "common/str.h"
 
+#include "audio/mixer.h"
+
+#include "alis/detection.h"
+
+#include "video/video_decoder.h"
+#include "image/image_decoder.h"
+
+struct ADGameDescription;
+
+namespace Graphics {
+struct Surface;
+}
+
+namespace Alis {
+
+class Console;
+
+enum AlisDebugChannels {
+    kDebugGeneral = 1 << 0
+};
+
+typedef uint8             u8;
+typedef uint16            u16;
+typedef uint32            u32;
+typedef int8              s8;
+typedef int16             s16;
+typedef int32             s32;
+
+
+#ifndef max
+# define max(a,b)            (((a) > (b)) ? (a) : (b))
+#endif
+
+#ifndef min
+# define min(a,b)            (((a) < (b)) ? (a) : (b))
+#endif
+
+#define kNameMaxLen             (16)
 #define kHostRAMSize            (1024 * 1024 * 8)
 #define kVirtualRAMSize         (0xffff * sizeof(uint8))
 
 #define kMaxScripts             (256)
 #define kBSSChunkLen            (256)
 
-namespace Alis {
+#define SPRITEMEM_PTR image.spritemem + image.basesprite
 
-enum AlisDebugChannels {
-    kDebugPath = 1 << 0,
-    kDebugGraphics = 1 << 1,
-    kDebugVideo = 1 << 2,
-    kDebugActor = 1 << 3,
-    kDebugObject = 1 << 4,
-    kDebugCollision = 1 << 5
-};
+#define SPRITE_VAR(x) (x ? (sSprite *)(SPRITEMEM_PTR + x) : NULL)
+
+#define ELEMIDX(x) ((((x - 0x78) / 0x30) * 0x28) + 0x8078) // return comparable number to what we see in ST debugger
+
+#define ENTSCR(x) alis.live_scripts[x / sizeof(sScriptLoc)]
+
+#define ALIS_SCR_WCX    0
+#define ALIS_SCR_WCY    (alis.platform.version >= 30 ? 8 : 2)
+#define ALIS_SCR_WCZ    (alis.platform.version >= 30 ? 16 : 4)
+
+#define ALIS_SCR_WCAX    (alis.platform.version >= 30 ? 24 : -1)
+#define ALIS_SCR_WCAY    (alis.platform.version >= 30 ? 32 : -1)
+#define ALIS_SCR_WCAZ    (alis.platform.version >= 30 ? 40 : -1)
+
+#define ALIS_SCR_ADDR    (alis.platform.version >= 30 ? 0x32 : 0x8)
+
+#define ALIS_SCR_WCX2    (alis.platform.version >= 30 ? 0x34 : 0x9)
+#define ALIS_SCR_WCY2    (alis.platform.version >= 30 ? 0x38 : 0xa)
+#define ALIS_SCR_WCZ2    (alis.platform.version >= 30 ? 0x3c : 0xb)
+
+
+#define ALIS_ERR_FOPEN          (0x01)
+#define ALIS_ERR_FWRITE         (0x07)
+#define ALIS_ERR_FCREATE        (0x08)
+#define ALIS_ERR_FDELETE        (0x09)
+#define ALIS_ERR_CDEFSC         (0x0a)
+#define ALIS_ERR_VRAM_OVERFLOW  (0x0c)
+#define ALIS_ERR_FREAD          (0x0d)
+#define ALIS_ERR_FCLOSE         (0x0e)
+#define ALIS_ERR_FSEEK          (0x00)
+
+
+typedef struct {
+    uint8   errnum;
+    char    name[kNameMaxLen];
+    char    descfmt[kDescMaxLen];
+} sAlisError;
 
 typedef void    alisRet;
 typedef alisRet (*alisOpcode)(void);
@@ -71,7 +132,6 @@ typedef struct __attribute__((packed)) {
     uint32         vram_offset;
     uint16         offset;
 } sScriptLoc;
-
 
 // vm specs, loaded from packed main script header
 typedef struct {
@@ -101,215 +161,73 @@ typedef struct {
     uint32 val4;
 } sMainHeader;
 
-class AlisVM {
+class AlisGame : public Engine {
+public:
+    AlisGame(OSystem *syst, const Alis::AlisGameDescription *gameDesc);
+    ~AlisGame() override;
 
-    public:
-        // platform
-        sPlatform        platform;
+    
+    Common::Error run() override;
 
-        sMainHeader      header;
+protected:
+    virtual void readTables() = 0;
+    virtual void postSceneBitmaps() = 0;
+    virtual bool handlePlatformJoyButton(int button) { return false; }
+    virtual bool handlePlatformKeyDown(int button) { return false; }
+    virtual void loadImage(const Common::String &name);
+    virtual void startGraphics() = 0;
+    void blitImageSurface(const Graphics::Surface *surface);
+    virtual void blitImage();
+    virtual void handleEvent(const Common::Event &event);
+    virtual int getSceneNumb(const Common::String &sName);
+    virtual void preActions() {}
 
-        sAlisSpecs       specs;
+    static const int kMaxName = 13 + 1;
+    static const int kMaxBitmaps = 2000;
+    static const int kMaxScene = 100;
+    void initTables();
 
+    const Alis::AlisGameDescription *_gameDescription;
+    const Alis::sPlatform platform;
 
-        // Absolute address of vm's virtual ram.
-        // On atari the operating system gives us $22400.
-        #define ALIS_VM_RAM_ORG (0x22400)
-        uint8            *vram_org;
-
-        // On atari, it's a stack of absolute script data adresses,
-        //   each address being 4 bytes long.
-        // The maximum count of script data adresses is given by
-        //   the packed main script header (word at offset $6).
-        // This table is located at ALIS_VM_RAM_ORG.
-        uint32           *script_data_orgs;
-
-        // A stack of tuples made of:
-        //   absolute script vram adresses (uint32)
-        //   offset (uint16)
-        //
-        // Located at VRAM_ORG + (max_script_addrs * sizeof(uint32))
-        // On atari it's ($22400 + ($3c * 4)) ==> $224f0
-        // $224f0
-        sScriptLoc       *atent_ptr;
-        uint32           *atprog_ptr;
-
-    //    uint8              nmode;
-        uint8            automode;
-
-        uint8            fallent;
-        uint8            fseq;
-        uint8            fmuldes;
-        uint8            fadddes;
-        uint8            ferase;
-
-        uint32           atprog;     // 0x22400
-        uint32           debprog;    // 0x2edd8
-        uint32           finprog;
-        uint32           dernprog;
-        uint16           maxprog;
-        uint16           nbprog;
-
-        uint16           saversp;
-
-        uint16           fview;
-        uint32           valnorme;
-        int16            valchamp;
-        int16            *ptrent;
-        int16            tablent[128];
-        int16            matent[128];
-
-        int32            atent;      // 0x224f0
-        int32            debent;     // 0x2261c
-        int32            finent;
-        int32            maxent;
-        int16            nbent;
-        int16            dernent;
-
-        uint32           finmem;     // 0xf6e98
-
-        int32            basemem;    // 0x22400
-        int32            basevar;    // 0x0
-        int32            basemain;   // 0x22690
-
-        // mouse
-        uint8            mousflag;
-        uint8            fmouse;
-        uint8            fremouse;
-        uint8            fremouse2;
-        uint8            butmouse;
-        uint32           cbutmouse;
-        uint16           oldmouse;
-        uint8            *desmouse;
-
-        int16            prevkey;
-
-        int16            wcx;
-        int16            wcy;
-        int16            wcz;
-
-        int16            wforme;
-        int16            matmask;
-
-        int16            poldy;
-        int16            poldx;
-
-        // true if disasm only
-        uint8            disasm;
-
-        // true if vm is running
-        uint8            running;
-
-        // virtual 16-bit accumulator (A4)
-        int16            *acc;
-        int16            *acc_org;
-
-        // MEMORY
-        uint8            *mem; // host: system memory (hardware)
-
-        uint8            flagmain;
-
-        // in atari, located at $22400
-        // contains the addresses of the loaded scripts' data
-        // 60 dwords max (from $22400 -> $224f0)
-        // uint32             script_data_offsets[kMaxScripts];
-        // uint8              script_id_stack[kMaxScripts]; // TODO: use a real stack ?
-        // uint8              script_count;
-        uint8            script_index;
-
-        // SCRIPTS
-        // global table containing all depacked scripts
-        sAlisScriptLive  *live_scripts[kMaxScripts];
-        sAlisScriptData  *loaded_scripts[kMaxScripts];
-
-        // pointer to current script
-        sAlisScriptLive  *script;
-        sAlisScriptLive  *main;
-
-        // virtual registers
-        int16            varD6;
-        int16            varD7;
-
-        // running script id
-        uint16           varD5;
-
-        // string buffers
-        char             *bsd7;
-        char             *bsd6;
-        char             *bsd7bis;
-
-        char             *sd7;
-        char             *sd6;
-        char             *oldsd7;
-
-        uint32           vstandard;
-
-        char             autoname[256];
-
-        uint32           tabptr;
-
-        // data buffers
-        uint8            buffer[1024];
-        sRawBlock        blocks[1024];
-
-        uint8            charmode;
-
-        // font
-        uint16           foasc;
-        uint16           fonum;
-        uint8            folarg;
-        uint8            fohaut;
-        uint16           fomax;
-
-        uint8            witmov;
-        uint8            fmitmov;
-        uint16           goodmat;
-        uint32           baseform;
-
-        int8             typepack;
-        uint8            wordpack;
-        uint32           longpack;
-
-        // helper: executed instructions count
-        uint32           icount;
-        uint8            restart_loop;
-
-        // virtual status register
-        struct {
-            uint8 zero: 1;
-            uint8 neg: 1;
-        } sr;
-
-        // helpers
-        uint8             oeval_loop;
-
-        // system helpers
-        Common::File     *fp;
-        uint16           openmode;
-
-        uint16           vquality;
-
-        // misc
-        uint8            fswitch;
-        uint8            ctiming;
-        uint8            cstopret;
-        uint16           random_number;
-
-        int8             vprotect;
-
-        uint32           timeclock;
-
-//        struct timeval   time;
-
-        uint8            swap_endianness;
-
-        int32            load_delay;
-        int32            unload_delay;
-
-        AlisVM();
+    Graphics::PixelFormat _targetFormat;
+    Graphics::Surface *_compositeSurface;
+    Console *_console;
 
 };
 
-}// End of namespace Alis
+/*
+class AlisVM : public AlisGame {
+public:
+    AlisVM(OSystem *syst, const ADGameDescription *gameDesc);
 
-#endif //ALIS_ALIS_H
+protected:
+    void readTables() override;
+    void postSceneBitmaps() override;
+    void startGraphics() override;
+    void handleEvent(const Common::Event &event) override;
+    void blitImage() override;
+    int getSceneNumb(const Common::String &sName) override;
+    void preActions() override;
+
+private:
+    void skipVideo();
+    void loadMikeDecision(const Common::String &dirname, const Common::String &baseFilename, uint num);
+    void joyUp();
+    void joyDown();
+    void joyA();
+    void updateHiLite();
+
+    bool _cheatEnabled;
+    int _cheatFSM;
+    bool _leftShoulderPressed;
+    int _kbdHiLite;
+    int _mouseHiLite;
+    int _hiLite;
+    Image::ImageDecoder *_ctrlHelpImage;
+};
+*/
+
+} // End of namespace Alis
+
+#endif
