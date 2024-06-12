@@ -28,31 +28,31 @@
 
 #define kPathMaxLen         (256)
 #define kDescMaxLen         (1024)
-#define kMainScriptName         ("MAIN")
+#define kMainScriptName     ("MAIN")
 
 namespace Alis {
 
-    enum GameId {
-	GAME_MANHATTAN,
-	GAME_MADSHOW,
-	GAME_MAYA,
-	GAME_TARGHAN,
-	GAME_WINDSURF,
-	GAME_COLORADO,
-	GAME_ARBOREA,
-	GAME_STARBLADE,
-	GAME_BOSTON,
-	GAME_METAL,
-	GAME_STORM,
-	GAME_BUNNY,
-	GAME_ISHAR1,
-	GAME_ISHAR2,
-	GAME_ISHAR3,
-	GAME_TRANSARCTICA,
-	GAME_ROBINSONS,
-	GAME_DEUS,
-    GAME_UNKNOWN = -1
-};
+    typedef enum  {
+        GAME_MANHATTAN,
+        GAME_MADSHOW,
+        GAME_MAYA,
+        GAME_TARGHAN,
+        GAME_WINDSURF,
+        GAME_COLORADO,
+        GAME_ARBOREA,
+        GAME_STARBLADE,
+        GAME_BOSTON,
+        GAME_METAL,
+        GAME_STORM,
+        GAME_BUNNY,
+        GAME_ISHAR1,
+        GAME_ISHAR2,
+        GAME_ISHAR3,
+        GAME_TRANSARCTICA,
+        GAME_ROBINSONS,
+        GAME_DEUS,
+        GAME_UNKNOWN = -1,
+    } GameId;
 
     typedef enum {
         EPxFormatChunky             = 0,
@@ -81,7 +81,7 @@ namespace Alis {
         sPlatform(Common::Platform gplatform);
         sPlatform(Common::Platform gplatform, Alis::GameId game);
         ~sPlatform();
-private:
+    private:
         void initMainFileName();
 
     };

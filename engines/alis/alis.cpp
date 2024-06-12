@@ -19,9 +19,6 @@
  *
  */
 
-#include "alis/alis.h"
-#include "alis/platform.h"
-
 /*
 #include "audio/decoders/aiff.h"
 #include "audio/decoders/wave.h"
@@ -44,63 +41,22 @@
 #include "graphics/scaler/downscaler.h"
 #include "graphics/surface.h"
 
+#include "alis/alis.h"
+
 namespace Alis {
 
-AlisGame::AlisGame(OSystem *syst, const AlisGameDescription *gameDesc) :
-    Engine(syst), _gameDescription(gameDesc), _console(nullptr), _compositeSurface(nullptr) {
+AlisEngine::AlisEngine(OSystem *syst, const AlisGameDescription *gameDesc) :
+    Engine(syst), _platform(gameDesc->desc.platform, gameDesc->gameId) {
 
-    const Alis::sPlatform platform(_gameDescription->desc.platform, _gameDescription->gameId);
-    
-
-
+    _screen.init(_platform.width, _platform.height);
 
 }
 
-AlisGame::~AlisGame() {
+AlisEngine::~AlisEngine() {
     //_console is deleted by Engine
 }
 
-static const byte MOUSECURSOR_SCI[] = {
-    1,1,0,0,0,0,0,0,0,0,0,
-    1,2,1,0,0,0,0,0,0,0,0,
-    1,2,2,1,0,0,0,0,0,0,0,
-    1,2,2,2,1,0,0,0,0,0,0,
-    1,2,2,2,2,1,0,0,0,0,0,
-    1,2,2,2,2,2,1,0,0,0,0,
-    1,2,2,2,2,2,2,1,0,0,0,
-    1,2,2,2,2,2,2,2,1,0,0,
-    1,2,2,2,2,2,2,2,2,1,0,
-    1,2,2,2,2,2,2,2,2,2,1,
-    1,2,2,2,2,2,1,0,0,0,0,
-    1,2,1,0,1,2,2,1,0,0,0,
-    1,1,0,0,1,2,2,1,0,0,0,
-    0,0,0,0,0,1,2,2,1,0,0,
-    0,0,0,0,0,1,2,2,1,0,0,
-    0,0,0,0,0,0,1,2,2,1,0
-};
-
-static const byte MOUSECURSOR_AMIGA[] = {
-    1,1,0,0,0,0,0,0,
-    1,2,1,0,0,0,0,0,
-    1,2,2,1,0,0,0,0,
-    1,2,2,2,1,0,0,0,
-    1,2,2,2,2,1,0,0,
-    1,2,2,2,2,2,1,0,
-    1,1,1,2,2,1,1,0,
-    0,0,0,1,2,1,0,0,
-    0,0,0,1,2,2,1,0,
-    0,0,0,0,1,2,1,0,
-    0,0,0,0,1,2,2,1,
-    0,0,0,0,0,1,1,0,
-};
-
-static const byte cursorPalette[] = {
-    0, 0, 0,           // Black / Transparent
-    0x80, 0x80, 0x80,  // Gray
-    0xff, 0xff, 0xff   // White
-};
-
-void AlisGame::handleEvent(const Common::Event &event) {
+void AlisEngine::handleEvent(const Common::Event &event) {
     switch (event.type) {
     case Common::EVENT_QUIT:
     case Common::EVENT_RETURN_TO_LAUNCHER:
@@ -127,7 +83,7 @@ void AlisGame::handleEvent(const Common::Event &event) {
     }
 }
 
-Common::Error AlisGame::run() {
+Common::Error AlisEngine::run() {
     startGraphics();
 
     _console = new Console();
@@ -204,7 +160,7 @@ Common::Error AlisGame::run() {
     return Common::kNoError;
 }
 
-void AlisGame::loadImage(const Common::String &name) {
+void AlisEngine::loadImage(const Common::String &name) {
     debugC(1, kDebugGeneral, "%s : %s", __FUNCTION__, name.c_str());
     Common::File file;
     if (!file.open(Common::Path(name)))
@@ -225,11 +181,11 @@ void AlisGame::blitImageSurface(const Graphics::Surface *surface) {
     g_system->copyRectToScreen(surface->getPixels(), surface->pitch, x, y, w, h);
 }
 
-void AlisGame::blitImage() {
+void AlisEngine::blitImage() {
     blitImageSurface(_compositeSurface ? _compositeSurface : _image->getSurface());
 }
 
-void AlisGame::drawScreen() {
+void AlisEngine::drawScreen() {
     debugC(_videoDecoder ? 10 : 1, kDebugGeneral, "%s : %s", __FUNCTION__, _image ? "YES" : "NO");
     if (_videoDecoder ? _videoDecoder->needsUpdate() : _image || _compositeSurface) {
         if (_setDurationFl) {
@@ -267,7 +223,7 @@ void AlisGame::drawScreen() {
     }
 }
 
-void AlisGame::playSound(const Common::String &name) {
+void AlisEngine::playSound(const Common::String &name) {
     debugC(3, kDebugGeneral, "%s : %s", __FUNCTION__, name.c_str());
     Common::File *file = new Common::File();
     if (!file->open(Common::Path(name)))
@@ -282,13 +238,13 @@ void AlisGame::playSound(const Common::String &name) {
     _mixer->playStream(Audio::Mixer::kSFXSoundType, &_soundHandle, stream, -1, Audio::Mixer::kMaxChannelVolume);
 }
 
-void AlisGame::stopSound() {
+void AlisEngine::stopSound() {
     debugC(3, kDebugGeneral, "%s", __FUNCTION__);
     if (_mixer->isSoundHandleActive(_soundHandle))
         _mixer->stopHandle(_soundHandle);
 }
 
-void AlisGame::showScene() {
+void AlisEngine::showScene() {
     debugC(1, kDebugGeneral, "%s : %d", __FUNCTION__, _curSceneIdx);
     _curBitmapIdx = _scenes[_curSceneIdx]._startBitmap - 1;
     updateScene();
@@ -297,7 +253,7 @@ void AlisGame::showScene() {
     _actions.push(Redraw);
 }
 
-int AlisGame::getMouseHiLite() {
+int AlisEngine::getMouseHiLite() {
     Common::Point mousePos = g_system->getEventManager()->getMousePos();
     for (int i = 0; i < _scenes[_curSceneIdx]._decisionChoices && i < kMaxChoice; i++) {
         if (_scenes[_curSceneIdx]._choices[i]._region.contains(mousePos))
@@ -307,7 +263,7 @@ int AlisGame::getMouseHiLite() {
     return -1;
 }
 
-void AlisGame::updateScene() {
+void AlisEngine::updateScene() {
     debugC(2, kDebugGeneral, "%s : %d", __FUNCTION__, _curBitmapIdx);
     _curBitmapIdx++;
     if (_curBitmapIdx >= _scenes[_curSceneIdx]._startBitmap + _scenes[_curSceneIdx]._bitmapNum) {
@@ -318,7 +274,7 @@ void AlisGame::updateScene() {
     }
 }
 
-void AlisGame::changeScene() {
+void AlisEngine::changeScene() {
     debugC(1, kDebugGeneral, "%s : %d", __FUNCTION__, _curChoice);
     if (_scenes[_curSceneIdx]._choices[_curChoice]._sceneName == "SC-1") {
         _curSceneIdx = _prvSceneIdx;
@@ -350,19 +306,19 @@ void AlisGame::changeScene() {
     }
 }
 
-void AlisGame::processTimer() {
+void AlisEngine::processTimer() {
     debugC(7, kDebugGeneral, "%s", __FUNCTION__);
     _timerInstalled = false;
     if (!_endGameFl)
         _actions.push(Redraw);
 }
 
-void AlisGame::onTimer(void *arg) {
+void AlisEngine::onTimer(void *arg) {
     g_system->getTimerManager()->removeTimerProc(onTimer);
     ((AlisGame*)arg)->processTimer();
 }
 
-void AlisGame::initTables() {
+void AlisEngine::initTables() {
     for (uint i = 0; i < ARRAYSIZE(_scenes); i++) {
         _scenes[i]._bitmapNum = 0;
         _scenes[i]._startBitmap = 0;
@@ -384,7 +340,7 @@ void AlisGame::initTables() {
     }
 }
 
-int AlisGame::getSceneNumb(const Common::String &sName) {
+int AlisEngine::getSceneNumb(const Common::String &sName) {
     debugC(1, kDebugGeneral, "%s : %s", __FUNCTION__, sName.c_str());
     for (int sCurScene = 0; sCurScene < _totScene; sCurScene++) {
         if (sName == _scenes[sCurScene]._sceneName)

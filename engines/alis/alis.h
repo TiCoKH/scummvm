@@ -35,16 +35,14 @@
 #include "audio/mixer.h"
 
 #include "alis/detection.h"
+#include "alis/platform.h"
+#include "alis/alis_screen.h"
+#include "alis/alisvm.h"
 
 #include "video/video_decoder.h"
 #include "image/image_decoder.h"
 
 struct ADGameDescription;
-
-namespace Graphics {
-struct Surface;
-}
-
 namespace Alis {
 
 class Console;
@@ -161,15 +159,22 @@ typedef struct {
     uint32 val4;
 } sMainHeader;
 
-class AlisGame : public Engine {
+class AlisEngine : public Engine {
 public:
-    AlisGame(OSystem *syst, const Alis::AlisGameDescription *gameDesc);
-    ~AlisGame() override;
+    AlisEngine(OSystem *syst, const Alis::AlisGameDescription *gameDesc);
+    ~AlisEngine() override;
 
-    
     Common::Error run() override;
 
 protected:
+    const Alis::sPlatform _platform;
+    Alis::AlisVM _vm;
+    Alis::AlisScreen _screen;
+
+
+    Graphics::PixelFormat _targetFormat;
+    Graphics::Surface *_compositeSurface;
+
     virtual void readTables() = 0;
     virtual void postSceneBitmaps() = 0;
     virtual bool handlePlatformJoyButton(int button) { return false; }
@@ -187,46 +192,7 @@ protected:
     static const int kMaxScene = 100;
     void initTables();
 
-    const Alis::AlisGameDescription *_gameDescription;
-    const Alis::sPlatform platform;
-
-    Graphics::PixelFormat _targetFormat;
-    Graphics::Surface *_compositeSurface;
-    Console *_console;
-
 };
-
-/*
-class AlisVM : public AlisGame {
-public:
-    AlisVM(OSystem *syst, const ADGameDescription *gameDesc);
-
-protected:
-    void readTables() override;
-    void postSceneBitmaps() override;
-    void startGraphics() override;
-    void handleEvent(const Common::Event &event) override;
-    void blitImage() override;
-    int getSceneNumb(const Common::String &sName) override;
-    void preActions() override;
-
-private:
-    void skipVideo();
-    void loadMikeDecision(const Common::String &dirname, const Common::String &baseFilename, uint num);
-    void joyUp();
-    void joyDown();
-    void joyA();
-    void updateHiLite();
-
-    bool _cheatEnabled;
-    int _cheatFSM;
-    bool _leftShoulderPressed;
-    int _kbdHiLite;
-    int _mouseHiLite;
-    int _hiLite;
-    Image::ImageDecoder *_ctrlHelpImage;
-};
-*/
 
 } // End of namespace Alis
 

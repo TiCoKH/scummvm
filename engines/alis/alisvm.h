@@ -42,35 +42,17 @@
 #include "platform.h"
 #include "script.h"
 
+#include "common/memstream.h"
+#include "common/array.h"
+
+namespace Alis {
+
 #define kHostRAMSize            (1024 * 1024 * 8)
 #define kVirtualRAMSize         (0xffff * sizeof(uint8))
 
 #define kMaxScripts             (256)
 #define kBSSChunkLen            (256)
 
-namespace Alis {
-
-class AlisVM : public AlisGame {
-
-    public:
-    AlisVM(OSystem *syst, const Alis::AlisGameDescription *gameDesc);
-    ~AlisVM();
-
-protected:
-    void readTables() override;
-    void postSceneBitmaps() override;
-    void loadImage(const Common::String &name) override;
-    void startGraphics() override;
-
-private:
-    bool _halfSize;
-
-    // platform
-    sPlatform        platform;
-
-    sMainHeader      header;
-
-    sAlisSpecs       specs;
 
 
     // Absolute address of vm's virtual ram.
@@ -266,9 +248,27 @@ private:
 
     int32            load_delay;
     int32            unload_delay;
+class AlisVM {
 
+
+
+public:
+    AlisVM();
+    ~AlisVM();
+
+    void reset();
+    void loadProgram(const byte *data, uint32 size);
+    void execute();
+
+private:
+    Common::MemoryReadStream _memoryStream;
+    Common::Array<uint32> _registers;
+
+    void fetch();
+    void decode();
+    void executeInstruction();
 };
 
-}// End of namespace Alis
+};
 
 #endif //ALIS_ALISVM_H
