@@ -8,10 +8,11 @@
 
 namespace GoldBox {
 
+    typedef std::pair<ContentType, int> CacheKey;
+
     class DaxCache {
     private:
-        //static Common::HashMap<Common::String, DaxFileCache *> fileCache;
-        static Common::HashMap<ContentType, Common::Array<DaxBlock*>> contentCache;
+        static Common::HashMap<CacheKey, DaxBlock*> contentCache;
 
         ContentType determineContentType(const Common::String &filename);
         void loadFile(const Common::String &filename);
