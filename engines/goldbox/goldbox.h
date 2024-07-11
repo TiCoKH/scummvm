@@ -36,6 +36,7 @@
 
 #include "goldbox/detection.h"
 #include "goldbox/events.h"
+#include "goldbox/data/daxcache.h"
 
 namespace Goldbox {
 
@@ -66,6 +67,11 @@ public:
 	 * Returns the game Id
 	 */
 	Common::String getGameId() const;
+
+    /**
+     * Returns the platform
+     */
+    Common::Platform getPlatform() const;
 
 	/**
 	 * Gets a random number
