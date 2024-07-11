@@ -3,17 +3,29 @@
 
 #include "common/hashmap.h"
 #include "common/str.h"
-#include "daxfilecache.h"
+#include "daxblock.h"
+#include <memory>
 
 namespace GoldBox {
 
     class DaxCache {
     private:
-        static Common::HashMap<Common::String, DaxFileCache *> fileCache;
+        //static Common::HashMap<Common::String, DaxFileCache *> fileCache;
+        static Common::HashMap<ContentType, Common::Array<DaxBlock*>> contentCache;
+
+        ContentType determineContentType(const Common::String &filename);
+        void loadFile(const Common::String &filename);
+        void decodeRLE(int dataLength, uint8 *output_ptr, const uint8 *input_ptr);
+        bool blockExists(ContentType type, int block_id);
 
     public:
-        static Common::Array<uint8> loadDax(const Common::String &baseFilename, int block_id);
+        DaxCache();
+        ~DaxCache();
+        Common::Array<uint8> getData(ContentType type, int block_id);
+        static void clearCache();
     };
+
+    extern DaxCache g_daxCache;
 
 } // namespace GoldBox
 

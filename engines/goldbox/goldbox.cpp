@@ -51,15 +51,28 @@ Common::String GoldboxEngine::getGameId() const {
 }
 
 Common::Error GoldboxEngine::run() {
-	// Initialize 320x200 paletted graphics mode
-	initGraphics(320, 200);
 
-	// Set the engine's debugger console
-	setDebugger(new Console());
+    switch (getPlatform()) {
+        case Common::kPlatformDOS:
+        case Common::kPlatformAmiga:
+            initGraphics(320, 200);
+            break;
+        case Common::kPlatformPC98:
+            initGraphics(640, 480);
+            break;
+        default:
+            initGraphics(320, 200);
+            break;
+    }
 
-	runGame();
+    GoldBox::g_daxCache.loadDax("exampleFile", 0);
 
-	return Common::kNoError;
+    // Set the engine's debugger console
+    setDebugger(new Console());
+
+    runGame();
+
+    return Common::kNoError;
 }
 
 Common::Error GoldboxEngine::syncGame(Common::Serializer &s) {
