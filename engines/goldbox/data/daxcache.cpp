@@ -1,9 +1,9 @@
 #include "common/hash-str.h"
 #include "common/util.h"
 #include "common/str.h"
+#include "common/file.h"
 #include "daxcache.h"
 #include "daxheadercontainer.h"
-
 namespace GoldBox {
 
     DaxCache g_daxCache;
@@ -39,7 +39,7 @@ namespace GoldBox {
 
     void DaxCache::loadFile(const Common::String &filename) {
         Common::File file;
-        if (!file.open(filename + ".dax")) {
+        if (!file.open(filename)) {
             return;
         }
 
@@ -71,6 +71,7 @@ namespace GoldBox {
                 daxBlock->data = decode_data;
             }
             daxBlock->blockId = dhe.id;
+            contentCache[CacheKey(contentType, dhe.id)] = daxBlock;
         }
         file.close();
     }
@@ -96,33 +97,20 @@ namespace GoldBox {
     }
 
     bool DaxCache::blockExists(ContentType type, int block_id) {
-        if (contentCache.contains(type)) {
-            for (auto &block : contentCache[type]) {
-                if (block->blockId == block_id) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return contentCache.contains(CacheKey(type, block_id));
     }
 
     Common::Array<uint8> DaxCache::getData(ContentType type, int block_id) {
-        if (contentCache.contains(type)) {
-            for (auto &block : contentCache[type]) {
-                if (block->blockId == block_id) {
-                    return block->data;
-                }
-            }
+        CacheKey key = CacheKey(type, block_id);
+        if (contentCache.contains(key)) {
+            return contentCache[key]->data;
         }
         return Common::Array<uint8>();
     }
 
     void DaxCache::clearCache() {
         for (auto &entry : contentCache) {
-            for (auto &block : entry._value) {
-                delete block;
-            }
-            entry._value.clear();
+            delete entry._value;
         }
         contentCache.clear();
     }
