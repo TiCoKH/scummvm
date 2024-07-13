@@ -1,6 +1,6 @@
-#include "daxheadercontainer.h"
+#include "goldbox/data/daxheadercontainer.h"
 
-namespace GoldBox {
+namespace Goldbox {
 
     void DaxHeaderContainer::parseHeaders(Common::ReadStream &stream) {
         uint16 headersBlockSize = stream.readUint16LE();

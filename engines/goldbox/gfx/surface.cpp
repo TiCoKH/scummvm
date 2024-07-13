@@ -25,7 +25,7 @@
 #include "goldbox/gfx/surface.h"
 #include "goldbox/engine.h"
 
-namespace GoldBox {
+namespace Goldbox {
 namespace Gfx {
 
 #define FONT_COLOR 15
@@ -102,4 +102,4 @@ void Surface::setTextPos(int x, int y) {
 }
 
 } // namespace Gfx
-} // namespace GoldBox
+} // namespace Goldbox

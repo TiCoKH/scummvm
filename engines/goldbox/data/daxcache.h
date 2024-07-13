@@ -1,12 +1,12 @@
-#ifndef GOLD_BOX_DAXCACHE_H
-#define GOLD_BOX_DAXCACHE_H
+#ifndef GOLDBOX_DAXCACHE_H
+#define GOLDBOX_DAXCACHE_H
 
 #include "common/hashmap.h"
 #include "common/str.h"
-#include "daxblock.h"
+#include "goldbox/data/daxblock.h"
 #include <memory>
 
-namespace GoldBox {
+namespace Goldbox {
 
     typedef std::pair<ContentType, int> CacheKey;
 
@@ -30,4 +30,4 @@ namespace GoldBox {
 
 } // namespace GoldBox
 
-#endif // GOLD_BOX_DAXCACHE_H
+#endif // GOLDBOX_DAXCACHE_H
