@@ -15,13 +15,13 @@ namespace GoldBox {
         static Common::HashMap<CacheKey, DaxBlock*> contentCache;
 
         ContentType determineContentType(const Common::String &filename);
-        void loadFile(const Common::String &filename);
         void decodeRLE(int dataLength, uint8 *output_ptr, const uint8 *input_ptr);
         bool blockExists(ContentType type, int block_id);
 
     public:
         DaxCache();
         ~DaxCache();
+        void loadFile(const Common::String &filename);
         Common::Array<uint8> getData(ContentType type, int block_id);
         static void clearCache();
     };
