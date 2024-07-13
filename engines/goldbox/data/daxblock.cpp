@@ -1,10 +1,9 @@
 // DaxBlock.cpp
 #include "common/util.h"
-#include "daxblock.h"
-#include "randommanager.h"
 #include "common/memstream.h"
+#include "goldbox/data/daxblock.h"
 
-namespace GoldBox {
+namespace Goldbox {
 
     DaxBlock* DaxBlock::createDaxBlock(ContentType contentType) {
         if (contentType == ContentType::_8X8D) {
@@ -48,4 +47,4 @@ void PictureBlock::getPictureProperties() {
         // Implementation specific to _8X8D
     }
 
-} // namespace GoldBox
+} // namespace Goldbox

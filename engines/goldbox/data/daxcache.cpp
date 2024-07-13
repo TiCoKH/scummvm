@@ -2,9 +2,10 @@
 #include "common/util.h"
 #include "common/str.h"
 #include "common/file.h"
-#include "daxcache.h"
-#include "daxheadercontainer.h"
-namespace GoldBox {
+#include "goldbox/data/daxcache.h"
+#include "goldbox/data/daxheadercontainer.h"
+
+namespace Goldbox {
 
     DaxCache g_daxCache;
 
@@ -43,7 +44,7 @@ namespace GoldBox {
             return;
         }
 
-        GoldBox::DaxHeaderContainer dhc;
+        Goldbox::DaxHeaderContainer dhc;
         dhc.parseHeaders(file);
         uint16 data_off = dhc.getFileDataOffset();
         ContentType contentType = determineContentType(filename);
@@ -115,4 +116,4 @@ namespace GoldBox {
         contentCache.clear();
     }
 
-} // namespace GoldBox
+} // namespace Goldbox

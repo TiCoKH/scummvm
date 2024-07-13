@@ -22,7 +22,7 @@
 #include "goldbox/data/daxblock.h"
 #include "goldbox/gfx/dax_font.h"
 
-namespace GoldBox {
+namespace Goldbox {
 namespace Gfx {
 
 #define FIRST_CHAR 32
@@ -54,4 +54,4 @@ void DaxFont::drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 
 }
 
 } // namespace Gfx
-} // namespace Wasteland
+} // namespace Goldbox

@@ -26,7 +26,7 @@
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
 
-namespace GoldBox {
+namespace Goldbox {
 namespace Gfx {
 
 #define TEXT_W 40
@@ -98,6 +98,6 @@ public:
 using Gfx::Window;
 using Gfx::Surface;
 
-} // namespace GoldBox
+} // namespace Goldbox
 
 #endif
