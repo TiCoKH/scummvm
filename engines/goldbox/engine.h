@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_H
-#define GOLDBOX_H
+#ifndef GOLDBOX_ENGINE_H
+#define GOLDBOX_ENGINE_H
 
 #include "common/scummsys.h"
 #include "common/system.h"
@@ -30,6 +30,7 @@
 #include "common/random.h"
 #include "common/serializer.h"
 #include "common/util.h"
+#include "graphics/font.h"
 #include "engines/engine.h"
 #include "engines/savestate.h"
 #include "graphics/screen.h"
@@ -42,13 +43,14 @@ namespace Goldbox {
 
 struct GoldboxGameDescription;
 
-class GoldboxEngine : public Engine, public Events {
+class Engine : public ::Engine, public Events {
 private:
-	const ADGameDescription *_gameDescription;
+	const GoldboxGameDescription *_gameDescription;
 	Common::RandomSource _randomSource;
 protected:
 	// Engine APIs
 	Common::Error run() override;
+	virtual GUI::Debugger *getConsole() = 0;
 
 	/**
 	 * Returns true if the game should quit
@@ -58,8 +60,10 @@ protected:
 	}
 
 public:
-	GoldboxEngine(OSystem *syst, const ADGameDescription *gameDesc);
-	~GoldboxEngine() override;
+	Common::Array<Graphics::Font *> _fonts;
+
+	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);
+	~Engine() override;
 
 	uint32 getFeatures() const;
 
@@ -78,6 +82,9 @@ public:
 	 */
 	uint32 getRandomNumber(uint maxNum) {
 		return _randomSource.getRandomNumber(maxNum);
+	}
+	uint32 getRandomNumber(uint minVal, uint maxVal) {
+		return _randomSource.getRandomNumberRng(minVal, maxVal);
 	}
 
 	bool hasFeature(EngineFeature f) const override {
@@ -110,7 +117,7 @@ public:
 	}
 };
 
-extern GoldboxEngine *g_engine;
+extern Engine *g_engine;
 #define SHOULD_QUIT ::Goldbox::g_engine->shouldQuit()
 
 } // End of namespace Goldbox

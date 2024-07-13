@@ -26,6 +26,10 @@
 
 namespace Goldbox {
 
+enum GameType {
+	PASCAL_ENGINE, C_ENGINE
+};
+
 enum GoldboxDebugChannels {
 	kDebugGraphics = 1,
 	kDebugPath,
@@ -34,15 +38,22 @@ enum GoldboxDebugChannels {
 	kDebugScript,
 };
 
+struct GoldboxGameDescription {
+	AD_GAME_DESCRIPTION_HELPERS(desc);
+	ADGameDescription desc;
+
+	int gameType;
+};
+
 extern const PlainGameDescriptor goldboxGames[];
 
-extern const ADGameDescription gameDescriptions[];
+extern const GoldboxGameDescription gameDescriptions[];
 
 #define GAMEOPTION_ORIGINAL_SAVELOAD GUIO_GAMEOPTIONS1
 
 } // End of namespace Goldbox
 
-class GoldboxMetaEngineDetection : public AdvancedMetaEngineDetection {
+class GoldboxMetaEngineDetection : public AdvancedMetaEngineDetection<Goldbox::GoldboxGameDescription> {
 	static const DebugChannelDef debugFlagList[];
 
 public:

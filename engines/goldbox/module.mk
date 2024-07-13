@@ -7,7 +7,10 @@ MODULE_OBJS = \
 	messages.o \
 	metaengine.o \
 	view.o \
-	view1.o
+	view1.o \
+	data/daxblock.o \
+	data/daxcache.o \
+	data/daxheadercontainer.o
 
 # This module can be built as a plugin
 ifeq ($(ENABLE_GOLDBOX), DYNAMIC_PLUGIN)

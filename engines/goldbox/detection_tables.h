@@ -26,18 +26,21 @@ const PlainGameDescriptor goldboxGames[] = {
 	{ 0, 0 }
 };
 
-const ADGameDescription gameDescriptions[] = {
+const GoldboxGameDescription gameDescriptions[] = {
 	{
-		"poolrad",
-		nullptr,
-		AD_ENTRY1s("title.dax", "2c065919198899a59bc3a16786b0212e", 33898),
-		Common::EN_ANY,
-		Common::kPlatformDOS,
-		ADGF_UNSTABLE,
-		GUIO1(GUIO_NONE)
+		{
+			"poolrad",
+			nullptr,
+			AD_ENTRY1s("title.dax", "2c065919198899a59bc3a16786b0212e", 33898),
+			Common::EN_ANY,
+			Common::kPlatformDOS,
+			ADGF_UNSTABLE,
+			GUIO1(GUIO_NONE)
+		},
+		PASCAL_ENGINE
 	},
 
-	AD_TABLE_END_MARKER
+	{AD_TABLE_END_MARKER,0}
 };
 
 } // End of namespace Goldbox

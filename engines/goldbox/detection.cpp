@@ -38,8 +38,8 @@ const DebugChannelDef GoldboxMetaEngineDetection::debugFlagList[] = {
 	DEBUG_CHANNEL_END
 };
 
-GoldboxMetaEngineDetection::GoldboxMetaEngineDetection() : AdvancedMetaEngineDetection(Goldbox::gameDescriptions,
-	sizeof(ADGameDescription), Goldbox::goldboxGames) {
+GoldboxMetaEngineDetection::GoldboxMetaEngineDetection() : AdvancedMetaEngineDetection(
+	Goldbox::gameDescriptions, Goldbox::goldboxGames) {
 }
 
 REGISTER_PLUGIN_STATIC(GOLDBOX_DETECTION, PLUGIN_TYPE_ENGINE_DETECTION, GoldboxMetaEngineDetection);
