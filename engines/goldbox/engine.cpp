@@ -19,7 +19,7 @@
  *
  */
 
-#include "goldbox/goldbox.h"
+#include "goldbox/engine.h"
 #include "goldbox/detection.h"
 #include "goldbox/console.h"
 #include "common/scummsys.h"
@@ -28,29 +28,31 @@
 #include "common/events.h"
 #include "common/system.h"
 #include "engines/util.h"
-#include "graphics/paletteman.h"
+#include "graphics/palette.h"
 
 namespace Goldbox {
 
-GoldboxEngine *g_engine;
+Engine *g_engine;
 
-GoldboxEngine::GoldboxEngine(OSystem *syst, const ADGameDescription *gameDesc) : Engine(syst),
+Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine(syst),
 	_gameDescription(gameDesc), _randomSource("Goldbox") {
 	g_engine = this;
 }
 
-GoldboxEngine::~GoldboxEngine() {
+Engine::~Engine() {
+	for (auto *font : _fonts)
+		delete font;
 }
 
-uint32 GoldboxEngine::getFeatures() const {
-	return _gameDescription->flags;
+uint32 Engine::getFeatures() const {
+	return _gameDescription->desc.flags;
 }
 
-Common::String GoldboxEngine::getGameId() const {
-	return _gameDescription->gameId;
+Common::String Engine::getGameId() const {
+	return _gameDescription->desc.gameId;
 }
 
-Common::Error GoldboxEngine::run() {
+Common::Error Engine::run() {
 
     switch (getPlatform()) {
         case Common::kPlatformDOS:
@@ -65,17 +67,25 @@ Common::Error GoldboxEngine::run() {
             break;
     }
 
-    GoldBox::g_daxCache.loadDax("exampleFile", 0);
+	// Set the engine's debugger console
+	setDebugger(getConsole());
 
-    // Set the engine's debugger console
-    setDebugger(new Console());
+    GoldBox::g_daxCache.loadFile("8x8d1.dax");
+    GoldBox::g_daxCache.loadFile("8x8d2.dax");
+    GoldBox::g_daxCache.loadFile("8x8d3.dax");
+    GoldBox::g_daxCache.loadFile("8x8d4.dax");
+    GoldBox::g_daxCache.loadFile("8x8d5.dax");
+    GoldBox::g_daxCache.loadFile("8x8d6.dax");
+    GoldBox::g_daxCache.loadFile("8x8d7.dax");
+    GoldBox::g_daxCache.loadFile("8x8d8.dax");
+    GoldBox::g_daxCache.loadFile("title.dax");
 
     runGame();
 
     return Common::kNoError;
 }
 
-Common::Error GoldboxEngine::syncGame(Common::Serializer &s) {
+Common::Error Engine::syncGame(Common::Serializer &s) {
 	// The Serializer has methods isLoading() and isSaving()
 	// if you need to specific steps; for example setting
 	// an array size after reading it's length, whereas
