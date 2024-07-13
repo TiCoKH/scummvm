@@ -28,7 +28,7 @@
 #include "graphics/managed_surface.h"
 #include "goldbox/gfx/surface.h"
 
-namespace GoldBox {
+namespace Goldbox {
 namespace Gfx {
 
 /**
@@ -75,6 +75,6 @@ public:
 };
 
 } // namespace Gfx
-} // namespace GoldBox
+} // namespace Goldbox
 
 #endif

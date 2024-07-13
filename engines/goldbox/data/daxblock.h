@@ -1,11 +1,11 @@
 // DaxBlock.h
-#ifndef GOLD_BOX_DAXBLOCK_H
-#define GOLD_BOX_DAXBLOCK_H
+#ifndef GOLDBOX_DAXBLOCK_H
+#define GOLDBOX_DAXBLOCK_H
 
 #include "common/array.h"
 #include "common/scummsys.h"
 
-namespace GoldBox {
+namespace Goldbox {
 
     struct DaxHeader {
         uint8 id;
@@ -158,5 +158,5 @@ private:
     void SetMaskedColor(int offset, int color, int masked, int mask_color);
 };
 
-} // namespace GoldBox
-#endif // GOLD_BOX_DAXBLOCK_H
+} // namespace Goldbox
+#endif // GOLDBOX_DAXBLOCK_H
