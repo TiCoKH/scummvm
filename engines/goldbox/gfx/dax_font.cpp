@@ -19,28 +19,39 @@
  *
  */
 
-namespace Goldbox {
+#include "goldbox/data/daxblock.h"
+#include "goldbox/gfx/dax_font.h"
 
-const PlainGameDescriptor goldboxGames[] = {
-	{ "poolrad", "Pool of Radiance (v1.0/v1.3)" },
-	{ 0, 0 }
-};
+namespace GoldBox {
+namespace Gfx {
 
-const GoldboxGameDescription gameDescriptions[] = {
-	{
-		{
-			"poolrad",
-			nullptr,
-			AD_ENTRY1s("title.dax", "2c065919198899a59bc3a16786b0212e", 33898),
-			Common::EN_ANY,
-			Common::kPlatformDOS,
-			ADGF_UNSTABLE,
-			GUIO1(GUIO_NONE)
-		},
-		PASCAL_ENGINE
-	},
+#define FIRST_CHAR 32
+#define CHAR_COUNT 128
 
-	{AD_TABLE_END_MARKER,0}
-};
+void DaxFont::load() {
+	File f("mono.fnt");
+	assert(f.size() == (CHAR_COUNT * 8));
 
-} // End of namespace Goldbox
+	_data.resize((CHAR_COUNT * 8));
+	f.read(&_data[0], (CHAR_COUNT * 8));
+}
+
+void DaxFont::drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const {
+	assert(chr >= FIRST_CHAR && chr < (FIRST_CHAR + CHAR_COUNT));
+	const byte *src = &_data[(chr - FIRST_CHAR) * 8];
+	byte *dest;
+	byte bits;
+
+	for (int yc = 0; yc < FONT_H; ++yc, ++y, ++src) {
+		bits = *src;
+		dest = (byte *)dst->getBasePtr(x, y);
+
+		for (int xc = 0; xc < FONT_W; ++xc, ++dest, bits <<= 1) {
+			if (bits & 0x80)
+				*dest = color;
+		}
+	}
+}
+
+} // namespace Gfx
+} // namespace Wasteland
