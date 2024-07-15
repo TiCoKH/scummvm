@@ -25,33 +25,54 @@
 namespace Goldbox {
 namespace Gfx {
 
-#define FIRST_CHAR 32
-#define CHAR_COUNT 128
-
 void DaxFont::load() {
-	File f("mono.fnt");
-	assert(f.size() == (CHAR_COUNT * 8));
-
-	_data.resize((CHAR_COUNT * 8));
-	f.read(&_data[0], (CHAR_COUNT * 8));
+    assert(_daxBlock != nullptr);
+    _glyphCount = _daxBlock->_data.size() / 8;
+    assert(_glyphCount * 8 == _daxBlock->_data.size());
 }
 
-void DaxFont::drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const {
-	assert(chr >= FIRST_CHAR && chr < (FIRST_CHAR + CHAR_COUNT));
-	const byte *src = &_data[(chr - FIRST_CHAR) * 8];
-	byte *dest;
-	byte bits;
-
-	for (int yc = 0; yc < FONT_H; ++yc, ++y, ++src) {
-		bits = *src;
-		dest = (byte *)dst->getBasePtr(x, y);
-
-		for (int xc = 0; xc < FONT_W; ++xc, ++dest, bits <<= 1) {
-			if (bits & 0x80)
-				*dest = color;
-		}
-	}
+uint32 DaxFont::mapCharToIndex(uint32 chr) const {
+    if (chr >= 'a' && chr <= 'z') {
+        chr = chr - ('a' - 'A'); // Convert lowercase to uppercase
+    }
+    if (chr >= 0x41 && chr <= 0x5A) {
+        return chr - 0x40; // A-Z mapped to 0x01-0x1A
+    } else if (chr >= 0x20 && chr <= 0x40) {
+		return (chr == 0x24 || chr == 0x25) ? 0xFF : chr; // Map '$' and '%' to 0xFF
+	} else {
+        return 0xFF; // An invalid index that signifies no drawing
+    }
 }
+
+void DaxFont::drawLetter(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const {
+    uint8 index = mapCharToIndex(chr);
+    if (index == 0xFF) return; // Invalid character, do nothing
+
+    drawChar(dst, index, x, y, color);
+}
+
+void DaxFont::drawGlyph(Graphics::Surface *dst, uint8 index, int x, int y, uint32 color) const {
+    if (index >= _glyphCount) return; // Invalid index, do nothing
+
+    drawChar(dst, index, x, y, color);
+}
+
+void DaxFont::drawChar(Graphics::Surface *dst, uint32 index, int x, int y, uint32 color) const {
+    const byte *src = &_daxBlock->_data[index * 8];
+    byte *dest;
+    byte bits;
+
+    for (int yc = 0; yc < FONT_H; ++yc, ++y, ++src) {
+        bits = *src;
+        dest = (byte *)dst->getBasePtr(x, y);
+
+        for (int xc = 0; xc < FONT_W; ++xc, ++dest, bits <<= 1) {
+            if (bits & 0x80)
+                *dest = color;
+        }
+    }
+}
+
 
 } // namespace Gfx
 } // namespace Goldbox
