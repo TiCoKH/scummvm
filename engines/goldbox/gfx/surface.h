@@ -66,7 +66,6 @@ struct Position : public Common::Point {
  */
 class Surface : public Graphics::ManagedSurface {
 private:
-	bool _inverseColor = false;
 	int _textX = 0, _textY = 0;
 	Graphics::Font *_currentFont;
 
@@ -81,9 +80,6 @@ public:
 	Surface(ManagedSurface &surf, const Common::Rect &bounds);
 
 	void setFont(int fontNum);
-	void setInverseColor(bool isInverse) {
-		_inverseColor = isInverse;
-	}
 	void writeString(const Common::String &str);
 	void writeString(const Common::String &str, int x, int y);
 	void writeString(const unsigned char *str, int x, int y);
