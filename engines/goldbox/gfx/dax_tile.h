@@ -18,10 +18,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#ifndef GOLDBOX_GFX_DAX_TILE_H
+#define GOLDBOX_GFX_DAX_TILE_H
 
-#ifndef GOLDBOX_GFX_DAX_FONT_H
-#define GOLDBOX_GFX_DAX_FONT_H
-
+#include "common/array.h"
 #include "common/rect.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
@@ -31,25 +31,18 @@
 namespace Goldbox {
 namespace Gfx {
 
-/**
- * Implements a plain fixed width font
- */
-class DaxFont : public Graphics::Font {
+class DaxTile : public Graphics::Font {
 private:
-	DaxBlock *_daxBlock;
-	uint32 _glyphCount;
-
-	uint32 mapCharToIndex(uint32 chr) const;
-	/**
-     * Override drawChar from Graphics::Font
-     */
-	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
+    Common::Array<Graphics::ManagedSurface> _chars;
+    DaxBlock8x8D *_daxBlock;
 
 public:
-	DaxFont(DaxBlock *daxBlock) : Graphics::Font(), _daxBlock(daxBlock) {}
-	~DaxFont() override {}
+    DaxTile() : Graphics::Font() {}
+    ~DaxTile() override {}
 
-	/**
+    DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {}
+
+    /**
 	 * Loads the font from the specified file
 	 */
 	void load();
@@ -75,19 +68,12 @@ public:
 		return FONT_W;
 	}
 
-    /**
-     * Draw a character with conversion if needed
-     */
-    void drawLetter(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const;
-
-    /**
-     * Draw a glyph by index without conversion
-     */
-    void drawGlyph(Graphics::Surface *dst, uint8 index, int x, int y, uint32 color) const;
-
+	/**
+	 * Draw a character
+	 */
+	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 };
 
-} // namespace Gfx
-} // namespace Goldbox
-
-#endif
+}; //namespace Gfx
+};
+#endif // GOLDBOX_DAX_COLOR_FONT_H

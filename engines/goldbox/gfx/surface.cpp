@@ -28,7 +28,8 @@
 namespace Goldbox {
 namespace Gfx {
 
-#define FONT_COLOR 15
+#define BACK_COLOR 15
+#define FONT_COLOR 10
 
 Surface::Surface() : Graphics::ManagedSurface() {
 	_currentFont = g_engine->_fonts[0];
@@ -62,7 +63,7 @@ void Surface::writeString(const Common::String &str) {
 		}
 
 		_currentFont->drawString(this, lines[lineNum], _textX * FONT_W, _textY * FONT_H,
-			this->w - (_textX * FONT_W), _inverseColor ? -FONT_COLOR : FONT_COLOR);
+			this->w - (_textX * FONT_W), FONT_COLOR);
 		_textX += lines[lineNum].size();
 	}
 }
@@ -86,8 +87,7 @@ void Surface::writeCenteredString(const Common::String &str, int y) {
 }
 
 void Surface::writeChar(unsigned char c) {
-	_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H,
-		_inverseColor ? -FONT_COLOR : FONT_COLOR);
+	_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, FONT_COLOR);
 	++_textX;
 }
 

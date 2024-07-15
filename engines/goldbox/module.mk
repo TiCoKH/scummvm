@@ -1,7 +1,7 @@
 MODULE := engines/goldbox
 
 MODULE_OBJS = \
-	goldbox.o \
+	engine.o \
 	console.o \
 	events.o \
 	messages.o \
