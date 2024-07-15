@@ -22,11 +22,11 @@
 #ifndef GOLDBOX_GFX_DAX_FONT_H
 #define GOLDBOX_GFX_DAX_FONT_H
 
-#include "common/array.h"
 #include "common/rect.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
 #include "goldbox/gfx/surface.h"
+#include "goldbox/data/daxblock.h"
 
 namespace Goldbox {
 namespace Gfx {
@@ -36,10 +36,17 @@ namespace Gfx {
  */
 class DaxFont : public Graphics::Font {
 private:
-	Common::Array<byte> _data;
+	DaxBlock *_daxBlock;
+	uint32 _glyphCount;
+
+	uint32 mapCharToIndex(uint32 chr) const;
+	/**
+     * Override drawChar from Graphics::Font
+     */
+	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 
 public:
-	DaxFont() : Graphics::Font() {}
+	DaxFont(DaxBlock *daxBlock) : Graphics::Font(), _daxBlock(daxBlock) {}
 	~DaxFont() override {}
 
 	/**
@@ -68,10 +75,16 @@ public:
 		return FONT_W;
 	}
 
-	/**
-	 * Draw a character
-	 */
-	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
+    /**
+     * Draw a character with conversion if needed
+     */
+    void drawLetter(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const;
+
+    /**
+     * Draw a glyph by index without conversion
+     */
+    void drawGlyph(Graphics::Surface *dst, uint8 index, int x, int y, uint32 color) const;
+
 };
 
 } // namespace Gfx

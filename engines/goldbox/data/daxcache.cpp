@@ -65,11 +65,11 @@ namespace Goldbox {
             }
 
             if (dhe.rawSize <= 0) {
-                daxBlock->data = dax_data;
+                daxBlock->_data = dax_data;
             } else {
                 Common::Array<uint8> decode_data(dhe.rawSize);
                 decodeRLE(dhe.compSize, decode_data.data(), dax_data.data());
-                daxBlock->data = decode_data;
+                daxBlock->_data = decode_data;
             }
             daxBlock->blockId = dhe.id;
             contentCache[CacheKey(contentType, dhe.id)] = daxBlock;

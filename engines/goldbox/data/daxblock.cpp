@@ -13,38 +13,17 @@ namespace Goldbox {
         }
     }
 
-PictureBlock::PictureBlock(Common::Array<uint8>& dataRef) : data(dataRef), stream(dataRef.data(), dataRef.size()) {}
-
-void PictureBlock::getPictureProperties() {
-    if (data.size() >= 4) {
-        stream.seek(0); // Reset stream position to the start
-        height = stream.readUint16LE();
-        width = stream.readUint16LE();
-    }
-}
-
     DaxBlock8x8D::DaxBlock8x8D() {
-        // Initialization specific to _8X8D
+        height = 8;
+        width = 8;
     }
 
-    void DaxBlock8x8D::process() const {
-        // Implementation specific to _8X8D
-    }
+    void DaxBlock8x8D::adjust() {
+        if (blockId != 201) {
+            item_count = _data.size() / 8;
+        } else {
 
-    void DaxBlock8x8D::FlipIconLeftToRight() {
-        // Implementation specific to _8X8D
-    }
-
-    void DaxBlock8x8D::MergeIcons(const DaxBlock8x8D &srcIcon) {
-        // Implementation specific to _8X8D
-    }
-
-    void DaxBlock8x8D::DaxToPicture(int mask_color, int masked) {
-        // Implementation specific to _8X8D
-    }
-
-    void DaxBlock8x8D::SetMaskedColor(int offset, int color, int masked, int mask_color) {
-        // Implementation specific to _8X8D
+        }
     }
 
 } // namespace Goldbox
