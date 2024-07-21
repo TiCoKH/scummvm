@@ -1,3 +1,4 @@
+
 /* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
@@ -18,41 +19,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef GOLDBOX_GFX_DAX_TILE_H
-#define GOLDBOX_GFX_DAX_TILE_H
 
-#include "common/array.h"
-#include "common/rect.h"
-#include "graphics/font.h"
-#include "graphics/managed_surface.h"
-#include "goldbox/gfx/surface.h"
-#include "goldbox/data/daxblock.h"
+#ifndef GOLDBOX_POOLRAD_CONSOLE_H
+#define GOLDBOX_POOLRAD_CONSOLE_H
+
+#include "goldbox/console.h"
 
 namespace Goldbox {
-namespace Gfx {
+namespace Poolrad {
 
-class DaxTile : public Graphics::Font {
+class Console : public Goldbox::Console {
 private:
-    Common::Array<Graphics::ManagedSurface> _chars;
-    DaxBlock8x8D *_daxBlock;
-
+	bool cmdFont(int argc, const char **argv);
 public:
-    DaxTile() : Graphics::Font() {}
-    ~DaxTile() override {}
-
-    DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {}
-
-    /**
-	 * Loads the font from the specified file
-	 */
-	void load();
-
-	/**
-	 * Draw a character
-	 */
-	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
+	Console();
+	~Console() override {}
 };
 
-}; //namespace Gfx
-};
-#endif // GOLDBOX_DAX_COLOR_FONT_H
+} // namespace Poolrad
+} // namespace Goldbox
+
+#endif

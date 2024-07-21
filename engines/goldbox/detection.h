@@ -27,7 +27,7 @@
 namespace Goldbox {
 
 enum GameType {
-	PASCAL_ENGINE, C_ENGINE
+	GAMETYPE_POOLRAD, GAMETYPE_CURSE
 };
 
 enum GoldboxDebugChannels {

@@ -18,41 +18,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef GOLDBOX_GFX_DAX_TILE_H
-#define GOLDBOX_GFX_DAX_TILE_H
 
-#include "common/array.h"
-#include "common/rect.h"
-#include "graphics/font.h"
-#include "graphics/managed_surface.h"
-#include "goldbox/gfx/surface.h"
-#include "goldbox/data/daxblock.h"
+#include "goldbox/poolrad/console.h"
+#include "goldbox/poolrad/poolrad.h"
 
 namespace Goldbox {
-namespace Gfx {
+namespace Poolrad {
 
-class DaxTile : public Graphics::Font {
-private:
-    Common::Array<Graphics::ManagedSurface> _chars;
-    DaxBlock8x8D *_daxBlock;
+Console::Console() : Goldbox::Console() {
+	registerCmd("font", WRAP_METHOD(Console, cmdFont));
+}
 
-public:
-    DaxTile() : Graphics::Font() {}
-    ~DaxTile() override {}
+bool Console::cmdFont(int argc, const char **argv) {
+	auto *font = g_engine->_font;
+	Graphics::Screen *screen = g_engine->getScreen();
 
-    DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {}
+	screen->clear();
+	for (uint i = 0; i < 177; ++i) {
+		font->drawChar(screen, i, (i % 16) * 16, (i / 16) * 16, 255);
+	}
 
-    /**
-	 * Loads the font from the specified file
-	 */
-	void load();
+	screen->update();
+	return false;
+}
 
-	/**
-	 * Draw a character
-	 */
-	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
-};
-
-}; //namespace Gfx
-};
-#endif // GOLDBOX_DAX_COLOR_FONT_H
+} // namespace Poolrad
+} // namespace Goldbox

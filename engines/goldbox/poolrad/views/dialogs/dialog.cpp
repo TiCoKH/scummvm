@@ -19,28 +19,34 @@
  *
  */
 
-#ifndef GOLDBOX_VIEW1_H
-#define GOLDBOX_VIEW1_H
-
-#include "goldbox/view.h"
+#include "goldbox/poolrad/views/dialogs/dialog.h"
 
 namespace Goldbox {
+namespace Poolrad {
+namespace Views {
+namespace Dialogs {
 
-class View1 : public View {
-private:
-	byte _pal[256 * 3] = { 0 };
-	int _offset = 0;
+void Dialog::drawFrame(const Common::Rect &r) {
+	Surface s = getSurface();
+	s.setFont(1);
 
-public:
-	View1() : View("View1") {}
-	virtual ~View1() {}
+	s.writeChar(14, r.left, r.top);
+	for (int x = r.left + 1; x < r.right; ++x)
+		s.writeChar(18);
+	s.writeChar(15);
 
-	bool msgFocus(const FocusMessage &msg) override;
-	bool msgKeypress(const KeypressMessage &msg) override;
-	void draw() override;
-	bool tick() override;
-};
+	for (int y = r.top + 1; y < r.bottom; ++y) {
+		s.writeChar(13, r.left, y);
+		s.writeChar(19, r.right, y);
+	}
 
+	s.writeChar(16, r.left, r.bottom);
+	for (int x = r.left + 1; x < r.right; ++x)
+		s.writeChar(18);
+	s.writeChar(17);
+}
+
+} // namespace Dialogs
+} // namespace Views
+} // namespace Poolrad
 } // namespace Goldbox
-
-#endif

@@ -18,41 +18,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef GOLDBOX_GFX_DAX_TILE_H
-#define GOLDBOX_GFX_DAX_TILE_H
 
-#include "common/array.h"
-#include "common/rect.h"
-#include "graphics/font.h"
-#include "graphics/managed_surface.h"
-#include "goldbox/gfx/surface.h"
-#include "goldbox/data/daxblock.h"
+#ifndef GOLDBOX_CORE_FILE_H
+#define GOLDBOX_CORE_FILE_H
+
+#include "common/file.h"
 
 namespace Goldbox {
-namespace Gfx {
 
-class DaxTile : public Graphics::Font {
-private:
-    Common::Array<Graphics::ManagedSurface> _chars;
-    DaxBlock8x8D *_daxBlock;
-
+/**
+ * Derived file class
+ */
+class File : public Common::File {
 public:
-    DaxTile() : Graphics::Font() {}
-    ~DaxTile() override {}
-
-    DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {}
-
-    /**
-	 * Loads the font from the specified file
-	 */
-	void load();
+	File() : Common::File() {}
+	File(const Common::Path &filename);
+	File(const char *filename);
 
 	/**
-	 * Draw a character
+	 * Opens the given file, throwing an error if it can't be opened
 	 */
-	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
+	bool open(const Common::Path &filename) override;
 };
 
-}; //namespace Gfx
-};
-#endif // GOLDBOX_DAX_COLOR_FONT_H
+} // namespace Goldbox
+
+#endif

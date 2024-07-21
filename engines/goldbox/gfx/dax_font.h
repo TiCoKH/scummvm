@@ -36,8 +36,8 @@ namespace Gfx {
  */
 class DaxFont : public Graphics::Font {
 private:
-	DaxBlock *_daxBlock;
-	uint32 _glyphCount;
+	DaxBlock8x8D *_daxBlock;
+	uint8 _glyphCount;
 
 	uint32 mapCharToIndex(uint32 chr) const;
 	/**
@@ -46,7 +46,7 @@ private:
 	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 
 public:
-	DaxFont(DaxBlock *daxBlock) : Graphics::Font(), _daxBlock(daxBlock) {}
+	DaxFont(DaxBlock8x8D *daxBlock) : Graphics::Font(), _daxBlock(daxBlock) {}
 	~DaxFont() override {}
 
 	/**

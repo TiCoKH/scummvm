@@ -37,7 +37,7 @@ const GoldboxGameDescription gameDescriptions[] = {
 			ADGF_UNSTABLE,
 			GUIO1(GUIO_NONE)
 		},
-		PASCAL_ENGINE
+		GAMETYPE_POOLRAD
 	},
 
 	{AD_TABLE_END_MARKER,0}

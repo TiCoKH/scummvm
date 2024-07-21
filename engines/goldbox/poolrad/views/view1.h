@@ -18,41 +18,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef GOLDBOX_GFX_DAX_TILE_H
-#define GOLDBOX_GFX_DAX_TILE_H
 
-#include "common/array.h"
-#include "common/rect.h"
-#include "graphics/font.h"
-#include "graphics/managed_surface.h"
-#include "goldbox/gfx/surface.h"
-#include "goldbox/data/daxblock.h"
+#ifndef GOLDBOX_VIEW1_H
+#define GOLDBOX_VIEW1_H
+
+#include "goldbox/poolrad/views/view.h"
 
 namespace Goldbox {
-namespace Gfx {
 
-class DaxTile : public Graphics::Font {
+class View1 : public View {
 private:
-    Common::Array<Graphics::ManagedSurface> _chars;
-    DaxBlock8x8D *_daxBlock;
+	byte _pal[256 * 3] = { 0 };
+	int _offset = 0;
 
 public:
-    DaxTile() : Graphics::Font() {}
-    ~DaxTile() override {}
+	View1() : View("View1") {}
+	virtual ~View1() {}
 
-    DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {}
-
-    /**
-	 * Loads the font from the specified file
-	 */
-	void load();
-
-	/**
-	 * Draw a character
-	 */
-	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
+	bool msgFocus(const FocusMessage &msg) override;
+	bool msgKeypress(const KeypressMessage &msg) override;
+	void draw() override;
+	bool tick() override;
 };
 
-}; //namespace Gfx
-};
-#endif // GOLDBOX_DAX_COLOR_FONT_H
+} // namespace Goldbox
+
+#endif

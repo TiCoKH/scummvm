@@ -25,7 +25,9 @@
 #include "common/array.h"
 #include "common/stack.h"
 #include "graphics/screen.h"
+#include "goldbox/core/array.h"
 #include "goldbox/messages.h"
+#include "goldbox/gfx/surface.h"
 
 namespace Goldbox {
 
@@ -33,6 +35,9 @@ namespace Goldbox {
 #define FRAME_DELAY (1000 / FRAME_RATE)
 
 class Events;
+using Shared::Gfx::Surface;
+using Shared::Gfx::Window;
+using Shared::Gfx::Position;
 
 /**
  * Implements a thunk layer around an element's bounds,
@@ -54,9 +59,11 @@ public:
 	operator const Common::Rect &() const { return _bounds; }
 	Bounds &operator=(const Common::Rect &r);
 	void setBorderSize(size_t borderSize);
+	void setBorderSize(int leftPad, int topPad, int rightPad, int bottomPad);
 	size_t borderSize() const { return _borderSize; }
 	int16 width() const { return _bounds.width(); }
 	int16 height() const { return _bounds.height(); }
+	bool contains(const Common::Point &pt) const { return _innerBounds.contains(pt); }
 };
 
 /**
@@ -68,7 +75,7 @@ private:
 	int _timeoutCtr = 0;
 protected:
 	UIElement *_parent;
-	Common::Array<UIElement *> _children;
+	Array<UIElement *> _children;
 	Common::Rect _innerBounds;
 	Bounds _bounds;
 	bool _needsRedraw = true;
@@ -118,6 +125,11 @@ public:
 	UIElement(const Common::String &name, UIElement *uiParent);
 	UIElement(const Common::String &name);
 	virtual ~UIElement() {}
+
+	/**
+	 * Changes the parent of an element
+	 */
+	void setParent(UIElement *newParent);
 
 	/**
 	 * Returns true if the elements needs to be redrawn
@@ -173,6 +185,11 @@ public:
 	}
 
 	/**
+	 * Sets the element's window (using text-based co-ordinates)
+	 */
+	void setBounds(const Window &win);
+
+	/**
 	 * Gets the element's bounds
 	 */
 	Common::Rect getBounds() const {
@@ -180,9 +197,32 @@ public:
 	}
 
 	/**
+	 * Return the view's name
+	 */
+	Common::String getName() const { return _name; }
+
+	/**
+	 * Return the child elements
+	 */
+	Array<UIElement *> getChildren() { return _children; }
+
+
+	/**
 	 * Returns a surface for drawing the element
 	 */
-	Graphics::ManagedSurface getSurface() const;
+	Surface getSurface() const;
+
+	/**
+	 * Returns a surface for drawing the element
+	 */
+	Surface getSurface(const Common::Rect &r) const;
+
+	/**
+	 * Returns a surface for drawing the element, using a passed window
+	 * to restrict the returned drawing area.
+	 * @remarks		The window bounds are in text co-ordinates
+	 */
+	Surface getSurface(const Window &win) const;
 
 	/**
 	 * Clear the surface
@@ -207,12 +247,6 @@ public:
 	/**
 	 * Handles events
 	 */
-	// Mouse move only has a minimal implementation for performance reasons
-protected:
-	virtual bool msgMouseMove(const MouseMoveMessage &msg) { return false; }
-public:
-	bool send(const MouseMoveMessage &msg) { return msgMouseMove(msg); }
-
 	#define MESSAGE(NAME) \
 	protected: \
 		virtual bool msg##NAME(const NAME##Message &e) { \
@@ -232,8 +266,26 @@ public:
 			return msg##NAME(msg); \
 		} \
 
+	#define VIEW_MESSAGE(NAME) \
+	protected: \
+		virtual bool msg##NAME(const NAME##Message &e) { \
+			return false; \
+		} \
+	public: \
+		bool send(const Common::String &viewName, const NAME##Message &msg) { \
+			UIElement *view = UIElement::findViewGlobally(viewName); \
+			assert(view); \
+			return view->msg##NAME(msg); \
+		} \
+		bool send(const NAME##Message &msg) { \
+			return msg##NAME(msg); \
+		}
+
+	VIEW_MESSAGE(MouseMove);
 	MESSAGE(Focus);
 	MESSAGE(Unfocus);
+	MESSAGE(MouseEnter);
+	MESSAGE(MouseLeave);
 	MESSAGE(Keypress);
 	MESSAGE(MouseDown);
 	MESSAGE(MouseUp);
@@ -242,6 +294,14 @@ public:
 	MESSAGE(Value);
 	#undef MESSAGE
 };
+
+struct Cursor {
+	Graphics::ManagedSurface _image;
+	Graphics::ManagedSurface _mask;
+	int _hotspotX = 0;
+	int _hotspotY = 0;
+};
+typedef Common::Array<Cursor> CursorArray;
 
 /**
  * Main events and view manager. This is kept separate from the engine
@@ -254,11 +314,22 @@ class Events : public UIElement {
 private:
 	Graphics::Screen *_screen = nullptr;
 	Common::Stack<UIElement *> _views;
+	bool _cursorVisible = false;
+	int _cursorNum = -1;
+
+protected:
+	CursorArray _cursors;
+
 protected:
 	/**
 	 * Process an event
 	 */
 	void processEvent(Common::Event &ev);
+
+	/**
+	 * Performs game specific setup
+	 */
+	virtual void setup() = 0;
 
 	/**
 	 * Returns true if the game should quit
@@ -275,9 +346,11 @@ protected:
 	MESSAGE(Action);
 	MESSAGE(Focus);
 	MESSAGE(Unfocus);
+	MESSAGE(MouseEnter);
+	MESSAGE(MouseLeave);
 	MESSAGE(Keypress);
 	MESSAGE(MouseDown);
-	MESSAGE(MouseUp);
+	MESSAGE(MouseUp)
 	MESSAGE(MouseMove);
 	#undef MESSAGE
 public:
@@ -384,6 +457,11 @@ public:
 	void close() override {
 		focusedView()->close();
 	}
+
+	/**
+	 * Set the cursor
+	 */
+	void setCursor(int cursorNum);
 };
 
 extern Events *g_events;

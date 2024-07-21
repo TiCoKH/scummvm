@@ -25,8 +25,10 @@
 #include "common/rect.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
+#include "goldbox/gfx/dax_symbol.h"
 
 namespace Goldbox {
+namespace Shared {
 namespace Gfx {
 
 #define TEXT_W 40
@@ -68,6 +70,8 @@ class Surface : public Graphics::ManagedSurface {
 private:
 	int _textX = 0, _textY = 0;
 	Graphics::Font *_currentFont;
+	Goldbox::Gfx::DaxSymbol *_currentSymbol;
+	
 
 public:
 	/**
@@ -87,12 +91,28 @@ public:
 	void writeChar(unsigned char c);
 	void writeChar(unsigned char c, int x, int y);
 	void setTextPos(int x, int y);
+
+	/**
+	 * Clears an area from character position (start_x, start_y) to (end_x, end_y) using the specified color
+	 */
+	void clearBox(int start_x, int start_y, int end_x, int end_y, uint32 color);
+
+	/**
+	 * Draws a frame on the surface around the given area from (start_x, start_y) to (end_x, end_y)
+	 */
+	void drawFrame(int start_x, int start_y, int end_x, int end_y);
+
+	/**
+	 * Clears an area with the given color and draws a frame around it
+	 */
+	void drawWindow(int start_x, int start_y, int end_x, int end_y, uint32 color);
 };
 
 } // namespace Gfx
+} // namespace Shared
 
-using Gfx::Window;
-using Gfx::Surface;
+using Shared::Gfx::Window;
+using Shared::Gfx::Surface;
 
 } // namespace Goldbox
 
