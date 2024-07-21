@@ -22,9 +22,10 @@
 #ifndef GOLDBOX_METAENGINE_H
 #define GOLDBOX_METAENGINE_H
 
+#include "common/system.h"
 #include "engines/advancedDetector.h"
 
-class GoldboxMetaEngine : public AdvancedMetaEngine {
+class GoldboxMetaEngine : public AdvancedMetaEngine<ADGameDescription> {
 public:
 	const char *getName() const override;
 
@@ -38,6 +39,8 @@ public:
 	bool hasFeature(MetaEngineFeature f) const override;
 
 	const ADExtraGuiOptionsMap *getAdvancedExtraGuiOptions() const override;
+
+	Common::KeymapArray initKeymaps(const char *target) const override;
 };
 
 #endif // GOLDBOX_METAENGINE_H

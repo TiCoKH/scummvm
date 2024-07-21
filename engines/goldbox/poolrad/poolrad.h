@@ -18,41 +18,42 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef GOLDBOX_GFX_DAX_TILE_H
-#define GOLDBOX_GFX_DAX_TILE_H
 
-#include "common/array.h"
-#include "common/rect.h"
-#include "graphics/font.h"
-#include "graphics/managed_surface.h"
-#include "goldbox/gfx/surface.h"
-#include "goldbox/data/daxblock.h"
+#ifndef GOLDBOX_POOLRAD_POOLRAD_H
+#define GOLDBOX_POOLRAD_POOLRAD_H
+
+#include "goldbox/engine.h"
+#include "goldbox/poolrad/views/views.h"
+//#include "goldbox/poolrad/files/game_archive.h"
+//#include "goldbox/poolrad/data/saved.h"
+//#include "goldbox/poolrad/gfx/pics.h"
 
 namespace Goldbox {
-namespace Gfx {
+namespace Poolrad {
 
-class DaxTile : public Graphics::Font {
+class PoolradEngine : public Goldbox::Engine {
 private:
-    Common::Array<Graphics::ManagedSurface> _chars;
-    DaxBlock8x8D *_daxBlock;
+	Poolrad::Views::Views *_views = nullptr;
+	uint16 _mapX = 0, _mapY = 0;
+
+protected:
+	void setup() override;
+	GUI::Debugger *getConsole() override;
 
 public:
-    DaxTile() : Graphics::Font() {}
-    ~DaxTile() override {}
+	GameArchive *_gameArchive = nullptr;
+	Data::Saved _saved;
+	Gfx::PicsDecoder _pics;
 
-    DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {}
-
-    /**
-	 * Loads the font from the specified file
-	 */
-	void load();
-
-	/**
-	 * Draw a character
-	 */
-	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
+public:
+	PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc);
+	~PoolradEngine() override;
+	void initializePath(const Common::FSNode &gamePath) override;
 };
 
-}; //namespace Gfx
-};
-#endif // GOLDBOX_DAX_COLOR_FONT_H
+extern PoolradEngine *g_engine;
+
+} // namespace Poolrad
+} // namespace Goldbox
+
+#endif

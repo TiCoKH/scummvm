@@ -19,9 +19,11 @@
  *
  */
 
-#include "goldbox/view.h"
+#include "goldbox/poolrad/views/view.h"
 
 namespace Goldbox {
+namespace Poolrad {
+namespace Views {
 
 void View::checkFocusedControl(const Common::Point &mousePos) {
 	if (_focusedElement) {
@@ -78,4 +80,6 @@ bool View::msgMouseUp(const MouseUpMessage &msg) {
 	return child ? child->send(msg) : false;
 }
 
+} // namespace Views
+} // namespace Poolrad
 } // namespace Goldbox

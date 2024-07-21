@@ -2,6 +2,7 @@
 #include "common/util.h"
 #include "common/str.h"
 #include "common/file.h"
+#include "goldbox/core/file.h"
 #include "goldbox/data/daxcache.h"
 #include "goldbox/data/daxheadercontainer.h"
 
@@ -19,27 +20,28 @@ namespace Goldbox {
         clearCache();
     }
 
-    ContentType DaxCache::determineContentType(const Common::String &filename) {
-        if (filename.contains("8x8d")) return ContentType::_8X8D;
-        if (filename.contains("back")) return ContentType::BACK;
-        if (filename.contains("bigpic")) return ContentType::BIGPIC;
-        if (filename.contains("cbody")) return ContentType::CBODY;
-        if (filename.contains("body")) return ContentType::BODY;
-        if (filename.contains("comspr")) return ContentType::COMSPR;
-        if (filename.contains("ecl")) return ContentType::ECL;
-        if (filename.contains("geo")) return ContentType::GEO;
-        if (filename.contains("chead")) return ContentType::CHEAD;
-        if (filename.contains("head")) return ContentType::HEAD;
-        if (filename.contains("moncha")) return ContentType::MONCHA;
-        if (filename.contains("pic")) return ContentType::PIC;
-        if (filename.contains("sprit")) return ContentType::SPRIT;
-        if (filename.contains("title")) return ContentType::TITLE;
-        if (filename.contains("walldef")) return ContentType::WALLDEF;
+    ContentType DaxCache::determineContentType(const Common::Path &filename) {
+        Common::String s = filename.toString();
+        if (s.contains("8x8d")) return ContentType::_8X8D;
+        if (s.contains("back")) return ContentType::BACK;
+        if (s.contains("bigpic")) return ContentType::BIGPIC;
+        if (s.contains("cbody")) return ContentType::CBODY;
+        if (s.contains("body")) return ContentType::BODY;
+        if (s.contains("comspr")) return ContentType::COMSPR;
+        if (s.contains("ecl")) return ContentType::ECL;
+        if (s.contains("geo")) return ContentType::GEO;
+        if (s.contains("chead")) return ContentType::CHEAD;
+        if (s.contains("head")) return ContentType::HEAD;
+        if (s.contains("moncha")) return ContentType::MONCHA;
+        if (s.contains("pic")) return ContentType::PIC;
+        if (s.contains("sprit")) return ContentType::SPRIT;
+        if (s.contains("title")) return ContentType::TITLE;
+        if (s.contains("walldef")) return ContentType::WALLDEF;
         return ContentType::UNKNOWN;
     }
 
-    void DaxCache::loadFile(const Common::String &filename) {
-        Common::File file;
+    void DaxCache::loadFile(const Common::Path &filename) {
+        Goldbox::File file;
         if (!file.open(filename)) {
             return;
         }
@@ -72,6 +74,7 @@ namespace Goldbox {
                 daxBlock->_data = decode_data;
             }
             daxBlock->blockId = dhe.id;
+            daxBlock->adjust();
             contentCache[CacheKey(contentType, dhe.id)] = daxBlock;
         }
         file.close();
@@ -104,7 +107,7 @@ namespace Goldbox {
     Common::Array<uint8> DaxCache::getData(ContentType type, int block_id) {
         CacheKey key = CacheKey(type, block_id);
         if (contentCache.contains(key)) {
-            return contentCache[key]->data;
+            return contentCache[key]->_data;
         }
         return Common::Array<uint8>();
     }

@@ -24,7 +24,8 @@ namespace Goldbox {
 namespace Gfx {
 
 void DaxTile::load() {
-    _chars.resize(172);
+    assert(_daxBlock != nullptr);
+    _chars.resize(_daxBlock->item_count);
 
     int i;
     int b;
@@ -32,7 +33,7 @@ void DaxTile::load() {
     int bit, pixel;
     const byte *data = _daxBlock->_data.data(); // Pointer to the start of the DaxBlock data
 
-    for (i = 0; i < 172; ++i) {
+    for (i = 0; i < _daxBlock->item_count; ++i) {
         Graphics::ManagedSurface &s = _chars[i];
         s.create(FONT_W, FONT_H);
 
