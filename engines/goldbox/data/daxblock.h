@@ -24,10 +24,12 @@ namespace Goldbox {
     };
 
     struct GfxDataHeader {
-        uint8 id;
-        uint32 offset;
-        uint16 rawSize; // decodeSize
-        uint16 compSize; // dataLength
+        uint16 height;
+        uint16 cwidth;
+        uint16 frameNum; //???
+        uint16 w_unk;
+        uint8 elemNum;
+        uint8 a_unk[8];
 
         // Default constructor
         GfxDataHeader() = default;
@@ -57,6 +59,20 @@ public:
 
 };
 
+class DaxBlockTitle : public DaxBlock {
+public:
+    int height;
+    int width;
+    int item_count;
+
+    DaxBlockTitle();
+
+private:
+    void adjust() override;
+    // Function to pop GfxDataHeader
+    GfxDataHeader popGfxHeader();
+};
+
 class DaxBlock8x8D : public DaxBlock {
 public:
     int height;
@@ -65,7 +81,10 @@ public:
 
     DaxBlock8x8D();
 
+private:
     void adjust() override;
+    // Function to pop GfxDataHeader
+    GfxDataHeader popGfxHeader();
 };
 
 } // namespace Goldbox

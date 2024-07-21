@@ -18,41 +18,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef GOLDBOX_GFX_DAX_TILE_H
-#define GOLDBOX_GFX_DAX_TILE_H
 
-#include "common/array.h"
-#include "common/rect.h"
-#include "graphics/font.h"
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_DIALOG_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_DIALOG_H
+
 #include "graphics/managed_surface.h"
-#include "goldbox/gfx/surface.h"
-#include "goldbox/data/daxblock.h"
+#include "goldbox/poolrad/views/view.h"
 
 namespace Goldbox {
-namespace Gfx {
+namespace Poolrad {
+namespace Views {
+namespace Dialogs {
 
-class DaxTile : public Graphics::Font {
-private:
-    Common::Array<Graphics::ManagedSurface> _chars;
-    DaxBlock8x8D *_daxBlock;
+class Dialog : public View {
+protected:
+	/**
+	 * Draw a frame within the dialog
+	 */
+	void drawFrame(const Common::Rect &r);
 
 public:
-    DaxTile() : Graphics::Font() {}
-    ~DaxTile() override {}
-
-    DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {}
-
-    /**
-	 * Loads the font from the specified file
-	 */
-	void load();
-
-	/**
-	 * Draw a character
-	 */
-	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
+	Dialog(const Common::String &name) : View(name) {}
+	virtual ~Dialog() {}
 };
 
-}; //namespace Gfx
-};
-#endif // GOLDBOX_DAX_COLOR_FONT_H
+} // namespace Dialogs
+} // namespace Views
+} // namespace Poolrad
+} // namespace Goldbox
+
+#endif

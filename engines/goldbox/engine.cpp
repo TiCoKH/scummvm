@@ -40,8 +40,8 @@ Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine
 }
 
 Engine::~Engine() {
-	for (auto *font : _fonts)
-		delete font;
+	delete _font;
+	delete _symbol;
 }
 
 uint32 Engine::getFeatures() const {
@@ -54,35 +54,25 @@ Common::String Engine::getGameId() const {
 
 Common::Error Engine::run() {
 
-    switch (getPlatform()) {
-        case Common::kPlatformDOS:
-        case Common::kPlatformAmiga:
-            initGraphics(320, 200);
-            break;
-        case Common::kPlatformPC98:
-            initGraphics(640, 480);
-            break;
-        default:
-            initGraphics(320, 200);
-            break;
-    }
+	switch (getPlatform()) {
+		case Common::kPlatformDOS:
+		case Common::kPlatformAmiga:
+			initGraphics(320, 200);
+			break;
+		case Common::kPlatformPC98:
+			initGraphics(640, 480);
+			break;
+		default:
+			initGraphics(320, 200);
+			break;
+	}
 
 	// Set the engine's debugger console
 	setDebugger(getConsole());
 
-    GoldBox::g_daxCache.loadFile("8x8d1.dax");
-    GoldBox::g_daxCache.loadFile("8x8d2.dax");
-    GoldBox::g_daxCache.loadFile("8x8d3.dax");
-    GoldBox::g_daxCache.loadFile("8x8d4.dax");
-    GoldBox::g_daxCache.loadFile("8x8d5.dax");
-    GoldBox::g_daxCache.loadFile("8x8d6.dax");
-    GoldBox::g_daxCache.loadFile("8x8d7.dax");
-    GoldBox::g_daxCache.loadFile("8x8d8.dax");
-    GoldBox::g_daxCache.loadFile("title.dax");
+	runGame();
 
-    runGame();
-
-    return Common::kNoError;
+	return Common::kNoError;
 }
 
 Common::Error Engine::syncGame(Common::Serializer &s) {
