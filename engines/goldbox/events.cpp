@@ -20,10 +20,10 @@
  */
 
 #include "common/config-manager.h"
+#include "graphics/cursorman.h"
 #include "graphics/screen.h"
 #include "goldbox/events.h"
-#include "goldbox/goldbox.h"
-#include "goldbox/views.h"
+#include "goldbox/engine.h"
 
 namespace Goldbox {
 
@@ -40,14 +40,14 @@ Events::~Events() {
 void Events::runGame() {
 	uint currTime, nextFrameTime = 0;
 	_screen = new Graphics::Screen();
-	Views views;	// Loads all views in the structure
+
+	// Performs game specific setup, including the view list
+	setup();
 
 	// Run the game
 	int saveSlot = ConfMan.getInt("save_slot");
 	if (saveSlot != -1)
 		g_engine->loadGameState(saveSlot);
-
-	addView("View1");
 
 	Common::Event e;
 	while (!_views.empty() && !shouldQuit()) {
@@ -76,9 +76,20 @@ void Events::runGame() {
 	delete _screen;
 }
 
+#define SHOW_CURSOR           \
+	if (!_cursorVisible) {    \
+		CursorMan.showMouse(true); \
+		_cursorVisible = true; \
+	}
+
 void Events::processEvent(Common::Event &ev) {
 	switch (ev.type) {
 	case Common::EVENT_KEYDOWN:
+		if (_cursorVisible) {
+			CursorMan.showMouse(false);
+			_cursorVisible = false;
+		}
+
 		if (ev.kbd.keycode < Common::KEYCODE_NUMLOCK)
 			msgKeypress(KeypressMessage(ev.kbd));
 		break;
@@ -87,12 +98,10 @@ void Events::processEvent(Common::Event &ev) {
 		break;
 	case Common::EVENT_LBUTTONDOWN:
 	case Common::EVENT_RBUTTONDOWN:
-	case Common::EVENT_MBUTTONDOWN:
 		msgMouseDown(MouseDownMessage(ev.type, ev.mouse));
 		break;
 	case Common::EVENT_LBUTTONUP:
 	case Common::EVENT_RBUTTONUP:
-	case Common::EVENT_MBUTTONUP:
 		msgMouseUp(MouseUpMessage(ev.type, ev.mouse));
 		break;
 	case Common::EVENT_MOUSEMOVE:
@@ -190,6 +199,16 @@ void Events::addKeypress(const Common::KeyCode kc) {
 	focusedView()->msgKeypress(KeypressMessage(ks));
 }
 
+void Events::setCursor(int cursorNum) {
+	_cursorNum = cursorNum;
+	const Cursor &curs = _cursors[cursorNum];
+
+	g_system->setMouseCursor(curs._image.getPixels(),
+		curs._image.w, curs._image.h, curs._hotspotX, curs._hotspotY,
+		(uint)-1, false, nullptr, (const byte *)curs._mask.getPixels()
+	);
+}
+
 /*------------------------------------------------------------------------*/
 
 Bounds::Bounds(Common::Rect &innerBounds) :
@@ -210,6 +229,11 @@ void Bounds::setBorderSize(size_t borderSize) {
 	_borderSize = borderSize;
 	_innerBounds = *this;
 	_innerBounds.grow(-_borderSize);
+}
+
+void Bounds::setBorderSize(int leftPad, int topPad, int rightPad, int bottomPad) {
+	_borderSize = 0;	// No standard border size
+	_innerBounds = Common::Rect(left + leftPad, top + topPad, right - rightPad, bottom - bottomPad);
 }
 
 /*------------------------------------------------------------------------*/
@@ -266,9 +290,6 @@ void UIElement::clearSurface() {
 }
 
 void UIElement::draw() {
-	for (size_t i = 0; i < _children.size(); ++i) {
-		_children[i]->draw();
-	}
 }
 
 bool UIElement::tick() {
@@ -317,8 +338,28 @@ void UIElement::addView() {
 	g_events->addView(this);
 }
 
-Graphics::ManagedSurface UIElement::getSurface() const {
-	return Graphics::ManagedSurface(*g_events->getScreen(), _bounds);
+
+void UIElement::setBounds(const Window &win) {
+	Common::Rect r(win.left * FONT_W, win.top * FONT_H, (win.right + 1) * FONT_W, (win.bottom + 1) * FONT_H);
+	r.translate(win._xOffset, win._yOffset);
+	setBounds(r);
+};
+
+Surface UIElement::getSurface() const {
+	return Surface(*g_events->getScreen(), _innerBounds);
+}
+
+Surface UIElement::getSurface(const Common::Rect &r) const {
+	return Surface(*g_events->getScreen(), r);
+}
+
+Surface UIElement::getSurface(const Window &win) const {
+	Common::Rect r(_innerBounds.left + win.left * FONT_W, _innerBounds.top + win.top * FONT_H,
+					_innerBounds.left + (win.right + 1) * FONT_W, _innerBounds.top + (win.bottom + 1) * FONT_H);
+	r.translate(win._xOffset, win._yOffset);
+	r.clip(_innerBounds);
+
+	return Surface(*g_events->getScreen(), r);
 }
 
 int UIElement::getRandomNumber(int minNumber, int maxNumber) {

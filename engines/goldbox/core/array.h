@@ -1,3 +1,4 @@
+
 /* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
@@ -19,15 +20,47 @@
  *
  */
 
-#ifndef GOLDBOX_VIEWS_H
-#define GOLDBOX_VIEWS_H
+#ifndef GOLDBOX_CORE_ARRAY_H
+#define GOLDBOX_CORE_ARRAY_H
 
-#include "goldbox/view1.h"
+#include "common/array.h"
+#include "common/str.h"
 
 namespace Goldbox {
 
-struct Views {
-	View1 _view1;
+template<class T>
+class Array : public Common::Array<T> {
+public:
+	Array<T>() : Common::Array<T>() {}
+
+	int indexOf(T elem) const {
+		for (uint i = 0; i < this->size(); ++i) {
+			if (this->operator[](i) == elem)
+				return i;
+		}
+
+		return -1;
+	}
+
+	void remove(T elem) {
+		int index = this->indexOf(elem);
+		if (index != -1)
+			this->remove_at(index);
+	}
+
+	bool contains(T elem) const {
+		int index = this->indexOf(elem);
+		return index != -1;		
+	}
+};
+
+class StringArray : public Array<Common::String> {
+public:
+	/**
+	 * Splits a passed string based on a separator character
+	 */
+	void split(const Common::String &src, char separator);
+	void split(const Common::String &src, char separator, size_t maxLen);
 };
 
 } // namespace Goldbox

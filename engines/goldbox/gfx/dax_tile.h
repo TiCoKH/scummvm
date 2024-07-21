@@ -48,27 +48,6 @@ public:
 	void load();
 
 	/**
-	 * Get the font height
-	 */
-	int getFontHeight() const override {
-		return FONT_H;
-	}
-
-	/**
-	 * Get the maximum character width
-	 */
-	int getMaxCharWidth() const override {
-		return FONT_W;
-	}
-
-	/**
-	 * Get the width of the given character
-	 */
-	int getCharWidth(uint32 chr) const override {
-		return FONT_W;
-	}
-
-	/**
 	 * Draw a character
 	 */
 	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
