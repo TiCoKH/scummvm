@@ -19,12 +19,14 @@
  *
  */
 
-#ifndef GOLDBOX_VIEW_H
-#define GOLDBOX_VIEW_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_VIEW_H
+#define GOLDBOX_POOLRAD_VIEWS_VIEW_H
 
 #include "goldbox/events.h"
 
 namespace Goldbox {
+namespace Poolrad {
+namespace Views {
 
 /**
  * Base view class for screens and dialogs that appear on-screen.
@@ -68,6 +70,8 @@ public:
 	bool msgMouseUp(const MouseUpMessage &msg) override;
 };
 
+} // namespace Views
+} // namespace Poolrad
 } // namespace Goldbox
 
 #endif

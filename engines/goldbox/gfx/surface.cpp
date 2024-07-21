@@ -26,18 +26,21 @@
 #include "goldbox/engine.h"
 
 namespace Goldbox {
+namespace Shared {
 namespace Gfx {
 
 #define BACK_COLOR 15
 #define FONT_COLOR 10
 
 Surface::Surface() : Graphics::ManagedSurface() {
-	_currentFont = g_engine->_fonts[0];
+	_currentFont = g_engine->_font;
+	_currentSymbol = g_engine->_symbol;
 }
 
 Surface::Surface(ManagedSurface &surf, const Common::Rect &bounds) :
 	Graphics::ManagedSurface(surf, bounds) {
-	_currentFont = g_engine->_fonts[0];
+	_currentFont = g_engine->_font;
+	_currentSymbol = g_engine->_symbol;
 }
 
 void Surface::setupPalette() {
@@ -48,12 +51,8 @@ void Surface::setupPalette() {
 	g_system->getPaletteManager()->setPalette((const byte *)&white, 255, 1);
 }
 
-void Surface::setFont(int fontNum) {
-	_currentFont = g_engine->_fonts[fontNum];
-}
-
 void Surface::writeString(const Common::String &str) {
-	StringArray lines;
+/*	StringArray lines;
 	lines.split(str, '\n', this->w / FONT_W);
 
 	for (uint lineNum = 0; lineNum < lines.size(); ++lineNum) {
@@ -61,11 +60,10 @@ void Surface::writeString(const Common::String &str) {
 			_textX = 0;
 			++_textY;
 		}
-
-		_currentFont->drawString(this, lines[lineNum], _textX * FONT_W, _textY * FONT_H,
-			this->w - (_textX * FONT_W), FONT_COLOR);
-		_textX += lines[lineNum].size();
-	}
+*/
+	_currentFont->drawString(this, str, _textX * FONT_W, _textY * FONT_H,
+		this->w - (_textX * FONT_W), FONT_COLOR);
+		//_textX += lines[lineNum].size();
 }
 
 void Surface::writeString(const Common::String &str, int x, int y) {
@@ -101,5 +99,44 @@ void Surface::setTextPos(int x, int y) {
 	_textY = y;
 }
 
+void Surface::clearBox(int start_x, int start_y, int end_x, int end_y, uint32 color) {
+	// Convert character positions to pixel positions
+	Common::Rect rect(start_x * FONT_W, start_y * FONT_H, (end_x + 1) * FONT_W, (end_y + 1) * FONT_H);
+
+	// Fill the rectangle with the given color
+	fillRect(rect, color);
+}
+
+void Surface::drawFrame(int start_x, int start_y, int end_x, int end_y) {
+	if (!_currentSymbol) return;
+
+	// Draw corners
+	writeChar(_currentSymbol->cornerSymbol, start_x, start_y); // Top-left corner
+	writeChar(_currentSymbol->cornerSymbol, end_x, start_y);   // Top-right corner
+	writeChar(_currentSymbol->cornerSymbol, start_x, end_y);   // Bottom-left corner
+	writeChar(_currentSymbol->cornerSymbol, end_x, end_y);     // Bottom-right corner
+
+	// Draw top and bottom borders
+	for (int x = start_x + 1; x < end_x; ++x) {
+		writeChar(_currentSymbol->horizontalSymbol, x, start_y); // Top border
+		writeChar(_currentSymbol->horizontalSymbol, x, end_y);   // Bottom border
+	}
+
+	// Draw left and right borders
+	for (int y = start_y + 1; y < end_y; ++y) {
+		writeChar(_currentSymbol->verticalSymbol, start_x, y); // Left border
+		writeChar(_currentSymbol->verticalSymbol, end_x, y);   // Right border
+	}
+}
+
+void Surface::drawWindow(int start_x, int start_y, int end_x, int end_y, uint32 color) {
+	// Clear the area with the given color
+	clearBox(start_x, start_y, end_x, end_y, color);
+
+	// Draw a frame around the cleared area
+	drawFrame(start_x - 1, start_y - 1, end_x + 1, end_y + 1);
+}
+
 } // namespace Gfx
+} // namespace Shared
 } // namespace Goldbox

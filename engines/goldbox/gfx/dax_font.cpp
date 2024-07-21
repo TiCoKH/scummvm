@@ -27,7 +27,7 @@ namespace Gfx {
 
 void DaxFont::load() {
     assert(_daxBlock != nullptr);
-    _glyphCount = _daxBlock->_data.size() / 8;
+    _glyphCount = _daxBlock->item_count;
     assert(_glyphCount * 8 == _daxBlock->_data.size());
 }
 

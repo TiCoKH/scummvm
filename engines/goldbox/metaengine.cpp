@@ -23,7 +23,9 @@
 
 #include "goldbox/metaengine.h"
 #include "goldbox/detection.h"
-#include "goldbox/goldbox.h"
+#include "goldbox/keymapping.h"
+#include "goldbox/poolrad/poolrad.h"
+#include "goldbox/engine.h"
 
 namespace Goldbox {
 
@@ -53,13 +55,31 @@ const ADExtraGuiOptionsMap *GoldboxMetaEngine::getAdvancedExtraGuiOptions() cons
 }
 
 Common::Error GoldboxMetaEngine::createInstance(OSystem *syst, Engine **engine, const ADGameDescription *desc) const {
-	*engine = new Goldbox::GoldboxEngine(syst, desc);
+	const auto *gd = (Goldbox::GoldboxGameDescription *)desc;
+
+	switch (gd->gameType) {
+	case Goldbox::GAMETYPE_POOLRAD:
+		*engine = new Goldbox::Poolrad::PoolradEngine(syst, gd);
+		break;
+	case Goldbox::GAMETYPE_CURSE:
+	//	*engine = new Wasteland::FOD::FountainOfDreamsEngine(syst, gd);
+		break;
+
+	default:
+		error("Unknown game");
+		break;
+	}
+
 	return Common::kNoError;
 }
 
 bool GoldboxMetaEngine::hasFeature(MetaEngineFeature f) const {
 	return checkExtendedSaves(f) ||
 		(f == kSupportsLoadingDuringStartup);
+}
+
+Common::KeymapArray GoldboxMetaEngine::initKeymaps(const char *target) const {
+	return Goldbox::Keymapping::initKeymaps();
 }
 
 #if PLUGIN_ENABLED_DYNAMIC(GOLDBOX)
