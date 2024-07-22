@@ -36,16 +36,34 @@ private:
     Common::Array<Graphics::ManagedSurface> _chars;
     DaxBlock8x8D *_daxBlock;
 
+	void load();
+
 public:
     DaxTile() : Graphics::Font() {}
     ~DaxTile() override {}
 
     DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {}
 
-    /**
-	 * Loads the font from the specified file
+		/**
+	 * Get the font height
 	 */
-	void load();
+	int getFontHeight() const override {
+		return 8;
+	}
+
+	/**
+	 * Get the maximum character width
+	 */
+	int getMaxCharWidth() const override {
+		return 8;
+	}
+
+	/**
+	 * Get the width of the given character
+	 */
+	int getCharWidth(uint32 chr) const override {
+		return 8;
+	}
 
 	/**
 	 * Draw a character

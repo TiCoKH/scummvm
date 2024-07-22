@@ -40,8 +40,8 @@ Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine
 }
 
 Engine::~Engine() {
-	delete _font;
-	delete _symbol;
+	for (auto *font : _fonts)
+		delete font;
 }
 
 uint32 Engine::getFeatures() const {

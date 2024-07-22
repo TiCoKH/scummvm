@@ -25,6 +25,10 @@
 namespace Goldbox {
 namespace Gfx {
 
+DaxFont::DaxFont(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock), _glyphCount(0) {
+    load();
+}
+
 void DaxFont::load() {
     assert(_daxBlock != nullptr);
     _glyphCount = _daxBlock->item_count;

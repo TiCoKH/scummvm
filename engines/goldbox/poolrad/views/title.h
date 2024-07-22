@@ -19,21 +19,23 @@
  *
  */
 
-#ifndef GOLDBOX_VIEW1_H
-#define GOLDBOX_VIEW1_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_TITLE_H
+#define GOLDBOX_POOLRAD_VIEWS_TITLE_H
 
 #include "goldbox/poolrad/views/view.h"
 
 namespace Goldbox {
+namespace Poolrad {
+namespace Views {
 
-class View1 : public View {
+class Title : public View {
 private:
 	byte _pal[256 * 3] = { 0 };
 	int _offset = 0;
 
 public:
-	View1() : View("View1") {}
-	virtual ~View1() {}
+	Title() : View("Title") {}
+	virtual ~Title() {}
 
 	bool msgFocus(const FocusMessage &msg) override;
 	bool msgKeypress(const KeypressMessage &msg) override;
@@ -41,6 +43,8 @@ public:
 	bool tick() override;
 };
 
+} // namespace Views
+} // namespace Poolrad
 } // namespace Goldbox
 
 #endif
