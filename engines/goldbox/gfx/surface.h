@@ -25,7 +25,7 @@
 #include "common/rect.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
-#include "goldbox/gfx/dax_symbol.h"
+#include "goldbox/gfx/dax_tile.h"
 
 namespace Goldbox {
 namespace Shared {
@@ -70,8 +70,6 @@ class Surface : public Graphics::ManagedSurface {
 private:
 	int _textX = 0, _textY = 0;
 	Graphics::Font *_currentFont;
-	Goldbox::Gfx::DaxSymbol *_currentSymbol;
-	
 
 public:
 	/**

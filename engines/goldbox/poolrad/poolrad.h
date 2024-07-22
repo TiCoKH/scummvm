@@ -41,9 +41,9 @@ protected:
 	GUI::Debugger *getConsole() override;
 
 public:
-	GameArchive *_gameArchive = nullptr;
-	Data::Saved _saved;
-	Gfx::PicsDecoder _pics;
+	//GameArchive *_gameArchive = nullptr;
+	//Data::Saved _saved;
+	//Gfx::PicsDecoder _pics;
 
 public:
 	PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc);
