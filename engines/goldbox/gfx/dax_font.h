@@ -39,20 +39,13 @@ private:
 	DaxBlock8x8D *_daxBlock;
 	uint8 _glyphCount;
 
+	void load();
 	uint32 mapCharToIndex(uint32 chr) const;
-	/**
-     * Override drawChar from Graphics::Font
-     */
 	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 
 public:
 	DaxFont(DaxBlock8x8D *daxBlock) : Graphics::Font(), _daxBlock(daxBlock) {}
 	~DaxFont() override {}
-
-	/**
-	 * Loads the font from the specified file
-	 */
-	void load();
 
 	/**
 	 * Get the font height
