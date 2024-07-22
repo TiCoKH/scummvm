@@ -23,7 +23,8 @@
 #include "common/engine_data.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/gfx/dax_font.h"
-#include "goldbox/gfx/dax_symbol.h"
+#include "goldbox/gfx/dax_tile.h"
+#include "goldbox/data/daxblock.h"
 #include "goldbox/poolrad/poolrad.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
 
@@ -59,30 +60,16 @@ void PoolradEngine::setup() {
 
 	Surface::setupPalette();
 
-	Goldbox::g_daxCache.loadFile("8x8d1.dax");
-    Goldbox::g_daxCache.loadFile("8x8d2.dax");
-    Goldbox::g_daxCache.loadFile("8x8d3.dax");
-    Goldbox::g_daxCache.loadFile("8x8d4.dax");
-    Goldbox::g_daxCache.loadFile("8x8d5.dax");
-    Goldbox::g_daxCache.loadFile("8x8d6.dax");
-    Goldbox::g_daxCache.loadFile("8x8d7.dax");
-    Goldbox::g_daxCache.loadFile("8x8d8.dax");
-    Goldbox::g_daxCache.loadFile("title.dax");
+	_dcache->loadFile("8x8d1.dax");
+	Goldbox::DaxBlock *pc_font = _dcache->getBlock(ContentType::_8X8D, 201);
+	auto daxFont = new Gfx::DaxFont(dynamic_cast<DaxBlock8x8D*>(pc_font));
+	_fonts.push_back(daxFont);
+	Goldbox::DaxBlock *symbols = _dcache->getBlock(ContentType::_8X8D, 202);
+	auto daxScreenTiles = new Gfx::DaxTile(dynamic_cast<DaxBlock8x8D*>(symbols));
+	_fonts.push_back(daxScreenTiles);
 
-/*
-	auto monoFont = new Gfx::MonoFont();
-	monoFont->load();
-	_fonts.push_back(monoFont);
-	auto colorFont = new Gfx::ColorFont();
-	colorFont->load();
-	_fonts.push_back(colorFont);
+	_dcache->loadFile("title.dax");
 
-	Gfx::Cursors::load(_cursors);
-	setCursor(0);
-
-	_gameArchive = new GameArchive();
-	SearchMan.add("Game", _gameArchive);
-*/
 /*
 	// Load save data
 	int saveSlot = ConfMan.getInt("save_slot");
@@ -90,7 +77,7 @@ void PoolradEngine::setup() {
 	if (saveSlot != -1)
 		(void)loadGameState(saveSlot);
 */
-	_pics.load("allpics1");
+	//_pics.load("allpics1");
 
 	// Setup game views
 	_views = new Views::Views();

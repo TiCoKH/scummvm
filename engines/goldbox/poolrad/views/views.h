@@ -22,14 +22,14 @@
 #ifndef GOLDBOX_POOLRAD_VIEWS_VIEWS_H
 #define GOLDBOX_POOLRAD_VIEWS_VIEWS_H
 
-#include "goldbox/poolrad/views/view1.h"
+#include "goldbox/poolrad/views/title.h"
 
 namespace Goldbox {
 namespace Poolrad{
 namespace Views {
 	
 struct Views {
-	View1 _view1;
+	Title _title;
 };
 
 } // namespace Views
