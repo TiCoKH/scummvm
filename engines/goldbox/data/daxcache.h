@@ -14,19 +14,21 @@ namespace Goldbox {
     private:
         static Common::HashMap<CacheKey, DaxBlock*> contentCache;
 
+        DaxCache();
+        ~DaxCache();
+        DaxCache(const DaxCache &) = delete;
+        DaxCache &operator=(const DaxCache &) = delete;
         ContentType determineContentType(const Common::Path &filename);
         void decodeRLE(int dataLength, uint8 *output_ptr, const uint8 *input_ptr);
         bool blockExists(ContentType type, int block_id);
 
     public:
-        DaxCache();
-        ~DaxCache();
+        static DaxCache &getInstance();
+
         void loadFile(const Common::Path &filename);
-        Common::Array<uint8> getData(ContentType type, int block_id);
+        DaxBlock* getBlock(ContentType type, int block_id);
         static void clearCache();
     };
-
-    extern DaxCache g_daxCache;
 
 } // namespace GoldBox
 

@@ -38,7 +38,6 @@
 #include "goldbox/detection.h"
 #include "goldbox/events.h"
 #include "goldbox/data/daxcache.h"
-#include "goldbox/gfx/dax_symbol.h"
 
 namespace Goldbox {
 
@@ -61,8 +60,8 @@ protected:
 	}
 
 public:
-	Graphics::Font *_font;
-	Goldbox::Gfx::DaxSymbol *_symbol;
+	Goldbox::DaxCache *_dcache;
+	Common::Array<Graphics::Font *> _fonts;
 
 	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~Engine() override;

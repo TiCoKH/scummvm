@@ -19,28 +19,40 @@
  *
  */
 
-#include "goldbox/poolrad/console.h"
-#include "goldbox/poolrad/poolrad.h"
+#ifndef WASTELAND_WASTELAND1_VIEWS_DIALOGS_TITLE_H
+#define WASTELAND_WASTELAND1_VIEWS_DIALOGS_TITLE_H
+
+#include "graphics/managed_surface.h"
+//#include "wasteland/gfx/text_view.h"
+#include "goldbox/poolrad/views/dialogs/dialog.h"
+//#include "wasteland/wasteland1/views/gfx/button.h"
 
 namespace Goldbox {
 namespace Poolrad {
+namespace Views {
+namespace Dialogs {
 
-Console::Console() : Goldbox::Console() {
-	registerCmd("font", WRAP_METHOD(Console, cmdFont));
-}
+class Credits : public Dialog {
+private:
+	Graphics::ManagedSurface _surface;
 
-bool Console::cmdFont(int argc, const char **argv) {
-	auto *font = g_engine->_fonts[1];
-	Graphics::Screen *screen = g_engine->getScreen();
+	void setText();
 
-	screen->clear();
-	for (uint i = 0; i < 177; ++i) {
-		font->drawChar(screen, i, (i % 16) * 16, (i / 16) * 16, 255);
-	}
+public:
+	Credits();
+	virtual ~Credits() {}
 
-	screen->update();
-	return false;
-}
+	bool msgAction(const ActionMessage &msg) override;
+	bool msgGame(const GameMessage &msg) override;
+	bool msgFocus(const FocusMessage &msg) override;
+	bool msgUnfocus(const UnfocusMessage &msg) override;
+	void draw() override;
+	void timeout() override;
+};
 
+} // namespace Dialogs
+} // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
+
+#endif

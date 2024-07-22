@@ -33,14 +33,12 @@ namespace Gfx {
 #define FONT_COLOR 10
 
 Surface::Surface() : Graphics::ManagedSurface() {
-	_currentFont = g_engine->_font;
-	_currentSymbol = g_engine->_symbol;
+	_currentFont = g_engine->_fonts[0];
 }
 
 Surface::Surface(ManagedSurface &surf, const Common::Rect &bounds) :
 	Graphics::ManagedSurface(surf, bounds) {
-	_currentFont = g_engine->_font;
-	_currentSymbol = g_engine->_symbol;
+	_currentFont = g_engine->_fonts[0];
 }
 
 void Surface::setupPalette() {
@@ -49,6 +47,10 @@ void Surface::setupPalette() {
 
 	uint32 white = 0xffffffff;
 	g_system->getPaletteManager()->setPalette((const byte *)&white, 255, 1);
+}
+
+void Surface::setFont(int fontNum) {
+	_currentFont = g_engine->_fonts[fontNum];
 }
 
 void Surface::writeString(const Common::String &str) {
@@ -105,36 +107,6 @@ void Surface::clearBox(int start_x, int start_y, int end_x, int end_y, uint32 co
 
 	// Fill the rectangle with the given color
 	fillRect(rect, color);
-}
-
-void Surface::drawFrame(int start_x, int start_y, int end_x, int end_y) {
-	if (!_currentSymbol) return;
-
-	// Draw corners
-	writeChar(_currentSymbol->cornerSymbol, start_x, start_y); // Top-left corner
-	writeChar(_currentSymbol->cornerSymbol, end_x, start_y);   // Top-right corner
-	writeChar(_currentSymbol->cornerSymbol, start_x, end_y);   // Bottom-left corner
-	writeChar(_currentSymbol->cornerSymbol, end_x, end_y);     // Bottom-right corner
-
-	// Draw top and bottom borders
-	for (int x = start_x + 1; x < end_x; ++x) {
-		writeChar(_currentSymbol->horizontalSymbol, x, start_y); // Top border
-		writeChar(_currentSymbol->horizontalSymbol, x, end_y);   // Bottom border
-	}
-
-	// Draw left and right borders
-	for (int y = start_y + 1; y < end_y; ++y) {
-		writeChar(_currentSymbol->verticalSymbol, start_x, y); // Left border
-		writeChar(_currentSymbol->verticalSymbol, end_x, y);   // Right border
-	}
-}
-
-void Surface::drawWindow(int start_x, int start_y, int end_x, int end_y, uint32 color) {
-	// Clear the area with the given color
-	clearBox(start_x, start_y, end_x, end_y, color);
-
-	// Draw a frame around the cleared area
-	drawFrame(start_x - 1, start_y - 1, end_x + 1, end_y + 1);
 }
 
 } // namespace Gfx

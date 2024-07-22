@@ -23,6 +23,10 @@
 namespace Goldbox {
 namespace Gfx {
 
+DaxTile::DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {
+    load();
+}
+
 void DaxTile::load() {
     assert(_daxBlock != nullptr);
     _chars.resize(_daxBlock->item_count);
