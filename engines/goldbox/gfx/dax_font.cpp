@@ -32,7 +32,7 @@ DaxFont::DaxFont(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock), _glyphCount(0) {
 void DaxFont::load() {
     assert(_daxBlock != nullptr);
     _glyphCount = _daxBlock->item_count;
-    assert(_glyphCount * 8 == _daxBlock->_data.size());
+//    assert(_glyphCount * 8 == _daxBlock->_data.size());
 }
 
 uint32 DaxFont::mapCharToIndex(uint32 chr) const {

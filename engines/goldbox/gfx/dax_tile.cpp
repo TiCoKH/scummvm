@@ -31,24 +31,19 @@ void DaxTile::load() {
     assert(_daxBlock != nullptr);
     _chars.resize(_daxBlock->item_count);
 
-    int i;
-    int b;
-    int y;
-    int bit, pixel;
-    const byte *data = _daxBlock->_data.data(); // Pointer to the start of the DaxBlock data
+    const uint8 *data = _daxBlock->_data.data(); // Pointer to the start of the DaxBlock data
 
-    for (i = 0; i < _daxBlock->item_count; ++i) {
+    for (int i = 0; i < _daxBlock->item_count; ++i) {
         Graphics::ManagedSurface &s = _chars[i];
         s.create(FONT_W, FONT_H);
 
-        for (bit = 0; bit < 4; ++bit) {
-            for (y = 0; y < 8; ++y) {
-                b = *data++; // Read the next byte from the DaxBlock data
-
-                for (pixel = 0; pixel < 8; ++pixel) {
-                    s.setPixel(pixel, y, s.getPixel(pixel, y)
-                        | (((b >> (7 - pixel)) & 1) << bit));
-                }
+        for (int y = 0; y < FONT_H; ++y) {
+            for (int x = 0; x < FONT_W; ++x) {
+                uint8 byte = *data++;
+                // Extract high nibble and set the corresponding pixel
+                s.setPixel(x, y, (byte & 0xF0) >> 4);
+                // Extract low nibble and set the corresponding pixel
+                s.setPixel(x + 1, y, byte & 0x0F);
             }
         }
     }

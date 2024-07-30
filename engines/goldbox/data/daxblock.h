@@ -47,9 +47,8 @@ namespace Goldbox {
 
 class DaxBlock {
 public:
-    virtual ~DaxBlock() = default; // Virtual destructor
-
-    virtual void adjust(); // Pure virtual function
+    virtual ~DaxBlock() = default; // Ensure it has a virtual destructor
+    virtual void adjust() = 0;
 
     // Common properties
     int8 blockId;
@@ -57,34 +56,33 @@ public:
 
     static DaxBlock* createDaxBlock(ContentType contentType);
 
+protected:
+    GfxDataHeader popGfxHeader();
+
 };
 
-class DaxBlockTitle : public DaxBlock {
+
+
+class DaxBlockPic : public DaxBlock {
 public:
     int height;
     int width;
-    int item_count;
 
-    DaxBlockTitle();
+    DaxBlockPic();
 
 private:
     void adjust() override;
-    // Function to pop GfxDataHeader
-    GfxDataHeader popGfxHeader();
 };
 
-class DaxBlock8x8D : public DaxBlock {
+
+class DaxBlock8x8D : public DaxBlockPic {
 public:
-    int height;
-    int width;
     int item_count;
 
     DaxBlock8x8D();
 
 private:
     void adjust() override;
-    // Function to pop GfxDataHeader
-    GfxDataHeader popGfxHeader();
 };
 
 } // namespace Goldbox
