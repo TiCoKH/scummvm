@@ -18,59 +18,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef GOLDBOX_GFX_DAX_TILE_H
-#define GOLDBOX_GFX_DAX_TILE_H
 
-#include "common/array.h"
-#include "common/rect.h"
-#include "graphics/font.h"
+#ifndef GOLDBOX_GFX_PIC_H
+#define GOLDBOX_GFX_PIC_H
+
 #include "graphics/managed_surface.h"
-#include "goldbox/gfx/surface.h"
+#include "common/stream.h"
 #include "goldbox/data/daxblock.h"
 
 namespace Goldbox {
 namespace Gfx {
 
-class DaxTile : public Graphics::Font {
-private:
-    Common::Array<Graphics::ManagedSurface> _chars;
-    DaxBlock8x8D *_daxBlock;
-
-	void load();
-
+class Pic : public Graphics::ManagedSurface {
 public:
-    DaxTile() : Graphics::Font(), _daxBlock(nullptr) {}
-    ~DaxTile() override {}
+	Pic(int w, int h) : Graphics::ManagedSurface(w, h) {}
 
-    DaxTile(DaxBlock8x8D *daxBlock);
-
-		/**
-	 * Get the font height
-	 */
-	int getFontHeight() const override {
-		return 8;
-	}
+	static Pic *read(DaxBlockPic *daxBlock);
 
 	/**
-	 * Get the maximum character width
+	 * Creates a copy of a picture
 	 */
-	int getMaxCharWidth() const override {
-		return 8;
-	}
-
-	/**
-	 * Get the width of the given character
-	 */
-	int getCharWidth(uint32 chr) const override {
-		return 8;
-	}
-
-	/**
-	 * Draw a character
-	 */
-	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
+	Pic *clone() const;
 };
 
-}; //namespace Gfx
-};
-#endif // GOLDBOX_DAX_COLOR_FONT_H
+} // namespace Gfx
+} // namespace Goldbox
+#endif
