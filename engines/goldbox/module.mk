@@ -4,13 +4,25 @@ MODULE_OBJS = \
 	engine.o \
 	console.o \
 	events.o \
+	keymapping.o \
 	messages.o \
 	metaengine.o \
-	view.o \
-	view1.o \
+	core/array.o \
+	core/file.o \
 	data/daxblock.o \
 	data/daxcache.o \
-	data/daxheadercontainer.o
+	data/daxheadercontainer.o \
+	gfx/dax_font.o \
+	gfx/dax_tile.o \
+	gfx/pic.o \
+	gfx/surface.o \
+	poolrad/poolrad.o \
+	poolrad/console.o \
+	poolrad/views/title.o \
+	poolrad/views/view.o \
+	poolrad/views/dialogs/dialog.o
+
+
 
 # This module can be built as a plugin
 ifeq ($(ENABLE_GOLDBOX), DYNAMIC_PLUGIN)

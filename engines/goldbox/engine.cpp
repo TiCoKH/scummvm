@@ -52,6 +52,10 @@ Common::String Engine::getGameId() const {
 	return _gameDescription->desc.gameId;
 }
 
+Common::Platform Engine::getPlatform() const {
+	return _gameDescription->desc.platform;
+}
+
 Common::Error Engine::run() {
 
 	switch (getPlatform()) {

@@ -38,11 +38,13 @@ PoolradEngine *g_engine;
 PoolradEngine::PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc) :
 		Goldbox::Engine(syst, gameDesc) {
 	g_engine = this;
+	_dcache = g_engine->getDaxCache();
 }
 
 PoolradEngine::~PoolradEngine() {
 	g_engine = nullptr;
 	delete _views;
+	delete _dcache;
 }
 
 void PoolradEngine::initializePath(const Common::FSNode &gamePath) {
@@ -52,20 +54,20 @@ void PoolradEngine::initializePath(const Common::FSNode &gamePath) {
 
 void PoolradEngine::setup() {
 	// Initialise engine data for the game
-	Common::U32String errMsg;
-	if (!Common::load_engine_data("poolrad.dat", "poolrad", 1, 0, errMsg)) {
-		Common::String msg(errMsg);
-		error("%s", msg.c_str());
-	}
+//	Common::U32String errMsg;
+//	if (!Common::load_engine_data("poolrad.dat", "poolrad", 1, 0, errMsg)) {
+//		Common::String msg(errMsg);
+//		error("%s", msg.c_str());
+//	}
 
 	Surface::setupPalette();
 
 	_dcache->loadFile("8x8d1.dax");
 	Goldbox::DaxBlock *pc_font = _dcache->getBlock(ContentType::_8X8D, 201);
-	auto daxFont = new Gfx::DaxFont(dynamic_cast<DaxBlock8x8D*>(pc_font));
+	auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<DaxBlock8x8D*>(pc_font));
 	_fonts.push_back(daxFont);
 	Goldbox::DaxBlock *symbols = _dcache->getBlock(ContentType::_8X8D, 202);
-	auto daxScreenTiles = new Gfx::DaxTile(dynamic_cast<DaxBlock8x8D*>(symbols));
+	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(dynamic_cast<DaxBlock8x8D*>(symbols));
 	_fonts.push_back(daxScreenTiles);
 
 	_dcache->loadFile("title.dax");

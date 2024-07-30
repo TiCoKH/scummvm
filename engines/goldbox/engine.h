@@ -116,6 +116,10 @@ public:
 		Common::Serializer s(stream, nullptr);
 		return syncGame(s);
 	}
+
+    Goldbox::DaxCache *getDaxCache() {
+        return _dcache;
+    }
 };
 
 extern Engine *g_engine;

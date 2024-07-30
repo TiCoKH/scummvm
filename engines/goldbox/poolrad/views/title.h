@@ -22,6 +22,7 @@
 #ifndef GOLDBOX_POOLRAD_VIEWS_TITLE_H
 #define GOLDBOX_POOLRAD_VIEWS_TITLE_H
 
+#include "goldbox/gfx/pic.h"
 #include "goldbox/poolrad/views/view.h"
 
 namespace Goldbox {
@@ -30,17 +31,16 @@ namespace Views {
 
 class Title : public View {
 private:
-	byte _pal[256 * 3] = { 0 };
-	int _offset = 0;
+	Graphics::ManagedSurface _surface;
+	bool _keypressed_ff = false;
 
 public:
 	Title() : View("Title") {}
 	virtual ~Title() {}
 
-	bool msgFocus(const FocusMessage &msg) override;
+//	bool msgFocus(const FocusMessage &msg) override;
 	bool msgKeypress(const KeypressMessage &msg) override;
 	void draw() override;
-	bool tick() override;
 };
 
 } // namespace Views

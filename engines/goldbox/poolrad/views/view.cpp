@@ -20,10 +20,16 @@
  */
 
 #include "goldbox/poolrad/views/view.h"
+#include "goldbox/engine.h"
+
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
+
+	Goldbox::DaxCache *View::getDaxCache() const {
+		return g_engine->getDaxCache();
+	}
 
 void View::checkFocusedControl(const Common::Point &mousePos) {
 	if (_focusedElement) {
