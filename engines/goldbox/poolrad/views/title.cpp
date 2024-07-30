@@ -22,45 +22,32 @@
 #include "common/system.h"
 #include "graphics/paletteman.h"
 #include "goldbox/poolrad/views/title.h"
+#include "goldbox/data/daxblock.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-bool Title::msgFocus(const FocusMessage &msg) {
-	Common::fill(&_pal[0], &_pal[256 * 3], 0);
-	_offset = 128;
-	return true;
-}
-
 bool Title::msgKeypress(const KeypressMessage &msg) {
-	// Any keypress to close the view
-	close();
+	_keypressed_ff = true;
 	return true;
 }
 
 void Title::draw() {
-	// Draw a bunch of squares on screen
-	Graphics::ManagedSurface s = getSurface();
+	Surface s = getSurface();
+	s.clear();
+	Goldbox::DaxCache *dcache = getDaxCache();
 
-	for (int i = 0; i < 100; ++i)
-		s.frameRect(Common::Rect(i, i, 320 - i, 200 - i), i);
-}
 
-bool Title::tick() {
-	// Cycle the palette
-	++_offset;
-	for (int i = 0; i < 256; ++i)
-		_pal[i * 3 + 1] = (i + _offset) % 256;
-	g_system->getPaletteManager()->setPalette(_pal, 0, 256);
-
-	// Below is redundant since we're only cycling the palette, but it demonstrates
-	// how to trigger the view to do further draws after the first time, since views
-	// don't automatically keep redrawing unless you tell it to
-	if ((_offset % 256) == 0)
-		redraw();
-
-	return true;
+	DaxBlockPic *daxBlock = static_cast<DaxBlockPic*>(dcache->getBlock(ContentType::TITLE, 1));
+	Gfx::Pic *pic1 = Gfx::Pic::read(daxBlock);
+	daxBlock = static_cast<DaxBlockPic*>(dcache->getBlock(ContentType::TITLE, 2));
+	Gfx::Pic *pic2 = Gfx::Pic::read(daxBlock);
+	s.simpleBlitFrom(*pic1);
+	if (!_keypressed_ff) delaySeconds(5);
+	s.simpleBlitFrom(*pic2);
+	if (!_keypressed_ff) delaySeconds(5);
+	close();
 }
 
 } // namespace Views

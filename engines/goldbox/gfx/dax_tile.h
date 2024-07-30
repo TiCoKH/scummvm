@@ -39,10 +39,10 @@ private:
 	void load();
 
 public:
-    DaxTile() : Graphics::Font() {}
+    DaxTile() : Graphics::Font(), _daxBlock(nullptr) {}
     ~DaxTile() override {}
 
-    DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {}
+    DaxTile(DaxBlock8x8D *daxBlock);
 
 		/**
 	 * Get the font height

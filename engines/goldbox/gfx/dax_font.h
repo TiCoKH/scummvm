@@ -44,7 +44,7 @@ private:
 	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 
 public:
-	DaxFont(DaxBlock8x8D *daxBlock) : Graphics::Font(), _daxBlock(daxBlock) {}
+	DaxFont(DaxBlock8x8D *daxBlock);
 	~DaxFont() override {}
 
 	/**
