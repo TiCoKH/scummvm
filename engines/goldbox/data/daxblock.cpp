@@ -9,13 +9,13 @@ namespace Goldbox {
         if (contentType == ContentType::_8X8D) {
             return new DaxBlock8x8D();
         } else if (contentType == ContentType::TITLE) {
-            return new DaxBlockTitle();
+            return new DaxBlockPic();
         } else {
             return nullptr;
         }
     }
 
-    GfxDataHeader DaxBlock8x8D::popGfxHeader() {
+    GfxDataHeader DaxBlock::popGfxHeader() {
         if (_data.size() < sizeof(GfxDataHeader)) {
             // Handle error: not enough data to extract a header
             return GfxDataHeader();
@@ -54,16 +54,15 @@ namespace Goldbox {
         item_count = _data.size() / 8;
     }
 
-    DaxBlockTitle::DaxBlockTitle() {
+    DaxBlockPic::DaxBlockPic() {
         height = 0;
         width = 0;
     }
 
-    void DaxBlockTitle::adjust() {
+    void DaxBlockPic::adjust() {
         GfxDataHeader gfx_header = popGfxHeader();
         height = gfx_header.height;
         width = gfx_header.cwidth * 8;
-        item_count = gfx_header.elemNum;
     }
 
 } // namespace Goldbox

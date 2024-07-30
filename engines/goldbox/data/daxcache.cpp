@@ -8,7 +8,7 @@
 
 namespace Goldbox {
 
-    Common::HashMap<CacheKey, DaxBlock*> DaxCache::contentCache;
+    Common::HashMap<CacheKey, DaxBlock*, CacheKeyHash> DaxCache::contentCache;
 
     DaxCache::DaxCache() {
         // Initialize the cache
@@ -16,11 +16,6 @@ namespace Goldbox {
 
     DaxCache::~DaxCache() {
         clearCache();
-    }
-
-    DaxCache &DaxCache::getInstance() {
-        static DaxCache instance;
-        return instance;
     }
 
     ContentType DaxCache::determineContentType(const Common::Path &filename) {

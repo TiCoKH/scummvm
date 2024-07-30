@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_VIEW_H
 
 #include "goldbox/events.h"
+#include "goldbox/data/daxcache.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -52,6 +53,9 @@ private:
 	 * Check for an element at the given position
 	 */
 	UIElement *getElementAtPos(const Common::Point &pos) const;
+
+protected:
+	Goldbox::DaxCache *getDaxCache() const;
 
 public:
 	View(const Common::String &name, UIElement *uiParent) :
