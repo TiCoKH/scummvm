@@ -21,6 +21,7 @@
 
 #include "common/config-manager.h"
 #include "common/engine_data.h"
+#include "goldbox/core/file.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"
@@ -38,18 +39,16 @@ PoolradEngine *g_engine;
 PoolradEngine::PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc) :
 		Goldbox::Engine(syst, gameDesc) {
 	g_engine = this;
-	_dcache = g_engine->getDaxCache();
 }
 
 PoolradEngine::~PoolradEngine() {
 	g_engine = nullptr;
 	delete _views;
-	delete _dcache;
 }
 
 void PoolradEngine::initializePath(const Common::FSNode &gamePath) {
 	Engine::initializePath(gamePath);
-	SearchMan.addDirectory("data", gamePath.getChild("rom").getChild("data"), 0, 3);
+	//SearchMan.addDirectory("data", gamePath.getChild("rom").getChild("data"), 0, 3);
 }
 
 void PoolradEngine::setup() {
@@ -59,18 +58,21 @@ void PoolradEngine::setup() {
 //		Common::String msg(errMsg);
 //		error("%s", msg.c_str());
 //	}
-
 	Surface::setupPalette();
 
-	_dcache->loadFile("8x8d1.dax");
-	Goldbox::DaxBlock *pc_font = _dcache->getBlock(ContentType::_8X8D, 201);
-	auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<DaxBlock8x8D*>(pc_font));
-	_fonts.push_back(daxFont);
-	Goldbox::DaxBlock *symbols = _dcache->getBlock(ContentType::_8X8D, 202);
-	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(dynamic_cast<DaxBlock8x8D*>(symbols));
-	_fonts.push_back(daxScreenTiles);
+	Goldbox::File daxFile8x8d;
+	if (!daxFile8x8d.open("8x8d1.dax")) {
+		error("Failed to open 8x8d1.dax");
+	}
 
-	_dcache->loadFile("title.dax");
+	Goldbox::DaxBlock *pc_font = daxFile8x8d.getBlockById(201);
+	auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<DaxBlock8x8D*>(pc_font));
+	_font = daxFont;
+
+	Goldbox::DaxBlock *symbols = daxFile8x8d.getBlockById(202);
+	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(dynamic_cast<DaxBlock8x8D*>(symbols));
+	_symbols = daxScreenTiles;
+
 
 /*
 	// Load save data
@@ -83,7 +85,7 @@ void PoolradEngine::setup() {
 
 	// Setup game views
 	_views = new Views::Views();
-	addView("Roster");
+	addView("Title");
 }
 
 GUI::Debugger *PoolradEngine::getConsole() {
