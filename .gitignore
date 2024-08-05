@@ -6,12 +6,14 @@
 *.o.tmp
 *.dwo
 *.dwp
+*.dll
 lib*.a
 .deps
 *_pch.cpp
 
 /config.log
 /scummvm
+/dists
 /libscummvm.so
 /scummvm-static
 /ScummVMDockTilePlugin*

@@ -33,12 +33,12 @@ namespace Gfx {
 #define FONT_COLOR 10
 
 Surface::Surface() : Graphics::ManagedSurface() {
-	_currentFont = g_engine->_fonts[0];
+	_currentFont = g_engine->_font;
 }
 
 Surface::Surface(ManagedSurface &surf, const Common::Rect &bounds) :
 	Graphics::ManagedSurface(surf, bounds) {
-	_currentFont = g_engine->_fonts[0];
+	_currentFont = g_engine->_font;
 }
 
 void Surface::setupPalette() {
@@ -49,8 +49,12 @@ void Surface::setupPalette() {
 	g_system->getPaletteManager()->setPalette((const byte *)&white, 255, 1);
 }
 
-void Surface::setFont(int fontNum) {
-	_currentFont = g_engine->_fonts[fontNum];
+void Surface::setToText() {
+	_currentFont = g_engine->_font;
+}
+
+void Surface::setToSymbols() {
+	_currentFont = g_engine->_symbols;
 }
 
 void Surface::writeString(const Common::String &str) {

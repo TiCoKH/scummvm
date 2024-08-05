@@ -30,7 +30,7 @@ Console::Console() : Goldbox::Console() {
 }
 
 bool Console::cmdFont(int argc, const char **argv) {
-	auto *font = g_engine->_fonts[1];
+	auto *font = g_engine->_font;
 	Graphics::Screen *screen = g_engine->getScreen();
 
 	screen->clear();

@@ -81,7 +81,8 @@ public:
 	Surface();
 	Surface(ManagedSurface &surf, const Common::Rect &bounds);
 
-	void setFont(int fontNum);
+	void setToText();
+	void setToSymbols();
 	void writeString(const Common::String &str);
 	void writeString(const Common::String &str, int x, int y);
 	void writeString(const unsigned char *str, int x, int y);

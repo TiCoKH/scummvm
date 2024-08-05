@@ -23,24 +23,28 @@
 #define GOLDBOX_CORE_FILE_H
 
 #include "common/file.h"
+#include "goldbox/data/daxheadercontainer.h"
+#include "goldbox/data/daxblock.h"
 
 namespace Goldbox {
 
-/**
- * Derived file class
- */
 class File : public Common::File {
+private:
+    DaxHeaderContainer headerContainer;
+    ContentType _ctype;
+
+    ContentType determineContentType(const Common::Path &filename);
+
 public:
 	File() : Common::File() {}
 	File(const Common::Path &filename);
 	File(const char *filename);
-
-	/**
-	 * Opens the given file, throwing an error if it can't be opened
-	 */
-	bool open(const Common::Path &filename) override;
+    bool open(const Common::Path& filename) override;
+    void parseHeaders();
+    DaxBlock* getBlockById(int blockId);
+    void decodeRLE(int dataLength, uint8 *output_ptr, const uint8 *input_ptr);
 };
 
 } // namespace Goldbox
 
-#endif
+#endif // GOLDBOX_CORE_FILE_H
