@@ -28,7 +28,7 @@ namespace Dialogs {
 
 void Dialog::drawFrame(const Common::Rect &r) {
 	Surface s = getSurface();
-	s.setFont(1);
+	s.setToSymbols();
 
 	s.writeChar(14, r.left, r.top);
 	for (int x = r.left + 1; x < r.right; ++x)
