@@ -21,8 +21,8 @@
 
 #include "common/system.h"
 #include "graphics/paletteman.h"
+#include "goldbox/core/file.h"
 #include "goldbox/poolrad/views/title.h"
-#include "goldbox/data/daxblock.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -36,9 +36,8 @@ bool Title::msgKeypress(const KeypressMessage &msg) {
 void Title::draw() {
 	Surface s = getSurface();
 	s.clear();
-	Goldbox::DaxCache *dcache = getDaxCache();
 
-
+/*
 	DaxBlockPic *daxBlock = static_cast<DaxBlockPic*>(dcache->getBlock(ContentType::TITLE, 1));
 	Gfx::Pic *pic1 = Gfx::Pic::read(daxBlock);
 	daxBlock = static_cast<DaxBlockPic*>(dcache->getBlock(ContentType::TITLE, 2));
@@ -47,6 +46,7 @@ void Title::draw() {
 	if (!_keypressed_ff) delaySeconds(5);
 	s.simpleBlitFrom(*pic2);
 	if (!_keypressed_ff) delaySeconds(5);
+	*/
 	close();
 }
 

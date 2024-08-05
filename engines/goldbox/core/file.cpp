@@ -19,6 +19,9 @@
  *
  */
 
+#include "common/array.h"
+#include "common/memstream.h"
+#include "common/util.h"
 #include "goldbox/core/file.h"
 
 namespace Goldbox {
@@ -32,10 +35,86 @@ File::File(const char *filename) {
 }
 
 bool File::open(const Common::Path &filename) {
-	if (!Common::File::open(filename))
-		error("Could not open file - %s", filename.toString(Common::Path::kNativeSeparator).c_str());
+    if (!Common::File::open(filename)) {
+        error("Could not open file - %s", filename.toString(Common::Path::kNativeSeparator).c_str());
+        return false;
+    }
+    _ctype = determineContentType(filename);
+    parseHeaders();
+    return true;
+}
 
-	return true;
+void File::parseHeaders() {
+    headerContainer.parseHeaders(*this);
+}
+
+ContentType File::determineContentType(const Common::Path &filename) {
+    Common::String s = filename.toString();
+    if (s.contains("8x8d")) return ContentType::_8X8D;
+    if (s.contains("back")) return ContentType::BACK;
+    if (s.contains("bigpic")) return ContentType::BIGPIC;
+    if (s.contains("cbody")) return ContentType::CBODY;
+    if (s.contains("body")) return ContentType::BODY;
+    if (s.contains("comspr")) return ContentType::COMSPR;
+    if (s.contains("ecl")) return ContentType::ECL;
+    if (s.contains("geo")) return ContentType::GEO;
+    if (s.contains("chead")) return ContentType::CHEAD;
+    if (s.contains("head")) return ContentType::HEAD;
+    if (s.contains("moncha")) return ContentType::MONCHA;
+    if (s.contains("pic")) return ContentType::PIC;
+    if (s.contains("sprit")) return ContentType::SPRIT;
+    if (s.contains("title")) return ContentType::TITLE;
+    if (s.contains("walldef")) return ContentType::WALLDEF;
+    return ContentType::UNKNOWN;
+}
+
+DaxBlock* File::getBlockById(int blockId) {
+    for (const auto &header : headerContainer.getHeaders()) {
+        if (header.id == blockId) {
+            seek(headerContainer.getFileDataOffset() + header.offset, SEEK_SET);
+            Common::Array<uint8> dax_data(header.compSize);
+            read(dax_data.data(), header.compSize);
+
+            DaxBlock* daxBlock = DaxBlock::createDaxBlock(_ctype);
+            if (!daxBlock) {
+                error("Unknown content type for block ID: %d", blockId);
+                return nullptr;
+            }
+
+            if (header.rawSize <= 0) {
+                daxBlock->_data = dax_data;
+            } else {
+                Common::Array<uint8> decode_data(header.rawSize);
+                decodeRLE(header.compSize, decode_data.data(), dax_data.data());
+                daxBlock->_data = decode_data;
+            }
+            daxBlock->blockId = blockId;
+            daxBlock->adjust();
+            return daxBlock;
+        }
+    }
+    error("Block not found: %d", blockId);
+    return nullptr;
+}
+
+void File::decodeRLE(int dataLength, uint8 *output_ptr, const uint8 *input_ptr) {
+    int input_index = 0;
+    int output_index = 0;
+
+    while (input_index < dataLength) {
+        int8 run_length = static_cast<int8>(input_ptr[input_index]);
+
+        if (run_length >= 0) {
+            memcpy(output_ptr + output_index, input_ptr + input_index + 1, run_length + 1);
+            input_index += run_length + 2;
+            output_index += run_length + 1;
+        } else {
+            run_length = -run_length;
+            memset(output_ptr + output_index, input_ptr[input_index + 1], run_length);
+            input_index += 2;
+            output_index += run_length;
+        }
+    }
 }
 
 } // namespace Goldbox

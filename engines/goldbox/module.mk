@@ -10,7 +10,6 @@ MODULE_OBJS = \
 	core/array.o \
 	core/file.o \
 	data/daxblock.o \
-	data/daxcache.o \
 	data/daxheadercontainer.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \

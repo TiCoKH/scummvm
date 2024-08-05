@@ -37,7 +37,6 @@
 
 #include "goldbox/detection.h"
 #include "goldbox/events.h"
-#include "goldbox/data/daxcache.h"
 
 namespace Goldbox {
 
@@ -60,8 +59,8 @@ protected:
 	}
 
 public:
-	Goldbox::DaxCache *_dcache;
-	Common::Array<Graphics::Font *> _fonts;
+	Graphics::Font * _font;
+	Graphics::Font * _symbols;
 
 	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~Engine() override;
@@ -116,10 +115,6 @@ public:
 		Common::Serializer s(stream, nullptr);
 		return syncGame(s);
 	}
-
-    Goldbox::DaxCache *getDaxCache() {
-        return _dcache;
-    }
 };
 
 extern Engine *g_engine;

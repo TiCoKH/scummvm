@@ -27,10 +27,6 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-	Goldbox::DaxCache *View::getDaxCache() const {
-		return g_engine->getDaxCache();
-	}
-
 void View::checkFocusedControl(const Common::Point &mousePos) {
 	if (_focusedElement) {
 		if (!_focusedElement->getBounds().contains(mousePos)) {
