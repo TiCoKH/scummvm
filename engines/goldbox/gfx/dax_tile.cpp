@@ -37,8 +37,8 @@ void DaxTile::load() {
         Graphics::ManagedSurface &s = _chars[i];
         s.create(FONT_W, FONT_H);
 
-        for (int y = 0; y < FONT_H; ++y) {
-            for (int x = 0; x < FONT_W; ++x) {
+        for (int y = 0; y < FONT_H; y++) {
+            for (int x = 0; x < FONT_W; x += 2) {
                 uint8 byte = *data++;
                 // Extract high nibble and set the corresponding pixel
                 s.setPixel(x, y, (byte & 0xF0) >> 4);

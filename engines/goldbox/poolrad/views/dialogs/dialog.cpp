@@ -28,12 +28,11 @@ namespace Dialogs {
 
 void Dialog::drawFrame(const Common::Rect &r) {
 	Surface s = getSurface();
-	s.setToSymbols();
 
-	s.writeChar(14, r.left, r.top);
+	s.writeSymbol(20, r.left, r.top);
 	for (int x = r.left + 1; x < r.right; ++x)
-		s.writeChar(18);
-	s.writeChar(15);
+		s.writeSymbol(18);
+	s.writeSymbol(15);
 
 	for (int y = r.top + 1; y < r.bottom; ++y) {
 		s.writeChar(13, r.left, y);
@@ -44,6 +43,24 @@ void Dialog::drawFrame(const Common::Rect &r) {
 	for (int x = r.left + 1; x < r.right; ++x)
 		s.writeChar(18);
 	s.writeChar(17);
+}
+
+void Dialog::drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom){
+	Surface s = getSurface();
+	s.writeSymbol(20, left-1, top-1);
+	for (int x = left; x <= right; x++) {
+		s.writeSymbol(22);
+	}
+	s.writeSymbol(20);
+	for (int y = top; y <= bottom+1; y++) {
+		s.writeSymbol(21, left-1, y);
+		s.writeSymbol(21, right+1, y);
+	}
+	s.writeSymbol(20, left - 1, bottom+1);
+	for (int x = left; x <= right; x++)
+		s.writeSymbol(22);
+	s.writeSymbol(20);
+	//drawFrame(Common::Rect(left-1, top-1, left + x_size, top + y_size));
 }
 
 } // namespace Dialogs

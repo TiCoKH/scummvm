@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_VIEWS_H
 
 #include "goldbox/poolrad/views/title.h"
+#include "goldbox/poolrad/views/dialogs/credits.h"
 
 namespace Goldbox {
 namespace Poolrad{
@@ -30,6 +31,7 @@ namespace Views {
 	
 struct Views {
 	Title _title;
+	Dialogs::Credits _credits;
 };
 
 } // namespace Views

@@ -29,7 +29,7 @@ namespace Goldbox {
 namespace Shared {
 namespace Gfx {
 
-#define BACK_COLOR 15
+#define BACK_COLOR 0
 #define FONT_COLOR 10
 
 Surface::Surface() : Graphics::ManagedSurface() {
@@ -47,6 +47,19 @@ void Surface::setupPalette() {
 
 	uint32 white = 0xffffffff;
 	g_system->getPaletteManager()->setPalette((const byte *)&white, 255, 1);
+}
+
+unsigned char Surface::mapCharToIndex(unsigned char chr) const {
+    if (chr >= 'a' && chr <= 'z') {
+        chr = chr - ('a' - 'A'); // Convert lowercase to uppercase
+    }
+    if (chr >= 0x41 && chr <= 0x5A) {
+        return chr - 0x40; // A-Z mapped to 0x01-0x1A
+    } else if (chr >= 0x20 && chr <= 0x40) {
+		return (chr == 0x24 || chr == 0x25) ? 0xFF : chr; // Map '$' and '%' to 0xFF
+	} else {
+        return 0xFF; // An invalid index that signifies no drawing
+    }
 }
 
 void Surface::setToText() {
@@ -67,20 +80,43 @@ void Surface::writeString(const Common::String &str) {
 			++_textY;
 		}
 */
-	_currentFont->drawString(this, str, _textX * FONT_W, _textY * FONT_H,
-		this->w - (_textX * FONT_W), FONT_COLOR);
+	Common::String idString;
+
+    for (size_t i = 0; i < str.size(); ++i) {
+        unsigned char mappedIndex = mapCharToIndex(str[i]);
+        idString += mappedIndex; // Append the converted character
+    }
+
+	_currentFont->drawString(this, idString, _textX * FONT_W, _textY * FONT_H,
+		this->w - (_textX * FONT_W), _textColor);
 		//_textX += lines[lineNum].size();
 }
 
+void Surface::writeStringC(const Common::String &str, int color){
+	setTextColor(color);
+	writeString(str);
+}
+
 void Surface::writeString(const Common::String &str, int x, int y) {
-	_textX = x;
-	_textY = y;
+	setTextPos(x, y);
+	writeString(str);
+}
+
+void Surface::writeStringC(const Common::String &str, int color, int line, int column) {
+	setTextPos(column, line);
+	setTextColor(color);
 	writeString(str);
 }
 
 void Surface::writeString(const unsigned char *str, int x, int y) {
-	_textX = x;
-	_textY = y;
+	setTextPos(x, y);
+	Common::String s((const char *)str);
+	writeString(s);
+}
+
+void Surface::writeStringC(const unsigned char *str, int color, int line, int column) {
+	setTextPos(column, line);
+	setTextColor(color);
 	Common::String s((const char *)str);
 	writeString(s);
 }
@@ -91,8 +127,21 @@ void Surface::writeCenteredString(const Common::String &str, int y) {
 }
 
 void Surface::writeChar(unsigned char c) {
-	_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, FONT_COLOR);
+	unsigned char f_id = mapCharToIndex(c);
+	setToText();
+	_currentFont->drawChar(this, f_id, _textX * FONT_W, _textY * FONT_H, _textColor);
 	++_textX;
+}
+
+void Surface::writeGlyph(unsigned char c) {
+	setToText();
+	_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, _textColor);
+	++_textX;
+}
+
+void Surface::writeCharC(unsigned char c, int color) {
+	setTextColor(color);
+	writeChar(c);
 }
 
 void Surface::writeChar(unsigned char c, int x, int y) {
@@ -100,9 +149,36 @@ void Surface::writeChar(unsigned char c, int x, int y) {
 	writeChar(c);
 }
 
+void Surface::writeCharC(unsigned char c, int color, int x, int y) {
+	setTextPos(x, y);
+	setTextColor(color);
+	writeChar(c);
+}
+
+void Surface::writeGlyphC(unsigned char c, int color, int x, int y) {
+	setTextPos(x, y);
+	setTextColor(color);
+	writeGlyph(c);
+}
+
+void Surface::writeSymbol(unsigned char c) {
+	setToSymbols();
+	_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, _textColor);
+	++_textX;
+}
+
+void Surface::writeSymbol(unsigned char c, int x, int y) {
+	setTextPos(x, y);
+	writeSymbol(c);
+}
+
 void Surface::setTextPos(int x, int y) {
 	_textX = x;
 	_textY = y;
+}
+
+void Surface::setTextColor(int color) {
+	_textColor = color;
 }
 
 void Surface::clearBox(int start_x, int start_y, int end_x, int end_y, uint32 color) {

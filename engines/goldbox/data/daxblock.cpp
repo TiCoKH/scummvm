@@ -34,7 +34,7 @@ namespace Goldbox {
         readStream.read(header.a_unk, sizeof(header.a_unk));
 
         // Remove the used bytes from the array
-        _data.erase(_data.begin(), _data.begin() + sizeof(GfxDataHeader));
+        _data.erase(_data.begin(), _data.begin() + 17);
 
         return header;
     }
@@ -42,6 +42,7 @@ namespace Goldbox {
     DaxBlock8x8D::DaxBlock8x8D() {
         height = 8;
         width = 8;
+        item_count = 0;
     }
 
     void DaxBlock8x8D::adjust() {
@@ -50,8 +51,9 @@ namespace Goldbox {
             height = gfx_header.height;
             width = gfx_header.cwidth * 8;
             item_count = gfx_header.elemNum;
+        } else {
+            item_count = _data.size() / 8;
         }
-        item_count = _data.size() / 8;
     }
 
     DaxBlockPic::DaxBlockPic() {

@@ -31,16 +31,18 @@ namespace Views {
 
 class Title : public View {
 private:
-	Graphics::ManagedSurface _surface;
+	Gfx::Pic* _pic1;
+	Gfx::Pic* _pic2;
 	bool _keypressed_ff = false;
 
 public:
 	Title() : View("Title") {}
 	virtual ~Title() {}
 
-//	bool msgFocus(const FocusMessage &msg) override;
+	bool msgFocus(const FocusMessage &msg) override;
 	bool msgKeypress(const KeypressMessage &msg) override;
 	void draw() override;
+	bool tick() override;
 };
 
 } // namespace Views

@@ -51,7 +51,7 @@ public:
     virtual void adjust() = 0;
 
     // Common properties
-    int8 blockId;
+    uint8 blockId;
     Common::Array<uint8> _data;
 
     static DaxBlock* createDaxBlock(ContentType contentType);
