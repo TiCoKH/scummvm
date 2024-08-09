@@ -35,134 +35,96 @@ namespace Dialogs {
 #define TITLE_W 288
 #define TITLE_H 128
 
-static const char *const TEXT[] = {
-	"\r         Electronic Arts and          \r"
-		"        Interplay Productions         \r"
-		"           proudly present            \r\r",
-	"              WASTELAND!              \r\r"
-		"         Copyright 1986-88 by         \r"
-		"        Interplay Productions.        \r",
-	"\r       Written by Alan Pavlish        \r"
-		"    IBM version by Michael Quarles    \r\r",
-	"\rPlace : EARTH\r",
-	"Year  : 1998\r",
-	"Status: DEFCON 1\r\r",
-	" Diplomatic solutions to the world's\r"
-		" problems fail and war erupts as some\r"
-		" madmen press ahead with their insane\r"
-		" dreams.\r",
-	" Current condition:\r"
-		" High concentrations of radiation\r"
-		" produce random storms and mutations.\r"
-		" Somehow life continues in the\r"
-		" Wasteland!\r"
-};
+const char SCENARIO_CREATED_BY[] = "scenario created by:";
+const char TSR_INC[] = "tsr, inc.";
+const char JIM_WARD[] = "jim ward";
+const char DAVID_COOK_STEVE_WINTER_MIKE_BREAULT[] = "david cook,steve winter,mike breault";
+const char GAME_CREATED_BY[] = "game created by:";
+const char SSI_SPECIAL_PROJECTS[] = "ssi special projects";
+const char VERSION_13[] = "version 1.3";
+const char PROGRAMMING[] = "programming:";
+const char ORIGINAL[] = "original";
+const char SCOT_BAYLESS[] = "scot bayless";
+const char BRAD_MYERS[] = "brad myers";
+const char KEITH_BRORS[] = "keith brors";
+const char RUSS_BROWN[] = "russ brown";
+const char TED_GREER[] = "ted greer";
+const char GRAPHIC_ARTS[] = "graphic arts:";
+const char ENCOUNTER_CODING[] = "encounter coding:";
+const char TOM_WAHL[] = "tom wahl";
+const char PAUL_MURRAY[] = "paul murray";
+const char FRED_BUTTS[] = "fred butts";
+const char DARLA_MARASCO[] = "darla marasco";
+const char VICTOR_PENMAN[] = "victor penman";
+const char SUSAN_HALBLEIB[] = "susan halbleib";
+const char DAVE_SHELLEY[] = "dave shelley";
+const char PROJECT_MANAGER[] = "project manager";
+const char DEVELOPER[] = "developer:";
+const char GEORGE_MAC_DONALD[] = "george mac donald";
+const char TESTING[] = "testing:";
+const char JOEL_BILLINGS_STEVE_SALYER[] = "joel billings,steve salyer";
+const char JAMES_KUCERA_ROBERT_DALY_RICK_WHITE[] = "james kucera,robert daly,rick white";
 
-
-Credits::Credits() : Dialog("Credits"),
-		//_start(this, "Start", "START", 18, 24),
-		//_textView("TextLines", this,
-		//	Window(1 * FONT_W, 18 * FONT_H, 39 * FONT_W, 24 * FONT_H)) {
-}
+Credits::Credits() : Dialog("Credits"){}
 
 bool Credits::msgAction(const ActionMessage &msg) {
-	if (msg._action == KEYBIND_SELECT)
-		replaceView("Roster");
-	return true;
-}
-
-bool Credits::msgGame(const GameMessage &msg) {
-	if (msg._name == "Start")
-		replaceView("Roster");
+//	if (msg._action == KEYBIND_SELECT)
+//		replaceView("Roster");
 	return true;
 }
 
 void Credits::draw() {
 	Surface s = getSurface();
 	s.clear();
-	s.blitFrom(_surface, Common::Point(8, 8));
 
-	s.setFont(1);
-	drawFrame(Common::Rect(0, 0, 37, 17));
-	drawFrame(Common::Rect(0, 17, 39, 24));
-	s.writeChar(94, 0, 17);
-	s.writeChar(95, 37, 17);
+	drawWindow(1, 1, 38, 3);
+	drawWindow(1, 5, 38, 23);
+	s.writeStringC(SCENARIO_CREATED_BY, 10, 1, 5);
+    s.writeStringC(TSR_INC, 14, 1, 26);
+    s.writeStringC(JIM_WARD, 10, 2, 15);
+    s.writeStringC(DAVID_COOK_STEVE_WINTER_MIKE_BREAULT, 10, 3, 2);
+    s.writeStringC(GAME_CREATED_BY, 10, 5, 1);
+    s.writeStringC(SSI_SPECIAL_PROJECTS, 14, 5, 18);
+    s.writeStringC(VERSION_13, 11, 6, 14);
+    s.writeStringC(PROGRAMMING, 14, 7, 2);
+    s.writeStringC(ORIGINAL, 14, 7, 20);
+    s.writeStringC(SCOT_BAYLESS, 11, 8, 2);
+	s.writeStringC(PROGRAMMING, 14, 8, 20);
+    s.writeStringC(BRAD_MYERS, 11, 9, 2);
+    s.writeStringC(KEITH_BRORS, 11, 9, 20);
+    s.writeStringC(RUSS_BROWN, 11, 10, 2);
+	s.writeStringC(BRAD_MYERS, 11, 10, 20);
+    s.writeStringC(TED_GREER, 11, 11, 2);
+    s.writeStringC(GRAPHIC_ARTS, 14, 13, 2);
+    s.writeStringC(ENCOUNTER_CODING, 14, 13, 20);
+    s.writeStringC(TOM_WAHL, 11, 14, 2);
+    s.writeStringC(PAUL_MURRAY, 11, 14, 20);
+    s.writeStringC(FRED_BUTTS, 11, 15, 2);
+	s.writeStringC(RUSS_BROWN, 11, 15, 20);
+    s.writeStringC(DARLA_MARASCO, 11, 16, 2);
+    s.writeStringC(VICTOR_PENMAN, 11, 16, 20);
+    s.writeStringC(SUSAN_HALBLEIB, 11, 17, 2);
+    s.writeStringC(DAVE_SHELLEY, 11, 17, 20);
+    s.writeStringC(PROJECT_MANAGER, 14, 19, 2);
+    s.writeStringC(DEVELOPER, 14, 19, 20);
+	s.writeStringC(VICTOR_PENMAN, 11, 20, 2);
+    s.writeStringC(GEORGE_MAC_DONALD, 11, 20, 20);
+    s.writeStringC(TESTING, 14, 22, 2);
+    s.writeStringC(JOEL_BILLINGS_STEVE_SALYER, 11, 22, 11);
+    s.writeStringC(JAMES_KUCERA_ROBERT_DALY_RICK_WHITE, 11, 23, 2);
 
-	const unsigned char WASTELAND[17] = {
-		0x62, 0x64, 0x66, 0x68, 0x6a, 0x6c, 0x64, 0x6e, 0x70,
-		0x74, 0x72, 0x82, 0x82, 0x82, 0x82, 0x7c, 0x7a
-	};
-	for (int i = 0; i < 17; ++i) {
-		s.writeChar(WASTELAND[i], 38, i);
-		s.writeChar(WASTELAND[i] + 1);
-	}
 }
 
 bool Credits::msgFocus(const FocusMessage &msg) {
 	Dialog::msgFocus(msg);
-
-	// Open title pic file for access
-	File f("title.pic");
-	VerticalXorStream xorStream(&f, TITLE_W, DisposeAfterUse::NO);
-
-	// Load into surface
-	_surface.create(TITLE_W, TITLE_H);
-	byte *pDest = (byte *)_surface.getPixels();
-	xorStream.read(pDest, TITLE_W * TITLE_H);
-
-	_textNum = 0;
-	setText();
 	return true;
 }
 
 bool Credits::msgUnfocus(const UnfocusMessage &msg) {
-	Dialog::msgUnfocus(msg);
-	_surface.clear();
 	return true;
 }
 
 void Credits::timeout() {
-	setText();
-}
-
-void Credits::setText() {
-	int textNum = _textNum++;
-	Common::String s;
-
-	switch (textNum) {
-	case 0:
-	case 1:
-	case 2:
-		_textView.clear();
-		_textView.print(TEXT[textNum]);
-		delaySeconds(3);
-		break;
-
-	case 3:
-	case 4:
-	case 5:
-		if (textNum == 3)
-			_textView.clear();
-		_textView.print(TEXT[textNum]);
-		if (textNum == 5)
-			delaySeconds(3);
-		else
-			delayFrames(10);
-		break;
-
-	case 6:
-		_textView.clear();
-		_textView.print(TEXT[6]);
-		delaySeconds(5);
-		break;
-
-	default:
-		_textNum = 0;
-		_textView.clear();
-		_textView.print(TEXT[7]);
-		delaySeconds(10);
-		break;
-	}
 }
 
 } // namespace Dialogs
