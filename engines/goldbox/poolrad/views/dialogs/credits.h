@@ -23,9 +23,7 @@
 #define WASTELAND_WASTELAND1_VIEWS_DIALOGS_TITLE_H
 
 #include "graphics/managed_surface.h"
-//#include "wasteland/gfx/text_view.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
-//#include "wasteland/wasteland1/views/gfx/button.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -34,16 +32,13 @@ namespace Dialogs {
 
 class Credits : public Dialog {
 private:
-	Graphics::ManagedSurface _surface;
-
-	void setText();
 
 public:
 	Credits();
 	virtual ~Credits() {}
 
 	bool msgAction(const ActionMessage &msg) override;
-	bool msgGame(const GameMessage &msg) override;
+//	bool msgGame(const GameMessage &msg) override;
 	bool msgFocus(const FocusMessage &msg) override;
 	bool msgUnfocus(const UnfocusMessage &msg) override;
 	void draw() override;

@@ -52,7 +52,7 @@ void PoolradEngine::initializePath(const Common::FSNode &gamePath) {
 }
 
 void PoolradEngine::setup() {
-	// Initialise engine data for the game
+// Initialise engine data for the game
 //	Common::U32String errMsg;
 //	if (!Common::load_engine_data("poolrad.dat", "poolrad", 1, 0, errMsg)) {
 //		Common::String msg(errMsg);
@@ -73,6 +73,7 @@ void PoolradEngine::setup() {
 	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(dynamic_cast<DaxBlock8x8D*>(symbols));
 	_symbols = daxScreenTiles;
 
+	daxFile8x8d.close();
 
 /*
 	// Load save data

@@ -35,32 +35,6 @@ void DaxFont::load() {
 //    assert(_glyphCount * 8 == _daxBlock->_data.size());
 }
 
-uint32 DaxFont::mapCharToIndex(uint32 chr) const {
-    if (chr >= 'a' && chr <= 'z') {
-        chr = chr - ('a' - 'A'); // Convert lowercase to uppercase
-    }
-    if (chr >= 0x41 && chr <= 0x5A) {
-        return chr - 0x40; // A-Z mapped to 0x01-0x1A
-    } else if (chr >= 0x20 && chr <= 0x40) {
-		return (chr == 0x24 || chr == 0x25) ? 0xFF : chr; // Map '$' and '%' to 0xFF
-	} else {
-        return 0xFF; // An invalid index that signifies no drawing
-    }
-}
-
-void DaxFont::drawLetter(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const {
-    uint8 index = mapCharToIndex(chr);
-    if (index == 0xFF) return; // Invalid character, do nothing
-
-    drawChar(dst, index, x, y, color);
-}
-
-void DaxFont::drawGlyph(Graphics::Surface *dst, uint8 index, int x, int y, uint32 color) const {
-    if (index >= _glyphCount) return; // Invalid index, do nothing
-
-    drawChar(dst, index, x, y, color);
-}
-
 void DaxFont::drawChar(Graphics::Surface *dst, uint32 index, int x, int y, uint32 color) const {
     const byte *src = &_daxBlock->_data[index * 8];
     byte *dest;

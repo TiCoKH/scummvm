@@ -19,7 +19,8 @@ MODULE_OBJS = \
 	poolrad/console.o \
 	poolrad/views/title.o \
 	poolrad/views/view.o \
-	poolrad/views/dialogs/dialog.o
+	poolrad/views/dialogs/dialog.o \
+	poolrad/views/dialogs/credits.o
 
 
 
