@@ -27,6 +27,7 @@ namespace Poolrad {
 
 Console::Console() : Goldbox::Console() {
 	registerCmd("font", WRAP_METHOD(Console, cmdFont));
+	registerCmd("symbols", WRAP_METHOD(Console, cmdSymbols));
 }
 
 bool Console::cmdFont(int argc, const char **argv) {
@@ -41,6 +42,20 @@ bool Console::cmdFont(int argc, const char **argv) {
 	screen->update();
 	return false;
 }
+
+bool Console::cmdSymbols(int argc, const char **argv) {
+	auto *symbols = g_engine->_symbols;
+	Graphics::Screen *screen = g_engine->getScreen();
+
+	screen->clear();
+	for (uint i = 0; i < 31; ++i) {
+		symbols->drawChar(screen, i, (i % 16) * 16, (i / 16) * 16, 255);
+	}
+
+	screen->update();
+	return false;
+}
+
 
 } // namespace Poolrad
 } // namespace Goldbox

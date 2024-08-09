@@ -68,28 +68,35 @@ struct Position : public Common::Point {
  */
 class Surface : public Graphics::ManagedSurface {
 private:
-	int _textX = 0, _textY = 0;
+	int _textX = 0, _textY = 0, _textColor = 10;
 	Graphics::Font *_currentFont;
 
-public:
-	/**
-	 * Sets the EGA palette
-	 */
-	static void setupPalette();
+	unsigned char mapCharToIndex(unsigned char) const;
 
 public:
 	Surface();
 	Surface(ManagedSurface &surf, const Common::Rect &bounds);
 
+	static void setupPalette();
 	void setToText();
 	void setToSymbols();
 	void writeString(const Common::String &str);
 	void writeString(const Common::String &str, int x, int y);
 	void writeString(const unsigned char *str, int x, int y);
+	void writeStringC(const Common::String &str, int color);
+	void writeStringC(const Common::String &str, int color, int line, int column);
+	void writeStringC(const unsigned char *str, int color, int line, int column);
 	void writeCenteredString(const Common::String &str, int y);
 	void writeChar(unsigned char c);
 	void writeChar(unsigned char c, int x, int y);
+	void writeGlyph(unsigned char c);
+	void writeSymbol(unsigned char s_id);
+	void writeSymbol(unsigned char s_id, int x, int y);
+	void writeCharC(unsigned char c, int color);
+	void writeCharC(unsigned char c, int color, int x, int y);
+	void writeGlyphC(unsigned char g_id, int color, int x, int y);
 	void setTextPos(int x, int y);
+	void setTextColor(int color);
 
 	/**
 	 * Clears an area from character position (start_x, start_y) to (end_x, end_y) using the specified color

@@ -22,18 +22,22 @@
 #ifndef GOLDBOX_GFX_PIC_H
 #define GOLDBOX_GFX_PIC_H
 
-#include "graphics/managed_surface.h"
 #include "common/stream.h"
+#include "graphics/managed_surface.h"
+#include "graphics/palette.h"
 #include "goldbox/data/daxblock.h"
 
 namespace Goldbox {
 namespace Gfx {
 
 class Pic : public Graphics::ManagedSurface {
+
 public:
 	Pic(int w, int h) : Graphics::ManagedSurface(w, h) {}
 
 	static Pic *read(DaxBlockPic *daxBlock);
+//	void toScreen(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
+
 
 	/**
 	 * Creates a copy of a picture

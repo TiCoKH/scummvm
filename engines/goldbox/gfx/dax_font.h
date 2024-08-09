@@ -40,7 +40,6 @@ private:
 	uint8 _glyphCount;
 
 	void load();
-	uint32 mapCharToIndex(uint32 chr) const;
 	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 
 public:
@@ -67,17 +66,6 @@ public:
 	int getCharWidth(uint32 chr) const override {
 		return FONT_W;
 	}
-
-    /**
-     * Draw a character with conversion if needed
-     */
-    void drawLetter(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const;
-
-    /**
-     * Draw a glyph by index without conversion
-     */
-    void drawGlyph(Graphics::Surface *dst, uint8 index, int x, int y, uint32 color) const;
-
 };
 
 } // namespace Gfx

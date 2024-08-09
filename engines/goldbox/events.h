@@ -59,11 +59,11 @@ public:
 	operator const Common::Rect &() const { return _bounds; }
 	Bounds &operator=(const Common::Rect &r);
 	void setBorderSize(size_t borderSize);
-	void setBorderSize(int leftPad, int topPad, int rightPad, int bottomPad);
+//	void setBorderSize(int leftPad, int topPad, int rightPad, int bottomPad);
 	size_t borderSize() const { return _borderSize; }
 	int16 width() const { return _bounds.width(); }
 	int16 height() const { return _bounds.height(); }
-	bool contains(const Common::Point &pt) const { return _innerBounds.contains(pt); }
+//	bool contains(const Common::Point &pt) const { return _innerBounds.contains(pt); }
 };
 
 /**
