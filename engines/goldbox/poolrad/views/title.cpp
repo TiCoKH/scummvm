@@ -23,31 +23,57 @@
 #include "graphics/paletteman.h"
 #include "goldbox/core/file.h"
 #include "goldbox/poolrad/views/title.h"
+#include "goldbox/poolrad/poolrad.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
+bool Title::msgFocus(const FocusMessage &msg) {
+	Goldbox::File daxFileTitle;
+	if (!daxFileTitle.open("title.dax")) {
+		error("Failed to open title.dax");
+	}
+
+	DaxBlock *daxBlock = daxFileTitle.getBlockById(1);
+	_pic1 = Gfx::Pic::read(dynamic_cast<DaxBlockPic*>(daxBlock));
+	daxBlock = daxFileTitle.getBlockById(2);
+	_pic2 = Gfx::Pic::read(dynamic_cast<DaxBlockPic*>(daxBlock));
+
+	daxFileTitle.close();
+
+	return true;
+}
+
 bool Title::msgKeypress(const KeypressMessage &msg) {
-	_keypressed_ff = true;
+	//_keypressed_ff = true;
 	return true;
 }
 
 void Title::draw() {
 	Surface s = getSurface();
 	s.clear();
+	s.setToText();
+	s.writeStringC("Loading...Please Wait", 10, 24, 0);
+	delaySeconds(2);
+	s.blitFrom(*_pic1);
+	delaySeconds(5);
+	s.blitFrom(*_pic2);
+	delaySeconds(5);
 
-/*
-	DaxBlockPic *daxBlock = static_cast<DaxBlockPic*>(dcache->getBlock(ContentType::TITLE, 1));
-	Gfx::Pic *pic1 = Gfx::Pic::read(daxBlock);
-	daxBlock = static_cast<DaxBlockPic*>(dcache->getBlock(ContentType::TITLE, 2));
-	Gfx::Pic *pic2 = Gfx::Pic::read(daxBlock);
-	s.simpleBlitFrom(*pic1);
-	if (!_keypressed_ff) delaySeconds(5);
-	s.simpleBlitFrom(*pic2);
-	if (!_keypressed_ff) delaySeconds(5);
-	*/
-	close();
+//	s.blitFrom(*_pic1);
+//	if (!_keypressed_ff) delaySeconds(5);
+//	s.blitFrom(*_pic2);
+//	if (!_keypressed_ff) delaySeconds(5);
+
+//	delete _pic1;
+//	delete _pic2;
+
+//	close();
+}
+
+bool Title::tick() {
+	return true;
 }
 
 } // namespace Views

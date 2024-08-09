@@ -19,6 +19,7 @@
  *
  */
 
+#include "common/system.h"
 #include "goldbox/gfx/pic.h"
 #include "goldbox/data/daxblock.h"
 
@@ -31,8 +32,8 @@ Pic *Pic::read(DaxBlockPic *daxBlock) {
 	Pic *pic = new Pic(width, height);
 	// Decode the pixel data
 	const uint8 *data = daxBlock->_data.begin();
-	for (int y = 0; y < height; ++y) {
-		for (int x = 0; x < width; ++x) {
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x += 2) {
 			uint8 byte = *data++;
 			// Extract high nibble and set the corresponding pixel
 			pic->setPixel(x, y, (byte & 0xF0) >> 4);

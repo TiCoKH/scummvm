@@ -31,6 +31,7 @@ namespace Poolrad {
 class Console : public Goldbox::Console {
 private:
 	bool cmdFont(int argc, const char **argv);
+	bool cmdSymbols(int argc, const char **argv);
 public:
 	Console();
 	~Console() override {}

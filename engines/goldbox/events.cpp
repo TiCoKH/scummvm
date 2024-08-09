@@ -45,9 +45,9 @@ void Events::runGame() {
 	setup();
 
 	// Run the game
-	int saveSlot = ConfMan.getInt("save_slot");
-	if (saveSlot != -1)
-		g_engine->loadGameState(saveSlot);
+//	int saveSlot = ConfMan.getInt("save_slot");
+//	if (saveSlot != -1)
+//		g_engine->loadGameState(saveSlot);
 
 	Common::Event e;
 	while (!_views.empty() && !shouldQuit()) {
@@ -231,11 +231,12 @@ void Bounds::setBorderSize(size_t borderSize) {
 	_innerBounds.grow(-_borderSize);
 }
 
+/*
 void Bounds::setBorderSize(int leftPad, int topPad, int rightPad, int bottomPad) {
 	_borderSize = 0;	// No standard border size
 	_innerBounds = Common::Rect(left + leftPad, top + topPad, right - rightPad, bottom - bottomPad);
 }
-
+*/
 /*------------------------------------------------------------------------*/
 
 UIElement::UIElement(const Common::String &name) :
@@ -290,6 +291,9 @@ void UIElement::clearSurface() {
 }
 
 void UIElement::draw() {
+		for (size_t i = 0; i < _children.size(); ++i) {
+		_children[i]->draw();
+	}
 }
 
 bool UIElement::tick() {
@@ -346,7 +350,7 @@ void UIElement::setBounds(const Window &win) {
 };
 
 Surface UIElement::getSurface() const {
-	return Surface(*g_events->getScreen(), _innerBounds);
+	return Surface(*g_events->getScreen(), _bounds);
 }
 
 Surface UIElement::getSurface(const Common::Rect &r) const {
