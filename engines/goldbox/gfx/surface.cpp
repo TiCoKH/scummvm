@@ -71,15 +71,7 @@ void Surface::setToSymbols() {
 }
 
 void Surface::writeString(const Common::String &str) {
-/*	StringArray lines;
-	lines.split(str, '\n', this->w / FONT_W);
-
-	for (uint lineNum = 0; lineNum < lines.size(); ++lineNum) {
-		if (lineNum > 0) {
-			_textX = 0;
-			++_textY;
-		}
-*/
+	// TODO: Handle multiple lines
 	Common::String idString;
 
     for (size_t i = 0; i < str.size(); ++i) {
@@ -89,7 +81,6 @@ void Surface::writeString(const Common::String &str) {
 
 	_currentFont->drawString(this, idString, _textX * FONT_W, _textY * FONT_H,
 		this->w - (_textX * FONT_W), _textColor);
-		//_textX += lines[lineNum].size();
 }
 
 void Surface::writeStringC(const Common::String &str, int color){
@@ -155,8 +146,8 @@ void Surface::writeCharC(unsigned char c, int color, int x, int y) {
 	writeChar(c);
 }
 
-void Surface::writeGlyphC(unsigned char c, int color, int x, int y) {
-	setTextPos(x, y);
+void Surface::writeGlyphC(unsigned char c, int color, int line, int column) {
+	setTextPos(column, line);
 	setTextColor(color);
 	writeGlyph(c);
 }

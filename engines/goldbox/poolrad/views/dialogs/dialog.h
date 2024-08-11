@@ -36,7 +36,7 @@ protected:
 	 * Draw a frame within the dialog
 	 */
 	void drawFrame(const Common::Rect &r);
-	void drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom);
+	void drawWindow(uint8 bottom, uint8 right, uint8 top, uint8 left);
 
 public:
 	Dialog(const Common::String &name) : View(name) {}
