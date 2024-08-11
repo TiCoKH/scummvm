@@ -32,10 +32,11 @@ DaxFont::DaxFont(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock), _glyphCount(0) {
 void DaxFont::load() {
     assert(_daxBlock != nullptr);
     _glyphCount = _daxBlock->item_count;
-//    assert(_glyphCount * 8 == _daxBlock->_data.size());
 }
 
 void DaxFont::drawChar(Graphics::Surface *dst, uint32 index, int x, int y, uint32 color) const {
+    if (index > _glyphCount)
+        return; // if index is out of bounds, do nothing
     const byte *src = &_daxBlock->_data[index * 8];
     byte *dest;
     byte bits;

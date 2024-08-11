@@ -94,7 +94,7 @@ public:
 	void writeSymbol(unsigned char s_id, int x, int y);
 	void writeCharC(unsigned char c, int color);
 	void writeCharC(unsigned char c, int color, int x, int y);
-	void writeGlyphC(unsigned char g_id, int color, int x, int y);
+	void writeGlyphC(unsigned char g_id, int color, int line, int column);
 	void setTextPos(int x, int y);
 	void setTextColor(int color);
 

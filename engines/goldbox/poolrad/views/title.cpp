@@ -46,34 +46,46 @@ bool Title::msgFocus(const FocusMessage &msg) {
 }
 
 bool Title::msgKeypress(const KeypressMessage &msg) {
-	//_keypressed_ff = true;
+	_state = 4;
+	redraw();
 	return true;
 }
 
 void Title::draw() {
 	Surface s = getSurface();
-	s.clear();
-	s.setToText();
-	s.writeStringC("Loading...Please Wait", 10, 24, 0);
-	delaySeconds(2);
-	s.blitFrom(*_pic1);
-	delaySeconds(5);
-	s.blitFrom(*_pic2);
-	delaySeconds(5);
+	switch(_state)
+	{
+		case 0:
+			s.clear();
+			s.setToText();
+			s.writeStringC("Loading...Please Wait", 10, 24, 0);
+			delaySeconds(1);
+			break;
+		case 1:
+			s.blitFrom(*_pic1);
+			delaySeconds(5);
+			break;
+		case 2:
+			s.blitFrom(*_pic2);
+			delaySeconds(5);
+			break;
+		case 3:
+			delete _pic1;
+			delete _pic2;
+			replaceView("Credits");
+			break;
+		case 4:
+			delete _pic1;
+			delete _pic2;
+			replaceView("Codewheel");
+			break;
 
-//	s.blitFrom(*_pic1);
-//	if (!_keypressed_ff) delaySeconds(5);
-//	s.blitFrom(*_pic2);
-//	if (!_keypressed_ff) delaySeconds(5);
-
-//	delete _pic1;
-//	delete _pic2;
-
-//	close();
+	}
 }
 
-bool Title::tick() {
-	return true;
+void Title::timeout() {
+	_state++;
+	redraw();
 }
 
 } // namespace Views
