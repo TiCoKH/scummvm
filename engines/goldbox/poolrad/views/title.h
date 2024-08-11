@@ -31,9 +31,9 @@ namespace Views {
 
 class Title : public View {
 private:
-	Gfx::Pic* _pic1;
-	Gfx::Pic* _pic2;
-	bool _keypressed_ff = false;
+	Gfx::Pic* _pic1 = nullptr;
+	Gfx::Pic *_pic2 = nullptr;
+	uint8 _state = 0;
 
 public:
 	Title() : View("Title") {}
@@ -42,9 +42,9 @@ public:
 	bool msgFocus(const FocusMessage &msg) override;
 	bool msgKeypress(const KeypressMessage &msg) override;
 	void draw() override;
-	bool tick() override;
+	void timeout() override;
 };
-
+ 
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox

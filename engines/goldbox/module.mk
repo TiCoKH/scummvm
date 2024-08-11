@@ -20,7 +20,8 @@ MODULE_OBJS = \
 	poolrad/views/title.o \
 	poolrad/views/view.o \
 	poolrad/views/dialogs/dialog.o \
-	poolrad/views/dialogs/credits.o
+	poolrad/views/dialogs/credits.o \
+	poolrad/views/dialogs/codewheel.o
 
 
 

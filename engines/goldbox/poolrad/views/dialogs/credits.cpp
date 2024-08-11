@@ -22,18 +22,12 @@
 #include "common/system.h"
 #include "graphics/palette.h"
 #include "goldbox/poolrad/views/dialogs/credits.h"
-//#include "wasteland/core/file.h"
-//#include "wasteland/wasteland1/files/vertical_xor_stream.h"
 #include "goldbox/keymapping.h"
-//#include "wasteland/wasteland1/core/text_decoder.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
-
-#define TITLE_W 288
-#define TITLE_H 128
 
 const char SCENARIO_CREATED_BY[] = "scenario created by:";
 const char TSR_INC[] = "tsr, inc.";
@@ -67,18 +61,17 @@ const char JAMES_KUCERA_ROBERT_DALY_RICK_WHITE[] = "james kucera,robert daly,ric
 
 Credits::Credits() : Dialog("Credits"){}
 
-bool Credits::msgAction(const ActionMessage &msg) {
-//	if (msg._action == KEYBIND_SELECT)
-//		replaceView("Roster");
+bool Credits::msgKeypress(const KeypressMessage &msg) {
+	replaceView("Codewheel");
 	return true;
 }
 
 void Credits::draw() {
 	Surface s = getSurface();
-	s.clear();
+//	s.clear();
 
-	drawWindow(1, 1, 38, 3);
-	drawWindow(1, 5, 38, 23);
+	drawWindow(3, 38, 1, 1);
+	drawWindow(23, 38, 5, 1);
 	s.writeStringC(SCENARIO_CREATED_BY, 10, 1, 5);
     s.writeStringC(TSR_INC, 14, 1, 26);
     s.writeStringC(JIM_WARD, 10, 2, 15);
@@ -112,6 +105,7 @@ void Credits::draw() {
     s.writeStringC(TESTING, 14, 22, 2);
     s.writeStringC(JOEL_BILLINGS_STEVE_SALYER, 11, 22, 11);
     s.writeStringC(JAMES_KUCERA_ROBERT_DALY_RICK_WHITE, 11, 23, 2);
+	delaySeconds(10);
 
 }
 
@@ -125,6 +119,7 @@ bool Credits::msgUnfocus(const UnfocusMessage &msg) {
 }
 
 void Credits::timeout() {
+	replaceView("Codewheel");
 }
 
 } // namespace Dialogs
