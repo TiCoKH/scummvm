@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_TITLE_H
-#define GOLDBOX_POOLRAD_VIEWS_TITLE_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_TITLE_VIEW_H
+#define GOLDBOX_POOLRAD_VIEWS_TITLE_VIEW_H
 
 #include "goldbox/gfx/pic.h"
 #include "goldbox/poolrad/views/view.h"
@@ -29,15 +29,15 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-class Title : public View {
+class TitleView : public View {
 private:
 	Gfx::Pic* _pic1 = nullptr;
 	Gfx::Pic *_pic2 = nullptr;
 	uint8 _state = 0;
 
 public:
-	Title() : View("Title") {}
-	virtual ~Title() {}
+	TitleView() : View("Title") {}
+	virtual ~TitleView() {}
 
 	bool msgFocus(const FocusMessage &msg) override;
 	bool msgKeypress(const KeypressMessage &msg) override;

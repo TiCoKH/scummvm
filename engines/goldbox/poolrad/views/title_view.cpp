@@ -22,14 +22,14 @@
 #include "common/system.h"
 #include "graphics/paletteman.h"
 #include "goldbox/core/file.h"
-#include "goldbox/poolrad/views/title.h"
+#include "goldbox/poolrad/views/title_view.h"
 #include "goldbox/poolrad/poolrad.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-bool Title::msgFocus(const FocusMessage &msg) {
+bool TitleView::msgFocus(const FocusMessage &msg) {
 	Goldbox::File daxFileTitle;
 	if (!daxFileTitle.open("title.dax")) {
 		error("Failed to open title.dax");
@@ -45,13 +45,13 @@ bool Title::msgFocus(const FocusMessage &msg) {
 	return true;
 }
 
-bool Title::msgKeypress(const KeypressMessage &msg) {
+bool TitleView::msgKeypress(const KeypressMessage &msg) {
 	_state = 4;
 	redraw();
 	return true;
 }
 
-void Title::draw() {
+void TitleView::draw() {
 	Surface s = getSurface();
 	switch(_state)
 	{
@@ -83,7 +83,7 @@ void Title::draw() {
 	}
 }
 
-void Title::timeout() {
+void TitleView::timeout() {
 	_state++;
 	redraw();
 }

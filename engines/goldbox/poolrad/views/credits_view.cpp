@@ -21,13 +21,13 @@
 
 #include "common/system.h"
 #include "graphics/palette.h"
-#include "goldbox/poolrad/views/dialogs/credits.h"
 #include "goldbox/keymapping.h"
+#include "goldbox/poolrad/views/credits_view.h"
+
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
-namespace Dialogs {
 
 const char SCENARIO_CREATED_BY[] = "scenario created by:";
 const char TSR_INC[] = "tsr, inc.";
@@ -59,16 +59,15 @@ const char TESTING[] = "testing:";
 const char JOEL_BILLINGS_STEVE_SALYER[] = "joel billings,steve salyer";
 const char JAMES_KUCERA_ROBERT_DALY_RICK_WHITE[] = "james kucera,robert daly,rick white";
 
-Credits::Credits() : Dialog("Credits"){}
+CreditsView::CreditsView() : View("Credits"){}
 
-bool Credits::msgKeypress(const KeypressMessage &msg) {
+bool CreditsView::msgKeypress(const KeypressMessage &msg) {
 	replaceView("Codewheel");
 	return true;
 }
 
-void Credits::draw() {
+void CreditsView::draw() {
 	Surface s = getSurface();
-//	s.clear();
 
 	drawWindow(3, 38, 1, 1);
 	drawWindow(23, 38, 5, 1);
@@ -109,20 +108,18 @@ void Credits::draw() {
 
 }
 
-bool Credits::msgFocus(const FocusMessage &msg) {
-	Dialog::msgFocus(msg);
+bool CreditsView::msgFocus(const FocusMessage &msg) {
 	return true;
 }
 
-bool Credits::msgUnfocus(const UnfocusMessage &msg) {
+bool CreditsView::msgUnfocus(const UnfocusMessage &msg) {
 	return true;
 }
 
-void Credits::timeout() {
+void CreditsView::timeout() {
 	replaceView("Codewheel");
 }
 
-} // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
