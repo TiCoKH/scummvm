@@ -19,23 +19,22 @@
  *
  */
 
-#ifndef WASTELAND_WASTELAND1_VIEWS_DIALOGS_TITLE_H
-#define WASTELAND_WASTELAND1_VIEWS_DIALOGS_TITLE_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_CREDITS_VIEW_H
+#define GOLDBOX_POOLRAD_VIEWS_CREDITS_VIEW_H
 
 #include "graphics/managed_surface.h"
-#include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/poolrad/views/view.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
-namespace Dialogs {
 
-class Credits : public Dialog {
+class CreditsView : public View {
 private:
 
 public:
-	Credits();
-	virtual ~Credits() {}
+	CreditsView();
+	virtual ~CreditsView() {}
 
 	bool msgKeypress(const KeypressMessage &msg) override;
 	bool msgFocus(const FocusMessage &msg) override;
@@ -44,7 +43,6 @@ public:
 	void timeout() override;
 };
 
-} // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
