@@ -54,6 +54,29 @@ UIElement *View::getElementAtPos(const Common::Point &pos) const {
 	return nullptr;
 }
 
+void View::drawFrame(const Common::Rect &r) {
+    Surface s = getSurface();
+
+    s.writeSymbol(20, r.left, r.top);
+    for (int x = r.left + 1; x <= r.right - 1; x++) {
+        s.writeSymbol(22);
+    }
+    s.writeSymbol(20);
+    for (int y = r.top + 1; y <= r.bottom - 1; y++) {
+        s.writeSymbol(21, r.left, y);
+        s.writeSymbol(21, r.right, y);
+    }
+    s.writeSymbol(20, r.left, r.bottom);
+    for (int x = r.left + 1; x <= r.right - 1; x++)
+        s.writeSymbol(22);
+    s.writeSymbol(20);
+}
+
+void View::drawWindow(uint8 bottom, uint8 right, uint8 top, uint8 left){
+    drawFrame(Common::Rect(left - 1, top - 1, right + 1, bottom + 1));
+    Surface s = getSurface();
+    s.clearBox(left, top, right, bottom, 0);
+}
 
 bool View::msgFocus(const FocusMessage &msg) {
 	_focusedElement = nullptr;

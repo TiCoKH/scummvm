@@ -21,13 +21,13 @@
 
 #include "common/system.h"
 #include "graphics/palette.h"
-#include "goldbox/poolrad/views/dialogs/codewheel.h"
 #include "goldbox/keymapping.h"
+#include "goldbox/poolrad/views/codewheel_view.h"
+
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
-namespace Dialogs {
 
 const char USE_THE[] = "USE THE TRANSLATION WHEEL TO DECIPHER";
 const char THE_CODE[] = "THE CODE WORD.";
@@ -38,17 +38,16 @@ const char READ_FROM[] = "READ FROM THE INSIDE TO THE OUTSIDE.";
 const char INPUT[] = "INPUT THE CODE WORD: ";
 const char INNCORRECT[] = "Sorry, that's incorrect.";
 
-Codewheel::Codewheel() : Dialog("Codewheel"){}
+CodewheelView::CodewheelView() : View("Codewheel"){}
 
-bool Codewheel::msgKeypress(const KeypressMessage &msg) {
+bool CodewheelView::msgKeypress(const KeypressMessage &msg) {
 	// Any keypress to close the view
 	close();
 	return true;
 }
 
-void Codewheel::draw() {
+void CodewheelView::draw() {
 	Surface s = getSurface();
-	//s.clear();
 
     _retry++;
     int rnd = getRandomNumber(12);
@@ -71,19 +70,17 @@ void Codewheel::draw() {
     //s.writeStringC(INNCORRECT, 14, 7, 2);
 }
 
-bool Codewheel::msgFocus(const FocusMessage &msg) {
-	Dialog::msgFocus(msg);
+bool CodewheelView::msgFocus(const FocusMessage &msg) {
 	return true;
 }
 
-bool Codewheel::msgUnfocus(const UnfocusMessage &msg) {
+bool CodewheelView::msgUnfocus(const UnfocusMessage &msg) {
 	return true;
 }
 
-void Codewheel::timeout() {
+void CodewheelView::timeout() {
 }
 
-} // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox

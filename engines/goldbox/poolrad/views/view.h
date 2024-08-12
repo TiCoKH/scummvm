@@ -53,6 +53,10 @@ private:
 	 */
 	UIElement *getElementAtPos(const Common::Point &pos) const;
 
+protected:
+    void drawFrame(const Common::Rect &r);
+    void drawWindow(uint8 bottom, uint8 right, uint8 top, uint8 left);
+
 public:
 	View(const Common::String &name, UIElement *uiParent) :
 		UIElement(name, uiParent) {
