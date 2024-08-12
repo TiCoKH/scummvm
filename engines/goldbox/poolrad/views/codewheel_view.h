@@ -19,16 +19,15 @@
  *
  */
 
-#ifndef WASTELAND_WASTELAND1_VIEWS_DIALOGS_CODEWHEEL_H
-#define WASTELAND_WASTELAND1_VIEWS_DIALOGS_CODEWHEEL_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_CODEWHEEL_VIEW_H
+#define GOLDBOX_POOLRAD_VIEWS_CODEWHEEL_VIEW_H
 
 #include "graphics/managed_surface.h"
-#include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/poolrad/views/view.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
-namespace Dialogs {
 
 struct Passcode {
     const char* answer;
@@ -37,7 +36,7 @@ struct Passcode {
     const char* path;
 };
 
-class Codewheel : public Dialog {
+class CodewheelView : public View {
 private:
 
 	Passcode passcodes[13] = {
@@ -59,8 +58,8 @@ private:
 	int _retry = 0;
 
 public:
-	Codewheel();
-	virtual ~Codewheel() {}
+	CodewheelView();
+	virtual ~CodewheelView() {}
 
 	bool msgKeypress(const KeypressMessage &msg) override;
 	bool msgFocus(const FocusMessage &msg) override;
@@ -69,7 +68,6 @@ public:
 	void timeout() override;
 };
 
-} // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox

@@ -22,18 +22,18 @@
 #ifndef GOLDBOX_POOLRAD_VIEWS_VIEWS_H
 #define GOLDBOX_POOLRAD_VIEWS_VIEWS_H
 
-#include "goldbox/poolrad/views/title.h"
-#include "goldbox/poolrad/views/dialogs/credits.h"
-#include "goldbox/poolrad/views/dialogs/codewheel.h"
+#include "goldbox/poolrad/views/title_view.h"
+#include "goldbox/poolrad/views/credits_view.h"
+#include "goldbox/poolrad/views/codewheel_view.h"
 
 namespace Goldbox {
 namespace Poolrad{
 namespace Views {
 	
 struct Views {
-	Title _title;
-	Dialogs::Credits _credits;
-	Dialogs::Codewheel _codewheel;
+	TitleView _title;
+	CreditsView _credits;
+	CodewheelView _codewheel;
 };
 
 } // namespace Views
