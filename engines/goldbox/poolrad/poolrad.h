@@ -24,12 +24,17 @@
 
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/views/views.h"
+#include "goldbox/poolrad/data/character.h"
 //#include "goldbox/poolrad/files/game_archive.h"
 //#include "goldbox/poolrad/data/saved.h"
 //#include "goldbox/poolrad/gfx/pics.h"
 
 namespace Goldbox {
 namespace Poolrad {
+
+const int MAX_CHARACTERS = 8;
+const int MAX_PC_IN_PARTY = 6;
+const int MAX_NPC_IN_PARTY = 2;
 
 class PoolradEngine : public Goldbox::Engine {
 private:
@@ -41,11 +46,14 @@ protected:
 	GUI::Debugger *getConsole() override;
 
 public:
+
 	//GameArchive *_gameArchive = nullptr;
 	//Data::Saved _saved;
 	//Gfx::PicsDecoder _pics;
 
 public:
+	static Data::Character _party[MAX_CHARACTERS];
+
 	PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~PoolradEngine() override;
 	void initializePath(const Common::FSNode &gamePath) override;

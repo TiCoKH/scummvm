@@ -26,7 +26,7 @@
 namespace Goldbox {
 namespace Gfx {
 
-Pic *Pic::read(DaxBlockPic *daxBlock) {
+Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
 	int width = daxBlock->width;
 	int height = daxBlock->height;
 	Pic *pic = new Pic(width, height);

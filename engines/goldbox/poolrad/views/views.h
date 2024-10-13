@@ -25,6 +25,7 @@
 #include "goldbox/poolrad/views/title_view.h"
 #include "goldbox/poolrad/views/credits_view.h"
 #include "goldbox/poolrad/views/codewheel_view.h"
+#include "goldbox/poolrad/views/mainmenu_view.h"
 
 namespace Goldbox {
 namespace Poolrad{
@@ -34,6 +35,7 @@ struct Views {
 	TitleView _title;
 	CreditsView _credits;
 	CodewheelView _codewheel;
+	MainmenuView _mainmenu;
 };
 
 } // namespace Views
