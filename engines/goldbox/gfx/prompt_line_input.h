@@ -19,37 +19,36 @@
  *
  */
 
-#include "common/system.h"
-#include "goldbox/gfx/pic.h"
-#include "goldbox/data/daxblock.h"
+#ifndef GOLDBOX_GFX_PROMPT_LINE_INPUT_H
+#define GOLDBOX_GFX_PROMPT_LINE_INPUT_H
+
+#include "goldbox/gfx/prompt_line.h"
 
 namespace Goldbox {
+namespace Shared {
 namespace Gfx {
 
-Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
-	int width = daxBlock->width;
-	int height = daxBlock->height;
-	Pic *pic = new Pic(width, height);
-	// Decode the pixel data
-	const uint8 *data = daxBlock->_data.begin();
-	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x += 2) {
-			uint8 byte = *data++;
-			// Extract high nibble and set the corresponding pixel
-			pic->setPixel(x, y, (byte & 0xF0) >> 4);
-			// Extract low nibble and set the corresponding pixel
-			pic->setPixel(x + 1, y, byte & 0x0F);
-		}
-	}
-	return pic;
-}
+class PromptLineInput : public PromptLine {
+private:
+    Common::String _inputText;
+    size_t _maxLength;
+    bool _inputComplete;
+    bool _caretVisible;
+    int _caretCtr;
 
-Pic *Pic::clone() const {
-	Pic *copy = new Pic(w, h);
-	copy->blitFrom(*this);
+public:
+    PromptLineInput(const Common::String &name, UIElement *uiParent, const Common::String &prompt, size_t maxLength, int x, int y, int width);
 
-	return copy;
-}
+    void drawContent(Surface &s) override;
+    bool msgKeypress(const KeypressMessage &msg) override;
+    bool tick() override;
+
+    Common::String getInputText() const;
+    bool isInputComplete() const;
+};
 
 } // namespace Gfx
+} // namespace Shared
 } // namespace Goldbox
+
+#endif // GOLDBOX_GFX_PROMPT_LINE_INPUT_H

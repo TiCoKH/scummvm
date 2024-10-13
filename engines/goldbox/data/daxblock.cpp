@@ -4,6 +4,7 @@
 #include "goldbox/data/daxblock.h"
 
 namespace Goldbox {
+namespace Data {
 
     DaxBlock* DaxBlock::createDaxBlock(ContentType contentType) {
         if (contentType == ContentType::_8X8D) {
@@ -67,4 +68,5 @@ namespace Goldbox {
         width = gfx_header.cwidth * 8;
     }
 
+} // namespace Data
 } // namespace Goldbox

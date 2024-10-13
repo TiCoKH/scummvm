@@ -22,6 +22,7 @@
 #include "common/array.h"
 #include "common/memstream.h"
 #include "common/util.h"
+#include "goldbox/poolrad/poolrad.h"
 #include "goldbox/core/file.h"
 
 namespace Goldbox {
@@ -45,37 +46,42 @@ bool File::open(const Common::Path &filename) {
 }
 
 void File::parseHeaders() {
-    headerContainer.parseHeaders(*this);
+    Common::Platform platform = g_engine->getPlatform();
+    if (platform == Common::kPlatformAmiga) {
+        headerContainer.parseHeadersBE(*this);
+    } else {
+        headerContainer.parseHeadersLE(*this);
+    }
 }
 
-ContentType File::determineContentType(const Common::Path &filename) {
+Data::ContentType File::determineContentType(const Common::Path &filename) {
     Common::String s = filename.toString();
-    if (s.contains("8x8d")) return ContentType::_8X8D;
-    if (s.contains("back")) return ContentType::BACK;
-    if (s.contains("bigpic")) return ContentType::BIGPIC;
-    if (s.contains("cbody")) return ContentType::CBODY;
-    if (s.contains("body")) return ContentType::BODY;
-    if (s.contains("comspr")) return ContentType::COMSPR;
-    if (s.contains("ecl")) return ContentType::ECL;
-    if (s.contains("geo")) return ContentType::GEO;
-    if (s.contains("chead")) return ContentType::CHEAD;
-    if (s.contains("head")) return ContentType::HEAD;
-    if (s.contains("moncha")) return ContentType::MONCHA;
-    if (s.contains("pic")) return ContentType::PIC;
-    if (s.contains("sprit")) return ContentType::SPRIT;
-    if (s.contains("title")) return ContentType::TITLE;
-    if (s.contains("walldef")) return ContentType::WALLDEF;
-    return ContentType::UNKNOWN;
+    if (s.contains("8x8d")) return Data::ContentType::_8X8D;
+    if (s.contains("back")) return Data::ContentType::BACK;
+    if (s.contains("bigpic")) return Data::ContentType::BIGPIC;
+    if (s.contains("cbody")) return Data::ContentType::CBODY;
+    if (s.contains("body")) return Data::ContentType::BODY;
+    if (s.contains("comspr")) return Data::ContentType::COMSPR;
+    if (s.contains("ecl")) return Data::ContentType::ECL;
+    if (s.contains("geo")) return Data::ContentType::GEO;
+    if (s.contains("chead")) return Data::ContentType::CHEAD;
+    if (s.contains("head")) return Data::ContentType::HEAD;
+    if (s.contains("moncha")) return Data::ContentType::MONCHA;
+    if (s.contains("pic")) return Data::ContentType::PIC;
+    if (s.contains("sprit")) return Data::ContentType::SPRIT;
+    if (s.contains("title")) return Data::ContentType::TITLE;
+    if (s.contains("walldef")) return Data::ContentType::WALLDEF;
+    return Data::ContentType::UNKNOWN;
 }
 
-DaxBlock* File::getBlockById(int blockId) {
+Data::DaxBlock* File::getBlockById(int blockId) {
     for (const auto &header : headerContainer.getHeaders()) {
         if (header.id == blockId) {
             seek(headerContainer.getFileDataOffset() + header.offset, SEEK_SET);
             Common::Array<uint8> dax_data(header.compSize);
             read(dax_data.data(), header.compSize);
 
-            DaxBlock* daxBlock = DaxBlock::createDaxBlock(_ctype);
+            Data::DaxBlock* daxBlock = Data::DaxBlock::createDaxBlock(_ctype);
             if (!daxBlock) {
                 error("Unknown content type for block ID: %d", blockId);
                 return nullptr;

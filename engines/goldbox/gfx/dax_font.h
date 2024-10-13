@@ -36,14 +36,14 @@ namespace Gfx {
  */
 class DaxFont : public Graphics::Font {
 private:
-	DaxBlock8x8D *_daxBlock;
+	Data::DaxBlock8x8D *_daxBlock;
 	uint8 _glyphCount;
 
 	void load();
 	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 
 public:
-	DaxFont(DaxBlock8x8D *daxBlock);
+	DaxFont(Data::DaxBlock8x8D *daxBlock);
 	~DaxFont() override {}
 
 	/**

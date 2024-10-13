@@ -140,8 +140,8 @@ void Surface::writeChar(unsigned char c, int x, int y) {
 	writeChar(c);
 }
 
-void Surface::writeCharC(unsigned char c, int color, int x, int y) {
-	setTextPos(x, y);
+void Surface::writeCharC(unsigned char c, int color, int line, int column) {
+	setTextPos(column, line);
 	setTextColor(color);
 	writeChar(c);
 }

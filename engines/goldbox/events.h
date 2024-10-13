@@ -59,11 +59,11 @@ public:
 	operator const Common::Rect &() const { return _bounds; }
 	Bounds &operator=(const Common::Rect &r);
 	void setBorderSize(size_t borderSize);
-//	void setBorderSize(int leftPad, int topPad, int rightPad, int bottomPad);
+	void setBorderSize(int leftPad, int topPad, int rightPad, int bottomPad);
 	size_t borderSize() const { return _borderSize; }
 	int16 width() const { return _bounds.width(); }
 	int16 height() const { return _bounds.height(); }
-//	bool contains(const Common::Point &pt) const { return _innerBounds.contains(pt); }
+	bool contains(const Common::Point &pt) const { return _innerBounds.contains(pt); }
 };
 
 /**
@@ -223,6 +223,13 @@ public:
 	 * @remarks		The window bounds are in text co-ordinates
 	 */
 	Surface getSurface(const Window &win) const;
+
+	/**
+	 * Returns a surface for drawing the element, using a passed window
+	 * to restrict the returned drawing area.
+	 * @remarks		The window bounds are in text co-ordinates and parameter in Pascal order
+	 */
+	Surface getSurface(uint8 bottom, uint8 right, uint8 top, uint8 left) const;
 
 	/**
 	 * Clear the surface

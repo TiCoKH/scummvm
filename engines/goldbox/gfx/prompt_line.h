@@ -19,37 +19,32 @@
  *
  */
 
-#include "common/system.h"
-#include "goldbox/gfx/pic.h"
-#include "goldbox/data/daxblock.h"
+#ifndef GOLDBOX_GFX_PROMPT_LINE_H
+#define GOLDBOX_GFX_PROMPT_LINE_H
+
+#include "goldbox/events.h"
 
 namespace Goldbox {
+namespace Shared {
 namespace Gfx {
 
-Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
-	int width = daxBlock->width;
-	int height = daxBlock->height;
-	Pic *pic = new Pic(width, height);
-	// Decode the pixel data
-	const uint8 *data = daxBlock->_data.begin();
-	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x += 2) {
-			uint8 byte = *data++;
-			// Extract high nibble and set the corresponding pixel
-			pic->setPixel(x, y, (byte & 0xF0) >> 4);
-			// Extract low nibble and set the corresponding pixel
-			pic->setPixel(x + 1, y, byte & 0x0F);
-		}
-	}
-	return pic;
-}
+class PromptLine : public UIElement {
+protected:
+    Common::String _prompt;
+    int _x;
+    int _y;
+    int _width;
 
-Pic *Pic::clone() const {
-	Pic *copy = new Pic(w, h);
-	copy->blitFrom(*this);
+public:
+    PromptLine(const Common::String &name, UIElement *uiParent, const Common::String &prompt, int x, int y, int width);
 
-	return copy;
-}
+    void draw() override;
+    virtual void drawContent(Surface &s) = 0; // Pure virtual method to draw subclass-specific content
+
+};
 
 } // namespace Gfx
+} // namespace Shared
 } // namespace Goldbox
+
+#endif // GOLDBOX_GFX_PROMPT_LINE_H
