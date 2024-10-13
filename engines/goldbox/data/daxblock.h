@@ -1,11 +1,12 @@
 // DaxBlock.h
-#ifndef GOLDBOX_DAXBLOCK_H
-#define GOLDBOX_DAXBLOCK_H
+#ifndef GOLDBOX_DATA_DAXBLOCK_H
+#define GOLDBOX_DATA_DAXBLOCK_H
 
 #include "common/array.h"
 #include "common/scummsys.h"
 
 namespace Goldbox {
+namespace Data {
 
     struct DaxHeader {
         uint8 id;
@@ -85,5 +86,6 @@ private:
     void adjust() override;
 };
 
+} // namespace Data
 } // namespace Goldbox
 #endif // GOLDBOX_DAXBLOCK_H

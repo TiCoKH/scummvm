@@ -37,6 +37,7 @@
 
 #include "goldbox/detection.h"
 #include "goldbox/events.h"
+#include "goldbox/data/strings_data.h"
 
 namespace Goldbox {
 
@@ -61,6 +62,7 @@ protected:
 public:
 	Graphics::Font * _font;
 	Graphics::Font * _symbols;
+	StringsData _strings;
 
 	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~Engine() override;

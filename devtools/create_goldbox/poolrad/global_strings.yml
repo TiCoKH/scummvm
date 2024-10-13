@@ -1,0 +1,125 @@
+temple:
+	cblind: "Cure Blindness"
+	cdisease: "Cure Disease"
+	clightw: "Cure Light Wounds"
+	cseriw: "Cure Serious Wounds"
+	ccritw: "Cure Critical Wounds"
+	netpoi: "Neutralize Poison"
+	raisedead: "Raise Dead"
+	rmcurse: "Remove Curse"
+	stonetf: "Stone to Flesh"
+	exit: "Exit"
+arena:
+	1: "KOBOLD"
+	2: "KOBOLD LEADER"
+	3: "GOBLIN"
+	4: "GOBLIN LEADER"
+	5: "ORC"
+	6: "ORC LEADER"
+	7: "GOBLIN"
+	8: "GOBLIN LEADER"
+	9: "HOBGOBLIN"
+	10: "HOBGOBLIN CHIEF"
+	11: "GAGOOL"
+	12: "MACE"
+	13: "OGRE"
+	14: "OGRE LEADER"
+	15: "TROLL"
+	16: "FIRE GIANT"
+	17: "HILL GIANT"
+menus:
+	1: "Area Cast View Encamp Search Look"
+	2: "Cast View Encamp Search Look"
+	3: "Save View Magic Rest Alter Exit"
+	4: "Cast Memorize Scribe Display Rest Exit"
+	5: "Order Drop Speed Icon Pics Exit"
+	6: "Select Exit"
+	7: "Place Exit"
+mainmenu:
+	0: "C D M T V A R L S B E J"
+	C: "Create New Character"
+	D: "Drop Character"
+	M: "Modify Character"
+	T: "Train Character"
+	V: "View Character"
+	A: "Add Character to Party"
+	R: "Remove Character from Party"
+	L: "Load Saved Game"
+	S: "Save Current Game"
+	B: "BEGIN Adventuring"
+	E: "Exit to DOS"
+iconmenu:
+	1: "Parts color-1 color-2 Size Exit"
+	2: "Head Weapon Exit"
+	3: "Weapon Body xxxx Shield Arm Leg Exit"
+	4: "Keep Exit"
+	5: "Next Prev Keep Exit"
+stats:
+	levels:
+		1: 1st Level
+		2: 2nd Level
+		3: 3rd Level
+		4: 4th Level
+		5: 5th Level
+		6: 6th Level
+		7: 7th Level
+		8: 8th Level
+		9: 9th Level
+	classes:
+		1: Cleric
+		2: Druid
+		3: Fighter
+		4: Paladin
+		5: Ranger
+		6: Magic-User
+		7: Thief
+		8: Monk
+		9: Cleric/Fighter
+		10: Cleric/Fighter/Magic-User
+		11: Cleric/Ranger
+		12: Cleric/Magic-User
+		13: Cleric/Thief
+		14: Fighter/Magic-User
+		15: Fighter/Thief
+		16: Fighter/Magic-User/Thief
+		17: Magic-User/Thief
+	races:
+		0: Monster
+		1: Dwarf
+		2: Elf
+		3: Gnome
+		4: Half-Elf
+		5: Halfling
+		6: Half-Orc
+		7: Human
+	alignments:
+		1: Lawful Good
+		2: Lawful Neutral
+		3: Lawful Evil
+		4: Neutral Good
+		5: True Neutral
+		6: Neutral Evil
+		7: Chaotic Good
+		8: Chaotic Neutral
+		9: Chaotic Evil
+	sex:
+		1: "Male"
+		2: "Female"
+	currencies:
+		1: Copper
+		2: Silver
+		3: Electrum
+		4: Gold
+		5: Platinum
+		6: Gems
+		7: Jewelry
+	conditions:
+		1: "Okay"
+		2: "Animated"
+		3: "tempgone"
+		4: "Running"
+		5: "Unconscious"
+		6: "Dying"
+		7: "Dead"
+		8: "Stoned"
+		9: "Gone"

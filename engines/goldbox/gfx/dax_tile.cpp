@@ -23,7 +23,7 @@
 namespace Goldbox {
 namespace Gfx {
 
-DaxTile::DaxTile(DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {
+DaxTile::DaxTile(Data::DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {
     load();
 }
 
