@@ -26,6 +26,7 @@
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
+#include "goldbox/data/strings.h"
 #include "goldbox/poolrad/poolrad.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
 
@@ -35,6 +36,8 @@ namespace Goldbox {
 namespace Poolrad {
 
 PoolradEngine *g_engine;
+
+Data::Character PoolradEngine::_party[MAX_CHARACTERS];
 
 PoolradEngine::PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc) :
 		Goldbox::Engine(syst, gameDesc) {
@@ -65,15 +68,21 @@ void PoolradEngine::setup() {
 		error("Failed to open 8x8d1.dax");
 	}
 
-	Goldbox::DaxBlock *pc_font = daxFile8x8d.getBlockById(201);
-	auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<DaxBlock8x8D*>(pc_font));
+	Goldbox::Data::DaxBlock *pc_font = daxFile8x8d.getBlockById(201);
+	auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(pc_font));
 	_font = daxFont;
 
-	Goldbox::DaxBlock *symbols = daxFile8x8d.getBlockById(202);
-	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(dynamic_cast<DaxBlock8x8D*>(symbols));
+	Goldbox::Data::DaxBlock *symbols = daxFile8x8d.getBlockById(202);
+	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(symbols));
 	_symbols = daxScreenTiles;
 
 	daxFile8x8d.close();
+
+	if (!_strings.load("global_strings.yml")){
+		error("Failed to open global_strings.yml");
+	}
+
+
 
 /*
 	// Load save data

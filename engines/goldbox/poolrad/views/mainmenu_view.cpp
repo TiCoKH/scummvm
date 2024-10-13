@@ -19,27 +19,57 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_VIEWS_H
-#define GOLDBOX_POOLRAD_VIEWS_VIEWS_H
-
-#include "goldbox/poolrad/views/title_view.h"
-#include "goldbox/poolrad/views/credits_view.h"
-#include "goldbox/poolrad/views/codewheel_view.h"
 #include "goldbox/poolrad/views/mainmenu_view.h"
+#include "goldbox/poolrad/views/party.h"
+#include "goldbox/poolrad/views/prompt.h"
 
 namespace Goldbox {
-namespace Poolrad{
+namespace Poolrad {
 namespace Views {
-	
-struct Views {
-	TitleView _title;
-	CreditsView _credits;
-	CodewheelView _codewheel;
-	MainmenuView _mainmenu;
-};
+
+//const Common::Rect MainmenuView::_area_party(1, 1, 28, 11);
+//const Common::Rect MainmenuView::_area_menu(1, 12, 28, 22);
+
+MainmenuView::MainmenuView() : View("Mainmenu") {}
+
+void MainmenuView::draw() {
+    Surface s = getSurface();
+
+    drawWindow(22, 38, 1, 1);
+
+    showMenu();
+}
+
+bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
+    return true;
+}
+
+bool MainmenuView::msgFocus(const FocusMessage &msg) {
+    View::msgFocus(msg);
+    return true;
+}
+
+bool MainmenuView::msgUnfocus(const UnfocusMessage &msg) {
+    return true;
+}
+
+void MainmenuView::timeout() {
+}
+
+void MainmenuView::showMenu() {
+    Surface s = getSurface();
+    s.clearBox(1, 12, 28, 22, 0);
+
+	int line_off = 0;
+	for (int i = 0; i < 11; i++) {
+		if (mainmenu[i].active) {
+			s.writeCharC(mainmenu[i].shortcut, 15, 12 + line_off, 2);
+			s.writeStringC(mainmenu[i].text, 10, 12 + line_off, 3);
+			line_off++;
+		}
+	}
+}
 
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
-
-#endif

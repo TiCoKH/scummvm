@@ -231,12 +231,12 @@ void Bounds::setBorderSize(size_t borderSize) {
 	_innerBounds.grow(-_borderSize);
 }
 
-/*
+
 void Bounds::setBorderSize(int leftPad, int topPad, int rightPad, int bottomPad) {
 	_borderSize = 0;	// No standard border size
 	_innerBounds = Common::Rect(left + leftPad, top + topPad, right - rightPad, bottom - bottomPad);
 }
-*/
+
 /*------------------------------------------------------------------------*/
 
 UIElement::UIElement(const Common::String &name) :
@@ -368,6 +368,15 @@ Surface UIElement::getSurface(const Window &win) const {
 	Common::Rect r(_innerBounds.left + win.left * FONT_W, _innerBounds.top + win.top * FONT_H,
 					_innerBounds.left + (win.right + 1) * FONT_W, _innerBounds.top + (win.bottom + 1) * FONT_H);
 	r.translate(win._xOffset, win._yOffset);
+	r.clip(_innerBounds);
+
+	return Surface(*g_events->getScreen(), r);
+}
+
+Surface UIElement::getSurface(uint8 bottom, uint8 right, uint8 top, uint8 left) const {
+	Common::Rect r(_innerBounds.left + left * FONT_W, _innerBounds.top + top * FONT_H,
+					_innerBounds.left + (right + 1) * FONT_W, _innerBounds.top + (bottom + 1) * FONT_H);
+	r.translate(0, 0);
 	r.clip(_innerBounds);
 
 	return Surface(*g_events->getScreen(), r);
