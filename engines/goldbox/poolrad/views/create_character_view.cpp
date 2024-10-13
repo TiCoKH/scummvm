@@ -19,27 +19,51 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_VIEWS_H
-#define GOLDBOX_POOLRAD_VIEWS_VIEWS_H
+#include "common/system.h"
+#include "graphics/palette.h"
+#include "goldbox/keymapping.h"
+#include "goldbox/poolrad/views/create_character_view.h"
 
-#include "goldbox/poolrad/views/title_view.h"
-#include "goldbox/poolrad/views/credits_view.h"
-#include "goldbox/poolrad/views/codewheel_view.h"
-#include "goldbox/poolrad/views/mainmenu_view.h"
 
 namespace Goldbox {
-namespace Poolrad{
+namespace Poolrad {
 namespace Views {
-	
-struct Views {
-	TitleView _title;
-	CreditsView _credits;
-	CodewheelView _codewheel;
-	MainmenuView _mainmenu;
-};
+
+const char PICK_RACE[] = "Pick Race";
+const char PICK_GENDER[] = "Pick Gender";
+const char PICK_CLASS[] = "Pick Class";
+const char PICK_ALIGNMENT[] = "Pick Alignment";
+const char KEEP_THIS[] = "Keep this character? ";
+const char CHAR_NAME[] = "Character name: ";
+
+CreateCharacterView::CreateCharacterView() : View("CreatCharacter"){}
+
+bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
+	// Any keypress to close the view
+	replaceView("Mainmenu");
+	return true;
+}
+
+void CreateCharacterView::draw() {
+	Surface s = getSurface();
+
+    int rnd = getRandomNumber(12);
+
+	drawWindow(22, 38, 1, 1);
+
+}
+
+bool CreateCharacterView::msgFocus(const FocusMessage &msg) {
+	return true;
+}
+
+bool CreateCharacterView::msgUnfocus(const UnfocusMessage &msg) {
+	return true;
+}
+
+void CreateCharacterView::timeout() {
+}
 
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
-
-#endif

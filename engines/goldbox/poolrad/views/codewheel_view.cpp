@@ -24,7 +24,6 @@
 #include "goldbox/keymapping.h"
 #include "goldbox/poolrad/views/codewheel_view.h"
 
-
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
@@ -42,7 +41,7 @@ CodewheelView::CodewheelView() : View("Codewheel"){}
 
 bool CodewheelView::msgKeypress(const KeypressMessage &msg) {
 	// Any keypress to close the view
-	close();
+	replaceView("Mainmenu");
 	return true;
 }
 

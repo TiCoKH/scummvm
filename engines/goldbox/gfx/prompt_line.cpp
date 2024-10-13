@@ -19,37 +19,34 @@
  *
  */
 
-#include "common/system.h"
-#include "goldbox/gfx/pic.h"
-#include "goldbox/data/daxblock.h"
+#include "goldbox/gfx/prompt_line.h"
 
 namespace Goldbox {
+namespace Shared {
 namespace Gfx {
 
-Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
-	int width = daxBlock->width;
-	int height = daxBlock->height;
-	Pic *pic = new Pic(width, height);
-	// Decode the pixel data
-	const uint8 *data = daxBlock->_data.begin();
-	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x += 2) {
-			uint8 byte = *data++;
-			// Extract high nibble and set the corresponding pixel
-			pic->setPixel(x, y, (byte & 0xF0) >> 4);
-			// Extract low nibble and set the corresponding pixel
-			pic->setPixel(x + 1, y, byte & 0x0F);
-		}
-	}
-	return pic;
+PromptLine::PromptLine(const Common::String &name, UIElement *uiParent, const Common::String &prompt, int x, int y, int width)
+    : UIElement(name, uiParent), _prompt(prompt), _x(x), _y(y), _width(width) {
+
+    // Set the bounds of the UIElement
+    setBounds(Common::Rect(_x * FONT_W, _y * FONT_H, (_x + _width) * FONT_W, (_y + 1) * FONT_H));
+
+    // Mark the element for redrawing
+    redraw();
 }
 
-Pic *Pic::clone() const {
-	Pic *copy = new Pic(w, h);
-	copy->blitFrom(*this);
+void PromptLine::draw() {
+    Surface s = getSurface();
 
-	return copy;
+    // Draw the prompt
+    s.writeString(_prompt);
+
+    // Draw subclass-specific content
+    drawContent(s);
+
+    _needsRedraw = false;
 }
 
 } // namespace Gfx
+} // namespace Shared
 } // namespace Goldbox

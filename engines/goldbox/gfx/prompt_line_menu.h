@@ -19,37 +19,33 @@
  *
  */
 
-#include "common/system.h"
-#include "goldbox/gfx/pic.h"
-#include "goldbox/data/daxblock.h"
+#ifndef GOLDBOX_GFX_PROMPT_LINE_MENU_H
+#define GOLDBOX_GFX_PROMPT_LINE_MENU_H
+
+#include "goldbox/gfx/prompt_line.h"
 
 namespace Goldbox {
+namespace Shared {
 namespace Gfx {
 
-Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
-	int width = daxBlock->width;
-	int height = daxBlock->height;
-	Pic *pic = new Pic(width, height);
-	// Decode the pixel data
-	const uint8 *data = daxBlock->_data.begin();
-	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x += 2) {
-			uint8 byte = *data++;
-			// Extract high nibble and set the corresponding pixel
-			pic->setPixel(x, y, (byte & 0xF0) >> 4);
-			// Extract low nibble and set the corresponding pixel
-			pic->setPixel(x + 1, y, byte & 0x0F);
-		}
-	}
-	return pic;
-}
+class PromptLineMenu : public PromptLine {
+private:
+    Common::Array<Common::String> _menuItems;
+    int _selectedIndex;
+    bool _selectionMade;
 
-Pic *Pic::clone() const {
-	Pic *copy = new Pic(w, h);
-	copy->blitFrom(*this);
+public:
+    PromptLineMenu(const Common::String &name, UIElement *uiParent, const Common::String &prompt, const Common::Array<Common::String> &menuItems, int x, int y, int width);
 
-	return copy;
-}
+    void drawContent(Surface &s) override;
+    bool msgKeypress(const KeypressMessage &msg) override;
+
+    Common::String getSelectedItem() const;
+    bool isSelectionMade() const;
+};
 
 } // namespace Gfx
+} // namespace Shared
 } // namespace Goldbox
+
+#endif // GOLDBOX_GFX_PROMPT_LINE_MENU_H

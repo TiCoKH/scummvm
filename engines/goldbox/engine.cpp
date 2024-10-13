@@ -64,7 +64,7 @@ Common::Error Engine::run() {
 			initGraphics(320, 200);
 			break;
 		case Common::kPlatformPC98:
-			initGraphics(640, 480);
+			initGraphics(640, 400);
 			break;
 		default:
 			initGraphics(320, 200);

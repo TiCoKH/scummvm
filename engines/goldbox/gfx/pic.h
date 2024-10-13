@@ -35,7 +35,7 @@ class Pic : public Graphics::ManagedSurface {
 public:
 	Pic(int w, int h) : Graphics::ManagedSurface(w, h) {}
 
-	static Pic *read(DaxBlockPic *daxBlock);
+	static Pic *read(Data::DaxBlockPic *daxBlock);
 //	void toScreen(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 
 

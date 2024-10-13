@@ -19,37 +19,40 @@
  *
  */
 
-#include "common/system.h"
-#include "goldbox/gfx/pic.h"
-#include "goldbox/data/daxblock.h"
+#ifndef GOLDBOX_POOLRAD_VIEWS_CREATE_CHARACTER_VIEW_H
+#define GOLDBOX_POOLRAD_VIEWS_CREATE_CHARACTER_VIEW_H
+
+#include "common/rect.h"
+//#include "common/array.h"
+#include "goldbox/poolrad/views/view.h"
 
 namespace Goldbox {
-namespace Gfx {
+namespace Poolrad {
+namespace Views {
 
-Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
-	int width = daxBlock->width;
-	int height = daxBlock->height;
-	Pic *pic = new Pic(width, height);
-	// Decode the pixel data
-	const uint8 *data = daxBlock->_data.begin();
-	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x += 2) {
-			uint8 byte = *data++;
-			// Extract high nibble and set the corresponding pixel
-			pic->setPixel(x, y, (byte & 0xF0) >> 4);
-			// Extract low nibble and set the corresponding pixel
-			pic->setPixel(x + 1, y, byte & 0x0F);
-		}
-	}
-	return pic;
-}
+class CreateCharacterView : public View {
+private:
 
-Pic *Pic::clone() const {
-	Pic *copy = new Pic(w, h);
-	copy->blitFrom(*this);
+//    static const Common::Rect _area_party;
+//    static const Common::Rect _area_menu;
 
-	return copy;
-}
+public:
+    CreateCharacterView();
+    virtual ~CreateCharacterView() {}
 
-} // namespace Gfx
+    bool msgKeypress(const KeypressMessage &msg) override;
+    bool msgFocus(const FocusMessage &msg) override;
+    bool msgUnfocus(const UnfocusMessage &msg) override;
+    void draw() override;
+    void timeout() override;
+    void showMenu();
+    void showParty();
+    void menuSetActive(char shortcut);
+    void menuSetInactive(char shortcut);
+};
+
+} // namespace Views
+} // namespace Poolrad
 } // namespace Goldbox
+
+#endif

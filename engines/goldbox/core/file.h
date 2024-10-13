@@ -30,10 +30,10 @@ namespace Goldbox {
 
 class File : public Common::File {
 private:
-    DaxHeaderContainer headerContainer;
-    ContentType _ctype;
+    Data::DaxHeaderContainer headerContainer;
+    Data::ContentType _ctype;
 
-    ContentType determineContentType(const Common::Path &filename);
+    Data::ContentType determineContentType(const Common::Path &filename);
 
 public:
 	File() : Common::File() {}
@@ -41,7 +41,7 @@ public:
 	File(const char *filename);
     bool open(const Common::Path& filename) override;
     void parseHeaders();
-    DaxBlock* getBlockById(int blockId);
+    Data::DaxBlock* getBlockById(int blockId);
     void decodeRLE(int dataLength, uint8 *output_ptr, const uint8 *input_ptr);
 };
 

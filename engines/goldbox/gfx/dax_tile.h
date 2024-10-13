@@ -34,7 +34,7 @@ namespace Gfx {
 class DaxTile : public Graphics::Font {
 private:
     Common::Array<Graphics::ManagedSurface> _chars;
-    DaxBlock8x8D *_daxBlock;
+    Data::DaxBlock8x8D *_daxBlock;
 
 	void load();
 
@@ -42,7 +42,7 @@ public:
     DaxTile() : Graphics::Font(), _daxBlock(nullptr) {}
     ~DaxTile() override {}
 
-    DaxTile(DaxBlock8x8D *daxBlock);
+    DaxTile(Data::DaxBlock8x8D *daxBlock);
 
 		/**
 	 * Get the font height
