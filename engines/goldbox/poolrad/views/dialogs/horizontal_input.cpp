@@ -27,8 +27,9 @@ namespace Views {
 namespace Dialogs {
 
 void HorizontalInput::draw() {
-    // Draw child-specific text
-    drawText();
+    if (_isActive) {
+        drawText();
+    }
 }
 
 } // namespace Dialogs

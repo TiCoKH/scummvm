@@ -31,26 +31,29 @@ bool HorizontalInputTxt::msgKeypress(const KeypressMessage &msg) {
     char asciiValue = msg.ascii;
     Common::KeyCode keyCode = msg.keycode;
 
-    if (asciiValue >= 'a' && asciiValue <= 'z') {
-        asciiValue -= 32;
-    }
+    if (_isActive){
+        if (asciiValue >= 'a' && asciiValue <= 'z') {
+            asciiValue -= 32;
+        }
 
-    if (keyCode == Common::KEYCODE_BACKSPACE && !_inputText.empty()) {
-        _inputText.deleteChar(_inputText.size() - 1);  // Handle backspace
-    } else if (asciiValue >= ' ' && asciiValue <= '~' && _inputText.size() < _maxInputLength) {
-        _inputText += asciiValue;  // Append valid character
-    } else if (keyCode == Common::KEYCODE_RETURN) {
-        deactivate();
+        if (keyCode == Common::KEYCODE_BACKSPACE && !_inputText.empty()) {
+            _inputText.deleteChar(_inputText.size() - 1);  // Handle backspace
+        } else if (asciiValue >= ' ' && asciiValue <= '~' && _inputText.size() < _maxInputLength) {
+            _inputText += asciiValue;  // Append valid character
+        }
+        drawText();
     }
-
-    drawText();
     return true;
 }
 
-void HorizontalInputTxt::drawText() {
+void HorizontalInputTxt::clear() {
     Surface s = getSurface();
-
     s.clearBox(0, 24, 39, 24, 0);
+}
+
+void HorizontalInputTxt::drawText() {
+    clear();
+    Surface s = getSurface();
     s.writeStringC(_promptTxt, _promptColor, 0, 24);
     s.writeStringC(_inputText, 15, 22, 24);
 }
