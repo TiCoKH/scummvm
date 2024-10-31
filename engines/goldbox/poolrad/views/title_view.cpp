@@ -35,10 +35,10 @@ bool TitleView::msgFocus(const FocusMessage &msg) {
 		error("Failed to open title.dax");
 	}
 
-	Data::DaxBlock *daxBlock = daxFileTitle.getBlockById(1);
-	_pic1 = Gfx::Pic::read(dynamic_cast<Data::DaxBlockPic*>(daxBlock));
+	Goldbox::Data::DaxBlock *daxBlock = daxFileTitle.getBlockById(1);
+	_pic1 = Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
 	daxBlock = daxFileTitle.getBlockById(2);
-	_pic2 = Gfx::Pic::read(dynamic_cast<Data::DaxBlockPic*>(daxBlock));
+	_pic2 = Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
 
 	daxFileTitle.close();
 
@@ -58,7 +58,7 @@ void TitleView::draw() {
 		case 0:
 			s.clear();
 			s.setToText();
-			s.writeStringC("Loading...Please Wait", 10, 24, 0);
+			s.writeStringC("Loading...Please Wait", 10, 0, 24);
 			delaySeconds(1);
 			break;
 		case 1:
