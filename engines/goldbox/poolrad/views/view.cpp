@@ -72,7 +72,7 @@ void View::drawFrame(const Common::Rect &r) {
     s.writeSymbol(20);
 }
 
-void View::drawWindow(uint8 bottom, uint8 right, uint8 top, uint8 left){
+void View::drawWindow(uint8 left, uint8  top, uint8 right, uint8 bottom){
     drawFrame(Common::Rect(left - 1, top - 1, right + 1, bottom + 1));
     Surface s = getSurface();
     s.clearBox(left, top, right, bottom, 0);

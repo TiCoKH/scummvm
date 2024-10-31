@@ -93,8 +93,8 @@ void Surface::writeString(const Common::String &str, int x, int y) {
 	writeString(str);
 }
 
-void Surface::writeStringC(const Common::String &str, int color, int line, int column) {
-	setTextPos(column, line);
+void Surface::writeStringC(const Common::String &str, int color, int x, int y) {
+	setTextPos(x, y);
 	setTextColor(color);
 	writeString(str);
 }
@@ -105,8 +105,8 @@ void Surface::writeString(const unsigned char *str, int x, int y) {
 	writeString(s);
 }
 
-void Surface::writeStringC(const unsigned char *str, int color, int line, int column) {
-	setTextPos(column, line);
+void Surface::writeStringC(const unsigned char *str, int color, int x, int y) {
+	setTextPos(x, y);
 	setTextColor(color);
 	Common::String s((const char *)str);
 	writeString(s);
@@ -140,14 +140,14 @@ void Surface::writeChar(unsigned char c, int x, int y) {
 	writeChar(c);
 }
 
-void Surface::writeCharC(unsigned char c, int color, int line, int column) {
-	setTextPos(column, line);
+void Surface::writeCharC(unsigned char c, int color, int x, int y) {
+	setTextPos(x, y);
 	setTextColor(color);
 	writeChar(c);
 }
 
-void Surface::writeGlyphC(unsigned char c, int color, int line, int column) {
-	setTextPos(column, line);
+void Surface::writeGlyphC(unsigned char c, int color, int x, int y) {
+	setTextPos(x, y);
 	setTextColor(color);
 	writeGlyph(c);
 }

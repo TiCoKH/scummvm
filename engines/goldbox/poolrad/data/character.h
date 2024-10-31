@@ -167,7 +167,7 @@ private:
 
 struct Character {
 
-    Common::String name;            // Offset: 0x01, Length: 15 bytes //ON Amiga C string 14 char long with x0000 on the end. ON x86 Pascal string 15 char long
+    Common::String name;            // Offset: 0x01, Length: 15 bytes //On Amiga C string 14 char long with x0000 on the end. ON x86 Pascal string 15 char long
     Stat strength;                   // Offset: 0x10, Length: 1 byte
     Stat intelligence;               // Offset: 0x11, Length: 1 byte
     Stat wisdom;                     // Offset: 0x12, Length: 1 byte
@@ -200,7 +200,7 @@ struct Character {
     uint8 thief_skills_hide_in_shadows; // Offset: 0x7B, Length: 1 byte
     uint8 thief_skills_hear_noise; // Offset: 0x7C, Length: 1 byte
     uint8 thief_skills_climb_walls; // Offset: 0x7D, Length: 1 byte
-    uint8 thief_skills_read_languages; // Offset: 0x7E, Length: 1 byte !!!!ON Amiga add more 1 byte to padding every address+1 will be on Amiga
+    uint8 thief_skills_read_languages; // Offset: 0x7E, Length: 1 byte !!!!ON Amiga add more 1 byte to padding every offset+1 on Amiga
     uint32 effects_ptr;            // Offset: 0x7F, Length: 4 bytes !!!! Real memory address should be handled in a savefile reading
     uint8 unknown_byte_1;          // Offset: 0x83, Length: 1 byte
     uint8 npc_status;              // Offset: 0x84, Length: 1 byte
@@ -208,7 +208,7 @@ struct Character {
     uint8 unknown_byte_2;          // Offset: 0x86, Length: 1 byte
     uint8 unknown_byte_3;          // Offset: 0x87, Length: 1 byte
     uint8 unknown_byte_4;          // Offset: 0x88, Length: 1 byte
-    uint16 copper;                 // Offset: 0x89, Length: 2 bytes !!!!ON Amiga add more 1 byte to padding every address+2 will be on Amiga
+    uint16 copper;                 // Offset: 0x89, Length: 2 bytes !!!!ON Amiga add more 1 byte to padding every offset+2 on Amiga
     uint16 silver;                 // Offset: 0x8B, Length: 2 bytes
     uint16 electrum;               // Offset: 0x8D, Length: 2 bytes
     uint16 gold;                   // Offset: 0x8E, Length: 2 bytes

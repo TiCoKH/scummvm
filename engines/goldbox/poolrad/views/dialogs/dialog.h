@@ -32,10 +32,15 @@ namespace Dialogs {
 
 class Dialog : public View {
 protected:
+	bool _isActive;  // Tracks if the dialog is active
 
 public:
 	Dialog(const Common::String &name) : View(name) {}
 	virtual ~Dialog() {}
+
+	void activate() { _isActive = true; }
+    void deactivate() { _isActive = false; }
+    bool isActive() const { return _isActive; }
 };
 
 } // namespace Dialogs

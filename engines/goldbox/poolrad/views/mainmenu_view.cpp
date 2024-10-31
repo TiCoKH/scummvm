@@ -21,7 +21,6 @@
 
 #include "goldbox/poolrad/views/mainmenu_view.h"
 #include "goldbox/poolrad/views/party.h"
-#include "goldbox/poolrad/views/prompt.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -35,7 +34,7 @@ MainmenuView::MainmenuView() : View("Mainmenu") {}
 void MainmenuView::draw() {
     Surface s = getSurface();
 
-    drawWindow(22, 38, 1, 1);
+    drawWindow( 1, 1, 38, 22);
 
     showMenu();
 }
@@ -63,8 +62,8 @@ void MainmenuView::showMenu() {
 	int line_off = 0;
 	for (int i = 0; i < 11; i++) {
 		if (mainmenu[i].active) {
-			s.writeCharC(mainmenu[i].shortcut, 15, 12 + line_off, 2);
-			s.writeStringC(mainmenu[i].text, 10, 12 + line_off, 3);
+			s.writeCharC(mainmenu[i].shortcut, 15, 2, 12 + line_off);
+			s.writeStringC(mainmenu[i].text, 10, 3, 12 + line_off);
 			line_off++;
 		}
 	}

@@ -24,7 +24,7 @@
 
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/views/views.h"
-#include "goldbox/poolrad/data/character.h"
+//#include "goldbox/poolrad/data/character.h"
 //#include "goldbox/poolrad/files/game_archive.h"
 //#include "goldbox/poolrad/data/saved.h"
 //#include "goldbox/poolrad/gfx/pics.h"
@@ -52,7 +52,7 @@ public:
 	//Gfx::PicsDecoder _pics;
 
 public:
-	static Data::Character _party[MAX_CHARACTERS];
+	//static Data::Character _party[MAX_CHARACTERS];
 
 	PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~PoolradEngine() override;
