@@ -23,7 +23,7 @@
 
 #include "goldbox/metaengine.h"
 #include "goldbox/detection.h"
-#include "goldbox/keymapping.h"
+//#include "goldbox/keymapping.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/engine.h"
 
@@ -77,11 +77,11 @@ bool GoldboxMetaEngine::hasFeature(MetaEngineFeature f) const {
 	return checkExtendedSaves(f) ||
 		(f == kSupportsLoadingDuringStartup);
 }
-
+/*
 Common::KeymapArray GoldboxMetaEngine::initKeymaps(const char *target) const {
 	return Goldbox::Keymapping::initKeymaps();
 }
-
+*/
 #if PLUGIN_ENABLED_DYNAMIC(GOLDBOX)
 REGISTER_PLUGIN_DYNAMIC(GOLDBOX, PLUGIN_TYPE_ENGINE, GoldboxMetaEngine);
 #else

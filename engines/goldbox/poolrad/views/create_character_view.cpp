@@ -21,7 +21,7 @@
 
 #include "common/system.h"
 #include "graphics/palette.h"
-#include "goldbox/keymapping.h"
+//#include "goldbox/keymapping.h"
 #include "goldbox/poolrad/views/create_character_view.h"
 
 
