@@ -40,7 +40,7 @@ public:
 
 	const ADExtraGuiOptionsMap *getAdvancedExtraGuiOptions() const override;
 
-	Common::KeymapArray initKeymaps(const char *target) const override;
+	//Common::KeymapArray initKeymaps(const char *target) const override;
 };
 
 #endif // GOLDBOX_METAENGINE_H
