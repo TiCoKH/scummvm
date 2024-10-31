@@ -19,56 +19,44 @@
  *
  */
 
-#include "goldbox/poolrad/views/mainmenu_view.h"
-#include "goldbox/poolrad/views/party.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_input_txt.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
+namespace Dialogs {
 
-//const Common::Rect MainmenuView::_area_party(1, 1, 28, 11);
-//const Common::Rect MainmenuView::_area_menu(1, 12, 28, 22);
 
-MainmenuView::MainmenuView() : View("Mainmenu") {}
+bool HorizontalInputTxt::msgKeypress(const KeypressMessage &msg) {
+    char asciiValue = msg.ascii;
+    Common::KeyCode keyCode = msg.keycode;
 
-void MainmenuView::draw() {
+    if (asciiValue >= 'a' && asciiValue <= 'z') {
+        asciiValue -= 32;
+    }
+
+    if (keyCode == Common::KEYCODE_BACKSPACE && !_inputText.empty()) {
+        _inputText.deleteChar(_inputText.size() - 1);  // Handle backspace
+    } else if (asciiValue >= ' ' && asciiValue <= '~' && _inputText.size() < _maxInputLength) {
+        _inputText += asciiValue;  // Append valid character
+    } else if (keyCode == Common::KEYCODE_RETURN) {
+        deactivate();
+    }
+
+    drawText();
+    return true;
+}
+
+void HorizontalInputTxt::drawText() {
     Surface s = getSurface();
 
-    drawWindow( 1, 1, 38, 22);
-
-    showMenu();
+    s.clearBox(0, 24, 39, 24, 0);
+    s.writeStringC(_promptTxt, _promptColor, 0, 24);
+    s.writeStringC(_inputText, 15, 22, 24);
 }
 
-bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
-    return true;
-}
 
-bool MainmenuView::msgFocus(const FocusMessage &msg) {
-    View::msgFocus(msg);
-    return true;
-}
-
-bool MainmenuView::msgUnfocus(const UnfocusMessage &msg) {
-    return true;
-}
-
-void MainmenuView::timeout() {
-}
-
-void MainmenuView::showMenu() {
-    Surface s = getSurface();
-    s.clearBox(1, 12, 28, 22, 0);
-
-	int line_off = 0;
-	for (int i = 0; i < 11; i++) {
-		if (mainmenu[i].active) {
-			s.writeCharC(mainmenu[i].shortcut, 15, 2, 12 + line_off);
-			s.writeStringC(mainmenu[i].text, 10, 3, 12 + line_off);
-			line_off++;
-		}
-	}
-}
-
+} // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox

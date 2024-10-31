@@ -84,8 +84,8 @@ public:
 	void writeString(const Common::String &str, int x, int y);
 	void writeString(const unsigned char *str, int x, int y);
 	void writeStringC(const Common::String &str, int color);
-	void writeStringC(const Common::String &str, int color, int line, int column);
-	void writeStringC(const unsigned char *str, int color, int line, int column);
+	void writeStringC(const Common::String &str, int color, int x, int y);
+	void writeStringC(const unsigned char *str, int color, int x, int y);
 	void writeCenteredString(const Common::String &str, int y);
 	void writeChar(unsigned char c);
 	void writeChar(unsigned char c, int x, int y);
@@ -93,8 +93,8 @@ public:
 	void writeSymbol(unsigned char s_id);
 	void writeSymbol(unsigned char s_id, int x, int y);
 	void writeCharC(unsigned char c, int color);
-	void writeCharC(unsigned char c, int color, int line, int column);
-	void writeGlyphC(unsigned char g_id, int color, int line, int column);
+	void writeCharC(unsigned char c, int color, int x, int y);
+	void writeGlyphC(unsigned char g_id, int color, int x, int y);
 	void setTextPos(int x, int y);
 	void setTextColor(int color);
 

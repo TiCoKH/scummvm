@@ -37,7 +37,7 @@ namespace Poolrad {
 
 PoolradEngine *g_engine;
 
-Data::Character PoolradEngine::_party[MAX_CHARACTERS];
+//Data::Character PoolradEngine::_party[MAX_CHARACTERS];
 
 PoolradEngine::PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc) :
 		Goldbox::Engine(syst, gameDesc) {
@@ -77,11 +77,11 @@ void PoolradEngine::setup() {
 	_symbols = daxScreenTiles;
 
 	daxFile8x8d.close();
-
+/*
 	if (!_strings.load("global_strings.yml")){
 		error("Failed to open global_strings.yml");
 	}
-
+*/
 
 
 /*
