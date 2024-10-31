@@ -24,6 +24,7 @@
 
 #include "graphics/managed_surface.h"
 #include "goldbox/poolrad/views/view.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_input_txt.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -55,11 +56,12 @@ private:
 		{"WYVERN", {0x2C, 0x2D}, {0x47, 0xFF}, "- - - - -"}
 	};
 
+	Dialogs::HorizontalInputTxt *_inputPrompt;
 	int _retry = 0;
 
 public:
 	CodewheelView();
-	virtual ~CodewheelView() {}
+	virtual ~CodewheelView();
 
 	bool msgKeypress(const KeypressMessage &msg) override;
 	bool msgFocus(const FocusMessage &msg) override;

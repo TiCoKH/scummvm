@@ -49,7 +49,7 @@ void CreateCharacterView::draw() {
 
     int rnd = getRandomNumber(12);
 
-	drawWindow(22, 38, 1, 1);
+	drawWindow( 1, 1, 38, 22);
 
 }
 

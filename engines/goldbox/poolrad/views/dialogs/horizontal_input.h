@@ -19,56 +19,37 @@
  *
  */
 
-#include "goldbox/poolrad/views/mainmenu_view.h"
-#include "goldbox/poolrad/views/party.h"
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUT_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUT_H
+
+#include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/gfx/surface.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
+namespace Dialogs {
 
-//const Common::Rect MainmenuView::_area_party(1, 1, 28, 11);
-//const Common::Rect MainmenuView::_area_menu(1, 12, 28, 22);
+class HorizontalInput : public Dialog {
+protected:
+    byte _promptColor;             // Color of the prompt text
+    Common::String _promptTxt;     // Prompt message displayed before input
 
-MainmenuView::MainmenuView() : View("Mainmenu") {}
+    virtual void drawText() = 0;   // Pure virtual function for child-specific drawing
 
-void MainmenuView::draw() {
-    Surface s = getSurface();
+public:
+    HorizontalInput(const Common::String &name, byte promptColor, const Common::String &promptTxt)
+        : Dialog(name), _promptColor(promptColor), _promptTxt(promptTxt) {
+        activate();
+    }
 
-    drawWindow( 1, 1, 38, 22);
+    virtual bool msgKeypress(const KeypressMessage &msg) = 0;  // Pure virtual for specific key handling
+    virtual void draw() override;
+};
 
-    showMenu();
-}
-
-bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
-    return true;
-}
-
-bool MainmenuView::msgFocus(const FocusMessage &msg) {
-    View::msgFocus(msg);
-    return true;
-}
-
-bool MainmenuView::msgUnfocus(const UnfocusMessage &msg) {
-    return true;
-}
-
-void MainmenuView::timeout() {
-}
-
-void MainmenuView::showMenu() {
-    Surface s = getSurface();
-    s.clearBox(1, 12, 28, 22, 0);
-
-	int line_off = 0;
-	for (int i = 0; i < 11; i++) {
-		if (mainmenu[i].active) {
-			s.writeCharC(mainmenu[i].shortcut, 15, 2, 12 + line_off);
-			s.writeStringC(mainmenu[i].text, 10, 3, 12 + line_off);
-			line_off++;
-		}
-	}
-}
-
+} // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
+
+#endif
