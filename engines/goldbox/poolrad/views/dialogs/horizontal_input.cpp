@@ -19,36 +19,19 @@
  *
  */
 
-#ifndef GOLDBOX_GFX_PROMPT_LINE_INPUT_H
-#define GOLDBOX_GFX_PROMPT_LINE_INPUT_H
-
-#include "goldbox/gfx/prompt_line.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 
 namespace Goldbox {
-namespace Shared {
-namespace Gfx {
+namespace Poolrad {
+namespace Views {
+namespace Dialogs {
 
-class PromptLineInput : public PromptLine {
-private:
-    Common::String _inputText;
-    size_t _maxLength;
-    bool _inputComplete;
-    bool _caretVisible;
-    int _caretCtr;
+void HorizontalInput::draw() {
+    // Draw child-specific text
+    drawText();
+}
 
-public:
-    PromptLineInput(const Common::String &name, UIElement *uiParent, const Common::String &prompt, size_t maxLength, int x, int y, int width);
-
-    void drawContent(Surface &s) override;
-    bool msgKeypress(const KeypressMessage &msg) override;
-    bool tick() override;
-
-    Common::String getInputText() const;
-    bool isInputComplete() const;
-};
-
-} // namespace Gfx
-} // namespace Shared
+} // namespace Dialogs
+} // namespace Views
+} // namespace Poolrad
 } // namespace Goldbox
-
-#endif // GOLDBOX_GFX_PROMPT_LINE_INPUT_H

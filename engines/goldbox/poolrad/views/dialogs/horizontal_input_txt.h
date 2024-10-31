@@ -19,56 +19,36 @@
  *
  */
 
-#include "goldbox/poolrad/views/mainmenu_view.h"
-#include "goldbox/poolrad/views/party.h"
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUTTXT_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUTTXT_H
+
+#include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
+namespace Dialogs {
 
-//const Common::Rect MainmenuView::_area_party(1, 1, 28, 11);
-//const Common::Rect MainmenuView::_area_menu(1, 12, 28, 22);
+class HorizontalInputTxt : public HorizontalInput {
+private:
+    byte _maxInputLength;          // Maximum number of characters
+    Common::String _inputText;     // Text being entered by the user
 
-MainmenuView::MainmenuView() : View("Mainmenu") {}
+    void drawText() override;      // Draws the prompt and input text
 
-void MainmenuView::draw() {
-    Surface s = getSurface();
+public:
+    HorizontalInputTxt(const Common::String &name, byte maxInputLength, byte promptColor,
+                       const Common::String &promptTxt)
+        : HorizontalInput(name, promptColor, promptTxt), 
+          _maxInputLength(maxInputLength), _inputText("") {}
 
-    drawWindow( 1, 1, 38, 22);
+    bool msgKeypress(const KeypressMessage &msg) override;  // Handle user text input
+    Common::String getInput() const { return _inputText; }  // Retrieve the entered text
+};
 
-    showMenu();
-}
-
-bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
-    return true;
-}
-
-bool MainmenuView::msgFocus(const FocusMessage &msg) {
-    View::msgFocus(msg);
-    return true;
-}
-
-bool MainmenuView::msgUnfocus(const UnfocusMessage &msg) {
-    return true;
-}
-
-void MainmenuView::timeout() {
-}
-
-void MainmenuView::showMenu() {
-    Surface s = getSurface();
-    s.clearBox(1, 12, 28, 22, 0);
-
-	int line_off = 0;
-	for (int i = 0; i < 11; i++) {
-		if (mainmenu[i].active) {
-			s.writeCharC(mainmenu[i].shortcut, 15, 2, 12 + line_off);
-			s.writeStringC(mainmenu[i].text, 10, 3, 12 + line_off);
-			line_off++;
-		}
-	}
-}
-
+} // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
+
+#endif

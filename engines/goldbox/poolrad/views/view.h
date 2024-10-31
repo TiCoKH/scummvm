@@ -55,7 +55,7 @@ private:
 
 protected:
     void drawFrame(const Common::Rect &r);
-    void drawWindow(uint8 bottom, uint8 right, uint8 top, uint8 left);
+    void drawWindow(uint8 left, uint8 top , uint8 right, uint8 bottom);
 
 public:
 	View(const Common::String &name, UIElement *uiParent) :

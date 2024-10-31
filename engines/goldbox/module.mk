@@ -17,13 +17,15 @@ MODULE_OBJS = \
 	gfx/surface.o \
 	poolrad/poolrad.o \
 	poolrad/console.o \
-	poolrad/data/character.o \
 	poolrad/views/view.o \
 	poolrad/views/title_view.o \
 	poolrad/views/credits_view.o \
 	poolrad/views/codewheel_view.o \
 	poolrad/views/mainmenu_view.o \
-	poolrad/views/dialogs/dialog.o
+	poolrad/views/dialogs/dialog.o \
+	poolrad/views/dialogs/horizontal_input.o \
+	poolrad/views/dialogs/horizontal_input_txt.o
+
 
 
 
