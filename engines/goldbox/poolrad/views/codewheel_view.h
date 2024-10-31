@@ -58,6 +58,7 @@ private:
 
 	Dialogs::HorizontalInputTxt *_inputPrompt;
 	int _retry = 0;
+	int _code_index = 0;
 
 public:
 	CodewheelView();

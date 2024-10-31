@@ -42,8 +42,10 @@ public:
         : HorizontalInput(name, promptColor, promptTxt), 
           _maxInputLength(maxInputLength), _inputText("") {}
 
-    bool msgKeypress(const KeypressMessage &msg) override;  // Handle user text input
-    Common::String getInput() const { return _inputText; }  // Retrieve the entered text
+    bool msgKeypress(const KeypressMessage &msg) override;
+    void clear();
+    Common::String getInput() const { return _inputText; }
+    void clearInput() { _inputText = ""; }
 };
 
 } // namespace Dialogs
