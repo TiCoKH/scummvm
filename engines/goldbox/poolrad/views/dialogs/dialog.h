@@ -32,7 +32,7 @@ namespace Dialogs {
 
 class Dialog : public View {
 protected:
-	bool _isActive;  // Tracks if the dialog is active
+	bool _isActive = false;
 
 public:
 	Dialog(const Common::String &name) : View(name) {}

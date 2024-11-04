@@ -32,6 +32,11 @@ void HorizontalInput::draw() {
     }
 }
 
+void HorizontalInput::clear() {
+    Surface s = getSurface();
+    s.clearBox(0, 24, 39, 24, 0);
+}
+
 } // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad

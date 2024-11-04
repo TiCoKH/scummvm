@@ -9,6 +9,7 @@ MODULE_OBJS = \
 	metaengine.o \
 	core/array.o \
 	core/file.o \
+	core/menu_item.o \
 	data/daxblock.o \
 	data/daxheadercontainer.o \
 	gfx/dax_font.o \
@@ -24,7 +25,11 @@ MODULE_OBJS = \
 	poolrad/views/mainmenu_view.o \
 	poolrad/views/dialogs/dialog.o \
 	poolrad/views/dialogs/horizontal_input.o \
-	poolrad/views/dialogs/horizontal_input_txt.o
+	poolrad/views/dialogs/horizontal_input_txt.o \
+	poolrad/views/dialogs/horizontal_input_menu.o \
+	poolrad/views/dialogs/vertical_input.o \
+	poolrad/views/dialogs/vertical_input_menu.o
+
 
 
 

@@ -46,16 +46,12 @@ bool HorizontalInputTxt::msgKeypress(const KeypressMessage &msg) {
     return true;
 }
 
-void HorizontalInputTxt::clear() {
-    Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 0);
-}
-
 void HorizontalInputTxt::drawText() {
-    clear();
+    HorizontalInput::clear();
     Surface s = getSurface();
     s.writeStringC(_promptTxt, _promptColor, 0, 24);
-    s.writeStringC(_inputText, 15, 22, 24);
+    s.writeChar(' ');
+    s.writeStringC(_inputText, 15);
 }
 
 
