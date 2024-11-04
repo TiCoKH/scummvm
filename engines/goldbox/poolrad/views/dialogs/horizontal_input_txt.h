@@ -37,10 +37,8 @@ private:
     void drawText() override;      // Draws the prompt and input text
 
 public:
-    HorizontalInputTxt(const Common::String &name, byte maxInputLength, byte promptColor,
-                       const Common::String &promptTxt)
-        : HorizontalInput(name, promptColor, promptTxt), 
-          _maxInputLength(maxInputLength), _inputText("") {}
+    HorizontalInputTxt(const Common::String &name, byte maxInputLength, byte promptColor, const Common::String &promptTxt);
+//    ~HorizontalInputTxt();
 
     bool msgKeypress(const KeypressMessage &msg) override;
     Common::String getInput() const { return _inputText; }
