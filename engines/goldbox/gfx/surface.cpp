@@ -83,6 +83,14 @@ void Surface::writeString(const Common::String &str) {
 		this->w - (_textX * FONT_W), _textColor);
 }
 
+void Surface::writeString(const unsigned char *str) {
+    for (size_t i = 0; str[i] != '\0'; ++i) {
+        unsigned char mappedIndex = mapCharToIndex(str[i]);
+        _currentFont->drawChar(this, mappedIndex, _textX * FONT_W, _textY * FONT_H, _textColor);
+        ++_textX;
+    }
+}
+
 void Surface::writeStringC(const Common::String &str, int color){
 	setTextColor(color);
 	writeString(str);
@@ -97,6 +105,12 @@ void Surface::writeStringC(const Common::String &str, int color, int x, int y) {
 	setTextPos(x, y);
 	setTextColor(color);
 	writeString(str);
+}
+
+void Surface::writeStringC(const unsigned char *str, int color) {
+	setTextColor(color);
+	Common::String s((const char *)str);
+	writeString(s);
 }
 
 void Surface::writeString(const unsigned char *str, int x, int y) {
