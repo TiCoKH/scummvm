@@ -26,6 +26,8 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+HorizontalInputTxt::HorizontalInputTxt(const Common::String &name, byte maxInputLength, byte promptColor, const Common::String &promptTxt)
+	: HorizontalInput(name, promptColor, promptTxt), _maxInputLength(maxInputLength), _inputText("") {}
 
 bool HorizontalInputTxt::msgKeypress(const KeypressMessage &msg) {
     char asciiValue = msg.ascii;
@@ -50,8 +52,7 @@ void HorizontalInputTxt::drawText() {
     HorizontalInput::clear();
     Surface s = getSurface();
     s.writeStringC(_promptTxt, _promptColor, 0, 24);
-    s.writeChar(' ');
-    s.writeStringC(_inputText, 15);
+    s.writeStringC(_inputText, 15, _text_offset, 24);
 }
 
 
