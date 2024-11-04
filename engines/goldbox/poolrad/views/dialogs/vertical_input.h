@@ -19,25 +19,39 @@
  *
  */
 
-#include "goldbox/poolrad/views/dialogs/horizontal_input.h"
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALINPUT_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALINPUT_H
+
+#include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/gfx/surface.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-void HorizontalInput::draw() {
-    if (_isActive) {
-        drawText();
-    }
-}
+class VerticalInput : public Dialog {
+protected:
+    byte _promptColor;             // Color of the prompt text
+    Common::String _promptTxt;     // Prompt message displayed before input
 
-void HorizontalInput::clear() {
-    Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 0);
-}
+    virtual void drawText() = 0;   // Pure virtual function for child-specific drawing
+
+public:
+    VerticalInput(const Common::String &name, byte promptColor, const Common::String &promptTxt)
+        : Dialog(name), _promptColor(promptColor), _promptTxt(promptTxt) {
+        activate();
+    }
+
+    virtual bool msgKeypress(const KeypressMessage &msg) = 0;  // Pure virtual for specific key handling
+    virtual void draw() override;
+
+    void clear();  // Clear a vertical section of the screen
+};
 
 } // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
+
+#endif

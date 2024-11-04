@@ -45,6 +45,8 @@ public:
 
     virtual bool msgKeypress(const KeypressMessage &msg) = 0;  // Pure virtual for specific key handling
     virtual void draw() override;
+
+    void clear();
 };
 
 } // namespace Dialogs

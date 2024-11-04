@@ -19,22 +19,22 @@
  *
  */
 
-#include "goldbox/poolrad/views/dialogs/horizontal_input.h"
+#include "goldbox/poolrad/views/dialogs/vertical_input.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-void HorizontalInput::draw() {
+void VerticalInput::draw() {
     if (_isActive) {
-        drawText();
+        drawText();  // Call the child-specific text drawing method
     }
 }
 
-void HorizontalInput::clear() {
+void VerticalInput::clear() {
     Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 0);
+    s.clearBox(1, 1, 38, 22, 0);
 }
 
 } // namespace Dialogs

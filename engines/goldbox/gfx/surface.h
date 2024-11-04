@@ -81,9 +81,11 @@ public:
 	void setToText();
 	void setToSymbols();
 	void writeString(const Common::String &str);
+	void writeString(const unsigned char *str);
 	void writeString(const Common::String &str, int x, int y);
 	void writeString(const unsigned char *str, int x, int y);
 	void writeStringC(const Common::String &str, int color);
+	void writeStringC(const unsigned char *str, int color);
 	void writeStringC(const Common::String &str, int color, int x, int y);
 	void writeStringC(const unsigned char *str, int color, int x, int y);
 	void writeCenteredString(const Common::String &str, int y);
