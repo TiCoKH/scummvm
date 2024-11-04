@@ -19,25 +19,34 @@
  *
  */
 
-#include "goldbox/poolrad/views/dialogs/horizontal_input.h"
+#ifndef GOLDBOX_MENU_ITEM_H
+#define GOLDBOX_MENU_ITEM_H
+
+#include "common/array.h"
+#include "common/str.h"
 
 namespace Goldbox {
-namespace Poolrad {
-namespace Views {
-namespace Dialogs {
 
-void HorizontalInput::draw() {
-    if (_isActive) {
-        drawText();
-    }
-}
+struct MenuItem {
+    char shortcut;
+    Common::String text;
+    bool active;
+    bool shortcutFirst;
+};
 
-void HorizontalInput::clear() {
-    Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 0);
-}
+struct MenuItemList {
+    Common::Array<MenuItem> items;
+    uint currentSelection;
 
-} // namespace Dialogs
-} // namespace Views
-} // namespace Poolrad
+    MenuItemList() : currentSelection(0) {}
+
+    MenuItem getCurrentSelection() const;
+
+    void generateMenuItems(const Common::Array<Common::String> &menuStrings, bool generateShortcuts);
+    void setShortcutToLast(uint index);
+    int findByShortcut(char shortcut) const;
+};
+
 } // namespace Goldbox
+
+#endif // GOLDBOX_MENU_ITEM_H

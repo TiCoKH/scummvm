@@ -19,6 +19,10 @@
  *
  */
 
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUTMENU_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUTMENU_H
+
+#include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 
 namespace Goldbox {
@@ -26,18 +30,27 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-void HorizontalInput::draw() {
-    if (_isActive) {
-        drawText();
-    }
-}
+class HorizontalInputMenu : public HorizontalInput {
+private:
+    Goldbox::MenuItemList _menuItems;
+    int _textColor;
+    int _selectColor;
 
-void HorizontalInput::clear() {
-    Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 0);
-}
+    void drawText() override;
+    void selectNextItem();
+    void selectPreviousItem();
+
+public:
+    HorizontalInputMenu(const Common::String &name, const Common::String &promptTxt,
+                        const Common::Array<Common::String> &menuStrings, int textColor, int selectColor, int promptColor);
+
+    bool msgKeypress(const KeypressMessage &msg) override;
+    MenuItem getSelectedItem() const { return _menuItems.getCurrentSelection(); }
+};
 
 } // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
+
+#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUTMENU_H

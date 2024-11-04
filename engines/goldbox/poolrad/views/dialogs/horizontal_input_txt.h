@@ -43,7 +43,6 @@ public:
           _maxInputLength(maxInputLength), _inputText("") {}
 
     bool msgKeypress(const KeypressMessage &msg) override;
-    void clear();
     Common::String getInput() const { return _inputText; }
     void clearInput() { _inputText = ""; }
 };
