@@ -32,8 +32,9 @@ namespace Dialogs {
 
 class HorizontalInput : public Dialog {
 protected:
-    byte _promptColor;             // Color of the prompt text
-    Common::String _promptTxt;     // Prompt message displayed before input
+    byte _promptColor;
+    Common::String _promptTxt;
+    byte _text_offset = 0;
 
     virtual void drawText() = 0;   // Pure virtual function for child-specific drawing
 
@@ -41,6 +42,10 @@ public:
     HorizontalInput(const Common::String &name, byte promptColor, const Common::String &promptTxt)
         : Dialog(name), _promptColor(promptColor), _promptTxt(promptTxt) {
         activate();
+        if (!_promptTxt.empty()) {
+            _text_offset = _promptTxt.size();
+        }
+        
     }
 
     virtual bool msgKeypress(const KeypressMessage &msg) = 0;  // Pure virtual for specific key handling
