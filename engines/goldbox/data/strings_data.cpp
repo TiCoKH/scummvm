@@ -25,6 +25,7 @@
 #include "goldbox/data/strings.h"
 
 namespace Goldbox {
+namespace Data {
 
 bool StringsData::load(const Common::Path &filename) {
 	Common::File f;
@@ -118,4 +119,5 @@ bool StringsData::load(const Common::Path &filename) {
 	return true;
 }
 
+} // namespace Data
 } // namespace Goldbox

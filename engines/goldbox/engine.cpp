@@ -56,6 +56,11 @@ Common::Platform Engine::getPlatform() const {
 	return _gameDescription->desc.platform;
 }
 
+Common::String Engine::getString(const Common::String &key, const Common::String &defaultValue) const {
+    // Use getValOrDefault to fetch the string or return the default if not found
+    return _strings.getValOrDefault(key, defaultValue);
+}
+
 Common::Error Engine::run() {
 
 	switch (getPlatform()) {
