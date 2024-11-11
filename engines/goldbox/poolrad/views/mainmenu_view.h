@@ -24,6 +24,7 @@
 
 #include "common/rect.h"
 //#include "common/array.h"
+#include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/view.h"
 
 namespace Goldbox {
@@ -38,23 +39,9 @@ struct Menuitem {
 
 class MainmenuView : public View {
 private:
+    Goldbox::MenuItemList _menuItemList;
 
-//    static const Common::Rect _area_party;
-//    static const Common::Rect _area_menu;
-
-    Menuitem mainmenu[11] = {
-        {'C',"reate New Character",        true},
-        {'D',"rop Character",              false},
-        {'M',"odify Character",            false},
-        {'T',"rain Character",             false},
-        {'V',"iew Character",              false},
-        {'A',"dd Character to Party",      true},
-        {'R',"emove Character from Party", false},
-        {'L',"oad Saved Game",             true},
-        {'S',"ave Current Game",           false},
-        {'B',"EGIN Adventuring",           false},
-        {'E',"xit to DOS",                 true}
-    };
+    void drawPrompt();
 
 public:
     MainmenuView();

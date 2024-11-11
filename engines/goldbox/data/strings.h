@@ -26,6 +26,7 @@
 #include "common/str-array.h"
 
 namespace Goldbox {
+namespace Data {
 
 extern Common::String capitalize(const Common::String &str);
 extern Common::String camelCase(const Common::String &str);
@@ -36,6 +37,7 @@ extern int strToInt(const Common::String &str);
 extern int hexToInt(const Common::String &str);
 extern Common::StringArray splitLines(const Common::String &str);
 
+} // namespace Data
 } // namespace Goldbox
 
 #endif
