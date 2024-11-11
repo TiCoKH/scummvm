@@ -62,7 +62,7 @@ protected:
 public:
 	Graphics::Font * _font;
 	Graphics::Font * _symbols;
-	StringsData _strings;
+	Data::StringsData _strings;
 
 	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~Engine() override;
@@ -88,6 +88,22 @@ public:
 	uint32 getRandomNumber(uint minVal, uint maxVal) {
 		return _randomSource.getRandomNumberRng(minVal, maxVal);
 	}
+
+	int rollDice(int number, int sides) {
+		int total = 0;
+		for (int i = 0; i < number; ++i) {
+			total += getRandomNumber(sides) + 1;
+		}
+		return total;
+	}
+
+	/**
+     * Retrieves a string from StringsData with a default value if the key is not found.
+     * @param key The key of the string to retrieve.
+     * @param defaultValue The default value to return if the key is not found.
+     * @return The string associated with the key, or the default value if not found.
+     */
+    Common::String getString(const Common::String &key, const Common::String &defaultValue = "") const;
 
 	bool hasFeature(EngineFeature f) const override {
 		return

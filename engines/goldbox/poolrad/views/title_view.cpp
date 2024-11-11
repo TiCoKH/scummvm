@@ -77,7 +77,7 @@ void TitleView::draw() {
 		case 4:
 			delete _pic1;
 			delete _pic2;
-			replaceView("Codewheel");
+			replaceView("Mainmenu"); //TODO Option to skip Copy Protection
 			break;
 
 	}

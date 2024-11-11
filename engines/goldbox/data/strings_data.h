@@ -26,6 +26,7 @@
 #include "common/path.h"
 
 namespace Goldbox {
+namespace Data {
 
 class StringsData : public Common::StringMap {
 public:
@@ -37,6 +38,7 @@ public:
 	bool load(const Common::Path &filename);
 };
 
-} // namespace MM
+} // namespace Data
+} // namespace Goldbox
 
 #endif

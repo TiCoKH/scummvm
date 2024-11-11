@@ -60,7 +60,13 @@ void MenuItemList::setShortcutToLast(uint index) {
     }
 }
 
+void MenuItemList::activate(uint index) {
+    items[index].active = true;
+}
 
+void MenuItemList::deactivate(uint index) {
+    items[index].active = false;
+}
 
 int MenuItemList::findByShortcut(char shortcut) const {
     for (uint i = 0; i < items.size(); i++) {
@@ -69,6 +75,15 @@ int MenuItemList::findByShortcut(char shortcut) const {
         }
     }
     return -1;  // Return -1 if not found
+}
+
+bool MenuItemList::isActiveShortcut(char shortcut) const {
+    for (uint i = 0; i < items.size(); i++) {
+        if (items[i].shortcut == shortcut && items[i].active) {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace Goldbox
