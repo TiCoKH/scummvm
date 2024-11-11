@@ -20,9 +20,10 @@
  */
 
 #include "common/textconsole.h"
-#include "mm/shared/utils/strings.h"
+#include "goldbox/data/strings.h"
 
-namespace MM {
+namespace Goldbox {
+namespace Data {
 
 Common::String capitalize(const Common::String &str) {
 	Common::String result = str;
@@ -138,4 +139,5 @@ Common::StringArray splitLines(const Common::String &str) {
 	return results;
 }
 
-} // namespace MM
+} // namespace Data
+} // namespace Goldbox

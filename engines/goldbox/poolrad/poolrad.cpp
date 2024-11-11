@@ -26,7 +26,7 @@
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
-#include "goldbox/data/strings.h"
+#include "goldbox/data/strings_data.h"
 #include "goldbox/poolrad/poolrad.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
 
@@ -77,11 +77,11 @@ void PoolradEngine::setup() {
 	_symbols = daxScreenTiles;
 
 	daxFile8x8d.close();
-/*
+
 	if (!_strings.load("global_strings.yml")){
 		error("Failed to open global_strings.yml");
 	}
-*/
+
 
 
 /*
@@ -102,5 +102,5 @@ GUI::Debugger *PoolradEngine::getConsole() {
 	return new Console();
 }
 
-} // namespace Wasteland1
-} // namespace Wasteland
+} // namespace Poolrad
+} // namespace Goldbox
