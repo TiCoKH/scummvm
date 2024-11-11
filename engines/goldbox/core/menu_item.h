@@ -44,7 +44,10 @@ struct MenuItemList {
 
     void generateMenuItems(const Common::Array<Common::String> &menuStrings, bool generateShortcuts);
     void setShortcutToLast(uint index);
+    void activate(uint index);
+    void deactivate(uint index);
     int findByShortcut(char shortcut) const;
+    bool isActiveShortcut(char shortcut) const;
 };
 
 } // namespace Goldbox
