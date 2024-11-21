@@ -19,36 +19,33 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_CREATE_CHARACTER_VIEW_H
-#define GOLDBOX_POOLRAD_VIEWS_CREATE_CHARACTER_VIEW_H
+#ifndef GOLDBOX_VM_INTERFACE_H
+#define GOLDBOX_VM_INTERFACE_H
 
-#include "common/rect.h"
-//#include "common/array.h"
-#include "goldbox/poolrad/views/view.h"
+#include "goldbox/engine.h"
 
 namespace Goldbox {
-namespace Poolrad {
-namespace Views {
 
-class CreateCharacterView : public View {
-
+class VmInterface {
 public:
-    CreateCharacterView();
-    virtual ~CreateCharacterView() {}
+    // Static utility methods to access Engine functionality
 
-    bool msgKeypress(const KeypressMessage &msg) override;
-    bool msgFocus(const FocusMessage &msg) override;
-    bool msgUnfocus(const UnfocusMessage &msg) override;
-    void draw() override;
-    void timeout() override;
-    void showMenu();
-    void showParty();
-    void menuSetActive(char shortcut);
-    void menuSetInactive(char shortcut);
+    // Example: Dice rolling
+    static int rollDice(int number, int sides) {
+        return g_engine->rollDice(number, sides);
+    }
+
+    // Add getString method
+    static Common::String getString(const Common::String &key) {
+        return g_engine->_strings.getVal(key);
+    }
+
+   // Add getParty method
+    static Common::Array<Data::Character *> &getParty() {
+        return g_engine->getParty();
+    }
 };
 
-} // namespace Views
-} // namespace Poolrad
 } // namespace Goldbox
 
-#endif
+#endif // GOLDBOX_VM_INTERFACE_Hs
