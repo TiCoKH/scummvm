@@ -19,8 +19,22 @@
  *
  */
 
+#include "common/file.h"
+#include "common/tokenizer.h"
+#include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/views/mainmenu_view.h"
-#include "goldbox/poolrad/views/party.h"
+
+#define CREATE 0
+#define DROP   1
+#define MODIFY 2
+#define TRAIN  3
+#define VIEW   4
+#define ADD    5
+#define REMOVE 6
+#define LOAD   7
+#define SAVE   8
+#define BEGIN  9
+#define EXIT  10
 
 namespace Goldbox {
 namespace Poolrad {
@@ -32,6 +46,17 @@ namespace Views {
 MainmenuView::MainmenuView() : View("Mainmenu") {
     
     Common::Array<Common::String> menuOptions;
+
+    const Common::String shortcuts = VmInterface::getString("mainmenu.0");
+    Common::StringTokenizer tokenizer(shortcuts, " ");
+    while (!tokenizer.empty()) {
+        const Common::String shortcut = tokenizer.nextToken();
+        const Common::String descriptionKey = "mainmenu." + shortcut;
+        const Common::String description = VmInterface::getString(descriptionKey);
+        menuOptions.push_back(description);
+    }
+
+/*
     menuOptions.push_back("Create New Character");
     menuOptions.push_back("Drop Character");
     menuOptions.push_back("Modify Character");
@@ -43,15 +68,9 @@ MainmenuView::MainmenuView() : View("Mainmenu") {
     menuOptions.push_back("Save Current Game");
     menuOptions.push_back("BEGIN Adventuring");
     menuOptions.push_back("Exit to DOS");
-
+*/
     _menuItemList.generateMenuItems(menuOptions, true);
-    _menuItemList.deactivate(1);
-    _menuItemList.deactivate(2);
-    _menuItemList.deactivate(3);
-    _menuItemList.deactivate(4);
-    _menuItemList.deactivate(6);
-    _menuItemList.deactivate(8);
-    _menuItemList.deactivate(9);
+    updateMenuState();
 }
 
 void MainmenuView::draw() {
@@ -93,10 +112,58 @@ void MainmenuView::showMenu() {
 	}
 }
 
+void MainmenuView::updateMenuState() {
+    auto &party = Goldbox::VmInterface::getParty();
+    int partySize = party.size();
+
+    _menuItemList.activate(CREATE);
+    _menuItemList.activate(EXIT);
+    if (partySize > 0) {
+        _menuItemList.activate(DROP);
+        _menuItemList.activate(MODIFY);
+        _menuItemList.activate(VIEW);
+        _menuItemList.activate(REMOVE);
+        _menuItemList.deactivate(LOAD);
+        _menuItemList.activate(SAVE);
+        _menuItemList.activate(BEGIN);
+    } else {
+        _menuItemList.deactivate(DROP);
+        _menuItemList.deactivate(MODIFY);
+        _menuItemList.deactivate(VIEW);
+        _menuItemList.deactivate(REMOVE);
+        _menuItemList.activate(LOAD);
+        _menuItemList.deactivate(SAVE);
+        _menuItemList.deactivate(BEGIN);
+    }
+
+    if (partySize >= 6) {
+        _menuItemList.deactivate(ADD);
+    } else {
+        _menuItemList.activate(ADD);
+    }
+}
+
 void MainmenuView::drawPrompt() {
     Surface s = getSurface();
     s.clearBox(0, 24, 39, 24, 0);
     s.writeStringC("Choose a function", 13, 0, 24);
+}
+
+void MainmenuView::loadCharList() {
+
+    charList.clear();
+    Common::File charListFile;
+    if (!charListFile.open("CHARLIST.TXT")) {
+        warning("Failed to open CHARLIST.TXT");
+        return;
+    }
+    while (!charListFile.eos()) {
+        Common::String line = charListFile.readLine();
+        if (!line.empty()) {
+            charList.push_back(line);
+        }
+    }
+    charListFile.close();
 }
 
 

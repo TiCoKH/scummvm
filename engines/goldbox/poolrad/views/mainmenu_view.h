@@ -23,7 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_MAINMENU_VIEW_H
 
 #include "common/rect.h"
-//#include "common/array.h"
+#include "common/array.h"
 #include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/view.h"
 
@@ -40,6 +40,8 @@ struct Menuitem {
 class MainmenuView : public View {
 private:
     Goldbox::MenuItemList _menuItemList;
+    int _currentCharIndex = 0;
+    Common::Array<Common::String> charList;
 
     void drawPrompt();
 
@@ -52,10 +54,11 @@ public:
     bool msgUnfocus(const UnfocusMessage &msg) override;
     void draw() override;
     void timeout() override;
+    void updateMenuState();
     void showMenu();
     void showParty();
-    void menuSetActive(char shortcut);
-    void menuSetInactive(char shortcut);
+    void loadCharList();
+    void processCharList();
 };
 
 } // namespace Views
@@ -63,3 +66,4 @@ public:
 } // namespace Goldbox
 
 #endif
+
