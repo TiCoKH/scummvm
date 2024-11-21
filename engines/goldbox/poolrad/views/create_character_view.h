@@ -31,10 +31,6 @@ namespace Poolrad {
 namespace Views {
 
 class CreateCharacterView : public View {
-private:
-
-//    static const Common::Rect _area_party;
-//    static const Common::Rect _area_menu;
 
 public:
     CreateCharacterView();
