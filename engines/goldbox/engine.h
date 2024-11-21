@@ -30,6 +30,7 @@
 #include "common/random.h"
 #include "common/serializer.h"
 #include "common/util.h"
+#include "common/array.h"
 #include "graphics/font.h"
 #include "engines/engine.h"
 #include "engines/savestate.h"
@@ -37,6 +38,7 @@
 
 #include "goldbox/detection.h"
 #include "goldbox/events.h"
+#include "goldbox/data/character.h"
 #include "goldbox/data/strings_data.h"
 
 namespace Goldbox {
@@ -63,6 +65,7 @@ public:
 	Graphics::Font * _font;
 	Graphics::Font * _symbols;
 	Data::StringsData _strings;
+	Common::Array<Data::Character *> _party;
 
 	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~Engine() override;
@@ -100,10 +103,9 @@ public:
 	/**
      * Retrieves a string from StringsData with a default value if the key is not found.
      * @param key The key of the string to retrieve.
-     * @param defaultValue The default value to return if the key is not found.
      * @return The string associated with the key, or the default value if not found.
      */
-    Common::String getString(const Common::String &key, const Common::String &defaultValue = "") const;
+    Common::String getString(const Common::String &key) const;
 
 	bool hasFeature(EngineFeature f) const override {
 		return
@@ -118,6 +120,8 @@ public:
 	bool canSaveGameStateCurrently(Common::U32String *msg = nullptr) override {
 		return true;
 	}
+
+	Common::Array<Data::Character *> &getParty();
 
 	/**
 	 * Uses a serializer to allow implementing savegame

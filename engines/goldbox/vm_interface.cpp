@@ -19,36 +19,12 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_CREATE_CHARACTER_VIEW_H
-#define GOLDBOX_POOLRAD_VIEWS_CREATE_CHARACTER_VIEW_H
-
-#include "common/rect.h"
-//#include "common/array.h"
-#include "goldbox/poolrad/views/view.h"
+#include "goldbox/engine.h"  // for accessing engine methods
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
-namespace Poolrad {
-namespace Views {
 
-class CreateCharacterView : public View {
+// Methods are defined inline in the header file for simplicity,
+// but you can add additional complex methods here if necessary.
 
-public:
-    CreateCharacterView();
-    virtual ~CreateCharacterView() {}
-
-    bool msgKeypress(const KeypressMessage &msg) override;
-    bool msgFocus(const FocusMessage &msg) override;
-    bool msgUnfocus(const UnfocusMessage &msg) override;
-    void draw() override;
-    void timeout() override;
-    void showMenu();
-    void showParty();
-    void menuSetActive(char shortcut);
-    void menuSetInactive(char shortcut);
-};
-
-} // namespace Views
-} // namespace Poolrad
 } // namespace Goldbox
-
-#endif
