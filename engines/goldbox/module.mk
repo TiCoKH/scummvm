@@ -7,9 +7,11 @@ MODULE_OBJS = \
 	keymapping.o \
 	messages.o \
 	metaengine.o \
+	vm_interface.o \
 	core/array.o \
 	core/file.o \
 	core/menu_item.o \
+	data/character.o \
 	data/daxblock.o \
 	data/daxheadercontainer.o \
 	data/strings.o \

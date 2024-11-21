@@ -42,6 +42,10 @@ Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine
 Engine::~Engine() {
 	delete _font;
 	delete _symbols;
+	for (uint i = 0; i < _party.size(); ++i) {
+        delete _party[i];
+    }
+    _party.clear();
 }
 
 uint32 Engine::getFeatures() const {
@@ -56,9 +60,8 @@ Common::Platform Engine::getPlatform() const {
 	return _gameDescription->desc.platform;
 }
 
-Common::String Engine::getString(const Common::String &key, const Common::String &defaultValue) const {
-    // Use getValOrDefault to fetch the string or return the default if not found
-    return _strings.getValOrDefault(key, defaultValue);
+Common::String Engine::getString(const Common::String &key) const {
+    return _strings.getVal(key);
 }
 
 Common::Error Engine::run() {
@@ -82,6 +85,10 @@ Common::Error Engine::run() {
 	runGame();
 
 	return Common::kNoError;
+}
+
+Common::Array<Data::Character *> &Engine::getParty() {
+    return _party;
 }
 
 Common::Error Engine::syncGame(Common::Serializer &s) {

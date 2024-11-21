@@ -46,10 +46,6 @@ CodewheelView::~CodewheelView() {
 }
 
 bool CodewheelView::msgKeypress(const KeypressMessage &msg) {
-	/* Any keypress to close the view
-    replaceView("Mainmenu");
-	return true;
-    */
 
 	Surface s = getSurface();
 
