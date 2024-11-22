@@ -26,6 +26,31 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+HorizontalInput::HorizontalInput(const Common::String &name, byte maxInputLength, byte promptColor, const Common::String &promptTxt)
+    : Dialog(name), _promptColor(promptColor), _promptTxt(promptTxt), _maxInputLength(maxInputLength), _inputText("") {
+    activate();
+    _text_offset = _promptTxt.empty() ? 0 : _promptTxt.size();
+}
+
+bool HorizontalInput::msgKeypress(const KeypressMessage &msg) {
+    char asciiValue = msg.ascii;
+    Common::KeyCode keyCode = msg.keycode;
+
+    if (_isActive) {
+        if (asciiValue >= 'a' && asciiValue <= 'z') {
+            asciiValue -= 32;
+        }
+
+        if (keyCode == Common::KEYCODE_BACKSPACE && !_inputText.empty()) {
+            _inputText.deleteChar(_inputText.size() - 1);
+        } else if (asciiValue >= ' ' && asciiValue <= '~' && _inputText.size() < _maxInputLength) {
+            _inputText += asciiValue;
+        }
+        drawText();
+    }
+    return true;
+}
+
 void HorizontalInput::draw() {
     if (_isActive) {
         drawText();
@@ -35,6 +60,13 @@ void HorizontalInput::draw() {
 void HorizontalInput::clear() {
     Surface s = getSurface();
     s.clearBox(0, 24, 39, 24, 0);
+}
+
+void HorizontalInput::drawText() {
+    Surface s = getSurface();
+    clear();
+    s.writeStringC(_promptTxt, _promptColor, 0, 24);
+    s.writeStringC(_inputText, 15, _text_offset, 24);
 }
 
 } // namespace Dialogs
