@@ -19,46 +19,30 @@
  *
  */
 
- #include "goldbox/poolrad/views/dialogs/vertical_input_menu.h"
- #include "goldbox/poolrad/views/dialogs/horizontal_input_menu.h"
-#include "vertical_input_menu.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-VerticalInputMenu::VerticalInputMenu(const Common::String &name, const Common::String &promptTxt, 
-                                     const Common::Array<Common::String> &menuStrings, int textColor, 
-                                     int selectColor, int promptColor)
-    : VerticalInput(name, promptColor, promptTxt), _textColor(textColor), _selectColor(selectColor) {
-    
-    _menuItems.generateMenuItems(menuStrings, false);
-
-    // Instantiate HorizontalInputMenu tied to the vertical menu
-    Common::Array<Common::String> horizontalMenuOptions = {"Exit", "Prev", "Next"};
-    _horizontalMenu = new HorizontalInputMenu("Navigation", "Choose:", horizontalMenuOptions, _textColor, _selectColor, _promptColor);
+HorizontalMenu::HorizontalMenu(const Common::String &name, const Common::String &promptTxt,
+                                         const Common::Array<Common::String> &menuStrings, int textColor, int selectColor, int promptColor) 
+                                             : Dialog(name), _textColor(textColor),
+      _selectColor(selectColor), _promptColor(promptColor), _promptTxt(promptTxt) {
+    _menuItems.generateMenuItems(menuStrings, true);
 }
 
-VerticalInputMenu::~VerticalInputMenu() {
-    delete _horizontalMenu;
-}
-
-void VerticalInputMenu::draw() {
-    // Draw the vertical menu
-    VerticalInput::draw();
-
-    // Draw the horizontal menu tied to it
-    _horizontalMenu->draw();
-}
-
-void VerticalInputMenu::drawText() {
+void HorizontalMenu::drawText() {
     Surface s = getSurface();
+    s.clearBox(0, 24, 39, 24, 0);
     s.writeStringC(_promptTxt, _promptColor, 0, 24);
 
-    // Draw the menu items vertically
+    // Draw the menu items with a space between each one
     for (uint i = 0; i < _menuItems.items.size(); i++) {
         const MenuItem &item = _menuItems.items[i];
+        s.writeChar(' ');
+
         if (i == _menuItems.currentSelection) {
             s.writeCharC(item.shortcut, _selectColor);
             s.writeStringC(item.text, _selectColor);
@@ -71,29 +55,28 @@ void VerticalInputMenu::drawText() {
                 s.writeCharC(item.shortcut, _selectColor);
             }
         }
-        s.setTextPos(0, 24 + (i + 1) * 2);  // Move cursor to the next line for vertical display
     }
 }
 
 
-void VerticalInputMenu::selectNextItem() {
+void HorizontalMenu::selectNextItem() {
     do {
         _menuItems.currentSelection = (_menuItems.currentSelection + 1) % _menuItems.items.size();
     } while (!_menuItems.items[_menuItems.currentSelection].active);
 }
 
-void VerticalInputMenu::selectPreviousItem() {
+void HorizontalMenu::selectPreviousItem() {
     do {
         _menuItems.currentSelection = (_menuItems.currentSelection > 0) ? _menuItems.currentSelection - 1 : _menuItems.items.size() - 1;
     } while (!_menuItems.items[_menuItems.currentSelection].active);
 }
 
-bool VerticalInputMenu::msgKeypress(const KeypressMessage &msg) {
+bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
     Common::KeyCode keyCode = msg.keycode;
     char asciiValue = msg.ascii;
 
     if (asciiValue >= 'a' && asciiValue <= 'z') {
-        asciiValue -= 32;  // Convert to uppercase
+        asciiValue -= 32;
     }
 
     if (keyCode == Common::KEYCODE_UP) {
@@ -101,7 +84,7 @@ bool VerticalInputMenu::msgKeypress(const KeypressMessage &msg) {
     } else if (keyCode == Common::KEYCODE_DOWN) {
         selectNextItem();
     } else if (keyCode == Common::KEYCODE_RETURN) {
-        deactivate();  // Finalize selection
+        deactivate();
     }
 
     if ((asciiValue >= 'A' && asciiValue <= 'Z') || (asciiValue >= '0' && asciiValue <= '9')) {
@@ -119,3 +102,4 @@ bool VerticalInputMenu::msgKeypress(const KeypressMessage &msg) {
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
+
