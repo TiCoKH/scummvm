@@ -22,8 +22,8 @@
 #ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUT_H
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUT_H
 
-#include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/gfx/surface.h"
+#include "goldbox/poolrad/views/dialogs/dialog.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -34,24 +34,21 @@ class HorizontalInput : public Dialog {
 protected:
     byte _promptColor;
     Common::String _promptTxt;
-    byte _text_offset = 0;
+    byte _text_offset;
+    byte _maxInputLength;
+    Common::String _inputText;
 
-    virtual void drawText() = 0;   // Pure virtual function for child-specific drawing
+    void drawText();
 
 public:
-    HorizontalInput(const Common::String &name, byte promptColor, const Common::String &promptTxt)
-        : Dialog(name), _promptColor(promptColor), _promptTxt(promptTxt) {
-        activate();
-        if (!_promptTxt.empty()) {
-            _text_offset = _promptTxt.size();
-        }
-        
-    }
+    HorizontalInput(const Common::String &name, byte maxInputLength, byte promptColor, const Common::String &promptTxt);
 
-    virtual bool msgKeypress(const KeypressMessage &msg) = 0;  // Pure virtual for specific key handling
-    virtual void draw() override;
+    bool msgKeypress(const KeypressMessage &msg) override;  // Handles user input
+    void draw() override;                                   // Draws the horizontal input field
+    void clear();                                           // Clears the input display
 
-    void clear();
+    Common::String getInput() const { return _inputText; }  // Returns the entered text
+    void clearInput() { _inputText = ""; }                  // Clears the entered text
 };
 
 } // namespace Dialogs
