@@ -19,34 +19,37 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALINPUT_H
-#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALINPUT_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTAL_MENU_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTAL_MENU_H
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
-#include "goldbox/gfx/surface.h"
+#include "goldbox/core/menu_item.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-class VerticalInput : public Dialog {
-protected:
-    byte _promptColor;             // Color of the prompt text
-    Common::String _promptTxt;     // Prompt message displayed before input
+class HorizontalMenu : public Dialog {
+private:
+    Goldbox::MenuItemList _menuItems;
+    int _textColor;
+    int _selectColor;
+    byte _promptColor;
+    Common::String _promptTxt;
+    byte _text_offset;
+    byte _selected;
 
-    virtual void drawText() = 0;   // Pure virtual function for child-specific drawing
+    void drawText();
+    void selectNextItem();
+    void selectPreviousItem();
 
 public:
-    VerticalInput(const Common::String &name, byte promptColor, const Common::String &promptTxt)
-        : Dialog(name), _promptColor(promptColor), _promptTxt(promptTxt) {
-        activate();
-    }
+    HorizontalMenu(const Common::String &name, const Common::String &promptTxt,
+                        const Common::Array<Common::String> &menuStrings, int textColor, int selectColor, int promptColor);
 
-    virtual bool msgKeypress(const KeypressMessage &msg) = 0;  // Pure virtual for specific key handling
-    virtual void draw() override;
-
-    void clear();  // Clear a vertical section of the screen
+    bool msgKeypress(const KeypressMessage &msg);
+    MenuItem getSelectedItem() const { return _menuItems.getCurrentSelection(); }
 };
 
 } // namespace Dialogs
@@ -54,4 +57,4 @@ public:
 } // namespace Poolrad
 } // namespace Goldbox
 
-#endif
+#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTAL_MENU_H

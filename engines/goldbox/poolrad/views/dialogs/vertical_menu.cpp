@@ -19,29 +19,50 @@
  *
  */
 
-#include "goldbox/poolrad/views/dialogs/horizontal_input_menu.h"
+#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-HorizontalInputMenu::HorizontalInputMenu(const Common::String &name, const Common::String &promptTxt,
-                                         const Common::Array<Common::String> &menuStrings, int textColor, int selectColor, int promptColor)
-    : HorizontalInput(name, promptColor, promptTxt), _textColor(textColor), _selectColor(selectColor) {
-    _menuItems.generateMenuItems(menuStrings, true);
+VerticalMenu::VerticalMenu(const Common::String &name, const Common::String &promptTxt,
+                             const Common::Array<Common::String> &menuStrings, int textColor,
+                             int selectColor, int promptColor)
+    : Dialog(name), _horizontalMenu(nullptr), _textColor(textColor),
+      _selectColor(selectColor), _promptColor(promptColor), _promptTxt(promptTxt) {
+    activate();
+    _menuItems.generateMenuItems(menuStrings, false);
+
+    // Optional horizontal menu
+    Common::Array<Common::String> horizontalMenuOptions = {"Exit", "Prev", "Next"};
+    _horizontalMenu = new HorizontalMenu("Navigation", "Choose:", horizontalMenuOptions, _textColor, _selectColor, _promptColor);
 }
 
-void HorizontalInputMenu::drawText() {
-    clear();
-    Surface s = getSurface();
-    s.writeStringC(_promptTxt, _promptColor, 0, 24);
+VerticalMenu::~VerticalMenu() {
+    if (_horizontalMenu) {
+        delete _horizontalMenu;
+        _horizontalMenu = nullptr;
+    }
+}
 
-    // Draw the menu items with a space between each one
+void VerticalMenu::draw() {
+    if (_isActive) {
+        Surface s = getSurface();
+        s.writeStringC(_promptTxt, _promptColor, 0, 24);
+        drawText();
+
+        if (_horizontalMenu) {
+            _horizontalMenu->draw();
+        }
+    }
+}
+
+void VerticalMenu::drawText() {
+    Surface s = getSurface();
+
     for (uint i = 0; i < _menuItems.items.size(); i++) {
         const MenuItem &item = _menuItems.items[i];
-        s.writeChar(' ');
-
         if (i == _menuItems.currentSelection) {
             s.writeCharC(item.shortcut, _selectColor);
             s.writeStringC(item.text, _selectColor);
@@ -54,28 +75,28 @@ void HorizontalInputMenu::drawText() {
                 s.writeCharC(item.shortcut, _selectColor);
             }
         }
+        s.setTextPos(0, 24 + (i + 1) * 2);  // Move cursor to the next line for vertical display
     }
 }
 
-
-void HorizontalInputMenu::selectNextItem() {
+void VerticalMenu::selectNextItem() {
     do {
         _menuItems.currentSelection = (_menuItems.currentSelection + 1) % _menuItems.items.size();
     } while (!_menuItems.items[_menuItems.currentSelection].active);
 }
 
-void HorizontalInputMenu::selectPreviousItem() {
+void VerticalMenu::selectPreviousItem() {
     do {
         _menuItems.currentSelection = (_menuItems.currentSelection > 0) ? _menuItems.currentSelection - 1 : _menuItems.items.size() - 1;
     } while (!_menuItems.items[_menuItems.currentSelection].active);
 }
 
-bool HorizontalInputMenu::msgKeypress(const KeypressMessage &msg) {
+bool VerticalMenu::msgKeypress(const KeypressMessage &msg) {
     Common::KeyCode keyCode = msg.keycode;
     char asciiValue = msg.ascii;
 
     if (asciiValue >= 'a' && asciiValue <= 'z') {
-        asciiValue -= 32;
+        asciiValue -= 32;  // Convert to uppercase
     }
 
     if (keyCode == Common::KEYCODE_UP) {
@@ -83,7 +104,7 @@ bool HorizontalInputMenu::msgKeypress(const KeypressMessage &msg) {
     } else if (keyCode == Common::KEYCODE_DOWN) {
         selectNextItem();
     } else if (keyCode == Common::KEYCODE_RETURN) {
-        deactivate();
+        deactivate();  // Finalize selection
     }
 
     if ((asciiValue >= 'A' && asciiValue <= 'Z') || (asciiValue >= '0' && asciiValue <= '9')) {
@@ -93,8 +114,14 @@ bool HorizontalInputMenu::msgKeypress(const KeypressMessage &msg) {
         }
     }
 
-    drawText();
+    draw();
     return true;
+}
+
+void VerticalMenu::setMenuItemShortcut(int index, char newShortcut) {
+    if (index >= 0 && index < _menuItems.items.size()) {
+        _menuItems.items[index].shortcut = newShortcut;
+    }
 }
 
 } // namespace Dialogs

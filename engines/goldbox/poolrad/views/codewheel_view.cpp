@@ -38,7 +38,7 @@ const char INPUT[] = "INPUT THE CODE WORD: ";
 const char INNCORRECT[] = "Sorry, that's incorrect.";
 
 CodewheelView::CodewheelView() : View("Codewheel"), _retry(0){
-    _inputPrompt = new Dialogs::HorizontalInputTxt("InputPrompt", 6, 13, INPUT);
+    _inputPrompt = new Dialogs::HorizontalInput("InputPrompt", 6, 13, INPUT);
 }
 
 CodewheelView::~CodewheelView() {

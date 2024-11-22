@@ -19,25 +19,37 @@
  *
  */
 
-#include "goldbox/poolrad/views/dialogs/vertical_input.h"
+#ifndef GOLDBOX_POOLRAD_VIEWS_ADD_CHARACTER_VIEW_H
+#define GOLDBOX_POOLRAD_VIEWS_ADD_CHARACTER_VIEW_H
+
+#include "graphics/managed_surface.h"
+#include "goldbox/poolrad/views/view.h"
+#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
-namespace Dialogs {
 
-void VerticalInput::draw() {
-    if (_isActive) {
-        drawText();  // Call the child-specific text drawing method
-    }
-}
+class AddCharacterView : public View {
+private:
+	Common::Array<Common::String> _rosterList;
+	Dialogs::VerticalMenu *_rosterMenu;
 
-void VerticalInput::clear() {
-    Surface s = getSurface();
-    s.clearBox(1, 1, 38, 22, 0);
-}
+public:
+	AddCharacterView();
+	virtual ~AddCharacterView();
 
-} // namespace Dialogs
+	bool msgKeypress(const KeypressMessage &msg) override;
+	bool msgFocus(const FocusMessage &msg) override;
+	bool msgUnfocus(const UnfocusMessage &msg) override;
+	void draw() override;
+	void timeout() override;
+	void loadRosterList();
+    void processRoster();
+};
+
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
+
+#endif
