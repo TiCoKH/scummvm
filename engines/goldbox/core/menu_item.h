@@ -46,6 +46,7 @@ struct MenuItemList {
     void setShortcutToLast(uint index);
     void activate(uint index);
     void deactivate(uint index);
+    bool isActive(uint index);
     int findByShortcut(char shortcut) const;
     bool isActiveShortcut(char shortcut) const;
 };

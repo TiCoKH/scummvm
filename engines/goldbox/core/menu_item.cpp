@@ -68,6 +68,10 @@ void MenuItemList::deactivate(uint index) {
     items[index].active = false;
 }
 
+bool MenuItemList::isActive(uint index) {
+    return items[index].active;
+}
+
 int MenuItemList::findByShortcut(char shortcut) const {
     for (uint i = 0; i < items.size(); i++) {
         if (items[i].shortcut == shortcut && items[i].active) {

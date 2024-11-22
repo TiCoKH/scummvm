@@ -70,6 +70,8 @@ MainmenuView::MainmenuView() : View("Mainmenu") {
     menuOptions.push_back("Exit to DOS");
 */
     _menuItemList.generateMenuItems(menuOptions, true);
+    _menuItemList.activate(CREATE);
+    _menuItemList.activate(EXIT);
     updateMenuState();
 }
 
@@ -83,7 +85,43 @@ void MainmenuView::draw() {
 }
 
 bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
+    	
+    if (msg.keycode == Common::KEYCODE_c) {
+        replaceView("CreatCharacter");
+    }
+    if ((msg.keycode == Common::KEYCODE_d) && _menuItemList.isActive(DROP)) {
+        replaceView("Mainmenu");
+    }
+    if ((msg.keycode == Common::KEYCODE_m) && _menuItemList.isActive(MODIFY)) {
+        replaceView("Mainmenu");
+    }
+    if ((msg.keycode == Common::KEYCODE_t) && _menuItemList.isActive(TRAIN)) {
+        replaceView("Mainmenu");
+    }
+    if ((msg.keycode == Common::KEYCODE_v) && _menuItemList.isActive(VIEW)) {
+        replaceView("Mainmenu");
+    }
+    if ((msg.keycode == Common::KEYCODE_a) && _menuItemList.isActive(ADD)) {
+        replaceView("AddCharacter");
+    }
+    if ((msg.keycode == Common::KEYCODE_r) && _menuItemList.isActive(REMOVE)) {
+        replaceView("Mainmenu");
+    }
+    if ((msg.keycode == Common::KEYCODE_l) && _menuItemList.isActive(LOAD)) {
+        replaceView("Mainmenu");
+    }
+    if ((msg.keycode == Common::KEYCODE_s) && _menuItemList.isActive(SAVE)) {
+        replaceView("Mainmenu");
+    }
+    if ((msg.keycode == Common::KEYCODE_b) && _menuItemList.isActive(BEGIN)) {
+        replaceView("Mainmenu");
+    }
+    if (msg.keycode == Common::KEYCODE_e) {
+        replaceView("Mainmenu");
+    }
+
     return true;
+
 }
 
 bool MainmenuView::msgFocus(const FocusMessage &msg) {
@@ -116,11 +154,10 @@ void MainmenuView::updateMenuState() {
     auto &party = Goldbox::VmInterface::getParty();
     int partySize = party.size();
 
-    _menuItemList.activate(CREATE);
-    _menuItemList.activate(EXIT);
     if (partySize > 0) {
         _menuItemList.activate(DROP);
         _menuItemList.activate(MODIFY);
+		_menuItemList.activate(TRAIN);
         _menuItemList.activate(VIEW);
         _menuItemList.activate(REMOVE);
         _menuItemList.deactivate(LOAD);
@@ -129,6 +166,7 @@ void MainmenuView::updateMenuState() {
     } else {
         _menuItemList.deactivate(DROP);
         _menuItemList.deactivate(MODIFY);
+		_menuItemList.deactivate(TRAIN);
         _menuItemList.deactivate(VIEW);
         _menuItemList.deactivate(REMOVE);
         _menuItemList.activate(LOAD);

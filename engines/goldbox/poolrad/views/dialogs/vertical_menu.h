@@ -19,40 +19,42 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALINPUTMENU_H
-#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALINPUTMENU_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALMENU_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALMENU_H
 
-#include "common/str.h"
 #include "goldbox/core/menu_item.h"
-#include "goldbox/poolrad/views/dialogs/vertical_input.h"
-#include "goldbox/poolrad/views/dialogs/horizontal_input_menu.h"
-
+#include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/gfx/surface.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-class VerticalInputMenu : public VerticalInput {
+class VerticalMenu : public Dialog {
 private:
-    Goldbox::MenuItemList _menuItems;
+    Goldbox::MenuItemList _menuItems;   // Menu items for the vertical menu
+    HorizontalMenu *_horizontalMenu; // Optional horizontal menu for navigation
     int _textColor;
     int _selectColor;
-    HorizontalInputMenu* _horizontalMenu;
+    int _promptColor;
+    Common::String _promptTxt;
 
-    void drawText() override;  // Draws menu vertically
-    void selectNextItem();     // Select the next item
-    void selectPreviousItem(); // Select the previous item
+    void drawText();            // Draws the menu items vertically
+    void selectNextItem();      // Navigate to the next menu item
+    void selectPreviousItem();  // Navigate to the previous menu item
 
 public:
-    VerticalInputMenu(const Common::String &name, const Common::String &promptTxt,
-                      const Common::Array<Common::String> &menuStrings, int textColor, int selectColor, int promptColor);
-    
-    ~VerticalInputMenu();
+    VerticalMenu(const Common::String &name, const Common::String &promptTxt,
+                  const Common::Array<Common::String> &menuStrings, int textColor,
+                  int selectColor, int promptColor);
 
-	void draw();
+    ~VerticalMenu();
 
-	bool msgKeypress(const KeypressMessage &msg) override;
+    void draw() override;
+    bool msgKeypress(const KeypressMessage &msg) override;
+
     void setMenuItemShortcut(int index, char newShortcut);
     MenuItem getSelectedItem() const { return _menuItems.getCurrentSelection(); }
 };
@@ -62,4 +64,5 @@ public:
 } // namespace Poolrad
 } // namespace Goldbox
 
-#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALINPUTMENU_H
+#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_VerticalMenu_H
+
