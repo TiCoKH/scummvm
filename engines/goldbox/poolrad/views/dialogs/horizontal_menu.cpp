@@ -26,24 +26,35 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-HorizontalMenu::HorizontalMenu(const Common::String &name, const Common::String &promptTxt,
-                                         const Common::Array<Common::String> &menuStrings, int textColor, int selectColor, int promptColor) 
-                                             : Dialog(name), _textColor(textColor),
-      _selectColor(selectColor), _promptColor(promptColor), _promptTxt(promptTxt) {
-    _menuItems.generateMenuItems(menuStrings, true);
+HorizontalMenu::HorizontalMenu(const Common::String &name, const HorizontalMenuConfig &config)
+    : Dialog(name),
+      _menuItems(config.menuItemList),
+      _textColor(config.textColor),
+      _selectColor(config.selectColor),
+      _promptColor(config.promptColor),
+      _allowNumPad(config.allowNumPad),
+      _promptTxt(config.promptTxt) {
+    assert(_menuItems != nullptr);
+}
+
+void HorizontalMenu::draw() {
+    drawText();
 }
 
 void HorizontalMenu::drawText() {
+
+    if (!_redraw) return;
+
     Surface s = getSurface();
     s.clearBox(0, 24, 39, 24, 0);
     s.writeStringC(_promptTxt, _promptColor, 0, 24);
 
-    // Draw the menu items with a space between each one
-    for (uint i = 0; i < _menuItems.items.size(); i++) {
-        const MenuItem &item = _menuItems.items[i];
+	s.setTextPos(_promptTxt.size(), 24);
+    for (uint i = 0; i < _menuItems->items.size(); i++) {
+        const MenuItem &item = _menuItems->items[i];
         s.writeChar(' ');
 
-        if (i == _menuItems.currentSelection) {
+        if (i == _menuItems->currentSelection) {
             s.writeCharC(item.shortcut, _selectColor);
             s.writeStringC(item.text, _selectColor);
         } else {
@@ -56,45 +67,108 @@ void HorizontalMenu::drawText() {
             }
         }
     }
-}
-
-
-void HorizontalMenu::selectNextItem() {
-    do {
-        _menuItems.currentSelection = (_menuItems.currentSelection + 1) % _menuItems.items.size();
-    } while (!_menuItems.items[_menuItems.currentSelection].active);
-}
-
-void HorizontalMenu::selectPreviousItem() {
-    do {
-        _menuItems.currentSelection = (_menuItems.currentSelection > 0) ? _menuItems.currentSelection - 1 : _menuItems.items.size() - 1;
-    } while (!_menuItems.items[_menuItems.currentSelection].active);
+    _redraw = false;
 }
 
 bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
     Common::KeyCode keyCode = msg.keycode;
-    char asciiValue = msg.ascii;
+    char asciiValue = (msg.ascii >= 'a' && msg.ascii <= 'z') ? msg.ascii - 32 : msg.ascii;
 
-    if (asciiValue >= 'a' && asciiValue <= 'z') {
-        asciiValue -= 32;
-    }
-
-    if (keyCode == Common::KEYCODE_UP) {
-        selectPreviousItem();
-    } else if (keyCode == Common::KEYCODE_DOWN) {
-        selectNextItem();
-    } else if (keyCode == Common::KEYCODE_RETURN) {
-        deactivate();
-    }
-
-    if ((asciiValue >= 'A' && asciiValue <= 'Z') || (asciiValue >= '0' && asciiValue <= '9')) {
-        int index = _menuItems.findByShortcut(asciiValue);
-        if (index != -1) {
-            _menuItems.currentSelection = index;
+    switch (keyCode) {
+        case Common::KEYCODE_COMMA: {
+            _menuItems->nextActive();
+            _redraw = true;
+            break;
+        }
+        case Common::KEYCODE_PERIOD: {
+            _menuItems->prevActive();
+            _redraw = true;
+            break;
+        }
+        case Common::KEYCODE_SPACE: {
+            _menuItems->currentSelection = 0;
+            _redraw = true;
+            break;
+        }
+        case Common::KEYCODE_RETURN: {
+            MenuMessage menuMessage(true, keyCode, 0);
+            g_events->send(menuMessage);
+            deactivate();
+            return true;
+        }
+        case Common::KEYCODE_ESCAPE: {
+            MenuMessage menuMessage(false, keyCode, 0);
+            g_events->send(menuMessage);
+            deactivate();
+            return true;
         }
     }
 
-    drawText();
+    if ((asciiValue >= 'A' && asciiValue <= 'Z') || (asciiValue >= '0' && asciiValue <= '9')) {
+        int index = _menuItems->findByShortcut(asciiValue);
+        if (index != -1 && _menuItems->items[index].active) {
+            _menuItems->currentSelection = index;
+            MenuMessage menuMessage(true, keyCode, asciiValue);
+            g_events->send(menuMessage);
+            deactivate();
+            return true;
+        }
+        if (_allowNumPad) {
+        switch (asciiValue) {
+            case '1': {
+                keyCode = Common::KEYCODE_END;
+                break;
+            }
+            case '2': {
+                keyCode = Common::KEYCODE_DOWN;
+                break;
+            }
+            case '3': {
+                keyCode = Common::KEYCODE_PAGEDOWN;
+                break;
+            }
+            case '4': {
+                keyCode = Common::KEYCODE_LEFT;
+                break;
+            }
+            case '5': {
+                keyCode = Common::KEYCODE_SPACE;
+                asciiValue = ' ';
+                break;
+            }
+            case '6': {
+                keyCode = Common::KEYCODE_RIGHT;
+                break;
+            }
+            case '7': {
+                keyCode = Common::KEYCODE_HOME;
+                break;
+            }
+            case '8': {
+                keyCode = Common::KEYCODE_UP;
+                break;
+            }
+            case '9': {
+                keyCode = Common::KEYCODE_PAGEUP;
+                break;
+            }
+        }
+        MenuMessage menuMessage(true, keyCode, asciiValue);
+        g_events->send(menuMessage);
+        deactivate();
+        return true;
+        }
+    }
+
+    
+    if (keyCode >= Common::KEYCODE_UP && keyCode <= Common::KEYCODE_PAGEDOWN) {
+        MenuMessage menuMessage(true, keyCode, asciiValue);
+        g_events->send(menuMessage);
+        deactivate();
+        return true;
+    }
+
+    if (_redraw) drawText();
     return true;
 }
 

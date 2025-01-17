@@ -27,12 +27,11 @@ MODULE_OBJS = \
 	poolrad/views/credits_view.o \
 	poolrad/views/codewheel_view.o \
 	poolrad/views/mainmenu_view.o \
+	poolrad/views/add_character_view.o \
 	poolrad/views/dialogs/dialog.o \
 	poolrad/views/dialogs/horizontal_input.o \
-	poolrad/views/dialogs/horizontal_input_txt.o \
-	poolrad/views/dialogs/horizontal_input_menu.o \
-	poolrad/views/dialogs/vertical_input.o \
-	poolrad/views/dialogs/vertical_input_menu.o
+	poolrad/views/dialogs/horizontal_menu.o \
+	poolrad/views/dialogs/vertical_menu.o 
 
 
 
