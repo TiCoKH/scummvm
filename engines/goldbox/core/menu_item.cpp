@@ -31,15 +31,23 @@ void MenuItemList::generateMenuItems(const Common::Array<Common::String> &menuSt
     for (uint8 i = 0; i < menuStrings.size(); i++) {
         char shortcut = '\0';
         Common::String menuText = menuStrings[i];
-
-        if (generateShortcuts) {
-            shortcut = menuStrings[i].c_str()[0];
-            menuText = menuStrings[i].substr(1);
-        }
-
         MenuItem item = {shortcut, menuText, true, generateShortcuts};
         items.push_back(item);
     }
+    if (generateShortcuts) {
+        for (uint i = 0; i < items.size(); i++) {
+            generateShortcut(i);
+        }
+    }
+}
+
+void MenuItemList::generateShortcut(uint index) {
+    if (index >= items.size())
+        return;
+
+    MenuItem &item = items[index];
+    item.shortcut = item.text.c_str()[0];
+    item.text = item.text.substr(1);
 }
 
 void MenuItemList::setShortcutToLast(uint index) {
@@ -48,14 +56,10 @@ void MenuItemList::setShortcutToLast(uint index) {
         size_t length = item.text.size();
 
         if (length > 0) {
-            // Merge current shortcut with the rest of the text
             Common::String newText = Common::String(item.shortcut) + item.text;
-
-            // Set last character as shortcut and remove it from the text
             item.shortcut = newText[newText.size() - 1];
             item.text = newText.substr(0, newText.size() - 1);
-
-            item.shortcutFirst = false;  // Set shortcutFirst to false
+            item.shortcutFirst = false;
         }
     }
 }
@@ -75,10 +79,10 @@ bool MenuItemList::isActive(uint index) {
 int MenuItemList::findByShortcut(char shortcut) const {
     for (uint i = 0; i < items.size(); i++) {
         if (items[i].shortcut == shortcut && items[i].active) {
-            return i;  // Return index if found and active
+            return i;
         }
     }
-    return -1;  // Return -1 if not found
+    return -1;
 }
 
 bool MenuItemList::isActiveShortcut(char shortcut) const {
@@ -88,6 +92,36 @@ bool MenuItemList::isActiveShortcut(char shortcut) const {
         }
     }
     return false;
+}
+
+void MenuItemList::next() {
+    currentSelection = (currentSelection + 1) % items.size();
+}
+
+void MenuItemList::prev() {
+    currentSelection = (currentSelection == 0) ? items.size() - 1 : currentSelection - 1;
+
+}
+
+void MenuItemList::nextActive() {
+    do {
+        currentSelection = (currentSelection + 1) % items.size();
+    } while (!items[currentSelection].active);
+}
+
+void MenuItemList::prevActive() {
+    do {
+        currentSelection = (currentSelection == 0) ? items.size() - 1 : currentSelection - 1;
+    } while (!items[currentSelection].active);
+}
+
+void MenuItemList::push_back(const Common::String &text) {
+    MenuItem item;
+    item.text = text;
+    item.shortcut = '\0';
+    item.active = true;
+    item.shortcutFirst = true;
+    items.push_back(item);
 }
 
 } // namespace Goldbox

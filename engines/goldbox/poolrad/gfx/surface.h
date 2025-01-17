@@ -19,47 +19,29 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUT_H
-#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUT_H
+#ifndef GOLDBOX_POOLRAD_GFX_SURFACE_H
+#define GOLDBOX_POOLRAD_GFX_SURFACE_H
 
 #include "goldbox/gfx/surface.h"
-#include "goldbox/poolrad/views/dialogs/dialog.h"
 
 namespace Goldbox {
 namespace Poolrad {
-namespace Views {
-namespace Dialogs {
+namespace Gfx {
 
-struct HorizontalInputConfig {
-    Common::String promptTxt;
-    byte promptColor;
-    byte maxInputLength;
-};
-
-class HorizontalInput : public Dialog {
-protected:
-    byte _promptColor;
-    Common::String _promptTxt;
-    byte _text_offset;
-    byte _maxInputLength;
-    Common::String _inputText;
-
-    void drawText();
-
+/**
+ * Poolrad-specific Surface class with extended drawing functionality.
+ */
+class Surface : public Shared::Gfx::Surface {
 public:
-    HorizontalInput(const Common::String &name, const HorizontalInputConfig &config);
+    using Shared::Gfx::Surface::Surface;
 
-    bool msgKeypress(const KeypressMessage &msg) override;
-    void draw() override;
-    void clear();
-
-    Common::String getInput() const { return _inputText; }
-    void clearInput() { _inputText = ""; }
+    // Methods moved from View
+    void drawFrame(const Common::Rect &r);
+    void drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom);
 };
 
-} // namespace Dialogs
-} // namespace Views
+} // namespace Gfx
 } // namespace Poolrad
 } // namespace Goldbox
 
-#endif
+#endif // GOLDBOX_POOLRAD_GFX_SURFACE_H

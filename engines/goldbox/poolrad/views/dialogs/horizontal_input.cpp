@@ -26,8 +26,12 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-HorizontalInput::HorizontalInput(const Common::String &name, byte maxInputLength, byte promptColor, const Common::String &promptTxt)
-    : Dialog(name), _promptColor(promptColor), _promptTxt(promptTxt), _maxInputLength(maxInputLength), _inputText("") {
+HorizontalInput::HorizontalInput(const Common::String &name, const HorizontalInputConfig &config)
+    : Dialog(name),
+      _promptTxt(config.promptTxt),
+      _promptColor(config.promptColor),
+      _maxInputLength(config.maxInputLength),
+      _inputText("") {
     activate();
     _text_offset = _promptTxt.empty() ? 0 : _promptTxt.size();
 }

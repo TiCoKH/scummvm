@@ -30,26 +30,31 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+struct HorizontalMenuConfig {
+    Common::String promptTxt;
+    Goldbox::MenuItemList *menuItemList;
+    int textColor;
+    int selectColor;
+    int promptColor;
+    bool allowNumPad;
+};
+
 class HorizontalMenu : public Dialog {
 private:
-    Goldbox::MenuItemList _menuItems;
+    Goldbox::MenuItemList *_menuItems;
     int _textColor;
     int _selectColor;
-    byte _promptColor;
+    int _promptColor;
     Common::String _promptTxt;
-    byte _text_offset;
-    byte _selected;
+    bool _allowNumPad;
+    bool _redraw = true;
 
     void drawText();
-    void selectNextItem();
-    void selectPreviousItem();
 
 public:
-    HorizontalMenu(const Common::String &name, const Common::String &promptTxt,
-                        const Common::Array<Common::String> &menuStrings, int textColor, int selectColor, int promptColor);
-
+    HorizontalMenu(const Common::String &name, const HorizontalMenuConfig &config);
     bool msgKeypress(const KeypressMessage &msg);
-    MenuItem getSelectedItem() const { return _menuItems.getCurrentSelection(); }
+    void draw() override;
 };
 
 } // namespace Dialogs
