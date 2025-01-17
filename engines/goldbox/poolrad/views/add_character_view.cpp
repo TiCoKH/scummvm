@@ -23,26 +23,35 @@
 #include "common/file.h"
 #include "graphics/palette.h"
 #include "goldbox/poolrad/views/add_character_view.h"
-
+#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-
-
 AddCharacterView::AddCharacterView() : View("AddCharacter") {
-    _rosterMenu = nullptr;
+    
+    loadRosterList();
+    Common::Array<Common::String> promptOptions = {"Add", "Exit"};
+    Dialogs::VerticalMenuConfig menuConfig = {
+        "Add a character:",  // promptTxt
+        promptOptions,       // promptOptions
+        _rosterList,         // menuItemList (initialized later)
+        13,                  // headColor
+        10,                  // textColor
+        15,                  // selectColor
+        1, 2, 38, 22,        // bounds
+        false                // isAddExit
+    };
+    _rosterMenu = new Dialogs::VerticalMenu("RosterMenu", menuConfig);
+    _children.push_back(_rosterMenu);
 }
 
 AddCharacterView::~AddCharacterView() {
     delete _rosterMenu;
 }
 
-bool AddCharacterView::msgKeypress(const KeypressMessage &msg) {
-    if (_rosterMenu && _rosterMenu->isActive()) {
-        return _rosterMenu->msgKeypress(msg);
-    }
+bool AddCharacterView::msgMenu(const MenuMessage &msg) {
     return true;
 }
 
@@ -50,7 +59,6 @@ void AddCharacterView::draw() {
 	Surface s = getSurface();
 
 	drawWindow(1, 1, 38, 22);
-    loadRosterList();
 
     if (_rosterMenu) {
         _rosterMenu->draw();
@@ -79,44 +87,21 @@ void AddCharacterView::loadRosterList() {
         return;
     }
 
-    _rosterList.clear();
+    if (_rosterList) {
+        delete _rosterList;
+    }
+    _rosterList = new Goldbox::MenuItemList();
+
     while (!charListFile.eos()) {
         Common::String line = charListFile.readLine();
         if (!line.empty()) {
-            _rosterList.push_back(line);
+            Goldbox::MenuItem item;
+            item.text = line;
+            item.active = true;
+            _rosterList->items.push_back(item);
         }
     }
     charListFile.close();
-
-    if (_rosterMenu) {
-        delete _rosterMenu;
-    }
-
-    _rosterMenu = new Dialogs::VerticalMenu(
-        "RosterMenu",
-        "Select a character:",
-        _rosterList,
-        10, // Text color
-        14, // Selection color
-        12  // Prompt color
-    );
-}
-
-void AddCharacterView::processRoster() {
-    for (const auto &line : _rosterList) {
-        Common::String chaFilename = line + ".cha";
-
-        // Attempt to open the .CHA file
-        Common::File chaFile;
-        if (!chaFile.open(chaFilename.c_str())) {
-            warning("Failed to open %s", chaFilename.c_str());
-            continue; // Skip to the next line
-        }
-
-        // Successfully opened .CHA file
-        debug(1, "Successfully opened file: %s", chaFilename.c_str());
-        chaFile.close();
-    }
 }
 
 } // namespace Views

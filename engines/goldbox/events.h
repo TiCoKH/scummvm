@@ -271,7 +271,7 @@ public:
 		} \
 		bool send(const NAME##Message &msg) { \
 			return msg##NAME(msg); \
-		} \
+		}
 
 	#define VIEW_MESSAGE(NAME) \
 	protected: \
@@ -299,6 +299,7 @@ public:
 	MESSAGE(Action);
 	MESSAGE(Game);
 	MESSAGE(Value);
+	MESSAGE(Menu);
 	#undef MESSAGE
 };
 
@@ -359,6 +360,7 @@ protected:
 	MESSAGE(MouseDown);
 	MESSAGE(MouseUp)
 	MESSAGE(MouseMove);
+	MESSAGE(Menu);
 	#undef MESSAGE
 public:
 	Events();

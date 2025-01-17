@@ -30,6 +30,12 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+struct HorizontalInputConfig {
+    Common::String promptTxt;
+    byte promptColor;
+    byte maxInputLength;
+};
+
 class HorizontalInput : public Dialog {
 protected:
     byte _promptColor;
@@ -41,14 +47,14 @@ protected:
     void drawText();
 
 public:
-    HorizontalInput(const Common::String &name, byte maxInputLength, byte promptColor, const Common::String &promptTxt);
+    HorizontalInput(const Common::String &name, const HorizontalInputConfig &config);
 
-    bool msgKeypress(const KeypressMessage &msg) override;  // Handles user input
-    void draw() override;                                   // Draws the horizontal input field
-    void clear();                                           // Clears the input display
+    bool msgKeypress(const KeypressMessage &msg) override;
+    void draw() override;
+    void clear();
 
-    Common::String getInput() const { return _inputText; }  // Returns the entered text
-    void clearInput() { _inputText = ""; }                  // Clears the entered text
+    Common::String getInput() const { return _inputText; }
+    void clearInput() { _inputText = ""; }
 };
 
 } // namespace Dialogs
