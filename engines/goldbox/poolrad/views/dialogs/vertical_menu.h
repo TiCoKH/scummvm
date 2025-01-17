@@ -32,31 +32,65 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+struct VerticalMenuConfig {
+    Common::String promptTxt;
+    Common::Array<Common::String> promptOptions;
+    Goldbox::MenuItemList *menuItemList;
+    int headColor;
+    int textColor;
+    int selectColor;
+    int xStart;
+    int yStart;
+    int xEnd;
+    int yEnd;
+    bool isAddExit;
+};
+
+
 class VerticalMenu : public Dialog {
 private:
-    Goldbox::MenuItemList _menuItems;   // Menu items for the vertical menu
-    HorizontalMenu *_horizontalMenu; // Optional horizontal menu for navigation
+    Goldbox::MenuItemList *_menuItems;
     int _textColor;
     int _selectColor;
-    int _promptColor;
+    int _headColor;
     Common::String _promptTxt;
+    Common::Array<Common::String> _promptOptions;
+    int _xStart, _yStart, _xEnd, _yEnd;
+    bool _nextNeed;
+    bool _prevNeed;
+    int _linesAbove = 0;
+    int _linesBelow = 0;
+    int _menuHeight;
+    int _itemNums;
+    int _linesToRender;
+    int _currentVisibleIndex = 0;
+    bool _addExit = false;
+    bool _redraw = true;
+    HorizontalMenu *_horizontalMenu;
 
-    void drawText();            // Draws the menu items vertically
-    void selectNextItem();      // Navigate to the next menu item
-    void selectPreviousItem();  // Navigate to the previous menu item
+    void handleSelectionDown();
+    void handleSelectionUp();
+    void handlePageDown();
+    void handlePageUp();
+    void handleReturn();
+    void handleEscape();
+    void drawText();
+    void updateHorizontalMenu();
 
 public:
-    VerticalMenu(const Common::String &name, const Common::String &promptTxt,
-                  const Common::Array<Common::String> &menuStrings, int textColor,
-                  int selectColor, int promptColor);
+    Goldbox::MenuItemList _hMenuList;
 
+    VerticalMenu(const Common::String &name, const VerticalMenuConfig &config);
     ~VerticalMenu();
 
     void draw() override;
-    bool msgKeypress(const KeypressMessage &msg) override;
+    bool msgMenu(const MenuMessage &msg) override;
+    void activateHorizontalMenu();
+    void deactivateHorizontalMenu();
 
-    void setMenuItemShortcut(int index, char newShortcut);
-    MenuItem getSelectedItem() const { return _menuItems.getCurrentSelection(); }
+
+
+
 };
 
 } // namespace Dialogs
@@ -64,5 +98,5 @@ public:
 } // namespace Poolrad
 } // namespace Goldbox
 
-#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_VerticalMenu_H
+#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALMENU_H
 

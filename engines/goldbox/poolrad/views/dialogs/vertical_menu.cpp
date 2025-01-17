@@ -19,6 +19,7 @@
  *
  */
 
+#include "common/util.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 
 namespace Goldbox {
@@ -26,17 +27,46 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-VerticalMenu::VerticalMenu(const Common::String &name, const Common::String &promptTxt,
-                             const Common::Array<Common::String> &menuStrings, int textColor,
-                             int selectColor, int promptColor)
-    : Dialog(name), _horizontalMenu(nullptr), _textColor(textColor),
-      _selectColor(selectColor), _promptColor(promptColor), _promptTxt(promptTxt) {
-    activate();
-    _menuItems.generateMenuItems(menuStrings, false);
+VerticalMenu::VerticalMenu(const Common::String &name, const VerticalMenuConfig &config)
+    : Dialog(name),
+      _promptTxt(config.promptTxt),
+      _promptOptions(config.promptOptions),
+      _headColor(config.headColor),
+      _textColor(config.textColor),
+      _selectColor(config.selectColor),
+      _xStart(config.xStart),
+      _yStart(config.yStart),
+      _xEnd(config.xEnd),
+      _yEnd(config.yEnd),
+      _menuItems(config.menuItemList),
+      _addExit(config.isAddExit),
+      _horizontalMenu(nullptr) {
 
-    // Optional horizontal menu
-    Common::Array<Common::String> horizontalMenuOptions = {"Exit", "Prev", "Next"};
-    _horizontalMenu = new HorizontalMenu("Navigation", "Choose:", horizontalMenuOptions, _textColor, _selectColor, _promptColor);
+    _menuHeight = _yEnd - _yStart + 1;
+    _itemNums = static_cast<int>(_menuItems->items.size());
+    _linesToRender = MIN(_menuHeight, _itemNums);
+    if (_itemNums > _menuHeight) {
+        _nextNeed = true;
+        _linesBelow = _itemNums - _menuHeight;
+    }
+
+    _hMenuList.generateMenuItems(_promptOptions, true);
+
+    updateHorizontalMenu();
+
+    HorizontalMenuConfig hMenuConfig = {
+        _promptTxt,
+        &_hMenuList,
+        _textColor,
+        _selectColor,
+        _headColor,
+        true
+    };
+
+    _horizontalMenu = new HorizontalMenu(name + "_Horizontal", hMenuConfig);
+    _children.push_back(_horizontalMenu);
+
+    activate();
 }
 
 VerticalMenu::~VerticalMenu() {
@@ -47,80 +77,146 @@ VerticalMenu::~VerticalMenu() {
 }
 
 void VerticalMenu::draw() {
-    if (_isActive) {
-        Surface s = getSurface();
-        s.writeStringC(_promptTxt, _promptColor, 0, 24);
-        drawText();
+    drawText();
 
-        if (_horizontalMenu) {
-            _horizontalMenu->draw();
-        }
+    if (_horizontalMenu) {
+        _horizontalMenu->draw();
     }
 }
 
 void VerticalMenu::drawText() {
     Surface s = getSurface();
+    s.clearBox(_xStart, _yStart, _xEnd, _yEnd, 0);
 
-    for (uint i = 0; i < _menuItems.items.size(); i++) {
-        const MenuItem &item = _menuItems.items[i];
-        if (i == _menuItems.currentSelection) {
-            s.writeCharC(item.shortcut, _selectColor);
-            s.writeStringC(item.text, _selectColor);
-        } else {
-            if (item.shortcutFirst) {
-                s.writeCharC(item.shortcut, _selectColor);
-                s.writeStringC(item.text, _textColor);
-            } else {
-                s.writeStringC(item.text, _textColor);
-                s.writeCharC(item.shortcut, _selectColor);
-            }
+    for (int i = 0; i < _linesToRender; i++) {
+        int menuIndex = i + _linesAbove;
+        if (menuIndex >= _itemNums) {
+            break;
         }
-        s.setTextPos(0, 24 + (i + 1) * 2);  // Move cursor to the next line for vertical display
+        const auto &item = _menuItems->items[menuIndex];
+        int color = (menuIndex == _menuItems->currentSelection) ? _selectColor : _textColor;
+        s.writeStringC(item.text, color, _xStart, _yStart + i);
     }
 }
 
-void VerticalMenu::selectNextItem() {
-    do {
-        _menuItems.currentSelection = (_menuItems.currentSelection + 1) % _menuItems.items.size();
-    } while (!_menuItems.items[_menuItems.currentSelection].active);
+void VerticalMenu::updateHorizontalMenu() {
+    while (!_hMenuList.items.empty() && 
+        (_hMenuList.items.back().shortcut == 'N' || _hMenuList.items.back().shortcut == 'P')) {
+        _hMenuList.items.pop_back();
+    }
+
+    if (_linesBelow > 0) {
+        _hMenuList.push_back("Next");
+        _hMenuList.generateShortcut(_hMenuList.items.size() - 1);
+    }
+    if (_linesAbove > 0) {
+        _hMenuList.push_back("Prev");
+        _hMenuList.generateShortcut(_hMenuList.items.size() - 1);
+    }
 }
 
-void VerticalMenu::selectPreviousItem() {
-    do {
-        _menuItems.currentSelection = (_menuItems.currentSelection > 0) ? _menuItems.currentSelection - 1 : _menuItems.items.size() - 1;
-    } while (!_menuItems.items[_menuItems.currentSelection].active);
-}
+bool VerticalMenu::msgMenu(const MenuMessage &msg) {
+    Common::KeyCode keyCode = msg._keyCode;
 
-bool VerticalMenu::msgKeypress(const KeypressMessage &msg) {
-    Common::KeyCode keyCode = msg.keycode;
-    char asciiValue = msg.ascii;
+    switch (keyCode) {
+        case Common::KEYCODE_END:
+            handleSelectionDown();
+            break;
 
-    if (asciiValue >= 'a' && asciiValue <= 'z') {
-        asciiValue -= 32;  // Convert to uppercase
+        case Common::KEYCODE_HOME:
+            handleSelectionUp();
+            break;
+
+        case Common::KEYCODE_PAGEDOWN:
+            handlePageDown();
+            break;
+
+        case Common::KEYCODE_PAGEUP:
+            handlePageUp();
+            break;
+
+        case Common::KEYCODE_RETURN:
+            handleReturn();
+            return true;
+
+        case Common::KEYCODE_ESCAPE:
+            handleEscape();
+            return true;
+
+        default:
+            break;
     }
 
-    if (keyCode == Common::KEYCODE_UP) {
-        selectPreviousItem();
-    } else if (keyCode == Common::KEYCODE_DOWN) {
-        selectNextItem();
-    } else if (keyCode == Common::KEYCODE_RETURN) {
-        deactivate();  // Finalize selection
+    if (_redraw) {
+        draw();
     }
 
-    if ((asciiValue >= 'A' && asciiValue <= 'Z') || (asciiValue >= '0' && asciiValue <= '9')) {
-        int index = _menuItems.findByShortcut(asciiValue);
-        if (index != -1) {
-            _menuItems.currentSelection = index;
-        }
-    }
-
-    draw();
     return true;
 }
 
-void VerticalMenu::setMenuItemShortcut(int index, char newShortcut) {
-    if (index >= 0 && index < _menuItems.items.size()) {
-        _menuItems.items[index].shortcut = newShortcut;
+void VerticalMenu::handlePageDown() {
+    if (_linesBelow > 0) {
+        int moveLines = MIN(_linesBelow, _menuHeight);
+        _linesAbove += moveLines;
+        _linesBelow -= moveLines;
+        _menuItems->currentSelection = _linesAbove;
+        _currentVisibleIndex = 0;
+        _redraw = true;
+    }
+}
+
+void VerticalMenu::handlePageUp() {
+    if (_linesAbove > 0) {
+        int moveLines = MIN(_linesAbove, _menuHeight);
+        _linesAbove -= moveLines;
+        _linesBelow += moveLines;
+        _menuItems->currentSelection = _linesAbove;
+        _currentVisibleIndex = 0;
+        _redraw = true;
+    }
+}
+
+void VerticalMenu::handleSelectionDown() {
+    if (_currentVisibleIndex < _menuHeight - 1) {
+        _menuItems->next();
+        _currentVisibleIndex++;
+    } else {
+        _menuItems->currentSelection = _linesAbove;
+        _currentVisibleIndex = 0;
+    }
+    _redraw = true;
+}
+
+void VerticalMenu::handleSelectionUp() {
+    if (_currentVisibleIndex > 0) {
+        _menuItems->prev();
+        _currentVisibleIndex--;
+    } else {
+        _currentVisibleIndex = _menuHeight - 1;
+        _menuItems->currentSelection = _linesAbove + _currentVisibleIndex;
+    }
+    _redraw = true;
+}
+
+void VerticalMenu::handleReturn() {
+    deactivate();
+    // Additional logic for confirming selection can be added here
+}
+
+void VerticalMenu::handleEscape() {
+    deactivate();
+    // Additional logic for canceling selection can be added here
+}
+
+void VerticalMenu::activateHorizontalMenu() {
+    if (_horizontalMenu) {
+        _horizontalMenu->activate();
+    }
+}
+
+void VerticalMenu::deactivateHorizontalMenu() {
+    if (_horizontalMenu) {
+        _horizontalMenu->deactivate();
     }
 }
 
