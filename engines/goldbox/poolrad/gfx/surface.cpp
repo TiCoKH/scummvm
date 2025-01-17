@@ -19,47 +19,34 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUT_H
-#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTALINPUT_H
-
-#include "goldbox/gfx/surface.h"
-#include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/poolrad/gfx/surface.h"
 
 namespace Goldbox {
 namespace Poolrad {
-namespace Views {
-namespace Dialogs {
+namespace Gfx {
 
-struct HorizontalInputConfig {
-    Common::String promptTxt;
-    byte promptColor;
-    byte maxInputLength;
-};
+void Surface::drawFrame(const Common::Rect &r) {
+    writeSymbol(20, r.left, r.top);
+    for (int x = r.left + 1; x <= r.right - 1; x++) {
+        writeSymbol(22);
+    }
+    writeSymbol(20);
+    for (int y = r.top + 1; y <= r.bottom - 1; y++) {
+        writeSymbol(21, r.left, y);
+        writeSymbol(21, r.right, y);
+    }
+    writeSymbol(20, r.left, r.bottom);
+    for (int x = r.left + 1; x <= r.right - 1; x++) {
+        writeSymbol(22);
+    }
+    writeSymbol(20);
+}
 
-class HorizontalInput : public Dialog {
-protected:
-    byte _promptColor;
-    Common::String _promptTxt;
-    byte _text_offset;
-    byte _maxInputLength;
-    Common::String _inputText;
+void Surface::drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom) {
+    drawFrame(Common::Rect(left - 1, top - 1, right + 1, bottom + 1));
+    clearBox(left, top, right, bottom, 0);
+}
 
-    void drawText();
-
-public:
-    HorizontalInput(const Common::String &name, const HorizontalInputConfig &config);
-
-    bool msgKeypress(const KeypressMessage &msg) override;
-    void draw() override;
-    void clear();
-
-    Common::String getInput() const { return _inputText; }
-    void clearInput() { _inputText = ""; }
-};
-
-} // namespace Dialogs
-} // namespace Views
+} // namespace Gfx
 } // namespace Poolrad
 } // namespace Goldbox
-
-#endif

@@ -30,8 +30,8 @@ namespace Goldbox {
 struct MenuItem {
     char shortcut;
     Common::String text;
-    bool active;
-    bool shortcutFirst;
+    bool active = true;
+    bool shortcutFirst = true;
 };
 
 struct MenuItemList {
@@ -42,13 +42,20 @@ struct MenuItemList {
 
     MenuItem getCurrentSelection() const;
 
+    void push_back(const Common::String &text);
+
     void generateMenuItems(const Common::Array<Common::String> &menuStrings, bool generateShortcuts);
+    void generateShortcut(uint index);
     void setShortcutToLast(uint index);
     void activate(uint index);
     void deactivate(uint index);
     bool isActive(uint index);
     int findByShortcut(char shortcut) const;
     bool isActiveShortcut(char shortcut) const;
+    void next();
+    void prev();
+    void nextActive();
+    void prevActive();
 };
 
 } // namespace Goldbox

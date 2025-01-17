@@ -81,6 +81,7 @@ void Surface::writeString(const Common::String &str) {
 
 	_currentFont->drawString(this, idString, _textX * FONT_W, _textY * FONT_H,
 		this->w - (_textX * FONT_W), _textColor);
+	_textX+=str.size();
 }
 
 void Surface::writeString(const unsigned char *str) {
