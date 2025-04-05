@@ -76,12 +76,12 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
 
     switch (keyCode) {
         case Common::KEYCODE_COMMA: {
-            _menuItems->nextActive();
+			_menuItems->prevActive();
             _redraw = true;
             break;
         }
         case Common::KEYCODE_PERIOD: {
-            _menuItems->prevActive();
+			_menuItems->nextActive();
             _redraw = true;
             break;
         }
@@ -91,15 +91,11 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
             break;
         }
         case Common::KEYCODE_RETURN: {
-            MenuMessage menuMessage(true, keyCode, 0);
-            g_events->send(menuMessage);
-            deactivate();
+            _parent->handleMenuResult(true, keyCode, 0);
             return true;
         }
         case Common::KEYCODE_ESCAPE: {
-            MenuMessage menuMessage(false, keyCode, 0);
-            g_events->send(menuMessage);
-            deactivate();
+            _parent->handleMenuResult(false, keyCode, 0);
             return true;
         }
     }
@@ -108,8 +104,7 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
         int index = _menuItems->findByShortcut(asciiValue);
         if (index != -1 && _menuItems->items[index].active) {
             _menuItems->currentSelection = index;
-            MenuMessage menuMessage(true, keyCode, asciiValue);
-            g_events->send(menuMessage);
+            _parent->handleMenuResult(true, keyCode, asciiValue);
             deactivate();
             return true;
         }
@@ -153,8 +148,7 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
                 break;
             }
         }
-        MenuMessage menuMessage(true, keyCode, asciiValue);
-        g_events->send(menuMessage);
+        _parent->handleMenuResult(true, keyCode, 0);
         deactivate();
         return true;
         }
@@ -162,8 +156,7 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
 
     
     if (keyCode >= Common::KEYCODE_UP && keyCode <= Common::KEYCODE_PAGEDOWN) {
-        MenuMessage menuMessage(true, keyCode, asciiValue);
-        g_events->send(menuMessage);
+        _parent->handleMenuResult(true, keyCode, 0);
         deactivate();
         return true;
     }

@@ -44,15 +44,12 @@ AddCharacterView::AddCharacterView() : View("AddCharacter") {
         false                // isAddExit
     };
     _rosterMenu = new Dialogs::VerticalMenu("RosterMenu", menuConfig);
-    _children.push_back(_rosterMenu);
+    subView(_rosterMenu);
+    //_children.push_back(_rosterMenu);
 }
 
 AddCharacterView::~AddCharacterView() {
     delete _rosterMenu;
-}
-
-bool AddCharacterView::msgMenu(const MenuMessage &msg) {
-    return true;
 }
 
 void AddCharacterView::draw() {

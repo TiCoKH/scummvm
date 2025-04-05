@@ -68,12 +68,12 @@ private:
     bool _redraw = true;
     HorizontalMenu *_horizontalMenu;
 
-    void handleSelectionDown();
-    void handleSelectionUp();
-    void handlePageDown();
-    void handlePageUp();
-    void handleReturn();
-    void handleEscape();
+    void selectionDown();
+    void selectionUp();
+    void nextPage();
+    void prevPage();
+    void choose();
+    void goBack();
     void drawText();
     void updateHorizontalMenu();
 
@@ -84,13 +84,9 @@ public:
     ~VerticalMenu();
 
     void draw() override;
-    bool msgMenu(const MenuMessage &msg) override;
+	void handleMenuResult(bool success, Common::KeyCode key, char ascii) override;
     void activateHorizontalMenu();
     void deactivateHorizontalMenu();
-
-
-
-
 };
 
 } // namespace Dialogs

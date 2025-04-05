@@ -106,15 +106,6 @@ struct ActionMessage : public Message {
 	}
 };
 
-struct MenuMessage : public Message {
-	bool _completed;
-	Common::KeyCode _keyCode;
-	char _ascii;
-
-    MenuMessage(bool completed, Common::KeyCode keyCode,  char ascii = 0)
-        : _completed(completed), _keyCode(keyCode), _ascii(ascii) {}
-};
-
 } // namespace Goldbox
 
 #endif
