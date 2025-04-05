@@ -11,7 +11,8 @@ MODULE_OBJS = \
 	core/array.o \
 	core/file.o \
 	core/menu_item.o \
-	data/character.o \
+	data/player_character.o \
+	data/adnd_character.o \
 	data/daxblock.o \
 	data/daxheadercontainer.o \
 	data/strings.o \
@@ -22,6 +23,7 @@ MODULE_OBJS = \
 	gfx/surface.o \
 	poolrad/poolrad.o \
 	poolrad/console.o \
+	poolrad/data/poolrad_character.o \
 	poolrad/views/view.o \
 	poolrad/views/title_view.o \
 	poolrad/views/credits_view.o \

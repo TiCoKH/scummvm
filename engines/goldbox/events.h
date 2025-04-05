@@ -172,6 +172,11 @@ public:
 	void open() { addView(); }
 
 	/**
+    * Adds a subview to the current view
+     */
+    void subView(UIElement *child);
+
+	/**
 	 * Returns a random number
 	 */
 	int getRandomNumber(int minNumber, int maxNumber);
@@ -251,6 +256,10 @@ public:
 	 */
 	virtual UIElement *findView(const Common::String &name);
 
+    virtual void handleMenuResult(bool success, Common::KeyCode key, char ascii) {
+        // Default implementation (optional)
+    }
+
 	/**
 	 * Handles events
 	 */
@@ -271,7 +280,7 @@ public:
 		} \
 		bool send(const NAME##Message &msg) { \
 			return msg##NAME(msg); \
-		}
+		} \
 
 	#define VIEW_MESSAGE(NAME) \
 	protected: \
@@ -299,7 +308,6 @@ public:
 	MESSAGE(Action);
 	MESSAGE(Game);
 	MESSAGE(Value);
-	MESSAGE(Menu);
 	#undef MESSAGE
 };
 
@@ -360,7 +368,6 @@ protected:
 	MESSAGE(MouseDown);
 	MESSAGE(MouseUp)
 	MESSAGE(MouseMove);
-	MESSAGE(Menu);
 	#undef MESSAGE
 public:
 	Events();

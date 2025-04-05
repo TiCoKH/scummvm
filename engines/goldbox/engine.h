@@ -38,7 +38,7 @@
 
 #include "goldbox/detection.h"
 #include "goldbox/events.h"
-#include "goldbox/data/character.h"
+#include "goldbox/data/player_character.h"
 #include "goldbox/data/strings_data.h"
 
 namespace Goldbox {
@@ -65,7 +65,7 @@ public:
 	Graphics::Font * _font;
 	Graphics::Font * _symbols;
 	Data::StringsData _strings;
-	Common::Array<Data::Character *> _party;
+	Common::Array<Data::PlayerCharacter *> _party;
 
 	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~Engine() override;
@@ -121,7 +121,7 @@ public:
 		return true;
 	}
 
-	Common::Array<Data::Character *> &getParty();
+	Common::Array<Data::PlayerCharacter *> &getParty();
 
 	/**
 	 * Uses a serializer to allow implementing savegame
