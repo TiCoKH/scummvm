@@ -149,6 +149,8 @@ void Events::addView(const Common::String &name) {
 	addView(findView(name));
 }
 
+
+
 void Events::popView() {
 	UIElement *priorView = focusedView();
 	priorView->msgUnfocus(UnfocusMessage());
@@ -347,6 +349,23 @@ void UIElement::addView(const Common::String &name) {
 
 void UIElement::addView() {
 	g_events->addView(this);
+}
+
+void UIElement::subView(UIElement *child) {
+    if (!child) {
+        debug("subView: Attempted to add a null subview!");
+        return;
+    }
+
+    // Set the current view as the parent
+    child->_parent = this;
+
+    // Add the child to the _children list
+    _children.push_back(child);
+
+    // Debug log to confirm the operation
+    debug("subView: Added child '%s' to parent '%s'",
+          child->getName().c_str(), this->getName().c_str());
 }
 
 

@@ -21,6 +21,7 @@
 
 #include "common/util.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
+#include "vertical_menu.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -64,7 +65,8 @@ VerticalMenu::VerticalMenu(const Common::String &name, const VerticalMenuConfig 
     };
 
     _horizontalMenu = new HorizontalMenu(name + "_Horizontal", hMenuConfig);
-    _children.push_back(_horizontalMenu);
+    subView(_horizontalMenu);
+    //_children.push_back(_horizontalMenu);
 
     activate();
 }
@@ -113,48 +115,48 @@ void VerticalMenu::updateHorizontalMenu() {
         _hMenuList.push_back("Prev");
         _hMenuList.generateShortcut(_hMenuList.items.size() - 1);
     }
+
+    if (_horizontalMenu) {
+        _horizontalMenu->draw();
+    }
 }
 
-bool VerticalMenu::msgMenu(const MenuMessage &msg) {
-    Common::KeyCode keyCode = msg._keyCode;
-
-    switch (keyCode) {
+void VerticalMenu::handleMenuResult(bool success, Common::KeyCode key, char ascii) {
+    switch (key) {
         case Common::KEYCODE_END:
-            handleSelectionDown();
+            selectionDown();
             break;
 
         case Common::KEYCODE_HOME:
-            handleSelectionUp();
+            selectionUp();
             break;
 
         case Common::KEYCODE_PAGEDOWN:
-            handlePageDown();
+        case Common::KEYCODE_n:
+            nextPage();
             break;
 
         case Common::KEYCODE_PAGEUP:
-            handlePageUp();
+        case Common::KEYCODE_p:
+            prevPage();
             break;
 
         case Common::KEYCODE_RETURN:
-            handleReturn();
-            return true;
+            choose();
 
         case Common::KEYCODE_ESCAPE:
-            handleEscape();
-            return true;
+            goBack();
 
         default:
             break;
     }
 
     if (_redraw) {
-        draw();
+        drawText();
     }
-
-    return true;
 }
 
-void VerticalMenu::handlePageDown() {
+void VerticalMenu::nextPage() {
     if (_linesBelow > 0) {
         int moveLines = MIN(_linesBelow, _menuHeight);
         _linesAbove += moveLines;
@@ -165,7 +167,7 @@ void VerticalMenu::handlePageDown() {
     }
 }
 
-void VerticalMenu::handlePageUp() {
+void VerticalMenu::prevPage() {
     if (_linesAbove > 0) {
         int moveLines = MIN(_linesAbove, _menuHeight);
         _linesAbove -= moveLines;
@@ -176,7 +178,7 @@ void VerticalMenu::handlePageUp() {
     }
 }
 
-void VerticalMenu::handleSelectionDown() {
+void VerticalMenu::selectionDown() {
     if (_currentVisibleIndex < _menuHeight - 1) {
         _menuItems->next();
         _currentVisibleIndex++;
@@ -187,7 +189,7 @@ void VerticalMenu::handleSelectionDown() {
     _redraw = true;
 }
 
-void VerticalMenu::handleSelectionUp() {
+void VerticalMenu::selectionUp() {
     if (_currentVisibleIndex > 0) {
         _menuItems->prev();
         _currentVisibleIndex--;
@@ -198,12 +200,12 @@ void VerticalMenu::handleSelectionUp() {
     _redraw = true;
 }
 
-void VerticalMenu::handleReturn() {
+void VerticalMenu::choose() {
     deactivate();
     // Additional logic for confirming selection can be added here
 }
 
-void VerticalMenu::handleEscape() {
+void VerticalMenu::goBack() {
     deactivate();
     // Additional logic for canceling selection can be added here
 }
