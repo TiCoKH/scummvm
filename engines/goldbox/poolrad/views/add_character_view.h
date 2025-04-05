@@ -40,7 +40,6 @@ public:
 	virtual ~AddCharacterView();
 
 	//bool msgKeypress(const KeypressMessage &msg) override;
-	bool msgMenu(const MenuMessage &msg) override;
 	bool msgFocus(const FocusMessage &msg) override;
 	bool msgUnfocus(const UnfocusMessage &msg) override;
 	void draw() override;
