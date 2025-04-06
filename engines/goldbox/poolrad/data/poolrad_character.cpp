@@ -215,21 +215,44 @@ namespace Data {
     }
     
     void PoolradCharacter::initialize() {
-        // Zero-initialize all fields
-        *this = PoolradCharacter();
-    
-        // Set default values for certain fields
-        // For example:
-        // armor_class = 50;
-        // thac0 = 40;
-        // health_status = 0;
-        // in_combat = 1;
-        // head_portrait = 1;
-        // body_portrait = 1;
-        // creature_size = 1;
-        // combat_icon = rand() % 256;
-    
-        // For simplicity, we will assume default initialization here
+
+
+		highestLevel = 0;
+		creatureSize = 1;
+		baseMovement = 0;
+		hitDice = 0;
+		drainedLevels = 0;
+		drainedHp = 0;
+		undeadResistance = 0;
+		monsterType = 0;
+		primaryAttacks = 0;
+		secondaryAttacks = 0;
+		priDmgDiceNum = 0;
+		secDmgDiceNum = 0;
+		priDmgDiceSides = 0;
+		secDmgDiceSides = 0;
+		priDmgModifier = 0;
+		secDmgModifier = 0;
+		strengthBonusAllowed = 0;
+		combatIcon = 0;
+		hitPointsRolled = 0;
+	
+		xpForDefeating = 0;
+		bonusXpPerHp = 0;
+		itemsLimit = 0;
+		handsUsed = 0;
+		encumbrance = 0;
+		actions = 0;
+		sideInCombat = 0;
+		quickFightFlag = 0;
+		priAttacksLeft = 0;
+		secAttacksLeft = 0;
+		curPriDiceNum = 0;
+		curSecDiceNum = 0;
+		curPriDiceSides = 0;
+		curSecDiceSides = 0;
+		curPriBonus = 0;
+		curSecBonus = 0;
     }
     
     void PoolradCharacter::rollAbilityScores() {
@@ -271,7 +294,7 @@ namespace Data {
         }
     }
     
-    void PoolradCharacter::adjustAbilityForRace(Stat &ability, int adjustment, int minValue, int maxValue) {
+    void PoolradCharacter::adjustAbilityForRace(Goldbox::Data::Stat &ability, int adjustment, int minValue, int maxValue) {
         int newAbility = ability.current + adjustment;
         newAbility = CLIP(newAbility, minValue, maxValue);
         ability.current = static_cast<uint8>(newAbility);   
@@ -329,7 +352,7 @@ namespace Data {
     }
     
     void PoolradCharacter::finalizeName() {
-        std::replace(name.begin(), name.end(), ' ', static_cast<char>(-1));
+        //std::replace(name.begin(), name.end(), ' ', static_cast<char>(-1));
     }
 
 } // namespace Data
