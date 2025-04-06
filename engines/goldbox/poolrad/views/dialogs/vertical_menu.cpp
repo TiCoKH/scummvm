@@ -165,6 +165,7 @@ void VerticalMenu::nextPage() {
         _currentVisibleIndex = 0;
         _redraw = true;
     }
+    updateHorizontalMenu();
 }
 
 void VerticalMenu::prevPage() {
@@ -176,6 +177,7 @@ void VerticalMenu::prevPage() {
         _currentVisibleIndex = 0;
         _redraw = true;
     }
+    updateHorizontalMenu();
 }
 
 void VerticalMenu::selectionDown() {

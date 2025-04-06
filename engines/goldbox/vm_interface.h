@@ -41,11 +41,11 @@ public:
     }
 
    // Add getParty method
-    static Common::Array<Data::Character *> &getParty() {
+    static Common::Array<Data::PlayerCharacter *> &getParty() {
         return g_engine->getParty();
     }
 };
 
 } // namespace Goldbox
 
-#endif // GOLDBOX_VM_INTERFACE_Hs
+#endif // GOLDBOX_VM_INTERFACE_H
