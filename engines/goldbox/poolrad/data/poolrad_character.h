@@ -80,20 +80,46 @@ public:
     uint8 curPriDiceSides = 0, curSecDiceSides = 0;
     uint8 curPriBonus = 0, curSecBonus = 0;
 
+	PoolradCharacter();
+
     // === I/O and core methods ===
 
     void load(Common::SeekableReadStream &stream) override;
     void save(Common::WriteStream &stream) const override;
 
     void initialize();
-    void applyRacialAdjustments();
     bool meetsClassRequirements() const;
-    void calculateHitPoints();
     void finalizeName();
 
     void rollAbilityScores() override;
     void applyRacialAdjustments() override;
     void calculateHitPoints() override;
+
+	    // Implementing pure virtual functions from PlayerCharacter
+	const char *getRaceName() const override {
+		// Provide implementation
+		return "RaceName";
+	}
+
+	const char *getClassName() const override {
+		// Provide implementation
+		return "ClassName";
+	}
+
+	const char *getGenderName() const override {
+		// Provide implementation
+		return "GenderName";
+	}
+
+	const char *getAlignmentName() const override {
+		// Provide implementation
+		return "AlignmentName";
+	}
+
+	const char *getStatusName() const override {
+		// Provide implementation
+		return "StatusName";
+	}
 
 private:
     // Helper methods

@@ -87,7 +87,7 @@ Common::Error Engine::run() {
 	return Common::kNoError;
 }
 
-Common::Array<Data::Character *> &Engine::getParty() {
+Common::Array<Data::PlayerCharacter *> &Engine::getParty() {
     return _party;
 }
 
