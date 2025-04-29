@@ -36,7 +36,7 @@ struct MenuItem {
 
 struct MenuItemList {
     Common::Array<MenuItem> items;
-    uint currentSelection;
+    int currentSelection;
 
     MenuItemList() : currentSelection(0) {}
 
