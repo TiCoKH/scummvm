@@ -85,7 +85,7 @@ public:
     // === I/O and core methods ===
 
     void load(Common::SeekableReadStream &stream) override;
-    void save(Common::WriteStream &stream) const override;
+    void save(Common::WriteStream &stream) override;
 
     void initialize();
     bool meetsClassRequirements() const;

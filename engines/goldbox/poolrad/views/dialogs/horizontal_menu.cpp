@@ -104,7 +104,7 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
         int index = _menuItems->findByShortcut(asciiValue);
         if (index != -1 && _menuItems->items[index].active) {
             _menuItems->currentSelection = index;
-            _parent->handleMenuResult(true, keyCode, asciiValue);
+            _parent->handleMenuResult(true, keyCode, index);
             deactivate();
             return true;
         }
@@ -154,7 +154,7 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
         }
     }
 
-    
+
     if (keyCode >= Common::KEYCODE_UP && keyCode <= Common::KEYCODE_PAGEDOWN) {
         _parent->handleMenuResult(true, keyCode, 0);
         deactivate();

@@ -22,15 +22,17 @@
 #include "common/system.h"
 #include "common/file.h"
 #include "graphics/palette.h"
+#include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/views/add_character_view.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
 AddCharacterView::AddCharacterView() : View("AddCharacter") {
-    
+
     loadRosterList();
     Common::Array<Common::String> promptOptions = {"Add", "Exit"};
     Dialogs::VerticalMenuConfig menuConfig = {
@@ -45,7 +47,6 @@ AddCharacterView::AddCharacterView() : View("AddCharacter") {
     };
     _rosterMenu = new Dialogs::VerticalMenu("RosterMenu", menuConfig);
     subView(_rosterMenu);
-    //_children.push_back(_rosterMenu);
 }
 
 AddCharacterView::~AddCharacterView() {
@@ -77,6 +78,85 @@ void AddCharacterView::timeout() {
 //	replaceView("Codewheel");
 }
 
+
+void AddCharacterView::handleMenuResult(bool success, Common::KeyCode key, short value) {
+    if (!success) return;
+
+    switch (key) {
+        case Common::KEYCODE_RETURN:
+        case Common::KEYCODE_a:
+            loadCharacter(value);
+            break;
+
+        case Common::KEYCODE_ESCAPE:
+        case Common::KEYCODE_e:
+            // handle cancelation logic here
+            break;
+
+        default:
+            break;
+    }
+}
+
+Common::String AddCharacterView::formatFilename(const Common::String &name) {
+    Common::String formattedName;
+
+    for (uint i = 0; i < name.size() && formattedName.size() < 8; ++i) {
+        if (name[i] != ' ') {
+            formattedName += name[i];
+        }
+    }
+    return formattedName;
+}
+
+void AddCharacterView::loadCharacter(int selectedIndex) {
+    Common::String characterName = _rosterList->items[selectedIndex].text;
+    Common::String baseFilename = formatFilename(characterName);
+
+    // Load .CHR
+    Common::String chrFilename = baseFilename + ".CHR";
+    Common::File characterFile;
+    if (!characterFile.open(chrFilename.c_str())) {
+        warning("Failed to open character file: %s", chrFilename.c_str());
+        return;
+    }
+
+    Goldbox::Poolrad::Data::PoolradCharacter *character = new Goldbox::Poolrad::Data::PoolradCharacter();
+    character->load(characterFile);
+    characterFile.close();
+
+    // Attempt to load .ITM (items file)
+    Common::String itmFilename = baseFilename + ".ITM";
+    Common::File itemsFile;
+    if (itemsFile.open(itmFilename.c_str())) {
+        // TODO: load items here (you would probably call character.loadItems(itemsFile) or similar)
+        debug("Loaded items file: %s", itmFilename.c_str());
+        itemsFile.close();
+    } else {
+        debug("Items file not found: %s", itmFilename.c_str());
+    }
+
+    Common::String spcFilename = baseFilename + ".SPC";
+    Common::File spellsFile;
+    if (spellsFile.open(spcFilename.c_str())) {
+        // TODO: load spells here (you would probably call character.loadItems(itemsFile) or similar)
+        spellsFile.close();
+        debug("Loaded spells file: %s", spcFilename.c_str());
+    } else {
+        debug("Spells file not found: %s", spcFilename.c_str());
+    }
+
+    Goldbox::VmInterface::getParty().push_back(character);
+
+    // Mark as loaded
+    _rosterList->items[selectedIndex].text = "* " + characterName;
+    _rosterMenu->redraw();
+
+    // Check party full
+    if (Goldbox::VmInterface::getParty().size() >= 6) {
+        close();
+    }
+}
 void AddCharacterView::loadRosterList() {
     Common::File charListFile;
     if (!charListFile.open("CHARLIST.TXT")) {

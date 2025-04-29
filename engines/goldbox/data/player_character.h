@@ -170,7 +170,7 @@ public:
 	//-----------------------------------------------------------
 	// Game-specific I/O
 	virtual void load(Common::SeekableReadStream &stream) = 0;
-	virtual void save(Common::WriteStream &stream) const = 0;
+	virtual void save(Common::WriteStream &stream) = 0;
 
 	//-----------------------------------------------------------
 	// Game-specific behaviors
