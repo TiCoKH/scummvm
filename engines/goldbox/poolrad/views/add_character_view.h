@@ -32,20 +32,21 @@ namespace Views {
 
 class AddCharacterView : public View {
 private:
-	Goldbox::MenuItemList *_rosterList; 
+	Goldbox::MenuItemList *_rosterList;
 	Dialogs::VerticalMenu *_rosterMenu;
+	Common::String formatFilename(const Common::String &name);
+	void loadCharacter(int index);
 
 public:
 	AddCharacterView();
 	virtual ~AddCharacterView();
 
-	//bool msgKeypress(const KeypressMessage &msg) override;
 	bool msgFocus(const FocusMessage &msg) override;
 	bool msgUnfocus(const UnfocusMessage &msg) override;
+	void handleMenuResult(bool success, Common::KeyCode key, short value) override;
 	void draw() override;
 	void timeout() override;
 	void loadRosterList();
-//    void loadCharacter();
 };
 
 } // namespace Views

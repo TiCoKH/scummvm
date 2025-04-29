@@ -102,7 +102,7 @@ namespace Data {
 
         // 0x096–0x09D: class levels
         levels.cleric  = stream.readByte(); // 0x096
-        levels.druid   = stream.readByte(); // 0x097   
+        levels.druid   = stream.readByte(); // 0x097
         levels.fighter = stream.readByte(); // 0x098
         levels.paladin = stream.readByte(); // 0x099
         levels.ranger  = stream.readByte(); // 0x09A
@@ -147,13 +147,13 @@ namespace Data {
         bonusXpPerHp = stream.readByte();       // 0x0BA
 
         portrait.head = stream.readByte(); // 0x0BB
-        portrait.body = stream.readByte(); // 0x0BC   
+        portrait.body = stream.readByte(); // 0x0BC
 
         iconData.iconHead = stream.readByte(); // 0x0BD
         iconData.iconBody = stream.readByte(); // 0x0BE
         orderNumber = stream.readByte();       // 0x0BF
         iconData.iconSize = stream.readByte(); // 0x0C0
-        
+
         iconData.setBody(stream.readByte());     // 0x0C1
         iconData.setArm(stream.readByte());      // 0x0C2
         iconData.setLeg(stream.readByte());      // 0x0C3
@@ -213,7 +213,7 @@ namespace Data {
         // Initialize default values
         initialize();
     }
-    
+
     void PoolradCharacter::initialize() {
 
 
@@ -236,7 +236,7 @@ namespace Data {
 		strengthBonusAllowed = 0;
 		combatIcon = 0;
 		hitPointsRolled = 0;
-	
+
 		xpForDefeating = 0;
 		bonusXpPerHp = 0;
 		itemsLimit = 0;
@@ -254,19 +254,19 @@ namespace Data {
 		curPriBonus = 0;
 		curSecBonus = 0;
     }
-    
+
     void PoolradCharacter::rollAbilityScores() {
         abilities.strength.base = abilities.strength.current = VmInterface::rollDice(3, 6);
         abilities.intelligence.base = abilities.intelligence.current = VmInterface::rollDice(3, 6);
         abilities.wisdom.base       = abilities.wisdom.current       = VmInterface::rollDice(3, 6);
         abilities.dexterity.base    = abilities.dexterity.current    = VmInterface::rollDice(3, 6);
         abilities.constitution.base = abilities.constitution.current = VmInterface::rollDice(3, 6);
-        abilities.charisma.base     = abilities.charisma.current     = VmInterface::rollDice(3, 6);   
+        abilities.charisma.base     = abilities.charisma.current     = VmInterface::rollDice(3, 6);
     }
-    
+
     void PoolradCharacter::applyRacialAdjustments() {
         using namespace Goldbox::Data;
-    
+
         switch (race) {
         case R_HUMAN:
             break; // no change
@@ -293,16 +293,16 @@ namespace Data {
             break;
         }
     }
-    
+
     void PoolradCharacter::adjustAbilityForRace(Goldbox::Data::Stat &ability, int adjustment, int minValue, int maxValue) {
         int newAbility = ability.current + adjustment;
         newAbility = CLIP(newAbility, minValue, maxValue);
-        ability.current = static_cast<uint8>(newAbility);   
+        ability.current = static_cast<uint8>(newAbility);
     }
-    
+
     bool PoolradCharacter::meetsClassRequirements() const {
         using namespace Goldbox::Data;
-    
+
         switch (classType) {
         case C_FIGHTER:
             return abilities.strength.current >= 9;
@@ -321,7 +321,7 @@ namespace Data {
     void PoolradCharacter::calculateHitPoints() {
         int totalLevels = 0;
         int hp = 0;
-    
+
         // Each class contributes hit dice based on its level
         if (levels.fighter > 0) {
             hp += levels.fighter * 10;
@@ -339,18 +339,189 @@ namespace Data {
             hp += levels.thief * 6;
             totalLevels += levels.thief;
         }
-    
+
         int average = (totalLevels > 0) ? (hp / totalLevels) : 4;
-    
+
         // Constitution modifier
         int conMod = 0;
         if (abilities.constitution.current >= 15) conMod = 1;
         if (abilities.constitution.current >= 17) conMod = 2;
-    
+
         hitPointsRolled = average + conMod;
         hitPoints.max = hitPoints.current = (hitPointsRolled > 0) ? hitPointsRolled : 1;
     }
-    
+
+    void PoolradCharacter::save(Common::WriteStream &stream) {
+        // --- Write the character name
+        stream.writeByte(name.size());
+        stream.write(name.c_str(), 15); // Pad/truncate to 15 bytes if needed
+
+        // --- Seek to ability scores section
+
+        // Ability scores
+        stream.writeByte(abilities.strength.current);
+        stream.writeByte(abilities.intelligence.current);
+        stream.writeByte(abilities.wisdom.current);
+        stream.writeByte(abilities.dexterity.current);
+        stream.writeByte(abilities.constitution.current);
+        stream.writeByte(abilities.charisma.current);
+        stream.writeByte(abilities.strException.current);
+
+        // Spells memorized
+        stream.write(spells.memorizedSpells, 21);
+
+        stream.writeByte(0); // Unknown at 0x02C
+
+        // Combat
+        stream.writeByte(combat.thac0Base);
+
+        stream.writeByte(race);
+        stream.writeByte(classType);
+        stream.writeUint16LE(age);
+
+        stream.writeByte(hitPoints.max);
+         //TODO write spell knowledge
+
+        stream.writeByte(attackLevel);
+        stream.writeByte(iconDimension);
+
+        // Saving throws
+        stream.writeByte(savingThrows.vsParalysis);
+        stream.writeByte(savingThrows.vsPetrification);
+        stream.writeByte(savingThrows.vsRodStaffWand);
+        stream.writeByte(savingThrows.vsBreathWeapon);
+        stream.writeByte(savingThrows.vsSpell);
+
+        stream.writeByte(baseMovement);
+        stream.writeByte(highestLevel);
+        stream.writeByte(drainedLevels);
+        stream.writeByte(drainedHp);
+        stream.writeByte(undeadResistance);
+
+        // Thief skills
+        stream.writeByte(thiefSkills.pickPockets);
+        stream.writeByte(thiefSkills.openLocks);
+        stream.writeByte(thiefSkills.findRemoveTraps);
+        stream.writeByte(thiefSkills.moveSilently);
+        stream.writeByte(thiefSkills.hideInShadows);
+        stream.writeByte(thiefSkills.hearNoise);
+        stream.writeByte(thiefSkills.climbWalls);
+        stream.writeByte(thiefSkills.readLanguages);
+
+        for (int i = 0; i < 4; ++i) stream.writeByte(0); // Skip effects address
+
+        stream.writeByte(0); // Unknown at 0x083
+        stream.writeByte(npc);
+        stream.writeByte(modified);
+
+        for (int i = 0; i < 2; ++i) stream.writeByte(0);
+
+        // Coins and valuables
+        stream.writeUint16LE(valuableItems.coinsCopper);
+        stream.writeUint16LE(valuableItems.coinsSilver);
+        stream.writeUint16LE(valuableItems.coinsElectrum);
+        stream.writeUint16LE(valuableItems.coinsGold);
+        stream.writeUint16LE(valuableItems.coinsPlatinum);
+        stream.writeUint16LE(valuableItems.gems);
+        stream.writeUint16LE(valuableItems.jewelry);
+
+        // Class levels
+        stream.writeByte(levels.cleric);
+        stream.writeByte(levels.druid);
+        stream.writeByte(levels.fighter);
+        stream.writeByte(levels.paladin);
+        stream.writeByte(levels.ranger);
+        stream.writeByte(levels.mage);
+        stream.writeByte(levels.thief);
+        stream.writeByte(levels.monk);
+
+        // Gender, Monster type, Alignment
+        stream.writeByte(gender);
+        stream.writeByte(monsterType);
+        stream.writeByte(alignment);
+
+        // Attacks
+        stream.writeByte(primaryAttacks);
+        stream.writeByte(secondaryAttacks);
+
+        // Unarmed combat
+        stream.writeByte(priDmgDiceNum);
+        stream.writeByte(secDmgDiceNum);
+        stream.writeByte(priDmgDiceSides);
+        stream.writeByte(secDmgDiceSides);
+        stream.writeByte(priDmgModifier);
+        stream.writeByte(secDmgModifier);
+
+        stream.writeByte(armorClass.base);
+        stream.writeByte(strengthBonusAllowed);
+        stream.writeByte(combatIcon);
+
+        stream.writeUint32LE(experiencePoints);
+
+        stream.writeByte(itemsLimit);
+        stream.writeByte(hitPointsRolled);
+
+        // Spell slots
+        for (int i = 0; i < 6; ++i)
+            stream.writeByte(spellSlots[i]);
+
+        stream.writeUint16LE(xpForDefeating);
+        stream.writeByte(bonusXpPerHp);
+
+        stream.writeByte(portrait.head);
+        stream.writeByte(portrait.body);
+
+        stream.writeByte(iconData.iconHead);
+        stream.writeByte(iconData.iconBody);
+        stream.writeByte(orderNumber);
+        stream.writeByte(iconData.iconSize);
+
+        // Icon color data
+        stream.writeByte((iconData.iconColorBody1 << 4) | iconData.iconColorBody2);
+        stream.writeByte((iconData.iconColorArm1 << 4) | iconData.iconColorArm2);
+        stream.writeByte((iconData.iconColorLeg1 << 4) | iconData.iconColorLeg2);
+        stream.writeByte((iconData.iconColorHair << 4) | iconData.iconColorFace);
+        stream.writeByte((iconData.iconColorShield1 << 4) | iconData.iconColorShield2);
+        stream.writeByte((iconData.iconColorWeapon1 << 4) | iconData.iconColorWeapon2);
+
+        stream.writeByte(numOfItems);
+        stream.writeUint32LE(itemsAddress);
+
+        // Equipped items pointers (ignored, just write 0 for now)
+        for (int i = 0; i < 13; ++i)
+            stream.writeUint32LE(0);
+
+        stream.writeByte(handsUsed);
+        stream.writeByte(saveBonus);
+        stream.writeUint16LE(encumbrance);
+
+        stream.writeUint32LE(0); // next character address
+        stream.writeUint32LE(0); // combat address
+
+        stream.writeByte(healthStatus);
+        stream.writeByte(inCombat ? 1 : 0);
+        stream.writeByte(0); // hostile flag
+        stream.writeByte(quickFightFlag);
+
+        stream.writeByte(thac0.current);
+        stream.writeByte(armorClass.current);
+        stream.writeByte(acRear.current);
+
+        stream.writeByte(priAttacksLeft);
+        stream.writeByte(secAttacksLeft);
+
+        stream.writeByte(curPriDiceNum);
+        stream.writeByte(curSecDiceNum);
+        stream.writeByte(curPriDiceSides);
+        stream.writeByte(curSecDiceSides);
+        stream.writeByte(curPriBonus);
+        stream.writeByte(curSecBonus);
+
+        stream.writeByte(hitPoints.current);
+        stream.writeByte(movement.current);
+    }
+
+
     void PoolradCharacter::finalizeName() {
         //std::replace(name.begin(), name.end(), ' ', static_cast<char>(-1));
     }
