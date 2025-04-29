@@ -54,6 +54,7 @@ private:
 public:
     HorizontalMenu(const Common::String &name, const HorizontalMenuConfig &config);
     bool msgKeypress(const KeypressMessage &msg);
+    void setRedraw() { _redraw = true; }
     void draw() override;
 };
 

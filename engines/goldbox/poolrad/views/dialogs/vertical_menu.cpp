@@ -66,8 +66,6 @@ VerticalMenu::VerticalMenu(const Common::String &name, const VerticalMenuConfig 
 
     _horizontalMenu = new HorizontalMenu(name + "_Horizontal", hMenuConfig);
     subView(_horizontalMenu);
-    //_children.push_back(_horizontalMenu);
-
     activate();
 }
 
@@ -101,8 +99,27 @@ void VerticalMenu::drawText() {
     }
 }
 
+void VerticalMenu::redrawLine(int index) {
+    if (!_menuItems || index < 0 || index >= _itemNums)
+        return;
+
+    Surface s = getSurface();
+
+    int relativeIndex = index - _linesAbove;
+    if (relativeIndex < 0 || relativeIndex >= _menuHeight)
+        return;
+
+    // Clear that line
+    s.clearBox(_xStart, _yStart + relativeIndex, _xEnd, _yStart + relativeIndex, 0);
+
+    // Draw the text
+    const auto &item = _menuItems->items[index];
+    int color = (index == _menuItems->currentSelection) ? _selectColor : _textColor;
+    s.writeStringC(item.text, color, _xStart, _yStart + relativeIndex);
+}
+
 void VerticalMenu::updateHorizontalMenu() {
-    while (!_hMenuList.items.empty() && 
+    while (!_hMenuList.items.empty() &&
         (_hMenuList.items.back().shortcut == 'N' || _hMenuList.items.back().shortcut == 'P')) {
         _hMenuList.items.pop_back();
     }
@@ -117,11 +134,12 @@ void VerticalMenu::updateHorizontalMenu() {
     }
 
     if (_horizontalMenu) {
+        _horizontalMenu->setRedraw();
         _horizontalMenu->draw();
     }
 }
 
-void VerticalMenu::handleMenuResult(bool success, Common::KeyCode key, char ascii) {
+void VerticalMenu::handleMenuResult(bool success, Common::KeyCode key, short value) {
     switch (key) {
         case Common::KEYCODE_END:
             selectionDown();
@@ -141,13 +159,10 @@ void VerticalMenu::handleMenuResult(bool success, Common::KeyCode key, char asci
             prevPage();
             break;
 
-        case Common::KEYCODE_RETURN:
-            choose();
-
-        case Common::KEYCODE_ESCAPE:
-            goBack();
-
         default:
+            if (_parent) {
+                _parent->handleMenuResult(success, key, _menuItems->currentSelection);
+            }
             break;
     }
 
@@ -181,6 +196,7 @@ void VerticalMenu::prevPage() {
 }
 
 void VerticalMenu::selectionDown() {
+    int oldScreenIndex = _currentVisibleIndex;
     if (_currentVisibleIndex < _menuHeight - 1) {
         _menuItems->next();
         _currentVisibleIndex++;
@@ -188,10 +204,12 @@ void VerticalMenu::selectionDown() {
         _menuItems->currentSelection = _linesAbove;
         _currentVisibleIndex = 0;
     }
-    _redraw = true;
+    redrawLine(_linesAbove + oldScreenIndex);
+    redrawLine(_linesAbove + _currentVisibleIndex);
 }
 
 void VerticalMenu::selectionUp() {
+    int oldScreenIndex = _currentVisibleIndex;
     if (_currentVisibleIndex > 0) {
         _menuItems->prev();
         _currentVisibleIndex--;
@@ -199,17 +217,8 @@ void VerticalMenu::selectionUp() {
         _currentVisibleIndex = _menuHeight - 1;
         _menuItems->currentSelection = _linesAbove + _currentVisibleIndex;
     }
-    _redraw = true;
-}
-
-void VerticalMenu::choose() {
-    deactivate();
-    // Additional logic for confirming selection can be added here
-}
-
-void VerticalMenu::goBack() {
-    deactivate();
-    // Additional logic for canceling selection can be added here
+    redrawLine(_linesAbove + oldScreenIndex);
+    redrawLine(_linesAbove + _currentVisibleIndex);
 }
 
 void VerticalMenu::activateHorizontalMenu() {

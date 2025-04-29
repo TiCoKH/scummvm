@@ -72,8 +72,6 @@ private:
     void selectionUp();
     void nextPage();
     void prevPage();
-    void choose();
-    void goBack();
     void drawText();
     void updateHorizontalMenu();
 
@@ -84,7 +82,8 @@ public:
     ~VerticalMenu();
 
     void draw() override;
-	void handleMenuResult(bool success, Common::KeyCode key, char ascii) override;
+    void redrawLine(int lineNum);
+	void handleMenuResult(bool success, Common::KeyCode key, short value) override;
     void activateHorizontalMenu();
     void deactivateHorizontalMenu();
 };

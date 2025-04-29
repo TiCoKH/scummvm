@@ -256,7 +256,7 @@ public:
 	 */
 	virtual UIElement *findView(const Common::String &name);
 
-    virtual void handleMenuResult(bool success, Common::KeyCode key, char ascii) {
+    virtual void handleMenuResult(bool success, Common::KeyCode key, short value) {
         // Default implementation (optional)
     }
 
