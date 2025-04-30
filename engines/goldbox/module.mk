@@ -17,6 +17,7 @@ MODULE_OBJS = \
 	data/daxheadercontainer.o \
 	data/strings.o \
 	data/strings_data.o \
+	data/items/base_items.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/pic.o \
