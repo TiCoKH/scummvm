@@ -114,7 +114,7 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
     Common::String baseFilename = formatFilename(characterName);
 
     // Load .CHR
-    Common::String chrFilename = baseFilename + ".CHR";
+    Common::String chrFilename = baseFilename + ".CHA";
     Common::File characterFile;
     if (!characterFile.open(chrFilename.c_str())) {
         warning("Failed to open character file: %s", chrFilename.c_str());
