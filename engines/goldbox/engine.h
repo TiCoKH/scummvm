@@ -40,6 +40,7 @@
 #include "goldbox/events.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/strings_data.h"
+#include "goldbox/data/items/base_items.h"
 
 namespace Goldbox {
 
@@ -66,6 +67,8 @@ public:
 	Graphics::Font * _symbols;
 	Data::StringsData _strings;
 	Common::Array<Data::PlayerCharacter *> _party;
+	static Goldbox::Data::Items::Storage gItemProps;
+
 
 	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~Engine() override;

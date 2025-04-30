@@ -61,6 +61,15 @@ void PoolradEngine::setup() {
 //		Common::String msg(errMsg);
 //		error("%s", msg.c_str());
 //	}
+	Common::File items;
+	if (!items.open("ITEMS")) {
+		warning("Cannot open ITEMS file");
+		return;
+	}
+	Common::SeekableReadStream &in = items;
+	Engine::gItemProps.load(in);
+	items.close();
+
 	Surface::setupPalette();
 
 	Goldbox::File daxFile8x8d;
