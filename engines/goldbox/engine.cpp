@@ -33,6 +33,7 @@
 namespace Goldbox {
 
 Engine *g_engine;
+Data::Items::Storage Engine::gItemProps;
 
 Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine(syst),
 	_gameDescription(gameDesc), _randomSource("Goldbox") {
