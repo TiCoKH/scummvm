@@ -15,9 +15,14 @@ MODULE_OBJS = \
 	data/adnd_character.o \
 	data/daxblock.o \
 	data/daxheadercontainer.o \
+	data/pascal_string_buffer.o \
 	data/strings.o \
 	data/strings_data.o \
+	data/effects/effect.o \
+	data/effects/character_effects.o \
 	data/items/base_items.o \
+	data/items/character_item.o \
+	data/items/character_inventory.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/pic.o \

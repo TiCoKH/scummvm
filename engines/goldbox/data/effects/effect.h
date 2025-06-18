@@ -19,33 +19,39 @@
  *
  */
 
-#ifndef GOLDBOX_DATA_STRINGS_DATA_H
-#define GOLDBOX_DATA_STRINGS_DATA_H
+#ifndef GOLDBOX_DATA_EFFECTS_EFFECT_H
+#define GOLDBOX_DATA_EFFECTS_EFFECT_H
 
-#include "common/hash-str.h"
-#include "common/path.h"
+#include "common/str.h"
+#include "goldbox/engine.h"
 
 namespace Goldbox {
 namespace Data {
+namespace Effects {
 
-class StringsData : public Common::StringMap {
-public:
-    StringsData() : Common::StringMap() {}
+struct Effect {
+    uint8 type;          // Effect ID
+    uint16 durationMin;  // Duration in minutes (LE)
+    uint8 power;         // 0xFF = permanent, or encoded power level
+    uint8 data[5];       // Unused/padding/reserved
 
-    /**
-     * Loads the data
-     */
-    bool load(const Common::Path &filename);
+    void load(Common::SeekableReadStream &s) {
+        type = s.readByte();
+        durationMin = s.readUint16LE();
+        power = s.readByte();
+        s.read(data, 5);
+    }
 
-    /**
-     * Gets all strings under a specific node prefix
-     * @param prefix The node prefix to search for (e.g. "menu" will find "menu.item1", "menu.item2", etc.)
-     * @return Array of string values under that prefix
-     */
-    Common::Array<Common::String> getNodeValues(const Common::String &prefix);
+    void save(Common::WriteStream &s) const {
+        s.writeByte(type);
+        s.writeUint16LE(durationMin);
+        s.writeByte(power);
+        s.write(data, 5);
+    }
 };
 
+} // namespace Effects
 } // namespace Data
 } // namespace Goldbox
 
-#endif
+#endif // GOLDBOX_DATA_EFFECTS_EFFECT_H

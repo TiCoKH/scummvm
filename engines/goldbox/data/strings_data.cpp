@@ -96,7 +96,7 @@ bool StringsData::load(const Common::Path &filename) {
 			// Do nothing
 		} else if (numTabs < prefixKeys.size()) {
 			// Drop off prefixes to the desired indentation
-			prefixKeys.resize(numTabs);	
+			prefixKeys.resize(numTabs);
 		} else {
 			error("Incorrect indentation");
 		}
@@ -117,6 +117,21 @@ bool StringsData::load(const Common::Path &filename) {
 	}
 
 	return true;
+}
+
+Common::Array<Common::String> StringsData::getNodeValues(const Common::String &prefix) {
+    Common::Array<Common::String> result;
+    Common::String searchPrefix = prefix + ".";
+
+    // Iterate through all entries in the string map
+    for (Common::StringMap::iterator it = begin(); it != end(); ++it) {
+        // Check if the key starts with the specified prefix
+        if (it->_key.hasPrefix(searchPrefix)) {
+            result.push_back(it->_value);
+        }
+    }
+
+    return result;
 }
 
 } // namespace Data

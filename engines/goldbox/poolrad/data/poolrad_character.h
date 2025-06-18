@@ -26,6 +26,7 @@
 #include "common/array.h"
 #include "goldbox/core/file.h"
 #include "goldbox/data/adnd_character.h"
+#include "goldbox/data/effects/character_effects.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -59,6 +60,8 @@ public:
     uint8 spellSlots[6] = {};
     uint32 xpForDefeating = 0;
     uint8 bonusXpPerHp = 0;
+
+    Goldbox::Data::Effects::CharacterEffects effects;
 
     uint8 itemsLimit;
     uint8 itemBytes[56] = {};
