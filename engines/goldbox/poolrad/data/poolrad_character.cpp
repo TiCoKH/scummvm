@@ -22,20 +22,15 @@
 #include "common/stream.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/data/pascal_string_buffer.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Data {
 
     void PoolradCharacter::load(Common::SeekableReadStream &stream) {
-        stream.skip(1); // 0x000: name length
 
-        // 0x001–0x00F: name
-        char nameBuf[16] = {};
-        stream.read(nameBuf, 15);
-        name = nameBuf;
-
-        stream.seek(0x10, SEEK_SET);
+        name = Goldbox::Data::PascalStringBuffer<15>::read(stream); // 0x000–0x00F
         abilities.strength.current     = stream.readByte(); // 0x010
         abilities.intelligence.current = stream.readByte(); // 0x011
         abilities.wisdom.current       = stream.readByte(); // 0x012
@@ -58,7 +53,7 @@ namespace Data {
         hitPoints.max = stream.readByte(); // 0x032
 
         // 0x033–0x06A: cleric/mage spell knowledge — 62 bytes
-        stream.skip(0x06A - 0x033 + 1);
+        stream.read(spells.knownSpells, 62);
 
         attackLevel = stream.readByte();   // 0x06B
         iconDimension = stream.readByte(); // 0x06C
@@ -352,12 +347,8 @@ namespace Data {
     }
 
     void PoolradCharacter::save(Common::WriteStream &stream) {
-        // --- Write the character name
-        stream.writeByte(name.size());
-        stream.write(name.c_str(), 15); // Pad/truncate to 15 bytes if needed
 
-        // --- Seek to ability scores section
-
+        Goldbox::Data::PascalStringBuffer<15>::write(stream, name);
         // Ability scores
         stream.writeByte(abilities.strength.current);
         stream.writeByte(abilities.intelligence.current);

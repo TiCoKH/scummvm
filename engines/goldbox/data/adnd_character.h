@@ -16,7 +16,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
 
 #ifndef GOLDBOX_DATA_ADND_CHARACTER_H
@@ -26,6 +25,7 @@
 #include "common/array.h"
 #include "common/stream.h"
 #include "goldbox/data/player_character.h"
+#include "goldbox/data/items/character_inventory.h"
 
 namespace Goldbox {
 namespace Data {
@@ -88,6 +88,7 @@ enum StatusADnD {
 
 struct SpellData {
     uint8 memorizedSpells[22];  // Array for memorized spells; layout may differ by game.
+    uint8 knownSpells[62];      // Array for known spells; layout may differ by game.
 };
 
 // Grouping for saving throw protections (commonly, versus paralysis, petrification, rods/staves/wands, breath weapon, spells)
@@ -193,7 +194,7 @@ public:
     uint8 saveBonus;
     uint16 encumbrance;
 
-
+    Goldbox::Data::Items::CharacterInventory inventory;
 
 
     // Virtual destructor to ensure proper cleanup in derived classes.

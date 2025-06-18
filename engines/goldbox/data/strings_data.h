@@ -30,12 +30,19 @@ namespace Data {
 
 class StringsData : public Common::StringMap {
 public:
-	StringsData() : Common::StringMap() {}
+    StringsData() : Common::StringMap() {}
 
-	/**
-	 * Loads the data
-	 */
-	bool load(const Common::Path &filename);
+    /**
+     * Loads the data
+     */
+    bool load(const Common::Path &filename);
+
+    /**
+     * Gets all strings under a specific node prefix
+     * @param prefix The node prefix to search for (e.g. "menu" will find "menu.item1", "menu.item2", etc.)
+     * @return Array of string values under that prefix
+     */
+    Common::Array<Common::String> getNodeValues(const Common::String &prefix);
 };
 
 } // namespace Data
