@@ -30,7 +30,6 @@
 namespace Goldbox {
 namespace Data {
 
-
 //---------------------------------------------------------------
 // Helper structures
 

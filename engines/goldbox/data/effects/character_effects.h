@@ -19,33 +19,33 @@
  *
  */
 
-#ifndef GOLDBOX_DATA_STRINGS_DATA_H
-#define GOLDBOX_DATA_STRINGS_DATA_H
+ #ifndef GOLDBOX_DATA_EFFECTS_CHARACTER_EFFECTS_H
+ #define GOLDBOX_DATA_EFFECTS_CHARACTER_EFFECTS_H
 
-#include "common/hash-str.h"
-#include "common/path.h"
+#include "common/array.h"
+#include "common/str.h"
+#include "goldbox/data/effects/effect.h"
 
 namespace Goldbox {
 namespace Data {
+namespace Effects {
 
-class StringsData : public Common::StringMap {
+class CharacterEffects {
+private:
+    Common::Array<Effect> _effects;
+
 public:
-    StringsData() : Common::StringMap() {}
+    bool load(const Common::String &filename);
+    bool save(const Common::String &filename) const;
 
-    /**
-     * Loads the data
-     */
-    bool load(const Common::Path &filename);
+    const Common::Array<Effect> &effects() const { return _effects; }
+    Common::Array<Effect> &effects() { return _effects; }
 
-    /**
-     * Gets all strings under a specific node prefix
-     * @param prefix The node prefix to search for (e.g. "menu" will find "menu.item1", "menu.item2", etc.)
-     * @return Array of string values under that prefix
-     */
-    Common::Array<Common::String> getNodeValues(const Common::String &prefix);
+    void clear() { _effects.clear(); }
 };
 
+} // namespace Effects
 } // namespace Data
 } // namespace Goldbox
 
-#endif
+#endif // GOLDBOX_DATA_EFFECTS_CHARACTER_EFFECTS_H
