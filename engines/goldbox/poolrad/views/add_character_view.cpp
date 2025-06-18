@@ -90,7 +90,7 @@ void AddCharacterView::handleMenuResult(bool success, Common::KeyCode key, short
 
         case Common::KEYCODE_ESCAPE:
         case Common::KEYCODE_e:
-            // handle cancelation logic here
+            replaceView("Mainmenu");
             break;
 
         default:
@@ -111,6 +111,11 @@ Common::String AddCharacterView::formatFilename(const Common::String &name) {
 
 void AddCharacterView::loadCharacter(int selectedIndex) {
     Common::String characterName = _rosterList->items[selectedIndex].text;
+    if (characterName.hasPrefix("*")) {
+        debug("Character already added: %s", characterName.c_str());
+        return;
+    }
+
     Common::String baseFilename = formatFilename(characterName);
 
     // Load .CHR
@@ -125,36 +130,32 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
     character->load(characterFile);
     characterFile.close();
 
-    // Attempt to load .ITM (items file)
     Common::String itmFilename = baseFilename + ".ITM";
-    Common::File itemsFile;
-    if (itemsFile.open(itmFilename.c_str())) {
-        // TODO: load items here (you would probably call character.loadItems(itemsFile) or similar)
+    if (character->inventory.load(itmFilename)) {
         debug("Loaded items file: %s", itmFilename.c_str());
-        itemsFile.close();
+        for (const auto &item : character->inventory.items()) {
+            debug("Item: %s", item.name.c_str());
+        }
     } else {
-        debug("Items file not found: %s", itmFilename.c_str());
+        debug("Items file not found or failed to load: %s", itmFilename.c_str());
     }
 
     Common::String spcFilename = baseFilename + ".SPC";
-    Common::File spellsFile;
-    if (spellsFile.open(spcFilename.c_str())) {
-        // TODO: load spells here (you would probably call character.loadItems(itemsFile) or similar)
-        spellsFile.close();
+    if (character->effects.load(spcFilename)) {
         debug("Loaded spells file: %s", spcFilename.c_str());
     } else {
-        debug("Spells file not found: %s", spcFilename.c_str());
+        debug("Spells file not found or failed to load: %s", spcFilename.c_str());
     }
 
     Goldbox::VmInterface::getParty().push_back(character);
 
     // Mark as loaded
     _rosterList->items[selectedIndex].text = "* " + characterName;
-    _rosterMenu->redraw();
+    _rosterMenu->redrawLine(selectedIndex);
 
     // Check party full
     if (Goldbox::VmInterface::getParty().size() >= 6) {
-        close();
+        replaceView("Mainmenu");
     }
 }
 void AddCharacterView::loadRosterList() {
