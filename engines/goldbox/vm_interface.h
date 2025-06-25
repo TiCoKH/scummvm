@@ -41,9 +41,9 @@ public:
     }
 
    // Add getParty method
-    static Common::Array<Data::PlayerCharacter *> &getParty() {
-        return g_engine->getParty();
-    }
+   static Common::Array<Data::PlayerCharacter *> *getParty() {
+       return &g_engine->getParty();
+   }
 };
 
 } // namespace Goldbox

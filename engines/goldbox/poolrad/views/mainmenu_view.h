@@ -24,6 +24,7 @@
 
 #include "common/rect.h"
 #include "common/array.h"
+#include "goldbox/vm_interface.h"
 #include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/view.h"
 
@@ -40,13 +41,14 @@ struct Menuitem {
 class MainmenuView : public View {
 private:
     Goldbox::MenuItemList _menuItemList;
-    int _currentCharIndex = 0;
+    int _selectedCharIndex = 0;
     Common::Array<Common::String> charList;
+    Common::Array<Data::PlayerCharacter *> *_party;
 
     void drawPrompt();
 
 public:
-    MainmenuView();
+	MainmenuView();
     virtual ~MainmenuView() {}
 
     bool msgKeypress(const KeypressMessage &msg) override;
@@ -55,10 +57,9 @@ public:
     void draw() override;
     void timeout() override;
     void updateMenuState();
-    void showMenu();
-    void showParty();
+    void drawMenu();
+    void drawParty();
     void loadCharList();
-    void processCharList();
 };
 
 } // namespace Views
