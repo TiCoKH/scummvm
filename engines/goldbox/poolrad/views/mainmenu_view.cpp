@@ -31,7 +31,7 @@
 #define VIEW   4
 #define ADD    5
 #define REMOVE 6
-#define LOAD   7
+#define LOAD   7 
 #define SAVE   8
 #define BEGIN  9
 #define EXIT  10
@@ -39,9 +39,6 @@
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
-
-//const Common::Rect MainmenuView::_area_party(1, 1, 28, 11);
-//const Common::Rect MainmenuView::_area_menu(1, 12, 28, 22);
 
 MainmenuView::MainmenuView() : View("Mainmenu") {
     
@@ -55,23 +52,10 @@ MainmenuView::MainmenuView() : View("Mainmenu") {
         const Common::String description = VmInterface::getString(descriptionKey);
         menuOptions.push_back(description);
     }
-
-/*
-    menuOptions.push_back("Create New Character");
-    menuOptions.push_back("Drop Character");
-    menuOptions.push_back("Modify Character");
-    menuOptions.push_back("Train Character");
-    menuOptions.push_back("View Character");
-    menuOptions.push_back("Add Character to Party");
-    menuOptions.push_back("Remove Character from Party");
-    menuOptions.push_back("Load Saved Game");
-    menuOptions.push_back("Save Current Game");
-    menuOptions.push_back("BEGIN Adventuring");
-    menuOptions.push_back("Exit to DOS");
-*/
     _menuItemList.generateMenuItems(menuOptions, true);
     _menuItemList.activate(CREATE);
     _menuItemList.activate(EXIT);
+    _party = Goldbox::VmInterface::getParty();
     updateMenuState();
 }
 
@@ -79,8 +63,14 @@ void MainmenuView::draw() {
     Surface s = getSurface();
 
     drawWindow( 1, 1, 38, 22);
-
-    showMenu();
+	updateMenuState();
+    if (_party->size() > 0) {
+		if (_selectedCharIndex == 0) {
+			_selectedCharIndex = _party->size();
+		}
+        drawParty();
+    }
+    drawMenu();
     drawPrompt();
 }
 
@@ -136,9 +126,9 @@ bool MainmenuView::msgUnfocus(const UnfocusMessage &msg) {
 void MainmenuView::timeout() {
 }
 
-void MainmenuView::showMenu() {
+void MainmenuView::drawMenu() {
     Surface s = getSurface();
-    s.clearBox(1, 12, 28, 22, 0);
+	s.clearBox(1, 12, 28, 22, 0); // Clear the menu area
 
 	int line_off = 0;
 	for (int i = 0; i < 11; i++) {
@@ -150,9 +140,35 @@ void MainmenuView::showMenu() {
 	}
 }
 
+void MainmenuView::drawParty() {
+	Surface s = getSurface();
+	s.clearBox(1, 1, 28, 11, 0); // Clear the party area
+    int x_n = 1;  int x_ac = 33; int y = 2;
+    s.writeStringC("Name", 15, x_n, y);
+    s.writeStringC("AC  HP", 15, x_ac, y);
+    y += 2;
+    for (uint _partyIndex = 0; _partyIndex < _party->size(); _partyIndex++) {
+        Data::PlayerCharacter *pc = (*_party)[_partyIndex];
+        if (pc) {
+			if (_partyIndex == _selectedCharIndex - 1) {
+				s.writeStringC(pc->name, 15, x_n, y);
+			} else {
+				s.writeStringC(pc->name, 11, x_n, y);
+			}
+			if (pc->hitPoints.max > 0) {
+				s.writeStringC(Common::String::format("%d", pc->armorClass.current), 10, x_ac, y);
+				s.writeStringC(Common::String::format("%d", pc->hitPoints.max), 10, x_ac + 4, y);
+			} else {
+				s.writeStringC(Common::String::format("%d", pc->armorClass.current), 12, x_ac, y);
+				s.writeStringC(Common::String::format("%d", pc->hitPoints.max), 12, x_ac + 4, y);
+			}			
+            y ++;
+        }
+    }
+}
+
 void MainmenuView::updateMenuState() {
-    auto &party = Goldbox::VmInterface::getParty();
-    int partySize = party.size();
+    int partySize = _party->size();
 
     if (partySize > 0) {
         _menuItemList.activate(DROP);
