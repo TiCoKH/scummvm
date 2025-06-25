@@ -147,14 +147,14 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
         debug("Spells file not found or failed to load: %s", spcFilename.c_str());
     }
 
-    Goldbox::VmInterface::getParty().push_back(character);
+    Goldbox::VmInterface::getParty()->push_back(character);
 
     // Mark as loaded
     _rosterList->items[selectedIndex].text = "* " + characterName;
     _rosterMenu->redrawLine(selectedIndex);
 
     // Check party full
-    if (Goldbox::VmInterface::getParty().size() >= 6) {
+    if (Goldbox::VmInterface::getParty()->size() >= 6) {
         replaceView("Mainmenu");
     }
 }

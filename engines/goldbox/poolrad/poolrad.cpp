@@ -87,6 +87,31 @@ void PoolradEngine::setup() {
 
 	daxFile8x8d.close();
 
+	Goldbox::File walldefFile;
+	if (!walldefFile.open("walldef3.dax")) {
+		error("Failed to open WALLDEF3.DAX");
+	}
+
+	Goldbox::Data::DaxBlock *block = walldefFile.getBlockById(0);
+	auto walldef = dynamic_cast<Goldbox::Data::DaxBlockWalldef *>(block);
+	if (!walldef) {
+		error("Block 1 in WALLDEF1.DAX is not a DaxBlockWalldef");
+	}
+
+	// Example: Access the first chunk, first slice, closeForward region
+	if (walldef->chunkCount() > 0) {
+		const auto &chunk = walldef->chunk(0);
+		auto slice = chunk.slice(0);
+		auto closeForward = slice.region(Goldbox::Data::WalldefRegionId::CLOSE_FORWARD);
+		// Now you can iterate over closeForward to get the tile indices
+		for (uint8 tile : closeForward) {
+			// Use tile...
+		}
+	}
+
+	walldefFile.close();
+
+
 	if (!_strings.load("global_strings.yml")){
 		error("Failed to open global_strings.yml");
 	}
