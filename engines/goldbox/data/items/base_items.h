@@ -24,6 +24,7 @@
 
 #include "common/stream.h"
 #include "common/array.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Data {
@@ -31,6 +32,7 @@ namespace Items {
 
 /// Which slot the item occupies on a character
 enum class Slot : uint8 {
+    S_NONE       = 0xFF,
     S_MAIN_HAND  = 0,
     S_OFF_HAND   = 1,
     S_BODY_ARMOR = 2,
@@ -40,8 +42,10 @@ enum class Slot : uint8 {
     S_ROBE       = 6,
     S_CLOAK      = 7,
     S_BOOTS      = 8,
-    S_RING       = 9,
-    S_AMMO       = 10
+    S_RING1      = 9,
+    S_RING2      = 10,
+    S_AMMO       = 11,
+    SLOT_COUNT   = 12
 };
 
 /// Simple grouping of dice data 'dices d sides + bonus'
@@ -64,6 +68,22 @@ struct ItemProperty {
     uint8   range;          ///< 0x0C
     uint8   classMask;      ///< 0x0D
     uint8   missileType;    ///< 0x0E
+
+    ItemProperty()
+    : slot(Slot::S_NONE), hands(0), fireRate(0), protect(0), wpnType(0), melType(0),
+        range(0), classMask(0), missileType(0) {
+    dmgLarge = {0, 0, 0};
+    dmgSmallMed = {0, 0, 0};
+    }
+
+    void debugPrint(int index = -1) const {
+    if (index >= 0)
+        debug("ItemProperty[%d]:", index);
+    debug("  Slot: %d, Hands: %u, FireRate: %u, Protect: %u, WpnType: %u, MelType: %u, Range: %u, ClassMask: %u, MissileType: %u",
+        static_cast<int>(slot), hands, fireRate, protect, wpnType, melType, range, classMask, missileType);
+    debug("  DmgLarge: %u d%u %+d", dmgLarge.dices, dmgLarge.sides, dmgLarge.bonus);
+    debug("  DmgSmallMed: %u d%u %+d", dmgSmallMed.dices, dmgSmallMed.sides, dmgSmallMed.bonus);
+    }
 };
 
 /// Loads all 128 ItemProperty entries from the “ITEMS” file
@@ -75,6 +95,12 @@ public:
     /// All items in a contiguous array
     const Common::Array<ItemProperty> &all() const { return _items; }
     size_t count() const { return _items.size(); }
+
+        /// Debug print all items
+    void debugStorage() const {
+        for (size_t i = 0; i < _items.size(); ++i)
+            _items[i].debugPrint(i);
+    }
 
 private:
     Common::Array<ItemProperty> _items;

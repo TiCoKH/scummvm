@@ -23,6 +23,7 @@
 #include "common/tokenizer.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/views/mainmenu_view.h"
+#include "goldbox/poolrad/views/dialogs/party_list.h"
 
 #define CREATE 0
 #define DROP   1
@@ -56,62 +57,82 @@ MainmenuView::MainmenuView() : View("Mainmenu") {
     _menuItemList.activate(CREATE);
     _menuItemList.activate(EXIT);
     _party = Goldbox::VmInterface::getParty();
-    updateMenuState();
+    _partyList = new Views::Dialogs::PartyList();
+}
+
+MainmenuView::~MainmenuView() {
+    delete _partyList;
 }
 
 void MainmenuView::draw() {
     Surface s = getSurface();
 
     drawWindow( 1, 1, 38, 22);
-	updateMenuState();
-    if (_party->size() > 0) {
-		if (_selectedCharIndex == 0) {
-			_selectedCharIndex = _party->size();
-		}
-        drawParty();
+    updateMenuState();
+    if (_party->size() > 0 && _partyList) {
+        _partyList->setSelectedCharIndex(_party->size());
+        _partyList->draw();
     }
     drawMenu();
     drawPrompt();
 }
 
 bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
-    	
-    if (msg.keycode == Common::KEYCODE_c) {
-        replaceView("CreatCharacter");
+    switch (msg.keycode) {
+        case Common::KEYCODE_c:
+            replaceView("CreatCharacter");
+            break;
+        case Common::KEYCODE_d:
+            if (_menuItemList.isActive(DROP))
+                replaceView("Mainmenu");
+            break;
+        case Common::KEYCODE_m:
+            if (_menuItemList.isActive(MODIFY))
+                replaceView("Mainmenu");
+            break;
+        case Common::KEYCODE_t:
+            if (_menuItemList.isActive(TRAIN))
+                replaceView("Mainmenu");
+            break;
+        case Common::KEYCODE_v:
+            if (_menuItemList.isActive(VIEW))
+                replaceView("Mainmenu");
+            break;
+        case Common::KEYCODE_a:
+            if (_menuItemList.isActive(ADD))
+                replaceView("AddCharacter");
+            break;
+        case Common::KEYCODE_r:
+            if (_menuItemList.isActive(REMOVE))
+                replaceView("Mainmenu");
+            break;
+        case Common::KEYCODE_l:
+            if (_menuItemList.isActive(LOAD))
+                replaceView("Mainmenu");
+            break;
+        case Common::KEYCODE_s:
+            if (_menuItemList.isActive(SAVE))
+                replaceView("Mainmenu");
+            break;
+        case Common::KEYCODE_b:
+            if (_menuItemList.isActive(BEGIN))
+                replaceView("Mainmenu");
+            break;
+        case Common::KEYCODE_e:
+            replaceView("Mainmenu");
+            break;
+        case Common::KEYCODE_PAGEDOWN:
+            if (_party->size()>1) 
+                _partyList->nextChar();
+            break;
+        case Common::KEYCODE_PAGEUP:
+            if (_party->size()>1) 
+                _partyList->prevChar();
+            break;
+        default:
+            break;
     }
-    if ((msg.keycode == Common::KEYCODE_d) && _menuItemList.isActive(DROP)) {
-        replaceView("Mainmenu");
-    }
-    if ((msg.keycode == Common::KEYCODE_m) && _menuItemList.isActive(MODIFY)) {
-        replaceView("Mainmenu");
-    }
-    if ((msg.keycode == Common::KEYCODE_t) && _menuItemList.isActive(TRAIN)) {
-        replaceView("Mainmenu");
-    }
-    if ((msg.keycode == Common::KEYCODE_v) && _menuItemList.isActive(VIEW)) {
-        replaceView("Mainmenu");
-    }
-    if ((msg.keycode == Common::KEYCODE_a) && _menuItemList.isActive(ADD)) {
-        replaceView("AddCharacter");
-    }
-    if ((msg.keycode == Common::KEYCODE_r) && _menuItemList.isActive(REMOVE)) {
-        replaceView("Mainmenu");
-    }
-    if ((msg.keycode == Common::KEYCODE_l) && _menuItemList.isActive(LOAD)) {
-        replaceView("Mainmenu");
-    }
-    if ((msg.keycode == Common::KEYCODE_s) && _menuItemList.isActive(SAVE)) {
-        replaceView("Mainmenu");
-    }
-    if ((msg.keycode == Common::KEYCODE_b) && _menuItemList.isActive(BEGIN)) {
-        replaceView("Mainmenu");
-    }
-    if (msg.keycode == Common::KEYCODE_e) {
-        replaceView("Mainmenu");
-    }
-
     return true;
-
 }
 
 bool MainmenuView::msgFocus(const FocusMessage &msg) {
@@ -138,33 +159,6 @@ void MainmenuView::drawMenu() {
 			line_off++;
 		}
 	}
-}
-
-void MainmenuView::drawParty() {
-	Surface s = getSurface();
-	s.clearBox(1, 1, 28, 11, 0); // Clear the party area
-    int x_n = 1;  int x_ac = 33; int y = 2;
-    s.writeStringC("Name", 15, x_n, y);
-    s.writeStringC("AC  HP", 15, x_ac, y);
-    y += 2;
-    for (uint _partyIndex = 0; _partyIndex < _party->size(); _partyIndex++) {
-        Data::PlayerCharacter *pc = (*_party)[_partyIndex];
-        if (pc) {
-			if (_partyIndex == _selectedCharIndex - 1) {
-				s.writeStringC(pc->name, 15, x_n, y);
-			} else {
-				s.writeStringC(pc->name, 11, x_n, y);
-			}
-			if (pc->hitPoints.max > 0) {
-				s.writeStringC(Common::String::format("%d", pc->armorClass.current), 10, x_ac, y);
-				s.writeStringC(Common::String::format("%d", pc->hitPoints.max), 10, x_ac + 4, y);
-			} else {
-				s.writeStringC(Common::String::format("%d", pc->armorClass.current), 12, x_ac, y);
-				s.writeStringC(Common::String::format("%d", pc->hitPoints.max), 12, x_ac + 4, y);
-			}			
-            y ++;
-        }
-    }
 }
 
 void MainmenuView::updateMenuState() {

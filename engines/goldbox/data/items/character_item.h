@@ -32,22 +32,23 @@ namespace Items {
 
 /// One entry in a character's inventory (.ITM) file.
 struct CharacterItem {
-    Common::String name;       ///< Pascal‐string (1-byte length + up to 44 chars)
-    uint8        typeIndex;    ///< index into gItemProps.all()
-    uint8        nameCode1;    ///< raw name‐flag at 0x2E
-    uint8        nameCode2;    ///< raw name‐flag at 0x2F
-    uint8        nameCode3;    ///< raw name‐flag at 0x30
-    uint8        bonus;        ///< enchantment bonus at 0x31
-    uint8        saveBonus;    ///< saving‐throw bonus at 0x32
-    uint8        readied;      ///< equipped/readied flags at 0x33
-    uint8        hidden;       ///< hide‐name flags at 0x34
-    uint8        cursed;       ///< cursed flag at 0x35
-    uint16       weight;       ///< at 0x36–0x37 (LE)
-    uint8        stackSize;    ///< at 0x38
-    uint16       value;        ///< at 0x39–0x3A (LE)
-    uint8        effect1;      ///< at 0x3B
-    uint8        effect2;      ///< at 0x3C
-    uint8        effect3;      ///< at 0x3D
+    Common::String name;       ///< 0x00 Pascal‐string (1-byte length + up to 41 chars)
+    uint32       nextAddress;  ///< 0x2A-0x2D next item address segment (LE) (not needed)
+    uint8        typeIndex;    ///< 0x2E index into gItemProps.all()
+    uint8        nameCode1;    ///< 0x2F raw name‐flag1
+    uint8        nameCode2;    ///< 0x30 raw name‐flag2 
+    uint8        nameCode3;    ///< 0x31 raw name‐flag2 
+    uint8        bonus;        ///< 0x32 enchantment bonus
+    uint8        saveBonus;    ///< 0x33 saving‐throw bonus
+    uint8        readied;      ///< 0x34 equipped/readied flags
+    uint8        hidden;       ///< 0x35 hide‐name flags
+    uint8        cursed;       ///< 0x36 cursed flag
+    uint16       weight;       ///< 0x37–0x38 (LE)
+    uint8        stackSize;    ///< 0x39
+    uint16       value;        ///< 0x3A–0x3B (LE)
+    uint8        effect1;      ///< 0x3C
+    uint8        effect2;      ///< 0x3D
+    uint8        effect3;      ///< 0x3E
 
     /// Fetch the static base‐item data this refers to.
     const ItemProperty &prop() const;
@@ -72,6 +73,14 @@ struct CharacterItem {
     
     /// Get effect description (for special items)
     Common::String getEffectDescription() const;
+
+    /// Debug print for CharacterItem  
+    void debugPrint(int index = -1) const {  
+        if (index >= 0)  
+            debug("CharacterItem[%d]:", index);  
+        debug("  Name: %s, TypeIndex: %u, Bonus: %u, Readied: %u, Hidden: %u, Cursed: %u, Weight: %u, Stack: %u, Value: %u, Effects: %u,%u,%u",  
+            name.c_str(), typeIndex, bonus, readied, hidden, cursed, weight, stackSize, value, effect1, effect2, effect3);  
+    }
 };
 
 } // namespace Items

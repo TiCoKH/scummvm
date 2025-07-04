@@ -136,6 +136,7 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
         for (const auto &item : character->inventory.items()) {
             debug("Item: %s", item.name.c_str());
         }
+        character->resolveEquippedItems();
     } else {
         debug("Items file not found or failed to load: %s", itmFilename.c_str());
     }

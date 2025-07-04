@@ -39,6 +39,10 @@ public:
     /// Writes back in the same layout (optional).
     bool save(const Common::String &filename) const;
 
+    void clear() { _items.clear(); }
+
+    void debugPrint() const;
+
     /// Access loaded items.
     const Common::Array<CharacterItem> &all() const { return _items; }
     size_t                             count() const { return _items.size(); }

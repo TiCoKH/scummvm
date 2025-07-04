@@ -25,14 +25,29 @@
 #include "common/str.h"
 #include "common/array.h"
 #include "goldbox/core/file.h"
+
 #include "goldbox/data/adnd_character.h"
+#include "goldbox/data/items/base_items.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/spells/spellbook.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Data {
 
 
+class PoolradSpellBook : public Goldbox::Data::Spells::SpellBook {
+public:
+    // Optionally, add Poolrad-specific helpers here
+    void fromPoolradMem(const uint8 *memorized, const uint8 *known);
+    void toPoolradMem(uint8 *memorized, uint8 *known) const;
+};
+
+constexpr int EQUIPMENT_SLOT_COUNT = static_cast<int>(Goldbox::Data::Items::Slot::SLOT_COUNT);
+
+struct Equipment {
+    int slots[EQUIPMENT_SLOT_COUNT];
+};
 
 class PoolradCharacter : public Goldbox::Data::ADnDCharacter {
 public:
@@ -47,6 +62,16 @@ public:
     uint8 undeadResistance = 0;
 
     uint8 monsterType = 0;
+
+    PoolradSpellBook spellBook;
+    // Legacy fields for binary compatibility
+    struct {
+        uint8 memorizedSpells[21];
+        uint8 knownSpells[62];
+    } spells;
+
+    Equipment equipment;
+    uint32 equippedOffsets[EQUIPMENT_SLOT_COUNT];
 
     // Combat detail
     uint8 primaryAttacks = 0, secondaryAttacks = 0;
@@ -83,7 +108,7 @@ public:
     uint8 curPriDiceSides = 0, curSecDiceSides = 0;
     uint8 curPriBonus = 0, curSecBonus = 0;
 
-	PoolradCharacter();
+    PoolradCharacter();
 
     // === I/O and core methods ===
 
@@ -92,37 +117,40 @@ public:
 
     void initialize();
     bool meetsClassRequirements() const;
+    bool haveMemorizedSpell() const;
     void finalizeName();
 
     void rollAbilityScores() override;
     void applyRacialAdjustments() override;
     void calculateHitPoints() override;
 
-	    // Implementing pure virtual functions from PlayerCharacter
-	const char *getRaceName() const override {
-		// Provide implementation
-		return "RaceName";
-	}
+    void resolveEquippedItems();
 
-	const char *getClassName() const override {
-		// Provide implementation
-		return "ClassName";
-	}
+        // Implementing pure virtual functions from PlayerCharacter
+    const char *getRaceName() const override {
+        // Provide implementation
+        return "RaceName";
+    }
 
-	const char *getGenderName() const override {
-		// Provide implementation
-		return "GenderName";
-	}
+    const char *getClassName() const override {
+        // Provide implementation
+        return "ClassName";
+    }
 
-	const char *getAlignmentName() const override {
-		// Provide implementation
-		return "AlignmentName";
-	}
+    const char *getGenderName() const override {
+        // Provide implementation
+        return "GenderName";
+    }
 
-	const char *getStatusName() const override {
-		// Provide implementation
-		return "StatusName";
-	}
+    const char *getAlignmentName() const override {
+        // Provide implementation
+        return "AlignmentName";
+    }
+
+    const char *getStatusName() const override {
+        // Provide implementation
+        return "StatusName";
+    }
 
 private:
     // Helper methods
