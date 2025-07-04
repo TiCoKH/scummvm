@@ -63,10 +63,12 @@ protected:
 	}
 
 public:
-	Graphics::Font * _font;
-	Graphics::Font * _symbols;
+	Graphics::Font * _font = nullptr;
+	Graphics::Font * _symbols = nullptr;
 	Data::StringsData _strings;
 	Common::Array<Data::PlayerCharacter *> _party;
+	Data::PlayerCharacter *_selectedCharacter = nullptr;
+	Data::PlayerCharacter *_nextCharacter = nullptr;
 	static Goldbox::Data::Items::Storage gItemProps;
 
 

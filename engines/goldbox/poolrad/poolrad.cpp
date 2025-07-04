@@ -94,9 +94,6 @@ void PoolradEngine::setup() {
 
 	Goldbox::Data::DaxBlock *block = walldefFile.getBlockById(0);
 	auto walldef = dynamic_cast<Goldbox::Data::DaxBlockWalldef *>(block);
-	if (!walldef) {
-		error("Block 1 in WALLDEF1.DAX is not a DaxBlockWalldef");
-	}
 
 	// Example: Access the first chunk, first slice, closeForward region
 	if (walldef->chunkCount() > 0) {

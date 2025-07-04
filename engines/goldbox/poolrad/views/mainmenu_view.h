@@ -27,6 +27,7 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/view.h"
+#include "goldbox/poolrad/views/dialogs/party_list.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -44,12 +45,12 @@ private:
     int _selectedCharIndex = 0;
     Common::Array<Common::String> charList;
     Common::Array<Data::PlayerCharacter *> *_party;
-
+    Dialogs::PartyList *_partyList = nullptr;
     void drawPrompt();
 
 public:
-	MainmenuView();
-    virtual ~MainmenuView() {}
+    MainmenuView();
+    virtual ~MainmenuView();
 
     bool msgKeypress(const KeypressMessage &msg) override;
     bool msgFocus(const FocusMessage &msg) override;
@@ -58,7 +59,6 @@ public:
     void timeout() override;
     void updateMenuState();
     void drawMenu();
-    void drawParty();
     void loadCharList();
 };
 

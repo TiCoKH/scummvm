@@ -23,6 +23,7 @@ MODULE_OBJS = \
 	data/items/base_items.o \
 	data/items/character_item.o \
 	data/items/character_inventory.o \
+	data/spells/spellbook.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/pic.o \
@@ -36,10 +37,13 @@ MODULE_OBJS = \
 	poolrad/views/codewheel_view.o \
 	poolrad/views/mainmenu_view.o \
 	poolrad/views/add_character_view.o \
+	poolrad/views/view_character_view.o \
 	poolrad/views/dialogs/dialog.o \
 	poolrad/views/dialogs/horizontal_input.o \
 	poolrad/views/dialogs/horizontal_menu.o \
-	poolrad/views/dialogs/vertical_menu.o 
+	poolrad/views/dialogs/party_list.o \
+	poolrad/views/dialogs/vertical_menu.o \
+	poolrad/views/dialogs/character_profile.o
 
 
 

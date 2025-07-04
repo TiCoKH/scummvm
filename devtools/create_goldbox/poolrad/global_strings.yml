@@ -374,3 +374,224 @@ itemnamecomponents:
 	248: "+3 vs Undead"
 	249: "Pass"
 	250: "Cursed"
+spells:
+  0:
+    name: "Bless"
+    class: "cleric"
+    level: "1"
+  1:
+    name: "Curse"
+    class: "cleric"
+    level: "1"
+  2:
+    name: "Cure Light Wounds"
+    class: "cleric"
+    level: "1"
+  3:
+    name: "Cause Light Wounds"
+    class: "cleric"
+    level: "1"
+  4:
+    name: "Detect Magic"
+    class: "cleric"
+    level: "1"
+  5:
+    name: "Protection from Evil"
+    class: "cleric"
+    level: "1"
+  6:
+    name: "Protection from Good"
+    class: "cleric"
+    level: "1"
+  7:
+    name: "Resist Cold"
+    class: "cleric"
+    level: "1"
+  8:
+    name: "Burning Hands"
+    class: "mage"
+    level: "1"
+  9:
+    name: "Charm Person"
+    class: "mage"
+    level: "1"
+  10:
+    name: "Detect Magic"
+    class: "mage"
+    level: "1"
+  11:
+    name: "Enlarge"
+    class: "mage"
+    level: "1"
+  12:
+    name: "Reduce"
+    class: "mage"
+    level: "1"
+  13:
+    name: "Friends"
+    class: "mage"
+    level: "1"
+  14:
+    name: "Magic Missile"
+    class: "mage"
+    level: "1"
+  15:
+    name: "Protection from Evil"
+    class: "mage"
+    level: "1"
+  16:
+    name: "Protection from Good"
+    class: "mage"
+    level: "1"
+  17:
+    name: "Read Magic"
+    class: "mage"
+    level: "1"
+  18:
+    name: "Shield"
+    class: "mage"
+    level: "1"
+  19:
+    name: "Shocking Grasp"
+    class: "mage"
+    level: "1"
+  20:
+    name: "Sleep"
+    class: "mage"
+    level: "1"
+  21:
+    name: "Find Traps"
+    class: "cleric"
+    level: "2"
+  22:
+    name: "Hold Person"
+    class: "cleric"
+    level: "2"
+  23:
+    name: "Resist Fire"
+    class: "cleric"
+    level: "2"
+  24:
+    name: "Silence, 15' Radius"
+    class: "cleric"
+    level: "2"
+  25:
+    name: "Slow Poison"
+    class: "cleric"
+    level: "2"
+  26:
+    name: "Snake Charm"
+    class: "cleric"
+    level: "2"
+  27:
+    name: "Spiritual Hammer"
+    class: "cleric"
+    level: "2"
+  28:
+    name: "Detect Invisibility"
+    class: "mage"
+    level: "2"
+  29:
+    name: "Invisibility"
+    class: "mage"
+    level: "2"
+  30:
+    name: "Knock"
+    class: "mage"
+    level: "2"
+  31:
+    name: "Mirror Image"
+    class: "mage"
+    level: "2"
+  32:
+    name: "Ray of Enfeeblement"
+    class: "mage"
+    level: "2"
+  33:
+    name: "Stinking Cloud"
+    class: "mage"
+    level: "2"
+  34:
+    name: "Strength"
+    class: "mage"
+    level: "2"
+  35:
+    name: "Animate Dead"
+    class: "cleric"
+    level: "3"
+  36:
+    name: "Cure Blindness"
+    class: "cleric"
+    level: "3"
+  37:
+    name: "Cause Blindness"
+    class: "cleric"
+    level: "3"
+  38:
+    name: "Cure Disease"
+    class: "cleric"
+    level: "3"
+  39:
+    name: "Cause Disease"
+    class: "cleric"
+    level: "3"
+  40:
+    name: "Dispel Magic"
+    class: "cleric"
+    level: "3"
+  41:
+    name: "Prayer"
+    class: "cleric"
+    level: "3"
+  42:
+    name: "Remove Curse"
+    class: "cleric"
+    level: "3"
+  43:
+    name: "Bestow Curse"
+    class: "cleric"
+    level: "3"
+  44:
+    name: "Blink"
+    class: "mage"
+    level: "3"
+  45:
+    name: "Dispel Magic"
+    class: "mage"
+    level: "3"
+  46:
+    name: "Fireball"
+    class: "mage"
+    level: "3"
+  47:
+    name: "Haste"
+    class: "mage"
+    level: "3"
+  48:
+    name: "Hold Person"
+    class: "mage"
+    level: "3"
+  49:
+    name: "Invisibility, 10' Radius"
+    class: "mage"
+    level: "3"
+  50:
+    name: "Lightning Bolt"
+    class: "mage"
+    level: "3"
+  51:
+    name: "Protection from Evil, 10' Radius"
+    class: "mage"
+    level: "3"
+  52:
+    name: "Protection from Good, 10' Radius"
+    class: "mage"
+    level: "3"
+  53:
+    name: "Protection from Normal Missiles"
+    class: "mage"
+    level: "3"
+  54:
+    name: "Slow"
+    class: "mage"
+    level: "3"
