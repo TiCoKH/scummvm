@@ -84,19 +84,20 @@ namespace Data {
     struct WalldefRegion {
         int offset;
         int size;
+        uint8 x_dim, y_dim;
     };
 
     static const WalldefRegion kWalldefRegions[] = {
-        { 0,   2 },   // FAR_FORWARD
-        { 2,   4 },   // FAR_LEFT
-        { 6,   4 },   // FAR_RIGHT
-        { 10, 12 },   // MED_FORWARD
-        { 22, 16 },   // MED_LEFT
-        { 38, 16 },   // MED_RIGHT
-        { 54, 56 },   // CLOSE_FORWARD
-        { 110, 22 },  // CLOSE_LEFT
-        { 132, 22 },  // CLOSE_RIGHT
-        { 154, 2 }    // FAR_FILLER
+        { 0,   2, 1, 2 },   // FAR_FORWARD
+        { 2,   4, 1, 4 },   // FAR_LEFT
+        { 6,   4, 1, 4 },   // FAR_RIGHT
+        { 10, 12, 3, 4 },   // MED_FORWARD
+        { 22, 16, 2, 8 },   // MED_LEFT
+        { 38, 16, 2, 8 },   // MED_RIGHT
+        { 54, 56, 7, 8 },   // CLOSE_FORWARD
+        { 110, 22, 2, 11 },  // CLOSE_LEFT
+        { 132, 22, 2, 11 },  // CLOSE_RIGHT
+        { 154, 2, 1, 2 }    // FAR_FILLER
     };
 
 

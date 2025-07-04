@@ -21,12 +21,34 @@
 
 #include "common/stream.h"
 #include "goldbox/vm_interface.h"
-#include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/data/pascal_string_buffer.h"
+#include "goldbox/data/spells/spellbook.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Data {
+
+    // PoolradSpellBook implementation
+    void PoolradSpellBook::fromPoolradMem(const uint8 *memorized, const uint8 *known) {
+        clear();
+        for (uint8 i = 0; i < 21; ++i)
+            setSpell(i, known[i] != 0, memorized[i]);
+        for (uint8 i = 21; i < 62; ++i)
+            setSpell(i, known[i] != 0, 0);
+    }
+
+    void PoolradSpellBook::toPoolradMem(uint8 *memorized, uint8 *known) const {
+        for (uint8 i = 0; i < 21; ++i) {
+            const Goldbox::Data::Spells::SpellEntry *e = getSpell(i);
+            memorized[i] = e ? e->memorized : 0;
+            known[i] = e ? (e->known ? 1 : 0) : 0;
+        }
+        for (uint8 i = 21; i < 62; ++i) {
+            const Goldbox::Data::Spells::SpellEntry *e = getSpell(i);
+            known[i] = e ? (e->known ? 1 : 0) : 0;
+        }
+    }
 
     void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
@@ -160,19 +182,8 @@ namespace Data {
         itemsAddress = stream.readUint32LE();    // 0x0C8–0x0CB — pointer
 
         // 0x0CC–0x0FF: equipped items (all pointers)
-        equipment.equippedWeapon    = stream.readUint32LE();
-        equipment.equippedShield    = stream.readUint32LE();
-        equipment.equippedArmor     = stream.readUint32LE();
-        equipment.equippedGauntlets = stream.readUint32LE();
-        equipment.equippedHelm      = stream.readUint32LE();
-        equipment.equippedBelt      = stream.readUint32LE();
-        equipment.equippedRobe      = stream.readUint32LE();
-        equipment.equippedCloak     = stream.readUint32LE();
-        equipment.equippedBoots     = stream.readUint32LE();
-        equipment.equippedRing1     = stream.readUint32LE();
-        equipment.equippedRing2     = stream.readUint32LE();
-        equipment.equippedArrow     = stream.readUint32LE();
-        equipment.equippedBolt      = stream.readUint32LE();
+        for (int i = 0; i < EQUIPMENT_SLOT_COUNT; ++i)
+            equippedOffsets[i] = stream.readUint32LE();
 
         handsUsed   = stream.readByte();       // 0x100
         saveBonus   = stream.readByte();       // 0x101
@@ -202,6 +213,7 @@ namespace Data {
 
         hitPoints.current = stream.readByte(); // 0x11B
         movement.current  = stream.readByte(); // 0x11C
+        spellBook.fromPoolradMem(spells.memorizedSpells, spells.knownSpells);
     }
 
     PoolradCharacter::PoolradCharacter() {
@@ -248,6 +260,27 @@ namespace Data {
 		curSecDiceSides = 0;
 		curPriBonus = 0;
 		curSecBonus = 0;
+    }
+
+    // Returns true if the character has any memorized spell
+    bool PoolradCharacter::haveMemorizedSpell() const {
+        for (const auto &entry : spellBook.spells) {
+            if (entry._value.memorized > 0)
+                return true;
+        }
+        return false;
+    }
+
+    void PoolradCharacter::resolveEquippedItems() {
+        for (int slot = 0; slot < EQUIPMENT_SLOT_COUNT; ++slot) {
+            equipment.slots[slot] = -1;
+            for (size_t i = 0; i < inventory.items().size(); ++i) {
+                if (inventory.items()[i].nextAddress == equippedOffsets[slot]) {
+                    equipment.slots[slot] = static_cast<int>(i);
+                    break;
+                }
+            }
+        }
     }
 
     void PoolradCharacter::rollAbilityScores() {
@@ -348,6 +381,7 @@ namespace Data {
 
     void PoolradCharacter::save(Common::WriteStream &stream) {
 
+        spellBook.toPoolradMem(spells.memorizedSpells, spells.knownSpells);
         Goldbox::Data::PascalStringBuffer<15>::write(stream, name);
         // Ability scores
         stream.writeByte(abilities.strength.current);
@@ -371,7 +405,8 @@ namespace Data {
         stream.writeUint16LE(age);
 
         stream.writeByte(hitPoints.max);
-         //TODO write spell knowledge
+
+        stream.write(spells.knownSpells, 62);
 
         stream.writeByte(attackLevel);
         stream.writeByte(iconDimension);

@@ -27,6 +27,7 @@
 #include "goldbox/poolrad/views/codewheel_view.h"
 #include "goldbox/poolrad/views/mainmenu_view.h"
 #include "goldbox/poolrad/views/add_character_view.h"
+#include "goldbox/poolrad/views/view_character_view.h"
 
 namespace Goldbox {
 namespace Poolrad{
@@ -38,6 +39,7 @@ struct Views {
 	CodewheelView _codewheel;
 	MainmenuView _mainmenu;
 	AddCharacterView _addcharacter;
+	ViewCharacterView _viewcharacter;
 };
 
 } // namespace Views
