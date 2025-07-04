@@ -50,7 +50,7 @@ public:
 private:
     uint _xName, _xAC, _yStart;
     uint _selectedCharIndex;
-    Common::Array<Data::PlayerCharacter *> *_party;
+    Common::Array<Goldbox::Data::PlayerCharacter *> *_party;
 
 };
 

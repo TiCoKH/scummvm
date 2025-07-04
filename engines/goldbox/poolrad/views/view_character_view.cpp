@@ -18,13 +18,13 @@ namespace Views {
 Goldbox::Poolrad::Data::PoolradCharacter *g_selectedCharacter = nullptr;
 
 ViewCharacterView::ViewCharacterView()
-    : ViewCharacterView(g_selectedCharacter) {}
+    : ViewCharacterView(static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(Goldbox::VmInterface::getSelectedCharacter())) {}
 
 ViewCharacterView::ViewCharacterView(Goldbox::Poolrad::Data::PoolradCharacter *character)
     : View("ViewCharacter"), _character(character), _horizontalMenu(nullptr), _profileDialog(nullptr) {
-    buildMenu();
+
     Dialogs::HorizontalMenuConfig menuConfig = {
-        "", // promptTxt
+        "View:", // promptTxt
         &_menuList,
         10, // textColor
         15, // selectColor
@@ -50,19 +50,26 @@ ViewCharacterView::~ViewCharacterView() {
 
 void ViewCharacterView::buildMenu() {
     _menuList.items.clear();
-    _menuList.push_back("Trade");
-    _menuList.push_back("Drop");
     // Add Items if character has any
-    if (_character && !_character->getInventory().all().empty())
+    if (_character && _character->getInventory().count() != 0)
         _menuList.push_back("Items");
     // Add Spells if character has any
     if (_character && _character->haveMemorizedSpell())
         _menuList.push_back("Spells");
+    _menuList.push_back("Trade");
+    _menuList.push_back("Drop");
     _menuList.push_back("Exit");
 }
 
 void ViewCharacterView::draw() {
-    if (_profileDialog) _profileDialog->draw();
+    buildMenu();
+    // Always use the current selected character from the engine
+    _character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(Goldbox::VmInterface::getSelectedCharacter());
+    if (_profileDialog) {
+        // Directly update the internal pointer before drawing
+        _profileDialog->_poolradPc = _character;
+        _profileDialog->draw();
+    }
     if (_horizontalMenu) _horizontalMenu->draw();
 }
 
