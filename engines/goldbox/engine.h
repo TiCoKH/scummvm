@@ -67,9 +67,19 @@ public:
 	Graphics::Font * _symbols = nullptr;
 	Data::StringsData _strings;
 	Common::Array<Data::PlayerCharacter *> _party;
-	Data::PlayerCharacter *_selectedCharacter = nullptr;
-	Data::PlayerCharacter *_nextCharacter = nullptr;
+	Data::PlayerCharacter * _selectedCharacter = nullptr;
+	Data::PlayerCharacter * _nextCharacter = nullptr;
 	static Goldbox::Data::Items::Storage gItemProps;
+
+	/**
+	 * Returns the currently selected character.
+	 */
+	Data::PlayerCharacter *getSelectedCharacter() const { return _selectedCharacter; }
+
+	/**
+	 * Sets the currently selected character.
+	 */
+	void setSelectedCharacter(Data::PlayerCharacter *character) { _selectedCharacter = character; }
 
 
 	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);
@@ -82,10 +92,10 @@ public:
 	 */
 	Common::String getGameId() const;
 
-    /**
-     * Returns the platform
-     */
-    Common::Platform getPlatform() const;
+	/**
+	 * Returns the platform
+	 */
+	Common::Platform getPlatform() const;
 
 	/**
 	 * Gets a random number
@@ -106,17 +116,17 @@ public:
 	}
 
 	/**
-     * Retrieves a string from StringsData with a default value if the key is not found.
-     * @param key The key of the string to retrieve.
-     * @return The string associated with the key, or the default value if not found.
-     */
-    Common::String getString(const Common::String &key) const;
+	 * Retrieves a string from StringsData with a default value if the key is not found.
+	 * @param key The key of the string to retrieve.
+	 * @return The string associated with the key, or the default value if not found.
+	 */
+	Common::String getString(const Common::String &key) const;
 
 	bool hasFeature(EngineFeature f) const override {
 		return
-		    (f == kSupportsLoadingDuringRuntime) ||
-		    (f == kSupportsSavingDuringRuntime) ||
-		    (f == kSupportsReturnToLauncher);
+			(f == kSupportsLoadingDuringRuntime) ||
+			(f == kSupportsSavingDuringRuntime) ||
+			(f == kSupportsReturnToLauncher);
 	};
 
 	bool canLoadGameStateCurrently(Common::U32String *msg = nullptr) override {

@@ -63,9 +63,8 @@ namespace Data {
 
         // 0x017–0x02B: memorized spells
         stream.read(spells.memorizedSpells, 21);
-
-        stream.readByte(); // 0x02C: unknown
-
+		// 0x02C: unknown
+		stream.seek(0x2D, SEEK_SET);
         combat.thac0Base = stream.readByte(); // 0x02D
 
         race       = stream.readByte(); // 0x02E
@@ -101,32 +100,21 @@ namespace Data {
         thiefSkills.climbWalls       = stream.readByte(); // 0x07D
         thiefSkills.readLanguages    = stream.readByte(); // 0x07E
 
-        stream.skip(4); // 0x07F–0x082: effects address (pointer)
-
-        stream.readByte(); // 0x083: unknown
-        npc = stream.readByte();      // 0x084
+		// 0x07F–0x082: effects address (pointer)
+		stream.seek(0x84, SEEK_SET);
+        npc = stream.readSByte();      // 0x084
         modified = stream.readByte(); // 0x085
-        stream.skip(2);               // 0x086–0x087: unknown
-
+		// 0x086–0x087: unknown
+		stream.seek(0x88, SEEK_SET);
         // 0x088–0x095: coin and item valuables
-        valuableItems.coinsCopper   = stream.readUint16LE(); // 0x088
-        valuableItems.coinsSilver   = stream.readUint16LE(); // 0x08A
-        valuableItems.coinsElectrum = stream.readUint16LE(); // 0x08C
-        valuableItems.coinsGold     = stream.readUint16LE(); // 0x08E
-        valuableItems.coinsPlatinum = stream.readUint16LE(); // 0x090
-        valuableItems.gems          = stream.readUint16LE(); // 0x092
-        valuableItems.jewelry       = stream.readUint16LE(); // 0x094
+        for (int i = 0; i < Goldbox::Data::VALUABLE_COUNT; ++i)
+            valuableItems.values[i] = stream.readUint16LE();
 
         // 0x096–0x09D: class levels
-        levels.cleric  = stream.readByte(); // 0x096
-        levels.druid   = stream.readByte(); // 0x097
-        levels.fighter = stream.readByte(); // 0x098
-        levels.paladin = stream.readByte(); // 0x099
-        levels.ranger  = stream.readByte(); // 0x09A
-        levels.mage    = stream.readByte(); // 0x09B
-        levels.thief   = stream.readByte(); // 0x09C
-        levels.monk    = stream.readByte(); // 0x09D
+        for (int i = 0; i < 8; ++i)
+            levels.levels[i] = stream.readByte();
 
+        // 0x09E–0x0A0: gender, type, alignment
         gender    = (Goldbox::Data::Gender)stream.readByte(); // 0x09E
         monsterType = stream.readByte();                     // 0x09F
         alignment = stream.readByte();                       // 0x0A0
@@ -351,21 +339,21 @@ namespace Data {
         int hp = 0;
 
         // Each class contributes hit dice based on its level
-        if (levels.fighter > 0) {
-            hp += levels.fighter * 10;
-            totalLevels += levels.fighter;
+        if (levels.levels[2] > 0) {
+            hp += levels.levels[2] * 10;
+            totalLevels += levels.levels[2];
         }
-        if (levels.cleric > 0) {
-            hp += levels.cleric * 8;
-            totalLevels += levels.cleric;
+        if (levels.levels[0] > 0) {
+            hp += levels.levels[0] * 8;
+            totalLevels += levels.levels[0];
         }
-        if (levels.mage > 0) {
-            hp += levels.mage * 4;
-            totalLevels += levels.mage;
+        if (levels.levels[5] > 0) {
+            hp += levels.levels[5] * 4;
+            totalLevels += levels.levels[5];
         }
-        if (levels.thief > 0) {
-            hp += levels.thief * 6;
-            totalLevels += levels.thief;
+        if (levels.levels[6] > 0) {
+            hp += levels.levels[6] * 6;
+            totalLevels += levels.levels[6];
         }
 
         int average = (totalLevels > 0) ? (hp / totalLevels) : 4;
@@ -443,23 +431,12 @@ namespace Data {
         for (int i = 0; i < 2; ++i) stream.writeByte(0);
 
         // Coins and valuables
-        stream.writeUint16LE(valuableItems.coinsCopper);
-        stream.writeUint16LE(valuableItems.coinsSilver);
-        stream.writeUint16LE(valuableItems.coinsElectrum);
-        stream.writeUint16LE(valuableItems.coinsGold);
-        stream.writeUint16LE(valuableItems.coinsPlatinum);
-        stream.writeUint16LE(valuableItems.gems);
-        stream.writeUint16LE(valuableItems.jewelry);
+        for (int i = 0; i < Goldbox::Data::VALUABLE_COUNT; ++i)
+            stream.writeUint16LE(valuableItems.values[i]);
 
         // Class levels
-        stream.writeByte(levels.cleric);
-        stream.writeByte(levels.druid);
-        stream.writeByte(levels.fighter);
-        stream.writeByte(levels.paladin);
-        stream.writeByte(levels.ranger);
-        stream.writeByte(levels.mage);
-        stream.writeByte(levels.thief);
-        stream.writeByte(levels.monk);
+        for (int i = 0; i < 8; ++i)
+            stream.writeByte(levels.levels[i]);
 
         // Gender, Monster type, Alignment
         stream.writeByte(gender);

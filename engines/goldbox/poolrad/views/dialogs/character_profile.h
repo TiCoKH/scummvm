@@ -26,7 +26,7 @@ public:
 
     void draw() override;
 
-private:
+public:
     Goldbox::Poolrad::Data::PoolradCharacter *_poolradPc;
 
     void drawIdentity();
@@ -36,11 +36,7 @@ private:
     void drawCombat();
     void drawItems();
     void drawStatus();
-
-    void drawStat(const char *label, int value, int x, int y);
-    void drawStatInfo(const char *label, int value, int x, int y);
-    void drawStatSummary(int x, int y);
-    void drawBattleStatus(int x, int y);
+    void drawPortrait();
 };
 
 } // namespace Dialogs

@@ -40,10 +40,20 @@ public:
         return g_engine->_strings.getVal(key);
     }
 
-   // Add getParty method
-   static Common::Array<Data::PlayerCharacter *> *getParty() {
-       return &g_engine->getParty();
-   }
+    // Add getParty method
+    static Common::Array<Data::PlayerCharacter *> *getParty() {
+        return &g_engine->getParty();
+    }
+
+    // Add getSelectedCharacter accessor
+    static Data::PlayerCharacter *getSelectedCharacter() {
+        return g_engine->getSelectedCharacter();
+    }
+
+    // Add setSelectedCharacter accessor
+    static void setSelectedCharacter(Data::PlayerCharacter *character) {
+        g_engine->setSelectedCharacter(character);
+    }
 };
 
 } // namespace Goldbox
