@@ -62,6 +62,16 @@ enum ClassADnD {
     C_MONSTER             = 0x11
 };
 
+// Grouping for level data; one field per class type supported.
+struct LevelData {
+    Common::Array<uint8> levels;
+
+    LevelData() : levels(C_MONK + 1) {}
+
+    uint8 &operator[](ClassADnD type) { return levels[type]; }
+    const uint8 &operator[](ClassADnD type) const { return levels[type]; }
+};
+
 enum AlignmentADnD {
     A_LAWFUL_GOOD       = 0,
     A_LAWFUL_NEUTRAL    = 1,
@@ -72,6 +82,26 @@ enum AlignmentADnD {
     A_CHAOTIC_GOOD      = 6,
     A_CHAOTIC_NEUTRAL   = 7,
     A_CHAOTIC_EVIL      = 8
+};
+
+enum ValuableType {
+    VAL_COPPER     = 0,
+    VAL_SILVER     = 1,
+    VAL_ELECTRUM   = 2,
+    VAL_GOLD       = 3,
+    VAL_PLATINUM   = 4,
+    VAL_GEMS       = 5,
+    VAL_JEWELRY    = 6,
+    VALUABLE_COUNT = 7
+};
+
+struct ValuableItems {
+    Common::Array<uint16> values;
+
+    ValuableItems() : values(VALUABLE_COUNT) {}
+
+    uint16 &operator[](ValuableType type) { return values[type]; }
+    const uint16 &operator[](ValuableType type) const { return values[type]; }
 };
 
 enum StatusADnD {
@@ -112,18 +142,6 @@ struct ThiefSkills {
     uint8 readLanguages;
 };
 
-// Grouping for level data; one field per class type supported.
-struct LevelData {
-    uint8 cleric;
-    uint8 druid;
-    uint8 fighter;
-    uint8 paladin;
-    uint8 ranger;
-    uint8 mage;
-    uint8 thief;
-    uint8 monk;
-};
-
 // Grouping for combat–related numbers; here we include THAC0 and attack level.
 struct CombatData {
     uint8 thac0Base;   // THAC0 base value (attack metric)
@@ -155,16 +173,6 @@ struct EquipmentAddresses {
     uint32 equippedBolt;
 };
 
-struct ValuableItems {
-    uint16 coinsCopper;
-    uint16 coinsSilver;
-    uint16 coinsElectrum;
-    uint16 coinsGold;
-    uint16 coinsPlatinum;
-    uint16 gems;
-    uint16 jewelry;
-};
-
 // The base class for player characters.
 // This class defines the core (common) data and behavior shared among AD&D–based games.
 class ADnDCharacter : public PlayerCharacter {
@@ -180,7 +188,7 @@ public:
     uint8 drainedHPs;
     uint8 levelUndead;
     ThiefSkills thiefSkills;       // Thief skills
-    uint8 npc;
+    int8 npc;
     uint8 modified;
 
     ValuableItems valuableItems;

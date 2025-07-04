@@ -44,7 +44,7 @@ private:
     Goldbox::MenuItemList _menuItemList;
     int _selectedCharIndex = 0;
     Common::Array<Common::String> charList;
-    Common::Array<Data::PlayerCharacter *> *_party;
+    Common::Array<Goldbox::Data::PlayerCharacter *> *_party;
     Dialogs::PartyList *_partyList = nullptr;
     void drawPrompt();
 

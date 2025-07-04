@@ -80,22 +80,21 @@ void AddCharacterView::timeout() {
 
 
 void AddCharacterView::handleMenuResult(bool success, Common::KeyCode key, short value) {
-    if (!success) return;
 
-    switch (key) {
-        case Common::KEYCODE_RETURN:
-        case Common::KEYCODE_a:
-            loadCharacter(value);
-            break;
+	switch (key) {
+	case Common::KEYCODE_RETURN:
+	case Common::KEYCODE_a:
+		loadCharacter(value);
+		break;
 
-        case Common::KEYCODE_ESCAPE:
-        case Common::KEYCODE_e:
-            replaceView("Mainmenu");
-            break;
+	case Common::KEYCODE_ESCAPE:
+	case Common::KEYCODE_e:
+		replaceView("Mainmenu");
+		break;
 
-        default:
-            break;
-    }
+	default:
+		break;
+	}
 }
 
 Common::String AddCharacterView::formatFilename(const Common::String &name) {
