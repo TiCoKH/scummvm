@@ -194,7 +194,13 @@ public:
     uint8 saveBonus;
     uint16 encumbrance;
 
+
     Goldbox::Data::Items::CharacterInventory inventory;
+
+    // Inventory accessors (generic for all AD&D-based characters)
+    Goldbox::Data::Items::CharacterInventory &getInventory() { return inventory; }
+    const Goldbox::Data::Items::CharacterInventory &getInventory() const { return inventory; }
+    void clearInventory() { inventory.clear(); }
 
 
     // Virtual destructor to ensure proper cleanup in derived classes.

@@ -26,7 +26,9 @@ namespace Data {
 namespace Items {
 
 const ItemProperty &CharacterItem::prop() const {
-    return Engine::gItemProps.all()[typeIndex];
+    const auto &all = Engine::gItemProps.all();
+    assert(typeIndex < all.size());
+    return all[typeIndex];
 }
 
 Common::String CharacterItem::getNameComponent(int componentIndex) const {
@@ -81,8 +83,10 @@ Common::String CharacterItem::getDisplayName() const {
     return result;
 }
 
+constexpr uint8 SCROLL_TYPE_INDEX = 63;
+
 bool CharacterItem::isScroll() const {
-    return typeIndex == 63;  // Index for scroll from your YAML
+    return typeIndex == SCROLL_TYPE_INDEX;
 }
 
 int CharacterItem::getCharges() const {

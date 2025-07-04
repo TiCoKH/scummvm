@@ -32,11 +32,11 @@ namespace Items {
 using Goldbox::Data::PascalStringBuffer;
 
 bool CharacterInventory::load(const Common::String &filename) {
-    _items.clear();
+    clear();
 
     Common::File file;
     if (!file.open(filename.c_str()))
-        return true;  // no .ITM → empty inventory
+        return false;  // no .ITM → empty inventory
 
     auto &s = file;  // File implements SeekableReadStream
 
@@ -46,28 +46,28 @@ bool CharacterInventory::load(const Common::String &filename) {
     while (s.pos() + recSize <= total) {
         CharacterItem it;
 
-        it.name = PascalStringBuffer<44>::read(s);
-        // --- dynamic fields at offsets 0x2E–0x3D ---
-        it.typeIndex = s.readByte();
-        it.nameCode1 = s.readByte();
-        it.nameCode2 = s.readByte();
-        it.nameCode3 = s.readByte();
-        it.bonus     = s.readByte();
-        it.saveBonus = s.readByte();
-        it.readied   = s.readByte();
-        it.hidden    = s.readByte();
-        it.cursed    = s.readByte();
+        it.name = PascalStringBuffer<42>::read(s);
+        // --- dynamic fields at offsets 0x2A–0x3E ---
+        it.nextAddress = s.readUint32LE();
+        it.typeIndex   = s.readByte();
+        it.nameCode1   = s.readByte();
+        it.nameCode2   = s.readByte();
+        it.nameCode3   = s.readByte();
+        it.bonus       = s.readByte();
+        it.saveBonus   = s.readByte();
+        it.readied     = s.readByte();
+        it.hidden      = s.readByte();
+        it.cursed      = s.readByte();
 
-        it.weight    = s.readUint16LE();
-        it.stackSize = s.readByte();
-        it.value     = s.readUint16LE();
+        it.weight      = s.readUint16LE();
+        it.stackSize   = s.readByte();
+        it.value       = s.readUint16LE();
 
-        it.effect1   = s.readByte();
-        it.effect2   = s.readByte();
-        it.effect3   = s.readByte();
+        it.effect1     = s.readByte();
+        it.effect2     = s.readByte();
+        it.effect3     = s.readByte();
 
-        // skip the in-memory “next” pointer (4 bytes)
-        s.skip(4);
+        s.skip(1);
 
         _items.push_back(it);
     }
@@ -112,6 +112,11 @@ bool CharacterInventory::save(const Common::String &filename) const {
     file.flush();
     file.close();
     return true;
+}
+
+void CharacterInventory::debugPrint() const {
+    for (size_t i = 0; i < _items.size(); ++i)
+        _items[i].debugPrint(i);
 }
 
 } // namespace Items

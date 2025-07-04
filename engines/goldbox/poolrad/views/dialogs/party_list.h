@@ -19,29 +19,42 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_VIEWS_H
-#define GOLDBOX_POOLRAD_VIEWS_VIEWS_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_PARTY_LIST_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_PARTY_LIST_H
 
-#include "goldbox/poolrad/views/title_view.h"
-#include "goldbox/poolrad/views/credits_view.h"
-#include "goldbox/poolrad/views/codewheel_view.h"
-#include "goldbox/poolrad/views/mainmenu_view.h"
-#include "goldbox/poolrad/views/add_character_view.h"
-#include "goldbox/poolrad/views/view_character_view.h"
+#include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
-namespace Poolrad{
+namespace Poolrad {
 namespace Views {
-	
-struct Views {
-	TitleView _title;
-	CreditsView _credits;
-	CodewheelView _codewheel;
-	MainmenuView _mainmenu;
-	AddCharacterView _addcharacter;
-	ViewCharacterView _viewcharacter;
+namespace Dialogs {
+
+class PartyList : public Dialog {
+public:
+    PartyList(const Common::String &name = "PartyList")
+        : Dialog(name), _xName(1), _xAC(33), _yStart(2) {
+            _party = Goldbox::VmInterface::getParty();
+        }
+    virtual ~PartyList() {}
+
+    void draw() override;
+    void setLayout(uint xName, uint xAC, uint yStart) {
+        _xName = xName; _xAC = xAC; _yStart = yStart;
+    }
+    void setSelectedCharIndex(uint idx) { _selectedCharIndex = idx; }
+    uint getSelectedCharIndex() const { return _selectedCharIndex; }
+    void nextChar();
+    void prevChar();
+
+private:
+    uint _xName, _xAC, _yStart;
+    uint _selectedCharIndex;
+    Common::Array<Data::PlayerCharacter *> *_party;
+
 };
 
+} // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
