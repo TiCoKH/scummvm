@@ -45,7 +45,7 @@ public:
 
     /// Access loaded items.
     const Common::Array<CharacterItem> &all() const { return _items; }
-    size_t                             count() const { return _items.size(); }
+    int                                count() const { return _items.size(); }
     CharacterItem                      &operator[](size_t i)       { return _items[i]; }
     const CharacterItem                &operator[](size_t i) const { return _items[i]; }
     const Common::Array<CharacterItem> &items() const { return _items; }

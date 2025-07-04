@@ -71,6 +71,7 @@ void MainmenuView::draw() {
     updateMenuState();
     if (_party->size() > 0 && _partyList) {
         _partyList->setSelectedCharIndex(_party->size());
+        Goldbox::VmInterface::setSelectedCharacter((*_party)[_partyList->getSelectedCharIndex()-1]);
         _partyList->draw();
     }
     drawMenu();
@@ -96,7 +97,7 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
             break;
         case Common::KEYCODE_v:
             if (_menuItemList.isActive(VIEW))
-                replaceView("Mainmenu");
+                replaceView("ViewCharacter");
             break;
         case Common::KEYCODE_a:
             if (_menuItemList.isActive(ADD))
@@ -121,13 +122,15 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
         case Common::KEYCODE_e:
             replaceView("Mainmenu");
             break;
-        case Common::KEYCODE_PAGEDOWN:
+        case Common::KEYCODE_END	:
             if (_party->size()>1) 
                 _partyList->nextChar();
+                Goldbox::VmInterface::setSelectedCharacter((*_party)[_partyList->getSelectedCharIndex()-1]);
             break;
-        case Common::KEYCODE_PAGEUP:
+        case Common::KEYCODE_HOME:
             if (_party->size()>1) 
                 _partyList->prevChar();
+                Goldbox::VmInterface::setSelectedCharacter((*_party)[_partyList->getSelectedCharIndex()-1]);
             break;
         default:
             break;
