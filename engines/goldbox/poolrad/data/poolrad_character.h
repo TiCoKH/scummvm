@@ -67,7 +67,7 @@ public:
     // Legacy fields for binary compatibility
     struct {
         uint8 memorizedSpells[21];
-        uint8 knownSpells[62];
+        uint8 knownSpells[55];
     } spells;
 
     Equipment equipment;
@@ -78,7 +78,6 @@ public:
     uint8 priDmgDiceNum = 0, secDmgDiceNum = 0;
     uint8 priDmgDiceSides = 0, secDmgDiceSides = 0;
     uint8 priDmgModifier = 0, secDmgModifier = 0;
-    uint8 strengthBonusAllowed = 0;
     uint8 combatIcon = 0;
 
     uint8 hitPointsRolled = 0;

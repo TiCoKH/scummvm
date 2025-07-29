@@ -34,8 +34,8 @@ namespace Data {
 // Helper structures
 
 enum Gender {
-    G_MALE   = 0,
-    G_FEMALE = 1
+	G_MALE   = 0,
+	G_FEMALE = 1
 };
 
 struct Stat {
@@ -60,13 +60,13 @@ struct StatHP {
 };
 
 struct AbilityScores {
-    Stat strength;
-    Stat intelligence;
-    Stat wisdom;
-    Stat dexterity;
-    Stat constitution;
-    Stat charisma;
-    Stat strException;
+	Stat strength;
+	Stat intelligence;
+	Stat wisdom;
+	Stat dexterity;
+	Stat constitution;
+	Stat charisma;
+	Stat strException;
 };
 
 struct PortraitData {
@@ -77,15 +77,15 @@ struct PortraitData {
 };
 
 struct CombatIconData {
-    uint8 iconHead;
-    uint8 iconBody;
-    uint8 iconSize;
-    uint8 iconColorBody1, iconColorBody2;
-    uint8 iconColorArm1, iconColorArm2;
-    uint8 iconColorLeg1, iconColorLeg2;
-    uint8 iconColorHair, iconColorFace;
-    uint8 iconColorShield1, iconColorShield2;
-    uint8 iconColorWeapon1, iconColorWeapon2;
+	uint8 iconHead;
+	uint8 iconBody;
+	uint8 iconSize;
+	uint8 iconColorBody1, iconColorBody2;
+	uint8 iconColorArm1, iconColorArm2;
+	uint8 iconColorLeg1, iconColorLeg2;
+	uint8 iconColorHair, iconColorFace;
+	uint8 iconColorShield1, iconColorShield2;
+	uint8 iconColorWeapon1, iconColorWeapon2;
 
 
 	void setBody(uint8 value) {
@@ -124,15 +124,16 @@ struct CombatIconData {
 // Base class for all player characters
 
 class PlayerCharacter {
+
 public:
 	// Identity & Metadata
 	Common::String name;
-    uint8 race;
-    Gender gender;
-    uint8 classType;
-    uint8 alignment;
-    uint16 age;
-    AbilityScores abilities;
+	uint8 race;
+	Gender gender;
+	uint8 classType;
+	uint8 alignment;
+	uint16 age;
+	AbilityScores abilities;
 
 	StatHP hitPoints;
 
@@ -141,6 +142,7 @@ public:
 	CombatStat thac0;
 	CombatStat armorClass;
 	CombatIconData iconData;
+	uint8 strengthBonusAllowed = 0;
 
 	uint8 orderNumber;
 
@@ -180,20 +182,14 @@ public:
 	//-----------------------------------------------------------
 	// Common logic
 
-	virtual void damage(uint8 amount) {
-		if (amount >= hitPoints.current)
-		hitPoints.current = 0;
-		else
-		hitPoints.current -= amount;
-	}
-
-    virtual void heal(uint8 amount) {
-        hitPoints.current = MIN<uint8>(hitPoints.max, hitPoints.current + amount);
-    }
-
-	virtual bool isAlive() const {
-		return hitPoints.current > 0;
-	}
+	virtual void damage(uint8 amount);
+	virtual void heal(uint8 amount);
+	virtual bool isAlive() const;
+	int8 getReactionAdjustment() const;
+	uint8 getStrengthTier() const;
+	int8 getStrengthBonus() const;
+	int8 getMeleeDamageBonus() const;
+	int8 getDexDefenceBonus() const;
 };
 
 } // namespace Data
