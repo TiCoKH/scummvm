@@ -48,6 +48,12 @@ enum class Slot : uint8 {
     SLOT_COUNT   = 12
 };
 
+enum class ScrollType : uint8 {
+    ST_PROTECTION = 10,
+    ST_MAGE       = 11,
+    ST_CLERIC     = 12
+};
+
 /// Simple grouping of dice data 'dices d sides + bonus'
 struct Damage {
     uint8 dices;   ///< Number of dice

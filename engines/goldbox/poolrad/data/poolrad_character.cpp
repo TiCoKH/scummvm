@@ -73,8 +73,8 @@ namespace Data {
 
         hitPoints.max = stream.readByte(); // 0x032
 
-        // 0x033–0x06A: cleric/mage spell knowledge — 62 bytes
-        stream.read(spells.knownSpells, 62);
+        // 0x033–0x06A: cleric/mage spell knowledge — 55 bytes
+        stream.read(spells.knownSpells, 55);
 
         attackLevel = stream.readByte();   // 0x06B
         iconDimension = stream.readByte(); // 0x06C

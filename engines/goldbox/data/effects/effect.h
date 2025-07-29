@@ -33,20 +33,24 @@ struct Effect {
     uint8 type;          // Effect ID
     uint16 durationMin;  // Duration in minutes (LE)
     uint8 power;         // 0xFF = permanent, or encoded power level
-    uint8 data[5];       // Unused/padding/reserved
+    uint32 nextAddress;  // Unused original linked list
+    uint8 padding;
 
     void load(Common::SeekableReadStream &s) {
         type = s.readByte();
         durationMin = s.readUint16LE();
         power = s.readByte();
-        s.read(data, 5);
+        padding = s.readByte();
+        nextAddress = s.readUint32LE();
+   
     }
 
     void save(Common::WriteStream &s) const {
         s.writeByte(type);
         s.writeUint16LE(durationMin);
         s.writeByte(power);
-        s.write(data, 5);
+        s.writeUint32LE(nextAddress);
+        s.writeByte(padding);
     }
 };
 
