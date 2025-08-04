@@ -52,9 +52,7 @@ void DaxTile::load() {
 void DaxTile::drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const {
     assert(chr >= 0 && chr < _chars.size());
     const Graphics::ManagedSurface &charImage = _chars[chr];
-
-    Graphics::ManagedSurface dest(dst, DisposeAfterUse::NO);
-    dest.blitFrom(charImage, Common::Point(x, y));
+	dst->copyRectToSurface(charImage, x, y, Common::Rect(0, 0, charImage.w, charImage.h));
 }
 
 } // namespace Gfx
