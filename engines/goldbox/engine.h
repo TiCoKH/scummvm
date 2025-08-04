@@ -159,4 +159,4 @@ extern Engine *g_engine;
 
 } // End of namespace Goldbox
 
-#endif // GOLDBOX_H
+#endif // GOLDBOX_ENGINE_H
