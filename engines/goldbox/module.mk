@@ -10,6 +10,7 @@ MODULE_OBJS = \
 	vm_interface.o \
 	core/array.o \
 	core/file.o \
+	core/global.o \
 	core/menu_item.o \
 	data/player_character.o \
 	data/adnd_character.o \

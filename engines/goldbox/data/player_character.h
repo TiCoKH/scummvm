@@ -160,7 +160,7 @@ public:
 	//-----------------------------------------------------------
 	// Lifecycle
 
-	virtual ~PlayerCharacter() {}
+	virtual ~PlayerCharacter();
 
 	virtual const char *getRaceName() const = 0;
 	virtual const char *getClassName() const = 0;
