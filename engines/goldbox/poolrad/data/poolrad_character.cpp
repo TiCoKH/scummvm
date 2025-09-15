@@ -180,10 +180,10 @@ namespace Data {
         stream.readUint32LE(); // 0x104–0x107: next character address (pointer)
         stream.readUint32LE(); // 0x108–0x10B: combat address (pointer)
 
-        healthStatus = stream.readByte();     // 0x10C
-        inCombat     = (stream.readByte() != 0); // 0x10D
-        stream.readByte();                    // 0x10E: hostile flag
-        quickFightFlag = stream.readByte();   // 0x10F
+        healthStatus = stream.readByte();        // 0x10C
+        enabled      = (stream.readByte() != 0); // 0x10D
+        hostile      = (stream.readByte() != 0); // 0x10E
+        quickfight   = (stream.readByte() != 0); // 0x10F
 
         thac0.current        = stream.readByte(); // 0x110
         armorClass.current   = stream.readByte(); // 0x111
@@ -238,8 +238,9 @@ namespace Data {
 		handsUsed = 0;
 		encumbrance = 0;
 		actions = 0;
-		sideInCombat = 0;
-		quickFightFlag = 0;
+		enabled = true;
+        hostile = true;
+        quickfight = true;
 		priAttacksLeft = 0;
 		secAttacksLeft = 0;
 		curPriDiceNum = 0;
@@ -502,9 +503,9 @@ namespace Data {
         stream.writeUint32LE(0); // combat address
 
         stream.writeByte(healthStatus);
-        stream.writeByte(inCombat ? 1 : 0);
-        stream.writeByte(0); // hostile flag
-        stream.writeByte(quickFightFlag);
+        stream.writeByte(enabled ? 1 : 0);
+        stream.writeByte(hostile ? 1 : 0);
+        stream.writeByte(quickfight ? 1 : 0);
 
         stream.writeByte(thac0.current);
         stream.writeByte(armorClass.current);
@@ -528,6 +529,20 @@ namespace Data {
     void PoolradCharacter::finalizeName() {
         //std::replace(name.begin(), name.end(), ' ', static_cast<char>(-1));
     }
+
+    byte PoolradCharacter::getNameColor() {
+        if (name.size() == 0) return 0;
+        int txtColor = 15;
+        if (!enabled) {
+            txtColor = 12;
+        } else if (hostile) {
+             txtColor = 14;
+        } else {
+             txtColor = 11;
+        }
+        return txtColor;
+    }
+
 
 } // namespace Data
 } // namespace Poolrad

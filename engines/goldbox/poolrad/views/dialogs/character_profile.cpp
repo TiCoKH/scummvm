@@ -31,10 +31,9 @@ void CharacterProfile::draw() {
 
 void CharacterProfile::drawIdentity() {
     Surface s = getSurface();
-    s.writeStringC(_poolradPc->name, 11, 1, 1);
+    s.writeStringC(_poolradPc->name, _poolradPc->getNameColor(), 1, 1);
     if (_poolradPc->npc < 0) {
-        int nameLen = strlen(_poolradPc->name.c_str());
-        s.writeStringC("(NPC)", 14, 1 + nameLen + 3, 1);
+        s.writeStringC("(NPC)", 14, 1 + _poolradPc->name.size() + 3, 1);
     }
 	Common::String raceClass = VmInterface::getString(Common::String::format("stats.gender.%d", _poolradPc->gender));
     raceClass += " ";
