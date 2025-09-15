@@ -94,8 +94,6 @@ public:
     uint16 encumbrance = 0;
 
     uint32 actions = 0;
-    uint8 sideInCombat = 0;
-    uint8 quickFightFlag = 0;
 
     Goldbox::Data::CombatStat acRear;
 
@@ -125,7 +123,11 @@ public:
 
     void resolveEquippedItems();
 
-        // Implementing pure virtual functions from PlayerCharacter
+    // draw methods
+    byte getNameColor();
+    //void drawCombatStats();
+
+    // Implementing pure virtual functions from PlayerCharacter
     const char *getRaceName() const override {
         // Provide implementation
         return "RaceName";

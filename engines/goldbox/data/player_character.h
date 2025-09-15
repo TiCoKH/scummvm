@@ -155,7 +155,9 @@ public:
 
 	// State
 	uint8 healthStatus = 0;
-	bool inCombat = false;
+	bool enabled = false;
+	bool hostile = false;
+	bool quickfight = false;
 
 	//-----------------------------------------------------------
 	// Lifecycle
