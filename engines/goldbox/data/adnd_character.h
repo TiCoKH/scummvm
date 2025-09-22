@@ -173,6 +173,36 @@ struct EquipmentAddresses {
     uint32 equippedBolt;
 };
 
+struct AgeDefEntry {
+    uint16 base;
+    uint8  sides;
+    uint8  dices;
+};
+
+AgeDefEntry AgeDefs [R_HUMAN][7];
+
+struct thac0Bases {
+    uint8 thac0[11];
+};
+
+thac0Bases thac0Table[C_MONSTER];
+
+struct ClassAlignmentDef {
+    uint8 align_count;
+    uint8 align_ids[9];
+};  // size = 10 bytes per class
+
+ClassAlignmentDef alignmentTable[C_MONSTER];
+
+uint8 IconPreset[7];
+
+struct RaceClassDef {
+    uint8 class_count;
+    uint8 class_ids[11];
+};
+
+RaceClassDef classTable[R_HUMAN];
+
 // The base class for player characters.
 // This class defines the core (common) data and behavior shared among AD&D–based games.
 class ADnDCharacter : public PlayerCharacter {

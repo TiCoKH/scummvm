@@ -317,6 +317,13 @@ namespace Data {
         ability.current = static_cast<uint8>(newAbility);
     }
 
+    uint8 PoolradCharacter::getBaseIconColor(int index) {
+        if (index < 0 || index >= 7)
+            return 0;
+        uint8 base = BASE_ICON_VALUES[index];
+        return base + static_cast<uint8>((base + 8) * 0x10);
+    }
+
     bool PoolradCharacter::meetsClassRequirements() const {
         using namespace Goldbox::Data;
 
