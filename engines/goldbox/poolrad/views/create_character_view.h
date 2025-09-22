@@ -27,16 +27,62 @@
 #include "goldbox/poolrad/views/view.h"
 
 namespace Goldbox {
+struct MenuItemList; // forward declaration
 namespace Poolrad {
 namespace Views {
+
+namespace Dialogs {
+class Dialog;
+class VerticalMenu;
+class CharacterProfile;
+}
+
+// Character creation stages
+enum CharacterCreateState {
+    CC_STATE_RACE = 0,
+    CC_STATE_GENDER,
+    CC_STATE_CLASS,
+    CC_STATE_ALIGNMENT,
+    CC_STATE_PROFILE,
+    CC_STATE_ICON,
+    CC_STATE_DONE
+};
 
 class CreateCharacterView : public View {
 
 public:
     CreateCharacterView();
-    virtual ~CreateCharacterView() {}
+    virtual ~CreateCharacterView();
+    // Stage management
+    void nextStage();
+    void prevStage();
+    void setStage(CharacterCreateState stage);
+    CharacterCreateState getStage() const { return _stage; }
+    void handleMenuResult(bool success, Common::KeyCode key, short value) override;
 
-    bool msgKeypress(const KeypressMessage &msg) override;
+private:
+    CharacterCreateState _stage = CC_STATE_RACE;
+    // selection indices for each step
+    int _selectedRace = -1;
+    int _selectedGender = -1;
+    int _selectedClass = -1;
+    int _selectedAlignment = -1;
+
+    // subviews for each state
+    Dialogs::VerticalMenu *_raceMenu = nullptr;
+    Dialogs::VerticalMenu *_genderMenu = nullptr;
+    Dialogs::VerticalMenu *_classMenu = nullptr;
+    Dialogs::VerticalMenu *_alignmentMenu = nullptr;
+    Goldbox::MenuItemList *_raceMenuItems = nullptr;
+    Goldbox::MenuItemList *_genderMenuItems = nullptr;
+    Goldbox::MenuItemList *_classMenuItems = nullptr;
+    Goldbox::MenuItemList *_alignmentMenuItems = nullptr;
+    Dialogs::CharacterProfile *_profileDialog = nullptr;
+    Dialogs::Dialog *_activeSubView = nullptr;
+
+    void setActiveSubView(Dialogs::Dialog *dlg);
+
+    // Do not override msgKeypress so active subview receives input first
     bool msgFocus(const FocusMessage &msg) override;
     bool msgUnfocus(const UnfocusMessage &msg) override;
     void draw() override;
@@ -45,6 +91,13 @@ public:
     void showParty();
     void menuSetActive(char shortcut);
     void menuSetInactive(char shortcut);
+
+    // Show race selection dialog
+    void chooseRace();
+    void chooseGender();
+    void chooseClass();
+    void chooseAlignment();
+    void showProfileDialog();
 };
 
 } // namespace Views
