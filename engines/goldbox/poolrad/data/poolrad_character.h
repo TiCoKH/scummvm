@@ -44,6 +44,8 @@ public:
 };
 
 constexpr int EQUIPMENT_SLOT_COUNT = static_cast<int>(Goldbox::Data::Items::Slot::SLOT_COUNT);
+constexpr uint8 CLASS_COUNT = 8;
+constexpr uint8 MAX_CLASSES_PER_RACE = 11;
 
 struct Equipment {
     int slots[EQUIPMENT_SLOT_COUNT];
@@ -51,6 +53,8 @@ struct Equipment {
 
 class PoolradCharacter : public Goldbox::Data::ADnDCharacter {
 public:
+
+    static constexpr uint8 BASE_ICON_VALUES[7] = {0x0A, 0x01, 0x02, 0x03, 0x04, 0x06, 0x07};
 
     uint8 highestLevel = 0;
     uint8 creatureSize = 1;
@@ -120,6 +124,8 @@ public:
     void rollAbilityScores() override;
     void applyRacialAdjustments() override;
     void calculateHitPoints() override;
+
+    static uint8 getBaseIconColor(int index);
 
     void resolveEquippedItems();
 
