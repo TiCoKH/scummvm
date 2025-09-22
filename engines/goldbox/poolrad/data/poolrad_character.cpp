@@ -212,43 +212,70 @@ namespace Data {
     void PoolradCharacter::initialize() {
 
 
-		highestLevel = 0;
-		creatureSize = 1;
-		baseMovement = 0;
-		hitDice = 0;
-		drainedLevels = 0;
-		drainedHp = 0;
-		undeadResistance = 0;
-		monsterType = 0;
-		primaryAttacks = 0;
-		secondaryAttacks = 0;
-		priDmgDiceNum = 0;
-		secDmgDiceNum = 0;
-		priDmgDiceSides = 0;
-		secDmgDiceSides = 0;
-		priDmgModifier = 0;
-		secDmgModifier = 0;
-		strengthBonusAllowed = 0;
-		combatIcon = 0;
-		hitPointsRolled = 0;
+    highestLevel = 0;
+    creatureSize = 1;
+    baseMovement = 0;
+    hitDice = 0;
+    drainedLevels = 0;
+    drainedHp = 0;
+    undeadResistance = 0;
+    monsterType = 0;
+    primaryAttacks = 0;
+    secondaryAttacks = 0;
+    priDmgDiceNum = 0;
+    secDmgDiceNum = 0;
+    priDmgDiceSides = 0;
+    secDmgDiceSides = 0;
+    priDmgModifier = 0;
+    secDmgModifier = 0;
+    strengthBonusAllowed = 0;
+    combatIcon = 0;
+    hitPointsRolled = 0;
 
-		xpForDefeating = 0;
-		bonusXpPerHp = 0;
-		itemsLimit = 0;
-		handsUsed = 0;
-		encumbrance = 0;
-		actions = 0;
-		enabled = true;
-        hostile = true;
-        quickfight = true;
-		priAttacksLeft = 0;
-		secAttacksLeft = 0;
-		curPriDiceNum = 0;
-		curSecDiceNum = 0;
-		curPriDiceSides = 0;
-		curSecDiceSides = 0;
-		curPriBonus = 0;
-		curSecBonus = 0;
+    xpForDefeating = 0;
+    bonusXpPerHp = 0;
+    itemsLimit = 0;
+    handsUsed = 0;
+    encumbrance = 0;
+    actions = 0;
+    enabled = true;
+    hostile = true;
+    quickfight = true;
+    priAttacksLeft = 0;
+    secAttacksLeft = 0;
+    curPriDiceNum = 0;
+    curSecDiceNum = 0;
+    curPriDiceSides = 0;
+    curSecDiceSides = 0;
+    curPriBonus = 0;
+    curSecBonus = 0;
+
+    // Set icon base colors using getBaseIconColor and setters
+    iconData.setBody(getBaseIconColor(1));
+    iconData.setArm(getBaseIconColor(2));
+    iconData.setLeg(getBaseIconColor(3));
+    iconData.setHairFace(getBaseIconColor(4));
+    iconData.setShield(getBaseIconColor(5));
+    iconData.setWeapon(getBaseIconColor(6));
+
+    // Set acBase (armorClass.base)
+    armorClass.base = 10;
+
+    // Set thac0_base (thac0.base)
+    thac0.base = 20;
+
+    // Set status to OKAY
+    healthStatus = Goldbox::Data::S_OKAY;
+
+    // Set portrait head and body to 1
+    portrait.head = 1;
+    portrait.body = 1;
+
+    // Set iconDimension to 1
+    iconDimension = 1;
+
+    // Set icon to random value in [0,255] using engine's random generator
+    combatIcon = static_cast<uint8>(Goldbox::g_engine ? Goldbox::g_engine->getRandomNumber(256) : 0);
     }
 
     // Returns true if the character has any memorized spell
