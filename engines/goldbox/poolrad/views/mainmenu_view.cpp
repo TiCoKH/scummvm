@@ -81,7 +81,8 @@ void MainmenuView::draw() {
 bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
     switch (msg.keycode) {
         case Common::KEYCODE_c:
-            replaceView("CreatCharacter");
+            if (_menuItemList.isActive(CREATE))
+                replaceView("CreatCharacter");
             break;
         case Common::KEYCODE_d:
             if (_menuItemList.isActive(DROP))

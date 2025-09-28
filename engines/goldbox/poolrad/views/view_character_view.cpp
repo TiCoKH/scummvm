@@ -22,6 +22,8 @@ ViewCharacterView::ViewCharacterView()
 
 ViewCharacterView::ViewCharacterView(Goldbox::Poolrad::Data::PoolradCharacter *character)
     : View("ViewCharacter"), _character(character), _horizontalMenu(nullptr), _profileDialog(nullptr) {
+    // Build initial menu options before constructing horizontal menu so items appear first frame
+    buildMenu();
 
     Dialogs::HorizontalMenuConfig menuConfig = {
         "View:", // promptTxt
@@ -35,6 +37,9 @@ ViewCharacterView::ViewCharacterView(Goldbox::Poolrad::Data::PoolradCharacter *c
     _profileDialog = new Dialogs::CharacterProfile(_character, "CharacterProfile");
     subView(_profileDialog);
     subView(_horizontalMenu);
+    // Activate subviews so they can receive input/draw immediately
+    _profileDialog->activate();
+    _horizontalMenu->activate();
 }
 
 ViewCharacterView::~ViewCharacterView() {
@@ -50,10 +55,9 @@ ViewCharacterView::~ViewCharacterView() {
 
 void ViewCharacterView::buildMenu() {
     _menuList.items.clear();
-    // Add Items if character has any
+    // Order: conditional feature panels first, then actions, then Exit
     if (_character && _character->getInventory().count() != 0)
         _menuList.push_back("Items");
-    // Add Spells if character has any
     if (_character && _character->haveMemorizedSpell())
         _menuList.push_back("Spells");
     _menuList.push_back("Trade");
@@ -62,15 +66,20 @@ void ViewCharacterView::buildMenu() {
 }
 
 void ViewCharacterView::draw() {
-    buildMenu();
-    // Always use the current selected character from the engine
+    // Window frame similar to other views
+    drawWindow(1, 1, 38, 22);
+    // Refresh selected character pointer each frame
     _character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(Goldbox::VmInterface::getSelectedCharacter());
+    buildMenu(); // rebuild menu options (inventory/spells may have changed)
+    // Force horizontal menu to redraw if item count changed
+    if (_horizontalMenu)
+        _horizontalMenu->setRedraw();
     if (_profileDialog) {
-        // Directly update the internal pointer before drawing
-        _profileDialog->_poolradPc = _character;
+        _profileDialog->_poolradPc = _character; // update displayed character
         _profileDialog->draw();
     }
-    if (_horizontalMenu) _horizontalMenu->draw();
+    if (_horizontalMenu)
+        _horizontalMenu->draw();
 }
 
 bool ViewCharacterView::msgKeypress(const KeypressMessage &msg) {
@@ -85,27 +94,20 @@ bool ViewCharacterView::msgKeypress(const KeypressMessage &msg) {
 
 // Skeleton for handling menu results from HorizontalMenu
 void ViewCharacterView::handleMenuResult(bool accepted, int keyCode, int index) {
-    if (!accepted)
+    if (!accepted || index < 0 || index >= (int)_menuList.items.size())
         return;
-    // Handle menu selection by index
-    switch (index) {
-        case 0: // Trade
-            // TODO: Implement Trade action
-            break;
-        case 1: // Drop
-            // TODO: Implement Drop action
-            break;
-        case 2: // Items (if present)
-            // TODO: Implement Items action
-            break;
-        case 3: // Spells (if present)
-            // TODO: Implement Spells action
-            break;
-        case 4: // Exit
-            // TODO: Implement Exit action
-            break;
-        default:
-            break;
+    const Common::String &label = _menuList.items[index].text;
+    if (label == "Exit") {
+        replaceView("Mainmenu");
+        return;
+    } else if (label == "Items") {
+        // TODO: Show items screen / toggle inventory panel
+    } else if (label == "Spells") {
+        // TODO: Show spells / memorized list
+    } else if (label == "Trade") {
+        // TODO: Initiate trade sequence
+    } else if (label == "Drop") {
+        // TODO: Initiate drop item dialog
     }
 }
 

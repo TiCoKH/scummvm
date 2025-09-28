@@ -45,6 +45,7 @@ struct Stat {
 	Stat() : base(0), current(0) {}
 };
 
+// Combat-related stats stored as 60 - value (e.g. AC 10 is stored as 50)
 struct CombatStat {
 	uint8 base;
 	uint8 current;

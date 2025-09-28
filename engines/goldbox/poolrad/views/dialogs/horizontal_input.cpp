@@ -41,6 +41,12 @@ bool HorizontalInput::msgKeypress(const KeypressMessage &msg) {
     Common::KeyCode keyCode = msg.keycode;
 
     if (_isActive) {
+        if (keyCode == Common::KEYCODE_RETURN || keyCode == Common::KEYCODE_ESCAPE) {
+            if (_parent) {
+                _parent->handleMenuResult(true, keyCode, 0);
+            }
+            return true;
+        }
         if (asciiValue >= 'a' && asciiValue <= 'z') {
             asciiValue -= 32;
         }

@@ -48,6 +48,17 @@ enum class Slot : uint8 {
     SLOT_COUNT   = 12
 };
 
+enum class ItemFlag : uint8 {
+    IF_MAGIC_USER = 0x01,
+    IF_CLERIC     = 0x02,
+    IF_THIEF      = 0x04,
+    IF_FIGHTER    = 0x08,
+    IF_DRUID      = 0x10,
+    IF_MONK       = 0x20,
+    IF_PALADIN    = 0x40,
+    IF_RANGER     = 0x80
+};
+
 enum class ScrollType : uint8 {
     ST_PROTECTION = 10,
     ST_MAGE       = 11,
