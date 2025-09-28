@@ -43,7 +43,8 @@ struct VerticalMenuConfig {
     int yStart;
     int xEnd;
     int yEnd;
-    bool isAddExit;
+    Common::String title;
+    bool asHeader;
 };
 
 
@@ -64,7 +65,8 @@ private:
     int _itemNums;
     int _linesToRender;
     int _currentVisibleIndex = 0;
-    bool _addExit = false;
+    Common::String _title;
+    bool _titleAsHeader = false;
     bool _redraw = true;
     HorizontalMenu *_horizontalMenu;
 
@@ -86,6 +88,12 @@ public:
 	void handleMenuResult(bool success, Common::KeyCode key, short value) override;
     void activateHorizontalMenu();
     void deactivateHorizontalMenu();
+
+    static void fillMenuItemsFromYml(Goldbox::MenuItemList *list,
+        const Common::String &baseKey, const int *indices, int count);
+
+    // Reinitialize with new items and title without destroying the widget
+    void rebuild(Goldbox::MenuItemList *newItems, const Common::String &newTitle);
 };
 
 } // namespace Dialogs

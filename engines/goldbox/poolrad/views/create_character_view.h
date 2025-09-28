@@ -23,19 +23,16 @@
 #define GOLDBOX_POOLRAD_VIEWS_CREATE_CHARACTER_VIEW_H
 
 #include "common/rect.h"
-//#include "common/array.h"
+#include "common/array.h"
 #include "goldbox/poolrad/views/view.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
+#include "goldbox/poolrad/views/dialogs/character_profile.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 
 namespace Goldbox {
-struct MenuItemList; // forward declaration
 namespace Poolrad {
 namespace Views {
-
-namespace Dialogs {
-class Dialog;
-class VerticalMenu;
-class CharacterProfile;
-}
 
 // Character creation stages
 enum CharacterCreateState {
@@ -44,6 +41,7 @@ enum CharacterCreateState {
     CC_STATE_CLASS,
     CC_STATE_ALIGNMENT,
     CC_STATE_PROFILE,
+    CC_STATE_NAME,
     CC_STATE_ICON,
     CC_STATE_DONE
 };
@@ -53,9 +51,7 @@ class CreateCharacterView : public View {
 public:
     CreateCharacterView();
     virtual ~CreateCharacterView();
-    // Stage management
     void nextStage();
-    void prevStage();
     void setStage(CharacterCreateState stage);
     CharacterCreateState getStage() const { return _stage; }
     void handleMenuResult(bool success, Common::KeyCode key, short value) override;
@@ -67,18 +63,27 @@ private:
     int _selectedGender = -1;
     int _selectedClass = -1;
     int _selectedAlignment = -1;
+    Common::String _enteredName;
 
     // subviews for each state
-    Dialogs::VerticalMenu *_raceMenu = nullptr;
-    Dialogs::VerticalMenu *_genderMenu = nullptr;
-    Dialogs::VerticalMenu *_classMenu = nullptr;
-    Dialogs::VerticalMenu *_alignmentMenu = nullptr;
-    Goldbox::MenuItemList *_raceMenuItems = nullptr;
-    Goldbox::MenuItemList *_genderMenuItems = nullptr;
-    Goldbox::MenuItemList *_classMenuItems = nullptr;
-    Goldbox::MenuItemList *_alignmentMenuItems = nullptr;
+    // Reusable single vertical menu (we rebuild its items per stage)
+
+    Dialogs::Dialog *_nameInput = nullptr;
+    // Reusable menu items container
+    Goldbox::MenuItemList *_menuItems = nullptr;
+    Dialogs::VerticalMenu *_menu = nullptr;
+
     Dialogs::CharacterProfile *_profileDialog = nullptr;
     Dialogs::Dialog *_activeSubView = nullptr;
+    Common::String formatFilename(const Common::String &name); // helper to format save filename
+    bool _confirmSave = false; // true when returning from icon editor to confirm save
+    bool _hasRolled = false;    // ensures we roll once when entering profile
+
+    // mapping arrays: visible index -> enum/index value
+    Common::Array<int> _indexMap;
+
+    // character under construction
+    Goldbox::Poolrad::Data::PoolradCharacter *_newCharacter = nullptr;
 
     void setActiveSubView(Dialogs::Dialog *dlg);
 
@@ -87,10 +92,8 @@ private:
     bool msgUnfocus(const UnfocusMessage &msg) override;
     void draw() override;
     void timeout() override;
-    void showMenu();
-    void showParty();
-    void menuSetActive(char shortcut);
-    void menuSetInactive(char shortcut);
+    bool msgKeypress(const KeypressMessage &msg) override;
+    // (Removed legacy menu helpers present in earlier version)
 
     // Show race selection dialog
     void chooseRace();
@@ -98,6 +101,18 @@ private:
     void chooseClass();
     void chooseAlignment();
     void showProfileDialog();
+    void chooseName();
+    void buildAndShowMenu(const Common::String &prompt);
+    void resetState(); // resets view to initial race selection
+
+    // persistence helpers
+    void finalizeCharacterAndSave();
+    Common::String formatBaseFilename(const Common::String &name);
+    void appendLineToTextFile(const Common::String &fileName,
+                              const Common::String &line);
+
+    // reroll helper
+    void rollAndRecompute();
 };
 
 } // namespace Views
