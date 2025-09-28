@@ -43,7 +43,8 @@ AddCharacterView::AddCharacterView() : View("AddCharacter") {
         10,                  // textColor
         15,                  // selectColor
         1, 2, 38, 22,        // bounds
-        false                // isAddExit
+        "",                  // title
+        false                // asHeader
     };
     _rosterMenu = new Dialogs::VerticalMenu("RosterMenu", menuConfig);
     subView(_rosterMenu);

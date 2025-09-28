@@ -20,14 +20,18 @@
  */
 
 #include "common/system.h"
+#include "common/file.h"
+#include "common/savefile.h"
 #include "graphics/palette.h"
 //#include "goldbox/keymapping.h"
+#include "goldbox/vm_interface.h"
 #include "goldbox/core/menu_item.h"
+#include "goldbox/data/rules/rules.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/views/create_character_view.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
-
-
+#include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -37,35 +41,29 @@ const char PICK_RACE[] = "Pick Race";
 const char PICK_GENDER[] = "Pick Gender";
 const char PICK_CLASS[] = "Pick Class";
 const char PICK_ALIGNMENT[] = "Pick Alignment";
-const char KEEP_THIS[] = "Keep this character? ";
 const char CHAR_NAME[] = "Character name: ";
 
 
 CreateCharacterView::CreateCharacterView() : View("CreatCharacter"), _stage(CC_STATE_RACE) {
-	// Optionally, start the first stage immediately
-	// chooseRace();
+	// Initialize character under construction
+	_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+	// Build initial race selection menu immediately
+	chooseRace();
 }
+
 CreateCharacterView::~CreateCharacterView() {
 	// Clean up any created subviews
-	delete _raceMenu; _raceMenu = nullptr;
-	delete _genderMenu; _genderMenu = nullptr;
-	delete _classMenu; _classMenu = nullptr;
-	delete _alignmentMenu; _alignmentMenu = nullptr;
+	delete _menu; _menu = nullptr;
+	delete _nameInput; _nameInput = nullptr;
 	delete _profileDialog; _profileDialog = nullptr;
-	delete _raceMenuItems; _raceMenuItems = nullptr;
-	delete _genderMenuItems; _genderMenuItems = nullptr;
-	delete _classMenuItems; _classMenuItems = nullptr;
-	delete _alignmentMenuItems; _alignmentMenuItems = nullptr;
+	delete _menuItems; _menuItems = nullptr;
 	_activeSubView = nullptr;
+	delete _newCharacter; _newCharacter = nullptr;
 }
+
 void CreateCharacterView::nextStage() {
 	if (_stage < CC_STATE_DONE)
 		setStage(static_cast<CharacterCreateState>(_stage + 1));
-}
-
-void CreateCharacterView::prevStage() {
-	if (_stage > CC_STATE_RACE)
-		setStage(static_cast<CharacterCreateState>(_stage - 1));
 }
 
 void CreateCharacterView::setStage(CharacterCreateState stage) {
@@ -86,6 +84,16 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 		break;
 	case CC_STATE_PROFILE:
 		showProfileDialog();
+		// First time entering profile: roll initial stats
+		if (!_hasRolled && _newCharacter) {
+			rollAndRecompute();
+			_hasRolled = true;
+			if (_profileDialog)
+				_profileDialog->draw();
+		}
+		break;
+	case CC_STATE_NAME:
+		chooseName();
 		break;
 	case CC_STATE_ICON:
 		// showIconSelector();
@@ -96,12 +104,8 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 	}
 }
 
-// Intentionally no msgKeypress override: subviews handle inputs
-
 void CreateCharacterView::draw() {
 	Surface s = getSurface();
-
-    int rnd = getRandomNumber(12);
 
 	drawWindow( 1, 1, 38, 22);
 	// Delegate drawing to the active subview if present
@@ -111,6 +115,10 @@ void CreateCharacterView::draw() {
 }
 
 bool CreateCharacterView::msgFocus(const FocusMessage &msg) {
+	// When (re)entering this view, ensure a clean initial state if we're beyond first stage
+	if (_stage != CC_STATE_RACE) {
+		resetState();
+	}
 	return true;
 }
 
@@ -121,120 +129,149 @@ bool CreateCharacterView::msgUnfocus(const UnfocusMessage &msg) {
 void CreateCharacterView::timeout() {
 }
 
+bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
+	// Global immediate exit on Escape from any stage (except DONE which already returns)
+	if (msg.keycode == Common::KEYCODE_ESCAPE) {
+		replaceView("Mainmenu");
+		return true;
+	}
+	// Only intercept profile specific actions; otherwise let active dialog handle
+	if (_stage == CC_STATE_PROFILE) {
+		if (msg.keycode == Common::KEYCODE_r || msg.ascii == 'R') {
+			rollAndRecompute();
+			if (_profileDialog)
+				_profileDialog->draw();
+			return true;
+		}
+		if (msg.keycode == Common::KEYCODE_RETURN) {
+			if (_confirmSave) {
+				finalizeCharacterAndSave();
+				setStage(CC_STATE_DONE);
+			} else {
+				setStage(CC_STATE_NAME);
+			}
+			return true;
+		}
+	}
+	return View::msgKeypress(msg);
+}
+
 void CreateCharacterView::chooseRace() {
-	// Define race options (example: Human, Dwarf, Elf, Gnome, Halfling, Half-Elf, Half-Orc, Monster)
-	static const char *raceNames[] = {
-		"Human", "Dwarf", "Elf", "Gnome", "Halfling", "Half-Elf", "Half-Orc", "Monster"
-	};
-	if (_raceMenuItems) { delete _raceMenuItems; }
-	_raceMenuItems = new Goldbox::MenuItemList();
-	for (int i = 0; i < 8; ++i) {
-		_raceMenuItems->push_back(raceNames[i]);
-	}
-
-	Goldbox::Poolrad::Views::Dialogs::VerticalMenuConfig config = {
-		"Pick Race", // promptTxt
-		Common::Array<Common::String>(), // promptOptions
-	_raceMenuItems, // menuItemList
-		15, // headColor
-		7,  // textColor
-		14, // selectColor
-		5,  // xStart
-		5,  // yStart
-		30, // xEnd
-		15, // yEnd
-		false // isAddExit
-	};
-
-	if (_raceMenu) {
-		delete _raceMenu;
-	}
-	_raceMenu = new Goldbox::Poolrad::Views::Dialogs::VerticalMenu("RaceMenu", config);
-	this->subView(_raceMenu);
-	setActiveSubView(_raceMenu);
+	if (_menuItems) { delete _menuItems; }
+	_menuItems = new Goldbox::MenuItemList();
+	// Race id 6 (half-orc) currently not playable -> exclude it
+	static const int raceIndices[] = {1, 2, 3, 4, 5, 7};
+	_indexMap.clear();
+	for (int i = 0; i < 6; ++i)
+		_indexMap.push_back(raceIndices[i]);
+	Dialogs::VerticalMenu::fillMenuItemsFromYml(_menuItems, "stats.races", raceIndices, 6);
+	buildAndShowMenu(PICK_RACE);
 }
 
 void CreateCharacterView::chooseGender() {
-	static const char *genderNames[] = {"Male", "Female"};
-	if (_genderMenuItems) { delete _genderMenuItems; }
-	_genderMenuItems = new Goldbox::MenuItemList();
-	for (int i = 0; i < 2; ++i) _genderMenuItems->push_back(genderNames[i]);
-
-	Dialogs::VerticalMenuConfig config = {
-		"Pick Gender",
-		Common::Array<Common::String>(),
-	_genderMenuItems,
-		15,
-		7,
-		14,
-		5,
-		5,
-		30,
-		15,
-		false
-	};
-
-	if (_genderMenu) {
-		delete _genderMenu;
-	}
-	_genderMenu = new Dialogs::VerticalMenu("GenderMenu", config);
-	subView(_genderMenu);
-	setActiveSubView(_genderMenu);
+	if (_menuItems) { delete _menuItems; }
+	_menuItems = new Goldbox::MenuItemList();
+	static const int genderIndices[] = {0, 1};
+	_indexMap.clear();
+	for (int i = 0; i < 2; ++i) _indexMap.push_back(genderIndices[i]);
+	Dialogs::VerticalMenu::fillMenuItemsFromYml(_menuItems, "stats.gender", genderIndices, 2);
+	buildAndShowMenu(PICK_GENDER);
 }
 
 void CreateCharacterView::chooseClass() {
-	// Placeholder classes list; real list may depend on race/gender
-	static const char *classNames[] = {"Fighter", "Mage", "Cleric", "Thief"};
-	if (_classMenuItems) { delete _classMenuItems; }
-	_classMenuItems = new Goldbox::MenuItemList();
-	for (int i = 0; i < 4; ++i) _classMenuItems->push_back(classNames[i]);
-
-	Dialogs::VerticalMenuConfig config = {
-		"Pick Class",
-		Common::Array<Common::String>(),
-	_classMenuItems,
-		15, 7, 14,
-		5, 5, 30, 15,
-		false
-	};
-
-	if (_classMenu) delete _classMenu;
-	_classMenu = new Dialogs::VerticalMenu("ClassMenu", config);
-	subView(_classMenu);
-	setActiveSubView(_classMenu);
+	if (_menuItems) { delete _menuItems; }
+	_menuItems = new Goldbox::MenuItemList();
+	// Build class list filtered by race using Rules
+	_indexMap.clear();
+	Common::Array<int> allowed;
+	uint8 raceId = 0;
+	if (_newCharacter) raceId = _newCharacter->race; // already mapped
+	const uint8 clsCount = Goldbox::Data::Rules::classEnumCount();
+	for (int cid = 0; cid < clsCount; ++cid) {
+		if (Goldbox::Data::Rules::isClassAllowed(raceId, (uint8)cid))
+			allowed.push_back(cid);
+	}
+	if (allowed.empty()) {
+		// Fallback: show all classes to avoid dead-end if tables are placeholders
+		for (int cid = 0; cid < clsCount; ++cid) allowed.push_back(cid);
+	}
+	for (uint i = 0; i < allowed.size(); ++i) _indexMap.push_back(allowed[i]);
+	// Prepare C-array for helper
+	int *indices = nullptr;
+	if (!allowed.empty()) {
+		indices = new int[allowed.size()];
+		for (uint i = 0; i < allowed.size(); ++i) indices[i] = allowed[i];
+		Dialogs::VerticalMenu::fillMenuItemsFromYml(_menuItems, "stats.classes", indices, (int)allowed.size());
+		delete[] indices;
+	}
+	buildAndShowMenu(PICK_CLASS);
 }
 
 void CreateCharacterView::chooseAlignment() {
-	static const char *alignmentNames[] = {
-		"Lawful Good", "Neutral Good", "Chaotic Good",
-		"Lawful Neutral", "True Neutral", "Chaotic Neutral",
-		"Lawful Evil", "Neutral Evil", "Chaotic Evil"
-	};
-	if (_alignmentMenuItems) { delete _alignmentMenuItems; }
-	_alignmentMenuItems = new Goldbox::MenuItemList();
-	for (int i = 0; i < 9; ++i) _alignmentMenuItems->push_back(alignmentNames[i]);
-
-	Dialogs::VerticalMenuConfig config = {
-		"Pick Alignment",
-		Common::Array<Common::String>(),
-	_alignmentMenuItems,
-		15, 7, 14,
-		3, 3, 35, 20,
-		false
-	};
-
-	if (_alignmentMenu) delete _alignmentMenu;
-	_alignmentMenu = new Dialogs::VerticalMenu("AlignmentMenu", config);
-	subView(_alignmentMenu);
-	setActiveSubView(_alignmentMenu);
+	if (_menuItems) { delete _menuItems; }
+	_menuItems = new Goldbox::MenuItemList();
+	// Filter alignments based on selected class using Rules
+	_indexMap.clear();
+	Common::Array<int> allowed;
+	uint8 classId = 0;
+	if (_newCharacter) classId = _newCharacter->classType;
+	const uint8 alignCount = Goldbox::Data::Rules::alignmentEnumCount();
+	for (int aid = 0; aid < alignCount; ++aid) {
+		if (Goldbox::Data::Rules::isAlignmentAllowed(classId, (uint8)aid))
+			allowed.push_back(aid);
+	}
+	if (allowed.empty()) {
+		for (int aid = 0; aid < alignCount; ++aid) allowed.push_back(aid);
+	}
+	for (uint i = 0; i < allowed.size(); ++i) _indexMap.push_back(allowed[i]);
+	int *indices = nullptr;
+	if (!allowed.empty()) {
+		indices = new int[allowed.size()];
+		for (uint i = 0; i < allowed.size(); ++i) indices[i] = allowed[i];
+		Dialogs::VerticalMenu::fillMenuItemsFromYml(_menuItems, "stats.alignments", indices, (int)allowed.size());
+		delete[] indices;
+	}
+	buildAndShowMenu(PICK_ALIGNMENT);
 }
 
 void CreateCharacterView::showProfileDialog() {
 	// Note: Without a working temp character instance here, just show an empty profile safely
 	if (_profileDialog) { delete _profileDialog; }
-	_profileDialog = new Dialogs::CharacterProfile(nullptr, "CreateProfile");
+	_profileDialog = new Dialogs::CharacterProfile(_newCharacter, "CreateProfile");
 	subView(_profileDialog);
 	setActiveSubView(_profileDialog);
+}
+
+void CreateCharacterView::chooseName() {
+	using namespace Goldbox::Poolrad::Views::Dialogs;
+	if (_nameInput) { delete _nameInput; }
+	HorizontalInputConfig cfg { CHAR_NAME, 15, 15 };
+	_nameInput = new HorizontalInput("NameInput", cfg);
+	subView(static_cast<Dialogs::Dialog *>(_nameInput));
+	setActiveSubView(static_cast<Dialogs::Dialog *>(_nameInput));
+}
+
+void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
+	Common::Array<Common::String> promptOptions = {"Exit"};
+    Dialogs::VerticalMenuConfig menuConfig = {
+        "",                  // promptTxt
+        promptOptions,       // promptOptions
+        _menuItems,          // menuItemList (initialized later)
+        13,                  // headColor
+        10,                  // textColor
+        15,                  // selectColor
+        1, 2, 38, 22,        // bounds
+		topline,	         // title
+        false                // asHeader
+    };
+	if (_menu) {
+		_menu->rebuild(_menuItems, topline);
+		setActiveSubView(_menu);
+	} else {
+		_menu = new Dialogs::VerticalMenu("CreateCharMenu", menuConfig);
+		subView(_menu);
+		setActiveSubView(_menu);
+	}
 }
 
 void CreateCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
@@ -247,54 +284,186 @@ void CreateCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
 }
 
 void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, short value) {
-	// Called by subviews (VerticalMenu) to bubble selection to parent
-	if (!success) return;
+	if (!success) {
+		replaceView("Mainmenu");
+		return;
+	}
 
 	switch (_stage) {
 	case CC_STATE_RACE:
 		if (key == Common::KEYCODE_ESCAPE) {
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			_selectedRace = value;
+			debug("Selected race menuID: %d", value);
+			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+			// map visible index to race enum value (1..7 per strings mapping)
+			if (value >= 0 && value < (int)_indexMap.size())
+				_newCharacter->race = (uint8)_indexMap[value];
+				debug("Selected race ID: %d", _newCharacter->race);
 			nextStage();
 		}
 		break;
 	case CC_STATE_GENDER:
 		if (key == Common::KEYCODE_ESCAPE) {
-			prevStage();
+			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
 			_selectedGender = value;
+			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+			if (_selectedGender >= 0 && _selectedGender < (int)_indexMap.size())
+				_newCharacter->gender = (Goldbox::Data::Gender)_indexMap[_selectedGender];
 			nextStage();
 		}
 		break;
 	case CC_STATE_CLASS:
 		if (key == Common::KEYCODE_ESCAPE) {
-			prevStage();
+			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
 			_selectedClass = value;
+			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+			if (_selectedClass >= 0 && _selectedClass < (int)_indexMap.size())
+				_newCharacter->classType = (uint8)_indexMap[_selectedClass];
 			nextStage();
 		}
 		break;
 	case CC_STATE_ALIGNMENT:
 		if (key == Common::KEYCODE_ESCAPE) {
-			prevStage();
+			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
 			_selectedAlignment = value;
-			nextStage();
+			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+			if (_selectedAlignment >= 0 && _selectedAlignment < (int)_indexMap.size())
+				_newCharacter->alignment = (uint8)_indexMap[_selectedAlignment];
+			// proceed to profile where stats are rolled and can be accepted/rerolled
+			_hasRolled = false;
+			_confirmSave = false;
+			setStage(CC_STATE_PROFILE);
 		}
 		break;
 	case CC_STATE_PROFILE:
-		// Profile dialog likely non-interactive at this moment; proceed to done
-		nextStage();
+		// In profile view:
+		// - ENTER accepts current stats -> go to NAME
+		// - 'r' or 'R' rerolls stats
+		// - ESC goes back to alignment selection
+		if (key == Common::KEYCODE_ESCAPE) {
+			setStage(CC_STATE_ALIGNMENT);
+		} else if (key == Common::KEYCODE_RETURN) {
+			setStage(CC_STATE_NAME);
+		} else if (key == Common::KEYCODE_r) {
+			rollAndRecompute();
+			if (_profileDialog)
+				_profileDialog->draw();
+		}
+		break;
+	case CC_STATE_NAME:
+		if (key == Common::KEYCODE_ESCAPE) {
+			replaceView("Mainmenu");
+		} else if (key == Common::KEYCODE_RETURN) {
+			// finalize name from input dialog and proceed to icon
+			Dialogs::HorizontalInput *hi = dynamic_cast<Dialogs::HorizontalInput *>(_nameInput);
+			if (hi) {
+				_enteredName = hi->getInput();
+				if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+				_newCharacter->name = _enteredName;
+				_newCharacter->finalizeName();
+			}
+			setStage(CC_STATE_ICON);
+		}
 		break;
 	case CC_STATE_ICON:
-		// Not implemented yet
-		nextStage();
+		// Not implemented yet: when leaving icon editor, confirm save and return to PROFILE to confirm
+		// For now, simulate icon customization complete and ask to save
+		_confirmSave = true;
+		setStage(CC_STATE_PROFILE);
 		break;
 	case CC_STATE_DONE:
 		replaceView("Mainmenu");
 		break;
 	}
+}
+
+void CreateCharacterView::resetState() {
+	// Delete subviews except persistent _menu (will rebuild)
+	if (_profileDialog) { delete _profileDialog; _profileDialog = nullptr; }
+	if (_nameInput) { delete _nameInput; _nameInput = nullptr; }
+	// Reset character
+	if (_newCharacter) { delete _newCharacter; }
+	_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+	// Clear selections and flags
+	_selectedRace = _selectedGender = _selectedClass = _selectedAlignment = -1;
+	_enteredName.clear();
+	_indexMap.clear();
+	_confirmSave = false;
+	_hasRolled = false;
+	_stage = CC_STATE_RACE;
+	// Rebuild initial race menu
+	if (_menuItems) { delete _menuItems; _menuItems = nullptr; }
+	chooseRace();
+}
+
+Common::String CreateCharacterView::formatBaseFilename(const Common::String &name) {
+	Common::String formatted;
+	for (uint i = 0; i < name.size() && formatted.size() < 8; ++i) {
+		if (name[i] != ' ')
+			formatted += name[i];
+	}
+	return formatted;
+}
+
+void CreateCharacterView::appendLineToTextFile(const Common::String &fileName, const Common::String &line) {
+	// Append by reading existing content and writing back with new line at end
+	Common::DumpFile df;
+	if (!df.open(fileName.c_str(), true)) { // createPath=true
+		warning("Failed to open %s for append", fileName.c_str());
+		return;
+	}
+	// Ensure trailing newline
+	Common::String out = line;
+	out += "\n";
+	df.write(out.c_str(), out.size());
+	df.flush();
+	df.close();
+}
+
+void CreateCharacterView::finalizeCharacterAndSave() {
+	if (!_newCharacter)
+		return;
+
+	// Roll base stats and compute initial values
+	_newCharacter->rollAbilityScores();
+	_newCharacter->applyRacialAdjustments();
+	// Start as level 1 in chosen class
+	if (_newCharacter->classType < _newCharacter->levels.levels.size())
+		_newCharacter->levels.levels[_newCharacter->classType] = 1;
+	_newCharacter->calculateHitPoints();
+
+	// Save .CHA
+	Common::String base = formatBaseFilename(_newCharacter->name);
+	Common::String chrFile = base + ".CHA";
+	Common::DumpFile out;
+	if (out.open(chrFile.c_str(), true)) {
+		_newCharacter->save(out);
+		out.flush();
+		out.close();
+	} else {
+		warning("Failed to create %s", chrFile.c_str());
+	}
+
+	// Create empty .ITM and .SPC via inventory/effects save
+	_newCharacter->inventory.save(base + ".ITM");
+	_newCharacter->effects.save(base + ".SPC");
+	appendLineToTextFile("CHARLIST.TXT", _newCharacter->name);
+}
+
+void CreateCharacterView::rollAndRecompute() {
+	if (!_newCharacter)
+		return;
+	_newCharacter->rollAbilityScores();
+	_newCharacter->applyRacialAdjustments();
+	for (uint i = 0; i < _newCharacter->levels.levels.size(); ++i)
+		_newCharacter->levels.levels[i] = 0;
+	if (_newCharacter->classType < _newCharacter->levels.levels.size())
+		_newCharacter->levels.levels[_newCharacter->classType] = 1;
+	_newCharacter->calculateHitPoints();
 }
 } // namespace Views
 } // namespace Poolrad
