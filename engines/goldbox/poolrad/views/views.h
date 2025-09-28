@@ -26,6 +26,7 @@
 #include "goldbox/poolrad/views/credits_view.h"
 #include "goldbox/poolrad/views/codewheel_view.h"
 #include "goldbox/poolrad/views/mainmenu_view.h"
+#include "goldbox/poolrad/views/create_character_view.h"
 #include "goldbox/poolrad/views/add_character_view.h"
 #include "goldbox/poolrad/views/view_character_view.h"
 
@@ -38,6 +39,7 @@ struct Views {
 	CreditsView _credits;
 	CodewheelView _codewheel;
 	MainmenuView _mainmenu;
+	CreateCharacterView _createcharacter;
 	AddCharacterView _addcharacter;
 	ViewCharacterView _viewcharacter;
 };

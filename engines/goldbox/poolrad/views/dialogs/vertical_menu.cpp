@@ -22,6 +22,7 @@
 #include "common/util.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "vertical_menu.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -40,10 +41,17 @@ VerticalMenu::VerticalMenu(const Common::String &name, const VerticalMenuConfig 
       _xEnd(config.xEnd),
       _yEnd(config.yEnd),
       _menuItems(config.menuItemList),
-      _addExit(config.isAddExit),
+      _title(config.title),
+      _titleAsHeader(config.asHeader),
       _horizontalMenu(nullptr) {
-
-    _menuHeight = _yEnd - _yStart + 1;
+    // Total vertical span including possible title/header line
+    int totalHeight = _yEnd - _yStart + 1;
+    if (!_title.empty()) {
+        // Reserve first line for title (non-selectable)
+        _menuHeight = MAX(0, totalHeight - 1);
+    } else {
+        _menuHeight = totalHeight;
+    }
     _itemNums = static_cast<int>(_menuItems->items.size());
     _linesToRender = MIN(_menuHeight, _itemNums);
     if (_itemNums > _menuHeight) {
@@ -88,6 +96,15 @@ void VerticalMenu::drawText() {
     Surface s = getSurface();
     s.clearBox(_xStart, _yStart, _xEnd, _yEnd, 0);
 
+    // Optional fixed title line (not part of selectable list)
+    int titleOffset = 0;
+    if (!_title.empty()) {
+        s.writeStringC(_title, _headColor, _xStart, _yStart);
+        titleOffset = 1;
+    }
+    // Indent items by 2 spaces if a title is present
+    int itemX = _xStart + ((_title.empty()) ? 0 : 2);
+
     for (int i = 0; i < _linesToRender; i++) {
         int menuIndex = i + _linesAbove;
         if (menuIndex >= _itemNums) {
@@ -95,7 +112,7 @@ void VerticalMenu::drawText() {
         }
         const auto &item = _menuItems->items[menuIndex];
         int color = (menuIndex == _menuItems->currentSelection) ? _selectColor : _textColor;
-        s.writeStringC(item.text, color, _xStart, _yStart + i);
+        s.writeStringC(item.text, color, itemX, _yStart + titleOffset + i);
     }
 }
 
@@ -109,13 +126,15 @@ void VerticalMenu::redrawLine(int index) {
     if (relativeIndex < 0 || relativeIndex >= _menuHeight)
         return;
 
+    int titleOffset = _title.empty() ? 0 : 1;
+    int itemX = _xStart + ((_title.empty()) ? 0 : 2);
     // Clear that line
-    s.clearBox(_xStart, _yStart + relativeIndex, _xEnd, _yStart + relativeIndex, 0);
+    s.clearBox(_xStart, _yStart + titleOffset + relativeIndex, _xEnd, _yStart + titleOffset + relativeIndex, 0);
 
     // Draw the text
     const auto &item = _menuItems->items[index];
     int color = (index == _menuItems->currentSelection) ? _selectColor : _textColor;
-    s.writeStringC(item.text, color, _xStart, _yStart + relativeIndex);
+    s.writeStringC(item.text, color, itemX, _yStart + titleOffset + relativeIndex);
 }
 
 void VerticalMenu::updateHorizontalMenu() {
@@ -231,6 +250,42 @@ void VerticalMenu::deactivateHorizontalMenu() {
     if (_horizontalMenu) {
         _horizontalMenu->deactivate();
     }
+}
+
+void VerticalMenu::fillMenuItemsFromYml(Goldbox::MenuItemList *list,
+        const Common::String &baseKey, const int *indices, int count) {
+    if (!list || !indices || count <= 0)
+        return;
+
+    for (int i = 0; i < count; ++i) {
+        Common::String key = Common::String::format("%s.%d", baseKey.c_str(), indices[i]);
+        Common::String text = Goldbox::VmInterface::getString(key);
+        list->push_back(text);
+    }
+}
+
+void VerticalMenu::rebuild(Goldbox::MenuItemList *newItems, const Common::String &newTitle) {
+    _menuItems = newItems;
+    _title = newTitle;
+    _linesAbove = 0;
+    _linesBelow = 0;
+    _currentVisibleIndex = 0;
+    _itemNums = _menuItems ? (int)_menuItems->items.size() : 0;
+    int totalHeight = _yEnd - _yStart + 1;
+    if (!_title.empty()) {
+        _menuHeight = MAX(0, totalHeight - 1);
+    } else {
+        _menuHeight = totalHeight;
+    }
+    _linesToRender = MIN(_menuHeight, _itemNums);
+    if (_itemNums > _menuHeight) {
+        _linesBelow = _itemNums - _menuHeight;
+    }
+    if (_menuItems)
+        _menuItems->currentSelection = 0;
+    _redraw = true;
+    updateHorizontalMenu();
+    drawText();
 }
 
 } // namespace Dialogs

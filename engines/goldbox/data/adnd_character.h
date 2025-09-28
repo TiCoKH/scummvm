@@ -42,24 +42,24 @@ enum RaceADnD {
 };
 
 enum ClassADnD {
-    C_CLERIC              = 0x00,
-    C_DRUID               = 0x01,
-    C_FIGHTER             = 0x02,
-    C_PALADIN             = 0x03,
-    C_RANGER              = 0x04,
-    C_MAGE                = 0x05,
-    C_THIEF               = 0x06,
-    C_MONK                = 0x07,
-    C_CLERIC_FIGHTER      = 0x08,
-    C_CLERIC_FIGHTER_MAGE = 0x09,
-    C_CLERIC_RANGER       = 0x0A,
-    C_CLERIC_MAGE         = 0x0B,
-    C_CLERIC_THIEF        = 0x0C,
-    C_FIGHTER_MAGE        = 0x0D,
-    C_FIGHTER_THIEF       = 0x0E,
-    C_FIGHTER_MAGE_THIEF  = 0x0F,
-    C_MAGE_THIEF          = 0x10,
-    C_MONSTER             = 0x11
+    C_CLERIC                   = 0x00,
+    C_DRUID                    = 0x01,
+    C_FIGHTER                  = 0x02,
+    C_PALADIN                  = 0x03,
+    C_RANGER                   = 0x04,
+    C_MAGICUSER                = 0x05,
+    C_THIEF                    = 0x06,
+    C_MONK                     = 0x07,
+    C_CLERIC_FIGHTER           = 0x08,
+    C_CLERIC_FIGHTER_MAGICUSER = 0x09,
+    C_CLERIC_RANGER            = 0x0A,
+    C_CLERIC_MAGICUSER         = 0x0B,
+    C_CLERIC_THIEF             = 0x0C,
+    C_FIGHTER_MAGICUSER        = 0x0D,
+    C_FIGHTER_THIEF            = 0x0E,
+    C_FIGHTER_MAGICUSER_THIEF  = 0x0F,
+    C_MAGICUSER_THIEF          = 0x10,
+    C_MONSTER                  = 0x11
 };
 
 // Grouping for level data; one field per class type supported.
@@ -172,35 +172,7 @@ struct EquipmentAddresses {
     uint32 equippedArrow;
     uint32 equippedBolt;
 };
-/*
-struct AgeDefEntry {
-    uint16 base;
-    uint8  sides;
-    uint8  dices;
-};
 
-AgeDefEntry AgeDefs [R_HUMAN][7];
-
-struct thac0Bases {
-    uint8 thac0[11];
-};
-
-thac0Bases thac0Table[C_MONSTER];
-
-struct ClassAlignmentDef {
-    uint8 align_count;
-    uint8 align_ids[9];
-};  // size = 10 bytes per class
-
-ClassAlignmentDef alignmentTable[C_MONSTER];
-
-struct RaceClassDef {
-    uint8 class_count;
-    uint8 class_ids[11];
-};
-
-RaceClassDef classTable[R_HUMAN];
-*/
 // The base class for player characters.
 // This class defines the core (common) data and behavior shared among AD&D–based games.
 class ADnDCharacter : public PlayerCharacter {
