@@ -30,27 +30,36 @@ namespace Data {
 namespace Effects {
 
 struct Effect {
-    uint8 type;          // Effect ID
-    uint16 durationMin;  // Duration in minutes (LE)
-    uint8 power;         // 0xFF = permanent, or encoded power level
-    uint32 nextAddress;  // Unused original linked list
-    uint8 padding;
+    uint8 type;          // Effect ID (original e_id)
+    uint16 durationMin;  // Duration in minutes (original duration word)
+    uint8 power;         // Power (0xFF = permanent)
+    uint32 nextAddress;  // Original DOS far ptr to next node (always 0 in saves)
+    uint8 immediate;
+
+    // Historical layout notes (x86 Pool of Radiance):
+    //  Allocation size: 9 bytes
+    //    0: e_id
+    //    1-2: duration (word, LE)
+    //    3: power      (param_2 in Pascal stdcall decompile)
+    //    4: unknown    (param_1)
+    //    5-8: next_ptr (far pointer, both word & segment zeroed by creator)
+    //  The m68k variant reportedly used a 10-byte node (e_id, duration, unknown, power, next_ptr[4]).
+    //  Our on-disk representation in .SPC mirrors the x86 layout exactly.
 
     void load(Common::SeekableReadStream &s) {
         type = s.readByte();
         durationMin = s.readUint16LE();
         power = s.readByte();
-        padding = s.readByte();
+        immediate = s.readByte();
         nextAddress = s.readUint32LE();
-   
     }
 
     void save(Common::WriteStream &s) const {
         s.writeByte(type);
         s.writeUint16LE(durationMin);
         s.writeByte(power);
+        s.writeByte(immediate);
         s.writeUint32LE(nextAddress);
-        s.writeByte(padding);
     }
 };
 
