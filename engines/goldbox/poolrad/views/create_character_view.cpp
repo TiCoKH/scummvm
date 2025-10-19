@@ -45,19 +45,22 @@ const char CHAR_NAME[] = "Character name: ";
 
 
 CreateCharacterView::CreateCharacterView() : View("CreatCharacter"), _stage(CC_STATE_RACE) {
-	// Initialize character under construction
 	_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
-	// Build initial race selection menu immediately
+	_newCharacter->initializeNewCharacter();
 	chooseRace();
 }
 
 CreateCharacterView::~CreateCharacterView() {
-	// Clean up any created subviews
-	delete _menu; _menu = nullptr;
-	delete _nameInput; _nameInput = nullptr;
-	delete _profileDialog; _profileDialog = nullptr;
+	// Clean up any created subviews ensuring they are detached from the
+	// parent's _children list to prevent stale pointers during redraw.
+	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
+	if (_activeSubView == _nameInput) _activeSubView = nullptr;
+	if (_activeSubView == _menu) _activeSubView = nullptr;
+	if (_profileDialog) { _profileDialog->setParent(nullptr); delete _profileDialog; _profileDialog = nullptr; }
+	if (_nameInput) { _nameInput->setParent(nullptr); delete _nameInput; _nameInput = nullptr; }
+	if (_menu) { _menu->setParent(nullptr); delete _menu; _menu = nullptr; }
+	// _menuItems is not a UIElement
 	delete _menuItems; _menuItems = nullptr;
-	_activeSubView = nullptr;
 	delete _newCharacter; _newCharacter = nullptr;
 }
 
@@ -132,6 +135,9 @@ void CreateCharacterView::timeout() {
 bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 	// Global immediate exit on Escape from any stage (except DONE which already returns)
 	if (msg.keycode == Common::KEYCODE_ESCAPE) {
+		// Proactively reset internal state so that re-opening the view does not
+		// reference stale dialogs or deleted objects.
+		resetState();
 		replaceView("Mainmenu");
 		return true;
 	}
@@ -291,61 +297,151 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 
 	switch (_stage) {
 	case CC_STATE_RACE:
-		if (key == Common::KEYCODE_ESCAPE) {
+		if (key == Common::KEYCODE_ESCAPE || key == Common::KEYCODE_e) {
+			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
 			debug("Selected race menuID: %d", value);
 			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
-			// map visible index to race enum value (1..7 per strings mapping)
-			if (value >= 0 && value < (int)_indexMap.size())
+			if (value >= 0 && value < (int)_indexMap.size()) {
 				_newCharacter->race = (uint8)_indexMap[value];
 				debug("Selected race ID: %d", _newCharacter->race);
-			nextStage();
+				if (_newCharacter) {
+					switch (_newCharacter->race) {
+					case Goldbox::Data::R_DWARF:
+						_newCharacter->iconDimension = 1;
+						_newCharacter->setEffect(90, 0, 0xFF, false);
+						_newCharacter->setEffect(97, 0, 0xFF, false);
+						_newCharacter->setEffect(26, 0, 0xFF, false);
+						_newCharacter->setEffect(47, 0, 0xFF, false);
+						break;
+					case Goldbox::Data::R_ELF:
+						_newCharacter->iconDimension = 2;
+						_newCharacter->setEffect(107, 0, 0xFF, false);
+						break;
+					case Goldbox::Data::R_GNOME:
+						_newCharacter->iconDimension = 1;
+						_newCharacter->setEffect(97, 0, 0xFF, false);
+						_newCharacter->setEffect(18, 0, 0xFF, false);
+						_newCharacter->setEffect(47, 0, 0xFF, false);
+						_newCharacter->setEffect(48, 0, 0xFF, false);
+						break;
+					case Goldbox::Data::R_HALF_ELF:
+						_newCharacter->iconDimension = 2;
+						_newCharacter->setEffect(124, 0, 0xFF, false);
+						break;
+					case Goldbox::Data::R_HALFLING:
+						_newCharacter->iconDimension = 1;
+						_newCharacter->setEffect(90, 0, 0xFF, false);
+						_newCharacter->setEffect(97, 0, 0xFF, false);
+						break;
+					default: // Monster / Human / Half-Orc or any other
+						_newCharacter->iconDimension = 2;
+						break;
+					}
+				}
+				nextStage();
+			}
 		}
 		break;
 	case CC_STATE_GENDER:
-		if (key == Common::KEYCODE_ESCAPE) {
+		if (key == Common::KEYCODE_ESCAPE || key == Common::KEYCODE_e) {
+			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			_selectedGender = value;
+			debug("Selected gender menuID: %d", value);
 			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
-			if (_selectedGender >= 0 && _selectedGender < (int)_indexMap.size())
-				_newCharacter->gender = (Goldbox::Data::Gender)_indexMap[_selectedGender];
-			nextStage();
+			if (value >= 0 && value < (int)_indexMap.size()) {
+				_newCharacter->gender = (Goldbox::Data::Gender)_indexMap[value];
+				debug("Selected gender ID: %d", _newCharacter->gender);
+				nextStage();
+			}
 		}
 		break;
 	case CC_STATE_CLASS:
-		if (key == Common::KEYCODE_ESCAPE) {
+		if (key == Common::KEYCODE_ESCAPE || key == Common::KEYCODE_e) {
+			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			_selectedClass = value;
+			debug("Selected class menuID: %d", value);
 			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
-			if (_selectedClass >= 0 && _selectedClass < (int)_indexMap.size())
-				_newCharacter->classType = (uint8)_indexMap[_selectedClass];
+			if (value >= 0 && value < (int)_indexMap.size()) {
+				_newCharacter->classType = (uint8)_indexMap[value];
+				debug("Selected class ID: %d", _newCharacter->classType);
+				_newCharacter->highestLevel = 1;
+				switch (_newCharacter->classType) {
+				case Goldbox::Data::C_CLERIC_FIGHTER:
+					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] = 1;
+					break;
+				case Goldbox::Data::C_CLERIC_FIGHTER_MAGICUSER:
+					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_MAGICUSER] = 1;
+					break;
+				case Goldbox::Data::C_CLERIC_RANGER:
+					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_RANGER] = 1;
+					break;
+				case Goldbox::Data::C_CLERIC_MAGICUSER:
+					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_MAGICUSER] = 1;
+					break;
+				case Goldbox::Data::C_CLERIC_THIEF:
+					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_THIEF] = 1;
+					break;
+				case Goldbox::Data::C_FIGHTER_MAGICUSER:
+					_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_MAGICUSER] = 1;
+					break;
+				case Goldbox::Data::C_FIGHTER_THIEF:
+					_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_THIEF] = 1;
+					break;
+				case Goldbox::Data::C_FIGHTER_MAGICUSER_THIEF:
+					_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_MAGICUSER] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_THIEF] = 1;
+					break;
+				case Goldbox::Data::C_MAGICUSER_THIEF:
+					_newCharacter->levels.levels[Goldbox::Data::C_MAGICUSER] = 1;
+					_newCharacter->levels.levels[Goldbox::Data::C_THIEF] = 1;
+					break;
+				default:
+					_newCharacter->levels.levels[_newCharacter->classType] = 1;
+					break;
+				}
+			}
+			if ( _newCharacter->levels.levels[Goldbox::Data::C_THIEF] > 0) {
+				setThiefSkillsForNewCharacter();
+			}
+			setThac0();
+			setSavingThrows();
 			nextStage();
 		}
 		break;
 	case CC_STATE_ALIGNMENT:
-		if (key == Common::KEYCODE_ESCAPE) {
+		if (key == Common::KEYCODE_ESCAPE || key == Common::KEYCODE_e) {
+			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			_selectedAlignment = value;
+			debug("Selected alignment menuID: %d", value);
 			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
-			if (_selectedAlignment >= 0 && _selectedAlignment < (int)_indexMap.size())
-				_newCharacter->alignment = (uint8)_indexMap[_selectedAlignment];
-			// proceed to profile where stats are rolled and can be accepted/rerolled
-			_hasRolled = false;
-			_confirmSave = false;
-			setStage(CC_STATE_PROFILE);
+			if (value >= 0 && value < (int)_indexMap.size()) {
+				_newCharacter->alignment = (uint8)_indexMap[value];
+				debug("Selected alignment ID: %d", _newCharacter->alignment);
+				_hasRolled = false;
+				_confirmSave = false;
+			}
+			setAge();
+			nextStage();
 		}
 		break;
 	case CC_STATE_PROFILE:
-		// In profile view:
-		// - ENTER accepts current stats -> go to NAME
-		// - 'r' or 'R' rerolls stats
-		// - ESC goes back to alignment selection
-		if (key == Common::KEYCODE_ESCAPE) {
-			setStage(CC_STATE_ALIGNMENT);
+		if (key == Common::KEYCODE_ESCAPE || key == Common::KEYCODE_e) {
+			resetState();
+			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
 			setStage(CC_STATE_NAME);
 		} else if (key == Common::KEYCODE_r) {
@@ -356,6 +452,7 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 		break;
 	case CC_STATE_NAME:
 		if (key == Common::KEYCODE_ESCAPE) {
+			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
 			// finalize name from input dialog and proceed to icon
@@ -382,12 +479,16 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 }
 
 void CreateCharacterView::resetState() {
-	// Delete subviews except persistent _menu (will rebuild)
-	if (_profileDialog) { delete _profileDialog; _profileDialog = nullptr; }
-	if (_nameInput) { delete _nameInput; _nameInput = nullptr; }
+	// Delete subviews safely: detach from parent so redraw traversal doesn't
+	// see freed memory. Keep _menu to reuse, but if active, deactivate.
+	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
+	if (_activeSubView == _nameInput) _activeSubView = nullptr;
+	if (_profileDialog) { _profileDialog->setParent(nullptr); delete _profileDialog; _profileDialog = nullptr; }
+	if (_nameInput) { _nameInput->setParent(nullptr); delete _nameInput; _nameInput = nullptr; }
 	// Reset character
 	if (_newCharacter) { delete _newCharacter; }
 	_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+	_newCharacter->initializeNewCharacter();
 	// Clear selections and flags
 	_selectedRace = _selectedGender = _selectedClass = _selectedAlignment = -1;
 	_enteredName.clear();
@@ -430,7 +531,6 @@ void CreateCharacterView::finalizeCharacterAndSave() {
 
 	// Roll base stats and compute initial values
 	_newCharacter->rollAbilityScores();
-	_newCharacter->applyRacialAdjustments();
 	// Start as level 1 in chosen class
 	if (_newCharacter->classType < _newCharacter->levels.levels.size())
 		_newCharacter->levels.levels[_newCharacter->classType] = 1;
@@ -458,13 +558,198 @@ void CreateCharacterView::rollAndRecompute() {
 	if (!_newCharacter)
 		return;
 	_newCharacter->rollAbilityScores();
-	_newCharacter->applyRacialAdjustments();
 	for (uint i = 0; i < _newCharacter->levels.levels.size(); ++i)
 		_newCharacter->levels.levels[i] = 0;
 	if (_newCharacter->classType < _newCharacter->levels.levels.size())
 		_newCharacter->levels.levels[_newCharacter->classType] = 1;
 	_newCharacter->calculateHitPoints();
 }
+
+void CreateCharacterView::setThiefSkillsForNewCharacter() {
+    if (!_newCharacter)
+        return;
+
+    uint8 thiefLevel = 0;
+    thiefLevel = _newCharacter->levels[Goldbox::Data::C_THIEF];
+    const uint8 race = _newCharacter->race;
+    const uint8 dexterity = _newCharacter->abilities.dexterity.current;
+	debug("Thief skills for race %d, dex: %d, level: %d", race, dexterity, thiefLevel);
+    // Compute final thief skills via rules
+    _newCharacter->thiefSkills =
+        Goldbox::Data::Rules::computeThiefSkills(race, dexterity, thiefLevel);
+	debug("Thief skills set:\n pick locks: %d\n find-remove traps: %d\n stealth %d\n hide in shadow: %d\n hear noise: %d\n climb walls: %d\n read languages: %d\n",
+		_newCharacter->thiefSkills.openLocks,
+		_newCharacter->thiefSkills.findRemoveTraps,
+		_newCharacter->thiefSkills.moveSilently,
+		_newCharacter->thiefSkills.hideInShadows,
+		_newCharacter->thiefSkills.hearNoise,
+		_newCharacter->thiefSkills.climbWalls,
+		_newCharacter->thiefSkills.readLanguages
+	);
+}
+
+void CreateCharacterView::setThac0() {
+	// Determine THAC0 base from the best (highest) among all base-class levels
+	uint8 bestThac0 = 0;
+	if (_newCharacter) {
+		const Common::Array<uint8> &lvls = _newCharacter->levels.levels;
+		for (uint i = 0; i < lvls.size(); ++i) {
+			uint8 lvl = lvls[i];
+			if (lvl > 0) {
+				int v = Goldbox::Data::Rules::thac0AtLevel((uint8)i, lvl);
+				if (v > bestThac0)
+					bestThac0 = (uint8)v;
+			}
+		}
+		_newCharacter->thac0.base = bestThac0;
+
+		debug("Base raw THAC0: %d, actual: %d", _newCharacter->thac0.base, 60 - _newCharacter->thac0.base);
+
+		// Set item-limit bitfield: OR of bits for all base classes with level > 0
+		_newCharacter->itemsLimit =
+			Goldbox::Data::Rules::computeItemLimitMask(_newCharacter->levels.levels);
+		debug("Item limit bitmask value: %d", _newCharacter->itemsLimit);
+	}
+}
+
+// Helper to clamp an int to uint8 range
+static inline uint8 clampU8(int v) { return v < 0 ? 0 : (v > 255 ? 255 : (uint8)v); }
+
+void CreateCharacterView::setSavingThrows() {
+	if (!_newCharacter)
+		return;
+
+	using namespace Goldbox::Data;
+	using Goldbox::Data::Rules::savingThrowsAt;
+
+	// 1) Initialize to worst values (higher is worse)
+	SavingThrows best;
+	best.vsParalysis     = 20;
+	best.vsPetrification = 20;
+	best.vsRodStaffWand  = 20;
+	best.vsBreathWeapon  = 20;
+	best.vsSpell         = 20;
+
+	// 2) For each base class 0..7 with level > 0, keep the minimum per category
+	const Common::Array<uint8> &lvls = _newCharacter->levels.levels;
+	const uint sz = MIN<uint>((uint)lvls.size(), BASE_CLASS_NUM);
+	for (uint i = 0; i < sz; ++i) {
+		uint8 lvl = lvls[i];
+		if (lvl == 0)
+			continue;
+
+		const SavingThrows &st = savingThrowsAt((uint8)i, lvl);
+		if (st.vsParalysis     < best.vsParalysis)     best.vsParalysis     = st.vsParalysis;
+		if (st.vsPetrification < best.vsPetrification) best.vsPetrification = st.vsPetrification;
+		if (st.vsRodStaffWand  < best.vsRodStaffWand)  best.vsRodStaffWand  = st.vsRodStaffWand;
+		if (st.vsBreathWeapon  < best.vsBreathWeapon)  best.vsBreathWeapon  = st.vsBreathWeapon;
+		if (st.vsSpell         < best.vsSpell)         best.vsSpell         = st.vsSpell;
+
+		// 3) Special dual-class quirk for class index 7 only: consider old level as well
+		if (i == 7) {
+			uint8 oldLvl = _newCharacter->highestLevel;
+			if (oldLvl > 0 && lvl > oldLvl) {
+				const SavingThrows &oldSt = savingThrowsAt(7, oldLvl);
+				if (oldSt.vsParalysis     < best.vsParalysis)     best.vsParalysis     = oldSt.vsParalysis;
+				if (oldSt.vsPetrification < best.vsPetrification) best.vsPetrification = oldSt.vsPetrification;
+				if (oldSt.vsRodStaffWand  < best.vsRodStaffWand)  best.vsRodStaffWand  = oldSt.vsRodStaffWand;
+				if (oldSt.vsBreathWeapon  < best.vsBreathWeapon)  best.vsBreathWeapon  = oldSt.vsBreathWeapon;
+				if (oldSt.vsSpell         < best.vsSpell)         best.vsSpell         = oldSt.vsSpell;
+			}
+		}
+	}
+
+	_newCharacter->savingThrows = best;
+
+	debug("Saving throws set: vsParalysis=%d, vsPetrification=%d, vsRod/Wand=%d, vsBreath=%d, vsSpell=%d",
+		_newCharacter->savingThrows.vsParalysis,
+		_newCharacter->savingThrows.vsPetrification,
+		_newCharacter->savingThrows.vsRodStaffWand,
+		_newCharacter->savingThrows.vsBreathWeapon,
+		_newCharacter->savingThrows.vsSpell);
+}
+
+void CreateCharacterView::setAge() {
+	if (!_newCharacter)
+		return;
+
+	using namespace Goldbox::Data;
+
+	const uint8 race = _newCharacter->race;
+	debug("setAge: classType=%u race=%u", (unsigned)_newCharacter->classType, (unsigned)race);
+
+	// Multiclass special handling: use specified base class and MAX dice roll
+	// - Cleric-based combos: Cleric/Fighter, Cleric/Fighter/Magic-User,
+	//   Cleric/Magic-User, Cleric/Thief -> Cleric base + max dice
+	// - Magic-User-based combos: Fighter/Magic-User, Fighter/Magic-User/Thief,
+	//   Magic-User/Thief -> Magic-User base + max dice
+	// - Fighter/Thief -> Fighter base + max dice
+	uint8 forcedBaseIdx = 0xFF;
+	switch (_newCharacter->classType) {
+	case C_CLERIC_FIGHTER:
+	case C_CLERIC_FIGHTER_MAGICUSER:
+	case C_CLERIC_MAGICUSER:
+	case C_CLERIC_THIEF:
+		forcedBaseIdx = C_CLERIC; // 0
+		break;
+	case C_FIGHTER_MAGICUSER:
+	case C_FIGHTER_MAGICUSER_THIEF:
+	case C_MAGICUSER_THIEF:
+		forcedBaseIdx = C_MAGICUSER; // 5
+		break;
+	case C_FIGHTER_THIEF:
+		forcedBaseIdx = C_FIGHTER; // 2
+		break;
+	default:
+		break; // fall back should be happened
+	}
+
+	if (forcedBaseIdx != 0xFF) {
+		const Goldbox::Data::Rules::AgeDefEntry &adef =
+			Goldbox::Data::Rules::getAgeDef(race, forcedBaseIdx);
+		// Max dice roll: dices * sides
+		const uint16 maxExtra = (uint16)(adef.dices * adef.sides);
+		debug("AgeDef (forced base=%u): base=%u dice=%u sides=%u maxExtra=%u",
+			  (unsigned)forcedBaseIdx, (unsigned)adef.base, (unsigned)adef.dices,
+			  (unsigned)adef.sides, (unsigned)maxExtra);
+		_newCharacter->age = adef.base + maxExtra;
+		debug("Set character age (multiclass rule): %u", (unsigned)_newCharacter->age);
+		if (_newCharacter->age == 0) {
+			warning("Age computed as 0 in forced multiclass branch (base=%u) for race=%u", (unsigned)forcedBaseIdx, (unsigned)race);
+		}
+		return;
+	}
+
+
+	// If single-class (base class id), just roll that class's age
+	if (_newCharacter->classType < C_CLERIC_FIGHTER) {
+		uint8 baseIdx = _newCharacter->classType;
+		const Goldbox::Data::Rules::AgeDefEntry &adef = Goldbox::Data::Rules::getAgeDef(race, baseIdx);
+		uint16 extra = (uint16)VmInterface::rollDice(adef.dices, adef.sides);
+		debug("AgeDef (single base=%u): base=%u dice=%u sides=%u rolled=%u",
+			  (unsigned)baseIdx, (unsigned)adef.base, (unsigned)adef.dices,
+			  (unsigned)adef.sides, (unsigned)extra);
+		_newCharacter->age = adef.base + extra;
+		debug("Set character age (single-class): %u", (unsigned)_newCharacter->age);
+		if (_newCharacter->age == 0) {
+			warning("Age computed as 0 in single-class branch (base=%u) for race=%u", (unsigned)baseIdx, (unsigned)race);
+		}
+		return;
+	}
+
+	// Fallback for any other multiclass not explicitly handled above
+	{
+		uint8 baseIdx = (uint8)C_FIGHTER; // reasonable default; non-POoR combos shouldn't hit this
+		const Goldbox::Data::Rules::AgeDefEntry &adef = Goldbox::Data::Rules::getAgeDef(race, baseIdx);
+	  uint16 extra = (uint16)VmInterface::rollDice(adef.dices, adef.sides);
+	  debug("AgeDef (fallback base=%u): base=%u dice=%u sides=%u rolled=%u",
+		  (unsigned)baseIdx, (unsigned)adef.base, (unsigned)adef.dices,
+		  (unsigned)adef.sides, (unsigned)extra);
+		_newCharacter->age = adef.base + extra;
+	  warning("Set character age FALLBACK should not be happened: %u", (unsigned)_newCharacter->age);
+	}
+}
+
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox

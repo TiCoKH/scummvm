@@ -117,17 +117,30 @@ public:
     void save(Common::WriteStream &stream) override;
 
     void initialize();
+
     bool meetsClassRequirements() const;
     bool haveMemorizedSpell() const;
     void finalizeName();
 
     void rollAbilityScores() override;
-    void applyRacialAdjustments() override;
     void calculateHitPoints() override;
 
     static uint8 getBaseIconColor(int index);
+    /**
+     * Set platform-dependent default values for a freshly generated character.
+     *
+     * This was split out from the general initialization so that future
+     * platform specific variants (e.g. Amiga / PC-98) can override the logic
+     * without duplicating the whole constructor or load path. The DOS values
+     * (current default) are implemented in the base version here.
+     */
+    virtual void initializeNewCharacter();
 
     void resolveEquippedItems();
+
+    void setEffect(uint8 type, uint16 durationMin, uint8 power, bool immediate) override {
+        effects.addEffect(type, durationMin, power, immediate ? 1 : 0);
+    }
 
     // draw methods
     byte getNameColor();
@@ -158,10 +171,6 @@ public:
         // Provide implementation
         return "StatusName";
     }
-
-private:
-    // Helper methods
-    void adjustAbilityForRace(Goldbox::Data::Stat &ability, int adjustment, int minValue, int maxValue);
 };
 
 } // namespace Data

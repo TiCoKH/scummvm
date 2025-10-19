@@ -19,6 +19,8 @@
  *
  */
 
+// Implementation of runtime character effect list handling.
+// Mirrors original linked list behaviour via a contiguous array.
 #include "common/file.h"
 #include "goldbox/data/effects/character_effects.h"
 
@@ -33,13 +35,23 @@ bool CharacterEffects::load(const Common::String &filename) {
 
     _effects.clear();
 
-    while (!f.eos()) {
-        Effect effect;
-        if (f.pos() + 9 > f.size())
-            break;
+    const int32 fileSize = f.size();
+    if (fileSize <= 0) {
+        f.close();
+        return true; // empty file acceptable
+    }
 
-        effect.load(f);
-        _effects.push_back(effect);
+    // X86 Pool of Radiance effect node size = 9 bytes.
+    // Future m68k variant (10 bytes) can be supported by versioning or heuristic.
+    if (fileSize % 9 != 0) {
+        warning("CharacterEffects::load: size %d not multiple of 9 (x86 node)", fileSize);
+    }
+    const int count = fileSize / 9; // truncate remainder if any
+    for (int i = 0; i < count; ++i) {
+        Effect e;
+        e.load(f);
+        e.nextAddress = 0; // normalize
+        _effects.push_back(e);
     }
 
     f.close();

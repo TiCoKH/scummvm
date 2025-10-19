@@ -103,7 +103,11 @@ private:
     void showProfileDialog();
     void chooseName();
     void buildAndShowMenu(const Common::String &prompt);
-    void resetState(); // resets view to initial race selection
+    void resetState();
+    void setThiefSkillsForNewCharacter();
+    void setThac0();
+    void setSavingThrows();
+    void setAge();
 
     // persistence helpers
     void finalizeCharacterAndSave();
