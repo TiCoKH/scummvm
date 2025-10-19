@@ -23,6 +23,7 @@
 
 #include "common/scummsys.h"
 #include "common/array.h"
+#include "goldbox/data/rules/rules_types.h"
 
 #define MAX_CLASS_RACE 11
 #define MAX_LEVEL 11
@@ -31,13 +32,20 @@
 
 namespace Goldbox {
 namespace Data {
-
 namespace Rules {
 
 struct AgeDefEntry {
     uint16 base;
-    uint8  sides;
     uint8  dices;
+    uint8  sides;
+};
+
+struct AgeCategories {
+    uint8 young;
+    uint8 adult;
+    uint8 middle;
+    uint8 old;
+    uint8 venitiar;
 };
 
 struct thac0Bases {
@@ -54,6 +62,7 @@ struct RaceClassDef {
     uint8 class_ids[MAX_CLASS_RACE];
 };
 
+
 // Accessors for the active ruleset (per game). For now, we expose Poolrad directly.
 
 // Race/Class/Alignment constraints
@@ -63,9 +72,10 @@ bool isAlignmentAllowed(uint8 classId, uint8 alignmentId);
 // Progression and combat
 int  thac0AtLevel(uint8 classId, uint8 level); // returns THAC0 for given class/level
 
-// Age calculation; baseClassIndex is a base-class selector (0..6). Multiclass handling TBD.
-uint16 computeStartingAge(uint8 race, uint8 baseClassIndex,
-                          uint16 (*rng)(uint8 dice, uint8 sides));
+// Retrieve the age definition row for a given race and base class index.
+// baseClassIndex is a base-class selector (0..7 for Poolrad base classes).
+// Returns a reference valid for the lifetime of the process.
+const AgeDefEntry &getAgeDef(uint8 race, uint8 baseClassIndex);
 
 // Low-level table hooks (for diagnostics/tools)
 const ClassAlignmentDef *getAlignmentTable();
@@ -76,6 +86,21 @@ const Common::Array< Common::Array<AgeDefEntry> > &getAgeDefs();
 // Enum counts (UI helpers)
 uint8 classEnumCount();
 uint8 alignmentEnumCount();
+
+// Base thief skills table accessor (level is 1-based; clamps to last row)
+const ThiefSkills &getThiefSkillsForLevel(uint8 level);
+
+// Compute final thief skills (race + dexterity adjustments applied)
+ThiefSkills computeThiefSkills(uint8 race, uint8 dexterity, uint8 thiefLevel);
+
+// Returns the bit assigned to a base class (0..7), or 0 if out of range.
+uint8 classItemLimitBit(uint8 baseClassIndex);
+
+// OR of all bits for base classes with level > 0.
+uint8 computeItemLimitMask(const Common::Array<uint8> &levels);
+
+// Saving throws accessor: baseClassIndex 0..7, level 1..9 (clamped)
+const SavingThrows &savingThrowsAt(uint8 baseClassIndex, uint8 level);
 
 } // namespace Rules
 } // namespace Data

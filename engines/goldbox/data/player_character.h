@@ -179,8 +179,13 @@ public:
 	//-----------------------------------------------------------
 	// Game-specific behaviors
 	virtual void rollAbilityScores() = 0;
-	virtual void applyRacialAdjustments() = 0;
 	virtual void calculateHitPoints() = 0;
+
+	//-----------------------------------------------------------
+	// Effect interface (Pool of Radiance refactor): default no-op so callers can
+	// uniformly invoke setEffect on base character pointers. Derived games that
+	// support status effects should override.
+	virtual void setEffect(uint8 /*type*/, uint16 /*durationMin*/, uint8 /*power*/, bool /*unknown*/) {}
 
 	//-----------------------------------------------------------
 	// Common logic

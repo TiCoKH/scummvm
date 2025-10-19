@@ -42,6 +42,23 @@ public:
     Common::Array<Effect> &effects() { return _effects; }
 
     void clear() { _effects.clear(); }
+
+    void addEffect(uint8 type, uint16 durationMin, uint8 power, uint8 immediate) {
+        if (power == 0xFF) {
+            for (auto &e : _effects) {
+                if (e.type == type && e.power == power && e.immediate == immediate) {
+                    return; // avoid duplicate permanent effect
+                }
+            }
+        }
+        Effect e;
+        e.type = type;
+        e.durationMin = durationMin;
+        e.power = power;
+        e.immediate = immediate;
+        e.nextAddress = 0; // not used in ScummVM
+        _effects.push_back(e);
+    }
 };
 
 } // namespace Effects
