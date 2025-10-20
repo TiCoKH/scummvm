@@ -38,7 +38,16 @@ public:
 	void writeReg(int r, uint8 v) override;
 
 private:
-	uint8 _savedRegs[14];
+	void horzLine(Surface &s, int line);
+	void drawEdgeBorder(Surface &s);
+
+public:
+	Castle() : View("Castle") {}
+	virtual ~Castle() {}
+
+	bool msgFocus(const FocusMessage &msg) override;
+	bool msgKeypress(const KeypressMessage &msg) override;
+	void draw() override;
 };
 
 } // End of namespace Audio
