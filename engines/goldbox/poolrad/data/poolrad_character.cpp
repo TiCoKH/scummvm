@@ -302,12 +302,6 @@ namespace Data {
 		abilities.charisma.base     = abilities.charisma.current     = VmInterface::rollDice(3, 6);
 	}
 
-	void PoolradCharacter::adjustAbilityForRace(Goldbox::Data::Stat &ability, int adjustment, int minValue, int maxValue) {
-		int newAbility = ability.current + adjustment;
-		newAbility = CLIP(newAbility, minValue, maxValue);
-		ability.current = static_cast<uint8>(newAbility);
-	}
-
 	uint8 PoolradCharacter::getBaseIconColor(int index) {
 		if (index < 0 || index >= 7)
 			return 0;

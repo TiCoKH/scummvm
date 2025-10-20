@@ -40,14 +40,6 @@ struct AgeDefEntry {
     uint8  sides;
 };
 
-struct AgeCategories {
-    uint8 young;
-    uint8 adult;
-    uint8 middle;
-    uint8 old;
-    uint8 venitiar;
-};
-
 struct thac0Bases {
     uint8 thac0[MAX_LEVEL];
 };
