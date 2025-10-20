@@ -81,6 +81,14 @@ const AgeCategories &getAgeCategoriesForRace(uint8 race);
 // Returns the table of per-stat ageing effects (7 rows: Str, ExtStr, Int, Wis, Dex, Con, Cha).
 const Common::Array<AgeingEffects> &getStatAgeingEffects();
 
+// Race/gender stat bounds
+// Returns the RaceStatMinMax row for a given race (maps Dwarf..Human as 0..6).
+// Note: Monster race (0) maps to index 0 as a safe default; callers may choose to skip applying.
+const RaceStatMinMax &getRaceStatMinMaxForRace(uint8 race);
+
+// Class minimum stats accessor; returns the row for the given classId.
+const ClassMinStats &getClassMinStats(uint8 classId);
+
 // Enum counts (UI helpers)
 uint8 classEnumCount();
 uint8 alignmentEnumCount();

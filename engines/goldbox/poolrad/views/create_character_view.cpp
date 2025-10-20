@@ -90,6 +90,9 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 		// First time entering profile: roll initial stats
 		if (!_hasRolled && _newCharacter) {
 			rollAndRecompute();
+			// Apply ageing then race/gender caps after initial recompute
+			ageingEffects();
+			applyStatMinMax();
 			_hasRolled = true;
 			if (_profileDialog)
 				_profileDialog->draw();
@@ -145,6 +148,8 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 	if (_stage == CC_STATE_PROFILE) {
 		if (msg.keycode == Common::KEYCODE_r || msg.ascii == 'R') {
 			rollAndRecompute();
+				ageingEffects();
+				applyStatMinMax();
 			if (_profileDialog)
 				_profileDialog->draw();
 			return true;
@@ -757,11 +762,14 @@ void CreateCharacterView::ageingEffects() {
 	using namespace Goldbox::Data;
 
 	// Monster class doesn't have age categories/effects per requirement
-	if (_newCharacter->classType == C_MONSTER)
+	if (_newCharacter->classType == C_MONSTER) {
+		debug("ageingEffects: skipped for monster class");
 		return;
+	}
 
 	const uint8 race = _newCharacter->race;
 	const uint16 age = _newCharacter->age;
+	debug("ageingEffects: start class=%u race=%u age=%u", (unsigned)_newCharacter->classType, (unsigned)race, (unsigned)age);
 
 	// Get thresholds for the character's race
 	const AgeCategories &cats = Goldbox::Data::Rules::getAgeCategoriesForRace(race);
@@ -780,8 +788,12 @@ void CreateCharacterView::ageingEffects() {
 		else stageMax = 4;                                  // >= venitiar: apply all
 	}
 
-	if (stageMax < 0)
+	if (stageMax < 0) {
+		debug("ageingEffects: no applicable stage");
 		return;
+	}
+
+	debug("ageingEffects: applying cumulative stages 0..%d", stageMax);
 
 	// Helper lambda to accumulate a particular stage index into a Stat
 	auto applyStage = [&](Stat &st, int statRow, int stageIdx) {
@@ -807,6 +819,14 @@ void CreateCharacterView::ageingEffects() {
 	};
 
 	// Apply cumulatively for each required stage
+	debug("ageingEffects: before STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
+		  (unsigned)_newCharacter->abilities.strength.current,
+		  (unsigned)_newCharacter->abilities.strException.current,
+		  (unsigned)_newCharacter->abilities.intelligence.current,
+		  (unsigned)_newCharacter->abilities.wisdom.current,
+		  (unsigned)_newCharacter->abilities.dexterity.current,
+		  (unsigned)_newCharacter->abilities.constitution.current,
+		  (unsigned)_newCharacter->abilities.charisma.current);
 	for (int s = 0; s <= stageMax; ++s) {
 		// Row mapping in effects: 0 Str, 1 StrEx, 2 Int, 3 Wis, 4 Dex, 5 Con, 6 Cha
 		applyStage(_newCharacter->abilities.strength,      0, s);
@@ -817,6 +837,117 @@ void CreateCharacterView::ageingEffects() {
 		applyStage(_newCharacter->abilities.constitution,  5, s);
 		applyStage(_newCharacter->abilities.charisma,      6, s);
 	}
+	debug("ageingEffects: after  STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
+		  (unsigned)_newCharacter->abilities.strength.current,
+		  (unsigned)_newCharacter->abilities.strException.current,
+		  (unsigned)_newCharacter->abilities.intelligence.current,
+		  (unsigned)_newCharacter->abilities.wisdom.current,
+		  (unsigned)_newCharacter->abilities.dexterity.current,
+		  (unsigned)_newCharacter->abilities.constitution.current,
+		  (unsigned)_newCharacter->abilities.charisma.current);
+}
+
+void CreateCharacterView::applyStatMinMax() {
+    if (!_newCharacter)
+        return;
+
+    using namespace Goldbox::Data;
+
+    // Do not apply for monster race per requirement
+	if (_newCharacter->race == R_MONSTER) {
+		debug("applyStatMinMax: skipped for monster race");
+		return;
+	}
+
+    const RaceStatMinMax &mm = Goldbox::Data::Rules::getRaceStatMinMaxForRace(_newCharacter->race);
+
+    // Strength and exceptional strength depend on gender for max/min
+    const bool isFemale = (_newCharacter->gender == G_FEMALE);
+    const uint8 strMin = isFemale ? mm.strengthMinFemale : mm.strengthMinMale;
+    const uint8 strMax = isFemale ? mm.strengthMaxFemale : mm.strengthMaxMale;
+    const uint8 extStrMax = isFemale ? mm.extStrengthMaxFemale : mm.extStrengthMaxMale;
+
+	debug("applyStatMinMax: start race=%u gender=%u class=%u", (unsigned)_newCharacter->race, (unsigned)_newCharacter->gender, (unsigned)_newCharacter->classType);
+	debug("applyStatMinMax: race bounds STR[%u..%u] STREx<=%u INT[%u..%u] WIS[%u..%u] DEX[%u..%u] CON[%u..%u] CHA[%u..%u]",
+		  (unsigned)strMin, (unsigned)strMax, (unsigned)extStrMax,
+		  (unsigned)mm.intelligenceMin, (unsigned)mm.intelligenceMax,
+		  (unsigned)mm.wisdomMin, (unsigned)mm.wisdomMax,
+		  (unsigned)mm.dexterityMin, (unsigned)mm.dexterityMax,
+		  (unsigned)mm.constitutionMin, (unsigned)mm.constitutionMax,
+		  (unsigned)mm.charismaMin, (unsigned)mm.charismaMax);
+
+    // Helper to clamp a Stat between min and max inclusive (current value only)
+    auto clampStatCur = [](Stat &s, uint8 minV, uint8 maxV) {
+        if (s.current < minV) s.current = minV;
+        if (s.current > maxV) s.current = maxV;
+    };
+
+	// Apply Strength min/max
+	debug("applyStatMinMax: before STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
+		  (unsigned)_newCharacter->abilities.strength.current,
+		  (unsigned)_newCharacter->abilities.strException.current,
+		  (unsigned)_newCharacter->abilities.intelligence.current,
+		  (unsigned)_newCharacter->abilities.wisdom.current,
+		  (unsigned)_newCharacter->abilities.dexterity.current,
+		  (unsigned)_newCharacter->abilities.constitution.current,
+		  (unsigned)_newCharacter->abilities.charisma.current);
+    clampStatCur(_newCharacter->abilities.strength, strMin, strMax);
+    // Intelligence
+    clampStatCur(_newCharacter->abilities.intelligence, mm.intelligenceMin, mm.intelligenceMax);
+    // Wisdom
+    clampStatCur(_newCharacter->abilities.wisdom, mm.wisdomMin, mm.wisdomMax);
+    // Dexterity
+    clampStatCur(_newCharacter->abilities.dexterity, mm.dexterityMin, mm.dexterityMax);
+    // Constitution
+    clampStatCur(_newCharacter->abilities.constitution, mm.constitutionMin, mm.constitutionMax);
+	// Charisma
+	clampStatCur(_newCharacter->abilities.charisma, mm.charismaMin, mm.charismaMax);
+
+	// After race bounds, enforce class minimum stats if below thresholds
+	const ClassMinStats &cms = Goldbox::Data::Rules::getClassMinStats(_newCharacter->classType);
+	if (_newCharacter->abilities.strength.current < cms.strength)
+		_newCharacter->abilities.strength.current = cms.strength;
+	debug("applyStatMinMax: class minima STR>=%u INT>=%u WIS>=%u DEX>=%u CON>=%u CHA>=%u",
+	      (unsigned)cms.strength, (unsigned)cms.intelligence, (unsigned)cms.wisdom,
+	      (unsigned)cms.dexterity, (unsigned)cms.constitution, (unsigned)cms.charisma);
+
+	// Exceptional Strength rule: applicable if fighter level > 0 (any combination)
+	bool hasFighterLevel = false;
+
+	hasFighterLevel = (_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] > 0);
+
+	if (hasFighterLevel && _newCharacter->abilities.strength.current >= 18) {
+		// Roll 1d100 for exceptional strength
+		uint8 roll = (uint8)VmInterface::rollDice(1, 100);
+		_newCharacter->abilities.strException.current = roll;
+		debug("applyStatMinMax: rolled STREx=%u (fighter level detected)", (unsigned)roll);
+	} else {
+		// Other classes do not have exceptional strength (or STR != 18)
+		_newCharacter->abilities.strException.current = 0;
+		debug("applyStatMinMax: STREx set to 0 (no fighter level or STR!=18)");
+	}
+	// Clamp Exceptional Strength to gender/race maximum
+	if (_newCharacter->abilities.strException.current > extStrMax)
+		_newCharacter->abilities.strException.current = extStrMax;
+	debug("applyStatMinMax: after clamps STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
+	      (unsigned)_newCharacter->abilities.strength.current,
+	      (unsigned)_newCharacter->abilities.strException.current,
+	      (unsigned)_newCharacter->abilities.intelligence.current,
+	      (unsigned)_newCharacter->abilities.wisdom.current,
+	      (unsigned)_newCharacter->abilities.dexterity.current,
+	      (unsigned)_newCharacter->abilities.constitution.current,
+	      (unsigned)_newCharacter->abilities.charisma.current);
+
+	if (_newCharacter->abilities.intelligence.current < cms.intelligence)
+		_newCharacter->abilities.intelligence.current = cms.intelligence;
+	if (_newCharacter->abilities.wisdom.current < cms.wisdom)
+		_newCharacter->abilities.wisdom.current = cms.wisdom;
+	if (_newCharacter->abilities.dexterity.current < cms.dexterity)
+		_newCharacter->abilities.dexterity.current = cms.dexterity;
+	if (_newCharacter->abilities.constitution.current < cms.constitution)
+		_newCharacter->abilities.constitution.current = cms.constitution;
+	if (_newCharacter->abilities.charisma.current < cms.charisma)
+		_newCharacter->abilities.charisma.current = cms.charisma;
 }
 
 } // namespace Views
