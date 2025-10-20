@@ -229,7 +229,15 @@ struct AgeCategories {
     uint16 adult;
     uint16 middle;
     uint16 old;
-    uint16 venerable;
+    uint16 venitiar;
+};
+
+struct AgeingEffects {
+    int8 young;
+    int8 adult;
+    int8 middle;
+    int8 old;
+    int8 venitiar;
 };
 
 struct RaceStatMinMax {
