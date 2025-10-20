@@ -75,6 +75,12 @@ const RaceClassDef *getRaceClassTable();
 const thac0Bases *getThac0Table();
 const Common::Array< Common::Array<AgeDefEntry> > &getAgeDefs();
 
+// Ageing helpers
+// Returns the age category thresholds for a given race (maps Dwarf..Human as 0..6).
+const AgeCategories &getAgeCategoriesForRace(uint8 race);
+// Returns the table of per-stat ageing effects (7 rows: Str, ExtStr, Int, Wis, Dex, Con, Cha).
+const Common::Array<AgeingEffects> &getStatAgeingEffects();
+
 // Enum counts (UI helpers)
 uint8 classEnumCount();
 uint8 alignmentEnumCount();

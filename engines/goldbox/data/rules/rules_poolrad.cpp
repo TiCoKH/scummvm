@@ -150,7 +150,7 @@ static const Common::Array<RaceStatMinMax> kRaceStatMinMax = {
 
 static const Common::Array<AgeCategories> kAgeCategories = {
 	// AgeCategories
-	// young, adult, middle, old, venerable
+	// young, adult, middle, old, venitiar
 	{ 50, 150, 250, 350, 450 },   // Dwarf
 	{ 175, 550, 875, 1200, 1600 },// Elf
 	{ 90, 300, 450, 600, 750 },   // Gnome
@@ -160,6 +160,15 @@ static const Common::Array<AgeCategories> kAgeCategories = {
 	{ 20, 40, 60, 90, 120 }       // Human
 };
 
+static const Common::Array<AgeingEffects> kStatAgeingEffects = 	{
+	{  0, 1, -1, -2, -1 }, // Strength
+	{  0, 0,  0,  0,  0 }, // Extended Strength
+	{  0, 0,  1,  0,  1 }, // Intelligence
+	{ -1, 1,  1,  1,  1 }, // Wisdom
+	{  0, 0,  0, -2, -1 }, // Dexterity
+	{  1, 0, -1, -1, -1 }, // Constitution
+	{  0, 0,  0,  0,  0 }  // Charisma
+};
 
 static const Common::Array<ClassMinStats> kClassMinStats = {
 	// ClassMinStats
@@ -327,6 +336,18 @@ const ClassAlignmentDef *getAlignmentTable() { return kClassAlignment.data(); }
 const RaceClassDef *getRaceClassTable() { return kRaceClasses.data(); }
 const thac0Bases *getThac0Table() { return kThac0ByClass.data(); }
 const Common::Array< Common::Array<AgeDefEntry> > &getAgeDefs() { return kAgeDefs; }
+
+const AgeCategories &getAgeCategoriesForRace(uint8 race) {
+	// Map R_DWARF..R_HUMAN (1..7) -> 0..6; out-of-range maps to 0 (Dwarf) as a safe default.
+	uint8 raceIdx = (race > 0) ? (race - 1) : 0;
+	if (raceIdx >= kAgeCategories.size())
+		raceIdx = 0;
+	return kAgeCategories[raceIdx];
+}
+
+const Common::Array<AgeingEffects> &getStatAgeingEffects() {
+	return kStatAgeingEffects;
+}
 
 uint8 classEnumCount() {
 	// For now, return the larger of the local tables or a conservative default the UI uses (18)
