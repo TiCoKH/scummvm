@@ -109,6 +109,7 @@ private:
     void setSavingThrows();
     void setAge();
     void ageingEffects();
+    void applyStatMinMax();
 
     // persistence helpers
     void finalizeCharacterAndSave();

@@ -349,6 +349,22 @@ const Common::Array<AgeingEffects> &getStatAgeingEffects() {
 	return kStatAgeingEffects;
 }
 
+const RaceStatMinMax &getRaceStatMinMaxForRace(uint8 race) {
+	// Map R_DWARF..R_HUMAN (1..7) -> 0..6; out-of-range maps to 0 (Dwarf) as a safe default.
+	uint8 raceIdx = (race > 0) ? (race - 1) : 0;
+	if (raceIdx >= kRaceStatMinMax.size())
+		raceIdx = 0;
+	return kRaceStatMinMax[raceIdx];
+}
+
+const ClassMinStats &getClassMinStats(uint8 classId) {
+	// Clamp to table size; if out of range, use first row (Cleric) as safe default
+	uint8 idx = classId;
+	if (idx >= kClassMinStats.size())
+		idx = 0;
+	return kClassMinStats[idx];
+}
+
 uint8 classEnumCount() {
 	// For now, return the larger of the local tables or a conservative default the UI uses (18)
 	uint8 sz = (uint8)kClassAlignment.size();
