@@ -750,6 +750,75 @@ void CreateCharacterView::setAge() {
 	}
 }
 
+void CreateCharacterView::ageingEffects() {
+	if (!_newCharacter)
+		return;
+
+	using namespace Goldbox::Data;
+
+	// Monster class doesn't have age categories/effects per requirement
+	if (_newCharacter->classType == C_MONSTER)
+		return;
+
+	const uint8 race = _newCharacter->race;
+	const uint16 age = _newCharacter->age;
+
+	// Get thresholds for the character's race
+	const AgeCategories &cats = Goldbox::Data::Rules::getAgeCategoriesForRace(race);
+	const Common::Array<AgeingEffects> &effects = Goldbox::Data::Rules::getStatAgeingEffects();
+
+	// Determine the highest category index reached by this age, then apply all effects
+	// from the first category up to and including that index (cumulative stacking).
+	// Categories: 0=young, 1=adult, 2=middle, 3=old, 4=venitiar.
+	int stageMax = -1;
+	if (age > 0) {
+		if (age < cats.young) stageMax = 0;                 // younger than "young"
+		else if (age < cats.adult) stageMax = 1;            // in young..adult
+		else if (age < cats.middle) stageMax = 2;           // in adult..middle
+		else if (age < cats.old) stageMax = 3;              // in middle..old
+		else if (age < cats.venitiar) stageMax = 4;         // in old..venitiar
+		else stageMax = 4;                                  // >= venitiar: apply all
+	}
+
+	if (stageMax < 0)
+		return;
+
+	// Helper lambda to accumulate a particular stage index into a Stat
+	auto applyStage = [&](Stat &st, int statRow, int stageIdx) {
+		if (statRow < 0 || statRow >= (int)effects.size()) return;
+		const AgeingEffects &ae = effects[statRow];
+		int delta = 0;
+		switch (stageIdx) {
+		case 0: delta = ae.young; break;
+		case 1: delta = ae.adult; break;
+		case 2: delta = ae.middle; break;
+		case 3: delta = ae.old; break;
+		case 4: delta = ae.venitiar; break;
+		default: return;
+		}
+		if (delta == 0)
+			return; // don't clamp if we're not actually changing the stat
+		int cur = (int)st.current + delta;
+		// Exceptional strength (row 1) ranges up to 100; others up to 25
+		const int maxVal = (statRow == 1) ? 100 : 25;
+		if (cur < 0) cur = 0;
+		if (cur > maxVal) cur = maxVal;
+		st.current = (uint8)cur;
+	};
+
+	// Apply cumulatively for each required stage
+	for (int s = 0; s <= stageMax; ++s) {
+		// Row mapping in effects: 0 Str, 1 StrEx, 2 Int, 3 Wis, 4 Dex, 5 Con, 6 Cha
+		applyStage(_newCharacter->abilities.strength,      0, s);
+		applyStage(_newCharacter->abilities.strException,  1, s);
+		applyStage(_newCharacter->abilities.intelligence,  2, s);
+		applyStage(_newCharacter->abilities.wisdom,        3, s);
+		applyStage(_newCharacter->abilities.dexterity,     4, s);
+		applyStage(_newCharacter->abilities.constitution,  5, s);
+		applyStage(_newCharacter->abilities.charisma,      6, s);
+	}
+}
+
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox

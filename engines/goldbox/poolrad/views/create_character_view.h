@@ -108,6 +108,7 @@ private:
     void setThac0();
     void setSavingThrows();
     void setAge();
+    void ageingEffects();
 
     // persistence helpers
     void finalizeCharacterAndSave();
