@@ -227,6 +227,17 @@ static const Common::Array<LevelUpInfo> kExperienceByClassAndLevel = {
 	} } //Monk
 };
 
+static const Common::Array<DiceRoll> kSpellRolls = {
+	{ 3, 6 }, // Cleric
+	{ 3, 6 }, // Druid
+	{ 5, 4 }, // Fighter
+	{ 5, 4 }, // Paladin
+	{ 5, 4 }, // Ranger
+	{ 2, 4 }, // Magic-User
+	{ 2, 6 }, // Thief
+	{ 5, 4 }  // Monk
+};
+
 // 8 base classes (0..7) x 9 levels (1..9)
 static const SavingThrows kSavingThrows[BASE_CLASS_NUM][9] = {
     // Class 0 - Cleric
