@@ -93,6 +93,12 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 			// Apply ageing then race/gender caps after initial recompute
 			ageingEffects();
 			applyStatMinMax();
+			_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
+			_newCharacter->primaryAttacks = 2;
+			_newCharacter->priDmgDiceNum = 1;
+			_newCharacter->priDmgDiceSides = 2;
+			_newCharacter->strengthBonusAllowed = 1;
+			_newCharacter->baseMovement = 12;
 			_hasRolled = true;
 			if (_profileDialog)
 				_profileDialog->draw();
@@ -148,8 +154,8 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 	if (_stage == CC_STATE_PROFILE) {
 		if (msg.keycode == Common::KEYCODE_r || msg.ascii == 'R') {
 			rollAndRecompute();
-				ageingEffects();
-				applyStatMinMax();
+			ageingEffects();
+			applyStatMinMax();
 			if (_profileDialog)
 				_profileDialog->draw();
 			return true;
