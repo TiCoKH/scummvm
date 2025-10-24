@@ -268,6 +268,11 @@ struct ClassMinStats {
     uint8 charisma;
 };
 
+struct DiceRoll {
+    uint8 numDice;
+    uint8 diceSides;
+};
+
 struct SpellSlots {
     uint8 level1;
     uint8 level2;
