@@ -27,6 +27,7 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/core/menu_item.h"
 #include "goldbox/data/rules/rules.h"
+#include "goldbox/data/spells/spell.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/views/create_character_view.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
@@ -93,6 +94,8 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 			// Apply ageing then race/gender caps after initial recompute
 			ageingEffects();
 			applyStatMinMax();
+			// Initialize starting spell slots/known spells per rules
+			applySpells();
 			_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
 			_newCharacter->primaryAttacks = 2;
 			_newCharacter->priDmgDiceNum = 1;
@@ -156,6 +159,7 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 			rollAndRecompute();
 			ageingEffects();
 			applyStatMinMax();
+			applySpells();
 			if (_profileDialog)
 				_profileDialog->draw();
 			return true;
@@ -954,6 +958,63 @@ void CreateCharacterView::applyStatMinMax() {
 		_newCharacter->abilities.constitution.current = cms.constitution;
 	if (_newCharacter->abilities.charisma.current < cms.charisma)
 		_newCharacter->abilities.charisma.current = cms.charisma;
+}
+
+void CreateCharacterView::applySpells() {
+	if (!_newCharacter)
+		return;
+
+	using namespace Goldbox::Data;
+	using Goldbox::Data::Rules::getSpellEntries;
+	using SpellId = Goldbox::Data::Spells::Spells;
+
+	const uint8 cls = _newCharacter->classType;
+	const uint8 wis = _newCharacter->abilities.wisdom.current;
+
+	// Cleric spellcasting: base 1 L1 slot, apply wisdom bonuses
+	if (_newCharacter->levels[Goldbox::Data::C_CLERIC] > 0) {
+		_newCharacter->spellSlots.cleric.level1 = 1;
+		_newCharacter->spellSlots.cleric.level2 = 0;
+		_newCharacter->spellSlots.cleric.level3 = 0;
+
+		// Wisdom bonuses (apply only if that level has slots)
+		if (_newCharacter->spellSlots.cleric.level1 > 0) {
+			if (wis >= 13) _newCharacter->spellSlots.cleric.level1 += 1;
+			if (wis >= 14) _newCharacter->spellSlots.cleric.level1 += 1;
+		}
+		if (_newCharacter->spellSlots.cleric.level2 > 0) {
+			if (wis >= 15) _newCharacter->spellSlots.cleric.level2 += 1;
+			if (wis >= 16) _newCharacter->spellSlots.cleric.level2 += 1;
+		}
+		if (_newCharacter->spellSlots.cleric.level3 > 0) {
+			if (wis >= 17) _newCharacter->spellSlots.cleric.level3 += 1;
+		}
+
+		// All cleric spells (levels 1..3) start as known
+		const Common::Array<Goldbox::Data::Spells::SpellEntry> &spells = getSpellEntries();
+		for (uint i = 0; i < spells.size(); ++i) {
+			const Goldbox::Data::Spells::SpellEntry &e = spells[i];
+			if (e.spellClass == Goldbox::Data::Spells::SC_CLERIC && e.spellLevel >= 1 && e.spellLevel <= 3) {
+				_newCharacter->setSpellKnown(static_cast<SpellId>(i));
+			}
+		}
+	}
+
+	// Magic-User spellcasting: base 1 L1 slot, and specific known spells
+	if (_newCharacter->levels[Goldbox::Data::C_MAGICUSER] > 0) {
+		_newCharacter->spellSlots.magicUser.level1 = 1;
+		_newCharacter->spellSlots.magicUser.level2 = 0;
+		_newCharacter->spellSlots.magicUser.level3 = 0;
+
+		const SpellId muStart[] = {
+			Goldbox::Data::Spells::SP_MUL1_DETECT_MAGIC,
+			Goldbox::Data::Spells::SP_MUL1_READ_MAGIC,
+			Goldbox::Data::Spells::SP_MUL1_SHIELD,
+			Goldbox::Data::Spells::SP_MUL1_SLEEP
+		};
+		for (uint i = 0; i < ARRAYSIZE(muStart); ++i)
+			_newCharacter->setSpellKnown(muStart[i]);
+	}
 }
 
 } // namespace Views

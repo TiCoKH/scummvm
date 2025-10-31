@@ -22,33 +22,13 @@
 #include "common/stream.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/data/pascal_string_buffer.h"
-#include "goldbox/data/spells/spellbook.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Data {
 
-	// PoolradSpellBook implementation
-	void PoolradSpellBook::fromPoolradMem(const uint8 *memorized, const uint8 *known) {
-		clear();
-		for (uint8 i = 0; i < 21; ++i)
-			setSpell(i, known[i] != 0, memorized[i]);
-		for (uint8 i = 21; i < 62; ++i)
-			setSpell(i, known[i] != 0, 0);
-	}
-
-	void PoolradSpellBook::toPoolradMem(uint8 *memorized, uint8 *known) const {
-		for (uint8 i = 0; i < 21; ++i) {
-			const Goldbox::Data::Spells::SpellEntry *e = getSpell(i);
-			memorized[i] = e ? e->memorized : 0;
-			known[i] = e ? (e->known ? 1 : 0) : 0;
-		}
-		for (uint8 i = 21; i < 62; ++i) {
-			const Goldbox::Data::Spells::SpellEntry *e = getSpell(i);
-			known[i] = e ? (e->known ? 1 : 0) : 0;
-		}
-	}
+// SpellBook abstraction removed; legacy arrays are used directly
 
 	void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
@@ -140,13 +120,13 @@ namespace Data {
 		itemsLimit = stream.readByte(); // 0x0B0:
 		hitPointsRolled = stream.readByte(); // 0x0B1
 
-		// 0x0B2–0x0B7: spell slots
-		spellSlots[0] = stream.readByte(); // cleric 1
-		spellSlots[1] = stream.readByte(); // cleric 2
-		spellSlots[2] = stream.readByte(); // cleric 3
-		spellSlots[3] = stream.readByte(); // mage 1
-		spellSlots[4] = stream.readByte(); // mage 2
-		spellSlots[5] = stream.readByte(); // mage 3
+	// 0x0B2–0x0B7: spell slot capacities (how many can be memorized)
+	spellSlots.cleric.level1    = stream.readByte(); // cleric 1
+	spellSlots.cleric.level2    = stream.readByte(); // cleric 2
+	spellSlots.cleric.level3    = stream.readByte(); // cleric 3
+	spellSlots.magicUser.level1 = stream.readByte(); // magic-user 1
+	spellSlots.magicUser.level2 = stream.readByte(); // magic-user 2
+	spellSlots.magicUser.level3 = stream.readByte(); // magic-user 3
 
 		xpForDefeating = stream.readUint16LE(); // 0x0B8–0x0B9
 		bonusXpPerHp = stream.readByte();       // 0x0BA
@@ -201,7 +181,7 @@ namespace Data {
 
 		hitPoints.current = stream.readByte(); // 0x11B
 		movement.current  = stream.readByte(); // 0x11C
-		spellBook.fromPoolradMem(spells.memorizedSpells, spells.knownSpells);
+		// No SpellBook import; legacy arrays already populated above
 	}
 
 	PoolradCharacter::PoolradCharacter() {
@@ -274,10 +254,9 @@ namespace Data {
 
 	// Returns true if the character has any memorized spell
 	bool PoolradCharacter::haveMemorizedSpell() const {
-		for (const auto &entry : spellBook.spells) {
-			if (entry._value.memorized > 0)
+		for (int i = 0; i < 21; ++i)
+			if (spells.memorizedSpells[i] > 0)
 				return true;
-		}
 		return false;
 	}
 
@@ -362,7 +341,7 @@ namespace Data {
 
 	void PoolradCharacter::save(Common::WriteStream &stream) {
 
-		spellBook.toPoolradMem(spells.memorizedSpells, spells.knownSpells);
+		// Write spells from legacy arrays directly
 		Goldbox::Data::PascalStringBuffer<15>::write(stream, name);
 		// Ability scores
 		stream.writeByte(abilities.strength.current);
@@ -373,8 +352,8 @@ namespace Data {
 		stream.writeByte(abilities.charisma.current);
 		stream.writeByte(abilities.strException.current);
 
-		// Spells memorized
-		stream.write(spells.memorizedSpells, 21);
+	// Spells memorized (21 bytes)
+	stream.write(spells.memorizedSpells, 21);
 
 		stream.writeByte(0); // Unknown at 0x02C
 
@@ -387,7 +366,8 @@ namespace Data {
 
 		stream.writeByte(hitPoints.max);
 
-		stream.write(spells.knownSpells, 62);
+	// Known spells (55 bytes in Poolrad layout)
+	stream.write(spells.knownSpells, 55);
 
 		stream.writeByte(attackLevel);
 		stream.writeByte(iconDimension);
@@ -457,9 +437,13 @@ namespace Data {
 		stream.writeByte(itemsLimit);
 		stream.writeByte(hitPointsRolled);
 
-		// Spell slots
-		for (int i = 0; i < 6; ++i)
-			stream.writeByte(spellSlots[i]);
+	// Spell slots (cleric L1-3, then magic-user L1-3)
+	stream.writeByte(spellSlots.cleric.level1);
+	stream.writeByte(spellSlots.cleric.level2);
+	stream.writeByte(spellSlots.cleric.level3);
+	stream.writeByte(spellSlots.magicUser.level1);
+	stream.writeByte(spellSlots.magicUser.level2);
+	stream.writeByte(spellSlots.magicUser.level3);
 
 		stream.writeUint16LE(xpForDefeating);
 		stream.writeByte(bonusXpPerHp);
@@ -519,6 +503,29 @@ namespace Data {
 
 	void PoolradCharacter::finalizeName() {
 		//std::replace(name.begin(), name.end(), ' ', static_cast<char>(-1));
+	}
+
+	bool PoolradCharacter::isSpellKnown(Goldbox::Data::Spells::Spells spell) const {
+		uint8 id = static_cast<uint8>(spell);
+		if (id == 0)
+			return false;
+		// Legacy known array covers ids 1..55
+		if (id >= 1 && id <= 55)
+			return spells.knownSpells[id - 1] != 0;
+		// Extended ids not supported in legacy Poolrad format
+		return false;
+	}
+
+	void PoolradCharacter::setSpellKnown(Goldbox::Data::Spells::Spells spell) {
+		uint8 id = static_cast<uint8>(spell);
+		if (id == 0)
+			return;
+
+		// Update legacy buffer when within saved range 1..55
+		if (id >= 1 && id <= 55)
+			spells.knownSpells[id - 1] = 1;
+
+		// No SpellBook; legacy buffer already updated
 	}
 
 	byte PoolradCharacter::getNameColor() {
