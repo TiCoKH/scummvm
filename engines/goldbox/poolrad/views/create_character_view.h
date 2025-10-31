@@ -107,6 +107,7 @@ private:
     void setThiefSkillsForNewCharacter();
     void setThac0();
     void setSavingThrows();
+    void applySpells();
     void setAge();
     void ageingEffects();
     void applyStatMinMax();

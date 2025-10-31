@@ -29,19 +29,14 @@
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/items/base_items.h"
 #include "goldbox/data/effects/character_effects.h"
-#include "goldbox/data/spells/spellbook.h"
+#include "goldbox/data/rules/rules_types.h"
+#include "goldbox/data/spells/spell.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Data {
 
 
-class PoolradSpellBook : public Goldbox::Data::Spells::SpellBook {
-public:
-    // Optionally, add Poolrad-specific helpers here
-    void fromPoolradMem(const uint8 *memorized, const uint8 *known);
-    void toPoolradMem(uint8 *memorized, uint8 *known) const;
-};
 
 constexpr int EQUIPMENT_SLOT_COUNT = static_cast<int>(Goldbox::Data::Items::Slot::SLOT_COUNT);
 constexpr uint8 CLASS_COUNT = 8;
@@ -67,7 +62,7 @@ public:
 
     uint8 monsterType = 0;
 
-    PoolradSpellBook spellBook;
+    // No SpellBook abstraction; we use legacy arrays directly for compatibility
     // Legacy fields for binary compatibility
     struct {
         uint8 memorizedSpells[21];
@@ -85,7 +80,7 @@ public:
     uint8 combatIcon = 0;
 
     uint8 hitPointsRolled = 0;
-    uint8 spellSlots[6] = {};
+    Goldbox::Data::ClassSpellSlots spellSlots{};
     uint32 xpForDefeating = 0;
     uint8 bonusXpPerHp = 0;
 
@@ -121,6 +116,16 @@ public:
     bool meetsClassRequirements() const;
     bool haveMemorizedSpell() const;
     void finalizeName();
+
+    // Returns true if the character knows the given spell (by Spells enum id).
+    // Primary source is the legacy knownSpells[55] buffer (ids 1..55 map to [0..54]).
+    // For ids outside that range, falls back to the SpellBook known flag.
+    bool isSpellKnown(Goldbox::Data::Spells::Spells spell) const;
+
+    // Marks the given spell (by Spells enum id) as known.
+    // Updates both the legacy knownSpells buffer (for ids 1..55) and the
+    // SpellBook entry, preserving existing memorized count when present.
+    void setSpellKnown(Goldbox::Data::Spells::Spells spell);
 
     void rollAbilityScores() override;
     void calculateHitPoints() override;

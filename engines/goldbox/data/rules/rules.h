@@ -23,6 +23,7 @@
 
 #include "common/scummsys.h"
 #include "common/array.h"
+#include "goldbox/data/spells/spell.h"
 #include "goldbox/data/rules/rules_types.h"
 
 #define MAX_CLASS_RACE 11
@@ -74,6 +75,9 @@ const ClassAlignmentDef *getAlignmentTable();
 const RaceClassDef *getRaceClassTable();
 const thac0Bases *getThac0Table();
 const Common::Array< Common::Array<AgeDefEntry> > &getAgeDefs();
+
+// Spells table accessor (Poolrad). Returns the full list of spell entries.
+const Common::Array<Spells::SpellEntry> &getSpellEntries();
 
 // Ageing helpers
 // Returns the age category thresholds for a given race (maps Dwarf..Human as 0..6).

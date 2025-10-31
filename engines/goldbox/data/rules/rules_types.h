@@ -279,6 +279,13 @@ struct SpellSlots {
     uint8 level3;
 };
 
+// Combined spell slot capacities for Cleric and Magic-User (AD&D 1e, levels 1-3).
+// Represents how many spells can be memorized per class and level for a character.
+struct ClassSpellSlots {
+    SpellSlots cleric;
+    SpellSlots magicUser;
+};
+
 struct NeededExperience {
     byte fromLevel;
     int32 toLevel[8];

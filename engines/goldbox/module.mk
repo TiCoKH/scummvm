@@ -25,7 +25,6 @@ MODULE_OBJS = \
 	data/items/character_item.o \
 	data/items/character_inventory.o \
 	data/rules/rules_poolrad.o \
-	data/spells/spellbook.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/pic.o \
