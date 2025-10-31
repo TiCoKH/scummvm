@@ -19,7 +19,9 @@
  */
 
 #include "common/array.h"
+#include "common/debug.h"
 #include "engines/goldbox/data/rules/rules.h"
+#include "goldbox/data/spells/spell.h"
 
 namespace Goldbox {
 namespace Data {
@@ -227,7 +229,7 @@ static const Common::Array<LevelUpInfo> kExperienceByClassAndLevel = {
 	} } //Monk
 };
 
-static const Common::Array<DiceRoll> kSpellRolls = {
+static const Common::Array<DiceRoll> kInitGoldRolls = {
 	{ 3, 6 }, // Cleric
 	{ 3, 6 }, // Druid
 	{ 5, 4 }, // Fighter
@@ -238,56 +240,136 @@ static const Common::Array<DiceRoll> kSpellRolls = {
 	{ 5, 4 }  // Monk
 };
 
+#define SP_ATTACK_ROLL 255
+
+// Pool of Radiance spell
+static const Common::Array<Spells::SpellEntry> kSpellEntries = {
+	//spellClass, spellLevel, fixedRange, perLvlRange, fixedDuration, perLvlDuration, areaOfEffect, targetType, damageOnSave, saveVerse, effectId, whenCast, castTime, priority, isOffensive, minAITargets
+	Spells::SpellEntry(Spells::SC_CLERIC,    0, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_POISON, 0, Spells::IN_CAMP, 0, 0, 0, 0),    // Dummy spell indexing start at 1
+	Spells::SpellEntry(Spells::SC_CLERIC,    1, 6,              0, 6, 0, Spells::AREA_DIAMETER_5, Spells::ST_WHOLE_PARTY,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 1,  Spells::IN_BOTH, 10, 2, 0, 0),   // Bless
+	Spells::SpellEntry(Spells::SC_CLERIC,    1, 6,              0, 6, 0, Spells::AREA_DIAMETER_5, Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 2,  Spells::IN_COMBAT, 10, 3, 1, 0), // Curse
+	Spells::SpellEntry(Spells::SC_CLERIC,    1, 0,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_BOTH, 5, 1, 0, 0),    // Cure Light Wounds
+	Spells::SpellEntry(Spells::SC_CLERIC,    1, SP_ATTACK_ROLL, 0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 5, 2, 1, 0),  // Cause Light Wounds
+	Spells::SpellEntry(Spells::SC_CLERIC,    1, 3,              0, 10, 0,Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 5,  Spells::IN_BOTH, 1, 0, 0, 0),    // Detect Magic Cleric
+	Spells::SpellEntry(Spells::SC_CLERIC,    1, 0,              0, 0, 3, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 8,  Spells::IN_BOTH, 4, 1, 0, 0),    // Protection from Evil Cleric
+	Spells::SpellEntry(Spells::SC_CLERIC,    1, 0,              0, 0, 3, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 9,  Spells::IN_BOTH, 4, 2, 0, 0),    // Protection from Good Cleric
+	Spells::SpellEntry(Spells::SC_CLERIC,    1, 0,              0, 0, 10, Spells::AREA_TARGET_1,  Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 10, Spells::IN_BOTH, 10, 0, 0, 0),   // Resist Cold
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 0,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 1, 4, 1, 0),  // Burning Hands
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 12,             0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 11, Spells::IN_COMBAT, 1, 6, 1, 0),  // Charm Person
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 0,              0, 0, 2, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 5,  Spells::IN_BOTH, 1, 0, 0, 0),    // Detect Magic MU
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 0,              2, 0, 10, Spells::AREA_TARGET_1,  Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 12, Spells::IN_BOTH, 1, 0, 0, 0),    // Reduce
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 0,              2, 0, 10, Spells::AREA_TARGET_1,  Spells::ST_PARTY_MEMBER, Spells::DMG_NEGATES,   Spells::SVS_SPELL, 13, Spells::IN_BOTH, 1, 0, 1, 0),    // Friends
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 0,              0, 0, 1, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 14, Spells::IN_CAMP, 1, 0, 0, 0),    // Magic Missile
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 6,              4, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 1, 6, 1, 0),  // Protection from Evil
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 0,              0, 0, 2, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 8,  Spells::IN_BOTH, 1, 1, 0, 0),    // Protection from Good
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 0,              0, 0, 2, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 9,  Spells::IN_BOTH, 1, 2, 0, 0),    // Read Magic
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 0,              0, 0, 2, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 16, Spells::IN_CAMP, 10, 0, 0, 0),   // Shield
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 0,              0, 0, 5, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 17, Spells::IN_BOTH, 1, 3, 0, 0),    // Shocking Grasp
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, SP_ATTACK_ROLL, 0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 1, 4, 1, 0),  // Sleep
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 1, 3,              4, 0, 5, Spells::AREA_SPECIAL,    Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 53, Spells::IN_COMBAT, 1, 7, 1, 1),  // Find Traps
+	Spells::SpellEntry(Spells::SC_CLERIC,    2, 0,              0, 30, 0, Spells::AREA_CASTER,    Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 19, Spells::IN_CAMP, 5, 0, 0, 0),    // Silence 15' Radius
+	Spells::SpellEntry(Spells::SC_CLERIC,    2, 6,              0, 4, 1, Spells::AREA_TARGET_3,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 52, Spells::IN_COMBAT, 5, 7, 1, 0),  // Slow Poison
+	Spells::SpellEntry(Spells::SC_CLERIC,    2, 0,              0, 0, 10, Spells::AREA_TARGET_1,  Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 20, Spells::IN_BOTH, 5, 2, 0, 0),    // Snake Charm
+	Spells::SpellEntry(Spells::SC_CLERIC,    2, 12,             0, 0, 2, Spells::AREA_DIAMETER_U, Spells::ST_COMBAT,       Spells::DMG_UNKNOWN_3, Spells::SVS_SPELL, 21, Spells::IN_COMBAT, 5, 4, 1, 1),  // Spiritual Hammer
+	Spells::SpellEntry(Spells::SC_CLERIC,    2, 0,              0, 0, 60, Spells::AREA_TARGET_1,  Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 22, Spells::IN_CAMP, 1, 0, 0, 0),    // Detect Invisibility
+	Spells::SpellEntry(Spells::SC_CLERIC,    2, 3,              0, 0, 0, Spells::AREA_LVL_SCALE,  Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 51, Spells::IN_COMBAT, 5, 0, 1, 0),  // Invisibility
+	Spells::SpellEntry(Spells::SC_CLERIC,    2, 3,              0, 0, 1, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 23, Spells::IN_BOTH, 5, 1, 0, 0),    // Knock
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 2, 0,              4, 0, 5, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 24, Spells::IN_BOTH, 2, 1, 0, 0),    // Mirror Image
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 2, 0,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 25, Spells::IN_BOTH, 2, 2, 0, 0),
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 2, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_CAMP, 1, 0, 0, 0),
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 2, 0,              0, 0, 2, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 28, Spells::IN_BOTH, 2, 3, 0, 0),    // Ray of Enfeeblement
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 2, 1,              1, 0, 1, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 29, Spells::IN_COMBAT, 2, 2, 1, 0),  // Stinking Cloud
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 2, 3,              0, 0, 1, Spells::AREA_SPECIAL,    Spells::ST_COMBAT,       Spells::DMG_UNKNOWN_3, Spells::SVS_POISON, 30, Spells::IN_COMBAT, 2, 7, 1, 1), // Strength
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 2, 0,              0, 0, 60, Spells::AREA_CASTER,    Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 38, Spells::IN_CAMP, 10, 0, 0, 0),   // Animate Dead
+	Spells::SpellEntry(Spells::SC_CLERIC,    3, 1,              0, 0, 0, Spells::AREA_LVL_SCALE,  Spells::ST_WHOLE_PARTY,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 32, Spells::IN_BOTH, 10, 2, 0, 0),   // Cure Blindness
+	Spells::SpellEntry(Spells::SC_CLERIC,    3, 0,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_BOTH, 10, 0, 0, 0),   // Cause Blindness
+	Spells::SpellEntry(Spells::SC_CLERIC,    3, SP_ATTACK_ROLL, 0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 33, Spells::IN_COMBAT, 10, 3, 1, 0), // Cure Disease
+	Spells::SpellEntry(Spells::SC_CLERIC,    3, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_CAMP, 100, 0, 0, 0),  // Cause Disease
+	Spells::SpellEntry(Spells::SC_CLERIC,    3, SP_ATTACK_ROLL, 0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 34, Spells::IN_COMBAT, 100, 4, 1, 0),// Dispel Magic
+	Spells::SpellEntry(Spells::SC_CLERIC,    3, 6,              0, 0, 0, Spells::AREA_SPECIAL,    Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_BOTH, 4, 5, 1, 1),    // Prayer
+	Spells::SpellEntry(Spells::SC_CLERIC,    3, 0,              0, 0, 1, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 49, Spells::IN_BOTH, 6, 6, 0, 0),    // Remove Curse
+	Spells::SpellEntry(Spells::SC_CLERIC,    3, 0,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_BOTH, 6, 0, 0, 0),    // Bestow Curse
+	Spells::SpellEntry(Spells::SC_CLERIC,    3, SP_ATTACK_ROLL, 0, 0, 10, Spells::AREA_TARGET_1,  Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 36, Spells::IN_COMBAT, 6, 4, 1, 0),  // Blink
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 0,              0, 0, 1, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 37, Spells::IN_COMBAT, 1, 2, 0, 0),  // Dispel Magic
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 12,             0, 0, 1, Spells::AREA_SPECIAL,    Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_BOTH, 3, 2, 1, 1),    // Fireball
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 10,             1, 0, 0, Spells::AREA_DIAMETER_7, Spells::ST_COMBAT,       Spells::DMG_HALF,      Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 3, 7, 1, 3),  // Haste
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 6,              0, 3, 1, Spells::AREA_DIAMETER_5, Spells::ST_WHOLE_PARTY,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 39, Spells::IN_BOTH, 3, 3, 0, 0),    // Hold Person
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 12,             0, 0, 2, Spells::AREA_TARGET_4,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 52, Spells::IN_COMBAT, 3, 6, 1, 0),  // Invisibility 10' Radius
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 0,              0, 0, 0, Spells::AREA_SPECIAL,    Spells::ST_WHOLE_PARTY,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 25, Spells::IN_BOTH, 3, 1, 0, 0),    // Lightning Bolt
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 4,              1, 0, 0, Spells::AREA_LOS_TILE,   Spells::ST_COMBAT,       Spells::DMG_HALF,      Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 3, 7, 1, 0),  // Protection From Evil 10' Radius
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 0,              0, 0, 2, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 45, Spells::IN_BOTH, 3, 1, 0, 0),    // Protection From Good 10' Radius
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 0,              0, 0, 2, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 46, Spells::IN_BOTH, 3, 2, 0, 0),    // Protection From Normal Missiles
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 0,              0, 0, 10, Spells::AREA_TARGET_1,  Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 41, Spells::IN_BOTH, 3, 3, 0, 0),    // Slow
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 9,              1, 3, 1, Spells::AREA_DIAMETER_5, Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 42, Spells::IN_COMBAT, 3, 5, 1, 0),  // Restoration
+	Spells::SpellEntry(Spells::SC_CLERIC,    7, 0,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_BOTH, 6, 0, 0, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 39, Spells::IN_BOTH, 0, 3, 0, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 0, 1, 0, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 38, Spells::IN_BOTH, 0, 1, 0, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 4,              4, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_HALF,      Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 0, 7, 1, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 6,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_POISON, 52, Spells::IN_COMBAT, 0, 7, 1, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 39, Spells::IN_BOTH, 0, 1, 0, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_TARGET_4,   Spells::ST_WHOLE_PARTY,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 71, Spells::IN_BOTH, 0, 2, 0, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 7,              0, 0, 0, Spells::AREA_DIAMETER_7, Spells::ST_COMBAT,       Spells::DMG_HALF,      Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 0, 7, 1, 3),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 12,             0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 0, 6, 1, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 39, Spells::IN_BOTH, 0, 1, 0, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 4,  Spells::IN_CAMP, 0, 0, 0, 0)
+};
+
+// Public accessor for spell entries
+const Common::Array<Spells::SpellEntry> &getSpellEntries() {
+	return kSpellEntries;
+}
+
 // 8 base classes (0..7) x 9 levels (1..9)
 static const SavingThrows kSavingThrows[BASE_CLASS_NUM][9] = {
-    // Class 0 - Cleric
-    {
-        { 10, 13, 14, 16, 15 }, { 10, 13, 14, 16, 15 }, { 10, 13, 14, 16, 15 },
-        {  9, 12, 13, 15, 14 }, {  9, 12, 13, 15, 14 }, {  9, 12, 13, 15, 14 },
-        {  7, 10, 11, 13, 12 }, {  7, 10, 11, 13, 12 }, {  7, 10, 11, 13, 12 }
-    },
-    // Class 1 - Druid
-    {
-        { 10, 13, 14, 16, 15 }, { 10, 13, 14, 16, 15 }, { 10, 13, 14, 16, 15 },
-        {  9, 12, 13, 15, 14 }, {  9, 12, 13, 15, 14 }, {  9, 12, 13, 15, 14 },
-        {  7, 10, 11, 13, 12 }, {  7, 10, 11, 13, 12 }, {  7, 10, 11, 13, 12 }
-    },
-    // Class 2 - Fighter
-    {
-        { 14, 15, 16, 17, 17 }, { 14, 15, 16, 17, 17 }, { 13, 14, 15, 16, 16 },
-        { 13, 14, 15, 16, 16 }, { 11, 12, 13, 13, 14 }, { 11, 12, 13, 13, 14 },
-        { 10, 11, 12, 12, 13 }, { 10, 11, 12, 12, 13 }, {  8,  9, 10,  9, 11 }
-    },
-    // Class 3 - Paladin
-    {
-        { 14, 15, 16, 17, 17 }, { 14, 15, 16, 17, 17 }, { 13, 14, 15, 16, 16 },
-        { 13, 14, 15, 16, 16 }, { 11, 12, 13, 13, 14 }, { 11, 12, 13, 13, 14 },
-        { 10, 11, 12, 12, 13 }, { 10, 11, 12, 12, 13 }, {  8,  9, 10,  9, 11 }
-    },
-    // Class 4 - Ranger
-    {
-        { 14, 15, 16, 17, 17 }, { 14, 15, 16, 17, 17 }, { 13, 14, 15, 16, 16 },
-        { 13, 14, 15, 16, 16 }, { 11, 12, 13, 13, 14 }, { 11, 12, 13, 13, 14 },
-        { 10, 11, 12, 12, 13 }, { 10, 11, 12, 12, 13 }, {  8,  9, 10,  9, 11 }
-    },
-    // Class 5 - Magic-User
-    {
-        { 14, 13, 11, 15, 12 }, { 14, 13, 11, 15, 12 }, { 14, 13, 11, 15, 12 },
-        { 14, 13, 11, 15, 12 }, { 14, 13, 11, 15, 12 }, { 13, 11,  9, 13, 10 },
-        { 13, 11,  9, 13, 10 }, { 13, 11,  9, 13, 10 }, { 13, 11,  9, 13, 10 }
-    },
-    // Class 6 - Thief
-    {
-        { 13, 12, 14, 16, 15 }, { 13, 12, 14, 16, 15 }, { 13, 12, 14, 16, 15 },
-        { 13, 12, 14, 16, 15 }, { 12, 11, 12, 15, 13 }, { 12, 11, 12, 15, 13 },
-        { 12, 11, 12, 15, 13 }, { 12, 11, 12, 15, 13 }, { 11, 10, 10, 14, 11 }
-    },
-    // Class 7 - Monk
-    {
-        { 13, 12, 14, 16, 15 }, { 13, 12, 14, 16, 15 }, { 13, 12, 14, 16, 15 },
-        { 13, 12, 14, 16, 15 }, { 12, 11, 12, 15, 13 }, { 12, 11, 12, 15, 13 },
-        { 12, 11, 12, 15, 13 }, { 12, 11, 12, 15, 13 }, { 11, 10, 10, 14, 11 }
-    }
+	// Class 0 - Cleric
+	{
+		{ 10, 13, 14, 16, 15 }, { 10, 13, 14, 16, 15 }, { 10, 13, 14, 16, 15 },
+		{  9, 12, 13, 15, 14 }, {  9, 12, 13, 15, 14 }, {  9, 12, 13, 15, 14 },
+		{  7, 10, 11, 13, 12 }, {  7, 10, 11, 13, 12 }, {  7, 10, 11, 13, 12 }
+	},
+	// Class 1 - Druid
+	{
+		{ 10, 13, 14, 16, 15 }, { 10, 13, 14, 16, 15 }, { 10, 13, 14, 16, 15 },
+		{  9, 12, 13, 15, 14 }, {  9, 12, 13, 15, 14 }, {  9, 12, 13, 15, 14 },
+		{  7, 10, 11, 13, 12 }, {  7, 10, 11, 13, 12 }, {  7, 10, 11, 13, 12 }
+	},
+	// Class 2 - Fighter
+	{
+		{ 14, 15, 16, 17, 17 }, { 14, 15, 16, 17, 17 }, { 13, 14, 15, 16, 16 },
+		{ 13, 14, 15, 16, 16 }, { 11, 12, 13, 13, 14 }, { 11, 12, 13, 13, 14 },
+		{ 10, 11, 12, 12, 13 }, { 10, 11, 12, 12, 13 }, {  8,  9, 10,  9, 11 }
+	},
+	// Class 3 - Paladin
+	{
+		{ 14, 15, 16, 17, 17 }, { 14, 15, 16, 17, 17 }, { 13, 14, 15, 16, 16 },
+		{ 13, 14, 15, 16, 16 }, { 11, 12, 13, 13, 14 }, { 11, 12, 13, 13, 14 },
+		{ 10, 11, 12, 12, 13 }, { 10, 11, 12, 12, 13 }, {  8,  9, 10,  9, 11 }
+	},
+	// Class 4 - Ranger
+	{
+		{ 14, 15, 16, 17, 17 }, { 14, 15, 16, 17, 17 }, { 13, 14, 15, 16, 16 },
+		{ 13, 14, 15, 16, 16 }, { 11, 12, 13, 13, 14 }, { 11, 12, 13, 13, 14 },
+		{ 10, 11, 12, 12, 13 }, { 10, 11, 12, 12, 13 }, {  8,  9, 10,  9, 11 }
+	},
+	// Class 5 - Magic-User
+	{
+		{ 14, 13, 11, 15, 12 }, { 14, 13, 11, 15, 12 }, { 14, 13, 11, 15, 12 },
+		{ 14, 13, 11, 15, 12 }, { 14, 13, 11, 15, 12 }, { 13, 11,  9, 13, 10 },
+		{ 13, 11,  9, 13, 10 }, { 13, 11,  9, 13, 10 }, { 13, 11,  9, 13, 10 }
+	},
+	// Class 6 - Thief
+	{
+		{ 13, 12, 14, 16, 15 }, { 13, 12, 14, 16, 15 }, { 13, 12, 14, 16, 15 },
+		{ 13, 12, 14, 16, 15 }, { 12, 11, 12, 15, 13 }, { 12, 11, 12, 15, 13 },
+		{ 12, 11, 12, 15, 13 }, { 12, 11, 12, 15, 13 }, { 11, 10, 10, 14, 11 }
+	},
+	// Class 7 - Monk
+	{
+		{ 13, 12, 14, 16, 15 }, { 13, 12, 14, 16, 15 }, { 13, 12, 14, 16, 15 },
+		{ 13, 12, 14, 16, 15 }, { 12, 11, 12, 15, 13 }, { 12, 11, 12, 15, 13 },
+		{ 12, 11, 12, 15, 13 }, { 12, 11, 12, 15, 13 }, { 11, 10, 10, 14, 11 }
+	}
 };
 
 const SavingThrows &savingThrowsAt(uint8 baseClassIndex, uint8 level) {
@@ -393,29 +475,29 @@ using namespace Goldbox::Data;
 // 0 Cleric -> 0x02, 1 Druid -> 0x10, 2 Fighter -> 0x08, 3 Paladin -> 0x40,
 // 4 Ranger -> 0x80, 5 Magic-User -> 0x01, 6 Thief -> 0x04, 7 Monk -> 0x20.
 static const uint8 kClassItemLimitBits[BASE_CLASS_NUM] = {
-    0x02, 0x10, 0x08, 0x40, 0x80, 0x01, 0x04, 0x20
+	0x02, 0x10, 0x08, 0x40, 0x80, 0x01, 0x04, 0x20
 };
 
 uint8 Rules::classItemLimitBit(uint8 baseClassIndex) {
-    if (baseClassIndex >= BASE_CLASS_NUM)
-        return 0;
-    return kClassItemLimitBits[baseClassIndex];
+	if (baseClassIndex >= BASE_CLASS_NUM)
+		return 0;
+	return kClassItemLimitBits[baseClassIndex];
 }
 
 uint8 Rules::computeItemLimitMask(const Common::Array<uint8> &levels) {
-    uint8 mask = 0;
-    const uint sz = MIN<uint>(levels.size(), BASE_CLASS_NUM);
-    for (uint i = 0; i < sz; ++i) {
-        if (levels[i] > 0)
-            mask |= kClassItemLimitBits[i];
-    }
-    return mask;
+	uint8 mask = 0;
+	const uint sz = MIN<uint>(levels.size(), BASE_CLASS_NUM);
+	for (uint i = 0; i < sz; ++i) {
+		if (levels[i] > 0)
+			mask |= kClassItemLimitBits[i];
+	}
+	return mask;
 }
 
 static inline uint8 clampToU8(int v) {
-    if (v < 0) return 0;
-    if (v > 255) return 255;
-    return (uint8)v;
+	if (v < 0) return 0;
+	if (v > 255) return 255;
+	return (uint8)v;
 }
 
 ThiefSkills Rules::computeThiefSkills(uint8 race, uint8 dexterity, uint8 thiefLevel) {

@@ -29,6 +29,69 @@ namespace Goldbox {
 namespace Data {
 namespace Effects {
 
+// Effect identifier the spell applies
+enum Effects : uint8 {
+    E_NONE = 0,
+    // Specific effects referenced by Poolrad spell table (subset)
+    E_BLESS,
+    E_CURSED,
+    E_DETECT_MAGIC,
+    E_READ_MAGIC,
+    E_PROTECTION_FROM_EVIL,
+    E_PROTECTION_FROM_GOOD,
+    E_RESIST_COLD,
+    E_CHARM_PERSON,
+    E_ENLARGE,
+    E_REDUCE,
+    E_FRIENDS,
+    E_SHIELD,
+    E_SLEEP,
+    E_FIND_TRAPS,
+    E_PARALYZE,
+    E_RESIST_FIRE,
+    E_SILENCE_15_RADIUS,
+    E_SLOW_POISON,
+    E_SNAKE_CHARM,
+    E_STICKS_TO_SNAKES,
+    E_SPIRITUAL_HAMMER,
+    E_SP_DISPEL_EVIL,
+    E_DETECT_INVISIBILITY,
+    E_INVISIBILITY,
+    E_MIRROR_IMAGE,
+    E_RAY_OF_ENFEEBLEMENT,
+    E_STINKING_CLOUD,
+    E_STRENGTH,
+    E_PRAYER,
+    E_BESTOW_CURSE,
+    E_BLINK,
+    E_HASTE,
+    E_PROT_FROM_EVIL_10_RADIUS,
+    E_PROT_FROM_GOOD_10_RADIUS,
+    E_PROT_FROM_NORMAL_MISSILES,
+    E_SLOW,
+    E_BLINDED,
+    E_CAUSE_DISEASE_1,
+    E_CONFUSE,
+    E_FEAR,
+    E_FUMBLING,
+    E_MINOR_GLOBE_OF_INVULNERABILITY,
+    E_ANIMATE_DEAD,
+    E_FEEBLEMIND,
+    E_PROT_DRAG_BREATH,
+    E_RESIST_PARALYZE,
+    E_INVISIBLE, // distinct tag present in data
+    E_ENTANGLE,
+    E_FAERIE_FIRE,
+    E_INVISIBLE_TO_ANIMALS,
+    // Generic placeholders
+    E_DAMAGE,
+    E_HEAL,
+    E_BUFF,
+    E_DEBUFF,
+    E_SUMMON,
+    E_MISC
+};
+
 struct Effect {
     uint8 type;          // Effect ID (original e_id)
     uint16 durationMin;  // Duration in minutes (original duration word)
