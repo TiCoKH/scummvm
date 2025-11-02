@@ -21,6 +21,7 @@
 
 #include "common/stream.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/data/rules/rules.h"
 #include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
@@ -337,6 +338,69 @@ namespace Data {
 
 		hitPointsRolled = average + conMod;
 		hitPoints.max = hitPoints.current = (hitPointsRolled > 0) ? hitPointsRolled : 1;
+	}
+
+	uint8 PoolradCharacter::getRolledHP(Goldbox::Data::ClassFlag flags) {
+		// New behavior:
+		// - Iterate base classes
+		// - Include class if levels[base] > 0 and flag bit is set
+		// - Roll per-class kHPRolls
+		// - If level == 1, clamp roll to floor(2 * diceSides / 3)
+		// - Sum all included rolls and set hitPointsRolled to that sum
+		int sum = 0;
+		const uint8 flagMask = static_cast<uint8>(flags);
+		for (uint8 base = 0; base < BASE_CLASS_NUM; ++base) {
+			const uint8 baseBit = (uint8)(1u << base);
+			const uint8 lvl = levels.levels[base];
+			if (lvl == 0)
+				continue; // skip classes with no levels
+			if ((flagMask & baseBit) == 0)
+				continue; // skip classes not included by mask
+			const Goldbox::Data::DiceRoll &dr = Goldbox::Data::Rules::getHPRoll(base);
+			int roll = VmInterface::rollDice(dr.numDice, dr.diceSides);
+			if (lvl == 1) {
+				const int minFirstLevel = (2 * dr.diceSides) / 3; // floor division
+				if (roll < minFirstLevel)
+					roll = minFirstLevel;
+			}
+
+			sum += roll;
+		}
+
+		if (sum < 0)
+			sum = 0;
+		if (sum > 255)
+			sum = 255;
+		return (uint8)sum;
+	}
+
+	int8 PoolradCharacter::getConHPModifier() const {
+		using namespace Goldbox::Data;
+		// Base modifier from rules table (handles clamping)
+		const uint8 con = abilities.constitution.current;
+		int perSlot = (int)Rules::conHPModifier(con);
+
+		// Fighter adjustment applies if the character has any Fighter level
+		bool isFighter = false;
+		if (levels.levels.size() > C_FIGHTER)
+			isFighter = (levels.levels[C_FIGHTER] > 0);
+
+		if (isFighter) {
+			if (con >= 17) perSlot += 1;
+			if (con >= 18) perSlot += 1; // total +2 on top of base at 18+
+		}
+
+		// Sum per active base-class slot (0..7)
+		int total = 0;
+		const Common::Array<uint8> &lvls = levels.levels;
+		uint sz = (uint)lvls.size();
+		if (sz > BASE_CLASS_NUM) sz = BASE_CLASS_NUM;
+		for (uint8 base = 0; base < sz; ++base) {
+			if (lvls[base] == 0)
+				continue; // skip classes with no levels
+			total += perSlot;
+		}
+		return total;
 	}
 
 	void PoolradCharacter::save(Common::WriteStream &stream) {

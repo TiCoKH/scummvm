@@ -129,6 +129,19 @@ public:
 
     void rollAbilityScores() override;
     void calculateHitPoints() override;
+    // Aggregate Constitution HP modifier across active base-class slots (0..7).
+    // Uses base modifier from rules for the character's Constitution. If the character
+    // has any Fighter level, adds +1 at CON>=17 and an additional +1 at CON>=18 to the
+    // per-slot modifier before summing. Returns the total across active slots.
+    int8 getConHPModifier() const;
+    // Roll additional HP for levels beyond 1 for allowed base classes (bitmask in ClassFlag).
+    // For each base class 0..7: if levels[base] > 1 and the corresponding bit in flags is set,
+    // roll (levels[base] - 1) dice using the class's hit die and add the sum to hitPointsRolled.
+    // Also increases hitPoints.max and hitPoints.current by the same amount (clamped to uint8).
+    uint8 getRolledHP(Goldbox::Data::ClassFlag flags);
+        // Return aggregated Constitution HP modifier across active base classes filtered by flags.
+        // Uses Rules::conHPModifier(CON) as base per-slot, with fighter bonuses: +1 at CON>=17,
+        // additional +1 at CON>=18, applied per active slot. Aggregates like getRolledHP.
 
     static uint8 getBaseIconColor(int index);
     /**

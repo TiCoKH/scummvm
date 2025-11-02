@@ -64,6 +64,18 @@ enum ClassADnD {
     C_MONSTER                  = 0x11
 };
 
+enum ClassFlag {
+    CF_CLERIC       = 0x01,
+    CF_DRUID        = 0x02,
+    CF_FIGHTER      = 0x04,
+    CF_PALADIN      = 0x08,
+    CF_RANGER       = 0x10,
+    CF_MAGICUSER    = 0x20,
+    CF_THIEF        = 0x40,
+    CF_MONK         = 0x80,
+    CF_ALL          = 0xFF
+};
+
 enum AlignmentADnD {
     A_LAWFUL_GOOD       = 0,
     A_LAWFUL_NEUTRAL    = 1,

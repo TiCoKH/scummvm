@@ -79,6 +79,21 @@ const Common::Array< Common::Array<AgeDefEntry> > &getAgeDefs();
 // Spells table accessor (Poolrad). Returns the full list of spell entries.
 const Common::Array<Spells::SpellEntry> &getSpellEntries();
 
+// Initial gold dice definition for base classes (0..7, see ClassADnD base order).
+// Returns a reference to the DiceRoll describing how to roll starting gold
+// for the given base class; out-of-range indexes return a zero roll {0,0}.
+const DiceRoll &getInitGoldRoll(uint8 baseClassIndex);
+
+// Hit Points dice definition per base class (0..7).
+// Returns the DiceRoll describing the HP dice to roll per level for that base class;
+// out-of-range indexes return a zero roll {0,0}.
+const DiceRoll &getHPRoll(uint8 baseClassIndex);
+
+// Constitution-based HP modifier accessor.
+// Returns the base HP modifier for a given Constitution score (3..25). Values outside
+// that range are clamped. Fighter classes may apply additional adjustments separately.
+int8 conHPModifier(uint8 constitution);
+
 // Ageing helpers
 // Returns the age category thresholds for a given race (maps Dwarf..Human as 0..6).
 const AgeCategories &getAgeCategoriesForRace(uint8 race);
