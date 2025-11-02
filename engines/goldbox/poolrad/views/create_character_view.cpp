@@ -65,6 +65,91 @@ CreateCharacterView::~CreateCharacterView() {
 	delete _newCharacter; _newCharacter = nullptr;
 }
 
+// Helper: reset all base-class levels and initialize from classType mapping
+static void initLevelsForClassType(Goldbox::Poolrad::Data::PoolradCharacter *ch) {
+	if (!ch)
+		return;
+	using namespace Goldbox::Data;
+	// Log before
+	{
+		const Common::Array<uint8> &lv = ch->levels.levels;
+		debug("initLevels(run): BEFORE [%u,%u,%u,%u,%u,%u,%u,%u]",
+			  (unsigned)(lv.size() > 0 ? lv[0] : 0),
+			  (unsigned)(lv.size() > 1 ? lv[1] : 0),
+			  (unsigned)(lv.size() > 2 ? lv[2] : 0),
+			  (unsigned)(lv.size() > 3 ? lv[3] : 0),
+			  (unsigned)(lv.size() > 4 ? lv[4] : 0),
+			  (unsigned)(lv.size() > 5 ? lv[5] : 0),
+			  (unsigned)(lv.size() > 6 ? lv[6] : 0),
+			  (unsigned)(lv.size() > 7 ? lv[7] : 0));
+	}
+	for (uint i = 0; i < ch->levels.levels.size(); ++i)
+		ch->levels.levels[i] = 0;
+
+	switch (ch->classType) {
+	case C_CLERIC_FIGHTER:
+		ch->levels.levels[C_CLERIC] = 1;
+		ch->levels.levels[C_FIGHTER] = 1;
+		break;
+	case C_CLERIC_FIGHTER_MAGICUSER:
+		ch->levels.levels[C_CLERIC] = 1;
+		ch->levels.levels[C_FIGHTER] = 1;
+		ch->levels.levels[C_MAGICUSER] = 1;
+		break;
+	case C_CLERIC_RANGER:
+		ch->levels.levels[C_CLERIC] = 1;
+		ch->levels.levels[C_RANGER] = 1;
+		break;
+	case C_CLERIC_MAGICUSER:
+		ch->levels.levels[C_CLERIC] = 1;
+		ch->levels.levels[C_MAGICUSER] = 1;
+		break;
+	case C_CLERIC_THIEF:
+		ch->levels.levels[C_CLERIC] = 1;
+		ch->levels.levels[C_THIEF] = 1;
+		break;
+	case C_FIGHTER_MAGICUSER:
+		ch->levels.levels[C_FIGHTER] = 1;
+		ch->levels.levels[C_MAGICUSER] = 1;
+		break;
+	case C_FIGHTER_THIEF:
+		ch->levels.levels[C_FIGHTER] = 1;
+		ch->levels.levels[C_THIEF] = 1;
+		break;
+	case C_FIGHTER_MAGICUSER_THIEF:
+		ch->levels.levels[C_FIGHTER] = 1;
+		ch->levels.levels[C_MAGICUSER] = 1;
+		ch->levels.levels[C_THIEF] = 1;
+		break;
+	case C_MAGICUSER_THIEF:
+		ch->levels.levels[C_MAGICUSER] = 1;
+		ch->levels.levels[C_THIEF] = 1;
+		break;
+	default:
+		if (ch->classType < BASE_CLASS_NUM) {
+			ch->levels.levels[ch->classType] = 1;
+		} else {
+			warning("initLevels(run): classType=%u is not a base class; no base levels set",
+					(unsigned)ch->classType);
+		}
+		break;
+	}
+
+	// Log after
+	{
+		const Common::Array<uint8> &lv = ch->levels.levels;
+		debug("initLevels(run): AFTER  [%u,%u,%u,%u,%u,%u,%u,%u]",
+			  (unsigned)(lv.size() > 0 ? lv[0] : 0),
+			  (unsigned)(lv.size() > 1 ? lv[1] : 0),
+			  (unsigned)(lv.size() > 2 ? lv[2] : 0),
+			  (unsigned)(lv.size() > 3 ? lv[3] : 0),
+			  (unsigned)(lv.size() > 4 ? lv[4] : 0),
+			  (unsigned)(lv.size() > 5 ? lv[5] : 0),
+			  (unsigned)(lv.size() > 6 ? lv[6] : 0),
+			  (unsigned)(lv.size() > 7 ? lv[7] : 0));
+	}
+}
+
 void CreateCharacterView::nextStage() {
 	if (_stage < CC_STATE_DONE)
 		setStage(static_cast<CharacterCreateState>(_stage + 1));
@@ -96,6 +181,14 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 			applyStatMinMax();
 			// Initialize starting spell slots/known spells per rules
 			applySpells();
+			// Initialize starting gold based on base classes
+			setInitGold();
+			// Roll additional HP for any starting levels beyond 1 (all base classes allowed)
+			debug("rollHP: calling with CF_ALL; pre-rolled=%u", (unsigned)_newCharacter->hitPointsRolled);
+			_newCharacter->hitPointsRolled = _newCharacter->getRolledHP(Goldbox::Data::CF_ALL);
+			// Align max HP with rolled HP after HP roll per requested behavior
+			_newCharacter->hitPoints.max = _newCharacter->hitPointsRolled;
+			debug("rollHP: post-rolled=%u max=%u", (unsigned)_newCharacter->hitPointsRolled, (unsigned)_newCharacter->hitPoints.max);
 			_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
 			_newCharacter->primaryAttacks = 2;
 			_newCharacter->priDmgDiceNum = 1;
@@ -160,6 +253,12 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 			ageingEffects();
 			applyStatMinMax();
 			applySpells();
+			setInitGold();
+			debug("rollHP: calling with CF_ALL; pre-rolled=%u", (unsigned)_newCharacter->hitPointsRolled);
+			_newCharacter->hitPointsRolled = _newCharacter->getRolledHP(Goldbox::Data::CF_ALL);
+			// Align max HP with rolled HP after HP roll per requested behavior
+			_newCharacter->hitPoints.max = _newCharacter->hitPointsRolled;
+			debug("rollHP: post-rolled=%u max=%u", (unsigned)_newCharacter->hitPointsRolled, (unsigned)_newCharacter->hitPoints.max);
 			if (_profileDialog)
 				_profileDialog->draw();
 			return true;
@@ -384,6 +483,19 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 				_newCharacter->classType = (uint8)_indexMap[value];
 				debug("Selected class ID: %d", _newCharacter->classType);
 				_newCharacter->highestLevel = 1;
+				// Log levels before initialization
+				{
+					const Common::Array<uint8> &lv = _newCharacter->levels.levels;
+					debug("initLevels: BEFORE [%u,%u,%u,%u,%u,%u,%u,%u]",
+						(unsigned)(lv.size() > 0 ? lv[0] : 0),
+						(unsigned)(lv.size() > 1 ? lv[1] : 0),
+						(unsigned)(lv.size() > 2 ? lv[2] : 0),
+						(unsigned)(lv.size() > 3 ? lv[3] : 0),
+						(unsigned)(lv.size() > 4 ? lv[4] : 0),
+						(unsigned)(lv.size() > 5 ? lv[5] : 0),
+						(unsigned)(lv.size() > 6 ? lv[6] : 0),
+						(unsigned)(lv.size() > 7 ? lv[7] : 0));
+				}
 				switch (_newCharacter->classType) {
 				case Goldbox::Data::C_CLERIC_FIGHTER:
 					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
@@ -424,8 +536,35 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 					_newCharacter->levels.levels[Goldbox::Data::C_THIEF] = 1;
 					break;
 				default:
-					_newCharacter->levels.levels[_newCharacter->classType] = 1;
+					if (_newCharacter->classType < BASE_CLASS_NUM) {
+						_newCharacter->levels.levels[_newCharacter->classType] = 1;
+					} else {
+						warning("initLevels: classType=%u is not a base class;"
+							" no level set in default branch",
+							(unsigned)_newCharacter->classType);
+					}
 					break;
+				}
+				// Log levels after initialization
+				{
+					const Common::Array<uint8> &lv = _newCharacter->levels.levels;
+					debug("initLevels: AFTER  [%u,%u,%u,%u,%u,%u,%u,%u]",
+						(unsigned)(lv.size() > 0 ? lv[0] : 0),
+						(unsigned)(lv.size() > 1 ? lv[1] : 0),
+						(unsigned)(lv.size() > 2 ? lv[2] : 0),
+						(unsigned)(lv.size() > 3 ? lv[3] : 0),
+						(unsigned)(lv.size() > 4 ? lv[4] : 0),
+						(unsigned)(lv.size() > 5 ? lv[5] : 0),
+						(unsigned)(lv.size() > 6 ? lv[6] : 0),
+						(unsigned)(lv.size() > 7 ? lv[7] : 0));
+					bool any = false;
+					for (uint i = 0; i < lv.size() && i < BASE_CLASS_NUM; ++i)
+						if (lv[i] > 0) { any = true; break; }
+					if (!any) {
+						warning("initLevels: no base-class levels were set for"
+							" classType=%u; creation will yield 0 starting gold",
+							(unsigned)_newCharacter->classType);
+					}
 				}
 			}
 			if ( _newCharacter->levels.levels[Goldbox::Data::C_THIEF] > 0) {
@@ -546,9 +685,8 @@ void CreateCharacterView::finalizeCharacterAndSave() {
 
 	// Roll base stats and compute initial values
 	_newCharacter->rollAbilityScores();
-	// Start as level 1 in chosen class
-	if (_newCharacter->classType < _newCharacter->levels.levels.size())
-		_newCharacter->levels.levels[_newCharacter->classType] = 1;
+	// Start as level 1 in chosen class (supports multi-class)
+	initLevelsForClassType(_newCharacter);
 	_newCharacter->calculateHitPoints();
 
 	// Save .CHA
@@ -573,10 +711,8 @@ void CreateCharacterView::rollAndRecompute() {
 	if (!_newCharacter)
 		return;
 	_newCharacter->rollAbilityScores();
-	for (uint i = 0; i < _newCharacter->levels.levels.size(); ++i)
-		_newCharacter->levels.levels[i] = 0;
-	if (_newCharacter->classType < _newCharacter->levels.levels.size())
-		_newCharacter->levels.levels[_newCharacter->classType] = 1;
+	// Re-initialize levels from classType to preserve multiclass composition
+	initLevelsForClassType(_newCharacter);
 	_newCharacter->calculateHitPoints();
 }
 
@@ -970,6 +1106,7 @@ void CreateCharacterView::applySpells() {
 
 	const uint8 cls = _newCharacter->classType;
 	const uint8 wis = _newCharacter->abilities.wisdom.current;
+	debug("applySpells: start class=%u wis=%u", (unsigned)cls, (unsigned)wis);
 
 	// Cleric spellcasting: base 1 L1 slot, apply wisdom bonuses
 	if (_newCharacter->levels[Goldbox::Data::C_CLERIC] > 0) {
@@ -982,6 +1119,11 @@ void CreateCharacterView::applySpells() {
 			if (wis >= 13) _newCharacter->spellSlots.cleric.level1 += 1;
 			if (wis >= 14) _newCharacter->spellSlots.cleric.level1 += 1;
 		}
+
+		debug("applySpells: cleric slots L1=%u L2=%u L3=%u",
+		      (unsigned)_newCharacter->spellSlots.cleric.level1,
+		      (unsigned)_newCharacter->spellSlots.cleric.level2,
+		      (unsigned)_newCharacter->spellSlots.cleric.level3);
 		if (_newCharacter->spellSlots.cleric.level2 > 0) {
 			if (wis >= 15) _newCharacter->spellSlots.cleric.level2 += 1;
 			if (wis >= 16) _newCharacter->spellSlots.cleric.level2 += 1;
@@ -1006,14 +1148,56 @@ void CreateCharacterView::applySpells() {
 		_newCharacter->spellSlots.magicUser.level2 = 0;
 		_newCharacter->spellSlots.magicUser.level3 = 0;
 
-		const SpellId muStart[] = {
-			Goldbox::Data::Spells::SP_MUL1_DETECT_MAGIC,
-			Goldbox::Data::Spells::SP_MUL1_READ_MAGIC,
-			Goldbox::Data::Spells::SP_MUL1_SHIELD,
-			Goldbox::Data::Spells::SP_MUL1_SLEEP
-		};
-		for (uint i = 0; i < ARRAYSIZE(muStart); ++i)
-			_newCharacter->setSpellKnown(muStart[i]);
+		_newCharacter->setSpellKnown(Goldbox::Data::Spells::SP_MUL1_DETECT_MAGIC);
+		_newCharacter->setSpellKnown(Goldbox::Data::Spells::SP_MUL1_READ_MAGIC);
+		_newCharacter->setSpellKnown(Goldbox::Data::Spells::SP_MUL1_SHIELD);
+		_newCharacter->setSpellKnown(Goldbox::Data::Spells::SP_MUL1_SLEEP);
+
+		debug("applySpells: MU slots L1=%u L2=%u L3=%u",
+		      (unsigned)_newCharacter->spellSlots.magicUser.level1,
+		      (unsigned)_newCharacter->spellSlots.magicUser.level2,
+		      (unsigned)_newCharacter->spellSlots.magicUser.level3);
+	}
+}
+
+void CreateCharacterView::setInitGold() {
+	if (!_newCharacter)
+		return;
+
+	using namespace Goldbox::Data;
+	using Goldbox::Data::Rules::getInitGoldRoll;
+
+	int totalGold = 0;
+	int classCount = 0;
+	debug("setInitGold: start");
+	debug("setInitGold: classType=%u", (unsigned)_newCharacter->classType);
+
+	// Iterate all base classes (0..7) and roll per-class starting gold
+	for (uint8 base = 0; base < BASE_CLASS_NUM; ++base) {
+		uint8 lvl = 0;
+		// LevelData operator[] expects ClassADnD; cast base index accordingly
+		lvl = _newCharacter->levels[static_cast<Goldbox::Data::ClassADnD>(base)];
+		debug("setInitGold: base=%u lvl=%u", (unsigned)base, (unsigned)lvl);
+		if (lvl > 0) {
+			const DiceRoll &dr = getInitGoldRoll(base);
+			int classGold = VmInterface::rollDice(dr.numDice, dr.diceSides);
+			classGold += 1;
+			totalGold += classGold;
+			++classCount;
+			debug("setInitGold: base=%u lvl=%u roll=%uD%u+1 -> %d",
+				  (unsigned)base, (unsigned)lvl, (unsigned)dr.numDice, (unsigned)dr.diceSides, classGold);
+		} else {
+			debug("setInitGold: skipping base=%u (lvl==0)", (unsigned)base);
+		}
+	}
+
+	// Average across classes (truncate);
+	_baseClassNums = classCount;
+	uint16 finalGold = (classCount > 0) ? static_cast<uint16>(totalGold / classCount) : 0;
+	_newCharacter->valuableItems[VAL_GOLD] = finalGold;
+	debug("setInitGold: classes=%d total=%d avg=%u (final gold)", _baseClassNums, totalGold, (unsigned)finalGold);
+	if (_baseClassNums == 0) {
+		warning("setInitGold: no base classes with level > 0; gold set to 0. classType=%u", (unsigned)_newCharacter->classType);
 	}
 }
 
