@@ -64,6 +64,7 @@ private:
     int _selectedClass = -1;
     int _selectedAlignment = -1;
     Common::String _enteredName;
+    uint8 _baseClassNums = 0;
 
     // subviews for each state
     // Reusable single vertical menu (we rebuild its items per stage)
@@ -108,6 +109,7 @@ private:
     void setThac0();
     void setSavingThrows();
     void applySpells();
+    void setInitGold();
     void setAge();
     void ageingEffects();
     void applyStatMinMax();

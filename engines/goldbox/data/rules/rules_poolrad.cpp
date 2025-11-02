@@ -240,6 +240,17 @@ static const Common::Array<DiceRoll> kInitGoldRolls = {
 	{ 5, 4 }  // Monk
 };
 
+static const Common::Array<DiceRoll> kHPRolls = {
+	{ 1, 8 }, // Cleric
+	{ 1, 8 }, // Druid
+	{ 1, 10 }, // Fighter
+	{ 1, 10 }, // Paladin
+	{ 2, 8 }, // Ranger
+	{ 1, 4 }, // Magic-User
+	{ 1, 6 }, // Thief
+	{ 2, 4 }  // Monk
+};
+
 #define SP_ATTACK_ROLL 255
 
 // Pool of Radiance spell
@@ -318,6 +329,22 @@ static const Common::Array<Spells::SpellEntry> kSpellEntries = {
 // Public accessor for spell entries
 const Common::Array<Spells::SpellEntry> &getSpellEntries() {
 	return kSpellEntries;
+}
+
+// Accessor for initial gold dice per base class
+const DiceRoll &getInitGoldRoll(uint8 baseClassIndex) {
+	static const DiceRoll kZero = { 0, 0 };
+	if (baseClassIndex < kInitGoldRolls.size())
+		return kInitGoldRolls[baseClassIndex];
+	return kZero;
+}
+
+// Accessor for HP dice per base class
+const DiceRoll &getHPRoll(uint8 baseClassIndex) {
+	static const DiceRoll kZero = { 0, 0 };
+	if (baseClassIndex < kHPRolls.size())
+		return kHPRolls[baseClassIndex];
+	return kZero;
 }
 
 // 8 base classes (0..7) x 9 levels (1..9)
@@ -478,6 +505,10 @@ static const uint8 kClassItemLimitBits[BASE_CLASS_NUM] = {
 	0x02, 0x10, 0x08, 0x40, 0x80, 0x01, 0x04, 0x20
 };
 
+static const int8  kConHPModifier[] = {
+	-2, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2
+};
+
 uint8 Rules::classItemLimitBit(uint8 baseClassIndex) {
 	if (baseClassIndex >= BASE_CLASS_NUM)
 		return 0;
@@ -539,6 +570,16 @@ ThiefSkills Rules::computeThiefSkills(uint8 race, uint8 dexterity, uint8 thiefLe
 	}
 
 	return out;
+}
+int8 conHPModifier(uint8 constitution) {
+	// Table defined in this compilation unit
+	extern const int8 kConHPModifier[];
+	int idx = (int)constitution - 3;
+	if (idx < 0) idx = 0;
+	// Derive length from known AD&D range to avoid exposing symbol size
+	const int maxIdx = 21 - 3; // 18
+	if (idx > maxIdx) idx = maxIdx;
+	return kConHPModifier[idx];
 }
 
 } // namespace Rules
