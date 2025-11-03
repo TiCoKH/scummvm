@@ -183,12 +183,8 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 			applySpells();
 			// Initialize starting gold based on base classes
 			setInitGold();
-			// Roll additional HP for any starting levels beyond 1 (all base classes allowed)
-			debug("rollHP: calling with CF_ALL; pre-rolled=%u", (unsigned)_newCharacter->hitPointsRolled);
-			_newCharacter->hitPointsRolled = _newCharacter->getRolledHP(Goldbox::Data::CF_ALL);
-			// Align max HP with rolled HP after HP roll per requested behavior
-			_newCharacter->hitPoints.max = _newCharacter->hitPointsRolled;
-			debug("rollHP: post-rolled=%u max=%u", (unsigned)_newCharacter->hitPointsRolled, (unsigned)_newCharacter->hitPoints.max);
+			// Initialize and average HP according to class/Con rules
+			setInitHP();
 			_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
 			_newCharacter->primaryAttacks = 2;
 			_newCharacter->priDmgDiceNum = 1;
@@ -254,11 +250,7 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 			applyStatMinMax();
 			applySpells();
 			setInitGold();
-			debug("rollHP: calling with CF_ALL; pre-rolled=%u", (unsigned)_newCharacter->hitPointsRolled);
-			_newCharacter->hitPointsRolled = _newCharacter->getRolledHP(Goldbox::Data::CF_ALL);
-			// Align max HP with rolled HP after HP roll per requested behavior
-			_newCharacter->hitPoints.max = _newCharacter->hitPointsRolled;
-			debug("rollHP: post-rolled=%u max=%u", (unsigned)_newCharacter->hitPointsRolled, (unsigned)_newCharacter->hitPoints.max);
+			setInitHP();
 			if (_profileDialog)
 				_profileDialog->draw();
 			return true;
@@ -1199,6 +1191,52 @@ void CreateCharacterView::setInitGold() {
 	if (_baseClassNums == 0) {
 		warning("setInitGold: no base classes with level > 0; gold set to 0. classType=%u", (unsigned)_newCharacter->classType);
 	}
+}
+
+void CreateCharacterView::setInitHP() {
+	if (!_newCharacter)
+		return;
+
+	// Step 1: roll raw HP for levels beyond 1 across all active base classes
+	debug("rollHP: calling with CF_ALL; pre-rolled=%u", (unsigned)_newCharacter->hitPointsRolled);
+	_newCharacter->hitPointsRolled = _newCharacter->getRolledHP(Goldbox::Data::CF_ALL);
+	// Align max HP with raw rolled HP first (pre-Con averaging)
+	_newCharacter->hitPoints.max = _newCharacter->hitPointsRolled;
+	debug("rollHP: post-rolled=%u max=%u (pre-Con)", (unsigned)_newCharacter->hitPointsRolled, (unsigned)_newCharacter->hitPoints.max);
+
+	// Step 2: determine class count divisor; prefer _baseClassNums from setInitGold
+	int classCount = (int)_baseClassNums;
+	if (classCount <= 0) {
+		warning("setInitHP: no active base classes; leaving HP unchanged");
+		_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
+		return;
+	}
+
+	int8 conSum = _newCharacter->getConHPModifier();
+	int hpMax = (int)_newCharacter->hitPoints.max;
+	int newHpMax = hpMax;
+	if (conSum >= 0) {
+		newHpMax = (hpMax + conSum) / classCount;
+	} else {
+		const int m = -conSum; // absolute value of negative Con sum
+		// Safety: ensure average cannot drop HP to 0 or less
+		if (hpMax <= (classCount + m)) {
+			newHpMax = 1;
+		} else {
+			newHpMax = (hpMax + conSum) / classCount;
+		}
+	}
+
+	// Store results, clamping to uint8 range
+	_newCharacter->hitPoints.max = clampU8(newHpMax);
+	_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
+	// Average the raw roll (without Con) separately
+	_newCharacter->hitPointsRolled = (uint8)(_newCharacter->hitPointsRolled / classCount);
+	debug("setInitHP: classes=%d conSum=%d -> max=%u cur=%u rolled(avgRaw)=%u",
+		classCount, conSum,
+		(unsigned)_newCharacter->hitPoints.max,
+		(unsigned)_newCharacter->hitPoints.current,
+		(unsigned)_newCharacter->hitPointsRolled);
 }
 
 } // namespace Views
