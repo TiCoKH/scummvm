@@ -111,6 +111,7 @@ private:
     void applySpells();
     void setInitGold();
     void setInitHP();
+    void initLevelsForClassType();
     void setAge();
     void ageingEffects();
     void applyStatMinMax();

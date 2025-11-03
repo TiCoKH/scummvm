@@ -38,6 +38,32 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
+// Local UI constants and helpers
+namespace {
+const int kWinLeft = 1;
+const int kWinTop = 1;
+const int kWinRight = 38;
+const int kWinBottom = 22;
+
+const int kMenuLeft = 1;
+const int kMenuTop = 2;
+const int kMenuRight = 38;
+const int kMenuBottom = 22;
+
+const byte kMenuHeadColor = 13;
+const byte kMenuTextColor = 10;
+const byte kMenuSelectColor = 15;
+
+template <typename T>
+inline void detachAndDelete(T *&ptr) {
+	if (ptr) {
+		ptr->setParent(nullptr);
+		delete ptr;
+		ptr = nullptr;
+	}
+}
+} // anonymous namespace
+
 const char PICK_RACE[] = "Pick Race";
 const char PICK_GENDER[] = "Pick Gender";
 const char PICK_CLASS[] = "Pick Class";
@@ -57,22 +83,22 @@ CreateCharacterView::~CreateCharacterView() {
 	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
 	if (_activeSubView == _nameInput) _activeSubView = nullptr;
 	if (_activeSubView == _menu) _activeSubView = nullptr;
-	if (_profileDialog) { _profileDialog->setParent(nullptr); delete _profileDialog; _profileDialog = nullptr; }
-	if (_nameInput) { _nameInput->setParent(nullptr); delete _nameInput; _nameInput = nullptr; }
-	if (_menu) { _menu->setParent(nullptr); delete _menu; _menu = nullptr; }
+	detachAndDelete(_profileDialog);
+	detachAndDelete(_nameInput);
+	detachAndDelete(_menu);
 	// _menuItems is not a UIElement
 	delete _menuItems; _menuItems = nullptr;
 	delete _newCharacter; _newCharacter = nullptr;
 }
 
-// Helper: reset all base-class levels and initialize from classType mapping
-static void initLevelsForClassType(Goldbox::Poolrad::Data::PoolradCharacter *ch) {
-	if (!ch)
+// Initialize base-class levels on the current character from its classType
+void CreateCharacterView::initLevelsForClassType() {
+	if (!_newCharacter)
 		return;
 	using namespace Goldbox::Data;
 	// Log before
 	{
-		const Common::Array<uint8> &lv = ch->levels.levels;
+		const Common::Array<uint8> &lv = _newCharacter->levels.levels;
 		debug("initLevels(run): BEFORE [%u,%u,%u,%u,%u,%u,%u,%u]",
 			  (unsigned)(lv.size() > 0 ? lv[0] : 0),
 			  (unsigned)(lv.size() > 1 ? lv[1] : 0),
@@ -83,61 +109,61 @@ static void initLevelsForClassType(Goldbox::Poolrad::Data::PoolradCharacter *ch)
 			  (unsigned)(lv.size() > 6 ? lv[6] : 0),
 			  (unsigned)(lv.size() > 7 ? lv[7] : 0));
 	}
-	for (uint i = 0; i < ch->levels.levels.size(); ++i)
-		ch->levels.levels[i] = 0;
+	for (uint i = 0; i < _newCharacter->levels.levels.size(); ++i)
+		_newCharacter->levels.levels[i] = 0;
 
-	switch (ch->classType) {
+	switch (_newCharacter->classType) {
 	case C_CLERIC_FIGHTER:
-		ch->levels.levels[C_CLERIC] = 1;
-		ch->levels.levels[C_FIGHTER] = 1;
+		_newCharacter->levels.levels[C_CLERIC] = 1;
+		_newCharacter->levels.levels[C_FIGHTER] = 1;
 		break;
 	case C_CLERIC_FIGHTER_MAGICUSER:
-		ch->levels.levels[C_CLERIC] = 1;
-		ch->levels.levels[C_FIGHTER] = 1;
-		ch->levels.levels[C_MAGICUSER] = 1;
+		_newCharacter->levels.levels[C_CLERIC] = 1;
+		_newCharacter->levels.levels[C_FIGHTER] = 1;
+		_newCharacter->levels.levels[C_MAGICUSER] = 1;
 		break;
 	case C_CLERIC_RANGER:
-		ch->levels.levels[C_CLERIC] = 1;
-		ch->levels.levels[C_RANGER] = 1;
+		_newCharacter->levels.levels[C_CLERIC] = 1;
+		_newCharacter->levels.levels[C_RANGER] = 1;
 		break;
 	case C_CLERIC_MAGICUSER:
-		ch->levels.levels[C_CLERIC] = 1;
-		ch->levels.levels[C_MAGICUSER] = 1;
+		_newCharacter->levels.levels[C_CLERIC] = 1;
+		_newCharacter->levels.levels[C_MAGICUSER] = 1;
 		break;
 	case C_CLERIC_THIEF:
-		ch->levels.levels[C_CLERIC] = 1;
-		ch->levels.levels[C_THIEF] = 1;
+		_newCharacter->levels.levels[C_CLERIC] = 1;
+		_newCharacter->levels.levels[C_THIEF] = 1;
 		break;
 	case C_FIGHTER_MAGICUSER:
-		ch->levels.levels[C_FIGHTER] = 1;
-		ch->levels.levels[C_MAGICUSER] = 1;
+		_newCharacter->levels.levels[C_FIGHTER] = 1;
+		_newCharacter->levels.levels[C_MAGICUSER] = 1;
 		break;
 	case C_FIGHTER_THIEF:
-		ch->levels.levels[C_FIGHTER] = 1;
-		ch->levels.levels[C_THIEF] = 1;
+		_newCharacter->levels.levels[C_FIGHTER] = 1;
+		_newCharacter->levels.levels[C_THIEF] = 1;
 		break;
 	case C_FIGHTER_MAGICUSER_THIEF:
-		ch->levels.levels[C_FIGHTER] = 1;
-		ch->levels.levels[C_MAGICUSER] = 1;
-		ch->levels.levels[C_THIEF] = 1;
+		_newCharacter->levels.levels[C_FIGHTER] = 1;
+		_newCharacter->levels.levels[C_MAGICUSER] = 1;
+		_newCharacter->levels.levels[C_THIEF] = 1;
 		break;
 	case C_MAGICUSER_THIEF:
-		ch->levels.levels[C_MAGICUSER] = 1;
-		ch->levels.levels[C_THIEF] = 1;
+		_newCharacter->levels.levels[C_MAGICUSER] = 1;
+		_newCharacter->levels.levels[C_THIEF] = 1;
 		break;
 	default:
-		if (ch->classType < BASE_CLASS_NUM) {
-			ch->levels.levels[ch->classType] = 1;
+		if (_newCharacter->classType < BASE_CLASS_NUM) {
+			_newCharacter->levels.levels[_newCharacter->classType] = 1;
 		} else {
 			warning("initLevels(run): classType=%u is not a base class; no base levels set",
-					(unsigned)ch->classType);
+					(unsigned)_newCharacter->classType);
 		}
 		break;
 	}
 
 	// Log after
 	{
-		const Common::Array<uint8> &lv = ch->levels.levels;
+		const Common::Array<uint8> &lv = _newCharacter->levels.levels;
 		debug("initLevels(run): AFTER  [%u,%u,%u,%u,%u,%u,%u,%u]",
 			  (unsigned)(lv.size() > 0 ? lv[0] : 0),
 			  (unsigned)(lv.size() > 1 ? lv[1] : 0),
@@ -211,7 +237,7 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 void CreateCharacterView::draw() {
 	Surface s = getSurface();
 
-	drawWindow( 1, 1, 38, 22);
+	drawWindow(kWinLeft, kWinTop, kWinRight, kWinBottom);
 	// Delegate drawing to the active subview if present
 	if (_activeSubView) {
 		_activeSubView->draw();
@@ -348,7 +374,7 @@ void CreateCharacterView::chooseAlignment() {
 
 void CreateCharacterView::showProfileDialog() {
 	// Note: Without a working temp character instance here, just show an empty profile safely
-	if (_profileDialog) { delete _profileDialog; }
+	detachAndDelete(_profileDialog);
 	_profileDialog = new Dialogs::CharacterProfile(_newCharacter, "CreateProfile");
 	subView(_profileDialog);
 	setActiveSubView(_profileDialog);
@@ -356,7 +382,7 @@ void CreateCharacterView::showProfileDialog() {
 
 void CreateCharacterView::chooseName() {
 	using namespace Goldbox::Poolrad::Views::Dialogs;
-	if (_nameInput) { delete _nameInput; }
+	detachAndDelete(_nameInput);
 	HorizontalInputConfig cfg { CHAR_NAME, 15, 15 };
 	_nameInput = new HorizontalInput("NameInput", cfg);
 	subView(static_cast<Dialogs::Dialog *>(_nameInput));
@@ -369,10 +395,10 @@ void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
         "",                  // promptTxt
         promptOptions,       // promptOptions
         _menuItems,          // menuItemList (initialized later)
-        13,                  // headColor
-        10,                  // textColor
-        15,                  // selectColor
-        1, 2, 38, 22,        // bounds
+		kMenuHeadColor,      // headColor
+		kMenuTextColor,      // textColor
+		kMenuSelectColor,    // selectColor
+		kMenuLeft, kMenuTop, kMenuRight, kMenuBottom, // bounds
 		topline,	         // title
         false                // asHeader
     };
@@ -475,89 +501,8 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 				_newCharacter->classType = (uint8)_indexMap[value];
 				debug("Selected class ID: %d", _newCharacter->classType);
 				_newCharacter->highestLevel = 1;
-				// Log levels before initialization
-				{
-					const Common::Array<uint8> &lv = _newCharacter->levels.levels;
-					debug("initLevels: BEFORE [%u,%u,%u,%u,%u,%u,%u,%u]",
-						(unsigned)(lv.size() > 0 ? lv[0] : 0),
-						(unsigned)(lv.size() > 1 ? lv[1] : 0),
-						(unsigned)(lv.size() > 2 ? lv[2] : 0),
-						(unsigned)(lv.size() > 3 ? lv[3] : 0),
-						(unsigned)(lv.size() > 4 ? lv[4] : 0),
-						(unsigned)(lv.size() > 5 ? lv[5] : 0),
-						(unsigned)(lv.size() > 6 ? lv[6] : 0),
-						(unsigned)(lv.size() > 7 ? lv[7] : 0));
-				}
-				switch (_newCharacter->classType) {
-				case Goldbox::Data::C_CLERIC_FIGHTER:
-					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] = 1;
-					break;
-				case Goldbox::Data::C_CLERIC_FIGHTER_MAGICUSER:
-					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_MAGICUSER] = 1;
-					break;
-				case Goldbox::Data::C_CLERIC_RANGER:
-					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_RANGER] = 1;
-					break;
-				case Goldbox::Data::C_CLERIC_MAGICUSER:
-					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_MAGICUSER] = 1;
-					break;
-				case Goldbox::Data::C_CLERIC_THIEF:
-					_newCharacter->levels.levels[Goldbox::Data::C_CLERIC] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_THIEF] = 1;
-					break;
-				case Goldbox::Data::C_FIGHTER_MAGICUSER:
-					_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_MAGICUSER] = 1;
-					break;
-				case Goldbox::Data::C_FIGHTER_THIEF:
-					_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_THIEF] = 1;
-					break;
-				case Goldbox::Data::C_FIGHTER_MAGICUSER_THIEF:
-					_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_MAGICUSER] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_THIEF] = 1;
-					break;
-				case Goldbox::Data::C_MAGICUSER_THIEF:
-					_newCharacter->levels.levels[Goldbox::Data::C_MAGICUSER] = 1;
-					_newCharacter->levels.levels[Goldbox::Data::C_THIEF] = 1;
-					break;
-				default:
-					if (_newCharacter->classType < BASE_CLASS_NUM) {
-						_newCharacter->levels.levels[_newCharacter->classType] = 1;
-					} else {
-						warning("initLevels: classType=%u is not a base class;"
-							" no level set in default branch",
-							(unsigned)_newCharacter->classType);
-					}
-					break;
-				}
-				// Log levels after initialization
-				{
-					const Common::Array<uint8> &lv = _newCharacter->levels.levels;
-					debug("initLevels: AFTER  [%u,%u,%u,%u,%u,%u,%u,%u]",
-						(unsigned)(lv.size() > 0 ? lv[0] : 0),
-						(unsigned)(lv.size() > 1 ? lv[1] : 0),
-						(unsigned)(lv.size() > 2 ? lv[2] : 0),
-						(unsigned)(lv.size() > 3 ? lv[3] : 0),
-						(unsigned)(lv.size() > 4 ? lv[4] : 0),
-						(unsigned)(lv.size() > 5 ? lv[5] : 0),
-						(unsigned)(lv.size() > 6 ? lv[6] : 0),
-						(unsigned)(lv.size() > 7 ? lv[7] : 0));
-					bool any = false;
-					for (uint i = 0; i < lv.size() && i < BASE_CLASS_NUM; ++i)
-						if (lv[i] > 0) { any = true; break; }
-					if (!any) {
-						warning("initLevels: no base-class levels were set for"
-							" classType=%u; creation will yield 0 starting gold",
-							(unsigned)_newCharacter->classType);
-					}
-				}
+				// Initialize base-class levels from selected class
+				initLevelsForClassType();
 			}
 			if ( _newCharacter->levels.levels[Goldbox::Data::C_THIEF] > 0) {
 				setThiefSkillsForNewCharacter();
@@ -629,8 +574,8 @@ void CreateCharacterView::resetState() {
 	// see freed memory. Keep _menu to reuse, but if active, deactivate.
 	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
 	if (_activeSubView == _nameInput) _activeSubView = nullptr;
-	if (_profileDialog) { _profileDialog->setParent(nullptr); delete _profileDialog; _profileDialog = nullptr; }
-	if (_nameInput) { _nameInput->setParent(nullptr); delete _nameInput; _nameInput = nullptr; }
+	detachAndDelete(_profileDialog);
+	detachAndDelete(_nameInput);
 	// Reset character
 	if (_newCharacter) { delete _newCharacter; }
 	_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
@@ -678,7 +623,7 @@ void CreateCharacterView::finalizeCharacterAndSave() {
 	// Roll base stats and compute initial values
 	_newCharacter->rollAbilityScores();
 	// Start as level 1 in chosen class (supports multi-class)
-	initLevelsForClassType(_newCharacter);
+	initLevelsForClassType();
 	_newCharacter->calculateHitPoints();
 
 	// Save .CHA
@@ -704,7 +649,7 @@ void CreateCharacterView::rollAndRecompute() {
 		return;
 	_newCharacter->rollAbilityScores();
 	// Re-initialize levels from classType to preserve multiclass composition
-	initLevelsForClassType(_newCharacter);
+	initLevelsForClassType();
 	_newCharacter->calculateHitPoints();
 }
 
