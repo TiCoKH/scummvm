@@ -139,9 +139,27 @@ public:
     // roll (levels[base] - 1) dice using the class's hit die and add the sum to hitPointsRolled.
     // Also increases hitPoints.max and hitPoints.current by the same amount (clamped to uint8).
     uint8 getRolledHP(Goldbox::Data::ClassFlag flags);
-        // Return aggregated Constitution HP modifier across active base classes filtered by flags.
-        // Uses Rules::conHPModifier(CON) as base per-slot, with fighter bonuses: +1 at CON>=17,
-        // additional +1 at CON>=18, applied per active slot. Aggregates like getRolledHP.
+    // Return number of active base classes (levels > 0) across 0..7.
+    uint8 countActiveBaseClasses() const;
+
+    // Compute and apply final saving throws from base-class contributions
+    // using the best (lowest) value for each category. Handles dual-class quirks
+    // via highestLevel when applicable.
+    void computeSavingThrows();
+
+    // Compute and apply THAC0 using the best progression among active base classes.
+    // Also refreshes itemsLimit bitmask.
+    void computeThac0();
+
+    // Roll and apply initial age using rules for class/race and multiclass mapping.
+    void rollInitialAge();
+
+    // Apply cumulative ageing effects to ability scores based on current age and race.
+    void applyAgeingEffects();
+
+    // Compute spell slots and initial known spells appropriate for current levels
+    // for Cleric and Magic-User according to Pool of Radiance rules.
+    void computeSpellSlots();
 
     static uint8 getBaseIconColor(int index);
     /**

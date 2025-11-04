@@ -113,6 +113,29 @@ const ThiefSkills &getThiefSkillsForLevel(uint8 level) {
 	return kThiefSkills[level];
 }
 
+uint8 forcedBaseIndexForMulticlass(uint8 classId) {
+	// Map select multiclasses to a single base index for age calculation rules.
+	// - Cleric-based combos -> Cleric
+	// - Fighter/Magic-User (and with Thief) -> Magic-User
+	// - Fighter/Thief -> Fighter
+	switch (classId) {
+	case C_CLERIC_FIGHTER:
+	case C_CLERIC_FIGHTER_MAGICUSER:
+	case C_CLERIC_MAGICUSER:
+	case C_CLERIC_THIEF:
+		return (uint8)C_CLERIC;
+	case C_FIGHTER_MAGICUSER:
+	case C_FIGHTER_MAGICUSER_THIEF:
+	case C_MAGICUSER_THIEF:
+		return (uint8)C_MAGICUSER;
+	case C_FIGHTER_THIEF:
+		return (uint8)C_FIGHTER;
+	default:
+		break;
+	}
+	return 0xFF;
+}
+
 static const Common::Array<ThiefRaceAdjustments> kThiefRaceAdjustments = {
 	{  0, 10, 15,  0,  0,  0, -10,  -5 }, // Dwarf
 	{  5, -5,  0,  5, 10,  5,   0,   0 }, // Elf
