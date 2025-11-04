@@ -677,27 +677,9 @@ void CreateCharacterView::setThiefSkillsForNewCharacter() {
 }
 
 void CreateCharacterView::setThac0() {
-	// Determine THAC0 base from the best (highest) among all base-class levels
-	uint8 bestThac0 = 0;
-	if (_newCharacter) {
-		const Common::Array<uint8> &lvls = _newCharacter->levels.levels;
-		for (uint i = 0; i < lvls.size(); ++i) {
-			uint8 lvl = lvls[i];
-			if (lvl > 0) {
-				int v = Goldbox::Data::Rules::thac0AtLevel((uint8)i, lvl);
-				if (v > bestThac0)
-					bestThac0 = (uint8)v;
-			}
-		}
-		_newCharacter->thac0.base = bestThac0;
-
-		debug("Base raw THAC0: %d, actual: %d", _newCharacter->thac0.base, 60 - _newCharacter->thac0.base);
-
-		// Set item-limit bitfield: OR of bits for all base classes with level > 0
-		_newCharacter->itemsLimit =
-			Goldbox::Data::Rules::computeItemLimitMask(_newCharacter->levels.levels);
-		debug("Item limit bitmask value: %d", _newCharacter->itemsLimit);
-	}
+	if (!_newCharacter)
+		return;
+	_newCharacter->computeThac0();
 }
 
 // Helper to clamp an int to uint8 range
@@ -706,228 +688,19 @@ static inline uint8 clampU8(int v) { return v < 0 ? 0 : (v > 255 ? 255 : (uint8)
 void CreateCharacterView::setSavingThrows() {
 	if (!_newCharacter)
 		return;
-
-	using namespace Goldbox::Data;
-	using Goldbox::Data::Rules::savingThrowsAt;
-
-	// 1) Initialize to worst values (higher is worse)
-	SavingThrows best;
-	best.vsParalysis     = 20;
-	best.vsPetrification = 20;
-	best.vsRodStaffWand  = 20;
-	best.vsBreathWeapon  = 20;
-	best.vsSpell         = 20;
-
-	// 2) For each base class 0..7 with level > 0, keep the minimum per category
-	const Common::Array<uint8> &lvls = _newCharacter->levels.levels;
-	const uint sz = MIN<uint>((uint)lvls.size(), BASE_CLASS_NUM);
-	for (uint i = 0; i < sz; ++i) {
-		uint8 lvl = lvls[i];
-		if (lvl == 0)
-			continue;
-
-		const SavingThrows &st = savingThrowsAt((uint8)i, lvl);
-		if (st.vsParalysis     < best.vsParalysis)     best.vsParalysis     = st.vsParalysis;
-		if (st.vsPetrification < best.vsPetrification) best.vsPetrification = st.vsPetrification;
-		if (st.vsRodStaffWand  < best.vsRodStaffWand)  best.vsRodStaffWand  = st.vsRodStaffWand;
-		if (st.vsBreathWeapon  < best.vsBreathWeapon)  best.vsBreathWeapon  = st.vsBreathWeapon;
-		if (st.vsSpell         < best.vsSpell)         best.vsSpell         = st.vsSpell;
-
-		// 3) Special dual-class quirk for class index 7 only: consider old level as well
-		if (i == 7) {
-			uint8 oldLvl = _newCharacter->highestLevel;
-			if (oldLvl > 0 && lvl > oldLvl) {
-				const SavingThrows &oldSt = savingThrowsAt(7, oldLvl);
-				if (oldSt.vsParalysis     < best.vsParalysis)     best.vsParalysis     = oldSt.vsParalysis;
-				if (oldSt.vsPetrification < best.vsPetrification) best.vsPetrification = oldSt.vsPetrification;
-				if (oldSt.vsRodStaffWand  < best.vsRodStaffWand)  best.vsRodStaffWand  = oldSt.vsRodStaffWand;
-				if (oldSt.vsBreathWeapon  < best.vsBreathWeapon)  best.vsBreathWeapon  = oldSt.vsBreathWeapon;
-				if (oldSt.vsSpell         < best.vsSpell)         best.vsSpell         = oldSt.vsSpell;
-			}
-		}
-	}
-
-	_newCharacter->savingThrows = best;
-
-	debug("Saving throws set: vsParalysis=%d, vsPetrification=%d, vsRod/Wand=%d, vsBreath=%d, vsSpell=%d",
-		_newCharacter->savingThrows.vsParalysis,
-		_newCharacter->savingThrows.vsPetrification,
-		_newCharacter->savingThrows.vsRodStaffWand,
-		_newCharacter->savingThrows.vsBreathWeapon,
-		_newCharacter->savingThrows.vsSpell);
+	_newCharacter->computeSavingThrows();
 }
 
 void CreateCharacterView::setAge() {
 	if (!_newCharacter)
 		return;
-
-	using namespace Goldbox::Data;
-
-	const uint8 race = _newCharacter->race;
-	debug("setAge: classType=%u race=%u", (unsigned)_newCharacter->classType, (unsigned)race);
-
-	// Multiclass special handling: use specified base class and MAX dice roll
-	// - Cleric-based combos: Cleric/Fighter, Cleric/Fighter/Magic-User,
-	//   Cleric/Magic-User, Cleric/Thief -> Cleric base + max dice
-	// - Magic-User-based combos: Fighter/Magic-User, Fighter/Magic-User/Thief,
-	//   Magic-User/Thief -> Magic-User base + max dice
-	// - Fighter/Thief -> Fighter base + max dice
-	uint8 forcedBaseIdx = 0xFF;
-	switch (_newCharacter->classType) {
-	case C_CLERIC_FIGHTER:
-	case C_CLERIC_FIGHTER_MAGICUSER:
-	case C_CLERIC_MAGICUSER:
-	case C_CLERIC_THIEF:
-		forcedBaseIdx = C_CLERIC; // 0
-		break;
-	case C_FIGHTER_MAGICUSER:
-	case C_FIGHTER_MAGICUSER_THIEF:
-	case C_MAGICUSER_THIEF:
-		forcedBaseIdx = C_MAGICUSER; // 5
-		break;
-	case C_FIGHTER_THIEF:
-		forcedBaseIdx = C_FIGHTER; // 2
-		break;
-	default:
-		break; // fall back should be happened
-	}
-
-	if (forcedBaseIdx != 0xFF) {
-		const Goldbox::Data::Rules::AgeDefEntry &adef =
-			Goldbox::Data::Rules::getAgeDef(race, forcedBaseIdx);
-		// Max dice roll: dices * sides
-		const uint16 maxExtra = (uint16)(adef.dices * adef.sides);
-		debug("AgeDef (forced base=%u): base=%u dice=%u sides=%u maxExtra=%u",
-			  (unsigned)forcedBaseIdx, (unsigned)adef.base, (unsigned)adef.dices,
-			  (unsigned)adef.sides, (unsigned)maxExtra);
-		_newCharacter->age = adef.base + maxExtra;
-		debug("Set character age (multiclass rule): %u", (unsigned)_newCharacter->age);
-		if (_newCharacter->age == 0) {
-			warning("Age computed as 0 in forced multiclass branch (base=%u) for race=%u", (unsigned)forcedBaseIdx, (unsigned)race);
-		}
-		return;
-	}
-
-
-	// If single-class (base class id), just roll that class's age
-	if (_newCharacter->classType < C_CLERIC_FIGHTER) {
-		uint8 baseIdx = _newCharacter->classType;
-		const Goldbox::Data::Rules::AgeDefEntry &adef = Goldbox::Data::Rules::getAgeDef(race, baseIdx);
-		uint16 extra = (uint16)VmInterface::rollDice(adef.dices, adef.sides);
-		debug("AgeDef (single base=%u): base=%u dice=%u sides=%u rolled=%u",
-			  (unsigned)baseIdx, (unsigned)adef.base, (unsigned)adef.dices,
-			  (unsigned)adef.sides, (unsigned)extra);
-		_newCharacter->age = adef.base + extra;
-		debug("Set character age (single-class): %u", (unsigned)_newCharacter->age);
-		if (_newCharacter->age == 0) {
-			warning("Age computed as 0 in single-class branch (base=%u) for race=%u", (unsigned)baseIdx, (unsigned)race);
-		}
-		return;
-	}
-
-	// Fallback for any other multiclass not explicitly handled above
-	{
-		uint8 baseIdx = (uint8)C_FIGHTER; // reasonable default; non-POoR combos shouldn't hit this
-		const Goldbox::Data::Rules::AgeDefEntry &adef = Goldbox::Data::Rules::getAgeDef(race, baseIdx);
-	  uint16 extra = (uint16)VmInterface::rollDice(adef.dices, adef.sides);
-	  debug("AgeDef (fallback base=%u): base=%u dice=%u sides=%u rolled=%u",
-		  (unsigned)baseIdx, (unsigned)adef.base, (unsigned)adef.dices,
-		  (unsigned)adef.sides, (unsigned)extra);
-		_newCharacter->age = adef.base + extra;
-	  warning("Set character age FALLBACK should not be happened: %u", (unsigned)_newCharacter->age);
-	}
+	_newCharacter->rollInitialAge();
 }
 
 void CreateCharacterView::ageingEffects() {
 	if (!_newCharacter)
 		return;
-
-	using namespace Goldbox::Data;
-
-	// Monster class doesn't have age categories/effects per requirement
-	if (_newCharacter->classType == C_MONSTER) {
-		debug("ageingEffects: skipped for monster class");
-		return;
-	}
-
-	const uint8 race = _newCharacter->race;
-	const uint16 age = _newCharacter->age;
-	debug("ageingEffects: start class=%u race=%u age=%u", (unsigned)_newCharacter->classType, (unsigned)race, (unsigned)age);
-
-	// Get thresholds for the character's race
-	const AgeCategories &cats = Goldbox::Data::Rules::getAgeCategoriesForRace(race);
-	const Common::Array<AgeingEffects> &effects = Goldbox::Data::Rules::getStatAgeingEffects();
-
-	// Determine the highest category index reached by this age, then apply all effects
-	// from the first category up to and including that index (cumulative stacking).
-	// Categories: 0=young, 1=adult, 2=middle, 3=old, 4=venitiar.
-	int stageMax = -1;
-	if (age > 0) {
-		if (age < cats.young) stageMax = 0;                 // younger than "young"
-		else if (age < cats.adult) stageMax = 1;            // in young..adult
-		else if (age < cats.middle) stageMax = 2;           // in adult..middle
-		else if (age < cats.old) stageMax = 3;              // in middle..old
-		else if (age < cats.venitiar) stageMax = 4;         // in old..venitiar
-		else stageMax = 4;                                  // >= venitiar: apply all
-	}
-
-	if (stageMax < 0) {
-		debug("ageingEffects: no applicable stage");
-		return;
-	}
-
-	debug("ageingEffects: applying cumulative stages 0..%d", stageMax);
-
-	// Helper lambda to accumulate a particular stage index into a Stat
-	auto applyStage = [&](Stat &st, int statRow, int stageIdx) {
-		if (statRow < 0 || statRow >= (int)effects.size()) return;
-		const AgeingEffects &ae = effects[statRow];
-		int delta = 0;
-		switch (stageIdx) {
-		case 0: delta = ae.young; break;
-		case 1: delta = ae.adult; break;
-		case 2: delta = ae.middle; break;
-		case 3: delta = ae.old; break;
-		case 4: delta = ae.venitiar; break;
-		default: return;
-		}
-		if (delta == 0)
-			return; // don't clamp if we're not actually changing the stat
-		int cur = (int)st.current + delta;
-		// Exceptional strength (row 1) ranges up to 100; others up to 25
-		const int maxVal = (statRow == 1) ? 100 : 25;
-		if (cur < 0) cur = 0;
-		if (cur > maxVal) cur = maxVal;
-		st.current = (uint8)cur;
-	};
-
-	// Apply cumulatively for each required stage
-	debug("ageingEffects: before STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
-		  (unsigned)_newCharacter->abilities.strength.current,
-		  (unsigned)_newCharacter->abilities.strException.current,
-		  (unsigned)_newCharacter->abilities.intelligence.current,
-		  (unsigned)_newCharacter->abilities.wisdom.current,
-		  (unsigned)_newCharacter->abilities.dexterity.current,
-		  (unsigned)_newCharacter->abilities.constitution.current,
-		  (unsigned)_newCharacter->abilities.charisma.current);
-	for (int s = 0; s <= stageMax; ++s) {
-		// Row mapping in effects: 0 Str, 1 StrEx, 2 Int, 3 Wis, 4 Dex, 5 Con, 6 Cha
-		applyStage(_newCharacter->abilities.strength,      0, s);
-		applyStage(_newCharacter->abilities.strException,  1, s);
-		applyStage(_newCharacter->abilities.intelligence,  2, s);
-		applyStage(_newCharacter->abilities.wisdom,        3, s);
-		applyStage(_newCharacter->abilities.dexterity,     4, s);
-		applyStage(_newCharacter->abilities.constitution,  5, s);
-		applyStage(_newCharacter->abilities.charisma,      6, s);
-	}
-	debug("ageingEffects: after  STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
-		  (unsigned)_newCharacter->abilities.strength.current,
-		  (unsigned)_newCharacter->abilities.strException.current,
-		  (unsigned)_newCharacter->abilities.intelligence.current,
-		  (unsigned)_newCharacter->abilities.wisdom.current,
-		  (unsigned)_newCharacter->abilities.dexterity.current,
-		  (unsigned)_newCharacter->abilities.constitution.current,
-		  (unsigned)_newCharacter->abilities.charisma.current);
+	_newCharacter->applyAgeingEffects();
 }
 
 void CreateCharacterView::applyStatMinMax() {
@@ -1036,65 +809,7 @@ void CreateCharacterView::applyStatMinMax() {
 void CreateCharacterView::applySpells() {
 	if (!_newCharacter)
 		return;
-
-	using namespace Goldbox::Data;
-	using Goldbox::Data::Rules::getSpellEntries;
-	using SpellId = Goldbox::Data::Spells::Spells;
-
-	const uint8 cls = _newCharacter->classType;
-	const uint8 wis = _newCharacter->abilities.wisdom.current;
-	debug("applySpells: start class=%u wis=%u", (unsigned)cls, (unsigned)wis);
-
-	// Cleric spellcasting: base 1 L1 slot, apply wisdom bonuses
-	if (_newCharacter->levels[Goldbox::Data::C_CLERIC] > 0) {
-		_newCharacter->spellSlots.cleric.level1 = 1;
-		_newCharacter->spellSlots.cleric.level2 = 0;
-		_newCharacter->spellSlots.cleric.level3 = 0;
-
-		// Wisdom bonuses (apply only if that level has slots)
-		if (_newCharacter->spellSlots.cleric.level1 > 0) {
-			if (wis >= 13) _newCharacter->spellSlots.cleric.level1 += 1;
-			if (wis >= 14) _newCharacter->spellSlots.cleric.level1 += 1;
-		}
-
-		debug("applySpells: cleric slots L1=%u L2=%u L3=%u",
-		      (unsigned)_newCharacter->spellSlots.cleric.level1,
-		      (unsigned)_newCharacter->spellSlots.cleric.level2,
-		      (unsigned)_newCharacter->spellSlots.cleric.level3);
-		if (_newCharacter->spellSlots.cleric.level2 > 0) {
-			if (wis >= 15) _newCharacter->spellSlots.cleric.level2 += 1;
-			if (wis >= 16) _newCharacter->spellSlots.cleric.level2 += 1;
-		}
-		if (_newCharacter->spellSlots.cleric.level3 > 0) {
-			if (wis >= 17) _newCharacter->spellSlots.cleric.level3 += 1;
-		}
-
-		// All cleric spells (levels 1..3) start as known
-		const Common::Array<Goldbox::Data::Spells::SpellEntry> &spells = getSpellEntries();
-		for (uint i = 0; i < spells.size(); ++i) {
-			const Goldbox::Data::Spells::SpellEntry &e = spells[i];
-			if (e.spellClass == Goldbox::Data::Spells::SC_CLERIC && e.spellLevel >= 1 && e.spellLevel <= 3) {
-				_newCharacter->setSpellKnown(static_cast<SpellId>(i));
-			}
-		}
-	}
-
-	// Magic-User spellcasting: base 1 L1 slot, and specific known spells
-	if (_newCharacter->levels[Goldbox::Data::C_MAGICUSER] > 0) {
-		_newCharacter->spellSlots.magicUser.level1 = 1;
-		_newCharacter->spellSlots.magicUser.level2 = 0;
-		_newCharacter->spellSlots.magicUser.level3 = 0;
-
-		_newCharacter->setSpellKnown(Goldbox::Data::Spells::SP_MUL1_DETECT_MAGIC);
-		_newCharacter->setSpellKnown(Goldbox::Data::Spells::SP_MUL1_READ_MAGIC);
-		_newCharacter->setSpellKnown(Goldbox::Data::Spells::SP_MUL1_SHIELD);
-		_newCharacter->setSpellKnown(Goldbox::Data::Spells::SP_MUL1_SLEEP);
-
-		debug("applySpells: MU slots L1=%u L2=%u L3=%u",
-		      (unsigned)_newCharacter->spellSlots.magicUser.level1,
-		      (unsigned)_newCharacter->spellSlots.magicUser.level2,
-		      (unsigned)_newCharacter->spellSlots.magicUser.level3);
-	}
+	_newCharacter->computeSpellSlots();
 }
 
 void CreateCharacterView::setInitGold() {
@@ -1128,12 +843,11 @@ void CreateCharacterView::setInitGold() {
 		}
 	}
 
-	// Average across classes (truncate);
-	_baseClassNums = classCount;
+	// Average across classes (truncate)
 	uint16 finalGold = (classCount > 0) ? static_cast<uint16>(totalGold / classCount) : 0;
 	_newCharacter->valuableItems[VAL_GOLD] = finalGold;
-	debug("setInitGold: classes=%d total=%d avg=%u (final gold)", _baseClassNums, totalGold, (unsigned)finalGold);
-	if (_baseClassNums == 0) {
+	debug("setInitGold: classes=%d total=%d avg=%u (final gold)", classCount, totalGold, (unsigned)finalGold);
+	if (classCount == 0) {
 		warning("setInitGold: no base classes with level > 0; gold set to 0. classType=%u", (unsigned)_newCharacter->classType);
 	}
 }
@@ -1149,8 +863,8 @@ void CreateCharacterView::setInitHP() {
 	_newCharacter->hitPoints.max = _newCharacter->hitPointsRolled;
 	debug("rollHP: post-rolled=%u max=%u (pre-Con)", (unsigned)_newCharacter->hitPointsRolled, (unsigned)_newCharacter->hitPoints.max);
 
-	// Step 2: determine class count divisor; prefer _baseClassNums from setInitGold
-	int classCount = (int)_baseClassNums;
+	// Step 2: determine class count divisor from active base classes
+	int classCount = (int)_newCharacter->countActiveBaseClasses();
 	if (classCount <= 0) {
 		warning("setInitHP: no active base classes; leaving HP unchanged");
 		_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;

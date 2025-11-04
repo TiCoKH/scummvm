@@ -16,6 +16,247 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "common/debug.h"
+#include "goldbox/vm_interface.h"
+#include "goldbox/data/rules/rules.h"
+#include "goldbox/data/spells/spell.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
+
+namespace Goldbox {
+namespace Poolrad {
+namespace Data {
+
+using namespace Goldbox::Data;
+
+uint8 PoolradCharacter::countActiveBaseClasses() const {
+	const Common::Array<uint8> &lvls = levels.levels;
+	uint8 count = 0;
+	for (uint i = 0; i < lvls.size() && i < BASE_CLASS_NUM; ++i) {
+		if (lvls[i] > 0)
+			++count;
+	}
+	return count;
+}
+
+void PoolradCharacter::computeSavingThrows() {
+	using Goldbox::Data::Rules::savingThrowsAt;
+
+	SavingThrows best;
+	best.vsParalysis     = 20;
+	best.vsPetrification = 20;
+	best.vsRodStaffWand  = 20;
+	best.vsBreathWeapon  = 20;
+	best.vsSpell         = 20;
+
+	const Common::Array<uint8> &lvls = levels.levels;
+	const uint sz = MIN<uint>((uint)lvls.size(), BASE_CLASS_NUM);
+	for (uint i = 0; i < sz; ++i) {
+		uint8 lvl = lvls[i];
+		if (lvl == 0)
+			continue;
+
+		const SavingThrows &st = savingThrowsAt((uint8)i, lvl);
+		if (st.vsParalysis     < best.vsParalysis)     best.vsParalysis     = st.vsParalysis;
+		if (st.vsPetrification < best.vsPetrification) best.vsPetrification = st.vsPetrification;
+		if (st.vsRodStaffWand  < best.vsRodStaffWand)  best.vsRodStaffWand  = st.vsRodStaffWand;
+		if (st.vsBreathWeapon  < best.vsBreathWeapon)  best.vsBreathWeapon  = st.vsBreathWeapon;
+		if (st.vsSpell         < best.vsSpell)         best.vsSpell         = st.vsSpell;
+
+		// Special dual-class quirk for class index 7 (Monk slot used in tables):
+		if (i == 7) {
+			uint8 oldLvl = highestLevel;
+			if (oldLvl > 0 && lvl > oldLvl) {
+				const SavingThrows &oldSt = savingThrowsAt(7, oldLvl);
+				if (oldSt.vsParalysis     < best.vsParalysis)     best.vsParalysis     = oldSt.vsParalysis;
+				if (oldSt.vsPetrification < best.vsPetrification) best.vsPetrification = oldSt.vsPetrification;
+				if (oldSt.vsRodStaffWand  < best.vsRodStaffWand)  best.vsRodStaffWand  = oldSt.vsRodStaffWand;
+				if (oldSt.vsBreathWeapon  < best.vsBreathWeapon)  best.vsBreathWeapon  = oldSt.vsBreathWeapon;
+				if (oldSt.vsSpell         < best.vsSpell)         best.vsSpell         = oldSt.vsSpell;
+			}
+		}
+	}
+
+	savingThrows = best;
+	debug("PoolradCharacter::computeSavingThrows -> P=%u Pe=%u R=%u B=%u S=%u",
+		  (unsigned)savingThrows.vsParalysis,
+		  (unsigned)savingThrows.vsPetrification,
+		  (unsigned)savingThrows.vsRodStaffWand,
+		  (unsigned)savingThrows.vsBreathWeapon,
+		  (unsigned)savingThrows.vsSpell);
+}
+
+void PoolradCharacter::computeThac0() {
+	uint8 bestThac0 = 0;
+	const Common::Array<uint8> &lvls = levels.levels;
+	for (uint i = 0; i < lvls.size() && i < BASE_CLASS_NUM; ++i) {
+		uint8 lvl = lvls[i];
+		if (lvl > 0) {
+			int v = Goldbox::Data::Rules::thac0AtLevel((uint8)i, lvl);
+			if (v > bestThac0)
+				bestThac0 = (uint8)v;
+		}
+	}
+	thac0.base = bestThac0;
+	// Refresh item limit mask from active base classes
+	itemsLimit = Goldbox::Data::Rules::computeItemLimitMask(levels.levels);
+
+	debug("PoolradCharacter::computeThac0 -> base=%u actual=%d itemsLimit=%u",
+		  (unsigned)thac0.base, 60 - (int)thac0.base, (unsigned)itemsLimit);
+}
+
+void PoolradCharacter::rollInitialAge() {
+	const uint8 raceId = race;
+	const uint8 forcedBase = Goldbox::Data::Rules::forcedBaseIndexForMulticlass(classType);
+
+	if (forcedBase != 0xFF) {
+		const Goldbox::Data::Rules::AgeDefEntry &adef = Goldbox::Data::Rules::getAgeDef(raceId, forcedBase);
+		const uint16 maxExtra = (uint16)(adef.dices * adef.sides);
+		age = adef.base + maxExtra;
+		debug("PoolradCharacter::rollInitialAge forced base=%u -> age=%u", (unsigned)forcedBase, (unsigned)age);
+		return;
+	}
+
+	if (classType < C_CLERIC_FIGHTER) {
+		uint8 baseIdx = classType;
+		const Goldbox::Data::Rules::AgeDefEntry &adef = Goldbox::Data::Rules::getAgeDef(raceId, baseIdx);
+		uint16 extra = (uint16)VmInterface::rollDice(adef.dices, adef.sides);
+		age = adef.base + extra;
+		debug("PoolradCharacter::rollInitialAge single base=%u -> age=%u", (unsigned)baseIdx, (unsigned)age);
+		return;
+	}
+
+	// Fallback: use fighter row
+	{
+		const uint8 baseIdx = (uint8)C_FIGHTER;
+		const Goldbox::Data::Rules::AgeDefEntry &adef = Goldbox::Data::Rules::getAgeDef(raceId, baseIdx);
+		uint16 extra = (uint16)VmInterface::rollDice(adef.dices, adef.sides);
+		age = adef.base + extra;
+		warning("PoolradCharacter::rollInitialAge fallback path used -> age=%u", (unsigned)age);
+	}
+}
+
+void PoolradCharacter::applyAgeingEffects() {
+	if (classType == C_MONSTER)
+		return;
+
+	const AgeCategories &cats = Goldbox::Data::Rules::getAgeCategoriesForRace(race);
+	const Common::Array<AgeingEffects> &effects = Goldbox::Data::Rules::getStatAgeingEffects();
+
+	int stageMax = -1;
+	if (age > 0) {
+		if (age < cats.young) stageMax = 0;
+		else if (age < cats.adult) stageMax = 1;
+		else if (age < cats.middle) stageMax = 2;
+		else if (age < cats.old) stageMax = 3;
+		else if (age < cats.venitiar) stageMax = 4;
+		else stageMax = 4;
+	}
+
+	if (stageMax < 0)
+		return;
+
+	auto applyStage = [&](Stat &st, int statRow, int stageIdx) {
+		if (statRow < 0 || statRow >= (int)effects.size()) return;
+		const AgeingEffects &ae = effects[statRow];
+		int delta = 0;
+		switch (stageIdx) {
+		case 0: delta = ae.young; break;
+		case 1: delta = ae.adult; break;
+		case 2: delta = ae.middle; break;
+		case 3: delta = ae.old; break;
+		case 4: delta = ae.venitiar; break;
+		default: return;
+		}
+		if (delta == 0)
+			return;
+		int cur = (int)st.current + delta;
+		const int maxVal = (statRow == 1) ? 100 : 25;
+		if (cur < 0) cur = 0;
+		if (cur > maxVal) cur = maxVal;
+		st.current = (uint8)cur;
+	};
+
+	for (int s = 0; s <= stageMax; ++s) {
+		applyStage(abilities.strength,      0, s);
+		applyStage(abilities.strException,  1, s);
+		applyStage(abilities.intelligence,  2, s);
+		applyStage(abilities.wisdom,        3, s);
+		applyStage(abilities.dexterity,     4, s);
+		applyStage(abilities.constitution,  5, s);
+		applyStage(abilities.charisma,      6, s);
+	}
+}
+
+void PoolradCharacter::computeSpellSlots() {
+	using Goldbox::Data::Spells::SpellEntry;
+	using Goldbox::Data::Spells::SC_CLERIC;
+	using Goldbox::Data::Spells::Spells;
+
+	const uint8 wis = abilities.wisdom.current;
+
+	// Cleric slots and known
+	if (levels[Goldbox::Data::C_CLERIC] > 0) {
+		spellSlots.cleric.level1 = 1;
+		spellSlots.cleric.level2 = 0;
+		spellSlots.cleric.level3 = 0;
+
+		if (spellSlots.cleric.level1 > 0) {
+			if (wis >= 13) spellSlots.cleric.level1 += 1;
+			if (wis >= 14) spellSlots.cleric.level1 += 1;
+		}
+		if (spellSlots.cleric.level2 > 0) {
+			if (wis >= 15) spellSlots.cleric.level2 += 1;
+			if (wis >= 16) spellSlots.cleric.level2 += 1;
+		}
+		if (spellSlots.cleric.level3 > 0) {
+			if (wis >= 17) spellSlots.cleric.level3 += 1;
+		}
+
+		const Common::Array<SpellEntry> &spells = Goldbox::Data::Rules::getSpellEntries();
+		for (uint i = 0; i < spells.size(); ++i) {
+			const SpellEntry &e = spells[i];
+			if (e.spellClass == SC_CLERIC && e.spellLevel >= 1 && e.spellLevel <= 3)
+				setSpellKnown(static_cast<Spells>(i));
+		}
+	}
+
+	// Magic-User slots and a few initial known spells
+	if (levels[Goldbox::Data::C_MAGICUSER] > 0) {
+		spellSlots.magicUser.level1 = 1;
+		spellSlots.magicUser.level2 = 0;
+		spellSlots.magicUser.level3 = 0;
+
+		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_DETECT_MAGIC);
+		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_READ_MAGIC);
+		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_SHIELD);
+		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_SLEEP);
+	}
+}
+
+} // namespace Data
+} // namespace Poolrad
+} // namespace Goldbox
+
+/* ScummVM - Graphic Adventure Engine
+ *
+ * ScummVM is the legal property of its developers, whose names
+ * are too numerous to list here. Please refer to the COPYRIGHT
+ * file distributed with this source distribution.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
