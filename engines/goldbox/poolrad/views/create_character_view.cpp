@@ -33,6 +33,7 @@
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -85,6 +86,8 @@ CreateCharacterView::~CreateCharacterView() {
 	if (_activeSubView == _menu) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
+	// ensure any lingering yes/no prompt is removed
+	detachAndDelete(_yesNoPrompt);
 	detachAndDelete(_menu);
 	// _menuItems is not a UIElement
 	delete _menuItems; _menuItems = nullptr;
@@ -270,6 +273,11 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 	}
 	// Only intercept profile specific actions; otherwise let active dialog handle
 	if (_stage == CC_STATE_PROFILE) {
+		// If the Yes/No prompt is active, route the key directly to it and consume
+		if (_yesNoPrompt && _activeSubView == static_cast<Dialogs::Dialog *>(_yesNoPrompt)) {
+			_yesNoPrompt->msgKeypress(msg);
+			return true;
+		}
 		if (msg.keycode == Common::KEYCODE_r || msg.ascii == 'R') {
 			rollAndRecompute();
 			ageingEffects();
@@ -278,16 +286,7 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 			setInitGold();
 			setInitHP();
 			if (_profileDialog)
-				_profileDialog->draw();
-			return true;
-		}
-		if (msg.keycode == Common::KEYCODE_RETURN) {
-			if (_confirmSave) {
-				finalizeCharacterAndSave();
-				setStage(CC_STATE_DONE);
-			} else {
-				setStage(CC_STATE_NAME);
-			}
+				_profileDialog->redrawStats(), _profileDialog->redrawValuables(), _profileDialog->redrawCombat();
 			return true;
 		}
 	}
@@ -377,7 +376,15 @@ void CreateCharacterView::showProfileDialog() {
 	detachAndDelete(_profileDialog);
 	_profileDialog = new Dialogs::CharacterProfile(_newCharacter, "CreateProfile");
 	subView(_profileDialog);
-	setActiveSubView(_profileDialog);
+	// Attach a Yes/No prompt under the profile asking whether to keep current stats
+	detachAndDelete(_yesNoPrompt);
+	Dialogs::HorizontalYesNoConfig ynCfg { "Keep this character? ", 15 };
+	_yesNoPrompt = new Dialogs::HorizontalYesNo("ProfileYN", ynCfg);
+	// Parent the Yes/No prompt to the profile dialog (child of profile)
+	if (_profileDialog)
+		_yesNoPrompt->setParent(_profileDialog);
+	// Make the prompt active to capture Y/N while profile remains visible
+	setActiveSubView(static_cast<Dialogs::Dialog *>(_yesNoPrompt));
 }
 
 void CreateCharacterView::chooseName() {
@@ -533,12 +540,32 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 		if (key == Common::KEYCODE_ESCAPE || key == Common::KEYCODE_e) {
 			resetState();
 			replaceView("Mainmenu");
-		} else if (key == Common::KEYCODE_RETURN) {
+		} else if (key == Common::KEYCODE_y || key == Common::KEYCODE_RETURN) {
+			// Yes: proceed to name input, remove the prompt
+			detachAndDelete(_yesNoPrompt);
 			setStage(CC_STATE_NAME);
-		} else if (key == Common::KEYCODE_r) {
-			rollAndRecompute();
+		} else if (key == Common::KEYCODE_n) {
+			// No: reroll and recompute derived values while keeping Profile view active
+			if (_yesNoPrompt)
+				_yesNoPrompt->deactivate();
 			if (_profileDialog)
-				_profileDialog->draw();
+				setActiveSubView(_profileDialog);
+			recomputeAfterAlignment();
+			if (_profileDialog) {
+				_profileDialog->redrawStats();
+				_profileDialog->redrawValuables();
+				_profileDialog->redrawCombat();
+			}
+			// After redraw, hand control back to Yes/No prompt for next decision
+			if (_yesNoPrompt)
+				setActiveSubView(static_cast<Dialogs::Dialog *>(_yesNoPrompt));
+		} else if (key == Common::KEYCODE_r) {
+				rollAndRecompute();
+				if (_profileDialog) {
+					_profileDialog->redrawStats();
+					_profileDialog->redrawValuables();
+					_profileDialog->redrawCombat();
+				}
 		}
 		break;
 	case CC_STATE_NAME:
@@ -576,6 +603,7 @@ void CreateCharacterView::resetState() {
 	if (_activeSubView == _nameInput) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
+	detachAndDelete(_yesNoPrompt);
 	// Reset character
 	if (_newCharacter) { delete _newCharacter; }
 	_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
@@ -651,6 +679,24 @@ void CreateCharacterView::rollAndRecompute() {
 	// Re-initialize levels from classType to preserve multiclass composition
 	initLevelsForClassType();
 	_newCharacter->calculateHitPoints();
+}
+
+void CreateCharacterView::recomputeAfterAlignment() {
+	if (!_newCharacter)
+		return;
+	// Reroll ability scores and recompute all post-alignment data
+	rollAndRecompute();
+	// Derived attributes and caps/effects
+	ageingEffects();
+	applyStatMinMax();
+	if (_newCharacter->levels.levels[Goldbox::Data::C_THIEF] > 0)
+		setThiefSkillsForNewCharacter();
+	setThac0();
+	setSavingThrows();
+	applySpells();
+	setInitGold();
+	setInitHP();
+	_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
 }
 
 void CreateCharacterView::setThiefSkillsForNewCharacter() {

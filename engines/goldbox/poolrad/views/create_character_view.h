@@ -29,6 +29,7 @@
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -69,6 +70,7 @@ private:
     // Reusable single vertical menu (we rebuild its items per stage)
 
     Dialogs::Dialog *_nameInput = nullptr;
+    Dialogs::HorizontalYesNo *_yesNoPrompt = nullptr;
     // Reusable menu items container
     Goldbox::MenuItemList *_menuItems = nullptr;
     Dialogs::VerticalMenu *_menu = nullptr;
@@ -104,6 +106,7 @@ private:
     void chooseName();
     void buildAndShowMenu(const Common::String &prompt);
     void resetState();
+    void recomputeAfterAlignment();
     void setThiefSkillsForNewCharacter();
     void setThac0();
     void setSavingThrows();

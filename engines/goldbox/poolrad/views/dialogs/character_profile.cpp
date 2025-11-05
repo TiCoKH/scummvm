@@ -4,6 +4,7 @@
  */
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "common/keyboard.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -27,6 +28,42 @@ void CharacterProfile::draw() {
     drawItems();
     drawStatus();
 	drawPortrait();
+}
+
+void CharacterProfile::handleMenuResult(bool success, Common::KeyCode key, short value) {
+    // Forward any child dialog results (e.g., Yes/No prompt) to our parent view
+    if (_parent)
+        _parent->handleMenuResult(success, key, value);
+}
+
+// Clear and redraw only the stats area (rows 7..12, left block)
+void CharacterProfile::redrawStats() {
+    if (!_poolradPc)
+        return;
+    Surface s = getSurface();
+    // Clear a conservative box covering labels and values incl. STR exceptional
+    s.clearBox(1, 7, 10, 12, 0);
+    drawStats();
+}
+
+// Clear and redraw only the valuables/currencies area (rows 7..14, mid-right block)
+void CharacterProfile::redrawValuables() {
+    if (!_poolradPc)
+        return;
+    Surface s = getSurface();
+    // Names are aligned near column ~20 and values near 22
+    // Clear a conservative region that won't hit level/exp at row 15
+    s.clearBox(11, 7, 24, 14, 0);
+    drawValuables();
+}
+
+// Clear and redraw only the combat area (rows 17..18, full width of content area)
+void CharacterProfile::redrawCombat() {
+    if (!_poolradPc)
+        return;
+    Surface s = getSurface();
+    s.clearBox(1, 17, 38, 18, 0);
+    drawCombat();
 }
 
 void CharacterProfile::drawIdentity() {
