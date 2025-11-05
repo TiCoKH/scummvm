@@ -25,6 +25,12 @@ public:
     virtual ~CharacterProfile() {}
 
     void draw() override;
+    void handleMenuResult(bool success, Common::KeyCode key, short value) override;
+
+    // Partial redraw helpers: clear only the relevant area and redraw section
+    void redrawStats();
+    void redrawValuables();
+    void redrawCombat();
 
 public:
     Goldbox::Poolrad::Data::PoolradCharacter *_poolradPc;
