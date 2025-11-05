@@ -43,6 +43,7 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/dialog.o \
 	poolrad/views/dialogs/horizontal_input.o \
 	poolrad/views/dialogs/horizontal_menu.o \
+	poolrad/views/dialogs/horizontal_yesno.o \
 	poolrad/views/dialogs/party_list.o \
 	poolrad/views/dialogs/vertical_menu.o \
 	poolrad/views/dialogs/character_profile.o 
