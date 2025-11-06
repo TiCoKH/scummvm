@@ -24,6 +24,7 @@
 
 #include "goldbox/gfx/surface.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/core/menu_item.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -32,15 +33,22 @@ namespace Dialogs {
 
 struct HorizontalYesNoConfig {
     Common::String promptTxt;   // Text/question to display
-    byte promptColor;           // Color for the prompt text
+    uint8 promptColor;          // Color for the prompt text
+    uint8 textColor;            // Color for non-selected option text
+    uint8 selectColor;          // Color for selected option text and shortcuts
 };
 
 // A simple horizontal yes/no prompt displayed on the prompt line.
 // Shows a question and accepts Y/N (case-insensitive). ESC maps to No, RETURN maps to Yes.
 class HorizontalYesNo : public Dialog {
 protected:
-    byte _promptColor;
+    uint8 _textColor;
+    uint8 _selectColor;
+    uint8 _promptColor;
     Common::String _promptTxt;
+    // Internal YES/NO menu items; index 0 => YES, index 1 => NO
+    Goldbox::MenuItemList _menuItems;
+    bool _redraw = true;
 
     void drawText();
 
@@ -50,6 +58,7 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
     void clear();
+    void setRedraw() { _redraw = true; }
 };
 
 } // namespace Dialogs

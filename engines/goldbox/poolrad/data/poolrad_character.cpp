@@ -806,10 +806,6 @@ namespace Data {
 		stream.writeByte(movement.current);
 	}
 
-	void PoolradCharacter::finalizeName() {
-		//std::replace(name.begin(), name.end(), ' ', static_cast<char>(-1));
-	}
-
 	bool PoolradCharacter::isSpellKnown(Goldbox::Data::Spells::Spells spell) const {
 		uint8 id = static_cast<uint8>(spell);
 		if (id == 0)

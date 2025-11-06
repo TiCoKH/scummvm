@@ -69,6 +69,7 @@ const char PICK_RACE[] = "Pick Race";
 const char PICK_GENDER[] = "Pick Gender";
 const char PICK_CLASS[] = "Pick Class";
 const char PICK_ALIGNMENT[] = "Pick Alignment";
+const char KEEP_CHARACTER[] = "Keep this character? ";
 const char CHAR_NAME[] = "Character name: ";
 
 
@@ -83,6 +84,7 @@ CreateCharacterView::~CreateCharacterView() {
 	// parent's _children list to prevent stale pointers during redraw.
 	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
 	if (_activeSubView == _nameInput) _activeSubView = nullptr;
+	if (_activeSubView == _yesNoPrompt) _activeSubView = nullptr;
 	if (_activeSubView == _menu) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
@@ -200,30 +202,15 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 	case CC_STATE_ALIGNMENT:
 		chooseAlignment();
 		break;
-	case CC_STATE_PROFILE:
-		showProfileDialog();
-		// First time entering profile: roll initial stats
+	case CC_STATE_ROLLSTATS:
+		// First time entering profile: roll initial stats BEFORE showing profile
 		if (!_hasRolled && _newCharacter) {
-			rollAndRecompute();
-			// Apply ageing then race/gender caps after initial recompute
-			ageingEffects();
-			applyStatMinMax();
-			// Initialize starting spell slots/known spells per rules
-			applySpells();
-			// Initialize starting gold based on base classes
-			setInitGold();
-			// Initialize and average HP according to class/Con rules
-			setInitHP();
-			_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
-			_newCharacter->primaryAttacks = 2;
-			_newCharacter->priDmgDiceNum = 1;
-			_newCharacter->priDmgDiceSides = 2;
-			_newCharacter->strengthBonusAllowed = 1;
-			_newCharacter->baseMovement = 12;
-			_hasRolled = true;
-			if (_profileDialog)
-				_profileDialog->draw();
+			initializeRollStatsOnce();
 		}
+		// Now show the profile dialog with freshly computed values
+		showProfileDialog();
+		// Always attach the Yes/No prompt for this stage
+		attachKeepCharacterPrompt();
 		break;
 	case CC_STATE_NAME:
 		chooseName();
@@ -241,8 +228,12 @@ void CreateCharacterView::draw() {
 	Surface s = getSurface();
 
 	drawWindow(kWinLeft, kWinTop, kWinRight, kWinBottom);
-	// Delegate drawing to the active subview if present
-	if (_activeSubView) {
+	// Always draw the profile first if present, so it remains visible
+	if (_profileDialog) {
+		_profileDialog->draw();
+	}
+	// Then draw the active subview (menu, yes/no prompt, name input, etc.)
+	if (_activeSubView && _activeSubView != static_cast<Dialogs::Dialog *>(_profileDialog)) {
 		_activeSubView->draw();
 	}
 }
@@ -272,23 +263,28 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 		return true;
 	}
 	// Only intercept profile specific actions; otherwise let active dialog handle
-	if (_stage == CC_STATE_PROFILE) {
+	if (_stage == CC_STATE_ROLLSTATS) {
 		// If the Yes/No prompt is active, route the key directly to it and consume
 		if (_yesNoPrompt && _activeSubView == static_cast<Dialogs::Dialog *>(_yesNoPrompt)) {
 			_yesNoPrompt->msgKeypress(msg);
 			return true;
 		}
 		if (msg.keycode == Common::KEYCODE_r || msg.ascii == 'R') {
-			rollAndRecompute();
-			ageingEffects();
-			applyStatMinMax();
-			applySpells();
-			setInitGold();
-			setInitHP();
+			performRerollAndRecompute();
 			if (_profileDialog)
 				_profileDialog->redrawStats(), _profileDialog->redrawValuables(), _profileDialog->redrawCombat();
 			return true;
 		}
+	}
+	// In all other cases, if we have an active subview (e.g., name input or menu),
+	// forward the keypress to the concrete dialog instance.
+	if (_activeSubView) {
+		if (_activeSubView == static_cast<Dialogs::Dialog *>(_nameInput) && _nameInput) {
+			static_cast<Dialogs::HorizontalInput *>(_nameInput)->msgKeypress(msg);
+			return true;
+		}
+		// Other dialogs (like the menu) are registered as children and will
+		// be handled by the base View implementation below.
 	}
 	return View::msgKeypress(msg);
 }
@@ -376,14 +372,19 @@ void CreateCharacterView::showProfileDialog() {
 	detachAndDelete(_profileDialog);
 	_profileDialog = new Dialogs::CharacterProfile(_newCharacter, "CreateProfile");
 	subView(_profileDialog);
-	// Attach a Yes/No prompt under the profile asking whether to keep current stats
+	// Do not attach input handlers here; profile is reused across stages.
+}
+
+// Attach a Yes/No prompt under the profile and make it active
+void CreateCharacterView::attachKeepCharacterPrompt() {
+	// Clean any previous prompt
+	if (_activeSubView == _yesNoPrompt)
+		_activeSubView = nullptr;
 	detachAndDelete(_yesNoPrompt);
-	Dialogs::HorizontalYesNoConfig ynCfg { "Keep this character? ", 15 };
+	Dialogs::HorizontalYesNoConfig ynCfg { KEEP_CHARACTER, kMenuHeadColor, kMenuTextColor, kMenuSelectColor };
 	_yesNoPrompt = new Dialogs::HorizontalYesNo("ProfileYN", ynCfg);
-	// Parent the Yes/No prompt to the profile dialog (child of profile)
 	if (_profileDialog)
 		_yesNoPrompt->setParent(_profileDialog);
-	// Make the prompt active to capture Y/N while profile remains visible
 	setActiveSubView(static_cast<Dialogs::Dialog *>(_yesNoPrompt));
 }
 
@@ -392,7 +393,9 @@ void CreateCharacterView::chooseName() {
 	detachAndDelete(_nameInput);
 	HorizontalInputConfig cfg { CHAR_NAME, 15, 15 };
 	_nameInput = new HorizontalInput("NameInput", cfg);
-	subView(static_cast<Dialogs::Dialog *>(_nameInput));
+	// Attach the input dialog under the profile dialog so the profile stays visible
+	if (_profileDialog)
+		_nameInput->setParent(_profileDialog);
 	setActiveSubView(static_cast<Dialogs::Dialog *>(_nameInput));
 }
 
@@ -417,6 +420,52 @@ void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
 		subView(_menu);
 		setActiveSubView(_menu);
 	}
+}
+
+// One-time initialization when entering the ROLLSTATS stage the first time
+void CreateCharacterView::initializeRollStatsOnce() {
+	// Run a first reroll-and-recompute to populate all dynamic values
+	performRerollAndRecompute();
+
+	// Static/default combat/movement parameters for a fresh character
+	if (_newCharacter) {
+		_newCharacter->primaryAttacks = 2;
+		_newCharacter->priDmgDiceNum = 1;
+		_newCharacter->priDmgDiceSides = 2;
+		_newCharacter->strengthBonusAllowed = 1;
+		_newCharacter->baseMovement = 12;
+	}
+
+	_hasRolled = true;
+}
+
+// Consolidated dynamic reroll path used for initial roll and subsequent rerolls
+void CreateCharacterView::performRerollAndRecompute() {
+	if (!_newCharacter)
+		return;
+
+	// Roll abilities and recompute base derived values
+	rollAndRecompute();
+
+	// Post-roll adjustments and derived tables
+	ageingEffects();
+	applyStatMinMax();
+
+	// Recompute thief skills if applicable (depends on DEX and race)
+	if (_newCharacter->levels.levels.size() > Goldbox::Data::C_THIEF &&
+		_newCharacter->levels.levels[Goldbox::Data::C_THIEF] > 0) {
+		setThiefSkillsForNewCharacter();
+	}
+
+	// Derived combat tables
+	setThac0();
+	setSavingThrows();
+
+	// Starting resources and HP per rules
+	applySpells();
+	setInitGold();
+	setInitHP();
+	_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
 }
 
 void CreateCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
@@ -536,21 +585,24 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 			nextStage();
 		}
 		break;
-	case CC_STATE_PROFILE:
+	case CC_STATE_ROLLSTATS:
 		if (key == Common::KEYCODE_ESCAPE || key == Common::KEYCODE_e) {
 			resetState();
 			replaceView("Mainmenu");
-		} else if (key == Common::KEYCODE_y || key == Common::KEYCODE_RETURN) {
-			// Yes: proceed to name input, remove the prompt
-			detachAndDelete(_yesNoPrompt);
-			setStage(CC_STATE_NAME);
+		} else if (key == Common::KEYCODE_y) {
+				// Yes: proceed to name input. Make sure we don't leave _activeSubView
+				// pointing at the prompt which we are about to delete (avoid UAF).
+				if (_activeSubView == _yesNoPrompt)
+					_activeSubView = nullptr;
+				detachAndDelete(_yesNoPrompt);
+				setStage(CC_STATE_NAME);
 		} else if (key == Common::KEYCODE_n) {
 			// No: reroll and recompute derived values while keeping Profile view active
 			if (_yesNoPrompt)
 				_yesNoPrompt->deactivate();
 			if (_profileDialog)
 				setActiveSubView(_profileDialog);
-			recomputeAfterAlignment();
+			performRerollAndRecompute();
 			if (_profileDialog) {
 				_profileDialog->redrawStats();
 				_profileDialog->redrawValuables();
@@ -559,13 +611,6 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 			// After redraw, hand control back to Yes/No prompt for next decision
 			if (_yesNoPrompt)
 				setActiveSubView(static_cast<Dialogs::Dialog *>(_yesNoPrompt));
-		} else if (key == Common::KEYCODE_r) {
-				rollAndRecompute();
-				if (_profileDialog) {
-					_profileDialog->redrawStats();
-					_profileDialog->redrawValuables();
-					_profileDialog->redrawCombat();
-				}
 		}
 		break;
 	case CC_STATE_NAME:
@@ -579,7 +624,6 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 				_enteredName = hi->getInput();
 				if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
 				_newCharacter->name = _enteredName;
-				_newCharacter->finalizeName();
 			}
 			setStage(CC_STATE_ICON);
 		}
@@ -588,7 +632,7 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 		// Not implemented yet: when leaving icon editor, confirm save and return to PROFILE to confirm
 		// For now, simulate icon customization complete and ask to save
 		_confirmSave = true;
-		setStage(CC_STATE_PROFILE);
+		setStage(CC_STATE_ROLLSTATS);
 		break;
 	case CC_STATE_DONE:
 		replaceView("Mainmenu");
@@ -601,6 +645,7 @@ void CreateCharacterView::resetState() {
 	// see freed memory. Keep _menu to reuse, but if active, deactivate.
 	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
 	if (_activeSubView == _nameInput) _activeSubView = nullptr;
+	if (_activeSubView == _yesNoPrompt) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
 	detachAndDelete(_yesNoPrompt);
@@ -644,15 +689,9 @@ void CreateCharacterView::appendLineToTextFile(const Common::String &fileName, c
 	df.close();
 }
 
-void CreateCharacterView::finalizeCharacterAndSave() {
+void CreateCharacterView::saveCharacter() {
 	if (!_newCharacter)
 		return;
-
-	// Roll base stats and compute initial values
-	_newCharacter->rollAbilityScores();
-	// Start as level 1 in chosen class (supports multi-class)
-	initLevelsForClassType();
-	_newCharacter->calculateHitPoints();
 
 	// Save .CHA
 	Common::String base = formatBaseFilename(_newCharacter->name);
