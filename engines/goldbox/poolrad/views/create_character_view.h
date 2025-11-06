@@ -41,7 +41,7 @@ enum CharacterCreateState {
     CC_STATE_GENDER,
     CC_STATE_CLASS,
     CC_STATE_ALIGNMENT,
-    CC_STATE_PROFILE,
+    CC_STATE_ROLLSTATS,
     CC_STATE_NAME,
     CC_STATE_ICON,
     CC_STATE_DONE
@@ -103,6 +103,7 @@ private:
     void chooseClass();
     void chooseAlignment();
     void showProfileDialog();
+    void attachKeepCharacterPrompt();
     void chooseName();
     void buildAndShowMenu(const Common::String &prompt);
     void resetState();
@@ -117,9 +118,12 @@ private:
     void setAge();
     void ageingEffects();
     void applyStatMinMax();
+    // Refactor helpers to separate one-time setup from reroll behavior
+    void initializeRollStatsOnce();
+    void performRerollAndRecompute();
 
     // persistence helpers
-    void finalizeCharacterAndSave();
+    void saveCharacter();
     Common::String formatBaseFilename(const Common::String &name);
     void appendLineToTextFile(const Common::String &fileName,
                               const Common::String &line);
