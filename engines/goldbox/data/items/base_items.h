@@ -44,8 +44,9 @@ enum class Slot : uint8 {
     S_BOOTS      = 8,
     S_RING1      = 9,
     S_RING2      = 10,
-    S_AMMO       = 11,
-    SLOT_COUNT   = 12
+    S_ARROW      = 11,
+    S_BOLT       = 12,
+    SLOT_COUNT   = 13
 };
 
 enum class ItemFlag : uint8 {
@@ -65,6 +66,12 @@ enum class ScrollType : uint8 {
     ST_CLERIC     = 12
 };
 
+enum class HandsNeeded : uint8 {
+    HN_NONE = 0,
+    HN_ONE  = 1,
+    MT_BOTH = 2
+};
+
 /// Simple grouping of dice data 'dices d sides + bonus'
 struct Damage {
     uint8 dices;   ///< Number of dice
@@ -74,7 +81,7 @@ struct Damage {
 
 /// One 16-byte record from the ITEMS file
 struct ItemProperty {
-    Slot    slot;           ///< offset 0x00
+    uint8   slotID;         ///< offset 0x00
     uint8   hands;          ///< offset 0x01
     Damage  dmgLarge;       ///< offsets 0x02–0x04
     uint8   fireRate;       ///< 0x05
@@ -87,7 +94,7 @@ struct ItemProperty {
     uint8   missileType;    ///< 0x0E
 
     ItemProperty()
-    : slot(Slot::S_NONE), hands(0), fireRate(0), protect(0), wpnType(0), melType(0),
+    : slotID(0), hands(0), fireRate(0), protect(0), wpnType(0), melType(0),
         range(0), classMask(0), missileType(0) {
     dmgLarge = {0, 0, 0};
     dmgSmallMed = {0, 0, 0};
@@ -97,7 +104,7 @@ struct ItemProperty {
     if (index >= 0)
         debug("ItemProperty[%d]:", index);
     debug("  Slot: %d, Hands: %u, FireRate: %u, Protect: %u, WpnType: %u, MelType: %u, Range: %u, ClassMask: %u, MissileType: %u",
-        static_cast<int>(slot), hands, fireRate, protect, wpnType, melType, range, classMask, missileType);
+        slotID, hands, fireRate, protect, wpnType, melType, range, classMask, missileType);
     debug("  DmgLarge: %u d%u %+d", dmgLarge.dices, dmgLarge.sides, dmgLarge.bonus);
     debug("  DmgSmallMed: %u d%u %+d", dmgSmallMed.dices, dmgSmallMed.sides, dmgSmallMed.bonus);
     }

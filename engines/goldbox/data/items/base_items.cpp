@@ -39,7 +39,7 @@ void Storage::load(Common::SeekableReadStream &stream) {
     while (stream.pos() + recordSize <= total) {
         ItemProperty ip;
 
-        ip.slot           = static_cast<Slot>(stream.readByte());
+        ip.slotID         = stream.readByte();
         ip.hands          = stream.readByte();
 
         // Damage vs. Large creatures

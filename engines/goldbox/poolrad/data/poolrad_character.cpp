@@ -512,6 +512,91 @@ namespace Data {
 				}
 			}
 		}
+
+		// Also populate the pointer-based equippedItems for runtime usage
+		resolveEquippedFromLegacyOffsets(equippedOffsets);
+	}
+
+	void PoolradCharacter::recalcCombatStats() {
+		using namespace Goldbox::Data::Items;
+
+		// Reset counters
+		handsUsed = 0;
+		encumbrance = 0;
+
+		uint32 equippedOnlyWeight = 0; // track weight of readied items
+		bool specialEncumbranceFlag = false; // bag-of-holding/cursed-like behavior
+		bool mainHandEquipped = false;
+
+		const Common::Array<CharacterItem> &items = inventory.items();
+		for (uint i = 0; i < items.size(); ++i) {
+			const CharacterItem &it = items[i];
+
+			// Weight accounting (stack of 0 means treat as 1)
+			uint32 w = it.weight;
+			if (it.stackSize != 0)
+				w *= it.stackSize;
+			encumbrance = static_cast<uint16>(MIN<uint32>(0xFFFFu, encumbrance + w));
+
+			if (it.isEquipped()) {
+				equippedOnlyWeight = MIN<uint32>(0xFFFFu, equippedOnlyWeight + w);
+
+				const ItemProperty &prop = it.prop();
+				// Count hands used
+				handsUsed = static_cast<uint8>(MIN<uint32>(0xFFu, (uint32)handsUsed + (uint32)prop.hands));
+
+				// Detect main-hand weapon presence
+				if (prop.slotID == (uint8)Slot::S_MAIN_HAND)
+					mainHandEquipped = true;
+
+				// Magic flag affecting encumbrance rule
+				if (it.nameCode1 == 186) // 0xBA
+					specialEncumbranceFlag = true;
+			}
+		}
+
+		// Apply special encumbrance behavior when the flag is present
+		if (specialEncumbranceFlag) {
+			uint32 enc = encumbrance;
+			if (enc < 5000)
+				enc = 0;
+			else
+				enc = MIN<uint32>(0xFFFFu, enc - 5000);
+			if (enc < equippedOnlyWeight)
+				enc = equippedOnlyWeight;
+			encumbrance = static_cast<uint16>(enc);
+		}
+
+		// Start from base values
+		armorClass.current = armorClass.base;
+		thac0.current = thac0.base;
+
+		// Dexterity defence bonus affects AC (stored as 60 - AC), so add directly
+		const int8 dexAdj = getDexDefenceBonus();
+		armorClass.current = static_cast<uint8>(CLIP<int>(armorClass.current + dexAdj, 0, 255));
+
+		// If no main-hand weapon is equipped, add Strength bonuses for unarmed attacks
+		if (!mainHandEquipped) {
+			thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
+			// Damage bonus is handled by combat resolution; curPriBonus remains as read.
+		}
+
+		// If dual-wielding, you may want to apply off-hand penalties/bonuses here later
+
+		// Rear/flanked AC: +2 to actual AC -> -2 on stored value
+		acRear.current = static_cast<uint8>(CLIP<int>(armorClass.current - 2, 0, 255));
+
+		// Movement: default to base movement when available, else keep current
+		if (baseMovement != 0)
+			movement.current = baseMovement;
+
+		debug("PoolradCharacter::recalcCombatStats -> handsUsed=%u enc=%u ac=%d thac0=%d rearAC=%d items=%u",
+			  (unsigned)handsUsed,
+			  (unsigned)encumbrance,
+			  60 - (int)armorClass.current,
+			  60 - (int)thac0.current,
+			  60 - (int)acRear.current,
+			  (unsigned)items.size());
 	}
 
 	void PoolradCharacter::rollAbilityScores() {
@@ -772,9 +857,13 @@ namespace Data {
 		stream.writeByte(numOfItems);
 		stream.writeUint32LE(itemsAddress);
 
-		// Equipped items pointers (ignored, just write 0 for now)
-		for (int i = 0; i < 13; ++i)
-			stream.writeUint32LE(0);
+		// Equipped items legacy pointers: build from current equippedItems
+		{
+			uint32 legacy[EQUIPMENT_SLOT_COUNT];
+			buildLegacyOffsetsFromEquipped(legacy);
+			for (int i = 0; i < EQUIPMENT_SLOT_COUNT; ++i)
+				stream.writeUint32LE(legacy[i]);
+		}
 
 		stream.writeByte(handsUsed);
 		stream.writeByte(saveBonus);
