@@ -174,6 +174,12 @@ public:
 
     void resolveEquippedItems();
 
+    // Recalculate derived combat stats from inventory and abilities.
+    // This updates: handsUsed, encumbrance, armorClass.current, acRear.current,
+    // thac0.current and movement.current. The computation uses ScummVM types
+    // and current Goldbox data structures (CharacterInventory and ItemProperty).
+    void recalcCombatStats();
+
     void setEffect(uint8 type, uint16 durationMin, uint8 power, bool immediate) override {
         effects.addEffect(type, durationMin, power, immediate ? 1 : 0);
     }

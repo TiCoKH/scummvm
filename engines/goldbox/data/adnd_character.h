@@ -27,6 +27,7 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/rules_types.h"  // Centralized shared AD&D type
 #include "goldbox/data/items/character_inventory.h"
+#include "goldbox/data/items/base_items.h"
 
 #define BASE_CLASS_NUM 8
 
@@ -81,6 +82,53 @@ public:
 
 
     Goldbox::Data::Items::CharacterInventory inventory;
+
+    // --------------------------------------------------------------------
+    // New, engine-friendly equipped items mapping (slot -> inventory index)
+    // Kept alongside the legacy 32-bit pointer addresses for savefile
+    // compatibility. Use this in runtime logic; convert to/from legacy
+    // addresses when loading/saving.
+    enum { EQUIPPED_SLOT_COUNT = (int)Goldbox::Data::Items::Slot::SLOT_COUNT };
+
+    struct EquippedItems {
+        Common::Array<Goldbox::Data::Items::CharacterItem *> slots; // index by Slot enum; nullptr means empty
+
+        EquippedItems() {
+            slots.resize(EQUIPPED_SLOT_COUNT);
+            for (int i = 0; i < EQUIPPED_SLOT_COUNT; ++i)
+                slots[i] = nullptr;
+        }
+
+        void clear() {
+            if (slots.size() != (uint)EQUIPPED_SLOT_COUNT)
+                slots.resize(EQUIPPED_SLOT_COUNT);
+            for (int i = 0; i < EQUIPPED_SLOT_COUNT; ++i)
+                slots[i] = nullptr;
+        }
+    } equippedItems;
+
+    // Clear equippedItems to nullptrs
+    void clearEquippedItems();
+
+    // Populate equippedItems from legacy offsets table and current inventory.
+    // Any unmatched offsets result in -1 for the corresponding slot.
+    void resolveEquippedFromLegacyOffsets(const uint32 *offsets);
+
+    // Build legacy offsets for saving from equippedItems (or, if empty,
+    // infer from items' readied flags). Writes 0 when no item.
+    void buildLegacyOffsetsFromEquipped(uint32 *offsetsOut) const;
+
+    // Accessors for modern equipped items
+    Goldbox::Data::Items::CharacterItem *getEquippedItem(Goldbox::Data::Items::Slot slot);
+    const Goldbox::Data::Items::CharacterItem *getEquippedItem(Goldbox::Data::Items::Slot slot) const;
+    const Goldbox::Data::Items::ItemProperty *getEquippedProp(Goldbox::Data::Items::Slot slot) const;
+    // Debug validation helper: logs mismatches between equippedItems pointers and readied flags
+    void debugValidateEquipped() const;
+
+    // Convenience helpers
+    bool hasShieldEquipped() const;     // Interprets OFF_HAND item with protect>0 as shield
+    bool isDualWielding() const;        // Main hand + off hand weapon (off hand not a shield)
+    const Goldbox::Data::Items::ItemProperty *mainWeaponProp() const; // Shorthand
 
     // Inventory accessors (generic for all AD&D-based characters)
     Goldbox::Data::Items::CharacterInventory &getInventory() { return inventory; }
