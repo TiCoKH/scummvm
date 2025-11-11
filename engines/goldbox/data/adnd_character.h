@@ -155,7 +155,8 @@ public:
     virtual void load(Common::SeekableReadStream &stream) = 0;
     virtual void save(Common::WriteStream &stream) = 0;
     virtual void rollAbilityScores() = 0;
-    virtual void calculateHitPoints() = 0;
+    // Deprecated: HP calculation now performed by game-specific creation routines; keep stub.
+    virtual void calculateHitPoints() { /* deprecated no-op */ }
 
     // Provide base forwarding hook for effects (optional override in concrete game classes)
     virtual void setEffect(uint8 /*type*/, uint16 /*durationMin*/, uint8 /*power*/, bool /*immediate*/) override {}

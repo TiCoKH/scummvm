@@ -128,7 +128,6 @@ public:
     void setSpellKnown(Goldbox::Data::Spells::Spells spell);
 
     void rollAbilityScores() override;
-    void calculateHitPoints() override;
     // Aggregate Constitution HP modifier across active base-class slots (0..7).
     // Uses base modifier from rules for the character's Constitution. If the character
     // has any Fighter level, adds +1 at CON>=17 and an additional +1 at CON>=18 to the
