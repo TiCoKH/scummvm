@@ -117,6 +117,14 @@ struct ValuableItems {
     ValuableItems() : values(VALUABLE_COUNT) {}
     uint16 &operator[](ValuableType t) { return values[t]; }
     const uint16 &operator[](ValuableType t) const { return values[t]; }
+
+    // Sum of all valuables, assuming each unit (coin/gem/jewelry) weighs 1
+    inline uint32 getTotalWeight() const {
+        uint32 sum = 0;
+        for (uint i = 0; i < values.size(); ++i)
+            sum += values[i];
+        return sum;
+    }
 };
 
 // Character status codes (stable for save interpretation).
@@ -319,7 +327,7 @@ struct CombatRolls {
     uint8 attacks;
     uint8 rolls;
     uint8 dice;
-    uint8 modifier;
+    int8 modifier;
 };
 
 // Grouping for level data; one field per class type supported.

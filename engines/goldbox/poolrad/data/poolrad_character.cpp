@@ -142,7 +142,7 @@ void PoolradCharacter::applyAgeingEffects() {
 		return;
 
 	const AgeCategories &cats = Goldbox::Data::Rules::getAgeCategoriesForRace(race);
-	const Common::Array<AgeingEffects> &effects = Goldbox::Data::Rules::getStatAgeingEffects();
+	const Common::Array<AgeingEffects> &aeffects = Goldbox::Data::Rules::getStatAgeingEffects();
 
 	int stageMax = -1;
 	if (age > 0) {
@@ -158,8 +158,8 @@ void PoolradCharacter::applyAgeingEffects() {
 		return;
 
 	auto applyStage = [&](Stat &st, int statRow, int stageIdx) {
-		if (statRow < 0 || statRow >= (int)effects.size()) return;
-		const AgeingEffects &ae = effects[statRow];
+		if (statRow < 0 || statRow >= (int)aeffects.size()) return;
+		const AgeingEffects &ae = aeffects[statRow];
 		int delta = 0;
 		switch (stageIdx) {
 		case 0: delta = ae.young; break;
@@ -214,9 +214,9 @@ void PoolradCharacter::computeSpellSlots() {
 			if (wis >= 17) spellSlots.cleric.level3 += 1;
 		}
 
-		const Common::Array<SpellEntry> &spells = Goldbox::Data::Rules::getSpellEntries();
-		for (uint i = 0; i < spells.size(); ++i) {
-			const SpellEntry &e = spells[i];
+		const Common::Array<SpellEntry> &se = Goldbox::Data::Rules::getSpellEntries();
+		for (uint i = 0; i < se.size(); ++i) {
+			const SpellEntry &e = se[i];
 			if (e.spellClass == SC_CLERIC && e.spellLevel >= 1 && e.spellLevel <= 3)
 				setSpellKnown(static_cast<Spells>(i));
 		}
@@ -350,8 +350,18 @@ namespace Data {
 		secDmgDiceNum     = stream.readByte();
 		priDmgDiceSides   = stream.readByte();
 		secDmgDiceSides   = stream.readByte();
-		priDmgModifier    = stream.readByte();
-		secDmgModifier    = stream.readByte();
+		priDmgModifier    = stream.readSByte();
+		secDmgModifier    = stream.readSByte();
+
+		// Initialize unified combat rolls model in base class
+		setBaseRolls(primaryAttacks,
+				    priDmgDiceNum,
+				    priDmgDiceSides,
+				    priDmgModifier,
+				    secondaryAttacks,
+				    secDmgDiceNum,
+				    secDmgDiceSides,
+				    secDmgModifier);
 
 		armorClass.base = stream.readByte();          // 0x0A9
 		strengthBonusAllowed = stream.readByte();     // 0x0AA
@@ -411,15 +421,25 @@ namespace Data {
 		armorClass.current   = stream.readByte(); // 0x111
 		acRear.current       = stream.readByte(); // 0x112
 
-		priAttacksLeft = stream.readByte(); // 0x113
-		secAttacksLeft = stream.readByte(); // 0x114
+		curPriAttacks = stream.readByte(); // 0x113
+		curSecAttacks = stream.readByte(); // 0x114
 
 		curPriDiceNum   = stream.readByte(); // 0x115
 		curSecDiceNum   = stream.readByte(); // 0x116
 		curPriDiceSides = stream.readByte(); // 0x117
 		curSecDiceSides = stream.readByte(); // 0x118
-		curPriBonus     = stream.readByte(); // 0x119
-		curSecBonus     = stream.readByte(); // 0x11A
+		curPriBonus     = stream.readSByte(); // 0x119
+		curSecBonus     = stream.readSByte(); // 0x11A
+
+		// Mirror current legacy values into unified model
+		setCurrentRolls(primaryAttacks,
+					   curPriDiceNum,
+					   curPriDiceSides,
+					   curPriBonus,
+					   secondaryAttacks,
+					   curSecDiceNum,
+					   curSecDiceSides,
+					   curSecBonus);
 
 		hitPoints.current = stream.readByte(); // 0x11B
 		movement.current  = stream.readByte(); // 0x11C
@@ -462,8 +482,8 @@ namespace Data {
 		quickfight = false;
 		npc = 0;
 		modified = 0;
-		priAttacksLeft = 0;
-		secAttacksLeft = 0;
+		curPriAttacks = 0;
+		curSecAttacks = 0;
 		curPriDiceNum = 0;
 		curSecDiceNum = 0;
 		curPriDiceSides = 0;
@@ -520,71 +540,113 @@ namespace Data {
 	void PoolradCharacter::recalcCombatStats() {
 		using namespace Goldbox::Data::Items;
 
-		// Reset counters
 		handsUsed = 0;
 		encumbrance = 0;
-
-		uint32 equippedOnlyWeight = 0; // track weight of readied items
-		bool specialEncumbranceFlag = false; // bag-of-holding/cursed-like behavior
-		bool mainHandEquipped = false;
-
+		numOfItems = static_cast<int8>(inventory.items().size());
+		// Single pass: rebuild equippedItems and compute total/equipped weights and stats
+		equippedItems.clear();
 		const Common::Array<CharacterItem> &items = inventory.items();
+		uint32 totalWeight = 0; // modern accumulation without 16-bit per-add clamping
+		uint32 equippedOnlyWeight = 0; // track weight of equipped (readied) items (single final clamp)
+		bool specialEncumbranceFlag = false; // bag-of-holding/cursed-like behavior (typeIndex == 0xBA)
+		bool mainHandEquipped = false;
+		uint8 totalProtect = 0; // aggregate item protection (CHARACTER_setItemProtection analogue)
+
 		for (uint i = 0; i < items.size(); ++i) {
-			const CharacterItem &it = items[i];
+			const CharacterItem &ci = items[i];
+			// Weight for this item (respect stack)
+			uint32 w = ci.weight;
+			if (ci.stackSize != 0)
+				w *= ci.stackSize;
+			totalWeight += w;
 
-			// Weight accounting (stack of 0 means treat as 1)
-			uint32 w = it.weight;
-			if (it.stackSize != 0)
-				w *= it.stackSize;
-			encumbrance = static_cast<uint16>(MIN<uint32>(0xFFFFu, encumbrance + w));
+			if (!ci.isEquipped())
+				continue;
 
-			if (it.isEquipped()) {
-				equippedOnlyWeight = MIN<uint32>(0xFFFFu, equippedOnlyWeight + w);
+			CharacterItem *ptr = const_cast<CharacterItem *>(&ci);
+			const ItemProperty &p = ci.prop();
+			bool placed = false;
+			int sid = (int)p.slotID;
 
-				const ItemProperty &prop = it.prop();
-				// Count hands used
-				handsUsed = static_cast<uint8>(MIN<uint32>(0xFFu, (uint32)handsUsed + (uint32)prop.hands));
+			// Place by slot when within range
+			if (sid >= 0 && sid < 9) {
+				if (!equippedItems.slots[sid]) { equippedItems.slots[sid] = ptr; placed = true; }
+			} else if (sid == 9) {
+				if (!equippedItems.slots[(int)Slot::S_RING1]) { equippedItems.slots[(int)Slot::S_RING1] = ptr; placed = true; }
+				else if (!equippedItems.slots[(int)Slot::S_RING2]) { equippedItems.slots[(int)Slot::S_RING2] = ptr; placed = true; }
+				else {
+					// More than two rings with slot id 9 equipped — unexpected, log for diagnostics
+					debug("PoolradCharacter::recalcCombatStats extra ring (slot id 9) cannot be placed: idx=%u type=%u", (unsigned)i, (unsigned)ci.typeIndex);
+				}
+			}
+			// Arrow / Bolt by type index (legacy propID==73/28)
+			if (!placed && ci.typeIndex == 73) {
+				int a = (int)Slot::S_ARROW;
+				if ( !equippedItems.slots[(int)Slot::S_ARROW] ) { equippedItems.slots[(int)Slot::S_ARROW] = ptr; placed = true; }
+			}
+			if (!placed && ci.typeIndex == 28) {
+				if ( !equippedItems.slots[(int)Slot::S_BOLT]) { equippedItems.slots[(int)Slot::S_BOLT] = ptr; placed = true; }
+			}
 
+			// If successfully placed in any slot, contribute to equipped-only aggregates
+			if (placed) {
+				equippedOnlyWeight += w;
+				// Count hands used (defer final clamp)
+				handsUsed = static_cast<uint8>(handsUsed + p.hands);
 				// Detect main-hand weapon presence
-				if (prop.slotID == (uint8)Slot::S_MAIN_HAND)
+				if (p.slotID == (uint8)Slot::S_MAIN_HAND)
 					mainHandEquipped = true;
-
-				// Magic flag affecting encumbrance rule
-				if (it.nameCode1 == 186) // 0xBA
+				// Aggregate protection values (simple model; legacy code used CHARACTER_setItemProtection)
+				if (p.protect > 0)
+					totalProtect = static_cast<uint8>(CLIP<int>(totalProtect + p.protect, 0, 255));
+				// Special container / encumbrance-modifying item by base type index (legacy 0xBA)
+				if (ci.nameCode1 == 186) // 0xBA name component probably "Cursed"
 					specialEncumbranceFlag = true;
 			}
 		}
 
-		// Apply special encumbrance behavior when the flag is present
+		// Final clamp for handsUsed
+		handsUsed = static_cast<uint8>(MIN<uint32>(0xFFu, handsUsed));
+
+		// Add weight of valuables (coins, gems, jewelry): assume 1 unit weight each
+		totalWeight += valuableItems.getTotalWeight();
+
+
+
+		// Compute final encumbrance using modern 32-bit totals, then clamp once
 		if (specialEncumbranceFlag) {
-			uint32 enc = encumbrance;
+			uint32 enc = totalWeight;
 			if (enc < 5000)
 				enc = 0;
 			else
-				enc = MIN<uint32>(0xFFFFu, enc - 5000);
+				enc -= 5000;
 			if (enc < equippedOnlyWeight)
 				enc = equippedOnlyWeight;
-			encumbrance = static_cast<uint16>(enc);
+			encumbrance = static_cast<uint16>(MIN<uint32>(0xFFFFu, enc));
+		} else {
+			encumbrance = static_cast<uint16>(MIN<uint32>(0xFFFFu, totalWeight));
 		}
 
-		// Start from base values
-		armorClass.current = armorClass.base;
+		// Base combat values
 		thac0.current = thac0.base;
 
-		// Dexterity defence bonus affects AC (stored as 60 - AC), so add directly
+		// Dexterity defence bonus (reaction adjustment analogue) + item protection
 		const int8 dexAdj = getDexDefenceBonus();
-		armorClass.current = static_cast<uint8>(CLIP<int>(armorClass.current + dexAdj, 0, 255));
+		int acWork = (int)armorClass.base + dexAdj - (int)totalProtect;
+		armorClass.current = static_cast<uint8>(CLIP<int>(acWork, 0, 255));
 
-		// If no main-hand weapon is equipped, add Strength bonuses for unarmed attacks
+		// Strength bonuses when unarmed (no main-hand item)
 		if (!mainHandEquipped) {
 			thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
-			// Damage bonus is handled by combat resolution; curPriBonus remains as read.
+			// Placeholder for melee damage bonus (legacy current_pri_mod); add to curPriBonus if desired
+			// curPriBonus = static_cast<uint8>(CLIP<int>(curPriBonus + getStrengthBonus(), 0, 255));
 		}
 
-		// If dual-wielding, you may want to apply off-hand penalties/bonuses here later
-
-		// Rear/flanked AC: +2 to actual AC -> -2 on stored value
+		// Rear/flanked AC approximation: -2 from front AC (legacy combined components logic)
 		acRear.current = static_cast<uint8>(CLIP<int>(armorClass.current - 2, 0, 255));
+
+		// Attack level heuristic (legacy used fighter level if race >0)
+		attackLevel = (levels.levels[C_FIGHTER] > 0 && race > 0) ? levels.levels[C_FIGHTER] : 1;
 
 		// Movement: default to base movement when available, else keep current
 		if (baseMovement != 0)
@@ -788,7 +850,7 @@ namespace Data {
 		for (int i = 0; i < 4; ++i) stream.writeByte(0); // Skip effects address
 
 		stream.writeByte(0); // Unknown at 0x083
-		stream.writeByte(npc);
+		stream.writeSByte(npc);
 		stream.writeByte(modified);
 
 		for (int i = 0; i < 2; ++i) stream.writeByte(0);
@@ -807,16 +869,16 @@ namespace Data {
 		stream.writeByte(alignment);
 
 		// Attacks
-		stream.writeByte(primaryAttacks);
-		stream.writeByte(secondaryAttacks);
+        stream.writeByte(primaryAttacks);
+        stream.writeByte(secondaryAttacks);
 
-		// Unarmed combat
-		stream.writeByte(priDmgDiceNum);
-		stream.writeByte(secDmgDiceNum);
-		stream.writeByte(priDmgDiceSides);
-		stream.writeByte(secDmgDiceSides);
-		stream.writeByte(priDmgModifier);
-		stream.writeByte(secDmgModifier);
+        // Unarmed / base combat dice
+        stream.writeByte(priDmgDiceNum);
+        stream.writeByte(secDmgDiceNum);
+        stream.writeByte(priDmgDiceSides);
+        stream.writeByte(secDmgDiceSides);
+		stream.writeSByte(priDmgModifier);
+		stream.writeSByte(secDmgModifier);
 
 		stream.writeByte(armorClass.base);
 		stream.writeByte(strengthBonusAllowed);
@@ -881,15 +943,16 @@ namespace Data {
 		stream.writeByte(armorClass.current);
 		stream.writeByte(acRear.current);
 
-		stream.writeByte(priAttacksLeft);
-		stream.writeByte(secAttacksLeft);
+		stream.writeByte(curPriAttacks);
+		stream.writeByte(curSecAttacks);
 
+		// Current combat dice (mirror from unified model to preserve save format)
 		stream.writeByte(curPriDiceNum);
 		stream.writeByte(curSecDiceNum);
 		stream.writeByte(curPriDiceSides);
 		stream.writeByte(curSecDiceSides);
-		stream.writeByte(curPriBonus);
-		stream.writeByte(curSecBonus);
+		stream.writeSByte(curPriBonus);
+		stream.writeSByte(curSecBonus);
 
 		stream.writeByte(hitPoints.current);
 		stream.writeByte(movement.current);
