@@ -717,26 +717,10 @@ void CreateCharacterView::rollAndRecompute() {
 	_newCharacter->rollAbilityScores();
 	// Re-initialize levels from classType to preserve multiclass composition
 	initLevelsForClassType();
-	_newCharacter->calculateHitPoints();
+	// Legacy calculateHitPoints() logic deprecated; initial HP now set via setInitHP() later.
 }
 
-void CreateCharacterView::recomputeAfterAlignment() {
-	if (!_newCharacter)
-		return;
-	// Reroll ability scores and recompute all post-alignment data
-	rollAndRecompute();
-	// Derived attributes and caps/effects
-	ageingEffects();
-	applyStatMinMax();
-	if (_newCharacter->levels.levels[Goldbox::Data::C_THIEF] > 0)
-		setThiefSkillsForNewCharacter();
-	setThac0();
-	setSavingThrows();
-	applySpells();
-	setInitGold();
-	setInitHP();
-	_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
-}
+// recomputeAfterAlignment was redundant with performRerollAndRecompute; removed as unused
 
 void CreateCharacterView::setThiefSkillsForNewCharacter() {
     if (!_newCharacter)
@@ -929,7 +913,7 @@ void CreateCharacterView::setInitGold() {
 	}
 
 	// Average across classes (truncate)
-	uint16 finalGold = (classCount > 0) ? static_cast<uint16>(totalGold / classCount) : 0;
+	uint16 finalGold = (classCount > 0) ? static_cast<uint16>((totalGold * 10) / classCount) : 0;
 	_newCharacter->valuableItems[VAL_GOLD] = finalGold;
 	debug("setInitGold: classes=%d total=%d avg=%u (final gold)", classCount, totalGold, (unsigned)finalGold);
 	if (classCount == 0) {

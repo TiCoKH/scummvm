@@ -179,7 +179,9 @@ public:
 	//-----------------------------------------------------------
 	// Game-specific behaviors
 	virtual void rollAbilityScores() = 0;
-	virtual void calculateHitPoints() = 0;
+	// calculateHitPoints deprecated: HP initialization handled externally (e.g. setInitHP in Poolrad).
+	// Provide empty default to avoid forcing overrides in derived classes migrating to new flow.
+	virtual void calculateHitPoints() { /* deprecated no-op */ }
 
 	//-----------------------------------------------------------
 	// Effect interface (Pool of Radiance refactor): default no-op so callers can

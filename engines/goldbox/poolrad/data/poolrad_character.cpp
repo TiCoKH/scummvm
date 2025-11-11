@@ -695,38 +695,7 @@ namespace Data {
 			return true;
 		}
 	}
-	void PoolradCharacter::calculateHitPoints() {
-		int totalLevels = 0;
-		int hp = 0;
-
-		// Each class contributes hit dice based on its level
-		if (levels.levels[2] > 0) {
-			hp += levels.levels[2] * 10;
-			totalLevels += levels.levels[2];
-		}
-		if (levels.levels[0] > 0) {
-			hp += levels.levels[0] * 8;
-			totalLevels += levels.levels[0];
-		}
-		if (levels.levels[5] > 0) {
-			hp += levels.levels[5] * 4;
-			totalLevels += levels.levels[5];
-		}
-		if (levels.levels[6] > 0) {
-			hp += levels.levels[6] * 6;
-			totalLevels += levels.levels[6];
-		}
-
-		int average = (totalLevels > 0) ? (hp / totalLevels) : 4;
-
-		// Constitution modifier
-		int conMod = 0;
-		if (abilities.constitution.current >= 15) conMod = 1;
-		if (abilities.constitution.current >= 17) conMod = 2;
-
-		hitPointsRolled = average + conMod;
-		hitPoints.max = hitPoints.current = (hitPointsRolled > 0) ? hitPointsRolled : 1;
-	}
+// calculateHitPoints removed: character creation sets HP via CreateCharacterView::setInitHP()
 
 	uint8 PoolradCharacter::getRolledHP(Goldbox::Data::ClassFlag flags) {
 		// New behavior:
@@ -746,19 +715,20 @@ namespace Data {
 				continue; // skip classes not included by mask
 			const Goldbox::Data::DiceRoll &dr = Goldbox::Data::Rules::getHPRoll(base);
 			int roll = VmInterface::rollDice(dr.numDice, dr.diceSides);
+			int used = roll;
 			if (lvl == 1) {
-				const int minFirstLevel = (2 * dr.diceSides) / 3; // floor division
-				if (roll < minFirstLevel)
-					roll = minFirstLevel;
+				const int minFirstLevel = (2 * dr.diceSides) / 3;
+				if (used < minFirstLevel)
+					used = minFirstLevel;
+				debug("getRolledHP: base=%u lvl=1 roll=%d min=%d used=%d", (unsigned)base, roll, minFirstLevel, used);
+			} else {
+				debug("getRolledHP: base=%u lvl=%u roll=%d used=%d", (unsigned)base, (unsigned)lvl, roll, used);
 			}
-
-			sum += roll;
+			sum += used;
 		}
-
-		if (sum < 0)
-			sum = 0;
-		if (sum > 255)
-			sum = 255;
+		if (sum < 0) sum = 0;
+		if (sum > 255) sum = 255;
+		debug("getRolledHP: final sum=%d", sum);
 		return (uint8)sum;
 	}
 
