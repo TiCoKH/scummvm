@@ -84,6 +84,16 @@ public:
     Goldbox::Data::Items::CharacterInventory inventory;
 
     // --------------------------------------------------------------------
+    // Unified combat rolls model (base + current), common to AD&D engines.
+    // Maps legacy per-hand fields into a portable representation.
+    // 'attacks' = attacks per round; 'rolls' = number of damage dice;
+    // 'dice' = sides per die; 'modifier' = flat damage modifier (signed).
+    Goldbox::Data::CombatRolls basePrimaryRoll;    // legacy: primaryAttacks, priDmgDiceNum/Sides, priDmgModifier
+    Goldbox::Data::CombatRolls baseSecondaryRoll;  // legacy: secondaryAttacks, secDmgDiceNum/Sides, secDmgModifier
+    Goldbox::Data::CombatRolls curPrimaryRoll;     // legacy: curPriAttacks, curPriDiceNum/Sides, curPriBonus
+    Goldbox::Data::CombatRolls curSecondaryRoll;   // legacy: curSecAttacks, curSecDiceNum/Sides, curSecBonus
+
+    // --------------------------------------------------------------------
     // New, engine-friendly equipped items mapping (slot -> inventory index)
     // Kept alongside the legacy 32-bit pointer addresses for savefile
     // compatibility. Use this in runtime logic; convert to/from legacy
@@ -152,6 +162,18 @@ public:
 
     // --------------------------------------------------------------------
     // Common utility methods
+
+    // ---- Combat rolls helpers ----
+    // Initialize base rolls from discrete legacy components.
+    void setBaseRolls(uint8 priAttacks, uint8 priNum, uint8 priSides, int8 priMod,
+                      uint8 secAttacks, uint8 secNum, uint8 secSides, int8 secMod);
+
+    // Initialize current rolls from discrete legacy components.
+    void setCurrentRolls(uint8 curPriAttacks, uint8 curPriNum, uint8 curPriSides, int8 curPriMod,
+                         uint8 curSecAttacks, uint8 curSecNum, uint8 curSecSides, int8 curSecMod);
+
+    // Reset current rolls back to base values (used at combat start / rest etc.).
+    void resetCurrentRollsFromBase();
 
 };
 
