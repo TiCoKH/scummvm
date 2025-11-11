@@ -77,7 +77,7 @@ private:
 
     Dialogs::CharacterProfile *_profileDialog = nullptr;
     Dialogs::Dialog *_activeSubView = nullptr;
-    Common::String formatFilename(const Common::String &name); // helper to format save filename
+    // helper to format save filename (8.3 style)
     bool _confirmSave = false; // true when returning from icon editor to confirm save
     bool _hasRolled = false;    // ensures we roll once when entering profile
 
@@ -107,7 +107,6 @@ private:
     void chooseName();
     void buildAndShowMenu(const Common::String &prompt);
     void resetState();
-    void recomputeAfterAlignment();
     void setThiefSkillsForNewCharacter();
     void setThac0();
     void setSavingThrows();
