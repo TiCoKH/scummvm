@@ -432,8 +432,8 @@ void CreateCharacterView::initializeRollStatsOnce() {
 		_newCharacter->primaryAttacks = 2;
 		_newCharacter->priDmgDiceNum = 1;
 		_newCharacter->priDmgDiceSides = 2;
-		_newCharacter->strengthBonusAllowed = 1;
-		_newCharacter->baseMovement = 12;
+	_newCharacter->strengthBonusAllowed = 1;
+	_newCharacter->movement.base = 12;
 	}
 
 	_hasRolled = true;
@@ -717,7 +717,6 @@ void CreateCharacterView::rollAndRecompute() {
 	_newCharacter->rollAbilityScores();
 	// Re-initialize levels from classType to preserve multiclass composition
 	initLevelsForClassType();
-	// Legacy calculateHitPoints() logic deprecated; initial HP now set via setInitHP() later.
 }
 
 // recomputeAfterAlignment was redundant with performRerollAndRecompute; removed as unused
