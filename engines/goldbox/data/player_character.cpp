@@ -115,5 +115,17 @@ int8 PlayerCharacter::getDexDefenceBonus() const {
     return 0;
 }
 
+int8 PlayerCharacter::getDexSpeedBonus() const {
+    uint8 dex = abilities.dexterity.current;
+    if (dex < 3) return -4;
+    if (dex <= 5) return static_cast<int8>(dex - 6);
+    if (dex <= 15) return 0;
+    if (dex <= 18) return static_cast<int8>(dex - 15);
+    if (dex <= 20) return 3;
+    if (dex <= 23) return 4;
+    if (dex <= 25) return 5;
+    return 0;
+}
+
 } // namespace Data
 } // namespace Goldbox

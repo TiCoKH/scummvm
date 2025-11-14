@@ -307,7 +307,7 @@ namespace Data {
 		savingThrows.vsBreathWeapon  = stream.readByte(); // 0x070
 		savingThrows.vsSpell         = stream.readByte(); // 0x071
 
-		baseMovement = stream.readByte();      // 0x072
+	movement.base = stream.readByte();      // 0x072
 		highestLevel = stream.readByte();      // 0x073
 		drainedLevels = stream.readByte();     // 0x074
 		drainedHp = stream.readByte();         // 0x075
@@ -453,7 +453,7 @@ namespace Data {
 	void PoolradCharacter::initialize() {
 		highestLevel = 0;
 		creatureSize = 1;
-		baseMovement = 0;
+	movement.base = 0;
 		hitDice = 0;
 		drainedLevels = 0;
 		drainedHp = 0;
@@ -611,7 +611,12 @@ namespace Data {
 		// Add weight of valuables (coins, gems, jewelry): assume 1 unit weight each
 		totalWeight += valuableItems.getTotalWeight();
 
-
+		// Ensure current combat rolls are reset to base before applying equipment effects
+		resetCurrentRollsFromBase();
+		saveBonus = 0;
+		armorClass.current = armorClass.base;
+		movement.current = movement.base;
+		thac0.current = thac0.base;
 
 		// Compute final encumbrance using modern 32-bit totals, then clamp once
 		if (specialEncumbranceFlag) {
@@ -628,29 +633,103 @@ namespace Data {
 		}
 
 		// Base combat values
-		thac0.current = thac0.base;
 
-		// Dexterity defence bonus (reaction adjustment analogue) + item protection
-		const int8 dexAdj = getDexDefenceBonus();
-		int acWork = (int)armorClass.base + dexAdj - (int)totalProtect;
-		armorClass.current = static_cast<uint8>(CLIP<int>(acWork, 0, 255));
 
-		// Strength bonuses when unarmed (no main-hand item)
+		// Build AC components from equipped items and dexterity
+		struct AcComponents {
+			int8 dexAdj;     // Index 0: Dex AC adjustment (DexAcBonus)
+			uint8 shield;    // Index 1: Shield AC magic bonus (OFF_HAND protect hi-bit)
+			uint8 misc;      // Index 2: Sum of misc magical AC (non-armor, non-ring, non-shield)
+			uint8 ring;      // Index 3: Best ring/protection bonus (cleared if magic armor worn)
+			uint8 armorBase; // Index 4: Base armor AC (base + armor magic)
+			AcComponents() : dexAdj(0), shield(0), misc(0), ring(0), armorBase(0) {}
+		} ac;
+
+		ac.dexAdj = getDexDefenceBonus();
+
+		// Strength and melee damage bonuses apply when unarmed (no main-hand weapon)
 		if (!mainHandEquipped) {
+			// To-hit: add Strength bonus to stored THAC0 (60-THAC0 space)
 			thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
-			// Placeholder for melee damage bonus (legacy current_pri_mod); add to curPriBonus if desired
-			// curPriBonus = static_cast<uint8>(CLIP<int>(curPriBonus + getStrengthBonus(), 0, 255));
+			// Damage: add melee damage bonus to current primary damage modifier
+			curPriBonus = static_cast<int8>(CLIP<int>((int)curPriBonus + (int)getMeleeDamageBonus(), -128, 127));
 		}
 
-		// Rear/flanked AC approximation: -2 from front AC (legacy combined components logic)
+		using Slot = Goldbox::Data::Items::Slot;
+		const Goldbox::Data::Items::ItemProperty *propBody   = getEquippedProp(Slot::S_BODY_ARMOR);
+		const Goldbox::Data::Items::ItemProperty *propShield = getEquippedProp(Slot::S_OFF_HAND);
+		const Goldbox::Data::Items::ItemProperty *propRing1  = getEquippedProp(Slot::S_RING1);
+		const Goldbox::Data::Items::ItemProperty *propRing2  = getEquippedProp(Slot::S_RING2);
+		const Goldbox::Data::Items::ItemProperty *propGaunt  = getEquippedProp(Slot::S_GAUNTLETS);
+		const Goldbox::Data::Items::ItemProperty *propHelm   = getEquippedProp(Slot::S_HELM);
+		const Goldbox::Data::Items::ItemProperty *propBelt   = getEquippedProp(Slot::S_BELT);
+		const Goldbox::Data::Items::ItemProperty *propRobe   = getEquippedProp(Slot::S_ROBE);
+		const Goldbox::Data::Items::ItemProperty *propCloak  = getEquippedProp(Slot::S_CLOAK);
+		const Goldbox::Data::Items::ItemProperty *propBoots  = getEquippedProp(Slot::S_BOOTS);
+
+		// Armor magic bonus (protect hi-bit indicates magical bonus)
+		bool magicArmor = false;
+		uint8 armorMagic = 0;
+		if (propBody) {
+			uint8 pr = propBody->protect;
+			if (pr & 0x80) { magicArmor = true; armorMagic = (uint8)(pr & 0x7F); }
+		}
+		ac.armorBase = static_cast<uint8>(CLIP<int>((int)armorClass.base + (int)armorMagic,
+			(int)armorClass.base, 255));
+
+		// Shield magic bonus
+		if (propShield) {
+			uint8 pr = propShield->protect;
+			if (pr & 0x80)
+				ac.shield = (uint8)(pr & 0x7F);
+		}
+
+		// Rings: take the highest magical protection; cleared if wearing magic armor
+		uint8 ringBest = 0;
+		if (propRing1) {
+			uint8 pr = propRing1->protect;
+			if (pr & 0x80)
+				ringBest = MAX<uint8>(ringBest, (uint8)(pr & 0x7F));
+		}
+		if (propRing2) {
+			uint8 pr = propRing2->protect;
+			if (pr & 0x80)
+				ringBest = MAX<uint8>(ringBest, (uint8)(pr & 0x7F));
+		}
+		ac.ring = magicArmor ? 0 : ringBest;
+
+		// Misc magical AC (non-armor, non-ring, non-shield) — sum with clamp
+		auto addMisc = [&](const Goldbox::Data::Items::ItemProperty *p) {
+			if (!p) return;
+			uint8 pr = p->protect;
+			if ((pr & 0x80) != 0) {
+				int acc = (int)ac.misc + (int)(pr & 0x7F);
+				ac.misc = (uint8)CLIP<int>(acc, 0, 255);
+			}
+		};
+		addMisc(propGaunt);
+		addMisc(propHelm);
+		addMisc(propBelt);
+		addMisc(propRobe);
+		addMisc(propCloak);
+		addMisc(propBoots);
+
+		// Combine components into stored AC (60 - AC) world
+		int acCombined = (int)ac.armorBase;
+		acCombined = CLIP<int>(acCombined + (int)ac.dexAdj, 0, 255);
+		acCombined = CLIP<int>(acCombined + (int)ac.shield, 0, 255);
+		acCombined = CLIP<int>(acCombined + (int)ac.misc, 0, 255);
+		acCombined = CLIP<int>(acCombined + (int)ac.ring, 0, 255);
+		armorClass.current = (uint8)acCombined;
+
+		// Rear/flanked AC approximation: -2 from front AC (legacy logic)
 		acRear.current = static_cast<uint8>(CLIP<int>(armorClass.current - 2, 0, 255));
 
 		// Attack level heuristic (legacy used fighter level if race >0)
 		attackLevel = (levels.levels[C_FIGHTER] > 0 && race > 0) ? levels.levels[C_FIGHTER] : 1;
 
-		// Movement: default to base movement when available, else keep current
-		if (baseMovement != 0)
-			movement.current = baseMovement;
+		// Compute current to-hit and damage rolls from equipped weapon and stats
+		setDamage();
 
 		debug("PoolradCharacter::recalcCombatStats -> handsUsed=%u enc=%u ac=%d thac0=%d rearAC=%d items=%u",
 			  (unsigned)handsUsed,
@@ -695,7 +774,6 @@ namespace Data {
 			return true;
 		}
 	}
-// calculateHitPoints removed: character creation sets HP via CreateCharacterView::setInitHP()
 
 	uint8 PoolradCharacter::getRolledHP(Goldbox::Data::ClassFlag flags) {
 		// New behavior:
@@ -774,8 +852,8 @@ namespace Data {
 		stream.writeByte(abilities.charisma.current);
 		stream.writeByte(abilities.strException.current);
 
-	// Spells memorized (21 bytes)
-	stream.write(spells.memorizedSpells, 21);
+		// Spells memorized (21 bytes)
+		stream.write(spells.memorizedSpells, 21);
 
 		stream.writeByte(0); // Unknown at 0x02C
 
@@ -788,8 +866,8 @@ namespace Data {
 
 		stream.writeByte(hitPoints.max);
 
-	// Known spells (55 bytes in Poolrad layout)
-	stream.write(spells.knownSpells, 55);
+		// Known spells (55 bytes in Poolrad layout)
+		stream.write(spells.knownSpells, 55);
 
 		stream.writeByte(attackLevel);
 		stream.writeByte(iconDimension);
@@ -801,7 +879,7 @@ namespace Data {
 		stream.writeByte(savingThrows.vsBreathWeapon);
 		stream.writeByte(savingThrows.vsSpell);
 
-		stream.writeByte(baseMovement);
+		stream.writeByte(movement.base);
 		stream.writeByte(highestLevel);
 		stream.writeByte(drainedLevels);
 		stream.writeByte(drainedHp);
@@ -859,13 +937,13 @@ namespace Data {
 		stream.writeByte(itemsLimit);
 		stream.writeByte(hitPointsRolled);
 
-	// Spell slots (cleric L1-3, then magic-user L1-3)
-	stream.writeByte(spellSlots.cleric.level1);
-	stream.writeByte(spellSlots.cleric.level2);
-	stream.writeByte(spellSlots.cleric.level3);
-	stream.writeByte(spellSlots.magicUser.level1);
-	stream.writeByte(spellSlots.magicUser.level2);
-	stream.writeByte(spellSlots.magicUser.level3);
+		// Spell slots (cleric L1-3, then magic-user L1-3)
+		stream.writeByte(spellSlots.cleric.level1);
+		stream.writeByte(spellSlots.cleric.level2);
+		stream.writeByte(spellSlots.cleric.level3);
+		stream.writeByte(spellSlots.magicUser.level1);
+		stream.writeByte(spellSlots.magicUser.level2);
+		stream.writeByte(spellSlots.magicUser.level3);
 
 		stream.writeUint16LE(xpForDefeating);
 		stream.writeByte(bonusXpPerHp);
@@ -957,11 +1035,74 @@ namespace Data {
 		if (!enabled) {
 			txtColor = 12;
 		} else if (hostile) {
-			 txtColor = 14;
+			txtColor = 14;
 		} else {
-			 txtColor = 11;
+			txtColor = 11;
 		}
 		return txtColor;
+	}
+
+	void PoolradCharacter::setDamage() {
+		using namespace Goldbox::Data::Items;
+		// Start from base to-hit each time
+		thac0.current = thac0.base;
+
+		// Ensure current rolls mirror base (unarmed) unless we override for a weapon
+		// Caller already invokes resetCurrentRollsFromBase() earlier in recompute
+
+		const CharacterItem *mainIt = getEquippedItem(Slot::S_MAIN_HAND);
+		if (!mainIt) {
+			// Unarmed: apply STR bonuses to hit and damage
+			thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
+			curPriBonus = static_cast<int8>(CLIP<int>((int)curPriBonus + (int)getMeleeDamageBonus(), -128, 127));
+			curPrimaryRoll.modifier = curPriBonus;
+			return;
+		}
+
+		const ItemProperty &wp = mainIt->prop();
+
+		// Weapon-equipped: set current damage dice from weapon (small/medium target)
+		curPriDiceNum   = wp.dmgSmallMed.dices;
+		curPriDiceSides = wp.dmgSmallMed.sides;
+		curPriBonus     = wp.dmgSmallMed.bonus;
+		curPrimaryRoll.rolls    = curPriDiceNum;
+		curPrimaryRoll.dice     = curPriDiceSides;
+		curPrimaryRoll.modifier = curPriBonus;
+
+		// Ranged vs melee: apply appropriate ability-based bonuses
+		if (wp.missileType != 0) {
+			// Ranged: DEX speed bonus to hit
+			thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getDexSpeedBonus(), 0, 255));
+		} else {
+			// Melee: STR bonuses to hit and damage
+			thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
+			curPriBonus = static_cast<int8>(CLIP<int>((int)curPriBonus + (int)getMeleeDamageBonus(), -128, 127));
+			curPrimaryRoll.modifier = curPriBonus;
+		}
+
+		// Enchantment bonuses: weapon + matching ammo (for ranged)
+		int enchant = (int)mainIt->bonus;
+		if (wp.missileType != 0) {
+			const CharacterItem *bolt  = getEquippedItem(Slot::S_BOLT);
+			const CharacterItem *arrow = getEquippedItem(Slot::S_ARROW);
+			if (bolt)
+				enchant += bolt->bonus;
+			else if (arrow)
+				enchant += arrow->bonus;
+		}
+
+		// Apply enchantment to damage modifier first
+		curPriBonus = static_cast<int8>(CLIP<int>((int)curPriBonus + enchant, -128, 127));
+		curPrimaryRoll.modifier = curPriBonus;
+
+		// Elf racial to-hit +1 for specific weapons (typeIndex: 0x24,0x25,0x29..0x2C)
+		int toHitAdd = enchant;
+		if (race == Goldbox::Data::R_ELF) {
+			uint8 tid = mainIt->typeIndex;
+			if ((tid > 0x28 && tid < 0x2D) || tid == 0x25 || tid == 0x24)
+				++toHitAdd;
+		}
+		thac0.current = static_cast<uint8>(CLIP<int>((int)thac0.current + toHitAdd, 0, 255));
 	}
 
 

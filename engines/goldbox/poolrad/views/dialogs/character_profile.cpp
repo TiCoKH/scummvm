@@ -155,7 +155,7 @@ void CharacterProfile::drawCombat() {
     s.writeStringC("Encumbrance", 15, 22, 17);
     s.writeStringC(Common::String::format("%d", _poolradPc->encumbrance), 10, 34, 17);
     s.writeStringC("Movement", 15, 25, 18);
-    s.writeStringC(Common::String::format("%d", _poolradPc->baseMovement), 10, 34, 18);
+    s.writeStringC(Common::String::format("%d", _poolradPc->movement.base), 10, 34, 18);
 }
 
 void CharacterProfile::drawItems() {
