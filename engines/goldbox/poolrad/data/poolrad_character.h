@@ -54,7 +54,6 @@ public:
     uint8 highestLevel = 0;
     uint8 creatureSize = 1;
 
-    uint8 baseMovement = 0;
     uint8 hitDice = 0;
     uint8 drainedLevels = 0;
     uint8 drainedHp = 0;
@@ -178,6 +177,10 @@ public:
     // thac0.current and movement.current. The computation uses ScummVM types
     // and current Goldbox data structures (CharacterInventory and ItemProperty).
     void recalcCombatStats();
+
+    // Set current damage and to-hit based on equipped weapon and stats.
+    // Sets current primary dice/sides/modifier and applies STR/DEX, ammo enchantment and racial adjustments.
+    void setDamage();
 
     void setEffect(uint8 type, uint16 durationMin, uint8 power, bool immediate) override {
         effects.addEffect(type, durationMin, power, immediate ? 1 : 0);
