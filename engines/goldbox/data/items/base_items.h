@@ -60,6 +60,17 @@ enum class ItemFlag : uint8 {
     IF_RANGER     = 0x80
 };
 
+enum class MissileFlag : uint8 {
+    MF_RANGED_MELEE = 0x01,
+    MF_MISSILE      = 0x02,
+    MF_THROWING     = 0x04,
+    MF_BOW          = 0x08,
+    MF_DART         = 0x10,
+    MF_FLAG6        = 0x20,
+    MF_FLAG7        = 0x40,
+    MF_CROSSBOW     = 0x80
+};
+
 enum class ScrollType : uint8 {
     ST_PROTECTION = 10,
     ST_MAGE       = 11,
