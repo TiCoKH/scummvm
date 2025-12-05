@@ -55,8 +55,6 @@ public:
     uint8 creatureSize = 1;
 
     uint8 hitDice = 0;
-    uint8 drainedLevels = 0;
-    uint8 drainedHp = 0;
     uint8 undeadResistance = 0;
 
     uint8 monsterType = 0;
@@ -87,9 +85,6 @@ public:
 
     uint8 itemsLimit;
     uint8 itemBytes[56] = {};
-
-    uint8 handsUsed = 0;
-    uint16 encumbrance = 0;
 
     uint32 actions = 0;
 
@@ -171,11 +166,6 @@ public:
     virtual void initializeNewCharacter();
 
     void resolveEquippedItems();
-
-    // Recalculate derived combat stats from inventory and abilities.
-    // This updates: handsUsed, encumbrance, armorClass.current, acRear.current,
-    // thac0.current and movement.current. The computation uses ScummVM types
-    // and current Goldbox data structures (CharacterInventory and ItemProperty).
     void recalcCombatStats();
 
     // Set current damage and to-hit based on equipped weapon and stats.
