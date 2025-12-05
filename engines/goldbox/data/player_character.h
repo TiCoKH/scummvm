@@ -43,6 +43,10 @@ struct Stat {
 	uint8 current; // Modified stat
 
 	Stat() : base(0), current(0) {}
+
+	void resetToBase() {
+		current = base;
+	}
 };
 
 // Combat-related stats stored as 60 - value (e.g. AC 10 is stored as 50)
@@ -51,6 +55,10 @@ struct CombatStat {
 	uint8 current;
 
 	CombatStat() : base(0), current(0) {}
+
+	void resetToBase() {
+		current = base;
+	}
 };
 
 struct StatHP {
@@ -150,6 +158,7 @@ public:
 	uint8 iconDimension;
 
 	Stat movement;
+	uint16 encumbrance;
 
 	// Experience & Level
 	uint32 experiencePoints = 0;
