@@ -158,6 +158,95 @@ const Goldbox::Data::Items::ItemProperty *ADnDCharacter::mainWeaponProp() const 
     return getEquippedProp(Slot::S_MAIN_HAND);
 }
 
+void ADnDCharacter::armorMovementEffect(const Goldbox::Data::Items::CharacterItem *armorItem) {
+    using Slot = Goldbox::Data::Items::Slot;
+    if (!armorItem) return; // No armor equipped, no effect
+
+    const auto &prop = armorItem->prop();
+    // Verify this is actually body armor
+    if (prop.slotID == (uint8)Slot::S_BODY_ARMOR) {
+        // Apply movement effect based on weight and magical bonus
+        const uint16 armorWeight = armorItem->weight;
+
+        // Calculate movement penalty based on weight brackets
+        if (armorWeight < 151) {
+            // Light armor: no penalty
+            movement.current = movement.base;
+        } else if (armorWeight <= 399) {
+            // Medium armor: fixed movement of 9
+            movement.current = 9;
+        } else {
+            // Heavy armor: fixed movement of 6
+            movement.current = 6;
+        }
+        // Magical bonus: if armor is enchanted and movement was reduced, grant +3
+        if (armorItem->bonus != 0 && movement.current < 10)
+            movement.current += 3;
+    }
+    return;
+}
+
+void ADnDCharacter::setItemProtection(const Goldbox::Data::Items::CharacterItem *item,
+                                      AcComponents *acComponents,
+                                      bool *magicArmorWorn) {
+    using Slot = Goldbox::Data::Items::Slot;
+
+    if (!item)
+        return;
+
+    const auto &prop = item->prop();
+    uint8 baseProtectionValue = prop.protect;
+
+    // Check if the 8th bit is set (value >= 0x80).
+    // This is a flag to see if the item offers protection at all.
+    if (!(baseProtectionValue & 0x80))
+        return;
+
+    // Mask the value to get the lower 7 bits (the actual base AC).
+    uint8 baseAC = baseProtectionValue & 0x7F;
+    Slot itemSlot = static_cast<Slot>(prop.slotID);
+
+    // Case 1: Item is a Shield (or in the off-hand slot)
+    if (itemSlot == Slot::S_OFF_HAND) {
+        // Shield AC = Base Shield AC + Magic Bonus
+        acComponents->shield = baseAC + item->bonus;
+        return;
+    }
+
+    // Case 2: Item is protection without base AC (e.g., Ring of Protection, Cloak)
+    if (baseAC == 0) {
+        if (itemSlot == Slot::S_RING1 || itemSlot == Slot::S_RING2) {
+            // For rings, only the best bonus applies, it doesn't stack.
+            if (item->bonus > acComponents->ring)
+                acComponents->ring = item->bonus;
+        } else {
+            // For cloaks, belts, boots, etc., the bonus stacks with other items.
+            int combined = (int)acComponents->misc + (int)item->bonus;
+            acComponents->misc = static_cast<uint8>(CLIP<int>(combined, 0, 255));
+        }
+
+        // Any save bonus from the item is added to the character's total.
+        saveBonus += item->saveBonus;
+        return;
+    }
+
+    // Case 3: Item is Body Armor with a base AC value
+    {
+        int8 totalArmorAC = baseAC + item->bonus;
+        // Update the character's armor value only if this piece is better.
+        if (totalArmorAC > acComponents->armorBase) {
+            acComponents->armorBase = totalArmorAC;
+
+            // If this is magical body armor, set the 'is_magic_armor_worn' flag.
+            // This flag might be used elsewhere to negate other bonuses (e.g., from a Ring of Protection).
+            if (itemSlot == Slot::S_BODY_ARMOR && item->bonus > 0) {
+                *magicArmorWorn = true;
+            }
+        }
+        return;
+    }
+}
+
 // ---- Combat rolls helpers ----
 void ADnDCharacter::setBaseRolls(uint8 priAttacks, uint8 priNum, uint8 priSides, int8 priMod,
                                 uint8 secAttacks, uint8 secNum, uint8 secSides, int8 secMod) {
@@ -188,6 +277,76 @@ void ADnDCharacter::setCurrentRolls(uint8 curPriAttacks, uint8 curPriNum, uint8 
 void ADnDCharacter::resetCurrentRollsFromBase() {
     curPrimaryRoll  = basePrimaryRoll;
     curSecondaryRoll = baseSecondaryRoll;
+}
+
+int ADnDCharacter::getCapacityModifier() const {
+    int t = getStrengthTier();
+
+    if (t == 0) {
+        return 0; // not possible
+    }
+    if (t >= 1 && t <= 3) {
+        return -350;
+    }
+    if (t >= 4 && t <= 5) {
+        return -250;
+    }
+    if (t >= 6 && t <= 7) {
+        return -150;
+    }
+    if (t >= 8 && t <= 11) {
+        return 0;
+    }
+    if (t == 12 || t == 13) {
+        return 100;
+    }
+    if (t == 14 || t == 15) {
+        return 200;
+    }
+    if (t == 16) {
+        return 350;
+    }
+    if (t >= 17 && t <= 21) {
+        // 500 + (t - 17) * 250
+        return 500 + (t - 17) * 250;
+    }
+    if (t >= 22 && t <= 26) {
+        // 2000 + (t - 22) * 1000
+        return 2000 + (t - 22) * 1000;
+    }
+    if (t == 27) {
+        return 7500;
+    }
+    if (t >= 28 && t <= 30) {
+        // 9000 + (t - 28) * 3000
+        return 9000 + (t - 28) * 3000;
+    }
+    debug("ADnDCharacter::getCapacityModifier: invalid strength tier %d", t);
+    return 0;
+}
+
+void ADnDCharacter::setMovement() {
+    int capacityModShort = getCapacityModifier();
+
+    // Effective encumbrance after capacity modifier, clamped to 0.
+    int effectiveEnc = static_cast<int>(encumbrance) - capacityModShort;
+    if (effectiveEnc < 0)
+        effectiveEnc = 0;
+
+    // Determine movement cap based on thresholds, default is no change.
+    uint8 cap = movement.current; // no cap if within the lowest tier
+    if (effectiveEnc > 1024) {
+        cap = 3;
+    } else if (effectiveEnc >= 769) {
+        cap = 6;
+    } else if (effectiveEnc >= 513) {
+        cap = 9;
+    }
+
+    // Only reduce movement; never increase.
+    if (cap < movement.current) {
+        movement.current = cap;
+    }
 }
 
 } // namespace Data

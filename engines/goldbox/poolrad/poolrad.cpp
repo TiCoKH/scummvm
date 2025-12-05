@@ -68,6 +68,7 @@ void PoolradEngine::setup() {
 	}
 	Common::SeekableReadStream &in = items;
 	Engine::gItemProps.load(in);
+	Engine::gItemProps.debugStorage(); //TODO: Remove this line later
 	items.close();
 
 	Surface::setupPalette();
@@ -101,9 +102,9 @@ void PoolradEngine::setup() {
 		auto slice = chunk.slice(0);
 		auto closeForward = slice.region(Goldbox::Data::WalldefRegionId::CLOSE_FORWARD);
 		// Now you can iterate over closeForward to get the tile indices
-		for (uint8 tile : closeForward) {
+		//for (uint8 tile : closeForward) {
 			// Use tile...
-		}
+		//}
 	}
 
 	walldefFile.close();

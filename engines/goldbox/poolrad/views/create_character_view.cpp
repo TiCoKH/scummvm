@@ -466,6 +466,7 @@ void CreateCharacterView::performRerollAndRecompute() {
 	setInitGold();
 	setInitHP();
 	_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
+	_newCharacter->recalcCombatStats();
 }
 
 void CreateCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
