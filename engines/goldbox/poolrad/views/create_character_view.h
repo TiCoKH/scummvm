@@ -95,9 +95,7 @@ private:
     void draw() override;
     void timeout() override;
     bool msgKeypress(const KeypressMessage &msg) override;
-    // (Removed legacy menu helpers present in earlier version)
 
-    // Show race selection dialog
     void chooseRace();
     void chooseGender();
     void chooseClass();
@@ -117,7 +115,6 @@ private:
     void setAge();
     void ageingEffects();
     void applyStatMinMax();
-    // Refactor helpers to separate one-time setup from reroll behavior
     void initializeRollStatsOnce();
     void performRerollAndRecompute();
 

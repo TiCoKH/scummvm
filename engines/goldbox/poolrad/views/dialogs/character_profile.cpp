@@ -31,7 +31,6 @@ void CharacterProfile::draw() {
 }
 
 void CharacterProfile::handleMenuResult(bool success, Common::KeyCode key, short value) {
-    // Forward any child dialog results (e.g., Yes/No prompt) to our parent view
     if (_parent)
         _parent->handleMenuResult(success, key, value);
 }
@@ -41,7 +40,6 @@ void CharacterProfile::redrawStats() {
     if (!_poolradPc)
         return;
     Surface s = getSurface();
-    // Clear a conservative box covering labels and values incl. STR exceptional
     s.clearBox(1, 7, 10, 12, 0);
     drawStats();
 }
@@ -51,8 +49,6 @@ void CharacterProfile::redrawValuables() {
     if (!_poolradPc)
         return;
     Surface s = getSurface();
-    // Names are aligned near column ~20 and values near 22
-    // Clear a conservative region that won't hit level/exp at row 15
     s.clearBox(11, 7, 24, 14, 0);
     drawValuables();
 }
@@ -93,7 +89,6 @@ void CharacterProfile::drawStats() {
             strExStr = "(00)";
         else
             strExStr = Common::String::format("(%02d)", strEx);
-        // Print right after the STR value
         s.writeStringC(strExStr, 10, 7, 7);
     }
     s.writeStringC("INT", 10, 1, 8);
@@ -184,7 +179,7 @@ Common::String CharacterProfile::formatDamageText() const {
         return "";
 
     // Base "X d Y" format with optional modifier
-    Common::String text = Common::String::format("%d", static_cast<int>(_poolradPc->curPrimaryRoll.action.roll.numDice)) +
+	Common::String text = Common::String::format("%d", static_cast<int>(_poolradPc->curPrimaryRoll.action.roll.diceNum)) +
                           "d" +
                           Common::String::format("%d", static_cast<int>(_poolradPc->curPrimaryRoll.action.roll.diceSides));
 

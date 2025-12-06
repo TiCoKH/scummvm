@@ -348,8 +348,8 @@ namespace Data {
 		baseSec.attacks = stream.readByte();
 
 		// 0x0A3–0x0A8: unarmed combat data
-		basePri.action.roll.numDice   = stream.readByte();
-		baseSec.action.roll.numDice   = stream.readByte();
+		basePri.action.roll.diceNum   = stream.readByte();
+		baseSec.action.roll.diceNum = stream.readByte();
 		basePri.action.roll.diceSides = stream.readByte();
 		baseSec.action.roll.diceSides = stream.readByte();
 		basePri.action.modifier       = stream.readSByte();
@@ -422,8 +422,8 @@ namespace Data {
 		curPri.attacks = stream.readByte(); // 0x113
 		curSec.attacks = stream.readByte(); // 0x114
 
-		curPri.action.roll.numDice   = stream.readByte(); // 0x115
-		curSec.action.roll.numDice   = stream.readByte(); // 0x116
+		curPri.action.roll.diceNum   = stream.readByte();   // 0x115
+		curSec.action.roll.diceNum   = stream.readByte();   // 0x116
 		curPri.action.roll.diceSides = stream.readByte(); // 0x117
 		curSec.action.roll.diceSides = stream.readByte(); // 0x118
 		curPri.action.modifier       = stream.readSByte(); // 0x119
@@ -454,12 +454,12 @@ namespace Data {
 
 		// Initialize base rolls to zero
 		basePrimaryRoll.attacks = 0;
-		basePrimaryRoll.action.roll.numDice = 0;
+		basePrimaryRoll.action.roll.diceNum = 0;
 		basePrimaryRoll.action.roll.diceSides = 0;
 		basePrimaryRoll.action.modifier = 0;
 
 		baseSecondaryRoll.attacks = 0;
-		baseSecondaryRoll.action.roll.numDice = 0;
+		baseSecondaryRoll.action.roll.diceNum = 0;
 		baseSecondaryRoll.action.roll.diceSides = 0;
 		baseSecondaryRoll.action.modifier = 0;
 
@@ -481,12 +481,12 @@ namespace Data {
 
 		// Initialize current rolls to zero
 		curPrimaryRoll.attacks = 0;
-		curPrimaryRoll.action.roll.numDice = 0;
+		curPrimaryRoll.action.roll.diceNum = 0;
 		curPrimaryRoll.action.roll.diceSides = 0;
 		curPrimaryRoll.action.modifier = 0;
 
 		curSecondaryRoll.attacks = 0;
-		curSecondaryRoll.action.roll.numDice = 0;
+		curSecondaryRoll.action.roll.diceNum = 0;
 		curSecondaryRoll.action.roll.diceSides = 0;
 		curSecondaryRoll.action.modifier = 0;
 	}
@@ -745,7 +745,7 @@ namespace Data {
 			if ((flagMask & baseBit) == 0)
 				continue; // skip classes not included by mask
 			const Goldbox::Data::DiceRoll &dr = Goldbox::Data::Rules::getHPRoll(base);
-			int roll = VmInterface::rollDice(dr.numDice, dr.diceSides);
+			int roll = VmInterface::rollDice(dr.diceNum, dr.diceSides);
 			int used = roll;
 			if (lvl == 1) {
 				const int minFirstLevel = (2 * dr.diceSides) / 3;
@@ -874,8 +874,8 @@ namespace Data {
 		stream.writeByte(baseSecondaryRoll.attacks);
 
 		// Unarmed / base combat dice: write from base rolls
-		stream.writeByte(basePrimaryRoll.action.roll.numDice);
-		stream.writeByte(baseSecondaryRoll.action.roll.numDice);
+		stream.writeByte(basePrimaryRoll.action.roll.diceNum);
+		stream.writeByte(baseSecondaryRoll.action.roll.diceNum);
 		stream.writeByte(basePrimaryRoll.action.roll.diceSides);
 		stream.writeByte(baseSecondaryRoll.action.roll.diceSides);
 		stream.writeSByte(basePrimaryRoll.action.modifier);
@@ -948,8 +948,8 @@ namespace Data {
 		stream.writeByte(curSecondaryRoll.attacks);
 
 		// Current combat dice (mirror from unified model to preserve save format)
-		stream.writeByte(curPrimaryRoll.action.roll.numDice);
-		stream.writeByte(curSecondaryRoll.action.roll.numDice);
+		stream.writeByte(curPrimaryRoll.action.roll.diceNum);
+		stream.writeByte(curSecondaryRoll.action.roll.diceNum);
 		stream.writeByte(curPrimaryRoll.action.roll.diceSides);
 		stream.writeByte(curSecondaryRoll.action.roll.diceSides);
 		stream.writeSByte(curPrimaryRoll.action.modifier);
@@ -1014,7 +1014,7 @@ namespace Data {
 		const ItemProperty &wp = mainIt->prop();
 
 		// Weapon-equipped: set current damage dice from weapon (small/medium target)
-		curPrimaryRoll.action.roll.numDice = wp.dmgSmallMed.dices;
+		curPrimaryRoll.action.roll.diceNum = wp.dmgSmallMed.dices;
 		curPrimaryRoll.action.roll.diceSides = wp.dmgSmallMed.sides;
 		curPrimaryRoll.action.modifier = wp.dmgSmallMed.bonus;
 
