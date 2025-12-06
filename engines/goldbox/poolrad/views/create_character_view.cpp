@@ -76,19 +76,19 @@ static void logCombatDice(const Goldbox::Poolrad::Data::PoolradCharacter *pc, co
 	debug("CreateChar[%s]: base pri att=%u %ud%u%+d sec att=%u %ud%u%+d | cur pri att=%u %ud%u%+d sec att=%u %ud%u%+d",
 	      tag,
 	      (unsigned)bp.attacks,
-	      (unsigned)bp.action.roll.numDice,
+	      (unsigned)bp.action.roll.diceNum,
 	      (unsigned)bp.action.roll.diceSides,
 	      (int)bp.action.modifier,
 	      (unsigned)bs.attacks,
-	      (unsigned)bs.action.roll.numDice,
+	      (unsigned)bs.action.roll.diceNum,
 	      (unsigned)bs.action.roll.diceSides,
 	      (int)bs.action.modifier,
 	      (unsigned)cp.attacks,
-	      (unsigned)cp.action.roll.numDice,
+	      (unsigned)cp.action.roll.diceNum,
 	      (unsigned)cp.action.roll.diceSides,
 	      (int)cp.action.modifier,
 	      (unsigned)cs.attacks,
-	      (unsigned)cs.action.roll.numDice,
+	      (unsigned)cs.action.roll.diceNum,
 	      (unsigned)cs.action.roll.diceSides,
 	      (int)cs.action.modifier);
 }
@@ -458,11 +458,11 @@ void CreateCharacterView::initializeRollStatsOnce() {
 		Goldbox::Data::CombatRoll pri;
 		Goldbox::Data::CombatRoll sec;
 		pri.attacks = 2;
-		pri.action.roll.numDice = 1;
+		pri.action.roll.diceNum = 1;
 		pri.action.roll.diceSides = 2;
 		pri.action.modifier = 0;
 		sec.attacks = 0;
-		sec.action.roll.numDice = 0;
+		sec.action.roll.diceNum = 0;
 		sec.action.roll.diceSides = 0;
 		sec.action.modifier = 0;
 		_newCharacter->setBasePrimaryRoll(pri);
@@ -934,7 +934,6 @@ void CreateCharacterView::setInitGold() {
 
 	int totalGold = 0;
 	int classCount = 0;
-	debug("setInitGold: start");
 	debug("setInitGold: classType=%u", (unsigned)_newCharacter->classType);
 
 	// Iterate all base classes (0..7) and roll per-class starting gold
@@ -945,19 +944,19 @@ void CreateCharacterView::setInitGold() {
 		debug("setInitGold: base=%u lvl=%u", (unsigned)base, (unsigned)lvl);
 		if (lvl > 0) {
 			const DiceRoll &dr = getInitGoldRoll(base);
-			int classGold = VmInterface::rollDice(dr.numDice, dr.diceSides);
+			int classGold = VmInterface::rollDice(dr.diceNum, dr.diceSides);
 			classGold += 1;
 			totalGold += classGold;
 			++classCount;
 			debug("setInitGold: base=%u lvl=%u roll=%uD%u+1 -> %d",
-				  (unsigned)base, (unsigned)lvl, (unsigned)dr.numDice, (unsigned)dr.diceSides, classGold);
+				  (unsigned)base, (unsigned)lvl, (unsigned)dr.diceNum, (unsigned)dr.diceSides, classGold);
 		} else {
 			debug("setInitGold: skipping base=%u (lvl==0)", (unsigned)base);
 		}
 	}
 
 	// Average across classes (truncate)
-	uint16 finalGold = (classCount > 0) ? static_cast<uint16>((totalGold * 10) / classCount) : 0;
+	uint16 finalGold = (classCount > 0) ? static_cast<uint16>((totalGold / classCount) * 10) : 0;
 	_newCharacter->valuableItems[VAL_GOLD] = finalGold;
 	debug("setInitGold: classes=%d total=%d avg=%u (final gold)", classCount, totalGold, (unsigned)finalGold);
 	if (classCount == 0) {
