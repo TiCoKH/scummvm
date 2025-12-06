@@ -34,23 +34,6 @@
 namespace Goldbox {
 namespace Data {
 
-// Grouping for equipment addresses; these fields hold the file–offset addresses for equipped items.
-struct EquipmentAddresses {
-	uint32 equippedWeapon;
-	uint32 equippedShield;
-	uint32 equippedArmor;
-	uint32 equippedGauntlets;
-	uint32 equippedHelm;
-	uint32 equippedBelt;
-	uint32 equippedRobe;
-	uint32 equippedCloak;
-	uint32 equippedBoots;
-	uint32 equippedRing1;
-	uint32 equippedRing2;
-	uint32 equippedArrow;
-	uint32 equippedBolt;
-};
-
 // The base class for player characters.
 // This class defines the core (common) data and behavior shared among AD&D–based games.
 class ADnDCharacter : public PlayerCharacter {
@@ -75,7 +58,6 @@ public:
 	int8 numOfItems;
 	uint32 itemsAddress;
 
-	EquipmentAddresses equipment;  // Addresses of equipped items
 	uint8 handsEquipped;
 	uint8 saveBonus;
 

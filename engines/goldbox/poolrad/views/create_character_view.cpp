@@ -63,6 +63,30 @@ inline void detachAndDelete(T *&ptr) {
 		ptr = nullptr;
 	}
 }
+
+static void logCombatDice(const Goldbox::Poolrad::Data::PoolradCharacter *pc, const char *tag) {
+	if (!pc)
+		return;
+
+	debug("CreateChar[%s]: base pri att=%u %ud%u%+d sec att=%u %ud%u%+d | cur pri att=%u %ud%u%+d sec att=%u %ud%u%+d",
+	      tag,
+	      (unsigned)pc->primaryAttacks,
+	      (unsigned)pc->priDmgDiceNum,
+	      (unsigned)pc->priDmgDiceSides,
+	      (int)pc->priDmgModifier,
+	      (unsigned)pc->secondaryAttacks,
+	      (unsigned)pc->secDmgDiceNum,
+	      (unsigned)pc->secDmgDiceSides,
+	      (int)pc->secDmgModifier,
+	      (unsigned)pc->curPriAttacks,
+	      (unsigned)pc->curPriDiceNum,
+	      (unsigned)pc->curPriDiceSides,
+	      (int)pc->curPriBonus,
+	      (unsigned)pc->curSecAttacks,
+	      (unsigned)pc->curSecDiceNum,
+	      (unsigned)pc->curSecDiceSides,
+	      (int)pc->curSecBonus);
+}
 } // anonymous namespace
 
 const char PICK_RACE[] = "Pick Race";
@@ -467,6 +491,8 @@ void CreateCharacterView::performRerollAndRecompute() {
 	setInitHP();
 	_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
 	_newCharacter->recalcCombatStats();
+
+	logCombatDice(_newCharacter, "reroll");
 }
 
 void CreateCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
