@@ -289,7 +289,7 @@ struct ClassMinStats {
 };
 
 struct DiceRoll {
-    uint8 numDice;
+    uint8 diceNum;
     uint8 diceSides;
 };
 
