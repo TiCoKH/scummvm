@@ -42,8 +42,6 @@ public:
 	SpellData spells;              // Memorized spells or spell book data
 	SavingThrows savingThrows;      // Saving throw values (protections)
 
-	CombatData combat;             // Combat-related data (e.g., THAC0)
-
 	uint8 attackLevel;
 	uint8 drainedLevels;
 	uint8 drainedHPs;
@@ -68,11 +66,10 @@ public:
 	// Maps legacy per-hand fields into a portable representation.
 	// 'attacks' = attacks per round; 'rolls' = number of damage dice;
 	// 'dice' = sides per die; 'modifier' = flat damage modifier (signed).
-	Goldbox::Data::CombatRolls basePrimaryRoll;    // legacy: primaryAttacks, priDmgDiceNum/Sides, priDmgModifier
-	Goldbox::Data::CombatRolls baseSecondaryRoll;  // legacy: secondaryAttacks, secDmgDiceNum/Sides, secDmgModifier
-	Goldbox::Data::CombatRolls curPrimaryRoll;     // legacy: curPriAttacks, curPriDiceNum/Sides, curPriBonus
-	Goldbox::Data::CombatRolls curSecondaryRoll;   // legacy: curSecAttacks, curSecDiceNum/Sides, curSecBonus
-
+	Goldbox::Data::CombatRoll basePrimaryRoll;
+	Goldbox::Data::CombatRoll baseSecondaryRoll;
+	Goldbox::Data::CombatRoll curPrimaryRoll;
+	Goldbox::Data::CombatRoll curSecondaryRoll;
 	// --------------------------------------------------------------------
 	// New, engine-friendly equipped items mapping (slot -> inventory index)
 	// Kept alongside the legacy 32-bit pointer addresses for savefile
@@ -182,13 +179,16 @@ public:
 	// Common utility methods
 
 	// ---- Combat rolls helpers ----
-	// Initialize base rolls from discrete legacy components.
-	void setBaseRolls(uint8 priAttacks, uint8 priNum, uint8 priSides, int8 priMod,
-					  uint8 secAttacks, uint8 secNum, uint8 secSides, int8 secMod);
+	// Accessors for combat rolls
+	const Goldbox::Data::CombatRoll &getBasePrimaryRoll() const { return basePrimaryRoll; }
+	const Goldbox::Data::CombatRoll &getBaseSecondaryRoll() const { return baseSecondaryRoll; }
+	const Goldbox::Data::CombatRoll &getCurrentPrimaryRoll() const { return curPrimaryRoll; }
+	const Goldbox::Data::CombatRoll &getCurrentSecondaryRoll() const { return curSecondaryRoll; }
 
-	// Initialize current rolls from discrete legacy components.
-	void setCurrentRolls(uint8 curPriAttacks, uint8 curPriNum, uint8 curPriSides, int8 curPriMod,
-						 uint8 curSecAttacks, uint8 curSecNum, uint8 curSecSides, int8 curSecMod);
+	void setBasePrimaryRoll(const Goldbox::Data::CombatRoll &roll) { basePrimaryRoll = roll; }
+	void setBaseSecondaryRoll(const Goldbox::Data::CombatRoll &roll) { baseSecondaryRoll = roll; }
+	void setCurrentPrimaryRoll(const Goldbox::Data::CombatRoll &roll) { curPrimaryRoll = roll; }
+	void setCurrentSecondaryRoll(const Goldbox::Data::CombatRoll &roll) { curSecondaryRoll = roll; }
 
 	// Reset current rolls back to base values (used at combat start / rest etc.).
 	void resetCurrentRollsFromBase();
