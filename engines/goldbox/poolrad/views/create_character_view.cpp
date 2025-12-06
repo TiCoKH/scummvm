@@ -68,24 +68,29 @@ static void logCombatDice(const Goldbox::Poolrad::Data::PoolradCharacter *pc, co
 	if (!pc)
 		return;
 
+	const Goldbox::Data::CombatRoll &bp = pc->getBasePrimaryRoll();
+	const Goldbox::Data::CombatRoll &bs = pc->getBaseSecondaryRoll();
+	const Goldbox::Data::CombatRoll &cp = pc->getCurrentPrimaryRoll();
+	const Goldbox::Data::CombatRoll &cs = pc->getCurrentSecondaryRoll();
+
 	debug("CreateChar[%s]: base pri att=%u %ud%u%+d sec att=%u %ud%u%+d | cur pri att=%u %ud%u%+d sec att=%u %ud%u%+d",
 	      tag,
-	      (unsigned)pc->primaryAttacks,
-	      (unsigned)pc->priDmgDiceNum,
-	      (unsigned)pc->priDmgDiceSides,
-	      (int)pc->priDmgModifier,
-	      (unsigned)pc->secondaryAttacks,
-	      (unsigned)pc->secDmgDiceNum,
-	      (unsigned)pc->secDmgDiceSides,
-	      (int)pc->secDmgModifier,
-	      (unsigned)pc->curPriAttacks,
-	      (unsigned)pc->curPriDiceNum,
-	      (unsigned)pc->curPriDiceSides,
-	      (int)pc->curPriBonus,
-	      (unsigned)pc->curSecAttacks,
-	      (unsigned)pc->curSecDiceNum,
-	      (unsigned)pc->curSecDiceSides,
-	      (int)pc->curSecBonus);
+	      (unsigned)bp.attacks,
+	      (unsigned)bp.action.roll.numDice,
+	      (unsigned)bp.action.roll.diceSides,
+	      (int)bp.action.modifier,
+	      (unsigned)bs.attacks,
+	      (unsigned)bs.action.roll.numDice,
+	      (unsigned)bs.action.roll.diceSides,
+	      (int)bs.action.modifier,
+	      (unsigned)cp.attacks,
+	      (unsigned)cp.action.roll.numDice,
+	      (unsigned)cp.action.roll.diceSides,
+	      (int)cp.action.modifier,
+	      (unsigned)cs.attacks,
+	      (unsigned)cs.action.roll.numDice,
+	      (unsigned)cs.action.roll.diceSides,
+	      (int)cs.action.modifier);
 }
 } // anonymous namespace
 
@@ -448,17 +453,30 @@ void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
 
 // One-time initialization when entering the ROLLSTATS stage the first time
 void CreateCharacterView::initializeRollStatsOnce() {
+	// Seed base unarmed rolls before any recompute so current rolls mirror them
+	if (_newCharacter) {
+		Goldbox::Data::CombatRoll pri;
+		Goldbox::Data::CombatRoll sec;
+		pri.attacks = 2;
+		pri.action.roll.numDice = 1;
+		pri.action.roll.diceSides = 2;
+		pri.action.modifier = 0;
+		sec.attacks = 0;
+		sec.action.roll.numDice = 0;
+		sec.action.roll.diceSides = 0;
+		sec.action.modifier = 0;
+		_newCharacter->setBasePrimaryRoll(pri);
+		_newCharacter->setBaseSecondaryRoll(sec);
+		_newCharacter->setCurrentPrimaryRoll(pri);
+		_newCharacter->setCurrentSecondaryRoll(sec);
+		_newCharacter->strengthBonusAllowed = 1;
+		_newCharacter->movement.base = 12;
+	}
+
 	// Run a first reroll-and-recompute to populate all dynamic values
 	performRerollAndRecompute();
 
-	// Static/default combat/movement parameters for a fresh character
-	if (_newCharacter) {
-		_newCharacter->primaryAttacks = 2;
-		_newCharacter->priDmgDiceNum = 1;
-		_newCharacter->priDmgDiceSides = 2;
-	_newCharacter->strengthBonusAllowed = 1;
-	_newCharacter->movement.base = 12;
-	}
+	logCombatDice(_newCharacter, "init");
 
 	_hasRolled = true;
 }

@@ -287,7 +287,7 @@ namespace Data {
 		stream.read(spells.memorizedSpells, 21);
 		// 0x02C: unknown
 		stream.seek(0x2D, SEEK_SET);
-		combat.thac0Base = stream.readByte(); // 0x02D
+		thac0.base = stream.readByte(); // 0x02D
 
 		race       = stream.readByte(); // 0x02E
 		classType  = stream.readByte(); // 0x02F
@@ -307,7 +307,7 @@ namespace Data {
 		savingThrows.vsBreathWeapon  = stream.readByte(); // 0x070
 		savingThrows.vsSpell         = stream.readByte(); // 0x071
 
-	movement.base = stream.readByte();      // 0x072
+		movement.base = stream.readByte();      // 0x072
 		highestLevel = stream.readByte();      // 0x073
 		drainedLevels = stream.readByte();     // 0x074
 		drainedHPs = stream.readByte();         // 0x075
@@ -342,26 +342,22 @@ namespace Data {
 		alignment = stream.readByte();                       // 0x0A0
 
 		// 0x0A1–0x0A2: primary & secondary attacks ×2
-		primaryAttacks   = stream.readByte();
-		secondaryAttacks = stream.readByte();
+		Goldbox::Data::CombatRoll basePri;
+		Goldbox::Data::CombatRoll baseSec;
+		basePri.attacks = stream.readByte();
+		baseSec.attacks = stream.readByte();
 
 		// 0x0A3–0x0A8: unarmed combat data
-		priDmgDiceNum     = stream.readByte();
-		secDmgDiceNum     = stream.readByte();
-		priDmgDiceSides   = stream.readByte();
-		secDmgDiceSides   = stream.readByte();
-		priDmgModifier    = stream.readSByte();
-		secDmgModifier    = stream.readSByte();
+		basePri.action.roll.numDice   = stream.readByte();
+		baseSec.action.roll.numDice   = stream.readByte();
+		basePri.action.roll.diceSides = stream.readByte();
+		baseSec.action.roll.diceSides = stream.readByte();
+		basePri.action.modifier       = stream.readSByte();
+		baseSec.action.modifier       = stream.readSByte();
 
-		// Initialize unified combat rolls model in base class
-		setBaseRolls(primaryAttacks,
-					priDmgDiceNum,
-					priDmgDiceSides,
-					priDmgModifier,
-					secondaryAttacks,
-					secDmgDiceNum,
-					secDmgDiceSides,
-					secDmgModifier);
+
+		setBasePrimaryRoll(basePri);
+		setBaseSecondaryRoll(baseSec);
 
 		armorClass.base = stream.readByte();          // 0x0A9
 		strengthBonusAllowed = stream.readByte();     // 0x0AA
@@ -372,13 +368,13 @@ namespace Data {
 		itemsLimit = stream.readByte(); // 0x0B0:
 		hitPointsRolled = stream.readByte(); // 0x0B1
 
-	// 0x0B2–0x0B7: spell slot capacities (how many can be memorized)
-	spellSlots.cleric.level1    = stream.readByte(); // cleric 1
-	spellSlots.cleric.level2    = stream.readByte(); // cleric 2
-	spellSlots.cleric.level3    = stream.readByte(); // cleric 3
-	spellSlots.magicUser.level1 = stream.readByte(); // magic-user 1
-	spellSlots.magicUser.level2 = stream.readByte(); // magic-user 2
-	spellSlots.magicUser.level3 = stream.readByte(); // magic-user 3
+		// 0x0B2–0x0B7: spell slot capacities (how many can be memorized)
+		spellSlots.cleric.level1    = stream.readByte(); // cleric 1
+		spellSlots.cleric.level2    = stream.readByte(); // cleric 2
+		spellSlots.cleric.level3    = stream.readByte(); // cleric 3
+		spellSlots.magicUser.level1 = stream.readByte(); // magic-user 1
+		spellSlots.magicUser.level2 = stream.readByte(); // magic-user 2
+		spellSlots.magicUser.level3 = stream.readByte(); // magic-user 3
 
 		xpForDefeating = stream.readUint16LE(); // 0x0B8–0x0B9
 		bonusXpPerHp = stream.readByte();       // 0x0BA
@@ -391,12 +387,12 @@ namespace Data {
 		orderNumber = stream.readByte();       // 0x0BF
 		iconData.iconSize = stream.readByte(); // 0x0C0
 
-		iconData.setBody(stream.readByte());     // 0x0C1
-		iconData.setArm(stream.readByte());      // 0x0C2
-		iconData.setLeg(stream.readByte());      // 0x0C3
-		iconData.setHairFace(stream.readByte()); // 0x0C4
-		iconData.setShield(stream.readByte());   // 0x0C5
-		iconData.setWeapon(stream.readByte());   // 0x0C6
+		iconData.setBodyColor(stream.readByte());     // 0x0C1
+		iconData.setArmColor(stream.readByte());      // 0x0C2
+		iconData.setLegColor(stream.readByte());      // 0x0C3
+		iconData.setHairFaceColor(stream.readByte()); // 0x0C4
+		iconData.setShieldColor(stream.readByte());   // 0x0C5
+		iconData.setWeaponColor(stream.readByte());   // 0x0C6
 
 		numOfItems = stream.readByte();          // 0x0C7
 		itemsAddress = stream.readUint32LE();    // 0x0C8–0x0CB — pointer
@@ -421,25 +417,21 @@ namespace Data {
 		armorClass.current   = stream.readByte(); // 0x111
 		acRear.current       = stream.readByte(); // 0x112
 
-		curPriAttacks = stream.readByte(); // 0x113
-		curSecAttacks = stream.readByte(); // 0x114
+		Goldbox::Data::CombatRoll curPri;
+		Goldbox::Data::CombatRoll curSec;
+		curPri.attacks = stream.readByte(); // 0x113
+		curSec.attacks = stream.readByte(); // 0x114
 
-		curPriDiceNum   = stream.readByte(); // 0x115
-		curSecDiceNum   = stream.readByte(); // 0x116
-		curPriDiceSides = stream.readByte(); // 0x117
-		curSecDiceSides = stream.readByte(); // 0x118
-		curPriBonus     = stream.readSByte(); // 0x119
-		curSecBonus     = stream.readSByte(); // 0x11A
+		curPri.action.roll.numDice   = stream.readByte(); // 0x115
+		curSec.action.roll.numDice   = stream.readByte(); // 0x116
+		curPri.action.roll.diceSides = stream.readByte(); // 0x117
+		curSec.action.roll.diceSides = stream.readByte(); // 0x118
+		curPri.action.modifier       = stream.readSByte(); // 0x119
+		curSec.action.modifier       = stream.readSByte(); // 0x11A
 
-		// Mirror current legacy values into unified model
-		setCurrentRolls(primaryAttacks,
-					   curPriDiceNum,
-					   curPriDiceSides,
-					   curPriBonus,
-					   secondaryAttacks,
-					   curSecDiceNum,
-					   curSecDiceSides,
-					   curSecBonus);
+
+		setCurrentPrimaryRoll(curPri);
+		setCurrentSecondaryRoll(curSec);
 
 		hitPoints.current = stream.readByte(); // 0x11B
 		movement.current  = stream.readByte(); // 0x11C
@@ -459,14 +451,18 @@ namespace Data {
 		drainedHPs = 0;
 		undeadResistance = 0;
 		monsterType = 0;
-		primaryAttacks = 0;
-		secondaryAttacks = 0;
-		priDmgDiceNum = 0;
-		secDmgDiceNum = 0;
-		priDmgDiceSides = 0;
-		secDmgDiceSides = 0;
-		priDmgModifier = 0;
-		secDmgModifier = 0;
+
+		// Initialize base rolls to zero
+		basePrimaryRoll.attacks = 0;
+		basePrimaryRoll.action.roll.numDice = 0;
+		basePrimaryRoll.action.roll.diceSides = 0;
+		basePrimaryRoll.action.modifier = 0;
+
+		baseSecondaryRoll.attacks = 0;
+		baseSecondaryRoll.action.roll.numDice = 0;
+		baseSecondaryRoll.action.roll.diceSides = 0;
+		baseSecondaryRoll.action.modifier = 0;
+
 		strengthBonusAllowed = 0;
 		combatIcon = 0;
 		hitPointsRolled = 0;
@@ -482,26 +478,29 @@ namespace Data {
 		quickfight = false;
 		npc = 0;
 		modified = 0;
-		curPriAttacks = 0;
-		curSecAttacks = 0;
-		curPriDiceNum = 0;
-		curSecDiceNum = 0;
-		curPriDiceSides = 0;
-		curSecDiceSides = 0;
-		curPriBonus = 0;
-		curSecBonus = 0;
+
+		// Initialize current rolls to zero
+		curPrimaryRoll.attacks = 0;
+		curPrimaryRoll.action.roll.numDice = 0;
+		curPrimaryRoll.action.roll.diceSides = 0;
+		curPrimaryRoll.action.modifier = 0;
+
+		curSecondaryRoll.attacks = 0;
+		curSecondaryRoll.action.roll.numDice = 0;
+		curSecondaryRoll.action.roll.diceSides = 0;
+		curSecondaryRoll.action.modifier = 0;
 	}
 
 	void PoolradCharacter::initializeNewCharacter() {
 		// Base (likely DOS) defaults for a newly generated character.
 		// Other platforms (Amiga / PC-98, etc.) can override this method to
 		// customize icon color layout, starting combat stats, etc.
-		iconData.setBody(getBaseIconColor(1));
-		iconData.setArm(getBaseIconColor(2));
-		iconData.setLeg(getBaseIconColor(3));
-		iconData.setHairFace(getBaseIconColor(4));
-		iconData.setShield(getBaseIconColor(5));
-		iconData.setWeapon(getBaseIconColor(6));
+		iconData.setBodyColor(getBaseIconColor(1));
+		iconData.setArmColor(getBaseIconColor(2));
+		iconData.setLegColor(getBaseIconColor(3));
+		iconData.setHairFaceColor(getBaseIconColor(4));
+		iconData.setShieldColor(getBaseIconColor(5));
+		iconData.setWeaponColor(getBaseIconColor(6));
 
 		armorClass.base = 50; // TODO: verify platform-specific baseline
 		thac0.base = 40;      // TODO: verify platform-specific baseline
@@ -643,7 +642,7 @@ namespace Data {
 			// To-hit: add Strength bonus to stored THAC0 (60-THAC0 space)
 			thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
 			// Damage: add melee damage bonus to current primary damage modifier
-			curPriBonus = static_cast<int8>(CLIP<int>((int)curPriBonus + (int)getMeleeDamageBonus(), -128, 127));
+			curPrimaryRoll.action.modifier = static_cast<int8>(CLIP<int>((int)curPrimaryRoll.action.modifier + (int)getMeleeDamageBonus(), -128, 127));
 		}
 
 		// Compute current to-hit and damage rolls from equipped weapon and stats
@@ -812,7 +811,7 @@ namespace Data {
 		stream.writeByte(0); // Unknown at 0x02C
 
 		// Combat
-		stream.writeByte(combat.thac0Base);
+		stream.writeByte(thac0.base);
 
 		stream.writeByte(race);
 		stream.writeByte(classType);
@@ -870,21 +869,21 @@ namespace Data {
 		stream.writeByte(monsterType);
 		stream.writeByte(alignment);
 
-		// Attacks
-		stream.writeByte(primaryAttacks);
-		stream.writeByte(secondaryAttacks);
+		// Attacks: write from base rolls
+		stream.writeByte(basePrimaryRoll.attacks);
+		stream.writeByte(baseSecondaryRoll.attacks);
 
-		// Unarmed / base combat dice
-		stream.writeByte(priDmgDiceNum);
-		stream.writeByte(secDmgDiceNum);
-		stream.writeByte(priDmgDiceSides);
-		stream.writeByte(secDmgDiceSides);
-		stream.writeSByte(priDmgModifier);
-		stream.writeSByte(secDmgModifier);
+		// Unarmed / base combat dice: write from base rolls
+		stream.writeByte(basePrimaryRoll.action.roll.numDice);
+		stream.writeByte(baseSecondaryRoll.action.roll.numDice);
+		stream.writeByte(basePrimaryRoll.action.roll.diceSides);
+		stream.writeByte(baseSecondaryRoll.action.roll.diceSides);
+		stream.writeSByte(basePrimaryRoll.action.modifier);
+		stream.writeSByte(baseSecondaryRoll.action.modifier);
 
 		stream.writeByte(armorClass.base);
 		stream.writeByte(strengthBonusAllowed);
-		stream.writeByte(combatIcon);
+		stream.writeByte(combatIcon);  //TODO: verify if combatIcon is saved here
 
 		stream.writeUint32LE(experiencePoints);
 
@@ -945,16 +944,16 @@ namespace Data {
 		stream.writeByte(armorClass.current);
 		stream.writeByte(acRear.current);
 
-		stream.writeByte(curPriAttacks);
-		stream.writeByte(curSecAttacks);
+		stream.writeByte(curPrimaryRoll.attacks);
+		stream.writeByte(curSecondaryRoll.attacks);
 
 		// Current combat dice (mirror from unified model to preserve save format)
-		stream.writeByte(curPriDiceNum);
-		stream.writeByte(curSecDiceNum);
-		stream.writeByte(curPriDiceSides);
-		stream.writeByte(curSecDiceSides);
-		stream.writeSByte(curPriBonus);
-		stream.writeSByte(curSecBonus);
+		stream.writeByte(curPrimaryRoll.action.roll.numDice);
+		stream.writeByte(curSecondaryRoll.action.roll.numDice);
+		stream.writeByte(curPrimaryRoll.action.roll.diceSides);
+		stream.writeByte(curSecondaryRoll.action.roll.diceSides);
+		stream.writeSByte(curPrimaryRoll.action.modifier);
+		stream.writeSByte(curSecondaryRoll.action.modifier);
 
 		stream.writeByte(hitPoints.current);
 		stream.writeByte(movement.current);
@@ -1007,20 +1006,17 @@ namespace Data {
 		if (!mainIt) {
 			// Unarmed: apply STR bonuses to hit and damage
 			thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
-			curPriBonus = static_cast<int8>(CLIP<int>((int)curPriBonus + (int)getMeleeDamageBonus(), -128, 127));
-			curPrimaryRoll.modifier = curPriBonus;
+			int8 bonus = static_cast<int8>(CLIP<int>((int)curPrimaryRoll.action.modifier + (int)getMeleeDamageBonus(), -128, 127));
+			curPrimaryRoll.action.modifier = bonus;
 			return;
 		}
 
 		const ItemProperty &wp = mainIt->prop();
 
 		// Weapon-equipped: set current damage dice from weapon (small/medium target)
-		curPriDiceNum   = wp.dmgSmallMed.dices;
-		curPriDiceSides = wp.dmgSmallMed.sides;
-		curPriBonus     = wp.dmgSmallMed.bonus;
-		curPrimaryRoll.rolls    = curPriDiceNum;
-		curPrimaryRoll.dice     = curPriDiceSides;
-		curPrimaryRoll.modifier = curPriBonus;
+		curPrimaryRoll.action.roll.numDice = wp.dmgSmallMed.dices;
+		curPrimaryRoll.action.roll.diceSides = wp.dmgSmallMed.sides;
+		curPrimaryRoll.action.modifier = wp.dmgSmallMed.bonus;
 
 		// Ranged vs melee: apply appropriate ability-based bonuses
 		if (wp.missileType != 0) {
@@ -1029,8 +1025,8 @@ namespace Data {
 		} else {
 			// Melee: STR bonuses to hit and damage
 			thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
-			curPriBonus = static_cast<int8>(CLIP<int>((int)curPriBonus + (int)getMeleeDamageBonus(), -128, 127));
-			curPrimaryRoll.modifier = curPriBonus;
+			int8 bonus = static_cast<int8>(CLIP<int>((int)curPrimaryRoll.action.modifier + (int)getMeleeDamageBonus(), -128, 127));
+			curPrimaryRoll.action.modifier = bonus;
 		}
 
 		// Enchantment bonuses: weapon + matching ammo (for ranged)
@@ -1045,8 +1041,8 @@ namespace Data {
 		}
 
 		// Apply enchantment to damage modifier first
-		curPriBonus = static_cast<int8>(CLIP<int>((int)curPriBonus + enchant, -128, 127));
-		curPrimaryRoll.modifier = curPriBonus;
+		int8 bonus = static_cast<int8>(CLIP<int>((int)curPrimaryRoll.action.modifier + enchant, -128, 127));
+		curPrimaryRoll.action.modifier = bonus;
 
 		// Elf racial to-hit +1 for specific weapons (typeIndex: 0x24,0x25,0x29..0x2C)
 		int toHitAdd = enchant;

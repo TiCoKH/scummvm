@@ -247,35 +247,8 @@ void ADnDCharacter::setItemProtection(const Goldbox::Data::Items::CharacterItem 
     }
 }
 
-// ---- Combat rolls helpers ----
-void ADnDCharacter::setBaseRolls(uint8 priAttacks, uint8 priNum, uint8 priSides, int8 priMod,
-                                uint8 secAttacks, uint8 secNum, uint8 secSides, int8 secMod) {
-    basePrimaryRoll.attacks  = priAttacks;
-    basePrimaryRoll.rolls    = priNum;
-    basePrimaryRoll.dice     = priSides;
-    basePrimaryRoll.modifier = priMod;
-
-    baseSecondaryRoll.attacks  = secAttacks;
-    baseSecondaryRoll.rolls    = secNum;
-    baseSecondaryRoll.dice     = secSides;
-    baseSecondaryRoll.modifier = secMod;
-}
-
-void ADnDCharacter::setCurrentRolls(uint8 curPriAttacks, uint8 curPriNum, uint8 curPriSides, int8 curPriMod,
-                                   uint8 curSecAttacks, uint8 curSecNum, uint8 curSecSides, int8 curSecMod) {
-    curPrimaryRoll.attacks  = curPriAttacks;
-    curPrimaryRoll.rolls    = curPriNum;
-    curPrimaryRoll.dice     = curPriSides;
-    curPrimaryRoll.modifier = curPriMod;
-
-    curSecondaryRoll.attacks  = curSecAttacks;
-    curSecondaryRoll.rolls    = curSecNum;
-    curSecondaryRoll.dice     = curSecSides;
-    curSecondaryRoll.modifier = curSecMod;
-}
-
 void ADnDCharacter::resetCurrentRollsFromBase() {
-    curPrimaryRoll  = basePrimaryRoll;
+    curPrimaryRoll   = basePrimaryRoll;
     curSecondaryRoll = baseSecondaryRoll;
 }
 

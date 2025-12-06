@@ -184,12 +184,12 @@ Common::String CharacterProfile::formatDamageText() const {
         return "";
 
     // Base "X d Y" format with optional modifier
-    Common::String text = Common::String::format("%d", static_cast<int>(_poolradPc->curPriDiceNum)) +
+    Common::String text = Common::String::format("%d", static_cast<int>(_poolradPc->curPrimaryRoll.action.roll.numDice)) +
                           "d" +
-                          Common::String::format("%d", static_cast<int>(_poolradPc->curPriDiceSides));
+                          Common::String::format("%d", static_cast<int>(_poolradPc->curPrimaryRoll.action.roll.diceSides));
 
-    if (_poolradPc->curPriBonus != 0) {
-        text += Common::String::format("%+d", static_cast<int>(_poolradPc->curPriBonus));
+    if (_poolradPc->curPrimaryRoll.action.modifier != 0) {
+        text += Common::String::format("%+d", static_cast<int>(_poolradPc->curPrimaryRoll.action.modifier));
     }
 
     return text;
