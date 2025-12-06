@@ -293,6 +293,11 @@ struct DiceRoll {
     uint8 diceSides;
 };
 
+struct ActionRoll {
+    DiceRoll roll;  
+    int8 modifier;
+};
+
 struct SpellSlots {
     uint8 level1;
     uint8 level2;
