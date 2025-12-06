@@ -321,18 +321,10 @@ struct LevelUpInfo {
     SpellSlots SlotsByLevel[8];
 };
 
-// Combat primitive set (extend if needed).
-struct CombatData {
-    uint8 thac0Base;
-    uint8 attackLevel;
-};
-
-// Attack roll pattern (optional usage).
-struct CombatRolls {
-    uint8 attacks;
-    uint8 rolls;
-    uint8 dice;
-    int8 modifier;
+// Attack roll pattern: number of attacks plus a dice action (XdY +/- mod).
+struct CombatRoll {
+    uint attacks;  // attacks per round
+    ActionRoll action; // dice + modifier for a single attack
 };
 
 // Grouping for level data; one field per class type supported.

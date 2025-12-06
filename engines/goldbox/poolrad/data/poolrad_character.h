@@ -58,6 +58,7 @@ public:
     uint8 undeadResistance = 0;
 
     uint8 monsterType = 0;
+    uint8 combatIcon = 0; // probably used in monsters
 
     // No SpellBook abstraction; we use legacy arrays directly for compatibility
     // Legacy fields for binary compatibility
@@ -68,13 +69,6 @@ public:
 
     Equipment equipment;
     uint32 equippedOffsets[EQUIPMENT_SLOT_COUNT];
-
-    // Combat detail
-    uint8 primaryAttacks = 0, secondaryAttacks = 0;
-    uint8 priDmgDiceNum = 0, secDmgDiceNum = 0;
-    uint8 priDmgDiceSides = 0, secDmgDiceSides = 0;
-    int8 priDmgModifier = 0, secDmgModifier = 0;
-    uint8 combatIcon = 0;
 
     uint8 hitPointsRolled = 0;
     Goldbox::Data::ClassSpellSlots spellSlots{};
@@ -89,14 +83,6 @@ public:
     uint32 actions = 0;
 
     Goldbox::Data::CombatStat acRear;
-
-    // Attacks left
-    uint8 curPriAttacks = 0, curSecAttacks = 0;
-
-    // Damage dice (current)
-    uint8 curPriDiceNum = 0, curSecDiceNum = 0;
-    uint8 curPriDiceSides = 0, curSecDiceSides = 0;
-    int8 curPriBonus = 0, curSecBonus = 0;
 
     PoolradCharacter();
 
