@@ -43,6 +43,13 @@ public:
     void drawItems();
     void drawStatus();
     void drawPortrait();
+
+private:
+    /**
+     * Format damage text in "XdY" or "XdY+Z" format.
+     * @return Formatted damage string from current primary weapon damage values.
+     */
+    Common::String formatDamageText() const;
 };
 
 } // namespace Dialogs

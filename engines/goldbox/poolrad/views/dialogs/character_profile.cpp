@@ -146,12 +146,13 @@ void CharacterProfile::drawLevelExp() {
 void CharacterProfile::drawCombat() {
     Surface s = getSurface();
     s.writeStringC("AC", 15, 1, 17);
-    s.writeStringC(Common::String::format("%d", _poolradPc->armorClass.current), 10, 4, 17);
+    s.writeStringC(Common::String::format("%d", _poolradPc->armorClass.getCurrent()), 10, 4, 17);
     s.writeStringC("HP", 15, 1, 18);
     s.writeStringC(Common::String::format("%d", _poolradPc->hitPoints.current), 10, 4, 18);
     s.writeStringC("THAC0", 15, 9, 17);
-    s.writeStringC(Common::String::format("%d", _poolradPc->thac0.current), 10, 15, 17);
+    s.writeStringC(Common::String::format("%d", _poolradPc->thac0.getCurrent()), 10, 15, 17);
 	s.writeStringC("Damage", 15, 8, 18);
+    s.writeStringC(formatDamageText(), 10, 15, 18);
     s.writeStringC("Encumbrance", 15, 22, 17);
     s.writeStringC(Common::String::format("%d", _poolradPc->encumbrance), 10, 34, 17);
     s.writeStringC("Movement", 15, 25, 18);
@@ -176,6 +177,22 @@ void CharacterProfile::drawPortrait() {
     drawWindow(28, 1, 38, 11);
     Surface s = getSurface();
 
+}
+
+Common::String CharacterProfile::formatDamageText() const {
+    if (!_poolradPc)
+        return "";
+
+    // Base "X d Y" format with optional modifier
+    Common::String text = Common::String::format("%d", static_cast<int>(_poolradPc->curPriDiceNum)) +
+                          "d" +
+                          Common::String::format("%d", static_cast<int>(_poolradPc->curPriDiceSides));
+
+    if (_poolradPc->curPriBonus != 0) {
+        text += Common::String::format("%+d", static_cast<int>(_poolradPc->curPriBonus));
+    }
+
+    return text;
 }
 
 } // namespace Dialogs

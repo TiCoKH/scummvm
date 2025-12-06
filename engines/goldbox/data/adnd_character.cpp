@@ -307,18 +307,15 @@ int ADnDCharacter::getCapacityModifier() const {
         return 350;
     }
     if (t >= 17 && t <= 21) {
-        // 500 + (t - 17) * 250
         return 500 + (t - 17) * 250;
     }
     if (t >= 22 && t <= 26) {
-        // 2000 + (t - 22) * 1000
         return 2000 + (t - 22) * 1000;
     }
     if (t == 27) {
         return 7500;
     }
     if (t >= 28 && t <= 30) {
-        // 9000 + (t - 28) * 3000
         return 9000 + (t - 28) * 3000;
     }
     debug("ADnDCharacter::getCapacityModifier: invalid strength tier %d", t);

@@ -59,6 +59,13 @@ struct CombatStat {
 	void resetToBase() {
 		current = base;
 	}
+
+	int8 getBase() const {
+		return static_cast<int8>(60 - base);
+	}
+	int8 getCurrent() const {
+		return static_cast<int8>(60 - current);
+	}
 };
 
 struct StatHP {
