@@ -43,6 +43,7 @@ Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine
 Engine::~Engine() {
 	delete _font;
 	delete _symbols;
+	_daxManager.clear();
 	for (uint i = 0; i < _party.size(); ++i) {
         delete _party[i];
     }

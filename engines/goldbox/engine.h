@@ -41,6 +41,7 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/strings_data.h"
 #include "goldbox/data/items/base_items.h"
+#include "goldbox/data/daxfilemanager.h"
 
 namespace Goldbox {
 
@@ -51,6 +52,7 @@ private:
 	const GoldboxGameDescription *_gameDescription;
 	Common::RandomSource _randomSource;
 protected:
+	Data::DaxFileManager _daxManager;
 	// Engine APIs
 	Common::Error run() override;
 	virtual GUI::Debugger *getConsole() = 0;
@@ -137,6 +139,52 @@ public:
 	}
 
 	Common::Array<Data::PlayerCharacter *> &getParty();
+
+	/**
+	 * DAX File Management - Accessors for all DAX containers
+	 * These containers persist across the entire engine lifetime
+	 * and are cleaned up only when the engine is destroyed.
+	 */
+	Data::DaxBlockContainer &getDax8x8d() { return _daxManager.get8x8d(); }
+	Data::DaxBlockContainer &getDaxBody() { return _daxManager.getBody(); }
+	Data::DaxBlockContainer &getDaxCBody() { return _daxManager.getCBody(); }
+	Data::DaxBlockContainer &getDaxCHead() { return _daxManager.getCHead(); }
+	Data::DaxBlockContainer &getDaxComSpr() { return _daxManager.getComSpr(); }
+	Data::DaxBlockContainer &getDaxEcl() { return _daxManager.getEcl(); }
+	Data::DaxBlockContainer &getDaxGeo() { return _daxManager.getGeo(); }
+	Data::DaxBlockContainer &getDaxHead() { return _daxManager.getHead(); }
+	Data::DaxBlockContainer &getDaxMonCha() { return _daxManager.getMonCha(); }
+	Data::DaxBlockContainer &getDaxMonItm() { return _daxManager.getMonItm(); }
+	Data::DaxBlockContainer &getDaxMonSpc() { return _daxManager.getMonSpc(); }
+	Data::DaxBlockContainer &getDaxPic() { return _daxManager.getPic(); }
+	Data::DaxBlockContainer &getDaxCPic() { return _daxManager.getCPic(); }
+	Data::DaxBlockContainer &getDaxSprit() { return _daxManager.getSprit(); }
+	Data::DaxBlockContainer &getDaxTitle() { return _daxManager.getTitle(); }
+	Data::DaxBlockContainer &getDaxWalldef() { return _daxManager.getWalldef(); }
+
+	// Const accessors
+	const Data::DaxBlockContainer &getDax8x8d() const { return _daxManager.get8x8d(); }
+	const Data::DaxBlockContainer &getDaxBody() const { return _daxManager.getBody(); }
+	const Data::DaxBlockContainer &getDaxCBody() const { return _daxManager.getCBody(); }
+	const Data::DaxBlockContainer &getDaxCHead() const { return _daxManager.getCHead(); }
+	const Data::DaxBlockContainer &getDaxComSpr() const { return _daxManager.getComSpr(); }
+	const Data::DaxBlockContainer &getDaxEcl() const { return _daxManager.getEcl(); }
+	const Data::DaxBlockContainer &getDaxGeo() const { return _daxManager.getGeo(); }
+	const Data::DaxBlockContainer &getDaxHead() const { return _daxManager.getHead(); }
+	const Data::DaxBlockContainer &getDaxMonCha() const { return _daxManager.getMonCha(); }
+	const Data::DaxBlockContainer &getDaxMonItm() const { return _daxManager.getMonItm(); }
+	const Data::DaxBlockContainer &getDaxMonSpc() const { return _daxManager.getMonSpc(); }
+	const Data::DaxBlockContainer &getDaxPic() const { return _daxManager.getPic(); }
+	const Data::DaxBlockContainer &getDaxCPic() const { return _daxManager.getCPic(); }
+	const Data::DaxBlockContainer &getDaxSprit() const { return _daxManager.getSprit(); }
+	const Data::DaxBlockContainer &getDaxTitle() const { return _daxManager.getTitle(); }
+	const Data::DaxBlockContainer &getDaxWalldef() const { return _daxManager.getWalldef(); }
+
+	/**
+	 * Direct access to the DaxFileManager for advanced operations
+	 */
+	Data::DaxFileManager &getDaxManager() { return _daxManager; }
+	const Data::DaxFileManager &getDaxManager() const { return _daxManager; }
 
 	/**
 	 * Uses a serializer to allow implementing savegame
