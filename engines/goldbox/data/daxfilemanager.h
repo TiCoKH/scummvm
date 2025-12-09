@@ -34,12 +34,17 @@ namespace Data {
  * Manager for loading and organizing DAX files by content type.
  * Automatically categorizes DAX files and loads them into separate containers.
  * Handles file patterns like:
- *   8X8D1-8, BODY1-8, CBODY, CHEAD, SPRIT1-8, WALLDEF1-8, etc.
+ *   8X8D1-8 (8x8 tiles), BACPAC/DUNGCOM/RANDCOM/SQRPACI (24x24 tiles),
+ *   BODY1-8, CBODY, CHEAD, SPRIT1-8, WALLDEF1-8, etc.
  */
 class DaxFileManager {
 private:
     // Containers for each content type
     DaxBlockContainer _container8x8d;
+    DaxBlockContainer _containerBacpac;
+    DaxBlockContainer _containerDungcom;
+    DaxBlockContainer _containerRandcom;
+    DaxBlockContainer _containerSqrpaci;
     DaxBlockContainer _containerBody;
     DaxBlockContainer _containerCBody;
     DaxBlockContainer _containerCHead;
@@ -75,6 +80,10 @@ public:
 
     // Accessors for each container type
     DaxBlockContainer &get8x8d() { return _container8x8d; }
+    DaxBlockContainer &getBacpac() { return _containerBacpac; }
+    DaxBlockContainer &getDungcom() { return _containerDungcom; }
+    DaxBlockContainer &getRandcom() { return _containerRandcom; }
+    DaxBlockContainer &getSqrpaci() { return _containerSqrpaci; }
     DaxBlockContainer &getBody() { return _containerBody; }
     DaxBlockContainer &getCBody() { return _containerCBody; }
     DaxBlockContainer &getCHead() { return _containerCHead; }
@@ -93,6 +102,10 @@ public:
 
     // Const accessors
     const DaxBlockContainer &get8x8d() const { return _container8x8d; }
+    const DaxBlockContainer &getBacpac() const { return _containerBacpac; }
+    const DaxBlockContainer &getDungcom() const { return _containerDungcom; }
+    const DaxBlockContainer &getRandcom() const { return _containerRandcom; }
+    const DaxBlockContainer &getSqrpaci() const { return _containerSqrpaci; }
     const DaxBlockContainer &getBody() const { return _containerBody; }
     const DaxBlockContainer &getCBody() const { return _containerCBody; }
     const DaxBlockContainer &getCHead() const { return _containerCHead; }

@@ -59,12 +59,8 @@ void DaxBlockContainer::loadFromFile(File *file) {
         Common::Array<uint8> daxData(header.compSize);
         file->read(daxData.data(), header.compSize);
 
-        // Determine content type if not set
-        ContentType blockContentType = _contentType;
-        if (blockContentType == ContentType::UNKNOWN) {
-            // Use the file's content type
-            blockContentType = file->_ctype;
-        }
+        // Use container's content type, or fall back to file's type if not set
+        ContentType blockContentType = (_contentType != ContentType::UNKNOWN) ? _contentType : file->_ctype;
 
         // Create the appropriate DaxBlock
         DaxBlock *daxBlock = DaxBlock::createDaxBlock(blockContentType);
@@ -87,21 +83,6 @@ void DaxBlockContainer::loadFromFile(File *file) {
 
         // Store in container (first occurrence only)
         _blocks[blockId] = Common::SharedPtr<DaxBlock>(daxBlock);
-    }
-}
-
-void DaxBlockContainer::loadFromFiles(const Common::Array<Common::Path> &filenames) {
-    for (const auto &filename : filenames) {
-        File *file = new File(filename);
-        if (file->isOpen()) {
-            loadFromFile(file);
-            file->close();
-            delete file;
-        } else {
-            warning("DaxBlockContainer::loadFromFiles: Failed to open file: %s",
-                    filename.toString(Common::Path::kNativeSeparator).c_str());
-            delete file;
-        }
     }
 }
 

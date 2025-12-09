@@ -54,16 +54,9 @@ public:
      * Load DAX blocks from a file.
      * Blocks with IDs that already exist in the container will be skipped.
      * @param file The DAX file to load blocks from
+     * Note: This is intended for internal use by DaxFileManager.
      */
     void loadFromFile(File *file);
-
-    /**
-     * Load DAX blocks from multiple files.
-     * Files are processed in order. Blocks are kept from the first file
-     * they appear in; duplicate block IDs in later files are skipped.
-     * @param filenames Array of file paths to load
-     */
-    void loadFromFiles(const Common::Array<Common::Path> &filenames);
 
     /**
      * Get a block by its ID.
