@@ -27,7 +27,6 @@
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
-#include "goldbox/data/daxfilemanager.h"
 #include "goldbox/data/strings_data.h"
 #include "goldbox/poolrad/poolrad.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
@@ -86,7 +85,7 @@ void PoolradEngine::setup() {
 	dax8x8dFiles.push_back(Common::Path("8x8d7.dax"));
 	dax8x8dFiles.push_back(Common::Path("8x8d8.dax"));
 
-	Goldbox::Data::DaxBlockContainer &container8x8d = _daxManager.get8x8d();
+	Goldbox::Data::DaxBlockContainer &container8x8d = getDax8x8d();
 	container8x8d.loadFromFiles(dax8x8dFiles);
 
 	// Populate daxFont from container
