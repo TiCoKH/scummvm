@@ -89,6 +89,29 @@ void PoolradEngine::setup() {
 	getDaxManager().loadFile(Common::Path("dungcom.dax"));
 	getDaxManager().loadFile(Common::Path("randcom.dax"));
 	getDaxManager().loadFile(Common::Path("sqrpaci.dax"));
+	getDaxManager().loadFile(Common::Path("wildcom.dax"));
+
+
+	// Load DAX Pic files
+	getDaxManager().loadFile(Common::Path("body1.dax"));
+	getDaxManager().loadFile(Common::Path("body2.dax"));
+	getDaxManager().loadFile(Common::Path("body3.dax"));
+	getDaxManager().loadFile(Common::Path("body4.dax"));
+	getDaxManager().loadFile(Common::Path("body5.dax"));
+	getDaxManager().loadFile(Common::Path("body6.dax"));
+	getDaxManager().loadFile(Common::Path("body7.dax"));
+	getDaxManager().loadFile(Common::Path("body8.dax"));
+
+	getDaxManager().loadFile(Common::Path("head1.dax"));
+	getDaxManager().loadFile(Common::Path("head2.dax"));
+	getDaxManager().loadFile(Common::Path("head3.dax"));
+	getDaxManager().loadFile(Common::Path("head4.dax"));
+	getDaxManager().loadFile(Common::Path("head5.dax"));
+	getDaxManager().loadFile(Common::Path("head6.dax"));
+	getDaxManager().loadFile(Common::Path("head7.dax"));
+	getDaxManager().loadFile(Common::Path("head8.dax"));
+
+	getDaxManager().loadFile(Common::Path("title.dax"));
 
 	// Populate daxFont from container
 	Goldbox::Data::DaxBlock *pc_font = getDax8x8d().getBlockById(201);
