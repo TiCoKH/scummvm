@@ -32,16 +32,16 @@ namespace Dialogs {
 
 struct HorizontalInputConfig {
     Common::String promptTxt;
-    byte promptColor;
-    byte maxInputLength;
+    uint8 promptColor;
+    uint8 maxInputLength;
 };
 
 class HorizontalInput : public Dialog {
 protected:
-    byte _promptColor;
+    uint8 _promptColor;
     Common::String _promptTxt;
-    byte _text_offset;
-    byte _maxInputLength;
+    uint8 _textOffset;
+    uint8 _maxInputLength;
     Common::String _inputText;
 
     void drawText();

@@ -109,18 +109,16 @@ CreateCharacterView::CreateCharacterView() : View("CreatCharacter"), _stage(CC_S
 }
 
 CreateCharacterView::~CreateCharacterView() {
-	// Clean up any created subviews ensuring they are detached from the
-	// parent's _children list to prevent stale pointers during redraw.
 	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
 	if (_activeSubView == _nameInput) _activeSubView = nullptr;
 	if (_activeSubView == _yesNoPrompt) _activeSubView = nullptr;
 	if (_activeSubView == _menu) _activeSubView = nullptr;
+	if (_activeSubView == _portraitSelector) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
-	// ensure any lingering yes/no prompt is removed
 	detachAndDelete(_yesNoPrompt);
+	detachAndDelete(_portraitSelector);
 	detachAndDelete(_menu);
-	// _menuItems is not a UIElement
 	delete _menuItems; _menuItems = nullptr;
 	delete _newCharacter; _newCharacter = nullptr;
 }
@@ -244,11 +242,17 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 	case CC_STATE_NAME:
 		chooseName();
 		break;
+	case CC_STATE_PORTAIT:
+		if (!_profileDialog)
+			showProfileDialog();
+		choosePortrait();
+		break;
 	case CC_STATE_ICON:
-		// showIconSelector();
+		// Launch the icon editor subview
 		break;
 	case CC_STATE_DONE:
-		// Finalize character creation
+		saveCharacter();
+		replaceView("Mainmenu");
 		break;
 	}
 }
@@ -309,6 +313,13 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 	// forward the keypress to the concrete dialog instance.
 	if (_activeSubView) {
 		if (_activeSubView == static_cast<Dialogs::Dialog *>(_nameInput) && _nameInput) {
+			// Handle HorizontalInput completion (similar to codewheel_view pattern)
+			if (msg.keycode == Common::KEYCODE_RETURN || msg.keycode == Common::KEYCODE_ESCAPE) {
+				// Let handleMenuResult process the result
+				handleMenuResult(true, msg.keycode, 0);
+				return true;
+			}
+			// Pass other keys to the input handler for character accumulation
 			static_cast<Dialogs::HorizontalInput *>(_nameInput)->msgKeypress(msg);
 			return true;
 		}
@@ -426,6 +437,17 @@ void CreateCharacterView::chooseName() {
 	if (_profileDialog)
 		_nameInput->setParent(_profileDialog);
 	setActiveSubView(static_cast<Dialogs::Dialog *>(_nameInput));
+}
+
+void CreateCharacterView::choosePortrait() {
+	using namespace Goldbox::Poolrad::Views::Dialogs;
+	detachAndDelete(_portraitSelector);
+	if (!_newCharacter)
+		_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+	_portraitSelector = new SetPortraitDialog("SetPortrait", _newCharacter);
+	if (_profileDialog)
+		_portraitSelector->setParent(_profileDialog);
+	setActiveSubView(static_cast<Dialogs::Dialog *>(_portraitSelector));
 }
 
 void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
@@ -624,7 +646,6 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 				_newCharacter->alignment = (uint8)_indexMap[value];
 				debug("Selected alignment ID: %d", _newCharacter->alignment);
 				_hasRolled = false;
-				_confirmSave = false;
 			}
 			setAge();
 			nextStage();
@@ -663,21 +684,22 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			// finalize name from input dialog and proceed to icon
+			// Finalize name from input dialog and proceed to icon
 			Dialogs::HorizontalInput *hi = dynamic_cast<Dialogs::HorizontalInput *>(_nameInput);
 			if (hi) {
 				_enteredName = hi->getInput();
-				if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+				if (!_newCharacter) {
+					_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+				}
 				_newCharacter->name = _enteredName;
 			}
-			setStage(CC_STATE_ICON);
+			detachAndDelete(_nameInput);
+			setStage(CC_STATE_PORTAIT);
 		}
 		break;
-	case CC_STATE_ICON:
-		// Not implemented yet: when leaving icon editor, confirm save and return to PROFILE to confirm
-		// For now, simulate icon customization complete and ask to save
-		_confirmSave = true;
-		setStage(CC_STATE_ROLLSTATS);
+	case CC_STATE_PORTAIT:
+		if (key == Common::KEYCODE_RETURN)
+			setStage(CC_STATE_DONE);
 		break;
 	case CC_STATE_DONE:
 		replaceView("Mainmenu");
@@ -691,9 +713,11 @@ void CreateCharacterView::resetState() {
 	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
 	if (_activeSubView == _nameInput) _activeSubView = nullptr;
 	if (_activeSubView == _yesNoPrompt) _activeSubView = nullptr;
+	if (_activeSubView == _portraitSelector) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
 	detachAndDelete(_yesNoPrompt);
+	detachAndDelete(_portraitSelector);
 	// Reset character
 	if (_newCharacter) { delete _newCharacter; }
 	_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
@@ -702,7 +726,6 @@ void CreateCharacterView::resetState() {
 	_selectedRace = _selectedGender = _selectedClass = _selectedAlignment = -1;
 	_enteredName.clear();
 	_indexMap.clear();
-	_confirmSave = false;
 	_hasRolled = false;
 	_stage = CC_STATE_RACE;
 	// Rebuild initial race menu

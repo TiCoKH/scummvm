@@ -21,11 +21,13 @@
 
 #include "common/config-manager.h"
 #include "common/engine_data.h"
+#include "common/fs.h"
 #include "goldbox/core/file.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
+#include "goldbox/data/daxfilemanager.h"
 #include "goldbox/data/strings_data.h"
 #include "goldbox/poolrad/poolrad.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
@@ -73,20 +75,35 @@ void PoolradEngine::setup() {
 
 	Surface::setupPalette();
 
-	Goldbox::File daxFile8x8d;
-	if (!daxFile8x8d.open("8x8d1.dax")) {
-		error("Failed to open 8x8d1.dax");
-	}
+	// Load all 8x8d files into container
+	Common::Array<Common::Path> dax8x8dFiles;
+	dax8x8dFiles.push_back(Common::Path("8x8d1.dax"));
+	dax8x8dFiles.push_back(Common::Path("8x8d2.dax"));
+	dax8x8dFiles.push_back(Common::Path("8x8d3.dax"));
+	dax8x8dFiles.push_back(Common::Path("8x8d4.dax"));
+	dax8x8dFiles.push_back(Common::Path("8x8d5.dax"));
+	dax8x8dFiles.push_back(Common::Path("8x8d6.dax"));
+	dax8x8dFiles.push_back(Common::Path("8x8d7.dax"));
+	dax8x8dFiles.push_back(Common::Path("8x8d8.dax"));
 
-	Goldbox::Data::DaxBlock *pc_font = daxFile8x8d.getBlockById(201);
+	Goldbox::Data::DaxBlockContainer &container8x8d = _daxManager.get8x8d();
+	container8x8d.loadFromFiles(dax8x8dFiles);
+
+	// Populate daxFont from container
+	Goldbox::Data::DaxBlock *pc_font = container8x8d.getBlockById(201);
+	if (!pc_font) {
+		error("Failed to load font block 201 from 8x8d container");
+	}
 	auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(pc_font));
 	_font = daxFont;
 
-	Goldbox::Data::DaxBlock *symbols = daxFile8x8d.getBlockById(202);
+	// Populate daxScreenTiles from container
+	Goldbox::Data::DaxBlock *symbols = container8x8d.getBlockById(202);
+	if (!symbols) {
+		error("Failed to load symbols block 202 from 8x8d container");
+	}
 	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(symbols));
 	_symbols = daxScreenTiles;
-
-	daxFile8x8d.close();
 
 	Goldbox::File walldefFile;
 	if (!walldefFile.open("walldef3.dax")) {

@@ -15,6 +15,8 @@ MODULE_OBJS = \
 	data/player_character.o \
 	data/adnd_character.o \
 	data/daxblock.o \
+	data/daxblockcontainer.o \
+	data/daxfilemanager.o \
 	data/daxheadercontainer.o \
 	data/pascal_string_buffer.o \
 	data/strings.o \
@@ -46,7 +48,8 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/horizontal_yesno.o \
 	poolrad/views/dialogs/party_list.o \
 	poolrad/views/dialogs/vertical_menu.o \
-	poolrad/views/dialogs/character_profile.o 
+	poolrad/views/dialogs/character_profile.o \
+	poolrad/views/dialogs/set_portrait.o 
 
 
 

@@ -33,7 +33,7 @@ HorizontalInput::HorizontalInput(const Common::String &name, const HorizontalInp
       _maxInputLength(config.maxInputLength),
       _inputText("") {
     activate();
-    _text_offset = _promptTxt.empty() ? 0 : _promptTxt.size();
+    _textOffset = _promptTxt.empty() ? 0 : _promptTxt.size();
 }
 
 bool HorizontalInput::msgKeypress(const KeypressMessage &msg) {
@@ -76,7 +76,7 @@ void HorizontalInput::drawText() {
     Surface s = getSurface();
     clear();
     s.writeStringC(_promptTxt, _promptColor, 0, 24);
-    s.writeStringC(_inputText, 15, _text_offset, 24);
+    s.writeStringC(_inputText, 15, _textOffset, 24);
 }
 
 } // namespace Dialogs
