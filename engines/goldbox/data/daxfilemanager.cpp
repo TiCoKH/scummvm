@@ -32,21 +32,22 @@ DaxFileManager::DaxFileManager() :
     _containerDungcom(ContentType::TILE),
     _containerRandcom(ContentType::TILE),
     _containerSqrpaci(ContentType::TILE),
-    _containerBody(ContentType::BODY),
+    _containerBody(ContentType::PIC),
     _containerCBody(ContentType::CBODY),
     _containerCHead(ContentType::CHEAD),
     _containerComSpr(ContentType::COMSPR),
     _containerEcl(ContentType::ECL),
     _containerGeo(ContentType::GEO),
-    _containerHead(ContentType::HEAD),
+    _containerHead(ContentType::PIC),
     _containerMonCha(ContentType::MONCHA),
     _containerMonItm(ContentType::UNKNOWN),  // MON*ITM is a separate category
     _containerMonSpc(ContentType::UNKNOWN),  // MON*SPC is a separate category
     _containerPic(ContentType::PIC),
     _containerCPic(ContentType::PIC),        // CPIC is PIC content
     _containerSprit(ContentType::SPRIT),
-    _containerTitle(ContentType::TITLE),
-    _containerWalldef(ContentType::WALLDEF) {
+    _containerTitle(ContentType::PIC),
+    _containerWalldef(ContentType::WALLDEF),
+    _containerWildcom(ContentType::TILE) {
 }
 
 DaxFileManager::~DaxFileManager() {
@@ -112,6 +113,8 @@ void DaxFileManager::loadFile(const Common::Path &path) {
         _containerPic.loadFromFile(file);
     } else if (filename.contains("TITLE")) {
         _containerTitle.loadFromFile(file);
+    } else if (filename.contains("WILDCOM")) {
+        _containerWildcom.loadFromFile(file);
     }
 
     // Close file only if it was successfully opened
@@ -142,6 +145,7 @@ void DaxFileManager::clear() {
     _containerSprit.clear();
     _containerTitle.clear();
     _containerWalldef.clear();
+    _containerWildcom.clear();
 }
 
 } // namespace Data
