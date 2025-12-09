@@ -165,6 +165,7 @@ public:
 	Data::DaxBlockContainer &getDaxSprit() { return _daxManager.getSprit(); }
 	Data::DaxBlockContainer &getDaxTitle() { return _daxManager.getTitle(); }
 	Data::DaxBlockContainer &getDaxWalldef() { return _daxManager.getWalldef(); }
+	Data::DaxBlockContainer &getDaxWildcom() { return _daxManager.getWildcom(); }
 
 	// Const accessors
 	const Data::DaxBlockContainer &getDax8x8d() const { return _daxManager.get8x8d(); }
@@ -187,6 +188,7 @@ public:
 	const Data::DaxBlockContainer &getDaxSprit() const { return _daxManager.getSprit(); }
 	const Data::DaxBlockContainer &getDaxTitle() const { return _daxManager.getTitle(); }
 	const Data::DaxBlockContainer &getDaxWalldef() const { return _daxManager.getWalldef(); }
+	const Data::DaxBlockContainer &getDaxWildcom() const { return _daxManager.getWildcom(); }
 
 	/**
 	 * Direct access to the DaxFileManager for advanced operations

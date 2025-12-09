@@ -60,6 +60,7 @@ private:
     DaxBlockContainer _containerSprit;
     DaxBlockContainer _containerTitle;
     DaxBlockContainer _containerWalldef;
+    DaxBlockContainer _containerWildcom;
 
 public:
     DaxFileManager();
@@ -99,6 +100,7 @@ public:
     DaxBlockContainer &getSprit() { return _containerSprit; }
     DaxBlockContainer &getTitle() { return _containerTitle; }
     DaxBlockContainer &getWalldef() { return _containerWalldef; }
+    DaxBlockContainer &getWildcom() { return _containerWildcom; }
 
     // Const accessors
     const DaxBlockContainer &get8x8d() const { return _container8x8d; }
@@ -121,6 +123,7 @@ public:
     const DaxBlockContainer &getSprit() const { return _containerSprit; }
     const DaxBlockContainer &getTitle() const { return _containerTitle; }
     const DaxBlockContainer &getWalldef() const { return _containerWalldef; }
+    const DaxBlockContainer &getWildcom() const { return _containerWildcom; }
 
     /**
      * Clear all containers.
