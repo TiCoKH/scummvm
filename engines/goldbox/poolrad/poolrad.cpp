@@ -74,22 +74,24 @@ void PoolradEngine::setup() {
 
 	Surface::setupPalette();
 
-	// Load all 8x8d files into container
-	Common::Array<Common::Path> dax8x8dFiles;
-	dax8x8dFiles.push_back(Common::Path("8x8d1.dax"));
-	dax8x8dFiles.push_back(Common::Path("8x8d2.dax"));
-	dax8x8dFiles.push_back(Common::Path("8x8d3.dax"));
-	dax8x8dFiles.push_back(Common::Path("8x8d4.dax"));
-	dax8x8dFiles.push_back(Common::Path("8x8d5.dax"));
-	dax8x8dFiles.push_back(Common::Path("8x8d6.dax"));
-	dax8x8dFiles.push_back(Common::Path("8x8d7.dax"));
-	dax8x8dFiles.push_back(Common::Path("8x8d8.dax"));
+	// Load all 8x8d files via DaxFileManager (auto-sorts to correct container)
+	getDaxManager().loadFile(Common::Path("8x8d1.dax"));
+	getDaxManager().loadFile(Common::Path("8x8d2.dax"));
+	getDaxManager().loadFile(Common::Path("8x8d3.dax"));
+	getDaxManager().loadFile(Common::Path("8x8d4.dax"));
+	getDaxManager().loadFile(Common::Path("8x8d5.dax"));
+	getDaxManager().loadFile(Common::Path("8x8d6.dax"));
+	getDaxManager().loadFile(Common::Path("8x8d7.dax"));
+	getDaxManager().loadFile(Common::Path("8x8d8.dax"));
 
-	Goldbox::Data::DaxBlockContainer &container8x8d = getDax8x8d();
-	container8x8d.loadFromFiles(dax8x8dFiles);
+	// Load tile-based DAX files
+	getDaxManager().loadFile(Common::Path("bacpac.dax"));
+	getDaxManager().loadFile(Common::Path("dungcom.dax"));
+	getDaxManager().loadFile(Common::Path("randcom.dax"));
+	getDaxManager().loadFile(Common::Path("sqrpaci.dax"));
 
 	// Populate daxFont from container
-	Goldbox::Data::DaxBlock *pc_font = container8x8d.getBlockById(201);
+	Goldbox::Data::DaxBlock *pc_font = getDax8x8d().getBlockById(201);
 	if (!pc_font) {
 		error("Failed to load font block 201 from 8x8d container");
 	}
@@ -97,7 +99,7 @@ void PoolradEngine::setup() {
 	_font = daxFont;
 
 	// Populate daxScreenTiles from container
-	Goldbox::Data::DaxBlock *symbols = container8x8d.getBlockById(202);
+	Goldbox::Data::DaxBlock *symbols = getDax8x8d().getBlockById(202);
 	if (!symbols) {
 		error("Failed to load symbols block 202 from 8x8d container");
 	}
