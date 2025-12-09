@@ -30,6 +30,7 @@
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/poolrad/views/dialogs/set_portrait.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -43,6 +44,7 @@ enum CharacterCreateState {
     CC_STATE_ALIGNMENT,
     CC_STATE_ROLLSTATS,
     CC_STATE_NAME,
+    CC_STATE_PORTAIT,
     CC_STATE_ICON,
     CC_STATE_DONE
 };
@@ -76,9 +78,9 @@ private:
     Dialogs::VerticalMenu *_menu = nullptr;
 
     Dialogs::CharacterProfile *_profileDialog = nullptr;
+    Dialogs::SetPortraitDialog *_portraitSelector = nullptr;
     Dialogs::Dialog *_activeSubView = nullptr;
     // helper to format save filename (8.3 style)
-    bool _confirmSave = false; // true when returning from icon editor to confirm save
     bool _hasRolled = false;    // ensures we roll once when entering profile
 
     // mapping arrays: visible index -> enum/index value
@@ -103,6 +105,7 @@ private:
     void showProfileDialog();
     void attachKeepCharacterPrompt();
     void chooseName();
+    void choosePortrait();
     void buildAndShowMenu(const Common::String &prompt);
     void resetState();
     void setThiefSkillsForNewCharacter();

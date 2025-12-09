@@ -349,7 +349,7 @@ namespace Data {
 
 		// 0x0A3–0x0A8: unarmed combat data
 		basePri.action.roll.diceNum   = stream.readByte();
-		baseSec.action.roll.diceNum = stream.readByte();
+		baseSec.action.roll.diceNum   = stream.readByte();
 		basePri.action.roll.diceSides = stream.readByte();
 		baseSec.action.roll.diceSides = stream.readByte();
 		basePri.action.modifier       = stream.readSByte();
@@ -422,8 +422,8 @@ namespace Data {
 		curPri.attacks = stream.readByte(); // 0x113
 		curSec.attacks = stream.readByte(); // 0x114
 
-		curPri.action.roll.diceNum   = stream.readByte();   // 0x115
-		curSec.action.roll.diceNum   = stream.readByte();   // 0x116
+		curPri.action.roll.diceNum   = stream.readByte(); // 0x115
+		curSec.action.roll.diceNum   = stream.readByte(); // 0x116
 		curPri.action.roll.diceSides = stream.readByte(); // 0x117
 		curSec.action.roll.diceSides = stream.readByte(); // 0x118
 		curPri.action.modifier       = stream.readSByte(); // 0x119

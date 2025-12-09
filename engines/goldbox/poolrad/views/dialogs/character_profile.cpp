@@ -102,6 +102,7 @@ void CharacterProfile::drawStats() {
     s.writeStringC("CHA", 10, 1, 12);
     s.writeStringC(Common::String::format("%d", _poolradPc->abilities.charisma.current), 10, 5, 12);
 }
+
 void CharacterProfile::drawValuables() {
     Surface s = getSurface();
     int y = 7;
@@ -171,7 +172,13 @@ void CharacterProfile::drawStatus() {
 void CharacterProfile::drawPortrait() {
     drawWindow(28, 1, 38, 11);
     Surface s = getSurface();
+    if (!_poolradPc)
+        return;
 
+    Common::String headText = Common::String::format("Head %d", (int)_poolradPc->portrait.head);
+    Common::String bodyText = Common::String::format("Body %d", (int)_poolradPc->portrait.body);
+    s.writeStringC(headText, 15, 29, 2);
+    s.writeStringC(bodyText, 15, 29, 3);
 }
 
 Common::String CharacterProfile::formatDamageText() const {
