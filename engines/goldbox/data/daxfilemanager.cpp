@@ -27,7 +27,11 @@ namespace Goldbox {
 namespace Data {
 
 DaxFileManager::DaxFileManager() :
-    _container8x8d(ContentType::_8X8D),
+    _container8x8d(ContentType::TILE),
+    _containerBacpac(ContentType::TILE),
+    _containerDungcom(ContentType::TILE),
+    _containerRandcom(ContentType::TILE),
+    _containerSqrpaci(ContentType::TILE),
     _containerBody(ContentType::BODY),
     _containerCBody(ContentType::CBODY),
     _containerCHead(ContentType::CHEAD),
@@ -70,6 +74,14 @@ void DaxFileManager::loadFile(const Common::Path &path) {
     // Determine which container to load into based on filename
     if (filename.contains("8X8D")) {
         _container8x8d.loadFromFile(file);
+    } else if (filename.contains("BACPAC")) {
+        _containerBacpac.loadFromFile(file);
+    } else if (filename.contains("DUNGCOM")) {
+        _containerDungcom.loadFromFile(file);
+    } else if (filename.contains("RANDCOM")) {
+        _containerRandcom.loadFromFile(file);
+    } else if (filename.contains("SQRPACI")) {
+        _containerSqrpaci.loadFromFile(file);
     } else if (filename.contains("CBODY")) {
         _containerCBody.loadFromFile(file);
     } else if (filename.contains("BODY")) {
@@ -100,10 +112,6 @@ void DaxFileManager::loadFile(const Common::Path &path) {
         _containerPic.loadFromFile(file);
     } else if (filename.contains("TITLE")) {
         _containerTitle.loadFromFile(file);
-    } else {
-        // Files like BACPAC, DUNGCOM, FINAL5, ICON, ITEM*, RANDCOM, SQRPACI, WILDCOM
-        // These are typically handled separately or as miscellaneous content
-        // For now, we can categorize them by their content type
     }
 
     // Close file only if it was successfully opened
@@ -115,6 +123,10 @@ void DaxFileManager::loadFile(const Common::Path &path) {
 
 void DaxFileManager::clear() {
     _container8x8d.clear();
+    _containerBacpac.clear();
+    _containerDungcom.clear();
+    _containerRandcom.clear();
+    _containerSqrpaci.clear();
     _containerBody.clear();
     _containerCBody.clear();
     _containerCHead.clear();

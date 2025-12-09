@@ -146,6 +146,10 @@ public:
 	 * and are cleaned up only when the engine is destroyed.
 	 */
 	Data::DaxBlockContainer &getDax8x8d() { return _daxManager.get8x8d(); }
+	Data::DaxBlockContainer &getDaxBacpac() { return _daxManager.getBacpac(); }
+	Data::DaxBlockContainer &getDaxDungcom() { return _daxManager.getDungcom(); }
+	Data::DaxBlockContainer &getDaxRandcom() { return _daxManager.getRandcom(); }
+	Data::DaxBlockContainer &getDaxSqrpaci() { return _daxManager.getSqrpaci(); }
 	Data::DaxBlockContainer &getDaxBody() { return _daxManager.getBody(); }
 	Data::DaxBlockContainer &getDaxCBody() { return _daxManager.getCBody(); }
 	Data::DaxBlockContainer &getDaxCHead() { return _daxManager.getCHead(); }
@@ -164,6 +168,10 @@ public:
 
 	// Const accessors
 	const Data::DaxBlockContainer &getDax8x8d() const { return _daxManager.get8x8d(); }
+	const Data::DaxBlockContainer &getDaxBacpac() const { return _daxManager.getBacpac(); }
+	const Data::DaxBlockContainer &getDaxDungcom() const { return _daxManager.getDungcom(); }
+	const Data::DaxBlockContainer &getDaxRandcom() const { return _daxManager.getRandcom(); }
+	const Data::DaxBlockContainer &getDaxSqrpaci() const { return _daxManager.getSqrpaci(); }
 	const Data::DaxBlockContainer &getDaxBody() const { return _daxManager.getBody(); }
 	const Data::DaxBlockContainer &getDaxCBody() const { return _daxManager.getCBody(); }
 	const Data::DaxBlockContainer &getDaxCHead() const { return _daxManager.getCHead(); }

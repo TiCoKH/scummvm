@@ -30,6 +30,7 @@ namespace Goldbox {
 class Console : public GUI::Debugger {
 private:
 	bool cmdView(int argc, const char **argv);
+	bool cmdShowTile(int argc, const char **argv);
 public:
 	Console();
 	~Console() override;

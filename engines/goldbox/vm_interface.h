@@ -54,6 +54,31 @@ public:
     static void setSelectedCharacter(Data::PlayerCharacter *character) {
         g_engine->setSelectedCharacter(character);
     }
+
+    // DAX Container accessors
+    static Data::DaxBlockContainer &getDax8x8d() { return g_engine->getDax8x8d(); }
+    static Data::DaxBlockContainer &getDaxBacpac() { return g_engine->getDaxBacpac(); }
+    static Data::DaxBlockContainer &getDaxDungcom() { return g_engine->getDaxDungcom(); }
+    static Data::DaxBlockContainer &getDaxRandcom() { return g_engine->getDaxRandcom(); }
+    static Data::DaxBlockContainer &getDaxSqrpaci() { return g_engine->getDaxSqrpaci(); }
+    static Data::DaxBlockContainer &getDaxBody() { return g_engine->getDaxBody(); }
+    static Data::DaxBlockContainer &getDaxCBody() { return g_engine->getDaxCBody(); }
+    static Data::DaxBlockContainer &getDaxCHead() { return g_engine->getDaxCHead(); }
+    static Data::DaxBlockContainer &getDaxComSpr() { return g_engine->getDaxComSpr(); }
+    static Data::DaxBlockContainer &getDaxEcl() { return g_engine->getDaxEcl(); }
+    static Data::DaxBlockContainer &getDaxGeo() { return g_engine->getDaxGeo(); }
+    static Data::DaxBlockContainer &getDaxHead() { return g_engine->getDaxHead(); }
+    static Data::DaxBlockContainer &getDaxMonCha() { return g_engine->getDaxMonCha(); }
+    static Data::DaxBlockContainer &getDaxMonItm() { return g_engine->getDaxMonItm(); }
+    static Data::DaxBlockContainer &getDaxMonSpc() { return g_engine->getDaxMonSpc(); }
+    static Data::DaxBlockContainer &getDaxPic() { return g_engine->getDaxPic(); }
+    static Data::DaxBlockContainer &getDaxCPic() { return g_engine->getDaxCPic(); }
+    static Data::DaxBlockContainer &getDaxSprit() { return g_engine->getDaxSprit(); }
+    static Data::DaxBlockContainer &getDaxTitle() { return g_engine->getDaxTitle(); }
+    static Data::DaxBlockContainer &getDaxWalldef() { return g_engine->getDaxWalldef(); }
+
+    // DAX Manager direct access
+    static Data::DaxFileManager &getDaxManager() { return g_engine->getDaxManager(); }
 };
 
 } // namespace Goldbox

@@ -56,7 +56,11 @@ void File::parseHeaders() {
 
 Data::ContentType File::determineContentType(const Common::Path &filename) {
     Common::String s = filename.toString();
-    if (s.contains("8x8d")) return Data::ContentType::_8X8D;
+    if (s.contains("8x8d")) return Data::ContentType::TILE;
+    if (s.contains("bacpac")) return Data::ContentType::TILE;
+    if (s.contains("dungcom")) return Data::ContentType::TILE;
+    if (s.contains("randcom")) return Data::ContentType::TILE;
+    if (s.contains("sqrpaci")) return Data::ContentType::TILE;
     if (s.contains("back")) return Data::ContentType::BACK;
     if (s.contains("bigpic")) return Data::ContentType::BIGPIC;
     if (s.contains("cbody")) return Data::ContentType::CBODY;

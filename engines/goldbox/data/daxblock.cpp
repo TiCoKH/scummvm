@@ -27,7 +27,7 @@ namespace Goldbox {
 namespace Data {
 
     DaxBlock* DaxBlock::createDaxBlock(ContentType contentType) {
-        if (contentType == ContentType::_8X8D) {
+        if (contentType == ContentType::TILE) {
             return new DaxBlock8x8D();
         } else if (contentType == ContentType::TITLE) {
             return new DaxBlockPic();
