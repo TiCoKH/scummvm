@@ -30,12 +30,12 @@ namespace Goldbox {
 
 class File : public Common::File {
 private:
-    Data::DaxHeaderContainer headerContainer;
-    Data::ContentType _ctype;
-
     Data::ContentType determineContentType(const Common::Path &filename);
 
 public:
+    Data::DaxHeaderContainer headerContainer;
+    Data::ContentType _ctype;
+
 	File() : Common::File() {}
 	File(const Common::Path &filename);
 	File(const char *filename);
