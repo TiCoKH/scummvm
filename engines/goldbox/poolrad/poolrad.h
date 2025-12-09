@@ -23,7 +23,6 @@
 #define GOLDBOX_POOLRAD_POOLRAD_H
 
 #include "goldbox/engine.h"
-#include "goldbox/data/daxfilemanager.h"
 #include "goldbox/poolrad/views/views.h"
 //#include "goldbox/poolrad/data/character.h"
 //#include "goldbox/poolrad/files/game_archive.h"
@@ -41,7 +40,6 @@ class PoolradEngine : public Goldbox::Engine {
 private:
 	Poolrad::Views::Views *_views = nullptr;
 	uint16 _mapX = 0, _mapY = 0;
-	Goldbox::Data::DaxFileManager _daxManager;
 
 protected:
 	void setup() override;
