@@ -72,6 +72,8 @@ void DaxFileManager::loadFile(const Common::Path &path) {
         return;
     }
 
+ //   warning("DaxFileManager: Loading file '%s'", filename.c_str());
+
     // Determine which container to load into based on filename
     if (filename.contains("8X8D")) {
         _container8x8d.loadFromFile(file);
@@ -105,14 +107,14 @@ void DaxFileManager::loadFile(const Common::Path &path) {
         _containerMonItm.loadFromFile(file);
     } else if (filename.contains("MON") && filename.contains("SPC")) {
         _containerMonSpc.loadFromFile(file);
+    } else if (filename.contains("TITLE")) {
+        _containerTitle.loadFromFile(file);
     } else if (filename.contains("SPRIT")) {
         _containerSprit.loadFromFile(file);
     } else if (filename.contains("WALLDEF")) {
         _containerWalldef.loadFromFile(file);
     } else if (filename.contains("PIC")) {
         _containerPic.loadFromFile(file);
-    } else if (filename.contains("TITLE")) {
-        _containerTitle.loadFromFile(file);
     } else if (filename.contains("WILDCOM")) {
         _containerWildcom.loadFromFile(file);
     }

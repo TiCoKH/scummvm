@@ -64,7 +64,7 @@ namespace Data {
     };
 
     enum class ContentType {
-        TILE, BACK, BIGPIC, BODY, CBODY, CHEAD, COMSPR, ECL, GEO, HEAD, MONCHA, PIC, SPRIT, TITLE, WALLDEF, UNKNOWN
+        TILE, BACK, BIGPIC, CBODY, CHEAD, COMSPR, ECL, GEO, MONCHA, PIC, SPRIT, WALLDEF, UNKNOWN
     };
 
     enum class WalldefRegionId {
