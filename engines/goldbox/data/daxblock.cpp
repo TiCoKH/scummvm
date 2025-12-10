@@ -29,8 +29,10 @@ namespace Data {
     DaxBlock* DaxBlock::createDaxBlock(ContentType contentType) {
         if (contentType == ContentType::TILE) {
             return new DaxBlock8x8D();
-        } else if (contentType == ContentType::TITLE) {
+        } else if (contentType == ContentType::PIC) {
             return new DaxBlockPic();
+ //       } else if (contentType == ContentType::SPRIT) {
+ //           return new DaxBlockPic();
         } else if (contentType == ContentType::WALLDEF) {
             return new DaxBlockWalldef();
         } else {

@@ -65,7 +65,8 @@ void DaxBlockContainer::loadFromFile(File *file) {
         // Create the appropriate DaxBlock
         DaxBlock *daxBlock = DaxBlock::createDaxBlock(blockContentType);
         if (!daxBlock) {
-            warning("DaxBlockContainer::loadFromFile: Unknown content type for block ID: %d", blockId);
+            warning("DaxBlockContainer::loadFromFile: Unknown content type %d for block ID: %d (container type: %d)",
+                    (int)blockContentType, blockId, (int)_contentType);
             continue;
         }
 

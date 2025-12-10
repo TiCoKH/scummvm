@@ -64,16 +64,16 @@ Data::ContentType File::determineContentType(const Common::Path &filename) {
     if (s.contains("back")) return Data::ContentType::BACK;
     if (s.contains("bigpic")) return Data::ContentType::BIGPIC;
     if (s.contains("cbody")) return Data::ContentType::CBODY;
-    if (s.contains("body")) return Data::ContentType::BODY;
+    if (s.contains("body")) return Data::ContentType::PIC;
     if (s.contains("comspr")) return Data::ContentType::COMSPR;
     if (s.contains("ecl")) return Data::ContentType::ECL;
     if (s.contains("geo")) return Data::ContentType::GEO;
     if (s.contains("chead")) return Data::ContentType::CHEAD;
-    if (s.contains("head")) return Data::ContentType::HEAD;
+    if (s.contains("head")) return Data::ContentType::PIC;
     if (s.contains("moncha")) return Data::ContentType::MONCHA;
     if (s.contains("pic")) return Data::ContentType::PIC;
     if (s.contains("sprit")) return Data::ContentType::SPRIT;
-    if (s.contains("title")) return Data::ContentType::TITLE;
+    if (s.contains("title")) return Data::ContentType::PIC;
     if (s.contains("walldef")) return Data::ContentType::WALLDEF;
     return Data::ContentType::UNKNOWN;
 }
