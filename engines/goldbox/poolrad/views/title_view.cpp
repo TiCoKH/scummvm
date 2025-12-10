@@ -21,7 +21,7 @@
 
 #include "common/system.h"
 #include "graphics/paletteman.h"
-#include "goldbox/core/file.h"
+#include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/views/title_view.h"
 #include "goldbox/poolrad/poolrad.h"
 
@@ -30,17 +30,19 @@ namespace Poolrad {
 namespace Views {
 
 bool TitleView::msgFocus(const FocusMessage &msg) {
-	Goldbox::File daxFileTitle;
-	if (!daxFileTitle.open("title.dax")) {
-		error("Failed to open title.dax");
+	Goldbox::Data::DaxBlockContainer &titleContainer = VmInterface::getDaxManager().getTitle();
+
+	Goldbox::Data::DaxBlock *daxBlock = titleContainer.getBlockById(1);
+	if (!daxBlock) {
+		error("Failed to load title block 1 from title container");
 	}
-
-	Goldbox::Data::DaxBlock *daxBlock = daxFileTitle.getBlockById(1);
 	_pic1 = Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
-	daxBlock = daxFileTitle.getBlockById(2);
-	_pic2 = Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
 
-	daxFileTitle.close();
+	daxBlock = titleContainer.getBlockById(2);
+	if (!daxBlock) {
+		error("Failed to load title block 2 from title container");
+	}
+	_pic2 = Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
 
 	return true;
 }
