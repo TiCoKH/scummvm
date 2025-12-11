@@ -23,28 +23,30 @@
 
 namespace Goldbox {
 
-void StringArray::split(const Common::String &src, char separator) {
+using Common::String;
+
+void StringArray::split(const String &src, char separator) {
 	clear();
 
-	Common::String str = src;
+	String str = src;
 	size_t idx;
-	while ((idx = str.findFirstOf(separator)) != Common::String::npos) {
-		push_back(Common::String(str.c_str(), idx));
-		str = Common::String(str.c_str() + idx + 1);
+	while ((idx = str.findFirstOf(separator)) != String::npos) {
+		push_back(String(str.c_str(), idx));
+		str = String(str.c_str() + idx + 1);
 	}
 
 	push_back(str);
 }
 
-void StringArray::split(const Common::String &src, char separator, size_t maxLen) {
-	Common::String str = src;
+void StringArray::split(const String &src, char separator, size_t maxLen) {
+	String str = src;
 	size_t newLine, lineEnd;
 	clear();
 
 	while (!str.empty()) {
 		// Find end of the current line
 		newLine = str.findFirstOf('\n');
-		lineEnd = (newLine == Common::String::npos) ? str.size() : newLine;
+		lineEnd = (newLine == String::npos) ? str.size() : newLine;
 
 		if (lineEnd > maxLen) {
 			// Move backwards from line end to find point to split line at
@@ -53,14 +55,14 @@ void StringArray::split(const Common::String &src, char separator, size_t maxLen
 			assert(lineEnd > 0);
 		}
 
-		push_back(Common::String(str.c_str(), str.c_str() + lineEnd));
+		push_back(String(str.c_str(), str.c_str() + lineEnd));
 
 		if (lineEnd == str.size())
 			// Nothing left in string
 			str.clear();
 		else
 			// Remove already processed line
-			str = Common::String(str.c_str() + lineEnd + 1);
+			str = String(str.c_str() + lineEnd + 1);
 	}
 }
 

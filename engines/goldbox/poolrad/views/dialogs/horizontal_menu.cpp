@@ -26,7 +26,10 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-HorizontalMenu::HorizontalMenu(const Common::String &name, const HorizontalMenuConfig &config)
+using Common::String;
+using Common::KeyCode;
+
+HorizontalMenu::HorizontalMenu(const String &name, const HorizontalMenuConfig &config)
     : Dialog(name),
       _menuItems(config.menuItemList),
       _textColor(config.textColor),
@@ -71,7 +74,7 @@ void HorizontalMenu::drawText() {
 }
 
 bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
-    Common::KeyCode keyCode = msg.keycode;
+    KeyCode keyCode = msg.keycode;
     char asciiValue = (msg.ascii >= 'a' && msg.ascii <= 'z') ? msg.ascii - 32 : msg.ascii;
 
     switch (keyCode) {

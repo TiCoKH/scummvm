@@ -22,19 +22,13 @@
 #ifndef GOLDBOX_ENGINE_H
 #define GOLDBOX_ENGINE_H
 
-#include "common/scummsys.h"
 #include "common/system.h"
 #include "common/error.h"
-#include "common/fs.h"
-#include "common/hash-str.h"
 #include "common/random.h"
 #include "common/serializer.h"
-#include "common/util.h"
-#include "common/array.h"
 #include "graphics/font.h"
 #include "engines/engine.h"
 #include "engines/savestate.h"
-#include "graphics/screen.h"
 
 #include "goldbox/detection.h"
 #include "goldbox/events.h"

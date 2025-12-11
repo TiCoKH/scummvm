@@ -29,7 +29,10 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-VerticalMenu::VerticalMenu(const Common::String &name, const VerticalMenuConfig &config)
+using Common::String;
+using Common::KeyCode;
+
+VerticalMenu::VerticalMenu(const String &name, const VerticalMenuConfig &config)
     : Dialog(name),
       _promptTxt(config.promptTxt),
       _promptOptions(config.promptOptions),
@@ -158,7 +161,7 @@ void VerticalMenu::updateHorizontalMenu() {
     }
 }
 
-void VerticalMenu::handleMenuResult(bool success, Common::KeyCode key, short value) {
+void VerticalMenu::handleMenuResult(bool success, KeyCode key, short value) {
     switch (key) {
         case Common::KEYCODE_END:
             selectionDown();
@@ -264,7 +267,7 @@ void VerticalMenu::fillMenuItemsFromYml(Goldbox::MenuItemList *list,
     }
 }
 
-void VerticalMenu::rebuild(Goldbox::MenuItemList *newItems, const Common::String &newTitle) {
+void VerticalMenu::rebuild(Goldbox::MenuItemList *newItems, const String &newTitle) {
     _menuItems = newItems;
     _title = newTitle;
     _linesAbove = 0;
