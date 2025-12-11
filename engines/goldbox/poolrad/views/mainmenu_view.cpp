@@ -41,16 +41,20 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
+using Common::String;
+using Common::Array;
+using Common::StringTokenizer;
+
 MainmenuView::MainmenuView() : View("Mainmenu") {
     
-    Common::Array<Common::String> menuOptions;
+    Array<String> menuOptions;
 
-    const Common::String shortcuts = VmInterface::getString("mainmenu.0");
-    Common::StringTokenizer tokenizer(shortcuts, " ");
+    const String shortcuts = VmInterface::getString("mainmenu.0");
+    StringTokenizer tokenizer(shortcuts, " ");
     while (!tokenizer.empty()) {
-        const Common::String shortcut = tokenizer.nextToken();
-        const Common::String descriptionKey = "mainmenu." + shortcut;
-        const Common::String description = VmInterface::getString(descriptionKey);
+        const String shortcut = tokenizer.nextToken();
+        const String descriptionKey = "mainmenu." + shortcut;
+        const String description = VmInterface::getString(descriptionKey);
         menuOptions.push_back(description);
     }
     _menuItemList.generateMenuItems(menuOptions, true);

@@ -26,14 +26,20 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
+
+using Common::String;
+using Common::KeyCode;
+using Common::Array;
+using Goldbox::Poolrad::Data::PoolradCharacter;
+
 namespace {
 const byte kPromptColor = 13;
 const byte kTextColor = 10;
 const byte kSelectColor = 15;
 }
 
-SetPortrait::SetPortrait(const Common::String &name,
-    Goldbox::Poolrad::Data::PoolradCharacter *pc) :
+SetPortrait::SetPortrait(const String &name,
+    PoolradCharacter *pc) :
     Dialog(name), _pc(pc), _menu(nullptr),
     _committedHead(kMinHead), _committedBody(kMinBody) {
     if (_pc) {
@@ -41,7 +47,7 @@ SetPortrait::SetPortrait(const Common::String &name,
         _committedBody = _pc->portrait.body ? _pc->portrait.body : kMinBody;
     }
 
-    Common::Array<Common::String> labels;
+    Array<String> labels;
     labels.push_back("Head");
     labels.push_back("Body");
     labels.push_back("Keep");

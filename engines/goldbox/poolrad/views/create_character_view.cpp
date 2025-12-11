@@ -39,6 +39,9 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
+using Goldbox::Poolrad::Data::PoolradCharacter;
+using Goldbox::Data::CombatRoll;
+
 // Local UI constants and helpers
 namespace {
 const int kWinLeft = 1;
@@ -103,7 +106,7 @@ const char CHAR_NAME[] = "Character name: ";
 
 
 CreateCharacterView::CreateCharacterView() : View("CreatCharacter"), _stage(CC_STATE_RACE) {
-	_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+	_newCharacter = new PoolradCharacter();
 	_newCharacter->initializeNewCharacter();
 	chooseRace();
 }
