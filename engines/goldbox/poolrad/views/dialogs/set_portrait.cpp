@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/set_portrait.h"
+#include "goldbox/poolrad/views/dialogs/character_profile.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -39,8 +40,9 @@ const byte kSelectColor = 15;
 }
 
 SetPortrait::SetPortrait(const String &name,
-    PoolradCharacter *pc) :
-    Dialog(name), _pc(pc), _menu(nullptr),
+    PoolradCharacter *pc,
+    CharacterProfile *profile) :
+    Dialog(name), _pc(pc), _characterProfile(profile),
     _committedHead(kMinHead), _committedBody(kMinBody) {
     if (_pc) {
         _committedHead = _pc->portrait.head ? _pc->portrait.head : kMinHead;
@@ -91,7 +93,8 @@ void SetPortrait::cycleHead() {
     else
         _pc->portrait.head = kMinHead;
 
-//    _characterProfile->updatePortraitDisplay();
+    if (_characterProfile)
+        _characterProfile->drawPortrait();
 }
 
 void SetPortrait::cycleBody() {
@@ -100,7 +103,8 @@ void SetPortrait::cycleBody() {
     else
         _pc->portrait.body = kMinBody;
 
-//    _characterProfile->updatePortraitDisplay();
+    if (_characterProfile)
+        _characterProfile->drawPortrait();
 }
 
 void SetPortrait::commitSelection() {
