@@ -42,12 +42,7 @@ const byte kSelectColor = 15;
 SetPortrait::SetPortrait(const String &name,
     PoolradCharacter *pc,
     CharacterProfile *profile) :
-    Dialog(name), _pc(pc), _characterProfile(profile),
-    _committedHead(kMinHead), _committedBody(kMinBody) {
-    if (_pc) {
-        _committedHead = _pc->portrait.head ? _pc->portrait.head : kMinHead;
-        _committedBody = _pc->portrait.body ? _pc->portrait.body : kMinBody;
-    }
+    Dialog(name), _pc(pc), _characterProfile(profile) {
 
     Array<String> labels;
     labels.push_back("Head");
@@ -66,6 +61,7 @@ SetPortrait::SetPortrait(const String &name,
 
     _menu = new HorizontalMenu(name + "_Menu", cfg);
     _menu->setParent(this);
+    _menu->activate();
 }
 
 SetPortrait::~SetPortrait() {
@@ -93,8 +89,10 @@ void SetPortrait::cycleHead() {
     else
         _pc->portrait.head = kMinHead;
 
-    if (_characterProfile)
-        _characterProfile->drawPortrait();
+    if (_characterProfile) {
+        _characterProfile->draw();
+    }
+    refresh();
 }
 
 void SetPortrait::cycleBody() {
@@ -103,22 +101,10 @@ void SetPortrait::cycleBody() {
     else
         _pc->portrait.body = kMinBody;
 
-    if (_characterProfile)
-        _characterProfile->drawPortrait();
-}
-
-void SetPortrait::commitSelection() {
-    if (!_pc)
-        return;
-    _committedHead = _pc->portrait.head;
-    _committedBody = _pc->portrait.body;
-}
-
-void SetPortrait::restoreCommitted() {
-    if (!_pc)
-        return;
-    _pc->portrait.head = _committedHead;
-    _pc->portrait.body = _committedBody;
+    if (_characterProfile) {
+        _characterProfile->draw();
+    }
+    refresh();
 }
 
 void SetPortrait::refresh() {
@@ -130,8 +116,6 @@ void SetPortrait::refresh() {
 
 void SetPortrait::handleMenuResult(bool success, Common::KeyCode key, short value) {
     if (!success) {
-        restoreCommitted();
-        refresh();
         if (_parent)
             _parent->handleMenuResult(false, key, value);
         return;
@@ -140,14 +124,11 @@ void SetPortrait::handleMenuResult(bool success, Common::KeyCode key, short valu
     switch (value) {
     case 0: // Head
         cycleHead();
-        refresh();
         break;
     case 1: // Body
         cycleBody();
-        refresh();
         break;
     case 2: // Keep
-        commitSelection();
         if (_parent)
             _parent->handleMenuResult(true, Common::KEYCODE_RETURN, 0);
         break;
