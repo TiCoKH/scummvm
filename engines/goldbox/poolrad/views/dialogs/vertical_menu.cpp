@@ -82,6 +82,9 @@ VerticalMenu::VerticalMenu(const String &name, const VerticalMenuConfig &config)
 
 VerticalMenu::~VerticalMenu() {
     if (_horizontalMenu) {
+        // Detach from parent's child list before deleting to avoid issues
+        // when parent destructor tries to clean up children
+        _horizontalMenu->setParent(nullptr);
         delete _horizontalMenu;
         _horizontalMenu = nullptr;
     }
