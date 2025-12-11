@@ -242,7 +242,7 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 	case CC_STATE_NAME:
 		chooseName();
 		break;
-	case CC_STATE_PORTAIT:
+	case CC_STATE_PORTRAIT:
 		if (!_profileDialog)
 			showProfileDialog();
 		choosePortrait();
@@ -444,10 +444,8 @@ void CreateCharacterView::choosePortrait() {
 	detachAndDelete(_portraitSelector);
 	if (!_newCharacter)
 		_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
-	_portraitSelector = new SetPortraitDialog("SetPortrait", _newCharacter);
 	if (_profileDialog)
 		_portraitSelector->setParent(_profileDialog);
-	setActiveSubView(static_cast<Dialogs::Dialog *>(_portraitSelector));
 }
 
 void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
@@ -684,7 +682,6 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			// Finalize name from input dialog and proceed to icon
 			Dialogs::HorizontalInput *hi = dynamic_cast<Dialogs::HorizontalInput *>(_nameInput);
 			if (hi) {
 				_enteredName = hi->getInput();
@@ -692,12 +689,15 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 					_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
 				}
 				_newCharacter->name = _enteredName;
+				if (_profileDialog) {
+					_profileDialog->redrawName();
+				}
 			}
 			detachAndDelete(_nameInput);
-			setStage(CC_STATE_PORTAIT);
+			setStage(CC_STATE_PORTRAIT);
 		}
 		break;
-	case CC_STATE_PORTAIT:
+	case CC_STATE_PORTRAIT:
 		if (key == Common::KEYCODE_RETURN)
 			setStage(CC_STATE_DONE);
 		break;

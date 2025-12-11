@@ -31,34 +31,12 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-class PortraitDialog : public Dialog {
+    
+class SetPortrait : public Dialog {
 public:
-    PortraitDialog(Goldbox::Poolrad::Data::PoolradCharacter *pc,
-            const Common::String &name = "PortraitDialog");
-
-    void setCharacter(Goldbox::Poolrad::Data::PoolradCharacter *pc) { _pc = pc; }
-    void setBounds(uint8 left, uint8 top, uint8 right, uint8 bottom) {
-        _left = left;
-        _top = top;
-        _right = right;
-        _bottom = bottom;
-    }
-
-    void draw() override;
-
-private:
-    Goldbox::Poolrad::Data::PoolradCharacter *_pc;
-    uint8 _left;
-    uint8 _top;
-    uint8 _right;
-    uint8 _bottom;
-};
-
-class SetPortraitDialog : public Dialog {
-public:
-    SetPortraitDialog(const Common::String &name,
+    SetPortrait(const Common::String &name,
             Goldbox::Poolrad::Data::PoolradCharacter *pc);
-    ~SetPortraitDialog() override;
+    ~SetPortrait() override;
 
     bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
@@ -66,7 +44,6 @@ public:
 
 private:
     Goldbox::Poolrad::Data::PoolradCharacter *_pc;
-    PortraitDialog *_portraitPreview;
     HorizontalMenu *_menu;
     Goldbox::MenuItemList _menuItems;
     uint8 _committedHead;

@@ -36,13 +36,13 @@ bool TitleView::msgFocus(const FocusMessage &msg) {
 	if (!daxBlock) {
 		error("Failed to load title block 1 from title container");
 	}
-	_pic1 = Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
+	_pic1 = Goldbox::Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
 
 	daxBlock = titleContainer.getBlockById(2);
 	if (!daxBlock) {
 		error("Failed to load title block 2 from title container");
 	}
-	_pic2 = Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
+	_pic2 = Goldbox::Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
 
 	return true;
 }

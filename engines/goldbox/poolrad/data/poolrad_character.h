@@ -164,7 +164,6 @@ public:
 
     // draw methods
     byte getNameColor();
-    //void drawCombatStats();
 
     // Implementing pure virtual functions from PlayerCharacter
     const char *getRaceName() const override {

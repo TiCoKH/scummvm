@@ -31,8 +31,8 @@ namespace Views {
 
 class TitleView : public View {
 private:
-	Gfx::Pic* _pic1 = nullptr;
-	Gfx::Pic *_pic2 = nullptr;
+	Goldbox::Gfx::Pic *_pic1 = nullptr;
+	Goldbox::Gfx::Pic *_pic2 = nullptr;
 	uint8 _state = 0;
 
 public:

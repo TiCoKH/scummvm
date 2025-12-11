@@ -34,6 +34,7 @@ MODULE_OBJS = \
 	poolrad/poolrad.o \
 	poolrad/console.o \
 	poolrad/data/poolrad_character.o \
+	poolrad/gfx/surface.o \
 	poolrad/views/view.o \
 	poolrad/views/title_view.o \
 	poolrad/views/credits_view.o \
@@ -49,6 +50,7 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/party_list.o \
 	poolrad/views/dialogs/vertical_menu.o \
 	poolrad/views/dialogs/character_profile.o \
+	poolrad/views/dialogs/portrait_display.o \
 	poolrad/views/dialogs/set_portrait.o 
 
 

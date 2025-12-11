@@ -11,8 +11,25 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+// Head DAX block IDs indexed by portrait head ID (1-14)
+const uint8 CharacterProfile::kHeadDaxBlockIds[14] = {
+    0x00, 0x08, 0x09, 0x0D,
+    0x10, 0x12, 0x16, 0x22,
+    0x2D, 0x33, 0x35, 0x39,
+    0x43, 0x44
+};
+
+// Body DAX block IDs indexed by portrait body ID (1-12)
+const uint8 CharacterProfile::kBodyDaxBlockIds[12] = {
+    0x01, 0x02, 0x03, 0x04,
+    0x07, 0x08, 0x12, 0x05,
+    0x1A, 0x21, 0x23, 0x25
+};
+
 CharacterProfile::CharacterProfile(Goldbox::Poolrad::Data::PoolradCharacter *pc, const Common::String &name)
     : Dialog(name), _poolradPc(pc) {
+    if (_poolradPc) {
+    }
 }
 
 void CharacterProfile::draw() {
@@ -62,12 +79,26 @@ void CharacterProfile::redrawCombat() {
     drawCombat();
 }
 
-void CharacterProfile::drawIdentity() {
+// Clear and redraw only the name area (row 1, name and NPC indicator)
+void CharacterProfile::redrawName() {
+    if (!_poolradPc)
+        return;
+    Surface s = getSurface();
+    s.clearBox(1, 1, 27, 1, 0);
+    drawName();
+}
+
+void CharacterProfile::drawName() {
     Surface s = getSurface();
     s.writeStringC(_poolradPc->name, _poolradPc->getNameColor(), 1, 1);
     if (_poolradPc->npc < 0) {
         s.writeStringC("(NPC)", 14, 1 + _poolradPc->name.size() + 3, 1);
     }
+}
+
+void CharacterProfile::drawIdentity() {
+    Surface s = getSurface();
+    drawName();
 	Common::String raceClass = VmInterface::getString(Common::String::format("stats.gender.%d", _poolradPc->gender));
     raceClass += " ";
     raceClass += VmInterface::getString(Common::String::format("stats.races.%d", _poolradPc->race));

@@ -37,7 +37,7 @@ HorizontalYesNo::HorizontalYesNo(const Common::String &name, const HorizontalYes
     items.push_back("YES");
     items.push_back("NO");
     _menuItems.generateMenuItems(items, true); // generate shortcuts 'Y' and 'N'
-    _menuItems.currentSelection = 0; // default to YES
+    _menuItems.currentSelection = 1; // default to NO
     activate();
 }
 

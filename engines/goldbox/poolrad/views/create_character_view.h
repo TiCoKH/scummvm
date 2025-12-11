@@ -44,7 +44,7 @@ enum CharacterCreateState {
     CC_STATE_ALIGNMENT,
     CC_STATE_ROLLSTATS,
     CC_STATE_NAME,
-    CC_STATE_PORTAIT,
+    CC_STATE_PORTRAIT,
     CC_STATE_ICON,
     CC_STATE_DONE
 };
@@ -78,7 +78,7 @@ private:
     Dialogs::VerticalMenu *_menu = nullptr;
 
     Dialogs::CharacterProfile *_profileDialog = nullptr;
-    Dialogs::SetPortraitDialog *_portraitSelector = nullptr;
+    Dialogs::SetPortrait *_portraitSelector = nullptr;
     Dialogs::Dialog *_activeSubView = nullptr;
     // helper to format save filename (8.3 style)
     bool _hasRolled = false;    // ensures we roll once when entering profile

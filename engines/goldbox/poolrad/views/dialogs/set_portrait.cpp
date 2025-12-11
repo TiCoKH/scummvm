@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/set_portrait.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -29,42 +30,16 @@ namespace {
 const byte kPromptColor = 13;
 const byte kTextColor = 10;
 const byte kSelectColor = 15;
-
-const uint8 kPortraitLeft = 28;
-const uint8 kPortraitTop = 1;
-const uint8 kPortraitRight = 38;
-const uint8 kPortraitBottom = 11;
 }
 
-PortraitDialog::PortraitDialog(Goldbox::Poolrad::Data::PoolradCharacter *pc,
-    const Common::String &name) :
-    Dialog(name), _pc(pc), _left(kPortraitLeft), _top(kPortraitTop),
-    _right(kPortraitRight), _bottom(kPortraitBottom) {
-}
-
-void PortraitDialog::draw() {
-    drawWindow(_left, _top, _right, _bottom);
-    if (!_pc)
-        return;
-
-    Surface s = getSurface();
-    Common::String headText = Common::String::format("Head %d", (int)_pc->portrait.head);
-    Common::String bodyText = Common::String::format("Body %d", (int)_pc->portrait.body);
-    s.writeStringC(headText, 15, _left + 1, _top + 1);
-    s.writeStringC(bodyText, 15, _left + 1, _top + 2);
-}
-
-SetPortraitDialog::SetPortraitDialog(const Common::String &name,
+SetPortrait::SetPortrait(const Common::String &name,
     Goldbox::Poolrad::Data::PoolradCharacter *pc) :
-    Dialog(name), _pc(pc), _portraitPreview(nullptr), _menu(nullptr),
+    Dialog(name), _pc(pc), _menu(nullptr),
     _committedHead(kMinHead), _committedBody(kMinBody) {
     if (_pc) {
         _committedHead = _pc->portrait.head ? _pc->portrait.head : kMinHead;
         _committedBody = _pc->portrait.body ? _pc->portrait.body : kMinBody;
     }
-
-    _portraitPreview = new PortraitDialog(pc, name + "_Preview");
-    _portraitPreview->setParent(this);
 
     Common::Array<Common::String> labels;
     labels.push_back("Head");
@@ -85,12 +60,7 @@ SetPortraitDialog::SetPortraitDialog(const Common::String &name,
     _menu->setParent(this);
 }
 
-SetPortraitDialog::~SetPortraitDialog() {
-    if (_portraitPreview) {
-        _portraitPreview->setParent(nullptr);
-        delete _portraitPreview;
-        _portraitPreview = nullptr;
-    }
+SetPortrait::~SetPortrait() {
     if (_menu) {
         _menu->setParent(nullptr);
         delete _menu;
@@ -98,61 +68,57 @@ SetPortraitDialog::~SetPortraitDialog() {
     }
 }
 
-bool SetPortraitDialog::msgKeypress(const KeypressMessage &msg) {
+bool SetPortrait::msgKeypress(const KeypressMessage &msg) {
     if (_menu)
         return _menu->msgKeypress(msg);
     return true;
 }
 
-void SetPortraitDialog::draw() {
-    if (_portraitPreview)
-        _portraitPreview->draw();
+void SetPortrait::draw() {
     if (_menu)
         _menu->draw();
 }
 
-void SetPortraitDialog::cycleHead() {
-    if (!_pc)
-        return;
+void SetPortrait::cycleHead() {
     if (_pc->portrait.head < kMaxHead)
         _pc->portrait.head++;
     else
         _pc->portrait.head = kMinHead;
+
+//    _characterProfile->updatePortraitDisplay();
 }
 
-void SetPortraitDialog::cycleBody() {
-    if (!_pc)
-        return;
+void SetPortrait::cycleBody() {
     if (_pc->portrait.body < kMaxBody)
         _pc->portrait.body++;
     else
         _pc->portrait.body = kMinBody;
+
+//    _characterProfile->updatePortraitDisplay();
 }
 
-void SetPortraitDialog::commitSelection() {
+void SetPortrait::commitSelection() {
     if (!_pc)
         return;
     _committedHead = _pc->portrait.head;
     _committedBody = _pc->portrait.body;
 }
 
-void SetPortraitDialog::restoreCommitted() {
+void SetPortrait::restoreCommitted() {
     if (!_pc)
         return;
     _pc->portrait.head = _committedHead;
     _pc->portrait.body = _committedBody;
 }
 
-void SetPortraitDialog::refresh() {
-    if (_portraitPreview)
-        _portraitPreview->draw();
+void SetPortrait::refresh() {
     if (_menu) {
         _menu->setRedraw();
         _menu->draw();
     }
 }
 
-void SetPortraitDialog::handleMenuResult(bool success, Common::KeyCode key, short value) {
+void SetPortrait::handleMenuResult(bool success, Common::KeyCode key, short value) {
     if (!success) {
         restoreCommitted();
         refresh();
