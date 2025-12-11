@@ -312,6 +312,27 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 			return true;
 		}
 	}
+	// Handle portrait selection keys
+	if (_stage == CC_STATE_PORTRAIT) {
+		if (msg.keycode == Common::KEYCODE_b || msg.ascii == 'B') {
+			if (_portraitSelector) {
+				_portraitSelector->handleMenuResult(true, Common::KEYCODE_INVALID, 1); // Body = menu value 1
+			}
+			return true;
+		}
+		if (msg.keycode == Common::KEYCODE_h || msg.ascii == 'H') {
+			if (_portraitSelector) {
+				_portraitSelector->handleMenuResult(true, Common::KEYCODE_INVALID, 0); // Head = menu value 0
+			}
+			return true;
+		}
+		if (msg.keycode == Common::KEYCODE_k || msg.ascii == 'K') {
+			if (_portraitSelector) {
+				_portraitSelector->handleMenuResult(true, Common::KEYCODE_RETURN, 2); // Keep = menu value 2
+			}
+			return true;
+		}
+	}
 	// In all other cases, if we have an active subview (e.g., name input or menu),
 	// forward the keypress to the concrete dialog instance.
 	if (_activeSubView) {
@@ -447,8 +468,10 @@ void CreateCharacterView::choosePortrait() {
 	detachAndDelete(_portraitSelector);
 	if (!_newCharacter)
 		_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+	_portraitSelector = new SetPortrait("SetPortrait", _newCharacter, _profileDialog);
 	if (_profileDialog)
 		_portraitSelector->setParent(_profileDialog);
+	setActiveSubView(_portraitSelector);
 }
 
 void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
@@ -693,7 +716,7 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 				}
 				_newCharacter->name = _enteredName;
 				if (_profileDialog) {
-					_profileDialog->redrawName();
+					_profileDialog->drawName();
 				}
 			}
 			detachAndDelete(_nameInput);
@@ -701,8 +724,13 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 		}
 		break;
 	case CC_STATE_PORTRAIT:
-		if (key == Common::KEYCODE_RETURN)
+		if (key == Common::KEYCODE_RETURN) {
+			// Portrait selection confirmed, clean up and proceed
+			if (_activeSubView == _portraitSelector)
+				_activeSubView = nullptr;
+			detachAndDelete(_portraitSelector);
 			setStage(CC_STATE_DONE);
+		}
 		break;
 	case CC_STATE_DONE:
 		replaceView("Mainmenu");
