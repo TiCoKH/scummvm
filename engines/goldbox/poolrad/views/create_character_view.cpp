@@ -233,6 +233,11 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 		chooseAlignment();
 		break;
 	case CC_STATE_ROLLSTATS:
+		// Deactivate the menu but don't delete it yet - let pending HorizontalMenu events complete
+		if (_activeSubView == static_cast<Dialogs::Dialog *>(_menu)) {
+			_menu->deactivate();
+			_activeSubView = nullptr;
+		}
 		// First time entering profile: roll initial stats BEFORE showing profile
 		if (!_hasRolled && _newCharacter) {
 			initializeRollStatsOnce();
@@ -243,9 +248,33 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 		attachKeepCharacterPrompt();
 		break;
 	case CC_STATE_NAME:
+		// Deactivate and delete yes/no prompt
+		if (_yesNoPrompt) {
+			if (_activeSubView == static_cast<Dialogs::Dialog *>(_yesNoPrompt)) {
+				_yesNoPrompt->deactivate();
+				_activeSubView = nullptr;
+			}
+			detachAndDelete(_yesNoPrompt);
+		}
+		// Menu is already inactive; just ensure it's not active
+		if (_activeSubView == static_cast<Dialogs::Dialog *>(_menu))
+			_activeSubView = nullptr;
+		if (!_profileDialog)
+			showProfileDialog();
 		chooseName();
 		break;
 	case CC_STATE_PORTRAIT:
+		// Remove text input
+		if (_nameInput) {
+			if (_activeSubView == static_cast<Dialogs::Dialog *>(_nameInput)) {
+				_nameInput->deactivate();
+				_activeSubView = nullptr;
+			}
+			detachAndDelete(_nameInput);
+		}
+		// Menu is already inactive; just ensure it's not active
+		if (_activeSubView == static_cast<Dialogs::Dialog *>(_menu))
+			_activeSubView = nullptr;
 		if (!_profileDialog)
 			showProfileDialog();
 		choosePortrait();
@@ -309,27 +338,6 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 			performRerollAndRecompute();
 			if (_profileDialog)
 				_profileDialog->redrawStats(), _profileDialog->redrawValuables(), _profileDialog->redrawCombat();
-			return true;
-		}
-	}
-	// Handle portrait selection keys
-	if (_stage == CC_STATE_PORTRAIT) {
-		if (msg.keycode == Common::KEYCODE_b || msg.ascii == 'B') {
-			if (_portraitSelector) {
-				_portraitSelector->handleMenuResult(true, Common::KEYCODE_INVALID, 1); // Body = menu value 1
-			}
-			return true;
-		}
-		if (msg.keycode == Common::KEYCODE_h || msg.ascii == 'H') {
-			if (_portraitSelector) {
-				_portraitSelector->handleMenuResult(true, Common::KEYCODE_INVALID, 0); // Head = menu value 0
-			}
-			return true;
-		}
-		if (msg.keycode == Common::KEYCODE_k || msg.ascii == 'K') {
-			if (_portraitSelector) {
-				_portraitSelector->handleMenuResult(true, Common::KEYCODE_RETURN, 2); // Keep = menu value 2
-			}
 			return true;
 		}
 	}
@@ -465,6 +473,10 @@ void CreateCharacterView::chooseName() {
 
 void CreateCharacterView::choosePortrait() {
 	using namespace Goldbox::Poolrad::Views::Dialogs;
+	// Portrait selection does not use the vertical menu; remove it from the hierarchy
+	if (_activeSubView == static_cast<Dialogs::Dialog *>(_menu))
+		_activeSubView = nullptr;
+	detachAndDelete(_menu);
 	detachAndDelete(_portraitSelector);
 	if (!_newCharacter)
 		_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
@@ -740,15 +752,21 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 
 void CreateCharacterView::resetState() {
 	// Delete subviews safely: detach from parent so redraw traversal doesn't
-	// see freed memory. Keep _menu to reuse, but if active, deactivate.
+	// see freed memory.
 	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
 	if (_activeSubView == _nameInput) _activeSubView = nullptr;
 	if (_activeSubView == _yesNoPrompt) _activeSubView = nullptr;
 	if (_activeSubView == _portraitSelector) _activeSubView = nullptr;
+	if (_activeSubView == _menu) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
 	detachAndDelete(_yesNoPrompt);
 	detachAndDelete(_portraitSelector);
+	detachAndDelete(_menu);  // Clean up menu when resetting
+	if (_menuItems) {
+		delete _menuItems;
+		_menuItems = nullptr;
+	}
 	// Reset character
 	if (_newCharacter) { delete _newCharacter; }
 	_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();

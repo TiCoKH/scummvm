@@ -52,8 +52,6 @@ private:
     HorizontalMenu *_menu;
     CharacterProfile *_characterProfile;
     Goldbox::MenuItemList _menuItems;
-    uint8 _committedHead;
-    uint8 _committedBody;
     bool _redraw = true;
 
     static const uint8 kMinHead = 1;
@@ -63,8 +61,6 @@ private:
 
     void cycleHead();
     void cycleBody();
-    void commitSelection();
-    void restoreCommitted();
     void handleSelection(int selection);
     void drawText();
 };
