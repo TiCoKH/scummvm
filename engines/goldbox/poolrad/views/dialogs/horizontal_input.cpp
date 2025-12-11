@@ -26,7 +26,10 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-HorizontalInput::HorizontalInput(const Common::String &name, const HorizontalInputConfig &config)
+using Common::String;
+using Common::KeyCode;
+
+HorizontalInput::HorizontalInput(const String &name, const HorizontalInputConfig &config)
     : Dialog(name),
       _promptTxt(config.promptTxt),
       _promptColor(config.promptColor),
@@ -38,7 +41,7 @@ HorizontalInput::HorizontalInput(const Common::String &name, const HorizontalInp
 
 bool HorizontalInput::msgKeypress(const KeypressMessage &msg) {
     char asciiValue = msg.ascii;
-    Common::KeyCode keyCode = msg.keycode;
+    KeyCode keyCode = msg.keycode;
 
     if (_isActive) {
         if (keyCode == Common::KEYCODE_RETURN || keyCode == Common::KEYCODE_ESCAPE) {

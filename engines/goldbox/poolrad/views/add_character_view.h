@@ -22,7 +22,6 @@
 #ifndef GOLDBOX_POOLRAD_VIEWS_ADD_CHARACTER_VIEW_H
 #define GOLDBOX_POOLRAD_VIEWS_ADD_CHARACTER_VIEW_H
 
-#include "graphics/managed_surface.h"
 #include "goldbox/poolrad/views/view.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 

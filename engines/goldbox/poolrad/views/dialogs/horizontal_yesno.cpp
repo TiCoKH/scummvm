@@ -26,14 +26,18 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-HorizontalYesNo::HorizontalYesNo(const Common::String &name, const HorizontalYesNoConfig &config)
+using Common::String;
+using Common::KeyCode;
+using Common::Array;
+
+HorizontalYesNo::HorizontalYesNo(const String &name, const HorizontalYesNoConfig &config)
         : Dialog(name),
             _textColor(config.textColor),
             _selectColor(config.selectColor),
             _promptColor(config.promptColor),
             _promptTxt(config.promptTxt) {
     // Build internal YES/NO menu using MenuItemList like HorizontalMenu
-    Common::Array<Common::String> items;
+    Array<String> items;
     items.push_back("YES");
     items.push_back("NO");
     _menuItems.generateMenuItems(items, true); // generate shortcuts 'Y' and 'N'
@@ -43,7 +47,7 @@ HorizontalYesNo::HorizontalYesNo(const Common::String &name, const HorizontalYes
 
 bool HorizontalYesNo::msgKeypress(const KeypressMessage &msg) {
     char asciiValue = msg.ascii;
-    Common::KeyCode keyCode = msg.keycode;
+    KeyCode keyCode = msg.keycode;
 
     if (!_isActive)
         return true;
