@@ -51,7 +51,8 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/vertical_menu.o \
 	poolrad/views/dialogs/character_profile.o \
 	poolrad/views/dialogs/portrait_display.o \
-	poolrad/views/dialogs/set_portrait.o 
+	poolrad/views/dialogs/set_portrait.o \
+	poolrad/views/dialogs/set_icon.o
 
 
 
