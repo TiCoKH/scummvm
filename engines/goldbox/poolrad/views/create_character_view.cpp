@@ -34,6 +34,7 @@
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/poolrad/views/dialogs/set_icon.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -115,13 +116,15 @@ CreateCharacterView::~CreateCharacterView() {
 	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
 	if (_activeSubView == _nameInput) _activeSubView = nullptr;
 	if (_activeSubView == _yesNoPrompt) _activeSubView = nullptr;
-	if (_activeSubView == _menu) _activeSubView = nullptr;
+	if (_activeSubView == _listmenu) _activeSubView = nullptr;
 	if (_activeSubView == _portraitSelector) _activeSubView = nullptr;
+	if (_activeSubView == _iconSelector) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
 	detachAndDelete(_yesNoPrompt);
 	detachAndDelete(_portraitSelector);
-	detachAndDelete(_menu);
+	detachAndDelete(_iconSelector);
+	detachAndDelete(_listmenu);
 	delete _menuItems; _menuItems = nullptr;
 	delete _newCharacter; _newCharacter = nullptr;
 }
@@ -234,8 +237,8 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 		break;
 	case CC_STATE_ROLLSTATS:
 		// Deactivate the menu but don't delete it yet - let pending HorizontalMenu events complete
-		if (_activeSubView == static_cast<Dialogs::Dialog *>(_menu)) {
-			_menu->deactivate();
+		if (_activeSubView == static_cast<Dialogs::Dialog *>(_listmenu)) {
+			_listmenu->deactivate();
 			_activeSubView = nullptr;
 		}
 		// First time entering profile: roll initial stats BEFORE showing profile
@@ -257,7 +260,7 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 			detachAndDelete(_yesNoPrompt);
 		}
 		// Menu is already inactive; just ensure it's not active
-		if (_activeSubView == static_cast<Dialogs::Dialog *>(_menu))
+		if (_activeSubView == static_cast<Dialogs::Dialog *>(_listmenu))
 			_activeSubView = nullptr;
 		if (!_profileDialog)
 			showProfileDialog();
@@ -273,14 +276,28 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 			detachAndDelete(_nameInput);
 		}
 		// Menu is already inactive; just ensure it's not active
-		if (_activeSubView == static_cast<Dialogs::Dialog *>(_menu))
+		if (_activeSubView == static_cast<Dialogs::Dialog *>(_listmenu))
 			_activeSubView = nullptr;
 		if (!_profileDialog)
 			showProfileDialog();
 		choosePortrait();
 		break;
 	case CC_STATE_ICON:
-		// Launch the icon editor subview
+		if (_portraitSelector) {
+			if (_activeSubView == static_cast<Dialogs::Dialog *>(_portraitSelector)) {
+				_portraitSelector->deactivate();
+				_activeSubView = nullptr;
+			}
+			detachAndDelete(_portraitSelector);
+		}
+		// Menu is already inactive; just ensure it's not active
+		if (_activeSubView == static_cast<Dialogs::Dialog *>(_listmenu))
+			_activeSubView = nullptr;
+		// Profile is hidden for icon selection
+		if (_profileDialog) {
+			_profileDialog->deactivate();
+		}
+		chooseIcon();
 		break;
 	case CC_STATE_DONE:
 		saveCharacter();
@@ -291,15 +308,20 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 
 void CreateCharacterView::draw() {
 	Surface s = getSurface();
-
-	drawWindow(kWinLeft, kWinTop, kWinRight, kWinBottom);
-	// Always draw the profile first if present, so it remains visible
-	if (_profileDialog) {
+	// In CC_STATE_ICON, let SetIcon handle all drawing (including custom background)
+	if (_stage != CC_STATE_ICON) {
+		drawWindow(kWinLeft, kWinTop, kWinRight, kWinBottom);
+	} else {
+	}
+	// Draw the profile only in states where it should be visible (not CC_STATE_ICON)
+	if (_stage != CC_STATE_ICON && _profileDialog && _profileDialog->isActive()) {
 		_profileDialog->draw();
 	}
 	// Then draw the active subview (menu, yes/no prompt, name input, etc.)
 	if (_activeSubView && _activeSubView != static_cast<Dialogs::Dialog *>(_profileDialog)) {
 		_activeSubView->draw();
+	} else {
+		debug("CreateCharacterView::draw() - No active subview to draw");
 	}
 }
 
@@ -474,16 +496,31 @@ void CreateCharacterView::chooseName() {
 void CreateCharacterView::choosePortrait() {
 	using namespace Goldbox::Poolrad::Views::Dialogs;
 	// Portrait selection does not use the vertical menu; remove it from the hierarchy
-	if (_activeSubView == static_cast<Dialogs::Dialog *>(_menu))
+	if (_activeSubView == static_cast<Dialogs::Dialog *>(_listmenu))
 		_activeSubView = nullptr;
-	detachAndDelete(_menu);
+	detachAndDelete(_listmenu);
 	detachAndDelete(_portraitSelector);
 	if (!_newCharacter)
 		_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
 	_portraitSelector = new SetPortrait("SetPortrait", _newCharacter, _profileDialog);
-	if (_profileDialog)
-		_portraitSelector->setParent(_profileDialog);
+	_portraitSelector->setParent(this);
 	setActiveSubView(_portraitSelector);
+}
+
+void CreateCharacterView::chooseIcon() {
+	using namespace Goldbox::Poolrad::Views::Dialogs;
+	// Icon selection does not use the vertical menu or profile; remove them from the hierarchy
+	if (_activeSubView == static_cast<Dialogs::Dialog *>(_listmenu))
+		_activeSubView = nullptr;
+	detachAndDelete(_listmenu);
+	detachAndDelete(_iconSelector);
+	if (!_newCharacter)
+		_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+	_iconSelector = new SetIcon("SetIcon", _newCharacter);
+	_iconSelector->setParent(this);
+	subView(_iconSelector);
+	_iconSelector->activate();
+	setActiveSubView(_iconSelector);
 }
 
 void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
@@ -499,13 +536,13 @@ void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
 		topline,	         // title
         false                // asHeader
     };
-	if (_menu) {
-		_menu->rebuild(_menuItems, topline);
-		setActiveSubView(_menu);
+	if (_listmenu) {
+		_listmenu->rebuild(_menuItems, topline);
+		setActiveSubView(_listmenu);
 	} else {
-		_menu = new Dialogs::VerticalMenu("CreateCharMenu", menuConfig);
-		subView(_menu);
-		setActiveSubView(_menu);
+		_listmenu = new Dialogs::VerticalMenu("CreateCharMenu", menuConfig);
+		subView(_listmenu);
+		setActiveSubView(_listmenu);
 	}
 }
 
@@ -736,11 +773,22 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 		}
 		break;
 	case CC_STATE_PORTRAIT:
-		if (key == Common::KEYCODE_RETURN) {
-			// Portrait selection confirmed, clean up and proceed
+		if (key == Common::KEYCODE_k) {
 			if (_activeSubView == _portraitSelector)
 				_activeSubView = nullptr;
 			detachAndDelete(_portraitSelector);
+			setStage(CC_STATE_ICON);
+		}
+		break;
+	case CC_STATE_ICON:
+		if (key == Common::KEYCODE_ESCAPE) {
+			resetState();
+			replaceView("Mainmenu");
+		} else if (key == Common::KEYCODE_RETURN) {
+			// Icon selection complete, move to DONE
+			if (_activeSubView == _iconSelector)
+				_activeSubView = nullptr;
+			detachAndDelete(_iconSelector);
 			setStage(CC_STATE_DONE);
 		}
 		break;
@@ -757,12 +805,14 @@ void CreateCharacterView::resetState() {
 	if (_activeSubView == _nameInput) _activeSubView = nullptr;
 	if (_activeSubView == _yesNoPrompt) _activeSubView = nullptr;
 	if (_activeSubView == _portraitSelector) _activeSubView = nullptr;
-	if (_activeSubView == _menu) _activeSubView = nullptr;
+	if (_activeSubView == _iconSelector) _activeSubView = nullptr;
+	if (_activeSubView == _listmenu) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
 	detachAndDelete(_yesNoPrompt);
 	detachAndDelete(_portraitSelector);
-	detachAndDelete(_menu);  // Clean up menu when resetting
+	detachAndDelete(_iconSelector);
+	detachAndDelete(_listmenu);
 	if (_menuItems) {
 		delete _menuItems;
 		_menuItems = nullptr;

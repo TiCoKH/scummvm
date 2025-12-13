@@ -31,6 +31,7 @@
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/poolrad/views/dialogs/set_portrait.h"
+#include "goldbox/poolrad/views/dialogs/set_icon.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -75,10 +76,11 @@ private:
     Dialogs::HorizontalYesNo *_yesNoPrompt = nullptr;
     // Reusable menu items container
     Goldbox::MenuItemList *_menuItems = nullptr;
-    Dialogs::VerticalMenu *_menu = nullptr;
+    Dialogs::VerticalMenu *_listmenu = nullptr;
 
     Dialogs::CharacterProfile *_profileDialog = nullptr;
     Dialogs::SetPortrait *_portraitSelector = nullptr;
+    Dialogs::SetIcon *_iconSelector = nullptr;
     Dialogs::Dialog *_activeSubView = nullptr;
     // helper to format save filename (8.3 style)
     bool _hasRolled = false;    // ensures we roll once when entering profile
@@ -106,6 +108,7 @@ private:
     void attachKeepCharacterPrompt();
     void chooseName();
     void choosePortrait();
+    void chooseIcon();
     void buildAndShowMenu(const Common::String &prompt);
     void resetState();
     void setThiefSkillsForNewCharacter();

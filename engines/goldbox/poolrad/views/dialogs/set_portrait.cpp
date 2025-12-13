@@ -73,8 +73,9 @@ SetPortrait::~SetPortrait() {
 }
 
 bool SetPortrait::msgKeypress(const KeypressMessage &msg) {
-    if (_menu)
+    if (_menu) {
         return _menu->msgKeypress(msg);
+    }
     return true;
 }
 
@@ -116,23 +117,28 @@ void SetPortrait::refresh() {
 
 void SetPortrait::handleMenuResult(bool success, Common::KeyCode key, short value) {
     if (!success) {
-        if (_parent)
+        if (_parent) {
             _parent->handleMenuResult(false, key, value);
+        }
         return;
     }
 
-    switch (value) {
-    case 0: // Head
+    switch (key) {
+    case Common::KEYCODE_h:
         cycleHead();
         break;
-    case 1: // Body
+    case Common::KEYCODE_b:
         cycleBody();
         break;
-    case 2: // Keep
-        if (_parent)
-            _parent->handleMenuResult(true, Common::KEYCODE_RETURN, 0);
+    case Common::KEYCODE_k:
+        if (_parent) {
+            _parent->handleMenuResult(true, key, 0);
+        } else {
+            debug("SetPortrait::handleMenuResult - ERROR: No parent set!");
+        }
         break;
     default:
+        debug("SetPortrait::handleMenuResult - unknown key %d", key);
         break;
     }
 }

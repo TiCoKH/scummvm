@@ -78,6 +78,12 @@ void View::drawWindow(uint8 left, uint8  top, uint8 right, uint8 bottom){
     s.clearBox(left, top, right, bottom, 0);
 }
 
+void View::drawWindowC(uint8 left, uint8  top, uint8 right, uint8 bottom, uint8 bgColor){
+	drawFrame(Common::Rect(left - 1, top - 1, right + 1, bottom + 1));
+	Surface s = getSurface();
+	s.clearBox(left, top, right, bottom, bgColor);
+}
+
 bool View::msgFocus(const FocusMessage &msg) {
 	_focusedElement = nullptr;
 	return UIElement::msgFocus(msg);
