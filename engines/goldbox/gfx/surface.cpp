@@ -23,6 +23,7 @@
 #include "graphics/palette.h"
 #include "graphics/paletteman.h"
 #include "goldbox/gfx/surface.h"
+#include "goldbox/gfx/dax_tile.h"
 #include "goldbox/engine.h"
 
 namespace Goldbox {
@@ -176,6 +177,33 @@ void Surface::writeSymbol(unsigned char c) {
 void Surface::writeSymbol(unsigned char c, int x, int y) {
 	setTextPos(x, y);
 	writeSymbol(c);
+}
+
+void Surface::writeSymbol(unsigned char c, uint32 bgColor) {
+	setToSymbols();
+	
+	if (bgColor == 0) {
+		// No background color - use standard rendering (color 0 stays transparent/black)
+		_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, _textColor);
+	} else {
+		// Use DaxTile's drawCharWithBg to replace color 0 with bgColor
+		Goldbox::Gfx::DaxTile *daxTile = dynamic_cast<Goldbox::Gfx::DaxTile *>(_currentFont);
+		if (daxTile) {
+			daxTile->drawCharWithBg(surfacePtr(), c, _textX * FONT_W, _textY * FONT_H, _textColor, bgColor);
+		} else {
+			// Fallback for non-DaxTile fonts
+			Common::Rect bgRect(_textX * FONT_W, _textY * FONT_H,
+								(_textX + 1) * FONT_W, (_textY + 1) * FONT_H);
+			fillRect(bgRect, bgColor);
+			_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, _textColor);
+		}
+	}
+	++_textX;
+}
+
+void Surface::writeSymbol(unsigned char c, int x, int y, uint32 bgColor) {
+	setTextPos(x, y);
+	writeSymbol(c, bgColor);
 }
 
 void Surface::setTextPos(int x, int y) {

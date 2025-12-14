@@ -54,9 +54,10 @@ bool SetIcon::msgKeypress(const KeypressMessage &msg) {
 }
 
 void SetIcon::draw() {
-    Surface s = getSurface();
-    s.clearBox(0, 0, 40, 25, kBackgroundColor);
-    drawWindowC(kWindowLeft, kWindowTop, kWindowRight, kWindowBottom, kBackgroundColor);
+	Surface s = getSurface();
+	s.clearBox(0, 0, 40, 25, kBackgroundColor);
+	drawFrame(Common::Rect(kWindowLeft - 1, kWindowTop - 1, kWindowRight + 1, kWindowBottom + 1), kBackgroundColor);
+	s.clearBox(kWindowLeft, kWindowTop, kWindowRight, kWindowBottom, kBackgroundColor);
     
     // Add some test text so we can see if drawing is working
     s.writeStringC("SELECT ICON", 15, 15, 10);
