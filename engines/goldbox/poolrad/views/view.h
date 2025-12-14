@@ -54,7 +54,7 @@ private:
 	UIElement *getElementAtPos(const Common::Point &pos) const;
 
 protected:
-	void drawFrame(const Common::Rect &r, uint32 bgColor = 0);
+	void drawFrame(const Common::Rect &r, uint32 bgColor = 0, uint32 tpColorIndex = 0);
 	void drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom);
 
 public:

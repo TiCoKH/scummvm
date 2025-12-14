@@ -72,9 +72,15 @@ public:
 
 	/**
 	 * Draw a character with background color replacement
-	 * Color index 0 in the bitmap will be replaced with bgColor
+	 * @param dst Destination surface
+	 * @param chr Character index to draw
+	 * @param x X position
+	 * @param y Y position
+	 * @param color Foreground color (currently unused, bitmap colors are used as-is)
+	 * @param bgColor Background color to use for transparent pixels
+	 * @param tpColorIndex Which color index to treat as transparent (default: 0)
 	 */
-	void drawCharWithBg(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color, uint32 bgColor) const;
+	void drawCharWithBg(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color, uint32 bgColor, uint32 tpColorIndex = 0) const;
 };
 
 }; //namespace Gfx
