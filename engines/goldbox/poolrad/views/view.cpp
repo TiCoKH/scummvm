@@ -54,22 +54,22 @@ UIElement *View::getElementAtPos(const Common::Point &pos) const {
 	return nullptr;
 }
 
-void View::drawFrame(const Common::Rect &r, uint32 bgColor) {
+void View::drawFrame(const Common::Rect &r, uint32 bgColor, uint32 tpColorIndex) {
 	Surface s = getSurface();
 
-	s.writeSymbol(20, r.left, r.top, bgColor);
+	s.writeSymbol(20, r.left, r.top, bgColor, tpColorIndex);
 	for (int x = r.left + 1; x <= r.right - 1; x++) {
-		s.writeSymbol(22, bgColor);
+		s.writeSymbol(22, bgColor, tpColorIndex);
 	}
-	s.writeSymbol(20, bgColor);
+	s.writeSymbol(20, bgColor, tpColorIndex);
 	for (int y = r.top + 1; y <= r.bottom - 1; y++) {
-		s.writeSymbol(21, r.left, y, bgColor);
-		s.writeSymbol(21, r.right, y, bgColor);
+		s.writeSymbol(21, r.left, y, bgColor, tpColorIndex);
+		s.writeSymbol(21, r.right, y, bgColor, tpColorIndex);
 	}
-	s.writeSymbol(20, r.left, r.bottom, bgColor);
+	s.writeSymbol(20, r.left, r.bottom, bgColor, tpColorIndex);
 	for (int x = r.left + 1; x <= r.right - 1; x++)
-		s.writeSymbol(22, bgColor);
-	s.writeSymbol(20, bgColor);
+		s.writeSymbol(22, bgColor, tpColorIndex);
+	s.writeSymbol(20, bgColor, tpColorIndex);
 }
 
 void View::drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom) {

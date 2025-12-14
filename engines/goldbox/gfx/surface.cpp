@@ -179,17 +179,17 @@ void Surface::writeSymbol(unsigned char c, int x, int y) {
 	writeSymbol(c);
 }
 
-void Surface::writeSymbol(unsigned char c, uint32 bgColor) {
+void Surface::writeSymbol(unsigned char c, uint32 bgColor, uint32 tpColorIndex) {
 	setToSymbols();
 	
-	if (bgColor == 0) {
+	if (bgColor == 0 && tpColorIndex == 0) {
 		// No background color - use standard rendering (color 0 stays transparent/black)
 		_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, _textColor);
 	} else {
-		// Use DaxTile's drawCharWithBg to replace color 0 with bgColor
+		// Use DaxTile's drawCharWithBg to replace tpColorIndex with bgColor
 		Goldbox::Gfx::DaxTile *daxTile = dynamic_cast<Goldbox::Gfx::DaxTile *>(_currentFont);
 		if (daxTile) {
-			daxTile->drawCharWithBg(surfacePtr(), c, _textX * FONT_W, _textY * FONT_H, _textColor, bgColor);
+			daxTile->drawCharWithBg(surfacePtr(), c, _textX * FONT_W, _textY * FONT_H, _textColor, bgColor, tpColorIndex);
 		} else {
 			// Fallback for non-DaxTile fonts
 			Common::Rect bgRect(_textX * FONT_W, _textY * FONT_H,
@@ -201,9 +201,9 @@ void Surface::writeSymbol(unsigned char c, uint32 bgColor) {
 	++_textX;
 }
 
-void Surface::writeSymbol(unsigned char c, int x, int y, uint32 bgColor) {
+void Surface::writeSymbol(unsigned char c, int x, int y, uint32 bgColor, uint32 tpColorIndex) {
 	setTextPos(x, y);
-	writeSymbol(c, bgColor);
+	writeSymbol(c, bgColor, tpColorIndex);
 }
 
 void Surface::setTextPos(int x, int y) {

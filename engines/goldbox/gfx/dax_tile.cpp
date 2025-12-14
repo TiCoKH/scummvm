@@ -55,18 +55,18 @@ void DaxTile::drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 
 	dst->copyRectToSurface(charImage, x, y, Common::Rect(0, 0, charImage.w, charImage.h));
 }
 
-void DaxTile::drawCharWithBg(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color, uint32 bgColor) const {
+void DaxTile::drawCharWithBg(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color, uint32 bgColor, uint32 tpColorIndex) const {
 	assert(chr >= 0 && chr < _chars.size());
 	const Graphics::ManagedSurface &charImage = _chars[chr];
 
-	// Manually copy pixels, replacing color index 0 with bgColor
+	// Manually copy pixels, replacing tpColorIndex with bgColor
 	for (int py = 0; py < charImage.h; ++py) {
 		const byte *srcRow = (const byte *)charImage.getBasePtr(0, py);
 		byte *dstRow = (byte *)dst->getBasePtr(x, y + py);
 
 		for (int px = 0; px < charImage.w; ++px) {
 			byte pixel = srcRow[px];
-			if (pixel == 0) {
+			if (pixel == tpColorIndex) {
 				dstRow[px] = bgColor;
 			} else {
 				dstRow[px] = pixel;
