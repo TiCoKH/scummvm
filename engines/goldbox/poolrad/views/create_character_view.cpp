@@ -485,7 +485,7 @@ void CreateCharacterView::attachKeepCharacterPrompt() {
 void CreateCharacterView::chooseName() {
 	using namespace Goldbox::Poolrad::Views::Dialogs;
 	detachAndDelete(_nameInput);
-	HorizontalInputConfig cfg { CHAR_NAME, 15, 15 };
+	HorizontalInputConfig cfg { CHAR_NAME, 13, 15 };
 	_nameInput = new HorizontalInput("NameInput", cfg);
 	// Attach the input dialog under the profile dialog so the profile stays visible
 	if (_profileDialog)
