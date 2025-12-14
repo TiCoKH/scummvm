@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_SET_ICON_H
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
@@ -30,6 +31,16 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+/**
+ * SetIcon dialog allows customization of character icon appearance.
+ *
+ * State machine for editing character icon colors:
+ * - STATE_MAIN_MENU: Initial menu (P/1/2/S keys)
+ * - STATE_MAJOR_PART: Select Head or Weapon for color cycling
+ * - STATE_NIBBLE_EDIT: Select and edit sub-part color nibbles
+ * - STATE_BINARY_ATTR: Toggle binary attribute
+ * - STATE_ADJUSTMENT: Inner loop for P/N/K/E adjustments
+ */
 class SetIcon : public Dialog {
 public:
     SetIcon(const Common::String &name,
@@ -41,13 +52,95 @@ public:
     void handleMenuResult(bool success, Common::KeyCode key, short value) override;
 
 private:
-    Goldbox::Poolrad::Data::PoolradCharacter *_pc;
+    static const uint8 MAX_HEAD_ICON = 0x0D;
+    static const uint8 MAX_BODY_ICON = 0x1F;
 
+    // Sub-part indices
+    enum SubPartIndex {
+        SUBPART_BODY = 1,
+        SUBPART_ARMS = 2,
+        SUBPART_LEGS = 3,
+        SUBPART_HEAD_FACE = 4,
+        SUBPART_SHIELD = 5,
+        SUBPART_WEAPON = 6
+    };
+
+    // State machine
+    enum IconState {
+        STATE_MAIN_MENU = 1,
+        STATE_MAJOR_PART = 2,
+        STATE_NIBBLE_EDIT = 3,
+        STATE_BINARY_ATTR = 4,
+        STATE_ADJUSTMENT = 5
+    };
+
+    // Adjustment mode (used within STATE_ADJUSTMENT)
+    enum AdjustmentMode {
+        ADJUST_MAJOR_PART = 1,
+        ADJUST_NIBBLE = 2,
+        ADJUST_BINARY_ATTR = 3
+    };
+
+    // UI constants
     static const uint8 kBackgroundColor = 8;
     static const uint8 kWindowLeft = 1;
     static const uint8 kWindowTop = 1;
     static const uint8 kWindowRight = 38;
     static const uint8 kWindowBottom = 22;
+
+    static const byte kPromptColor = 13;
+    static const byte kTextColor = 10;
+    static const byte kSelectColor = 15;
+
+    // Data
+    Goldbox::Poolrad::Data::PoolradCharacter *_pc;
+    HorizontalMenu *_menu = nullptr;
+    Goldbox::MenuItemList _menuItems;
+
+    // State tracking
+    IconState _state = STATE_MAIN_MENU;
+    AdjustmentMode _adjustMode = ADJUST_MAJOR_PART;
+
+    // Editing context
+    uint8 _majorPart = 'H';       // 'H' or 'W'
+    SubPartIndex _subPartIndex = SUBPART_BODY;
+    uint8 _nibbleSelection = 0;   // 0 = low, 1 = high
+
+    // Backups for commit/cancel
+    uint8 _backupHeadIcon = 0;
+    uint8 _backupBodyIcon = 0;
+    uint8 _backupIconSize = 0;
+    uint8 _backupSubpartColors[6] = {};
+
+    // State methods
+    void showMainMenu();
+    void showMajorPartMenu();
+    void showSubPartMenu();
+    void showBinaryAttrMenu();
+    void showAdjustmentMenu();
+
+    // Edit handlers
+    void handleMajorPartEdit(Common::KeyCode key);
+    void handleNibbleEdit(Common::KeyCode key);
+    void handleBinaryAttrEdit(Common::KeyCode key);
+    void handleSubPartSelection(Common::KeyCode key);
+
+    uint8 packSubpartColor(SubPartIndex index) const;
+    void applySubpartColor(SubPartIndex index, uint8 value);
+
+    // Utility methods
+    void cycleColorIndex(uint8 *colorPtr, uint8 maxValue, bool increment);
+    uint8 incrementNibble(uint8 value);
+    uint8 decrementNibble(uint8 value);
+
+    uint8 getLowNibble(uint8 byte) const;
+    uint8 getHighNibble(uint8 byte) const;
+    uint8 setLowNibble(uint8 byte, uint8 nibble) const;
+    uint8 setHighNibble(uint8 byte, uint8 nibble) const;
+
+    void commitChanges();
+    void revertChanges();
+    void updatePreview();
 };
 
 } // namespace Dialogs
@@ -56,3 +149,4 @@ private:
 } // namespace Goldbox
 
 #endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_SET_ICON_H
+

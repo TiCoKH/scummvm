@@ -51,7 +51,7 @@ SetPortrait::SetPortrait(const String &name,
     _menuItems.generateMenuItems(labels, true);
 
     HorizontalMenuConfig cfg = {
-        "Head Body Keep",
+        "",
         &_menuItems,
         kTextColor,
         kSelectColor,
