@@ -94,6 +94,8 @@ public:
 	void writeGlyph(unsigned char c);
 	void writeSymbol(unsigned char s_id);
 	void writeSymbol(unsigned char s_id, int x, int y);
+	void writeSymbol(unsigned char s_id, uint32 bgColor);
+	void writeSymbol(unsigned char s_id, int x, int y, uint32 bgColor);
 	void writeCharC(unsigned char c, int color);
 	void writeCharC(unsigned char c, int color, int x, int y);
 	void writeGlyphC(unsigned char g_id, int color, int x, int y);

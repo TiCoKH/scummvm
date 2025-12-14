@@ -69,6 +69,12 @@ public:
 	 * Draw a character
 	 */
 	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
+
+	/**
+	 * Draw a character with background color replacement
+	 * Color index 0 in the bitmap will be replaced with bgColor
+	 */
+	void drawCharWithBg(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color, uint32 bgColor) const;
 };
 
 }; //namespace Gfx
