@@ -180,7 +180,8 @@ void SetIcon::showMainMenu() {
         kTextColor,
         kSelectColor,
         kPromptColor,
-        false
+        false,
+        kBackgroundColor
     };
 
     _menu = new HorizontalMenu(getName() + "_MainMenu", cfg);
@@ -208,7 +209,8 @@ void SetIcon::showMajorPartMenu() {
         kTextColor,
         kSelectColor,
         kPromptColor,
-        false
+        false,
+        kBackgroundColor
     };
 
     _menu = new HorizontalMenu(getName() + "_MajorPart", cfg);
@@ -240,7 +242,8 @@ void SetIcon::showSubPartMenu() {
         kTextColor,
         kSelectColor,
         kPromptColor,
-        false
+        false,
+        kBackgroundColor
     };
 
     _menu = new HorizontalMenu(getName() + "_SubPart", cfg);
@@ -268,7 +271,8 @@ void SetIcon::showBinaryAttrMenu() {
         kTextColor,
         kSelectColor,
         kPromptColor,
-        false
+        false,
+        kBackgroundColor
     };
 
     _menu = new HorizontalMenu(getName() + "_BinaryAttr", cfg);
@@ -294,7 +298,8 @@ void SetIcon::showAdjustmentMenu() {
         kTextColor,
         kSelectColor,
         kPromptColor,
-        false
+        false,
+        kBackgroundColor
     };
 
     _menu = new HorizontalMenu(getName() + "_Adjustment", cfg);
@@ -481,15 +486,28 @@ bool SetIcon::msgKeypress(const KeypressMessage &msg) {
 }
 
 void SetIcon::draw() {
+    if (!_staticDrawn) {
+        drawStatic();
+        _staticDrawn = true;
+    }
+    drawDynamic();
+}
+
+void SetIcon::drawStatic() {
     Surface s = getSurface();
     s.clearBox(0, 0, 40, 25, kBackgroundColor);
     drawFrame(Common::Rect(kWindowLeft - 1, kWindowTop - 1, kWindowRight + 1, kWindowBottom + 1), kBackgroundColor);
     s.clearBox(kWindowLeft, kWindowTop, kWindowRight, kWindowBottom, kBackgroundColor);
 
-    s.writeStringC("SELECT ICON", 15, 15, 10);
-    s.writeStringC("Press RETURN to confirm", 10, 8, 15);
-    s.writeStringC("Press ESC to cancel", 10, 9, 16);
+    // Static labels and layout only once
+    s.writeStringC("old", 15, 8, 6);
+    s.writeStringC("ready   action", 15, 3, 10);
+    s.writeStringC("new", 15, 8, 12);
+    s.writeStringC("ready   action", 15, 3, 16);
+}
 
+void SetIcon::drawDynamic() {
+    // Dynamic content: menus (bottom row) and any preview updates
     if (_menu)
         _menu->draw();
 }
