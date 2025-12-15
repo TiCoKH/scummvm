@@ -137,7 +137,48 @@ struct CombatIconData {
 		iconColorWeapon1 = value >> 4;
 		iconColorWeapon2 = value & 0x0F;
 	}
-	
+
+	/**
+	 * Validate that all icon data is within acceptable ranges.
+	 * @return true if valid, false otherwise
+	 */
+	bool validate() const {
+		return iconHead <= SMALL_HEAD_MAX &&
+		       iconBody <= SMALL_BODY_MAX &&
+		       iconSize >= 1 && iconSize <= 2;
+	}
+
+	/**
+	 * Compare two CombatIconData structures for equality.
+	 */
+	bool operator==(const CombatIconData &other) const {
+		return iconHead == other.iconHead &&
+		       iconBody == other.iconBody &&
+		       iconSize == other.iconSize &&
+		       iconColorBody1 == other.iconColorBody1 &&
+		       iconColorBody2 == other.iconColorBody2 &&
+		       iconColorArm1 == other.iconColorArm1 &&
+		       iconColorArm2 == other.iconColorArm2 &&
+		       iconColorLeg1 == other.iconColorLeg1 &&
+		       iconColorLeg2 == other.iconColorLeg2 &&
+		       iconColorHair == other.iconColorHair &&
+		       iconColorFace == other.iconColorFace &&
+		       iconColorShield1 == other.iconColorShield1 &&
+		       iconColorShield2 == other.iconColorShield2 &&
+		       iconColorWeapon1 == other.iconColorWeapon1 &&
+		       iconColorWeapon2 == other.iconColorWeapon2;
+	}
+
+	/**
+	 * Compare two CombatIconData structures for inequality.
+	 */
+	bool operator!=(const CombatIconData &other) const {
+		return !(*this == other);
+	}
+
+	// Constants for validation
+	static const uint8 SMALL_HEAD_MAX = 13;
+	static const uint8 SMALL_BODY_MAX = 31;
 };
 
 //---------------------------------------------------------------

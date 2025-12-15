@@ -27,55 +27,46 @@ namespace Goldbox {
 namespace Gfx {
 
 // CharacterIcon member functions
-CharacterIcon::CharacterIcon(const Data::PlayerCharacter *character,
-                             IconActionState actionState)
-    : _size(static_cast<IconSize>(character->iconData.iconSize)),
-      _actionState(actionState),
-      _composite(nullptr) {
-
-	uint8 headId = character->iconData.iconHead;
-	uint8 bodyId = character->iconData.iconBody;
-
-	// Calculate actual sprite ID based on size and action state
-	// Sprite layout:
-	// - Small Ready: 0-13 (head), 0-31 (body)
-	// - Large Ready: 64-77 (head), 64-95 (body)
-	// - Small Action: 128-141 (head), 128-159 (body)
-	// - Large Action: 192-205 (head), 192-223 (body)
-	
-	uint8 sizeOffset = (_size == ICON_SIZE_LARGE) ? 64 : 0;
-	uint8 actionOffset = (actionState != ICON_ACTION_READY) ? 128 : 0;
-	
-	headId = headId + sizeOffset + actionOffset;
-	bodyId = bodyId + sizeOffset + actionOffset;
-
-	buildComposite(headId, bodyId, character->iconData);
-}
-
 CharacterIcon::CharacterIcon(const Data::CombatIconData &iconData,
                              IconActionState actionState)
     : _size(static_cast<IconSize>(iconData.iconSize)),
       _actionState(actionState),
-      _composite(nullptr) {
+      _composite(nullptr),
+      _readyIcon(nullptr),
+      _actionIcon(nullptr),
+      _readyIconFlipped(nullptr),
+      _actionIconFlipped(nullptr) {
 
-	uint8 headId = iconData.iconHead;
-	uint8 bodyId = iconData.iconBody;
-
-	// Calculate actual sprite ID based on size and action state
 	uint8 sizeOffset = (_size == ICON_SIZE_LARGE) ? 64 : 0;
-	uint8 actionOffset = (actionState != ICON_ACTION_READY) ? 128 : 0;
-	
-	headId = headId + sizeOffset + actionOffset;
-	bodyId = bodyId + sizeOffset + actionOffset;
+	uint8 readyHeadId = iconData.iconHead + sizeOffset;
+	uint8 readyBodyId = iconData.iconBody + sizeOffset;
+	uint8 actionHeadId = readyHeadId + 128;
+	uint8 actionBodyId = readyBodyId + 128;
 
-	buildComposite(headId, bodyId, iconData);
+	// Build ready state icon (normal)
+	_readyIcon = buildComposite(readyHeadId, readyBodyId, iconData);
+
+	// Build action state icon (normal)
+	_actionIcon = buildComposite(actionHeadId, actionBodyId, iconData);
+
+	// Build vertically flipped versions
+	_readyIconFlipped = createFlipped(_readyIcon);
+	_actionIconFlipped = createFlipped(_actionIcon);
+
+	// Set current composite based on action state
+	_composite = (actionState == ICON_ACTION_READY) ? _readyIcon : _actionIcon;
 }
 
 CharacterIcon::~CharacterIcon() {
-	delete _composite;
+	delete _readyIcon;
+	delete _actionIcon;
+	delete _readyIconFlipped;
+	delete _actionIconFlipped;
+	// _composite is not deleted here as it points to either _readyIcon or _actionIcon
+	_composite = nullptr;
 }
 
-void CharacterIcon::buildComposite(uint8 headId, uint8 bodyId,
+Pic *CharacterIcon::buildComposite(uint8 headId, uint8 bodyId,
 								   const Data::CombatIconData &iconData) {
 	// Load head and body sprites from DAX containers via VmInterface
 	Data::DaxBlockPic *headBlock = static_cast<Data::DaxBlockPic *>(VmInterface::getDaxCHead().getBlockById(headId));
@@ -83,21 +74,17 @@ void CharacterIcon::buildComposite(uint8 headId, uint8 bodyId,
 
 	if (!headBlock || !bodyBlock) {
 		// Create empty placeholder if sprites missing
-		_composite = new Pic(16, 16);
-		_composite->clear(0);
-		return;
+		Pic *placeholder = new Pic(24, 24);
+		placeholder->clear(0);
+		return placeholder;
 	}
 
-	Pic *headPic = Pic::read(headBlock);
 	Pic *bodyPic = Pic::read(bodyBlock);
+	Pic *headPic = Pic::read(headBlock);
 
-	// Determine icon dimensions based on size
-	int width = (_size == ICON_SIZE_SMALL) ? 16 : 24;
-	int height = (_size == ICON_SIZE_SMALL) ? 16 : 24;
-
-	// Create composite surface
-	_composite = new Pic(width, height);
-	_composite->clear(0); // Transparent background
+	// Body is always full 24x24 tile, use it as the composite base
+	// Head varies (10x24 or 8x24) and overlays on top from position 0,0
+	Pic *composite = new Pic(bodyPic->w, bodyPic->h);
 
 	// Apply color remapping to body parts
 	// Body colors: iconColorBody1 (primary), iconColorBody2 (secondary)
@@ -115,15 +102,34 @@ void CharacterIcon::buildComposite(uint8 headId, uint8 bodyId,
 	};
 	applyColorRemapping(headPic, headColors, 2);
 
-	// Composite body first (background layer)
-	bodyPic->trDraw(_composite, 0, 0, 0); // Color index 0 is transparent
+	// Copy body first (full 24x24 base)
+	composite->blitFrom(*bodyPic);
 
-	// Composite head on top
-	headPic->trDraw(_composite, 0, 0, 0);
+	// Overlay head on top from position 0,0 with transparency
+	headPic->trDraw(composite, 0, 0, 0); // Color index 0 is transparent
 
 	// Clean up temporary surfaces
 	delete headPic;
 	delete bodyPic;
+
+	return composite;
+}
+
+Pic *CharacterIcon::createFlipped(const Pic *source) const {
+	if (!source) {
+		return nullptr;
+	}
+
+	Pic *flipped = new Pic(source->w, source->h);
+
+	// Copy pixels in reverse row order (vertical flip)
+	for (int y = 0; y < source->h; ++y) {
+		const byte *srcRow = (const byte *)source->getBasePtr(0, source->h - 1 - y);
+		byte *dstRow = (byte *)flipped->getBasePtr(0, y);
+		Common::copy(srcRow, srcRow + source->w, dstRow);
+	}
+
+	return flipped;
 }
 
 void CharacterIcon::applyColorRemapping(Pic *layer, const uint8 *colorMap, uint8 colorCount) const {

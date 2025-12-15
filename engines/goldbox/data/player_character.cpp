@@ -132,7 +132,7 @@ int8 PlayerCharacter::getDexSpeedBonus() const {
 
 void PlayerCharacter::rebuildIcon() {
 	delete _icon;
-	_icon = new Gfx::CharacterIcon(this);
+	_icon = new Gfx::CharacterIcon(iconData);
 }
 
 } // namespace Data
