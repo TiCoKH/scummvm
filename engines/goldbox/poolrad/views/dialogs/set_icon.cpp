@@ -20,6 +20,8 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/set_icon.h"
+#include "goldbox/gfx/character_icon.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -30,22 +32,27 @@ using Common::String;
 using Common::KeyCode;
 using Common::Array;
 using Goldbox::Poolrad::Data::PoolradCharacter;
+using Goldbox::Gfx::CharacterIcon;
 
 SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
-    : Dialog(name), _pc(pc) {
+    : Dialog(name), _pc(pc), _oldIcon(nullptr), _newIcon(nullptr) {
     if (_pc) {
-        _backupHeadIcon = _pc->iconData.iconHead;
-        _backupBodyIcon = _pc->iconData.iconBody;
-        _backupIconSize = _pc->iconData.iconSize;
-        for (int i = 0; i < 6; i++) {
-            _backupSubpartColors[i] = packSubpartColor(static_cast<SubPartIndex>(i + 1));
-        }
+        // Backup current icon data for commit/cancel operations
+        _backupIconData = _pc->iconData;
+
+        // Create snapshot of current icon (for display as "old")
+        _oldIcon = new CharacterIcon(_pc);
+        // Create working copy for editing (for display as "new")
+        _newIcon = new CharacterIcon(_pc);
     }
 
     showMainMenu();
 }
 
 SetIcon::~SetIcon() {
+    delete _oldIcon;
+    delete _newIcon;
+    
     if (_menu) {
         _menu->setParent(nullptr);
         delete _menu;
@@ -138,27 +145,32 @@ void SetIcon::applySubpartColor(SubPartIndex index, uint8 value) {
     }
 }
 
-void SetIcon::updatePreview() {
-    // TODO: Call GFX functions to update icon preview
-    // GFX_copyTile(true, 0x0C, _pc->iconData.iconHead);
-    // GFX_DrawIcon(_pc->iconData.iconHead, ...);
+void SetIcon::rebuildNewIcon() {
+    if (_pc && _newIcon) {
+        delete _newIcon;
+        _newIcon = new CharacterIcon(_pc);
+    }
 }
 
 void SetIcon::commitChanges() {
-    _backupHeadIcon = _pc->iconData.iconHead;
-    _backupBodyIcon = _pc->iconData.iconBody;
-    _backupIconSize = _pc->iconData.iconSize;
-    for (int i = 0; i < 6; i++) {
-        _backupSubpartColors[i] = packSubpartColor(static_cast<SubPartIndex>(i + 1));
+    // Update backup to current state (current state is now "committed")
+    _backupIconData = _pc->iconData;
+    
+    // Update old icon to match the new (committed) state
+    if (_oldIcon) {
+        delete _oldIcon;
+        _oldIcon = new CharacterIcon(_pc);
     }
 }
 
 void SetIcon::revertChanges() {
-    _pc->iconData.iconHead = _backupHeadIcon;
-    _pc->iconData.iconBody = _backupBodyIcon;
-    _pc->iconData.iconSize = _backupIconSize;
-    for (int i = 0; i < 6; i++) {
-        applySubpartColor(static_cast<SubPartIndex>(i + 1), _backupSubpartColors[i]);
+    // Restore icon data from backup
+    _pc->iconData = _backupIconData;
+    
+    // Rebuild new icon to match reverted state
+    if (_newIcon) {
+        delete _newIcon;
+        _newIcon = new CharacterIcon(_pc);
     }
 }
 
@@ -314,11 +326,9 @@ void SetIcon::handleMajorPartEdit(Common::KeyCode key) {
     if (_majorPart == 'H') {
         colorPtr = &_pc->iconData.iconHead;
         maxValue = MAX_HEAD_ICON;
-        _backupHeadIcon = *colorPtr;
     } else if (_majorPart == 'W') {
         colorPtr = &_pc->iconData.iconBody;
         maxValue = MAX_BODY_ICON;
-        _backupBodyIcon = *colorPtr;
     }
 
     if (!colorPtr)
@@ -327,11 +337,11 @@ void SetIcon::handleMajorPartEdit(Common::KeyCode key) {
     switch (key) {
     case Common::KEYCODE_n:
         cycleColorIndex(colorPtr, maxValue, true);
-        updatePreview();
+        rebuildNewIcon();
         break;
     case Common::KEYCODE_p:
         cycleColorIndex(colorPtr, maxValue, false);
-        updatePreview();
+        rebuildNewIcon();
         break;
     case Common::KEYCODE_k:
         commitChanges();
@@ -372,10 +382,6 @@ void SetIcon::handleSubPartSelection(Common::KeyCode key) {
         break;
     }
 
-    for (int i = 0; i < 6; i++) {
-        _backupSubpartColors[i] = packSubpartColor(static_cast<SubPartIndex>(i + 1));
-    }
-
     _state = STATE_ADJUSTMENT;
     _adjustMode = ADJUST_NIBBLE;
     showAdjustmentMenu();
@@ -396,7 +402,7 @@ void SetIcon::handleNibbleEdit(Common::KeyCode key) {
             targetByte = setHighNibble(targetByte, highNib);
         }
         applySubpartColor(_subPartIndex, targetByte);
-        updatePreview();
+        rebuildNewIcon();
         break;
 
     case Common::KEYCODE_p:
@@ -410,7 +416,7 @@ void SetIcon::handleNibbleEdit(Common::KeyCode key) {
             targetByte = setHighNibble(targetByte, highNib);
         }
         applySubpartColor(_subPartIndex, targetByte);
-        updatePreview();
+        rebuildNewIcon();
         break;
 
     case Common::KEYCODE_k:
@@ -420,10 +426,7 @@ void SetIcon::handleNibbleEdit(Common::KeyCode key) {
 
     case Common::KEYCODE_e:
     case Common::KEYCODE_ESCAPE:
-        for (int i = 0; i < 6; i++) {
-            applySubpartColor(static_cast<SubPartIndex>(i + 1), _backupSubpartColors[i]);
-        }
-        updatePreview();
+        revertChanges();
         showMainMenu();
         break;
 
@@ -437,24 +440,22 @@ void SetIcon::handleBinaryAttrEdit(Common::KeyCode key) {
     switch (key) {
     case Common::KEYCODE_s:
         _pc->iconData.iconSize = 1;
-        updatePreview();
+        rebuildNewIcon();
         break;
 
     case Common::KEYCODE_l:
         _pc->iconData.iconSize = 2;
-        updatePreview();
+        rebuildNewIcon();
         break;
 
     case Common::KEYCODE_k:
-        _backupIconSize = _pc->iconData.iconSize;
         commitChanges();
         showMainMenu();
         break;
 
     case Common::KEYCODE_e:
     case Common::KEYCODE_ESCAPE:
-        _pc->iconData.iconSize = _backupIconSize;
-        updatePreview();
+        revertChanges();
         showMainMenu();
         break;
 
@@ -507,7 +508,19 @@ void SetIcon::drawStatic() {
 }
 
 void SetIcon::drawDynamic() {
-    // Dynamic content: menus (bottom row) and any preview updates
+    // Draw old (committed) and new (working) icons side-by-side for comparison
+    Surface s = getSurface();
+    if (_oldIcon) {
+        // Draw old icon in ready state
+        _oldIcon->draw(&s, 15 * 8, 9 * 8);  // "ready" column for old
+    }
+    
+    if (_newIcon) {
+        // Draw new icon in ready state
+        _newIcon->draw(&s, 15 * 8, 13 * 8); // "ready" column for new
+    }
+    
+    // Dynamic content: menus (bottom row)
     if (_menu)
         _menu->draw();
 }
@@ -524,8 +537,6 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
     case STATE_MAIN_MENU:
         switch (key) {
         case Common::KEYCODE_p:
-            _backupHeadIcon = _pc->iconData.iconHead;
-            _backupBodyIcon = _pc->iconData.iconBody;
             _majorPart = 'H';
             showMajorPartMenu();
             break;
@@ -541,7 +552,6 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
             break;
 
         case Common::KEYCODE_s:
-            _backupIconSize = _pc->iconData.iconSize;
             showBinaryAttrMenu();
             break;
 

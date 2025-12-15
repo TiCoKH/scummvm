@@ -36,8 +36,40 @@ public:
 	Pic(int w, int h) : Graphics::ManagedSurface(w, h) {}
 
 	static Pic *read(Data::DaxBlockPic *daxBlock);
-//	void toScreen(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 
+	/**
+	 * Render the picture at the given pixel coordinates
+	 * @param dst Destination surface
+	 * @param x X position in pixels
+	 * @param y Y position in pixels
+	 */
+	void draw(Graphics::ManagedSurface *dst, int x, int y) const;
+
+	/**
+	 * Render the picture at the given pixel coordinates with transparent color
+	 * @param dst Destination surface
+	 * @param x X position in pixels
+	 * @param y Y position in pixels
+	 * @param tpColorIndex Color index to treat as transparent
+	 */
+	void trDraw(Graphics::ManagedSurface *dst, int x, int y, uint32 tpColorIndex) const;
+
+	/**
+	 * Render the picture at the given character grid coordinates (8x8 cells)
+	 * @param dst Destination surface
+	 * @param charX Character column position
+	 * @param charY Character row position
+	 */
+	void drawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY) const;
+
+	/**
+	 * Render the picture at the given character grid coordinates with transparent color
+	 * @param dst Destination surface
+	 * @param charX Character column position
+	 * @param charY Character row position
+	 * @param tpColorIndex Color index to treat as transparent
+	 */
+	void trDrawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY, uint32 tpColorIndex) const;
 
 	/**
 	 * Creates a copy of a picture

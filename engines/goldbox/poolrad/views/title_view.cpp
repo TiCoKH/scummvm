@@ -64,11 +64,11 @@ void TitleView::draw() {
 			delaySeconds(1);
 			break;
 		case 1:
-			s.blitFrom(*_pic1);
+			_pic1->draw(&s, 0, 0);
 			delaySeconds(5);
 			break;
 		case 2:
-			s.blitFrom(*_pic2);
+			_pic2->draw(&s, 0, 0);
 			delaySeconds(5);
 			break;
 		case 3:

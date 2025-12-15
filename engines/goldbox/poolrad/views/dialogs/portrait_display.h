@@ -59,6 +59,32 @@ public:
      */
     bool loadBody(uint8 daxBlockId);
 
+    /**
+     * Draw head portrait to the surface.
+     * @param dst Destination surface to render to
+     * @param x X pixel position for portrait placement
+     * @param y Y pixel position for portrait placement
+     */
+    void drawHead(Graphics::ManagedSurface *dst, int x, int y) const;
+
+    /**
+     * Draw body portrait to the surface.
+     * @param dst Destination surface to render to
+     * @param x X pixel position for portrait placement
+     * @param y Y pixel position for portrait placement
+     */
+    void drawBody(Graphics::ManagedSurface *dst, int x, int y) const;
+
+    /**
+     * Render head and body portraits to the surface.
+     * Body will be drawn 3 lines lower than head.
+     * @param dst Destination surface to render to
+     * @param x X pixel position for portrait placement
+     * @param y Y pixel position for portrait placement
+     * @param tpColorIndex Color index to treat as transparent (default: 0)
+     */
+    void render(Graphics::ManagedSurface *dst, int x, int y, uint32 tpColorIndex = 0) const;
+
 private:
     Goldbox::Gfx::Pic *_headPic;          // Head portrait (owned)
     Goldbox::Gfx::Pic *_bodyPic;          // Body portrait (owned)
@@ -69,11 +95,18 @@ private:
     bool _hasWindow;                      // Whether to draw window frame
 
     /**
-     * Load a portrait from DAX block ID.
-     * @param daxBlockId The DAX block ID to load
+     * Load a head portrait from DAX block ID.
+     * @param daxBlockId The DAX block ID to load from head container
      * @return Pointer to loaded Pic on success, nullptr on failure
      */
-    Goldbox::Gfx::Pic *_loadPicFromDaxBlock(uint8 daxBlockId);
+    Goldbox::Gfx::Pic *_loadHeadFromDaxBlock(uint8 daxBlockId);
+
+    /**
+     * Load a body portrait from DAX block ID.
+     * @param daxBlockId The DAX block ID to load from body container
+     * @return Pointer to loaded Pic on success, nullptr on failure
+     */
+    Goldbox::Gfx::Pic *_loadBodyFromDaxBlock(uint8 daxBlockId);
 };
 
 } // namespace Dialogs

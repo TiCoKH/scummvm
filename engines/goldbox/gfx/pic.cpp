@@ -51,5 +51,32 @@ Pic *Pic::clone() const {
 	return copy;
 }
 
+void Pic::draw(Graphics::ManagedSurface *dst, int x, int y) const {
+	dst->copyRectToSurface(*this, x, y, Common::Rect(0, 0, w, h));
+}
+
+void Pic::trDraw(Graphics::ManagedSurface *dst, int x, int y, uint32 tpColorIndex) const {
+	// Manually copy pixels, skipping the transparent color
+	for (int py = 0; py < h; ++py) {
+		const byte *srcRow = (const byte *)getBasePtr(0, py);
+		byte *dstRow = (byte *)dst->getBasePtr(x, y + py);
+
+		for (int px = 0; px < w; ++px) {
+			byte pixel = srcRow[px];
+			if (pixel != tpColorIndex) {
+				dstRow[px] = pixel;
+			}
+		}
+	}
+}
+
+void Pic::drawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY) const {
+	draw(dst, charX * 8, charY * 8);
+}
+
+void Pic::trDrawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY, uint32 tpColorIndex) const {
+	trDraw(dst, charX * 8, charY * 8, tpColorIndex);
+}
+
 } // namespace Gfx
 } // namespace Goldbox
