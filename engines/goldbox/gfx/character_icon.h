@@ -68,18 +68,9 @@ enum IconActionState {
 class CharacterIcon {
 public:
 	/**
-	 * Construct an icon from character data.
-	 * DAX containers accessed via VmInterface.
-	 * @param character Source character with iconData
-	 * @param actionState Action state offset (0=ready, 128+=action)
-	 */
-	CharacterIcon(const Data::PlayerCharacter *character,
-	              IconActionState actionState = ICON_ACTION_READY);
-
-	/**
 	 * Construct an icon from CombatIconData.
-	 * Used for rendering with specific icon data.
-	 * @param iconData Icon data structure
+	 * DAX containers accessed via VmInterface.
+	 * @param iconData Icon data structure with head/body/colors
 	 * @param actionState Action state offset (0=ready, 128+=action)
 	 */
 	CharacterIcon(const Data::CombatIconData &iconData,
@@ -125,6 +116,30 @@ public:
 	 * Get the icon size category.
 	 */
 	IconSize getSize() const { return _size; }
+
+	/**
+	 * Get the ready state icon (normal orientation).
+	 * @return Pointer to the ready state composite Pic
+	 */
+	const Pic *getReadyIcon() const { return _readyIcon; }
+
+	/**
+	 * Get the action state icon (normal orientation).
+	 * @return Pointer to the action state composite Pic
+	 */
+	const Pic *getActionIcon() const { return _actionIcon; }
+
+	/**
+	 * Get the ready state icon (vertically flipped).
+	 * @return Pointer to the ready state flipped composite Pic
+	 */
+	const Pic *getReadyIconFlipped() const { return _readyIconFlipped; }
+
+	/**
+	 * Get the action state icon (vertically flipped).
+	 * @return Pointer to the action state flipped composite Pic
+	 */
+	const Pic *getActionIconFlipped() const { return _actionIconFlipped; }
 
 	// Static utility methods for icon manipulation
 
@@ -192,14 +207,28 @@ public:
 private:
 	IconSize _size;
 	IconActionState _actionState;
-	Pic *_composite;
+	Pic *_composite;  // Current state (for compatibility)
+
+	// Bitmap cache: ready and action states
+	Pic *_readyIcon;          // Ready state icon (normal)
+	Pic *_actionIcon;         // Action state icon (normal)
+	Pic *_readyIconFlipped;   // Ready state icon (vertically flipped)
+	Pic *_actionIconFlipped;  // Action state icon (vertically flipped)
 
 	/**
 	 * Build the composite icon from head and body sprites with color mapping.
 	 * DAX containers accessed via VmInterface.
+	 * @return Composite Pic with colors applied
 	 */
-	void buildComposite(uint8 headId, uint8 bodyId,
+	Pic *buildComposite(uint8 headId, uint8 bodyId,
 	                    const Data::CombatIconData &iconData);
+
+	/**
+	 * Create a vertically flipped copy of a Pic.
+	 * @param source Source Pic to flip
+	 * @return New flipped Pic (caller owns)
+	 */
+	Pic *createFlipped(const Pic *source) const;
 
 	/**
 	 * Apply color remapping to a sprite layer.

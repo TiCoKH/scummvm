@@ -41,9 +41,9 @@ SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
         _backupIconData = _pc->iconData;
 
         // Create snapshot of current icon (for display as "old")
-        _oldIcon = new CharacterIcon(_pc);
+        _oldIcon = new CharacterIcon(_pc->iconData);
         // Create working copy for editing (for display as "new")
-        _newIcon = new CharacterIcon(_pc);
+        _newIcon = new CharacterIcon(_pc->iconData);
     }
 
     showMainMenu();
@@ -148,7 +148,7 @@ void SetIcon::applySubpartColor(SubPartIndex index, uint8 value) {
 void SetIcon::rebuildNewIcon() {
     if (_pc && _newIcon) {
         delete _newIcon;
-        _newIcon = new CharacterIcon(_pc);
+        _newIcon = new CharacterIcon(_pc->iconData);
     }
 }
 
@@ -159,7 +159,7 @@ void SetIcon::commitChanges() {
     // Update old icon to match the new (committed) state
     if (_oldIcon) {
         delete _oldIcon;
-        _oldIcon = new CharacterIcon(_pc);
+        _oldIcon = new CharacterIcon(_pc->iconData);
     }
 }
 
@@ -170,7 +170,7 @@ void SetIcon::revertChanges() {
     // Rebuild new icon to match reverted state
     if (_newIcon) {
         delete _newIcon;
-        _newIcon = new CharacterIcon(_pc);
+        _newIcon = new CharacterIcon(_pc->iconData);
     }
 }
 
