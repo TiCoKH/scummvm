@@ -20,11 +20,14 @@
  */
 
 #include "goldbox/data/player_character.h"
+#include "goldbox/gfx/character_icon.h"
 
 namespace Goldbox {
 namespace Data {
 
-PlayerCharacter::~PlayerCharacter() {}
+PlayerCharacter::~PlayerCharacter() {
+	delete _icon;
+}
 
 void PlayerCharacter::damage(uint8 amount) {
     if (amount >= hitPoints.current)
@@ -125,6 +128,11 @@ int8 PlayerCharacter::getDexSpeedBonus() const {
     if (dex <= 23) return 4;
     if (dex <= 25) return 5;
     return 0;
+}
+
+void PlayerCharacter::rebuildIcon() {
+	delete _icon;
+	_icon = new Gfx::CharacterIcon(this);
 }
 
 } // namespace Data

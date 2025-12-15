@@ -28,6 +28,10 @@
 #include "common/util.h"
 
 namespace Goldbox {
+namespace Gfx {
+	class CharacterIcon;
+}
+
 namespace Data {
 
 //---------------------------------------------------------------
@@ -167,6 +171,9 @@ public:
 	Stat movement;
 	uint16 encumbrance;
 
+	// CharacterIcon for rendering (owned by this character)
+	Gfx::CharacterIcon *_icon = nullptr;
+
 	// Experience & Level
 	uint32 experiencePoints = 0;
 
@@ -214,6 +221,21 @@ public:
 	int8 getMeleeDamageBonus() const;
 	int8 getDexDefenceBonus() const;
 	int8 getDexSpeedBonus() const;
+
+	//-----------------------------------------------------------
+	// Character icon management
+
+	/**
+	 * Get the current rendered icon.
+	 * May be null if not yet initialized.
+	 */
+	Gfx::CharacterIcon *getIcon() const { return _icon; }
+
+	/**
+	 * Rebuild the character icon from current iconData.
+	 * Called after icon data is modified.
+	 */
+	void rebuildIcon();
 };
 
 } // namespace Data

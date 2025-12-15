@@ -208,10 +208,16 @@ void CharacterProfile::drawPortrait() {
     if (!_poolradPc)
         return;
 
-    Common::String headText = Common::String::format("Head %d", (int)_poolradPc->portrait.head);
-    Common::String bodyText = Common::String::format("Body %d", (int)_poolradPc->portrait.body);
-    s.writeStringC(headText, 15, 29, 2);
-    s.writeStringC(bodyText, 15, 29, 3);
+    // Load head portrait using the correct DAX block ID
+    uint8 headBlockId = kHeadDaxBlockIds[_poolradPc->portrait.head - 1];
+    _portraitDisplay.loadHead(headBlockId);
+
+    // Load body portrait using the correct DAX block ID
+    uint8 bodyBlockId = kBodyDaxBlockIds[_poolradPc->portrait.body - 1];
+    _portraitDisplay.loadBody(bodyBlockId);
+
+    // Render portraits at position (28, 1) within the frame
+    _portraitDisplay.render(&s, 28, 1);
 }
 
 Common::String CharacterProfile::formatDamageText() const {

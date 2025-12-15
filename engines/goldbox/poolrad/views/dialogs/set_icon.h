@@ -27,6 +27,10 @@
 #include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
+namespace Gfx {
+    class CharacterIcon;
+}
+
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
@@ -96,6 +100,10 @@ private:
     Goldbox::Poolrad::Data::PoolradCharacter *_pc;
     HorizontalMenu *_menu = nullptr;
     Goldbox::MenuItemList _menuItems;
+    
+    // Icon preview: old (committed) vs new (working)
+    Goldbox::Gfx::CharacterIcon *_oldIcon;  // Icon before any changes
+    Goldbox::Gfx::CharacterIcon *_newIcon;  // Icon with current edits
 
     // State tracking
     IconState _state = STATE_MAIN_MENU;
@@ -106,11 +114,8 @@ private:
     SubPartIndex _subPartIndex = SUBPART_BODY;
     uint8 _nibbleSelection = 0;   // 0 = low, 1 = high
 
-    // Backups for commit/cancel
-    uint8 _backupHeadIcon = 0;
-    uint8 _backupBodyIcon = 0;
-    uint8 _backupIconSize = 0;
-    uint8 _backupSubpartColors[6] = {};
+    // Backups for commit/cancel (full icon data backup)
+    Goldbox::Data::CombatIconData _backupIconData;
     bool _staticDrawn = false;
 
     // State methods
@@ -144,7 +149,7 @@ private:
 
     void commitChanges();
     void revertChanges();
-    void updatePreview();
+    void rebuildNewIcon();
 };
 
 } // namespace Dialogs

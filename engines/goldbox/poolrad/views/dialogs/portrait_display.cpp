@@ -44,7 +44,7 @@ bool PortraitDisplay::loadHead(uint8 daxBlockId) {
     }
 
     // Load and assign new head portrait
-    _headPic = _loadPicFromDaxBlock(daxBlockId);
+    _headPic = _loadHeadFromDaxBlock(daxBlockId);
     return _headPic != nullptr;
 }
 
@@ -56,18 +56,54 @@ bool PortraitDisplay::loadBody(uint8 daxBlockId) {
     }
 
     // Load and assign new body portrait
-    _bodyPic = _loadPicFromDaxBlock(daxBlockId);
+    _bodyPic = _loadBodyFromDaxBlock(daxBlockId);
     return _bodyPic != nullptr;
 }
 
-Goldbox::Gfx::Pic *PortraitDisplay::_loadPicFromDaxBlock(uint8 daxBlockId) {
-    // Attempt to load portrait from DAX block
-    Goldbox::Data::DaxBlockContainer &bodyContainer = VmInterface::getDaxManager().getBody();
+Goldbox::Gfx::Pic *PortraitDisplay::_loadHeadFromDaxBlock(uint8 daxBlockId) {
+    // Attempt to load head portrait from DAX block
+    Goldbox::Data::DaxBlockContainer &headContainer = VmInterface::getDaxHead();
+    Goldbox::Data::DaxBlock *daxBlock = headContainer.getBlockById(daxBlockId);
+    if (daxBlock) {
+        return Goldbox::Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
+    }
+    return nullptr;
+}
+
+Goldbox::Gfx::Pic *PortraitDisplay::_loadBodyFromDaxBlock(uint8 daxBlockId) {
+    // Attempt to load body portrait from DAX block
+    Goldbox::Data::DaxBlockContainer &bodyContainer = VmInterface::getDaxBody();
     Goldbox::Data::DaxBlock *daxBlock = bodyContainer.getBlockById(daxBlockId);
     if (daxBlock) {
         return Goldbox::Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
     }
     return nullptr;
+}
+
+void PortraitDisplay::drawHead(Graphics::ManagedSurface *dst, int x, int y) const {
+    if (!dst)
+        return;
+
+    if (_headPic) {
+        _headPic->drawAtCharPos(dst, x, y);
+    }
+}
+
+void PortraitDisplay::drawBody(Graphics::ManagedSurface *dst, int x, int y) const {
+    if (!dst)
+        return;
+
+    if (_bodyPic) {
+        _bodyPic->drawAtCharPos(dst, x, y);
+    }
+}
+
+void PortraitDisplay::render(Graphics::ManagedSurface *dst, int x, int y, uint32 tpColorIndex) const {
+    if (!dst)
+        return;
+
+    drawHead(dst, x, y);
+    drawBody(dst, x, y + 5);
 }
 
 } // namespace Dialogs
