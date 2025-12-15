@@ -37,6 +37,7 @@ struct HorizontalMenuConfig {
     int selectColor;
     int promptColor;
     bool allowNumPad;
+    int backgroundColor = 0;
 };
 
 class HorizontalMenu : public Dialog {
@@ -45,6 +46,7 @@ private:
     int _textColor;
     int _selectColor;
     int _promptColor;
+    int _backgroundColor;
     Common::String _promptTxt;
     bool _allowNumPad;
     bool _redraw = true;
@@ -55,6 +57,7 @@ public:
     HorizontalMenu(const Common::String &name, const HorizontalMenuConfig &config);
     bool msgKeypress(const KeypressMessage &msg);
     void setRedraw() { _redraw = true; }
+    void setBackgroundColor(int color) { _backgroundColor = color; }
     void draw() override;
 };
 

@@ -111,6 +111,7 @@ private:
     uint8 _backupBodyIcon = 0;
     uint8 _backupIconSize = 0;
     uint8 _backupSubpartColors[6] = {};
+    bool _staticDrawn = false;
 
     // State methods
     void showMainMenu();
@@ -118,6 +119,9 @@ private:
     void showSubPartMenu();
     void showBinaryAttrMenu();
     void showAdjustmentMenu();
+
+    void drawStatic();
+    void drawDynamic();
 
     // Edit handlers
     void handleMajorPartEdit(Common::KeyCode key);

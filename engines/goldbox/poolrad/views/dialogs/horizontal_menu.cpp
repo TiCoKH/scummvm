@@ -35,6 +35,7 @@ HorizontalMenu::HorizontalMenu(const String &name, const HorizontalMenuConfig &c
       _textColor(config.textColor),
       _selectColor(config.selectColor),
       _promptColor(config.promptColor),
+      _backgroundColor(config.backgroundColor),
       _allowNumPad(config.allowNumPad),
       _promptTxt(config.promptTxt) {
     assert(_menuItems != nullptr);
@@ -49,7 +50,7 @@ void HorizontalMenu::drawText() {
     if (!_redraw) return;
 
     Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 0);
+    s.clearBox(0, 24, 39, 24, _backgroundColor);
     s.writeStringC(_promptTxt, _promptColor, 0, 24);
 
 	s.setTextPos(_promptTxt.size(), 24);
