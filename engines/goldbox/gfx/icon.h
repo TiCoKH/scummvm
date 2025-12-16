@@ -55,7 +55,7 @@ enum IconActionState {
 };
 
 /**
- * CharacterIcon encapsulates the visual representation of a character
+ * Icon encapsulates the visual representation of a character
  * for use in combat and other views. It handles sprite compositing,
  * color remapping, and action state management.
  *
@@ -65,7 +65,7 @@ enum IconActionState {
  * - Stateless rendering: No internal frame counters or animations
  * - Works directly with CombatIconData for storage/rendering
  */
-class CharacterIcon {
+class Icon {
 public:
 	/**
 	 * Construct an icon from CombatIconData.
@@ -73,10 +73,10 @@ public:
 	 * @param iconData Icon data structure with head/body/colors
 	 * @param actionState Action state offset (0=ready, 128+=action)
 	 */
-	CharacterIcon(const Data::CombatIconData &iconData,
+	Icon(const Data::CombatIconData &iconData,
 	              IconActionState actionState = ICON_ACTION_READY);
 
-	~CharacterIcon();
+	~Icon();
 
 	/**
 	 * Render the icon at pixel coordinates.
@@ -215,13 +215,29 @@ private:
 	Pic *_readyIconFlipped;   // Ready state icon (vertically flipped)
 	Pic *_actionIconFlipped;  // Action state icon (vertically flipped)
 
+	// Base sprite cache: pre-made Pics from DAX, reused across all states
+	Pic *_readyHeadPic;       // Ready head sprite from DAX
+	Pic *_readyBodyPic;       // Ready body sprite from DAX
+	Pic *_actionHeadPic;      // Action head sprite from DAX
+	Pic *_actionBodyPic;      // Action body sprite from DAX
+
 	/**
-	 * Build the composite icon from head and body sprites with color mapping.
-	 * DAX containers accessed via VmInterface.
+	 * Load base Pic sprites from DAX containers.
+	 * Caches head and body Pics for reuse in compositing.
+	 * @param headId Head sprite ID
+	 * @param bodyId Body sprite ID
+	 * @return true if both sprites loaded successfully
+	 */
+	bool loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId, uint8 actionHeadId, uint8 actionBodyId);
+
+	/**
+	 * Build the composite icon from pre-made head and body Pics with color mapping.
+	 * Uses cached _readyHeadPic/_readyBodyPic or action variants.
+	 * @param isAction Whether to use action state sprites
+	 * @param iconData Icon data with color information
 	 * @return Composite Pic with colors applied
 	 */
-	Pic *buildComposite(uint8 headId, uint8 bodyId,
-	                    const Data::CombatIconData &iconData);
+	Pic *buildComposite(bool isAction, const Data::CombatIconData &iconData);
 
 	/**
 	 * Create a vertically flipped copy of a Pic.

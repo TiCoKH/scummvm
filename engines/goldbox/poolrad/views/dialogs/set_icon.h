@@ -28,7 +28,7 @@
 
 namespace Goldbox {
 namespace Gfx {
-    class CharacterIcon;
+    class Icon;
 }
 
 namespace Poolrad {
@@ -102,8 +102,11 @@ private:
     Goldbox::MenuItemList _menuItems;
     
     // Icon preview: old (committed) vs new (working)
-    Goldbox::Gfx::CharacterIcon *_oldIcon;  // Icon before any changes
-    Goldbox::Gfx::CharacterIcon *_newIcon;  // Icon with current edits
+    // Each state has ready and action variants
+    Goldbox::Gfx::Icon *_oldIcon;       // Icon before any changes (ready state)
+    Goldbox::Gfx::Icon *_oldIconAction; // Icon before any changes (action state)
+    Goldbox::Gfx::Icon *_newIcon;       // Icon with current edits (ready state)
+    Goldbox::Gfx::Icon *_newIconAction; // Icon with current edits (action state)
 
     // State tracking
     IconState _state = STATE_MAIN_MENU;
@@ -117,6 +120,9 @@ private:
     // Backups for commit/cancel (full icon data backup)
     Goldbox::Data::CombatIconData _backupIconData;
     bool _staticDrawn = false;
+    
+    // Icon cycling state (head and body sprite indices)
+    bool _inHeadBodyMode = false;  // Whether cycling head/body sprites
 
     // State methods
     void showMainMenu();
@@ -133,6 +139,7 @@ private:
     void handleNibbleEdit(Common::KeyCode key);
     void handleBinaryAttrEdit(Common::KeyCode key);
     void handleSubPartSelection(Common::KeyCode key);
+    void handleHeadBodyCycle(Common::KeyCode key);
 
     uint8 packSubpartColor(SubPartIndex index) const;
     void applySubpartColor(SubPartIndex index, uint8 value);
@@ -150,6 +157,12 @@ private:
     void commitChanges();
     void revertChanges();
     void rebuildNewIcon();
+    
+    // Head/Body/Speckle features
+    void cycleHead(bool forward);
+    void cycleBody(bool forward);
+    void applySpeckle();
+    void rebuildAllIcons();
 };
 
 } // namespace Dialogs
