@@ -30,7 +30,7 @@ MODULE_OBJS = \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/pic.o \
-	gfx/character_icon.o \
+	gfx/icon.o \
 	gfx/surface.o \
 	poolrad/poolrad.o \
 	poolrad/console.o \

@@ -20,7 +20,7 @@
  */
 
 #include "goldbox/data/player_character.h"
-#include "goldbox/gfx/character_icon.h"
+#include "goldbox/gfx/icon.h"
 
 namespace Goldbox {
 namespace Data {
@@ -132,7 +132,7 @@ int8 PlayerCharacter::getDexSpeedBonus() const {
 
 void PlayerCharacter::rebuildIcon() {
 	delete _icon;
-	_icon = new Gfx::CharacterIcon(iconData);
+	_icon = new Gfx::Icon(iconData);
 }
 
 } // namespace Data

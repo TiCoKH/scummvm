@@ -20,7 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/set_icon.h"
-#include "goldbox/gfx/character_icon.h"
+#include "goldbox/gfx/icon.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -32,18 +32,22 @@ using Common::String;
 using Common::KeyCode;
 using Common::Array;
 using Goldbox::Poolrad::Data::PoolradCharacter;
-using Goldbox::Gfx::CharacterIcon;
+using Goldbox::Gfx::Icon;
 
 SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
-    : Dialog(name), _pc(pc), _oldIcon(nullptr), _newIcon(nullptr) {
+    : Dialog(name), _pc(pc), _oldIcon(nullptr), _oldIconAction(nullptr),
+      _newIcon(nullptr), _newIconAction(nullptr), _inHeadBodyMode(false) {
     if (_pc) {
         // Backup current icon data for commit/cancel operations
         _backupIconData = _pc->iconData;
 
-        // Create snapshot of current icon (for display as "old")
-        _oldIcon = new CharacterIcon(_pc->iconData);
-        // Create working copy for editing (for display as "new")
-        _newIcon = new CharacterIcon(_pc->iconData);
+        // Create snapshot of current icon (for display as "old") - both ready and action states
+        _oldIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
+        _oldIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
+        
+        // Create working copy for editing (for display as "new") - both ready and action states
+        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
+        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
     }
 
     showMainMenu();
@@ -51,7 +55,9 @@ SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
 
 SetIcon::~SetIcon() {
     delete _oldIcon;
+    delete _oldIconAction;
     delete _newIcon;
+    delete _newIconAction;
     
     if (_menu) {
         _menu->setParent(nullptr);
@@ -148,7 +154,11 @@ void SetIcon::applySubpartColor(SubPartIndex index, uint8 value) {
 void SetIcon::rebuildNewIcon() {
     if (_pc && _newIcon) {
         delete _newIcon;
-        _newIcon = new CharacterIcon(_pc->iconData);
+        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
+    }
+    if (_pc && _newIconAction) {
+        delete _newIconAction;
+        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
     }
 }
 
@@ -156,10 +166,14 @@ void SetIcon::commitChanges() {
     // Update backup to current state (current state is now "committed")
     _backupIconData = _pc->iconData;
     
-    // Update old icon to match the new (committed) state
+    // Update old icons to match the new (committed) state
     if (_oldIcon) {
         delete _oldIcon;
-        _oldIcon = new CharacterIcon(_pc->iconData);
+        _oldIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
+    }
+    if (_oldIconAction) {
+        delete _oldIconAction;
+        _oldIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
     }
 }
 
@@ -167,10 +181,14 @@ void SetIcon::revertChanges() {
     // Restore icon data from backup
     _pc->iconData = _backupIconData;
     
-    // Rebuild new icon to match reverted state
+    // Rebuild new icons to match reverted state
     if (_newIcon) {
         delete _newIcon;
-        _newIcon = new CharacterIcon(_pc->iconData);
+        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
+    }
+    if (_newIconAction) {
+        delete _newIconAction;
+        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
     }
 }
 
@@ -464,6 +482,109 @@ void SetIcon::handleBinaryAttrEdit(Common::KeyCode key) {
     }
 }
 
+void SetIcon::handleHeadBodyCycle(Common::KeyCode key) {
+    switch (key) {
+    case Common::KEYCODE_n:
+        if (_majorPart == 'H') {
+            cycleHead(true);
+        } else if (_majorPart == 'W') {
+            cycleBody(true);
+        }
+        rebuildAllIcons();
+        break;
+
+    case Common::KEYCODE_p:
+        if (_majorPart == 'H') {
+            cycleHead(false);
+        } else if (_majorPart == 'W') {
+            cycleBody(false);
+        }
+        rebuildAllIcons();
+        break;
+
+    case Common::KEYCODE_s:
+        applySpeckle();
+        rebuildAllIcons();
+        break;
+
+    case Common::KEYCODE_k:
+        commitChanges();
+        _inHeadBodyMode = false;
+        showMainMenu();
+        break;
+
+    case Common::KEYCODE_e:
+    case Common::KEYCODE_ESCAPE:
+        revertChanges();
+        _inHeadBodyMode = false;
+        showMainMenu();
+        break;
+
+    default:
+        break;
+    }
+}
+
+void SetIcon::cycleHead(bool forward) {
+    if (!_pc)
+        return;
+
+    if (forward) {
+        _pc->iconData.iconHead = Icon::nextHead(_pc->iconData.iconHead);
+    } else {
+        _pc->iconData.iconHead = Icon::prevHead(_pc->iconData.iconHead);
+    }
+}
+
+void SetIcon::cycleBody(bool forward) {
+    if (!_pc)
+        return;
+
+    if (forward) {
+        _pc->iconData.iconBody = Icon::nextBody(_pc->iconData.iconBody);
+    } else {
+        _pc->iconData.iconBody = Icon::prevBody(_pc->iconData.iconBody);
+    }
+}
+
+void SetIcon::applySpeckle() {
+    if (!_pc)
+        return;
+
+    // Randomize pattern while keeping colors
+    // This randomizes the internal pixel pattern of the icon
+    // Note: This would require access to the underlying sprite data
+    // For now, we'll apply a simple variation to the icon size as a placeholder
+    // A full implementation would randomize the sprite pattern bits
+    _pc->iconData.iconSize = (_pc->iconData.iconSize == 1) ? 2 : 1;
+}
+
+void SetIcon::rebuildAllIcons() {
+    if (!_pc)
+        return;
+
+    // Rebuild all four icon states (old/new × ready/action)
+    if (_oldIcon) {
+        delete _oldIcon;
+        _oldIcon = new Icon(_backupIconData, Goldbox::Gfx::ICON_ACTION_READY);
+    }
+
+    if (_oldIconAction) {
+        delete _oldIconAction;
+        _oldIconAction = new Icon(_backupIconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
+    }
+
+    if (_newIcon) {
+        delete _newIcon;
+        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
+    }
+
+    if (_newIconAction) {
+        delete _newIconAction;
+        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
+    }
+}
+
 bool SetIcon::msgKeypress(const KeypressMessage &msg) {
     Common::KeyCode key = msg.keycode;
 
@@ -509,15 +630,27 @@ void SetIcon::drawStatic() {
 
 void SetIcon::drawDynamic() {
     // Draw old (committed) and new (working) icons side-by-side for comparison
+    // Show both ready and action states
     Surface s = getSurface();
+    
+    // OLD ICON: Committed (unchanged) state
     if (_oldIcon) {
         // Draw old icon in ready state
         _oldIcon->draw(&s, 15 * 8, 9 * 8);  // "ready" column for old
     }
+    if (_oldIconAction) {
+        // Draw old icon in action state
+        _oldIconAction->draw(&s, 20 * 8, 9 * 8);  // "action" column for old
+    }
     
+    // NEW ICON: Working (current edits) state
     if (_newIcon) {
         // Draw new icon in ready state
         _newIcon->draw(&s, 15 * 8, 13 * 8); // "ready" column for new
+    }
+    if (_newIconAction) {
+        // Draw new icon in action state
+        _newIconAction->draw(&s, 20 * 8, 13 * 8); // "action" column for new
     }
     
     // Dynamic content: menus (bottom row)
@@ -537,8 +670,12 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
     case STATE_MAIN_MENU:
         switch (key) {
         case Common::KEYCODE_p:
+            // Enter head/body cycling mode
+            _inHeadBodyMode = true;
             _majorPart = 'H';
-            showMajorPartMenu();
+            _state = STATE_ADJUSTMENT;
+            _adjustMode = ADJUST_MAJOR_PART;
+            showAdjustmentMenu();
             break;
 
         case Common::KEYCODE_1:
@@ -596,7 +733,9 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
         break;
 
     case STATE_ADJUSTMENT:
-        if (_adjustMode == ADJUST_MAJOR_PART) {
+        if (_inHeadBodyMode) {
+            handleHeadBodyCycle(key);
+        } else if (_adjustMode == ADJUST_MAJOR_PART) {
             handleMajorPartEdit(key);
         } else if (_adjustMode == ADJUST_NIBBLE) {
             handleNibbleEdit(key);

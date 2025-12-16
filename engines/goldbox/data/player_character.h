@@ -29,7 +29,7 @@
 
 namespace Goldbox {
 namespace Gfx {
-	class CharacterIcon;
+	class Icon;
 }
 
 namespace Data {
@@ -213,7 +213,7 @@ public:
 	uint16 encumbrance;
 
 	// CharacterIcon for rendering (owned by this character)
-	Gfx::CharacterIcon *_icon = nullptr;
+	Gfx::Icon *_icon = nullptr;
 
 	// Experience & Level
 	uint32 experiencePoints = 0;
@@ -270,7 +270,7 @@ public:
 	 * Get the current rendered icon.
 	 * May be null if not yet initialized.
 	 */
-	Gfx::CharacterIcon *getIcon() const { return _icon; }
+	Gfx::Icon *getIcon() const { return _icon; }
 
 	/**
 	 * Rebuild the character icon from current iconData.

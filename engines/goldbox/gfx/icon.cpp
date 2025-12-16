@@ -19,15 +19,15 @@
  *
  */
 
-#include "goldbox/gfx/character_icon.h"
+#include "goldbox/gfx/icon.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Gfx {
 
-// CharacterIcon member functions
-CharacterIcon::CharacterIcon(const Data::CombatIconData &iconData,
+// Icon member functions
+Icon::Icon(const Data::CombatIconData &iconData,
                              IconActionState actionState)
     : _size(static_cast<IconSize>(iconData.iconSize)),
       _actionState(actionState),
@@ -35,7 +35,11 @@ CharacterIcon::CharacterIcon(const Data::CombatIconData &iconData,
       _readyIcon(nullptr),
       _actionIcon(nullptr),
       _readyIconFlipped(nullptr),
-      _actionIconFlipped(nullptr) {
+      _actionIconFlipped(nullptr),
+      _readyHeadPic(nullptr),
+      _readyBodyPic(nullptr),
+      _actionHeadPic(nullptr),
+      _actionBodyPic(nullptr) {
 
 	uint8 sizeOffset = (_size == ICON_SIZE_LARGE) ? 64 : 0;
 	uint8 readyHeadId = iconData.iconHead + sizeOffset;
@@ -43,11 +47,18 @@ CharacterIcon::CharacterIcon(const Data::CombatIconData &iconData,
 	uint8 actionHeadId = readyHeadId + 128;
 	uint8 actionBodyId = readyBodyId + 128;
 
-	// Build ready state icon (normal)
-	_readyIcon = buildComposite(readyHeadId, readyBodyId, iconData);
-
-	// Build action state icon (normal)
-	_actionIcon = buildComposite(actionHeadId, actionBodyId, iconData);
+	// Load base sprites from DAX containers (cached)
+	if (!loadBaseSprites(readyHeadId, readyBodyId, actionHeadId, actionBodyId)) {
+		// Fallback: create empty placeholder if sprites missing
+		_readyIcon = new Pic(24, 24);
+		_readyIcon->clear(0);
+		_actionIcon = new Pic(24, 24);
+		_actionIcon->clear(0);
+	} else {
+		// Build composite icons using cached base sprites
+		_readyIcon = buildComposite(false, iconData);
+		_actionIcon = buildComposite(true, iconData);
+	}
 
 	// Build vertically flipped versions
 	_readyIconFlipped = createFlipped(_readyIcon);
@@ -57,34 +68,73 @@ CharacterIcon::CharacterIcon(const Data::CombatIconData &iconData,
 	_composite = (actionState == ICON_ACTION_READY) ? _readyIcon : _actionIcon;
 }
 
-CharacterIcon::~CharacterIcon() {
+Icon::~Icon() {
 	delete _readyIcon;
 	delete _actionIcon;
 	delete _readyIconFlipped;
 	delete _actionIconFlipped;
 	// _composite is not deleted here as it points to either _readyIcon or _actionIcon
 	_composite = nullptr;
+
+	// Clean up cached base sprites
+	delete _readyHeadPic;
+	delete _readyBodyPic;
+	delete _actionHeadPic;
+	delete _actionBodyPic;
 }
 
-Pic *CharacterIcon::buildComposite(uint8 headId, uint8 bodyId,
-								   const Data::CombatIconData &iconData) {
-	// Load head and body sprites from DAX containers via VmInterface
-	Data::DaxBlockPic *headBlock = static_cast<Data::DaxBlockPic *>(VmInterface::getDaxCHead().getBlockById(headId));
-	Data::DaxBlockPic *bodyBlock = static_cast<Data::DaxBlockPic *>(VmInterface::getDaxCBody().getBlockById(bodyId));
+bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId, 
+                                    uint8 actionHeadId, uint8 actionBodyId) {
+	// Load ready state sprites from DAX containers
+	Data::DaxBlockPic *readyHeadBlock = static_cast<Data::DaxBlockPic *>(
+		VmInterface::getDaxCHead().getBlockById(readyHeadId));
+	Data::DaxBlockPic *readyBodyBlock = static_cast<Data::DaxBlockPic *>(
+		VmInterface::getDaxCBody().getBlockById(readyBodyId));
 
-	if (!headBlock || !bodyBlock) {
+	if (!readyHeadBlock || !readyBodyBlock) {
+		return false;
+	}
+
+	// Load action state sprites from DAX containers
+	Data::DaxBlockPic *actionHeadBlock = static_cast<Data::DaxBlockPic *>(
+		VmInterface::getDaxCHead().getBlockById(actionHeadId));
+	Data::DaxBlockPic *actionBodyBlock = static_cast<Data::DaxBlockPic *>(
+		VmInterface::getDaxCBody().getBlockById(actionBodyId));
+
+	if (!actionHeadBlock || !actionBodyBlock) {
+		return false;
+	}
+
+	// Cache the base Pics (pre-made from DAX)
+	_readyHeadPic = Pic::read(readyHeadBlock);
+	_readyBodyPic = Pic::read(readyBodyBlock);
+	_actionHeadPic = Pic::read(actionHeadBlock);
+	_actionBodyPic = Pic::read(actionBodyBlock);
+
+	return true;
+}
+
+Pic *Icon::buildComposite(bool isAction, const Data::CombatIconData &iconData) {
+	// Use cached base sprites (already loaded from DAX)
+	Pic *headPic = isAction ? _actionHeadPic : _readyHeadPic;
+	Pic *bodyPic = isAction ? _actionBodyPic : _readyBodyPic;
+
+	if (!headPic || !bodyPic) {
 		// Create empty placeholder if sprites missing
 		Pic *placeholder = new Pic(24, 24);
 		placeholder->clear(0);
 		return placeholder;
 	}
 
-	Pic *bodyPic = Pic::read(bodyBlock);
-	Pic *headPic = Pic::read(headBlock);
+	// Create working copies for color remapping (don't modify cached originals)
+	Pic *bodyPicCopy = new Pic(bodyPic->w, bodyPic->h);
+	bodyPicCopy->blitFrom(*bodyPic);
+
+	Pic *headPicCopy = new Pic(headPic->w, headPic->h);
+	headPicCopy->blitFrom(*headPic);
 
 	// Body is always full 24x24 tile, use it as the composite base
-	// Head varies (10x24 or 8x24) and overlays on top from position 0,0
-	Pic *composite = new Pic(bodyPic->w, bodyPic->h);
+	Pic *composite = new Pic(bodyPicCopy->w, bodyPicCopy->h);
 
 	// Apply color remapping to body parts
 	// Body colors: iconColorBody1 (primary), iconColorBody2 (secondary)
@@ -93,29 +143,29 @@ Pic *CharacterIcon::buildComposite(uint8 headId, uint8 bodyId,
 		iconData.iconColorArm1, iconData.iconColorArm2,
 		iconData.iconColorLeg1, iconData.iconColorLeg2
 	};
-	applyColorRemapping(bodyPic, bodyColors, 6);
+	applyColorRemapping(bodyPicCopy, bodyColors, 6);
 
 	// Apply color remapping to head
 	uint8 headColors[2] = {
 		iconData.iconColorHair,
 		iconData.iconColorFace
 	};
-	applyColorRemapping(headPic, headColors, 2);
+	applyColorRemapping(headPicCopy, headColors, 2);
 
 	// Copy body first (full 24x24 base)
-	composite->blitFrom(*bodyPic);
+	composite->blitFrom(*bodyPicCopy);
 
 	// Overlay head on top from position 0,0 with transparency
-	headPic->trDraw(composite, 0, 0, 0); // Color index 0 is transparent
+	headPicCopy->trDraw(composite, 0, 0, 0); // Color index 0 is transparent
 
-	// Clean up temporary surfaces
-	delete headPic;
-	delete bodyPic;
+	// Clean up temporary copies (keep cached originals)
+	delete headPicCopy;
+	delete bodyPicCopy;
 
 	return composite;
 }
 
-Pic *CharacterIcon::createFlipped(const Pic *source) const {
+Pic *Icon::createFlipped(const Pic *source) const {
 	if (!source) {
 		return nullptr;
 	}
@@ -132,7 +182,7 @@ Pic *CharacterIcon::createFlipped(const Pic *source) const {
 	return flipped;
 }
 
-void CharacterIcon::applyColorRemapping(Pic *layer, const uint8 *colorMap, uint8 colorCount) const {
+void Icon::applyColorRemapping(Pic *layer, const uint8 *colorMap, uint8 colorCount) const {
 	if (!layer || !colorMap) {
 		return;
 	}
@@ -156,34 +206,34 @@ void CharacterIcon::applyColorRemapping(Pic *layer, const uint8 *colorMap, uint8
 	}
 }
 
-void CharacterIcon::draw(Graphics::ManagedSurface *dst, int x, int y) const {
+void Icon::draw(Graphics::ManagedSurface *dst, int x, int y) const {
 	if (_composite) {
 		_composite->draw(dst, x, y);
 	}
 }
 
-void CharacterIcon::drawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY) const {
+void Icon::drawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY) const {
 	if (_composite) {
 		_composite->drawAtCharPos(dst, charX, charY);
 	}
 }
 
-int CharacterIcon::getWidth() const {
+int Icon::getWidth() const {
 	return _composite ? _composite->w : 0;
 }
 
-int CharacterIcon::getHeight() const {
+int Icon::getHeight() const {
 	return _composite ? _composite->h : 0;
 }
 
 // Static utility functions
-uint8 CharacterIcon::calculateSpriteId(uint8 baseId, uint8 size, bool isAction) {
+uint8 Icon::calculateSpriteId(uint8 baseId, uint8 size, bool isAction) {
 	uint8 sizeOffset = (size == SIZE_LARGE) ? SIZE_OFFSET_LARGE : 0;
 	uint8 actionOffset = isAction ? ACTION_OFFSET : 0;
 	return baseId + sizeOffset + actionOffset;
 }
 
-uint8 CharacterIcon::extractBaseId(uint8 spriteId) {
+uint8 Icon::extractBaseId(uint8 spriteId) {
 	if (spriteId >= ACTION_OFFSET) {
 		spriteId -= ACTION_OFFSET;
 	}
@@ -193,39 +243,39 @@ uint8 CharacterIcon::extractBaseId(uint8 spriteId) {
 	return spriteId;
 }
 
-bool CharacterIcon::isValidHeadBaseId(uint8 baseId) {
+bool Icon::isValidHeadBaseId(uint8 baseId) {
 	return baseId >= SMALL_HEAD_MIN && baseId <= SMALL_HEAD_MAX;
 }
 
-bool CharacterIcon::isValidBodyBaseId(uint8 baseId) {
+bool Icon::isValidBodyBaseId(uint8 baseId) {
 	return baseId >= SMALL_BODY_MIN && baseId <= SMALL_BODY_MAX;
 }
 
-uint8 CharacterIcon::nextHead(uint8 currentBaseId) {
+uint8 Icon::nextHead(uint8 currentBaseId) {
 	return (currentBaseId >= SMALL_HEAD_MAX) ? SMALL_HEAD_MIN : currentBaseId + 1;
 }
 
-uint8 CharacterIcon::prevHead(uint8 currentBaseId) {
+uint8 Icon::prevHead(uint8 currentBaseId) {
 	return (currentBaseId == SMALL_HEAD_MIN) ? SMALL_HEAD_MAX : currentBaseId - 1;
 }
 
-uint8 CharacterIcon::nextBody(uint8 currentBaseId) {
+uint8 Icon::nextBody(uint8 currentBaseId) {
 	return (currentBaseId >= SMALL_BODY_MAX) ? SMALL_BODY_MIN : currentBaseId + 1;
 }
 
-uint8 CharacterIcon::prevBody(uint8 currentBaseId) {
+uint8 Icon::prevBody(uint8 currentBaseId) {
 	return (currentBaseId == SMALL_BODY_MIN) ? SMALL_BODY_MAX : currentBaseId - 1;
 }
 
-uint8 CharacterIcon::nextColor(uint8 currentColor) {
+uint8 Icon::nextColor(uint8 currentColor) {
 	return (currentColor + 1) & 0x0F;
 }
 
-uint8 CharacterIcon::prevColor(uint8 currentColor) {
+uint8 Icon::prevColor(uint8 currentColor) {
 	return (currentColor == 0) ? COLOR_MAX : currentColor - 1;
 }
 
-void CharacterIcon::getDimensions(uint8 size, int &width, int &height) {
+void Icon::getDimensions(uint8 size, int &width, int &height) {
 	if (size == SIZE_SMALL) {
 		width = SMALL_ICON_WIDTH;
 		height = SMALL_ICON_HEIGHT;
