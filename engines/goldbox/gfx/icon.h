@@ -19,11 +19,12 @@
  *
  */
 
-#ifndef GOLDBOX_GFX_CHARACTER_ICON_H
-#define GOLDBOX_GFX_CHARACTER_ICON_H
+#ifndef GOLDBOX_GFX_ICON_H
+#define GOLDBOX_GFX_ICON_H
 
 #include "common/scummsys.h"
 #include "goldbox/gfx/pic.h"
+#include "goldbox/gfx/dax_renderer.h"
 #include "goldbox/data/player_character.h"
 
 namespace Goldbox {
@@ -43,16 +44,44 @@ enum IconSize {
 };
 
 /**
- * Represents an icon action state.
+ * Represents an icon state.
  * Ready state uses base sprite IDs (0-13 heads, 0-31 bodies).
- * Action state adds 128 offset to sprite IDs.
+ * Attack state adds 128 offset to sprite IDs.
  */
-enum IconActionState {
-	ICON_ACTION_READY = 0,     // No offset applied
-	ICON_ACTION_ATTACK = 1,    // +128 offset applied
-	ICON_ACTION_CASTING = 1,   // Same as attack (uses action sprites)
-	ICON_ACTION_DEATH = 1      // Same as attack (uses action sprites)
+enum IconState {
+	ICON_STATE_READY  = 0,
+	ICON_STATE_ATTACK = 1
 };
+
+/**
+ * Represents icon facing direction.
+ * Controls horizontal flipping of the sprite.
+ */
+enum IconDirection {
+	ICON_DIRECTION_RIGHT = 0,  // Normal orientation (not flipped)
+	ICON_DIRECTION_LEFT  = 1   // Horizontally flipped
+};
+
+struct IconRenderParams {
+    uint8 iconIndex;
+    IconState state;
+    IconDirection direction;
+    int16 screenTileY;
+    int16 screenTileX;
+    int32 colorOverride;      // -1 = no override
+    int16 pixelOffsetX;
+    int16 pixelOffsetY;
+    void *overrideDax;        // Optional: DAX block override (nullptr = use default)
+    
+    IconRenderParams() : iconIndex(0), state(ICON_STATE_READY), direction(ICON_DIRECTION_RIGHT),
+                        screenTileY(0), screenTileX(0), colorOverride(-1), 
+                        pixelOffsetX(0), pixelOffsetY(0), overrideDax(nullptr) {}
+    
+    // Computed screen coordinates (in pixels)
+    int32 screenPixelX() const { return screenTileX * 3 + 1 + pixelOffsetX; }
+    int32 screenPixelY() const { return screenTileY * 3 + 1 + pixelOffsetY; }
+};
+
 
 /**
  * Icon encapsulates the visual representation of a character
@@ -71,28 +100,20 @@ public:
 	 * Construct an icon from CombatIconData.
 	 * DAX containers accessed via VmInterface.
 	 * @param iconData Icon data structure with head/body/colors
-	 * @param actionState Action state offset (0=ready, 128+=action)
+	 * @param state Icon state (ready or attack)
 	 */
 	Icon(const Data::CombatIconData &iconData,
-	              IconActionState actionState = ICON_ACTION_READY);
+	              IconState state = ICON_STATE_READY);
+
+	/**
+	 * Construct an icon with an injected DaxRenderer abstraction.
+	 * When provided, sprite decoding uses the renderer instead of VmInterface.
+	 */
+	Icon(const Data::CombatIconData &iconData,
+	              DaxRenderer *renderer,
+	              IconState state = ICON_STATE_READY);
 
 	~Icon();
-
-	/**
-	 * Render the icon at pixel coordinates.
-	 * @param dst Destination surface
-	 * @param x X position in pixels
-	 * @param y Y position in pixels
-	 */
-	void draw(Graphics::ManagedSurface *dst, int x, int y) const;
-
-	/**
-	 * Render the icon at character grid coordinates.
-	 * @param dst Destination surface
-	 * @param charX Character column position
-	 * @param charY Character row position
-	 */
-	void drawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY) const;
 
 	/**
 	 * Get the rendered icon as a Pic.
@@ -105,6 +126,16 @@ public:
 	 * @return Pointer to the internal composite surface
 	 */
 	const Graphics::ManagedSurface *getSurface() const { return _composite; }
+
+	/**
+	 * Draw icon at icon coordinate position using 3x3 tile grid.
+	 * Icon coordinates are converted to character positions: charPos = iconPos * 3 + 1
+	 * Character positions are then converted to pixels: pixelPos = charPos * 8
+	 * @param surface Target surface to draw on
+	 * @param iconX Icon X coordinate (0-based)
+	 * @param iconY Icon Y coordinate (0-based)
+	 */
+	void drawAtIconPos(Graphics::ManagedSurface *surface, int iconX, int iconY) const;
 
 	/**
 	 * Get icon dimensions.
@@ -140,6 +171,91 @@ public:
 	 * @return Pointer to the action state flipped composite Pic
 	 */
 	const Pic *getActionIconFlipped() const { return _actionIconFlipped; }
+
+	/**
+	 * Set the icon state (ready or attack).
+	 * Updates the composite pointer to the appropriate bitmap.
+	 * @param state New icon state
+	 */
+	void setActionState(IconState state);
+
+	/**
+	 * Set the orientation (normal or flipped).
+	 * Updates the composite pointer to the appropriate bitmap.
+	 * @param direction Facing direction
+	 */
+	void setOrientation(IconDirection direction);
+
+	/**
+	 * Toggle the horizontal orientation.
+	 */
+	void toggleOrientation();
+
+	/**
+	 * Get current orientation state.
+	 * @return Current facing direction
+	 */
+	IconDirection getDirection() const { return _direction; }
+
+	/**
+	 * Get current icon state.
+	 * @return Current icon state
+	 */
+	IconState getState() const { return _state; }
+
+	/**
+	 * Update icon from new CombatIconData without recreating the object.
+	 * Rebuilds all bitmaps with new sprite IDs and colors.
+	 * Preserves current action state and orientation.
+	 * @param iconData New icon data
+	 */
+	void updateFromData(const Data::CombatIconData &iconData) {
+		// Clean up old bitmaps
+		delete _readyIcon;
+		delete _actionIcon;
+		delete _readyIconFlipped;
+		delete _actionIconFlipped;
+		delete _readyHeadPic;
+		delete _readyBodyPic;
+		delete _actionHeadPic;
+		delete _actionBodyPic;
+
+		_readyIcon = nullptr;
+		_actionIcon = nullptr;
+		_readyIconFlipped = nullptr;
+		_actionIconFlipped = nullptr;
+		_readyHeadPic = nullptr;
+		_readyBodyPic = nullptr;
+		_actionHeadPic = nullptr;
+		_actionBodyPic = nullptr;
+		_composite = nullptr;
+
+		// Update size if it changed
+		_size = static_cast<IconSize>(iconData.iconSize);
+
+		// Rebuild sprites with new data
+		uint8 sizeOffset = (_size == ICON_SIZE_LARGE) ? 64 : 0;
+		uint8 readyHeadId = iconData.iconHead + sizeOffset;
+		uint8 readyBodyId = iconData.iconBody + sizeOffset;
+		uint8 actionHeadId = readyHeadId + 128;
+		uint8 actionBodyId = readyBodyId + 128;
+
+		if (!loadBaseSprites(readyHeadId, readyBodyId, actionHeadId, actionBodyId)) {
+			_readyIcon = new Pic(24, 24);
+			_readyIcon->clear(0);
+			_actionIcon = new Pic(24, 24);
+			_actionIcon->clear(0);
+		} else {
+			_readyIcon = buildComposite(false, iconData);
+			_actionIcon = buildComposite(true, iconData);
+		}
+
+		_readyIconFlipped = createFlipped(_readyIcon);
+		_actionIconFlipped = createFlipped(_actionIcon);
+
+		// Restore composite pointer based on current state
+		updateComposite();
+	}
 
 	// Static utility methods for icon manipulation
 
@@ -203,10 +319,13 @@ public:
 	static const int LARGE_ICON_HEIGHT = 24;
 	static const uint8 COLOR_MIN = 0;
 	static const uint8 COLOR_MAX = 15;
+	static const uint8 TRANSPARENT_COLOR_INDEX = 0;
 
 private:
 	IconSize _size;
-	IconActionState _actionState;
+	IconState _state;
+	IconDirection _direction;
+	DaxRenderer *_renderer; // optional decoding abstraction (nullptr when not used)
 	Pic *_composite;  // Current state (for compatibility)
 
 	// Bitmap cache: ready and action states
@@ -253,9 +372,20 @@ private:
 	 * @param colorCount Number of colors in colorMap
 	 */
 	void applyColorRemapping(Pic *layer, const uint8 *colorMap, uint8 colorCount) const;
+
+	/**
+	 * Update the composite pointer based on current icon state and orientation.
+	 */
+	void updateComposite() {
+		if (_state == ICON_STATE_READY) {
+			_composite = (_direction == ICON_DIRECTION_LEFT) ? _readyIconFlipped : _readyIcon;
+		} else {
+			_composite = (_direction == ICON_DIRECTION_LEFT) ? _actionIconFlipped : _actionIcon;
+		}
+	}
 };
 
 } // namespace Gfx
 } // namespace Goldbox
 
-#endif // GOLDBOX_GFX_CHARACTER_ICON_H
+#endif // GOLDBOX_GFX_ICON_H

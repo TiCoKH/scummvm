@@ -42,12 +42,12 @@ SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
         _backupIconData = _pc->iconData;
 
         // Create snapshot of current icon (for display as "old") - both ready and action states
-        _oldIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
-        _oldIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
+        _oldIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
+        _oldIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
         
         // Create working copy for editing (for display as "new") - both ready and action states
-        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
-        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
+        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
+        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
     }
 
     showMainMenu();
@@ -154,11 +154,11 @@ void SetIcon::applySubpartColor(SubPartIndex index, uint8 value) {
 void SetIcon::rebuildNewIcon() {
     if (_pc && _newIcon) {
         delete _newIcon;
-        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
+        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
     }
     if (_pc && _newIconAction) {
         delete _newIconAction;
-        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
+        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
     }
 }
 
@@ -169,11 +169,11 @@ void SetIcon::commitChanges() {
     // Update old icons to match the new (committed) state
     if (_oldIcon) {
         delete _oldIcon;
-        _oldIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
+        _oldIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
     }
     if (_oldIconAction) {
         delete _oldIconAction;
-        _oldIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
+        _oldIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
     }
 }
 
@@ -184,11 +184,11 @@ void SetIcon::revertChanges() {
     // Rebuild new icons to match reverted state
     if (_newIcon) {
         delete _newIcon;
-        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
+        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
     }
     if (_newIconAction) {
         delete _newIconAction;
-        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
+        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
     }
 }
 
@@ -566,22 +566,22 @@ void SetIcon::rebuildAllIcons() {
     // Rebuild all four icon states (old/new × ready/action)
     if (_oldIcon) {
         delete _oldIcon;
-        _oldIcon = new Icon(_backupIconData, Goldbox::Gfx::ICON_ACTION_READY);
+        _oldIcon = new Icon(_backupIconData, Goldbox::Gfx::ICON_STATE_READY);
     }
 
     if (_oldIconAction) {
         delete _oldIconAction;
-        _oldIconAction = new Icon(_backupIconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
+        _oldIconAction = new Icon(_backupIconData, Goldbox::Gfx::ICON_STATE_ATTACK);
     }
 
     if (_newIcon) {
         delete _newIcon;
-        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_READY);
+        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
     }
 
     if (_newIconAction) {
         delete _newIconAction;
-        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_ACTION_ATTACK);
+        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
     }
 }
 
@@ -609,13 +609,13 @@ bool SetIcon::msgKeypress(const KeypressMessage &msg) {
 
 void SetIcon::draw() {
     if (!_staticDrawn) {
-        drawStatic();
+        drawEditorText();
         _staticDrawn = true;
     }
-    drawDynamic();
+    drawEditorIcons();
 }
 
-void SetIcon::drawStatic() {
+void SetIcon::drawEditorText() {
     Surface s = getSurface();
     s.clearBox(0, 0, 40, 25, kBackgroundColor);
     drawFrame(Common::Rect(kWindowLeft - 1, kWindowTop - 1, kWindowRight + 1, kWindowBottom + 1), kBackgroundColor);
@@ -628,29 +628,25 @@ void SetIcon::drawStatic() {
     s.writeStringC("ready   action", 15, 3, 16);
 }
 
-void SetIcon::drawDynamic() {
+void SetIcon::drawEditorIcons() {
     // Draw old (committed) and new (working) icons side-by-side for comparison
-    // Show both ready and action states
+    // Show both ready and action states using icon coordinate grid (3x3 tiles per icon)
     Surface s = getSurface();
     
-    // OLD ICON: Committed (unchanged) state
+    // OLD ICON: Committed (unchanged) state at icon coordinate (1, 2)
     if (_oldIcon) {
-        // Draw old icon in ready state
-        _oldIcon->draw(&s, 15 * 8, 9 * 8);  // "ready" column for old
+        _oldIcon->drawAtIconPos(&s, 1, 2);  // Ready state at icon(1, 2)
     }
     if (_oldIconAction) {
-        // Draw old icon in action state
-        _oldIconAction->draw(&s, 20 * 8, 9 * 8);  // "action" column for old
+        _oldIconAction->drawAtIconPos(&s, 4, 2);  // Action state at icon(4, 2)
     }
     
-    // NEW ICON: Working (current edits) state
+    // NEW ICON: Working (current edits) state at icon coordinate (1, 4)
     if (_newIcon) {
-        // Draw new icon in ready state
-        _newIcon->draw(&s, 15 * 8, 13 * 8); // "ready" column for new
+        _newIcon->drawAtIconPos(&s, 1, 4);  // Ready state at icon(1, 4)
     }
     if (_newIconAction) {
-        // Draw new icon in action state
-        _newIconAction->draw(&s, 20 * 8, 13 * 8); // "action" column for new
+        _newIconAction->drawAtIconPos(&s, 4, 4);  // Action state at icon(4, 4)
     }
     
     // Dynamic content: menus (bottom row)

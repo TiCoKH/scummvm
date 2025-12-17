@@ -26,7 +26,6 @@ namespace Goldbox {
 namespace Data {
 
 PlayerCharacter::~PlayerCharacter() {
-	delete _icon;
 }
 
 void PlayerCharacter::damage(uint8 amount) {
@@ -128,11 +127,6 @@ int8 PlayerCharacter::getDexSpeedBonus() const {
     if (dex <= 23) return 4;
     if (dex <= 25) return 5;
     return 0;
-}
-
-void PlayerCharacter::rebuildIcon() {
-	delete _icon;
-	_icon = new Gfx::Icon(iconData);
 }
 
 } // namespace Data

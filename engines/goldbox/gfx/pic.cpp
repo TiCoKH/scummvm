@@ -78,5 +78,19 @@ void Pic::trDrawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY, u
 	trDraw(dst, charX * 8, charY * 8, tpColorIndex);
 }
 
+void Pic::drawAtIconPos(Graphics::ManagedSurface *dst, int iconX, int iconY) const {
+	// Gold Box tile grid: 3x3 pixels per tile, with +1 pixel offset
+	const int px = iconX * 3 + 1;
+	const int py = iconY * 3 + 1;
+	draw(dst, px, py);
+}
+
+void Pic::trDrawAtIconPos(Graphics::ManagedSurface *dst, int iconX, int iconY, uint32 tpColorIndex) const {
+	// Gold Box tile grid: 3x3 pixels per tile, with +1 pixel offset
+	const int px = iconX * 3 + 1;
+	const int py = iconY * 3 + 1;
+	trDraw(dst, px, py, tpColorIndex);
+}
+
 } // namespace Gfx
 } // namespace Goldbox

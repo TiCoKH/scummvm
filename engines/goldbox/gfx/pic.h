@@ -72,6 +72,25 @@ public:
 	void trDrawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY, uint32 tpColorIndex) const;
 
 	/**
+	 * Render the picture at Gold Box's 3x3-tile grid coordinates.
+	 * Each tile is 3x3 pixels; rendering is offset by +1 pixel from tile origin.
+	 * @param dst Destination surface
+	 * @param iconX Tile column
+	 * @param iconY Tile row
+	 */
+	void drawAtIconPos(Graphics::ManagedSurface *dst, int iconX, int iconY) const;
+
+	/**
+	 * Render at 3x3-tile grid coordinates with a transparent color.
+	 * Each tile is 3x3 pixels; rendering is offset by +1 pixel from tile origin.
+	 * @param dst Destination surface
+	 * @param iconX Tile column
+	 * @param iconY Tile row
+	 * @param tpColorIndex Color index to treat as transparent
+	 */
+	void trDrawAtIconPos(Graphics::ManagedSurface *dst, int iconX, int iconY, uint32 tpColorIndex) const;
+
+	/**
 	 * Creates a copy of a picture
 	 */
 	Pic *clone() const;

@@ -382,10 +382,10 @@ namespace Data {
 		portrait.head = stream.readByte(); // 0x0BB
 		portrait.body = stream.readByte(); // 0x0BC
 
-		iconData.iconHead = stream.readByte(); // 0x0BD
-		iconData.iconBody = stream.readByte(); // 0x0BE
-		orderNumber = stream.readByte();       // 0x0BF
-		iconData.iconSize = stream.readByte(); // 0x0C0
+		iconData.iconHead = stream.readByte();   // 0x0BD
+		iconData.iconBody = stream.readByte();   // 0x0BE
+		iconData.iconSlotId = stream.readByte(); // 0x0BF
+		iconData.iconSize = stream.readByte();   // 0x0C0
 
 		iconData.setBodyColor(stream.readByte());     // 0x0C1
 		iconData.setArmColor(stream.readByte());      // 0x0C2
@@ -906,7 +906,7 @@ namespace Data {
 
 		stream.writeByte(iconData.iconHead);
 		stream.writeByte(iconData.iconBody);
-		stream.writeByte(orderNumber);
+		stream.writeByte(iconData.iconSlotId);
 		stream.writeByte(iconData.iconSize);
 
 		// Icon color data
