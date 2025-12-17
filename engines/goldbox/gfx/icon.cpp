@@ -28,9 +28,11 @@ namespace Gfx {
 
 // Icon member functions
 Icon::Icon(const Data::CombatIconData &iconData,
-                             IconActionState actionState)
+                             IconState state)
     : _size(static_cast<IconSize>(iconData.iconSize)),
-      _actionState(actionState),
+      _state(state),
+      _direction(ICON_DIRECTION_RIGHT),
+	  _renderer(nullptr),
       _composite(nullptr),
       _readyIcon(nullptr),
       _actionIcon(nullptr),
@@ -64,9 +66,51 @@ Icon::Icon(const Data::CombatIconData &iconData,
 	_readyIconFlipped = createFlipped(_readyIcon);
 	_actionIconFlipped = createFlipped(_actionIcon);
 
-	// Set current composite based on action state
-	_composite = (actionState == ICON_ACTION_READY) ? _readyIcon : _actionIcon;
+	// Set current composite based on action state and orientation
+	updateComposite();
 }
+
+	Icon::Icon(const Data::CombatIconData &iconData,
+	                             DaxRenderer *renderer,
+	                             IconState state)
+	    : _size(static_cast<IconSize>(iconData.iconSize)),
+	      _state(state),
+	      _direction(ICON_DIRECTION_RIGHT),
+	      _renderer(renderer),
+	      _composite(nullptr),
+	      _readyIcon(nullptr),
+	      _actionIcon(nullptr),
+	      _readyIconFlipped(nullptr),
+	      _actionIconFlipped(nullptr),
+	      _readyHeadPic(nullptr),
+	      _readyBodyPic(nullptr),
+	      _actionHeadPic(nullptr),
+	      _actionBodyPic(nullptr) {
+
+		uint8 sizeOffset = (_size == ICON_SIZE_LARGE) ? 64 : 0;
+		uint8 readyHeadId = iconData.iconHead + sizeOffset;
+		uint8 readyBodyId = iconData.iconBody + sizeOffset;
+		uint8 actionHeadId = readyHeadId + 128;
+		uint8 actionBodyId = readyBodyId + 128;
+
+		// Load base sprites via renderer if available
+		if (!loadBaseSprites(readyHeadId, readyBodyId, actionHeadId, actionBodyId)) {
+			_readyIcon = new Pic(24, 24);
+			_readyIcon->clear(0);
+			_actionIcon = new Pic(24, 24);
+			_actionIcon->clear(0);
+		} else {
+			_readyIcon = buildComposite(false, iconData);
+			_actionIcon = buildComposite(true, iconData);
+		}
+
+		// Build flipped versions
+		_readyIconFlipped = createFlipped(_readyIcon);
+		_actionIconFlipped = createFlipped(_actionIcon);
+
+		// Set current composite based on action state and orientation
+		updateComposite();
+	}
 
 Icon::~Icon() {
 	delete _readyIcon;
@@ -84,7 +128,19 @@ Icon::~Icon() {
 }
 
 bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId, 
-                                    uint8 actionHeadId, uint8 actionBodyId) {
+									uint8 actionHeadId, uint8 actionBodyId) {
+	if (_renderer) {
+		_readyHeadPic = _renderer->readHead(readyHeadId);
+		_readyBodyPic = _renderer->readBody(readyBodyId);
+		_actionHeadPic = _renderer->readHead(actionHeadId);
+		_actionBodyPic = _renderer->readBody(actionBodyId);
+
+		if (!_readyHeadPic || !_readyBodyPic || !_actionHeadPic || !_actionBodyPic) {
+			return false;
+		}
+		return true;
+	}
+
 	// Load ready state sprites from DAX containers
 	Data::DaxBlockPic *readyHeadBlock = static_cast<Data::DaxBlockPic *>(
 		VmInterface::getDaxCHead().getBlockById(readyHeadId));
@@ -156,7 +212,7 @@ Pic *Icon::buildComposite(bool isAction, const Data::CombatIconData &iconData) {
 	composite->blitFrom(*bodyPicCopy);
 
 	// Overlay head on top from position 0,0 with transparency
-	headPicCopy->trDraw(composite, 0, 0, 0); // Color index 0 is transparent
+	headPicCopy->trDraw(composite, 0, 0, TRANSPARENT_COLOR_INDEX);
 
 	// Clean up temporary copies (keep cached originals)
 	delete headPicCopy;
@@ -172,11 +228,13 @@ Pic *Icon::createFlipped(const Pic *source) const {
 
 	Pic *flipped = new Pic(source->w, source->h);
 
-	// Copy pixels in reverse row order (vertical flip)
+	// Mirror horizontally (left/right flip) for facing direction changes
 	for (int y = 0; y < source->h; ++y) {
-		const byte *srcRow = (const byte *)source->getBasePtr(0, source->h - 1 - y);
+		const byte *srcRow = (const byte *)source->getBasePtr(0, y);
 		byte *dstRow = (byte *)flipped->getBasePtr(0, y);
-		Common::copy(srcRow, srcRow + source->w, dstRow);
+		for (int x = 0; x < source->w; ++x) {
+			dstRow[x] = srcRow[source->w - 1 - x];
+		}
 	}
 
 	return flipped;
@@ -203,18 +261,6 @@ void Icon::applyColorRemapping(Pic *layer, const uint8 *colorMap, uint8 colorCou
 		if (pixel > 0 && pixel <= colorCount) {
 			pixels[i] = colorMap[pixel - 1];
 		}
-	}
-}
-
-void Icon::draw(Graphics::ManagedSurface *dst, int x, int y) const {
-	if (_composite) {
-		_composite->draw(dst, x, y);
-	}
-}
-
-void Icon::drawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY) const {
-	if (_composite) {
-		_composite->drawAtCharPos(dst, charX, charY);
 	}
 }
 
@@ -285,5 +331,43 @@ void Icon::getDimensions(uint8 size, int &width, int &height) {
 	}
 }
 
+void Icon::setActionState(IconState state) {
+	if (_state != state) {
+		_state = state;
+		updateComposite();
+	}
+}
+
+void Icon::setOrientation(IconDirection direction) {
+	if (_direction != direction) {
+		_direction = direction;
+		updateComposite();
+	}
+}
+
+void Icon::toggleOrientation() {
+	_direction = (_direction == ICON_DIRECTION_RIGHT) ? ICON_DIRECTION_LEFT : ICON_DIRECTION_RIGHT;
+	updateComposite();
+}
+
+void Icon::drawAtIconPos(Graphics::ManagedSurface *surface, int iconX, int iconY) const {
+	if (!_composite || !surface) {
+		return;
+	}
+
+	// Convert icon coordinates to character tile coordinates
+	// Icon grid uses 3x3 character tiles per icon, with 1-tile offset
+	int charX = iconX * 3 + 1;
+	int charY = iconY * 3 + 1;
+
+	// Convert character coordinates to pixel coordinates
+	// Each character is 8x8 pixels
+	int pixelX = charX * 8;
+	int pixelY = charY * 8;
+
+	_composite->draw(surface, pixelX, pixelY);
+}
+
 } // namespace Gfx
 } // namespace Goldbox
+

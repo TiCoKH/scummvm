@@ -131,8 +131,8 @@ private:
     void showBinaryAttrMenu();
     void showAdjustmentMenu();
 
-    void drawStatic();
-    void drawDynamic();
+    void drawEditorText();
+    void drawEditorIcons();
 
     // Edit handlers
     void handleMajorPartEdit(Common::KeyCode key);

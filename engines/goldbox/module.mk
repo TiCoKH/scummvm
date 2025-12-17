@@ -29,8 +29,11 @@ MODULE_OBJS = \
 	data/rules/rules_poolrad.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
+	gfx/dax_renderer.o \
 	gfx/pic.o \
 	gfx/icon.o \
+	gfx/icon_manager.o \
+	gfx/combat_renderer.o \
 	gfx/surface.o \
 	poolrad/poolrad.o \
 	poolrad/console.o \

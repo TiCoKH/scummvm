@@ -28,14 +28,7 @@
 #include "common/util.h"
 
 namespace Goldbox {
-namespace Gfx {
-	class Icon;
-}
-
 namespace Data {
-
-//---------------------------------------------------------------
-// Helper structures
 
 enum Gender {
 	G_MALE   = 0,
@@ -100,6 +93,7 @@ struct CombatIconData {
 	uint8 iconHead;
 	uint8 iconBody;
 	uint8 iconSize;
+	uint8 iconSlotId;
 	uint8 iconColorBody1, iconColorBody2;
 	uint8 iconColorArm1, iconColorArm2;
 	uint8 iconColorLeg1, iconColorLeg2;
@@ -155,6 +149,7 @@ struct CombatIconData {
 		return iconHead == other.iconHead &&
 		       iconBody == other.iconBody &&
 		       iconSize == other.iconSize &&
+			   iconSlotId == other.iconSlotId &&
 		       iconColorBody1 == other.iconColorBody1 &&
 		       iconColorBody2 == other.iconColorBody2 &&
 		       iconColorArm1 == other.iconColorArm1 &&
@@ -205,15 +200,10 @@ public:
 	CombatIconData iconData;
 	uint8 strengthBonusAllowed = 0;
 
-	uint8 orderNumber;
-
 	uint8 iconDimension;
 
 	Stat movement;
 	uint16 encumbrance;
-
-	// CharacterIcon for rendering (owned by this character)
-	Gfx::Icon *_icon = nullptr;
 
 	// Experience & Level
 	uint32 experiencePoints = 0;
@@ -263,20 +253,6 @@ public:
 	int8 getDexDefenceBonus() const;
 	int8 getDexSpeedBonus() const;
 
-	//-----------------------------------------------------------
-	// Character icon management
-
-	/**
-	 * Get the current rendered icon.
-	 * May be null if not yet initialized.
-	 */
-	Gfx::Icon *getIcon() const { return _icon; }
-
-	/**
-	 * Rebuild the character icon from current iconData.
-	 * Called after icon data is modified.
-	 */
-	void rebuildIcon();
 };
 
 } // namespace Data
