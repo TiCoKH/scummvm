@@ -23,6 +23,7 @@
 #define GOLDBOX_GFX_PIC_H
 
 #include "common/stream.h"
+#include "common/bitarray.h"
 #include "graphics/managed_surface.h"
 #include "graphics/palette.h"
 #include "goldbox/data/daxblock.h"
@@ -33,9 +34,23 @@ namespace Gfx {
 class Pic : public Graphics::ManagedSurface {
 
 public:
-	Pic(int w, int h) : Graphics::ManagedSurface(w, h) {}
+	Pic(int w, int h) : Graphics::ManagedSurface(w, h), _transparencyMask(nullptr), _transparentIndex(0) {}
+
+	~Pic();
 
 	static Pic *read(Data::DaxBlockPic *daxBlock);
+
+	/**
+	 * Read a PIC with two-pass rendering for remappable sprites.
+	 * Pass 1: Decode palette (0-15); color 0 marks transparent pixels (mask created).
+	 * Pass 2: Apply color remapping (e.g., 13→0 to make black drawable).
+	 * Result: Color 0 is drawable after remapping, transparency preserved via mask.
+	 * @param daxBlock DAX block containing sprite data
+	 * @param sourceColor Source palette index to remap (usually 13 = bright magenta)
+	 * @param targetColor Target palette index for remapping
+	 * @return Decoded Pic with transparency mask and applied remapping
+	 */
+	static Pic *readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint8 targetColor);
 
 	/**
 	 * Render the picture at the given pixel coordinates
@@ -91,9 +106,54 @@ public:
 	void trDrawAtIconPos(Graphics::ManagedSurface *dst, int iconX, int iconY, uint32 tpColorIndex) const;
 
 	/**
+	 * Draw using transparency mask (if available).
+	 * Respects the mask created by readWithRemapping().
+	 * @param dst Destination surface
+	 * @param x X position in pixels
+	 * @param y Y position in pixels
+	 */
+	void drawWithMask(Graphics::ManagedSurface *dst, int x, int y) const;
+
+	/**
 	 * Creates a copy of a picture
 	 */
 	Pic *clone() const;
+
+	/**
+	 * Ensure a transparency mask exists for this pic.
+	 * Allocates a mask if missing and clears it to false.
+	 * @return Pointer to the mask (always non-null after call)
+	 */
+	Common::BitArray *ensureTransparencyMask();
+
+	/**
+	 * Get transparency mask for this pic.
+	 * @return Pointer to transparency mask (nullptr if none created)
+	 */
+	Common::BitArray *getTransparencyMask() const { return _transparencyMask; }
+
+	/**
+	 * Check if a pixel is transparent via mask.
+	 * @param x X coordinate
+	 * @param y Y coordinate
+	 * @return true if pixel is marked as transparent, false otherwise
+	 */
+	bool isPixelTransparent(int x, int y) const;
+
+	/**
+	 * Get the transparent color index for this picture.
+	 * Defaults to 0 for normal PIC, 255 for remapped CTILE.
+	 */
+	uint8 getTransparentIndex() const { return _transparentIndex; }
+
+	/**
+	 * Set the transparent color index for this picture.
+	 */
+	void setTransparentIndex(uint8 idx) { _transparentIndex = idx; }
+
+private:
+	Common::BitArray *_transparencyMask;  // Mask for original color 0 pixels
+	uint8 _transparentIndex;              // Current colorkey used for transparency when drawing
 };
 
 } // namespace Gfx

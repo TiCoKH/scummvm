@@ -113,6 +113,10 @@ void PoolradEngine::setup() {
 
 	getDaxManager().loadFile(Common::Path("title.dax"));
 
+	getDaxManager().loadFile(Common::Path("cbody.dax"));
+	getDaxManager().loadFile(Common::Path("chead.dax"));
+
+
 	// Populate daxFont from container
 	Goldbox::Data::DaxBlock *pc_font = getDax8x8d().getBlockById(201);
 	if (!pc_font) {

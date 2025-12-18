@@ -22,6 +22,7 @@
 #include "goldbox/gfx/icon.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/vm_interface.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Gfx {
@@ -129,6 +130,8 @@ Icon::~Icon() {
 
 bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId, 
 									uint8 actionHeadId, uint8 actionBodyId) {
+	debug("Icon::loadBaseSprites ids readyHead=%u readyBody=%u actionHead=%u actionBody=%u renderer=%s",
+			readyHeadId, readyBodyId, actionHeadId, actionBodyId, _renderer ? "yes" : "no");
 	if (_renderer) {
 		_readyHeadPic = _renderer->readHead(readyHeadId);
 		_readyBodyPic = _renderer->readBody(readyBodyId);
@@ -136,6 +139,8 @@ bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId,
 		_actionBodyPic = _renderer->readBody(actionBodyId);
 
 		if (!_readyHeadPic || !_readyBodyPic || !_actionHeadPic || !_actionBodyPic) {
+			debug("Icon::loadBaseSprites renderer load failed headR=%p bodyR=%p headA=%p bodyA=%p",
+					_readyHeadPic, _readyBodyPic, _actionHeadPic, _actionBodyPic);
 			return false;
 		}
 		return true;
@@ -148,6 +153,7 @@ bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId,
 		VmInterface::getDaxCBody().getBlockById(readyBodyId));
 
 	if (!readyHeadBlock || !readyBodyBlock) {
+		debug("Icon::loadBaseSprites missing ready blocks head=%p body=%p", readyHeadBlock, readyBodyBlock);
 		return false;
 	}
 
@@ -158,14 +164,20 @@ bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId,
 		VmInterface::getDaxCBody().getBlockById(actionBodyId));
 
 	if (!actionHeadBlock || !actionBodyBlock) {
+		debug("Icon::loadBaseSprites missing action blocks head=%p body=%p", actionHeadBlock, actionBodyBlock);
 		return false;
 	}
 
 	// Cache the base Pics (pre-made from DAX)
-	_readyHeadPic = Pic::read(readyHeadBlock);
-	_readyBodyPic = Pic::read(readyBodyBlock);
-	_actionHeadPic = Pic::read(actionHeadBlock);
-	_actionBodyPic = Pic::read(actionBodyBlock);
+	const bool headIsCTile = VmInterface::getDaxCHead().getContentType() == Data::ContentType::CTILE;
+	const bool bodyIsCTile = VmInterface::getDaxCBody().getContentType() == Data::ContentType::CTILE;
+	const uint8 remapSource = 13; // Bright magenta
+	const uint8 remapTarget = 0;  // Drawable black after masking
+
+	_readyHeadPic = headIsCTile ? Pic::readWithRemapping(readyHeadBlock, remapSource, remapTarget) : Pic::read(readyHeadBlock);
+	_readyBodyPic = bodyIsCTile ? Pic::readWithRemapping(readyBodyBlock, remapSource, remapTarget) : Pic::read(readyBodyBlock);
+	_actionHeadPic = headIsCTile ? Pic::readWithRemapping(actionHeadBlock, remapSource, remapTarget) : Pic::read(actionHeadBlock);
+	_actionBodyPic = bodyIsCTile ? Pic::readWithRemapping(actionBodyBlock, remapSource, remapTarget) : Pic::read(actionBodyBlock);
 
 	return true;
 }
@@ -183,14 +195,8 @@ Pic *Icon::buildComposite(bool isAction, const Data::CombatIconData &iconData) {
 	}
 
 	// Create working copies for color remapping (don't modify cached originals)
-	Pic *bodyPicCopy = new Pic(bodyPic->w, bodyPic->h);
-	bodyPicCopy->blitFrom(*bodyPic);
-
-	Pic *headPicCopy = new Pic(headPic->w, headPic->h);
-	headPicCopy->blitFrom(*headPic);
-
-	// Body is always full 24x24 tile, use it as the composite base
-	Pic *composite = new Pic(bodyPicCopy->w, bodyPicCopy->h);
+	Pic *bodyPicCopy = bodyPic->clone();
+	Pic *headPicCopy = headPic->clone();
 
 	// Apply color remapping to body parts
 	// Body colors: iconColorBody1 (primary), iconColorBody2 (secondary)
@@ -208,11 +214,11 @@ Pic *Icon::buildComposite(bool isAction, const Data::CombatIconData &iconData) {
 	};
 	applyColorRemapping(headPicCopy, headColors, 2);
 
-	// Copy body first (full 24x24 base)
-	composite->blitFrom(*bodyPicCopy);
+	// Body is always full 24x24 tile, use it as the composite base
+	Pic *composite = bodyPicCopy->clone();
 
-	// Overlay head on top from position 0,0 with transparency
-	headPicCopy->trDraw(composite, 0, 0, TRANSPARENT_COLOR_INDEX);
+	// Overlay head on top at (0,0) using the head's transparent index
+	headPicCopy->trDraw(composite, 0, 0, headPicCopy->getTransparentIndex());
 
 	// Clean up temporary copies (keep cached originals)
 	delete headPicCopy;
@@ -236,6 +242,8 @@ Pic *Icon::createFlipped(const Pic *source) const {
 			dstRow[x] = srcRow[source->w - 1 - x];
 		}
 	}
+
+	// No mask to flip when using colorkey transparency
 
 	return flipped;
 }
@@ -355,17 +363,16 @@ void Icon::drawAtIconPos(Graphics::ManagedSurface *surface, int iconX, int iconY
 		return;
 	}
 
-	// Convert icon coordinates to character tile coordinates
-	// Icon grid uses 3x3 character tiles per icon, with 1-tile offset
+	// Convert icon coordinates to character tile coordinates (3x3 char tiles per icon, +1 offset)
 	int charX = iconX * 3 + 1;
 	int charY = iconY * 3 + 1;
 
-	// Convert character coordinates to pixel coordinates
-	// Each character is 8x8 pixels
+	// Convert character coordinates to pixels (8x8 per char)
 	int pixelX = charX * 8;
 	int pixelY = charY * 8;
 
-	_composite->draw(surface, pixelX, pixelY);
+	// Draw using the composite's transparent index (0 for PIC, 255 for CTILE)
+	_composite->trDraw(surface, pixelX, pixelY, _composite->getTransparentIndex());
 }
 
 } // namespace Gfx

@@ -26,10 +26,18 @@
 namespace Goldbox {
 namespace Gfx {
 
+Pic::~Pic() {
+	if (_transparencyMask) {
+		delete _transparencyMask;
+		_transparencyMask = nullptr;
+	}
+}
+
 Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
 	int width = daxBlock->width;
 	int height = daxBlock->height;
 	Pic *pic = new Pic(width, height);
+	pic->setTransparentIndex(0);
 	// Decode the pixel data
 	const uint8 *data = daxBlock->_data.begin();
 	for (int y = 0; y < height; y++) {
@@ -44,11 +52,65 @@ Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
 	return pic;
 }
 
+Pic *Pic::readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint8 targetColor) {
+	int width = daxBlock->width;
+	int height = daxBlock->height;
+	Pic *pic = new Pic(width, height);
+	// Use sentinel colorkey 255 for original zeros
+	pic->setTransparentIndex(255);
+
+	// Pass 1: Decode pixel data and create transparency mask
+	const uint8 *data = daxBlock->_data.begin();
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x += 2) {
+			uint8 byte = *data++;
+
+			// High nibble
+			uint8 pixelHigh = (byte & 0xF0) >> 4;
+			pic->setPixel(x, y, (pixelHigh == 0) ? 255 : pixelHigh);
+
+			// Low nibble
+			uint8 pixelLow = byte & 0x0F;
+			pic->setPixel(x + 1, y, (pixelLow == 0) ? 255 : pixelLow);
+		}
+	}
+
+	// Pass 2: Apply color remapping
+	if (sourceColor != targetColor) {
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				uint8 pixel = pic->getPixel(x, y);
+				if (pixel == sourceColor) {
+					pic->setPixel(x, y, targetColor);
+				}
+			}
+		}
+	}
+
+	return pic;
+}
+
+bool Pic::isPixelTransparent(int x, int y) const {
+	if (!_transparencyMask || x < 0 || y < 0 || x >= w || y >= h) {
+		return false;
+	}
+	int maskIndex = y * w + x;
+	return _transparencyMask->get(maskIndex);
+}
+
 Pic *Pic::clone() const {
 	Pic *copy = new Pic(w, h);
 	copy->blitFrom(*this);
+	copy->setTransparentIndex(_transparentIndex);
 
 	return copy;
+}
+
+Common::BitArray *Pic::ensureTransparencyMask() {
+	if (!_transparencyMask) {
+		_transparencyMask = new Common::BitArray(w * h);
+	}
+	return _transparencyMask;
 }
 
 void Pic::draw(Graphics::ManagedSurface *dst, int x, int y) const {
@@ -90,6 +152,27 @@ void Pic::trDrawAtIconPos(Graphics::ManagedSurface *dst, int iconX, int iconY, u
 	const int px = iconX * 3 + 1;
 	const int py = iconY * 3 + 1;
 	trDraw(dst, px, py, tpColorIndex);
+}
+
+void Pic::drawWithMask(Graphics::ManagedSurface *dst, int x, int y) const {
+	// Draw using transparency mask if available
+	if (_transparencyMask) {
+		for (int py = 0; py < h; ++py) {
+			const byte *srcRow = (const byte *)getBasePtr(0, py);
+			byte *dstRow = (byte *)dst->getBasePtr(x, y + py);
+
+			for (int px = 0; px < w; ++px) {
+				// Skip if pixel is marked as transparent in mask
+				if (!isPixelTransparent(px, py)) {
+					byte pixel = srcRow[px];
+					dstRow[px] = pixel;
+				}
+			}
+		}
+	} else {
+		// No mask: draw normally
+		draw(dst, x, y);
+	}
 }
 
 } // namespace Gfx
