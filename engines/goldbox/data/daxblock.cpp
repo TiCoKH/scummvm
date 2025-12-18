@@ -29,10 +29,12 @@ namespace Data {
     DaxBlock* DaxBlock::createDaxBlock(ContentType contentType) {
         if (contentType == ContentType::TILE) {
             return new DaxBlock8x8D();
-        } else if (contentType == ContentType::PIC) {
+        } else if (contentType == ContentType::PIC || contentType == ContentType::CTILE) {
+            // CTILE uses the same binary layout as PIC but allows callers to
+            // opt into mask-aware handling.
             return new DaxBlockPic();
- //       } else if (contentType == ContentType::SPRIT) {
- //           return new DaxBlockPic();
+//       } else if (contentType == ContentType::SPRIT) {
+//           return new DaxBlockPic();
         } else if (contentType == ContentType::WALLDEF) {
             return new DaxBlockWalldef();
         } else {

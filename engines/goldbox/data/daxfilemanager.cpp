@@ -33,17 +33,17 @@ DaxFileManager::DaxFileManager() :
     _containerRandcom(ContentType::TILE),
     _containerSqrpaci(ContentType::TILE),
     _containerBody(ContentType::PIC),
-    _containerCBody(ContentType::PIC),
-    _containerCHead(ContentType::PIC),
-    _containerComSpr(ContentType::COMSPR),
+    _containerCBody(ContentType::CTILE),
+    _containerCHead(ContentType::CTILE),
+    _containerComSpr(ContentType::CTILE),
     _containerEcl(ContentType::ECL),
     _containerGeo(ContentType::GEO),
     _containerHead(ContentType::PIC),
-    _containerMonCha(ContentType::MONCHA),
-    _containerMonItm(ContentType::UNKNOWN),  // MON*ITM is a separate category
-    _containerMonSpc(ContentType::UNKNOWN),  // MON*SPC is a separate category
+    _containerMonCha(ContentType::CHARACTER),
+    _containerMonItm(ContentType::ITEM),  // MON*ITM is a separate category
+    _containerMonSpc(ContentType::SPELL),  // MON*SPC is a separate category
     _containerPic(ContentType::PIC),
-    _containerCPic(ContentType::PIC),        // CPIC is PIC content
+    _containerCPic(ContentType::CTILE),
     _containerSprit(ContentType::SPRIT),
     _containerTitle(ContentType::PIC),
     _containerWalldef(ContentType::WALLDEF),
