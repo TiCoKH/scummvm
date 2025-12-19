@@ -12,6 +12,7 @@ MODULE_OBJS = \
 	core/file.o \
 	core/global.o \
 	core/menu_item.o \
+	core/icon_manager.o \
 	data/player_character.o \
 	data/adnd_character.o \
 	data/daxblock.o \
@@ -32,7 +33,6 @@ MODULE_OBJS = \
 	gfx/dax_renderer.o \
 	gfx/pic.o \
 	gfx/icon.o \
-	gfx/icon_manager.o \
 	gfx/combat_renderer.o \
 	gfx/surface.o \
 	poolrad/poolrad.o \

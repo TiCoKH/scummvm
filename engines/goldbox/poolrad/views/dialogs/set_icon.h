@@ -100,13 +100,10 @@ private:
     Goldbox::Poolrad::Data::PoolradCharacter *_pc;
     HorizontalMenu *_menu = nullptr;
     Goldbox::MenuItemList _menuItems;
-    
-    // Icon preview: old (committed) vs new (working)
-    // Each state has ready and action variants
-    Goldbox::Gfx::Icon *_oldIcon;       // Icon before any changes (ready state)
-    Goldbox::Gfx::Icon *_oldIconAction; // Icon before any changes (action state)
-    Goldbox::Gfx::Icon *_newIcon;       // Icon with current edits (ready state)
-    Goldbox::Gfx::Icon *_newIconAction; // Icon with current edits (action state)
+
+    // Backups for commit/cancel (full icon data backup)
+    Goldbox::Data::CombatIconData _backupIconData;
+    bool _staticDrawn = false;
 
     // State tracking
     IconState _state = STATE_MAIN_MENU;
@@ -117,10 +114,6 @@ private:
     SubPartIndex _subPartIndex = SUBPART_BODY;
     uint8 _nibbleSelection = 0;   // 0 = low, 1 = high
 
-    // Backups for commit/cancel (full icon data backup)
-    Goldbox::Data::CombatIconData _backupIconData;
-    bool _staticDrawn = false;
-    
     // Icon cycling state (head and body sprite indices)
     bool _inHeadBodyMode = false;  // Whether cycling head/body sprites
 
@@ -157,12 +150,19 @@ private:
     void commitChanges();
     void revertChanges();
     void rebuildNewIcon();
-    
+
     // Head/Body/Speckle features
     void cycleHead(bool forward);
     void cycleBody(bool forward);
     void applySpeckle();
     void rebuildAllIcons();
+
+    // Sync preview icons into global IconManager slots for external access
+    void syncIconManagerSlots();
+    void drawIcons(int x, int y, uint8 slotId);
+
+    // Convert icon grid coordinates to pixel coordinates (8x8 cells)
+    void iconPosToPixels(uint8 iconX, uint8 iconY, int &px, int &py) const;
 };
 
 } // namespace Dialogs

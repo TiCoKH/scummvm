@@ -48,6 +48,7 @@ PoolradEngine::PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDe
 PoolradEngine::~PoolradEngine() {
 	g_engine = nullptr;
 	delete _views;
+	delete _iconManager;
 }
 
 void PoolradEngine::initializePath(const Common::FSNode &gamePath) {
@@ -56,6 +57,7 @@ void PoolradEngine::initializePath(const Common::FSNode &gamePath) {
 }
 
 void PoolradEngine::setup() {
+
 // Initialise engine data for the game
 //	Common::U32String errMsg;
 //	if (!Common::load_engine_data("poolrad.dat", "poolrad", 1, 0, errMsg)) {
@@ -115,7 +117,11 @@ void PoolradEngine::setup() {
 
 	getDaxManager().loadFile(Common::Path("cbody.dax"));
 	getDaxManager().loadFile(Common::Path("chead.dax"));
+	getDaxManager().loadFile(Common::Path("comspr.dax"));
 
+
+	// Initialize icon manager
+	_iconManager = new IconManager();
 
 	// Populate daxFont from container
 	Goldbox::Data::DaxBlock *pc_font = getDax8x8d().getBlockById(201);

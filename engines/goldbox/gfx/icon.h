@@ -30,9 +30,21 @@
 namespace Goldbox {
 namespace Data {
 	class DaxBlockContainer;
+	enum IconKind : uint8;
 }
 
 namespace Gfx {
+
+/**
+ * Icon content kind - specifies which DAX container to load from.
+ * (Re-exported from Data namespace for convenience)
+ */
+enum IconKind : uint8 {
+	ICON_KIND_HEAD   = 0,
+	ICON_KIND_BODY   = 1,
+	ICON_KIND_SPRITE = 2,
+	ICON_KIND_CPIC   = 3
+};
 
 /**
  * Represents an icon size category.
@@ -72,11 +84,11 @@ struct IconRenderParams {
     int16 pixelOffsetX;
     int16 pixelOffsetY;
     void *overrideDax;        // Optional: DAX block override (nullptr = use default)
-    
+
     IconRenderParams() : iconIndex(0), state(ICON_STATE_READY), direction(ICON_DIRECTION_RIGHT),
-                        screenTileY(0), screenTileX(0), colorOverride(-1), 
+                        screenTileY(0), screenTileX(0), colorOverride(-1),
                         pixelOffsetX(0), pixelOffsetY(0), overrideDax(nullptr) {}
-    
+
     // Computed screen coordinates (in pixels)
     int32 screenPixelX() const { return screenTileX * 3 + 1 + pixelOffsetX; }
     int32 screenPixelY() const { return screenTileY * 3 + 1 + pixelOffsetY; }
@@ -112,6 +124,21 @@ public:
 	Icon(const Data::CombatIconData &iconData,
 	              DaxRenderer *renderer,
 	              IconState state = ICON_STATE_READY);
+
+	/**
+	 * Construct an icon from explicit ready/action Pic surfaces.
+	 * Pics are cloned internally; caller retains ownership of inputs.
+	 */
+	Icon(const Pic *readyPic, const Pic *actionPic);
+
+	/**
+	 * Construct an icon by loading both ready and action blocks from a DAX container.
+	 * Automatically loads ready state from blockId and action state from blockId + 128.
+	 * Supports COMSPR (sprites) and CPIC containers.
+	 * @param blockId Base block ID for ready state (action state = blockId + 128)
+	 * @param kind Container type (ICON_KIND_SPRITE for COMSPR, ICON_KIND_CPIC for CPIC)
+	 */
+	Icon(uint16 blockId, IconKind kind);
 
 	~Icon();
 
@@ -371,7 +398,16 @@ private:
 	 * @param colorMap Array of color indices [primary1, primary2, ...]
 	 * @param colorCount Number of colors in colorMap
 	 */
-	void applyColorRemapping(Pic *layer, const uint8 *colorMap, uint8 colorCount) const;
+	// Legacy-accurate recolorization over the final composite (head+body as one)
+	void remapComposite(Pic *composite, const Data::CombatIconData &iconData) const;
+
+	/**
+	 * Debug helper: Print hexadecimal content of a Pic frame.
+	 * Outputs pixel data row by row for inspection.
+	 * @param pic Pic to dump
+	 * @param label Label for the output
+	 */
+	void debugDumpPicHex(const Pic *pic, const char *label) const;
 
 	/**
 	 * Update the composite pointer based on current icon state and orientation.
