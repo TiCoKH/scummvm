@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/views/dialogs/set_icon.h"
 #include "goldbox/gfx/icon.h"
+#include "goldbox/core/icon_manager.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -35,29 +36,24 @@ using Goldbox::Poolrad::Data::PoolradCharacter;
 using Goldbox::Gfx::Icon;
 
 SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
-    : Dialog(name), _pc(pc), _oldIcon(nullptr), _oldIconAction(nullptr),
-      _newIcon(nullptr), _newIconAction(nullptr), _inHeadBodyMode(false) {
+    : Dialog(name), _pc(pc), _inHeadBodyMode(false) {
     if (_pc) {
         // Backup current icon data for commit/cancel operations
         _backupIconData = _pc->iconData;
 
-        // Create snapshot of current icon (for display as "old") - both ready and action states
-        _oldIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
-        _oldIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
-        
-        // Create working copy for editing (for display as "new") - both ready and action states
-        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
-        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
+        // Load selection frame from COMSPR (block 25 = ready, block 153 = action)
+        IconManager *mgr = VmInterface::getIconManager();
+        if (mgr) {
+            mgr->loadIcon(SLOT_SELECTFRAME, ICON_KIND_SPRITE, 25);
+            // Publish initial previews into the global IconManager
+            syncIconManagerSlots();
+        }
     }
 
     showMainMenu();
 }
 
 SetIcon::~SetIcon() {
-    delete _oldIcon;
-    delete _oldIconAction;
-    delete _newIcon;
-    delete _newIconAction;
     
     if (_menu) {
         _menu->setParent(nullptr);
@@ -152,44 +148,24 @@ void SetIcon::applySubpartColor(SubPartIndex index, uint8 value) {
 }
 
 void SetIcon::rebuildNewIcon() {
-    if (_pc && _newIcon) {
-        delete _newIcon;
-        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
-    }
-    if (_pc && _newIconAction) {
-        delete _newIconAction;
-        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
-    }
+    // Sync updated previews into global IconManager for external access
+    syncIconManagerSlots();
 }
 
 void SetIcon::commitChanges() {
     // Update backup to current state (current state is now "committed")
     _backupIconData = _pc->iconData;
     
-    // Update old icons to match the new (committed) state
-    if (_oldIcon) {
-        delete _oldIcon;
-        _oldIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
-    }
-    if (_oldIconAction) {
-        delete _oldIconAction;
-        _oldIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
-    }
+    // Sync committed previews into global IconManager
+    syncIconManagerSlots();
 }
 
 void SetIcon::revertChanges() {
     // Restore icon data from backup
     _pc->iconData = _backupIconData;
     
-    // Rebuild new icons to match reverted state
-    if (_newIcon) {
-        delete _newIcon;
-        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
-    }
-    if (_newIconAction) {
-        delete _newIconAction;
-        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
-    }
+    // Reflect reverted state in IconManager
+    syncIconManagerSlots();
 }
 
 void SetIcon::showMainMenu() {
@@ -563,26 +539,36 @@ void SetIcon::rebuildAllIcons() {
     if (!_pc)
         return;
 
-    // Rebuild all four icon states (old/new × ready/action)
-    if (_oldIcon) {
-        delete _oldIcon;
-        _oldIcon = new Icon(_backupIconData, Goldbox::Gfx::ICON_STATE_READY);
-    }
+    // Sync all previews into IconManager after full rebuild
+    syncIconManagerSlots();
+}
 
-    if (_oldIconAction) {
-        delete _oldIconAction;
-        _oldIconAction = new Icon(_backupIconData, Goldbox::Gfx::ICON_STATE_ATTACK);
-    }
+void SetIcon::syncIconManagerSlots() {
+    IconManager *mgr = VmInterface::getIconManager();
+    if (!mgr || !_pc)
+        return;
 
-    if (_newIcon) {
-        delete _newIcon;
-        _newIcon = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_READY);
-    }
+    // Publish manager-owned icons via IconManager::loadIcon overload
+    mgr->loadIcon(SLOT_OVERLAY_BUFFER, _backupIconData, false);                     // old ready
+    mgr->loadIcon(SLOT_RESERVED_START, _backupIconData, true);                    // old action
+    mgr->loadIcon(SLOT_EDITOR_WORKING, _pc->iconData, false);                     // new ready
+    mgr->loadIcon(static_cast<uint8>(SLOT_RESERVED_START + 1), _pc->iconData, true); // new action
+}
 
-    if (_newIconAction) {
-        delete _newIconAction;
-        _newIconAction = new Icon(_pc->iconData, Goldbox::Gfx::ICON_STATE_ATTACK);
-    }
+void SetIcon::drawIcons(int x, int y, uint8 slotId) {
+    Surface s = getSurface();
+    IconManager *mgr = VmInterface::getIconManager();
+    if (!mgr)
+        return;
+
+    // Draw selection frame underneath if requested (slot 25 from COMSPR)
+    mgr->drawAtPos(&s, SLOT_SELECTFRAME, 0, 0, y, x);
+    mgr->drawAtPos(&s, SLOT_SELECTFRAME, 1, 0, y, x + 3);
+
+    // Draw action state at (y, x) and ready state at (y, x+3)
+    // Matches original: GFX_DrawTile(slotId, 0, 0, y, x) and GFX_DrawTile(slotId, 1, 0, y, x+3)
+    mgr->drawAtPos(&s, slotId, 0, 0, y, x);       // ready
+    mgr->drawAtPos(&s, slotId, 1, 0, y, x + 3);   // action
 }
 
 bool SetIcon::msgKeypress(const KeypressMessage &msg) {
@@ -629,26 +615,13 @@ void SetIcon::drawEditorText() {
 }
 
 void SetIcon::drawEditorIcons() {
-    // Draw old (committed) and new (working) icons side-by-side for comparison
-    // Show both ready and action states using icon coordinate grid (3x3 tiles per icon)
-    Surface s = getSurface();
-    
-    // OLD ICON: Committed (unchanged) state at icon coordinate (1, 2)
-    if (_oldIcon) {
-        _oldIcon->drawAtIconPos(&s, 1, 2);  // Ready state at icon(1, 2)
-    }
-    if (_oldIconAction) {
-        _oldIconAction->drawAtIconPos(&s, 4, 2);  // Action state at icon(4, 2)
-    }
-    
-    // NEW ICON: Working (current edits) state at icon coordinate (1, 4)
-    if (_newIcon) {
-        _newIcon->drawAtIconPos(&s, 1, 4);  // Ready state at icon(1, 4)
-    }
-    if (_newIconAction) {
-        _newIconAction->drawAtIconPos(&s, 4, 4);  // Action state at icon(4, 4)
-    }
-    
+    // Draw icons using drawIcons helper (mimics original GFX_DrawIcon)
+    // OLD ICON: Committed state (slot 11 = SLOT_OVERLAY_BUFFER)
+    drawIcons(1, 2, SLOT_OVERLAY_BUFFER);
+
+    // NEW ICON: Working edits (slot 12 = SLOT_EDITOR_WORKING)
+    drawIcons(1, 4, SLOT_EDITOR_WORKING);
+
     // Dynamic content: menus (bottom row)
     if (_menu)
         _menu->draw();

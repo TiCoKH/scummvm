@@ -24,6 +24,7 @@
 
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/views/views.h"
+#include "goldbox/core/icon_manager.h"
 //#include "goldbox/poolrad/data/character.h"
 //#include "goldbox/poolrad/files/game_archive.h"
 //#include "goldbox/poolrad/data/saved.h"
@@ -39,6 +40,7 @@ const int MAX_NPC_IN_PARTY = 2;
 class PoolradEngine : public Goldbox::Engine {
 private:
 	Poolrad::Views::Views *_views = nullptr;
+	IconManager *_iconManager = nullptr;
 	uint16 _mapX = 0, _mapY = 0;
 
 protected:
@@ -57,6 +59,12 @@ public:
 	PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~PoolradEngine() override;
 	void initializePath(const Common::FSNode &gamePath) override;
+
+	/**
+	 * Get the global icon manager.
+	 * @return Pointer to the icon manager
+	 */
+	IconManager *getIconManager() const { return _iconManager; }
 };
 
 extern PoolradEngine *g_engine;

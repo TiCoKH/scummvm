@@ -82,6 +82,9 @@ Pic *Pic::readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint
 				uint8 pixel = pic->getPixel(x, y);
 				if (pixel == sourceColor) {
 					pic->setPixel(x, y, targetColor);
+				} else if (pixel == 0x08) {
+					// CTILE sprites sometimes encode black as palette index 8; normalize to 0
+					pic->setPixel(x, y, 0);
 				}
 			}
 		}

@@ -20,6 +20,7 @@
  */
 
 #include "common/util.h"
+#include "common/debug.h"
 #include "goldbox/data/daxfilemanager.h"
 #include "goldbox/core/file.h"
 
@@ -40,8 +41,8 @@ DaxFileManager::DaxFileManager() :
     _containerGeo(ContentType::GEO),
     _containerHead(ContentType::PIC),
     _containerMonCha(ContentType::CHARACTER),
-    _containerMonItm(ContentType::ITEM),  // MON*ITM is a separate category
-    _containerMonSpc(ContentType::SPELL),  // MON*SPC is a separate category
+    _containerMonItm(ContentType::ITEM),
+    _containerMonSpc(ContentType::SPELL),
     _containerPic(ContentType::PIC),
     _containerCPic(ContentType::CTILE),
     _containerSprit(ContentType::SPRIT),
@@ -72,51 +73,75 @@ void DaxFileManager::loadFile(const Common::Path &path) {
         return;
     }
 
- //   warning("DaxFileManager: Loading file '%s'", filename.c_str());
+    debug("DaxFileManager: Loading file '%s'", filename.c_str());
 
     // Determine which container to load into based on filename
     if (filename.contains("8X8D")) {
+        debug("  - Detected 8X8D container");
         _container8x8d.loadFromFile(file);
     } else if (filename.contains("BACPAC")) {
+        debug("  - Detected BACPAC container");
         _containerBacpac.loadFromFile(file);
     } else if (filename.contains("DUNGCOM")) {
+        debug("  - Detected DUNGCOM container");
         _containerDungcom.loadFromFile(file);
     } else if (filename.contains("RANDCOM")) {
+        debug("  - Detected RANDCOM container");
         _containerRandcom.loadFromFile(file);
     } else if (filename.contains("SQRPACI")) {
+        debug("  - Detected SQRPACI container");
         _containerSqrpaci.loadFromFile(file);
     } else if (filename.contains("CBODY")) {
+        debug("  - Detected CBODY container");
         _containerCBody.loadFromFile(file);
     } else if (filename.contains("BODY")) {
+        debug("  - Detected BODY container");
         _containerBody.loadFromFile(file);
     } else if (filename.contains("CHEAD")) {
+        debug("  - Detected CHEAD container");
         _containerCHead.loadFromFile(file);
     } else if (filename.contains("COMSPR")) {
+        debug("  - Detected COMSPR container (IMPORTANT!)");
         _containerComSpr.loadFromFile(file);
+        debug("  - COMSPR loaded, block count: %zu", _containerComSpr.getBlockCount());
     } else if (filename.contains("CPIC")) {
+        debug("  - Detected CPIC container");
         _containerCPic.loadFromFile(file);
     } else if (filename.contains("ECL")) {
+        debug("  - Detected ECL container");
         _containerEcl.loadFromFile(file);
     } else if (filename.contains("GEO")) {
+        debug("  - Detected GEO container");
         _containerGeo.loadFromFile(file);
     } else if (filename.contains("HEAD")) {
+        debug("  - Detected HEAD container");
         _containerHead.loadFromFile(file);
     } else if (filename.contains("MON") && filename.contains("CHA")) {
+        debug("  - Detected MONCHA container");
         _containerMonCha.loadFromFile(file);
     } else if (filename.contains("MON") && filename.contains("ITM")) {
+        debug("  - Detected MONITM container");
         _containerMonItm.loadFromFile(file);
     } else if (filename.contains("MON") && filename.contains("SPC")) {
+        debug("  - Detected MONSPC container");
         _containerMonSpc.loadFromFile(file);
     } else if (filename.contains("TITLE")) {
+        debug("  - Detected TITLE container");
         _containerTitle.loadFromFile(file);
     } else if (filename.contains("SPRIT")) {
+        debug("  - Detected SPRIT container");
         _containerSprit.loadFromFile(file);
     } else if (filename.contains("WALLDEF")) {
+        debug("  - Detected WALLDEF container");
         _containerWalldef.loadFromFile(file);
     } else if (filename.contains("PIC")) {
+        debug("  - Detected PIC container");
         _containerPic.loadFromFile(file);
     } else if (filename.contains("WILDCOM")) {
+        debug("  - Detected WILDCOM container");
         _containerWildcom.loadFromFile(file);
+    } else {
+        debug("  - No matching container for filename");
     }
 
     // Close file only if it was successfully opened

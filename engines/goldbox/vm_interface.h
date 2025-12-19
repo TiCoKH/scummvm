@@ -26,6 +26,13 @@
 
 namespace Goldbox {
 
+// Forward declarations
+class IconManager;
+
+namespace Poolrad {
+	class PoolradEngine;
+}
+
 class VmInterface {
 public:
     // Static utility methods to access Engine functionality
@@ -79,6 +86,9 @@ public:
 
     // DAX Manager direct access
     static Data::DaxFileManager &getDaxManager() { return g_engine->getDaxManager(); }
+
+    // Icon Manager accessor
+    static IconManager *getIconManager();
 };
 
 } // namespace Goldbox

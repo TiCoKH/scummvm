@@ -21,10 +21,14 @@
 
 #include "goldbox/engine.h"  // for accessing engine methods
 #include "goldbox/vm_interface.h"
+#include "goldbox/core/icon_manager.h"
+#include "goldbox/poolrad/poolrad.h"
 
 namespace Goldbox {
 
-// Methods are defined inline in the header file for simplicity,
-// but you can add additional complex methods here if necessary.
+IconManager *VmInterface::getIconManager() {
+	Poolrad::PoolradEngine *engine = dynamic_cast<Poolrad::PoolradEngine *>(g_engine);
+	return engine ? engine->getIconManager() : nullptr;
+}
 
 } // namespace Goldbox
