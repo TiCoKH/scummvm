@@ -71,7 +71,7 @@ void PoolradEngine::setup() {
 	}
 	Common::SeekableReadStream &in = items;
 	Engine::gItemProps.load(in);
-	Engine::gItemProps.debugStorage(); //TODO: Remove this line later
+	//Engine::gItemProps.debugStorage(); //TODO: Remove this line later
 	items.close();
 
 	Surface::setupPalette();

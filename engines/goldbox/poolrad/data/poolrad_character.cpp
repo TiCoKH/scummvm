@@ -669,12 +669,12 @@ void PoolradCharacter::save(Common::WriteStream &stream) {
 	stream.writeByte(iconData.iconSize);
 
 	// Icon color data
-	stream.writeByte((iconData.iconColorBody1 << 4) | iconData.iconColorBody2);
-	stream.writeByte((iconData.iconColorArm1 << 4) | iconData.iconColorArm2);
-	stream.writeByte((iconData.iconColorLeg1 << 4) | iconData.iconColorLeg2);
-	stream.writeByte((iconData.iconColorHair << 4) | iconData.iconColorFace);
-	stream.writeByte((iconData.iconColorShield1 << 4) | iconData.iconColorShield2);
-	stream.writeByte((iconData.iconColorWeapon1 << 4) | iconData.iconColorWeapon2);
+	stream.writeByte((iconData.iconColorBody2 << 4) | iconData.iconColorBody1);
+	stream.writeByte((iconData.iconColorArm2 << 4) | iconData.iconColorArm1);
+	stream.writeByte((iconData.iconColorLeg2 << 4) | iconData.iconColorLeg1);
+	stream.writeByte((iconData.iconColorFace << 4) | iconData.iconColorHair);
+	stream.writeByte((iconData.iconColorShield2 << 4) | iconData.iconColorShield1);
+	stream.writeByte((iconData.iconColorWeapon2 << 4) | iconData.iconColorWeapon1);
 
 	stream.writeByte(numOfItems);
 	stream.writeUint32LE(itemsAddress);

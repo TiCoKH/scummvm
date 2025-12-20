@@ -103,33 +103,33 @@ struct CombatIconData {
 
 
 	void setBodyColor(uint8 value) {
-		iconColorBody1 = value >> 4;
-		iconColorBody2 = value & 0x0F;
+		iconColorBody1 = value & 0x0F;
+		iconColorBody2 = value >> 4;
 	}
 
 	void setArmColor(uint8 value) {
-		iconColorArm1 = value >> 4;
-		iconColorArm2 = value & 0x0F;
+		iconColorArm1 = value & 0x0F;
+		iconColorArm2 = value >> 4;
 	}
 
 	void setLegColor(uint8 value) {
-		iconColorLeg1 = value >> 4;
-		iconColorLeg2 = value & 0x0F;
+		iconColorLeg1 = value & 0x0F;
+		iconColorLeg2 = value >> 4;
 	}
 
 	void setHairFaceColor(uint8 value) {
-		iconColorHair = value >> 4;
-		iconColorFace = value & 0x0F;
+		iconColorHair = value & 0x0F;
+		iconColorFace = value >> 4;
 	}
 
 	void setShieldColor(uint8 value) {
-		iconColorShield1 = value >> 4;
-		iconColorShield2 = value & 0x0F;
+		iconColorShield1 = value & 0x0F;
+		iconColorShield2 = value >> 4;
 	}
 
 	void setWeaponColor(uint8 value) {
-		iconColorWeapon1 = value >> 4;
-		iconColorWeapon2 = value & 0x0F;
+		iconColorWeapon1 = value & 0x0F;
+		iconColorWeapon2 = value >> 4;
 	}
 
 	/**
