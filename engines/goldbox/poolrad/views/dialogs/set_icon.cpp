@@ -36,7 +36,7 @@ using Goldbox::Poolrad::Data::PoolradCharacter;
 using Goldbox::Gfx::Icon;
 
 SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
-    : Dialog(name), _pc(pc), _inHeadBodyMode(false) {
+    : Dialog(name), _pc(pc) {
     if (_pc) {
         // Backup current icon data for commit/cancel operations
         _backupIconData = _pc->iconData;
@@ -50,11 +50,11 @@ SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
         }
     }
 
-    showMainMenu();
+    // Initialize stage-based menu flow
+    setStage(ICON_STATE_MAIN_MENU);
 }
 
 SetIcon::~SetIcon() {
-    
     if (_menu) {
         _menu->setParent(nullptr);
         delete _menu;
@@ -147,15 +147,175 @@ void SetIcon::applySubpartColor(SubPartIndex index, uint8 value) {
     }
 }
 
-void SetIcon::rebuildNewIcon() {
-    // Sync updated previews into global IconManager for external access
-    syncIconManagerSlots();
+void SetIcon::nextStage() {
+    setStage(static_cast<IconMenuState>(_stage + 1));
+}
+
+void SetIcon::setStage(IconMenuState stage) {
+    _stage = stage;
+    
+    switch (_stage) {
+    case ICON_STATE_MAIN_MENU:
+        _menuItems.items.clear();
+        {
+            Common::Array<String> labels;
+            labels.push_back("Parts");
+            labels.push_back("color-1");
+            labels.push_back("color-2");
+            labels.push_back("Size");
+            labels.push_back("Exit");
+            _menuItems.generateMenuItems(labels, true);
+            // Ensure distinct shortcuts for color items: use trailing digit
+            _menuItems.setShortcutToLast(1); // color-1 -> '1'
+            _menuItems.setShortcutToLast(2); // color-2 -> '2'
+        }
+        buildAndShowMenu("");
+        break;
+    case ICON_STATE_MAJOR_PART:
+        _menuItems.items.clear();
+        {
+            Common::Array<String> labels;
+            labels.push_back("Head");
+            labels.push_back("Weapon");
+            labels.push_back("Exit");
+            _menuItems.generateMenuItems(labels, true);
+        }
+        buildAndShowMenu("");
+        break;
+    case ICON_STATE_SUB_PART:
+        setMenuStage(ICON_STATE_SUB_PART);
+        break;
+    case ICON_STATE_SIZE_SELECT:
+        _menuItems.items.clear();
+        {
+            Common::Array<String> labels;
+            labels.push_back("Large");
+            labels.push_back("Small");
+            labels.push_back("Exit");
+            _menuItems.generateMenuItems(labels, true);
+        }
+        buildAndShowMenu("");
+        break;
+    case ICON_STATE_ADJUSTMENT:
+        _menuItems.items.clear();
+        {
+            Common::Array<String> labels;
+            labels.push_back("Next");
+            labels.push_back("Prev");
+            labels.push_back("Keep");
+            labels.push_back("Exit");
+            _menuItems.generateMenuItems(labels, true);
+        }
+        buildAndShowMenu("");
+        break;
+    case ICON_STATE_CONFIRM:
+        _menuItems.items.clear();
+        {
+            Common::Array<String> labels;
+            labels.push_back("Keep");
+            labels.push_back("Exit");
+            _menuItems.generateMenuItems(labels, true);
+        }
+        buildAndShowMenu("");
+        break;
+    }
+}
+
+Common::String SetIcon::getSubPartLabel(int index) const {
+    // Dynamically choose 'Hair' or 'Face' based on _colorAdjustMode
+    switch (index) {
+    case SUBPART_BODY:
+        return "Body";
+    case SUBPART_ARMS:
+        return "Arm";
+    case SUBPART_LEGS:
+        return "Leg";
+    case SUBPART_HEAD_FACE:
+        // Dynamic: show Hair for color-1, Face for color-2
+        return (_colorAdjustMode == 0) ? "Hair" : "Face";
+    case SUBPART_SHIELD:
+        return "Shield";
+    case SUBPART_WEAPON:
+        return "Weapon";
+    default:
+        return "";
+    }
+}
+
+void SetIcon::buildAndShowMenu(const Common::String &prompt) {
+    if (_menu) {
+        _menu->setParent(nullptr);
+        delete _menu;
+        _menu = nullptr;
+    }
+
+    HorizontalMenuConfig cfg = {
+        prompt,
+        &_menuItems,
+        kTextColor,
+        kSelectColor,
+        kPromptColor,
+        false,
+        kBackgroundColor
+    };
+
+    _menu = new HorizontalMenu(getName() + "_Menu", cfg);
+    _menu->setParent(this);
+    _menu->activate();
+}
+
+void SetIcon::setMenuStage(IconMenuState stage) {
+    if (stage == ICON_STATE_SUB_PART) {
+        if (_menu) {
+            _menu->setParent(nullptr);
+            delete _menu;
+            _menu = nullptr;
+        }
+
+        _menuItems.items.clear();
+        _indexMap.clear();
+        
+        // Build sub-part menu with dynamic Hair/Face label in specified order
+        Common::Array<String> labels;
+        labels.push_back(getSubPartLabel(SUBPART_WEAPON));
+        labels.push_back(getSubPartLabel(SUBPART_BODY));
+        labels.push_back(getSubPartLabel(SUBPART_HEAD_FACE));
+        labels.push_back(getSubPartLabel(SUBPART_SHIELD));
+        labels.push_back(getSubPartLabel(SUBPART_ARMS));
+        labels.push_back(getSubPartLabel(SUBPART_LEGS));
+        labels.push_back("Exit");
+        
+        _menuItems.generateMenuItems(labels, true);
+        
+        // Map menu indices to SubPartIndex
+        _indexMap.push_back(SUBPART_WEAPON);
+        _indexMap.push_back(SUBPART_BODY);
+        _indexMap.push_back(SUBPART_HEAD_FACE);
+        _indexMap.push_back(SUBPART_SHIELD);
+        _indexMap.push_back(SUBPART_ARMS);
+        _indexMap.push_back(SUBPART_LEGS);
+
+        Common::String prompt = "";
+
+        HorizontalMenuConfig cfg = {
+            prompt,
+            &_menuItems,
+            kTextColor,
+            kSelectColor,
+            kPromptColor,
+            false,
+            kBackgroundColor
+        };
+
+        _menu = new HorizontalMenu(getName() + "_SubPart", cfg);
+        _menu->setParent(this);
+        _menu->activate();
+    }
 }
 
 void SetIcon::commitChanges() {
-    // Update backup to current state (current state is now "committed")
+    // Update backup to current state
     _backupIconData = _pc->iconData;
-    
     // Sync committed previews into global IconManager
     syncIconManagerSlots();
 }
@@ -163,348 +323,19 @@ void SetIcon::commitChanges() {
 void SetIcon::revertChanges() {
     // Restore icon data from backup
     _pc->iconData = _backupIconData;
-    
     // Reflect reverted state in IconManager
     syncIconManagerSlots();
 }
 
-void SetIcon::showMainMenu() {
-    _state = STATE_MAIN_MENU;
-
-    if (_menu) {
-        _menu->setParent(nullptr);
-        delete _menu;
-        _menu = nullptr;
-    }
-
-    _menuItems.items.clear();
-    _menuItems.generateMenuItems(Array<String>(), false);
-
-    HorizontalMenuConfig cfg = {
-        "P 1 2 S Keep",
-        &_menuItems,
-        kTextColor,
-        kSelectColor,
-        kPromptColor,
-        false,
-        kBackgroundColor
-    };
-
-    _menu = new HorizontalMenu(getName() + "_MainMenu", cfg);
-    _menu->setParent(this);
-    _menu->activate();
+void SetIcon::rebuildNewIcon() {
+    // Sync updated previews into global IconManager
+    syncIconManagerSlots();
 }
 
-void SetIcon::showMajorPartMenu() {
-    _state = STATE_MAJOR_PART;
-
-    if (_menu) {
-        _menu->setParent(nullptr);
-        delete _menu;
-        _menu = nullptr;
-    }
-
-    Array<String> labels;
-    labels.push_back("Head");
-    labels.push_back("Weapon");
-    _menuItems.generateMenuItems(labels, true);
-
-    HorizontalMenuConfig cfg = {
-        "Head Weapon",
-        &_menuItems,
-        kTextColor,
-        kSelectColor,
-        kPromptColor,
-        false,
-        kBackgroundColor
-    };
-
-    _menu = new HorizontalMenu(getName() + "_MajorPart", cfg);
-    _menu->setParent(this);
-    _menu->activate();
-}
-
-void SetIcon::showSubPartMenu() {
-    _state = STATE_NIBBLE_EDIT;
-
-    if (_menu) {
-        _menu->setParent(nullptr);
-        delete _menu;
-        _menu = nullptr;
-    }
-
-    Array<String> labels;
-    labels.push_back("Body");
-    labels.push_back("Arms");
-    labels.push_back("Legs");
-    labels.push_back("Head");
-    labels.push_back("Shield");
-    labels.push_back("Weapon");
-    _menuItems.generateMenuItems(labels, true);
-
-    HorizontalMenuConfig cfg = {
-        "Body Arms Legs Head Shield Weapon",
-        &_menuItems,
-        kTextColor,
-        kSelectColor,
-        kPromptColor,
-        false,
-        kBackgroundColor
-    };
-
-    _menu = new HorizontalMenu(getName() + "_SubPart", cfg);
-    _menu->setParent(this);
-    _menu->activate();
-}
-
-void SetIcon::showBinaryAttrMenu() {
-    _state = STATE_BINARY_ATTR;
-
-    if (_menu) {
-        _menu->setParent(nullptr);
-        delete _menu;
-        _menu = nullptr;
-    }
-
-    Array<String> labels;
-    labels.push_back("Option1");
-    labels.push_back("Option2");
-    _menuItems.generateMenuItems(labels, true);
-
-    HorizontalMenuConfig cfg = {
-        "S L Keep",
-        &_menuItems,
-        kTextColor,
-        kSelectColor,
-        kPromptColor,
-        false,
-        kBackgroundColor
-    };
-
-    _menu = new HorizontalMenu(getName() + "_BinaryAttr", cfg);
-    _menu->setParent(this);
-    _menu->activate();
-}
-
-void SetIcon::showAdjustmentMenu() {
-    _state = STATE_ADJUSTMENT;
-
-    if (_menu) {
-        _menu->setParent(nullptr);
-        delete _menu;
-        _menu = nullptr;
-    }
-
-    _menuItems.items.clear();
-    _menuItems.generateMenuItems(Array<String>(), false);
-
-    HorizontalMenuConfig cfg = {
-        "P N K E",
-        &_menuItems,
-        kTextColor,
-        kSelectColor,
-        kPromptColor,
-        false,
-        kBackgroundColor
-    };
-
-    _menu = new HorizontalMenu(getName() + "_Adjustment", cfg);
-    _menu->setParent(this);
-    _menu->activate();
-}
-
-void SetIcon::handleMajorPartEdit(Common::KeyCode key) {
-    uint8 *colorPtr = nullptr;
-    uint8 maxValue = 0;
-
-    if (_majorPart == 'H') {
-        colorPtr = &_pc->iconData.iconHead;
-        maxValue = MAX_HEAD_ICON;
-    } else if (_majorPart == 'W') {
-        colorPtr = &_pc->iconData.iconBody;
-        maxValue = MAX_BODY_ICON;
-    }
-
-    if (!colorPtr)
-        return;
-
-    switch (key) {
-    case Common::KEYCODE_n:
-        cycleColorIndex(colorPtr, maxValue, true);
-        rebuildNewIcon();
-        break;
-    case Common::KEYCODE_p:
-        cycleColorIndex(colorPtr, maxValue, false);
-        rebuildNewIcon();
-        break;
-    case Common::KEYCODE_k:
-        commitChanges();
-        showMainMenu();
-        break;
-    case Common::KEYCODE_e:
-    case Common::KEYCODE_ESCAPE:
-        revertChanges();
-        showMainMenu();
-        break;
-    default:
-        break;
-    }
-}
-
-void SetIcon::handleSubPartSelection(Common::KeyCode key) {
-    switch (key) {
-    case Common::KEYCODE_b:
-        _subPartIndex = SUBPART_BODY;
-        break;
-    case Common::KEYCODE_a:
-        _subPartIndex = SUBPART_ARMS;
-        break;
-    case Common::KEYCODE_l:
-        _subPartIndex = SUBPART_LEGS;
-        break;
-    case Common::KEYCODE_h:
-        _subPartIndex = SUBPART_HEAD_FACE;
-        break;
-    case Common::KEYCODE_s:
-        _subPartIndex = SUBPART_SHIELD;
-        break;
-    case Common::KEYCODE_w:
-        _subPartIndex = SUBPART_WEAPON;
-        break;
-    default:
-        _subPartIndex = SUBPART_BODY;
-        break;
-    }
-
-    _state = STATE_ADJUSTMENT;
-    _adjustMode = ADJUST_NIBBLE;
-    showAdjustmentMenu();
-}
-
-void SetIcon::handleNibbleEdit(Common::KeyCode key) {
-    uint8 targetByte = packSubpartColor(_subPartIndex);
-
-    switch (key) {
-    case Common::KEYCODE_n:
-        if (_nibbleSelection == 0) {
-            uint8 lowNib = getLowNibble(targetByte);
-            lowNib = incrementNibble(lowNib);
-            targetByte = setLowNibble(targetByte, lowNib);
-        } else {
-            uint8 highNib = getHighNibble(targetByte);
-            highNib = incrementNibble(highNib);
-            targetByte = setHighNibble(targetByte, highNib);
-        }
-        applySubpartColor(_subPartIndex, targetByte);
-        rebuildNewIcon();
-        break;
-
-    case Common::KEYCODE_p:
-        if (_nibbleSelection == 0) {
-            uint8 lowNib = getLowNibble(targetByte);
-            lowNib = decrementNibble(lowNib);
-            targetByte = setLowNibble(targetByte, lowNib);
-        } else {
-            uint8 highNib = getHighNibble(targetByte);
-            highNib = decrementNibble(highNib);
-            targetByte = setHighNibble(targetByte, highNib);
-        }
-        applySubpartColor(_subPartIndex, targetByte);
-        rebuildNewIcon();
-        break;
-
-    case Common::KEYCODE_k:
-        commitChanges();
-        showMainMenu();
-        break;
-
-    case Common::KEYCODE_e:
-    case Common::KEYCODE_ESCAPE:
-        revertChanges();
-        showMainMenu();
-        break;
-
-    default:
-        handleSubPartSelection(key);
-        break;
-    }
-}
-
-void SetIcon::handleBinaryAttrEdit(Common::KeyCode key) {
-    switch (key) {
-    case Common::KEYCODE_s:
-        _pc->iconData.iconSize = 1;
-        rebuildNewIcon();
-        break;
-
-    case Common::KEYCODE_l:
-        _pc->iconData.iconSize = 2;
-        rebuildNewIcon();
-        break;
-
-    case Common::KEYCODE_k:
-        commitChanges();
-        showMainMenu();
-        break;
-
-    case Common::KEYCODE_e:
-    case Common::KEYCODE_ESCAPE:
-        revertChanges();
-        showMainMenu();
-        break;
-
-    default:
-        break;
-    }
-}
-
-void SetIcon::handleHeadBodyCycle(Common::KeyCode key) {
-    switch (key) {
-    case Common::KEYCODE_n:
-        if (_majorPart == 'H') {
-            cycleHead(true);
-        } else if (_majorPart == 'W') {
-            cycleBody(true);
-        }
-        rebuildAllIcons();
-        break;
-
-    case Common::KEYCODE_p:
-        if (_majorPart == 'H') {
-            cycleHead(false);
-        } else if (_majorPart == 'W') {
-            cycleBody(false);
-        }
-        rebuildAllIcons();
-        break;
-
-    case Common::KEYCODE_s:
-        applySpeckle();
-        rebuildAllIcons();
-        break;
-
-    case Common::KEYCODE_k:
-        commitChanges();
-        _inHeadBodyMode = false;
-        showMainMenu();
-        break;
-
-    case Common::KEYCODE_e:
-    case Common::KEYCODE_ESCAPE:
-        revertChanges();
-        _inHeadBodyMode = false;
-        showMainMenu();
-        break;
-
-    default:
-        break;
-    }
-}
-
+// Icon manipulation methods
 void SetIcon::cycleHead(bool forward) {
     if (!_pc)
         return;
-
     if (forward) {
         _pc->iconData.iconHead = Icon::nextHead(_pc->iconData.iconHead);
     } else {
@@ -515,7 +346,6 @@ void SetIcon::cycleHead(bool forward) {
 void SetIcon::cycleBody(bool forward) {
     if (!_pc)
         return;
-
     if (forward) {
         _pc->iconData.iconBody = Icon::nextBody(_pc->iconData.iconBody);
     } else {
@@ -526,20 +356,12 @@ void SetIcon::cycleBody(bool forward) {
 void SetIcon::applySpeckle() {
     if (!_pc)
         return;
-
-    // Randomize pattern while keeping colors
-    // This randomizes the internal pixel pattern of the icon
-    // Note: This would require access to the underlying sprite data
-    // For now, we'll apply a simple variation to the icon size as a placeholder
-    // A full implementation would randomize the sprite pattern bits
-    _pc->iconData.iconSize = (_pc->iconData.iconSize == 1) ? 2 : 1;
+    // Placeholder: would apply speckle pattern variations
 }
 
 void SetIcon::rebuildAllIcons() {
     if (!_pc)
         return;
-
-    // Sync all previews into IconManager after full rebuild
     syncIconManagerSlots();
 }
 
@@ -547,12 +369,11 @@ void SetIcon::syncIconManagerSlots() {
     IconManager *mgr = VmInterface::getIconManager();
     if (!mgr || !_pc)
         return;
-
-    // Publish manager-owned icons via IconManager::loadIcon overload
-    mgr->loadIcon(SLOT_OVERLAY_BUFFER, _backupIconData, false);                     // old ready
-    mgr->loadIcon(SLOT_RESERVED_START, _backupIconData, true);                    // old action
-    mgr->loadIcon(SLOT_EDITOR_WORKING, _pc->iconData, false);                     // new ready
-    mgr->loadIcon(static_cast<uint8>(SLOT_RESERVED_START + 1), _pc->iconData, true); // new action
+    // Publish icons via IconManager
+    mgr->loadIcon(SLOT_OVERLAY_BUFFER, _backupIconData, false);
+    mgr->loadIcon(SLOT_RESERVED_START, _backupIconData, true);
+    mgr->loadIcon(SLOT_EDITOR_WORKING, _pc->iconData, false);
+    mgr->loadIcon(static_cast<uint8>(SLOT_RESERVED_START + 1), _pc->iconData, true);
 }
 
 void SetIcon::drawIconPair(int x, int y, uint8 slotId) {
@@ -560,28 +381,24 @@ void SetIcon::drawIconPair(int x, int y, uint8 slotId) {
     IconManager *mgr = VmInterface::getIconManager();
     if (!mgr)
         return;
-
-    // Draw selection frame underneath if requested (slot 25 from COMSPR)
     mgr->drawAtPos(&s, x, y, 0, 0, SLOT_SELECTFRAME);
     mgr->drawAtPos(&s, x + 3, y, 0, 1, SLOT_SELECTFRAME);
-
-    // Draw action state at (x, y) and ready state at (x+3, y)
-    mgr->drawAtPos(&s, x, y, 0, 0, slotId);     // ready
-    mgr->drawAtPos(&s, x + 3, y, 0, 1, slotId); // action
+    mgr->drawAtPos(&s, x, y, 0, 0, slotId);
+    mgr->drawAtPos(&s, x + 3, y, 0, 1, slotId);
 }
 
 bool SetIcon::msgKeypress(const KeypressMessage &msg) {
-    Common::KeyCode key = msg.keycode;
+    KeyCode keyCode = msg.keycode;
 
-    if (key == Common::KEYCODE_ESCAPE) {
+    if (keyCode == Common::KEYCODE_ESCAPE) {
         if (_parent)
-            _parent->handleMenuResult(false, key, -1);
+            _parent->handleMenuResult(false, keyCode, -1);
         return true;
     }
 
-    if (key == Common::KEYCODE_RETURN) {
+    if (keyCode == Common::KEYCODE_RETURN) {
         if (_parent)
-            _parent->handleMenuResult(true, key, -1);
+            _parent->handleMenuResult(true, keyCode, -1);
         return true;
     }
 
@@ -593,10 +410,7 @@ bool SetIcon::msgKeypress(const KeypressMessage &msg) {
 }
 
 void SetIcon::draw() {
-    if (!_staticDrawn) {
-        drawEditorText();
-        _staticDrawn = true;
-    }
+    drawEditorText();
     drawEditorIcons();
 }
 
@@ -606,7 +420,7 @@ void SetIcon::drawEditorText() {
     drawFrame(Common::Rect(kWindowLeft - 1, kWindowTop - 1, kWindowRight + 1, kWindowBottom + 1), kBackgroundColor);
     s.clearBox(kWindowLeft, kWindowTop, kWindowRight, kWindowBottom, kBackgroundColor);
 
-    // Static labels and layout only once
+    // Static labels and layout
     s.writeStringC("old", 15, 8, 6);
     s.writeStringC("ready   action", 15, 3, 10);
     s.writeStringC("new", 15, 8, 12);
@@ -614,103 +428,247 @@ void SetIcon::drawEditorText() {
 }
 
 void SetIcon::drawEditorIcons() {
-    // Draw icons using drawIconPair helper (mimics original GFX_DrawIcon)
-    // OLD ICON: Committed state (slot 11 = SLOT_OVERLAY_BUFFER)
+    // Draw icons using drawIconPair helper
+    // OLD ICON: Committed state
     drawIconPair(1, 2, SLOT_OVERLAY_BUFFER);
 
-    // NEW ICON: Working edits (slot 12 = SLOT_EDITOR_WORKING)
+    // NEW ICON: Working edits
     drawIconPair(1, 4, SLOT_EDITOR_WORKING);
 
-    // Dynamic content: menus (bottom row)
+    // Dynamic content: menus
     if (_menu)
         _menu->draw();
 }
 
 void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
     if (!success) {
+        // Cancel pressed - revert changes
+        revertChanges();
         if (_parent) {
             _parent->handleMenuResult(false, key, value);
         }
         return;
     }
 
-    switch (_state) {
-    case STATE_MAIN_MENU:
-        switch (key) {
-        case Common::KEYCODE_p:
-            // Enter head/body cycling mode
-            _inHeadBodyMode = true;
-            _majorPart = 'H';
-            _state = STATE_ADJUSTMENT;
-            _adjustMode = ADJUST_MAJOR_PART;
-            showAdjustmentMenu();
-            break;
+    // Get the selected menu item's shortcut character
+    const MenuItem &selectedItem = _menuItems.items[_menuItems.currentSelection];
+    char pressedChar = selectedItem.shortcut;
 
-        case Common::KEYCODE_1:
-            _nibbleSelection = 0;
-            showSubPartMenu();
+    switch (_stage) {
+    case ICON_STATE_MAIN_MENU: {
+        // "Parts color-1 color-2 Size Exit"
+        switch (pressedChar) {
+        case 'P':
+        case 'p':
+            // Enter major part selection
+            setStage(ICON_STATE_MAJOR_PART);
             break;
-
-        case Common::KEYCODE_2:
-            _nibbleSelection = 1;
-            showSubPartMenu();
+        case 'C':
+        case 'c': {
+            // Disambiguate color-1 vs color-2 by current selection index
+            int sel = _menuItems.currentSelection;
+            if (sel == 1) {
+                _colorAdjustMode = 0;
+                setStage(ICON_STATE_SUB_PART);
+            } else if (sel == 2) {
+                _colorAdjustMode = 1;
+                setStage(ICON_STATE_SUB_PART);
+            }
             break;
-
-        case Common::KEYCODE_s:
-            showBinaryAttrMenu();
+        }
+        case '1':
+            // Color-1 (Hair/Shield1/etc)
+            _colorAdjustMode = 0;
+            setStage(ICON_STATE_SUB_PART);
             break;
-
-        case Common::KEYCODE_k:
+        case '2':
+            // Color-2 (Face/Shield2/etc)
+            _colorAdjustMode = 1;
+            setStage(ICON_STATE_SUB_PART);
+            break;
+        case 'S':
+        case 's':
+            // Size menu
+            setStage(ICON_STATE_SIZE_SELECT);
+            break;
+        case 'E':
+        case 'e':
+            // Exit - commit and finish
             commitChanges();
             if (_parent)
                 _parent->handleMenuResult(true, key, 0);
             break;
+        default: {
+            // Fallback: use selection index to resolve color items
+            int sel = _menuItems.currentSelection;
+            if (sel == 1) {
+                _colorAdjustMode = 0;
+                setStage(ICON_STATE_SUB_PART);
+            } else if (sel == 2) {
+                _colorAdjustMode = 1;
+                setStage(ICON_STATE_SUB_PART);
+            }
+            break;
+        }
+        }
+        break;
+    }
 
-        default:
+    case ICON_STATE_MAJOR_PART: {
+        // "Head Weapon Exit"
+        switch (pressedChar) {
+        case 'H':
+        case 'h':
+            _selectedMajorPart = 0;
+            setStage(ICON_STATE_ADJUSTMENT);
+            break;
+        case 'W':
+        case 'w':
+            _selectedMajorPart = 1;
+            setStage(ICON_STATE_ADJUSTMENT);
+            break;
+        case 'E':
+        case 'e':
+            setStage(ICON_STATE_MAIN_MENU);
             break;
         }
         break;
+    }
 
-    case STATE_MAJOR_PART:
-        switch (key) {
-        case Common::KEYCODE_h:
-            _majorPart = 'H';
-            _state = STATE_ADJUSTMENT;
-            _adjustMode = ADJUST_MAJOR_PART;
-            showAdjustmentMenu();
+    case ICON_STATE_SUB_PART: {
+        // Dynamic sub-part menu
+        switch (pressedChar) {
+        case 'B':
+        case 'b':
+            _selectedSubPart = SUBPART_BODY;
             break;
-
-        case Common::KEYCODE_w:
-            _majorPart = 'W';
-            _state = STATE_ADJUSTMENT;
-            _adjustMode = ADJUST_MAJOR_PART;
-            showAdjustmentMenu();
+        case 'A':
+        case 'a':
+            _selectedSubPart = SUBPART_ARMS;
             break;
+        case 'L':
+        case 'l':
+            _selectedSubPart = SUBPART_LEGS;
+            break;
+        case 'H':
+        case 'h':
+        case 'F':
+        case 'f':
+            _selectedSubPart = SUBPART_HEAD_FACE;
+            break;
+        case 'S':
+        case 's':
+            _selectedSubPart = SUBPART_SHIELD;
+            break;
+        case 'W':
+        case 'w':
+            _selectedSubPart = SUBPART_WEAPON;
+            break;
+        case 'E':
+        case 'e':
+            setStage(ICON_STATE_MAIN_MENU);
+            return;
+        }
+        
+        // Enter adjustment stage for this sub-part
+        setStage(ICON_STATE_ADJUSTMENT);
+        break;
+    }
 
-        default:
+    case ICON_STATE_SIZE_SELECT: {
+        // "Large Small Exit"
+        switch (pressedChar) {
+        case 'L':
+        case 'l':
+            _pc->iconData.iconSize = 2; // Large
+            rebuildNewIcon();
+            setStage(ICON_STATE_MAIN_MENU);
+            break;
+        case 'S':
+        case 's':
+            _pc->iconData.iconSize = 1; // Small
+            rebuildNewIcon();
+            setStage(ICON_STATE_MAIN_MENU);
+            break;
+        case 'E':
+        case 'e':
+            setStage(ICON_STATE_MAIN_MENU);
             break;
         }
         break;
+    }
 
-    case STATE_NIBBLE_EDIT:
-        handleSubPartSelection(key);
-        break;
-
-    case STATE_BINARY_ATTR:
-        handleBinaryAttrEdit(key);
-        break;
-
-    case STATE_ADJUSTMENT:
-        if (_inHeadBodyMode) {
-            handleHeadBodyCycle(key);
-        } else if (_adjustMode == ADJUST_MAJOR_PART) {
-            handleMajorPartEdit(key);
-        } else if (_adjustMode == ADJUST_NIBBLE) {
-            handleNibbleEdit(key);
-        } else if (_adjustMode == ADJUST_BINARY_ATTR) {
-            handleBinaryAttrEdit(key);
+    case ICON_STATE_ADJUSTMENT: {
+        // "Next Prev Keep Exit"
+        switch (pressedChar) {
+        case 'N':
+        case 'n': {
+            // Adjust color nibbles forward
+            uint8 colorByte = packSubpartColor(static_cast<SubPartIndex>(_selectedSubPart));
+            uint8 nibbleVal;
+            if (_colorAdjustMode == 0) {
+                nibbleVal = getHighNibble(colorByte);
+                nibbleVal = incrementNibble(nibbleVal);
+                colorByte = setHighNibble(colorByte, nibbleVal);
+            } else {
+                nibbleVal = getLowNibble(colorByte);
+                nibbleVal = incrementNibble(nibbleVal);
+                colorByte = setLowNibble(colorByte, nibbleVal);
+            }
+            applySubpartColor(static_cast<SubPartIndex>(_selectedSubPart), colorByte);
+            rebuildNewIcon();
+            break;
+        }
+        case 'P':
+        case 'p': {
+            // Adjust color nibbles backward
+            uint8 colorByte = packSubpartColor(static_cast<SubPartIndex>(_selectedSubPart));
+            uint8 nibbleVal;
+            if (_colorAdjustMode == 0) {
+                nibbleVal = getHighNibble(colorByte);
+                nibbleVal = decrementNibble(nibbleVal);
+                colorByte = setHighNibble(colorByte, nibbleVal);
+            } else {
+                nibbleVal = getLowNibble(colorByte);
+                nibbleVal = decrementNibble(nibbleVal);
+                colorByte = setLowNibble(colorByte, nibbleVal);
+            }
+            applySubpartColor(static_cast<SubPartIndex>(_selectedSubPart), colorByte);
+            rebuildNewIcon();
+            break;
+        }
+        case 'K':
+        case 'k':
+            // Keep selection and return to sub-part menu
+            setStage(ICON_STATE_SUB_PART);
+            break;
+        case 'E':
+        case 'e':
+            // Exit adjustment and return to main menu
+            setStage(ICON_STATE_MAIN_MENU);
+            break;
         }
         break;
+    }
+
+    case ICON_STATE_CONFIRM: {
+        // " Keep Exit"
+        switch (pressedChar) {
+        case 'K':
+        case 'k':
+            commitChanges();
+            if (_parent)
+                _parent->handleMenuResult(true, key, 0);
+            break;
+        case 'E':
+        case 'e':
+            revertChanges();
+            if (_parent)
+                _parent->handleMenuResult(false, key, 0);
+            break;
+        }
+        break;
+    }
 
     default:
         break;
@@ -721,5 +679,4 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
-
 
