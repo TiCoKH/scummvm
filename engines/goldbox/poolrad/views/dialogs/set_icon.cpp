@@ -555,20 +555,19 @@ void SetIcon::syncIconManagerSlots() {
     mgr->loadIcon(static_cast<uint8>(SLOT_RESERVED_START + 1), _pc->iconData, true); // new action
 }
 
-void SetIcon::drawIcons(int x, int y, uint8 slotId) {
+void SetIcon::drawIconPair(int x, int y, uint8 slotId) {
     Surface s = getSurface();
     IconManager *mgr = VmInterface::getIconManager();
     if (!mgr)
         return;
 
     // Draw selection frame underneath if requested (slot 25 from COMSPR)
-    mgr->drawAtPos(&s, SLOT_SELECTFRAME, 0, 0, y, x);
-    mgr->drawAtPos(&s, SLOT_SELECTFRAME, 1, 0, y, x + 3);
+    mgr->drawAtPos(&s, x, y, 0, 0, SLOT_SELECTFRAME);
+    mgr->drawAtPos(&s, x + 3, y, 0, 1, SLOT_SELECTFRAME);
 
-    // Draw action state at (y, x) and ready state at (y, x+3)
-    // Matches original: GFX_DrawTile(slotId, 0, 0, y, x) and GFX_DrawTile(slotId, 1, 0, y, x+3)
-    mgr->drawAtPos(&s, slotId, 0, 0, y, x);       // ready
-    mgr->drawAtPos(&s, slotId, 1, 0, y, x + 3);   // action
+    // Draw action state at (x, y) and ready state at (x+3, y)
+    mgr->drawAtPos(&s, x, y, 0, 0, slotId);     // ready
+    mgr->drawAtPos(&s, x + 3, y, 0, 1, slotId); // action
 }
 
 bool SetIcon::msgKeypress(const KeypressMessage &msg) {
@@ -615,12 +614,12 @@ void SetIcon::drawEditorText() {
 }
 
 void SetIcon::drawEditorIcons() {
-    // Draw icons using drawIcons helper (mimics original GFX_DrawIcon)
+    // Draw icons using drawIconPair helper (mimics original GFX_DrawIcon)
     // OLD ICON: Committed state (slot 11 = SLOT_OVERLAY_BUFFER)
-    drawIcons(1, 2, SLOT_OVERLAY_BUFFER);
+    drawIconPair(1, 2, SLOT_OVERLAY_BUFFER);
 
     // NEW ICON: Working edits (slot 12 = SLOT_EDITOR_WORKING)
-    drawIcons(1, 4, SLOT_EDITOR_WORKING);
+    drawIconPair(1, 4, SLOT_EDITOR_WORKING);
 
     // Dynamic content: menus (bottom row)
     if (_menu)

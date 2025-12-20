@@ -424,11 +424,6 @@ Pic *Icon::createFlipped(const Pic *source) const {
 	return flipped;
 }
 
-static inline bool isReservedPalette(uint8 idx) {
-	// Colors that must remain fixed in original: 0, 5, 8, 13
-	return (idx == 0) || (idx == 5) || (idx == 8) || (idx == 13);
-}
-
 void Icon::remapComposite(Pic *composite, const Data::CombatIconData &iconData) const {
 	if (!composite)
 		return;

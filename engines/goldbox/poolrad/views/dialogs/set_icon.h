@@ -159,7 +159,7 @@ private:
 
     // Sync preview icons into global IconManager slots for external access
     void syncIconManagerSlots();
-    void drawIcons(int x, int y, uint8 slotId);
+    void drawIconPair(int x, int y, uint8 slotId);
 
     // Convert icon grid coordinates to pixel coordinates (8x8 cells)
     void iconPosToPixels(uint8 iconX, uint8 iconY, int &px, int &py) const;

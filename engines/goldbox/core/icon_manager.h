@@ -118,15 +118,14 @@ public:
 	 * Draw an icon from a slot at Gold Box icon-grid coordinates.
 	 * Mimics original GFX_DrawTile signature semantics.
 	 * @param dst Destination surface
-	 * @param slotId Icon slot ID (0-255)
-	 * @param actionFlag 0 = ready, 1 = action
-	 * @param reserved Currently unused (kept for compatibility)
-	 * @param iconY Icon-grid Y position
 	 * @param iconX Icon-grid X position
+	 * @param iconY Icon-grid Y position
+	 * @param reserved Currently unused (kept for compatibility)
+	 * @param frame 0 = ready, 1 = action
+	 * @param slotId Icon slot ID (0-255)
 	 * @return true if drawn, false on error
 	 */
-	bool drawAtPos(Graphics::ManagedSurface *dst, uint8 slotId, uint8 actionFlag,
-	              uint8 reserved, int iconY, int iconX);
+	bool drawAtPos(Graphics::ManagedSurface *dst, int iconX, int iconY, uint8 reserved, uint8 frame, uint8 slotId );
 
 	/**
 	 * Store icon in specified slot.
