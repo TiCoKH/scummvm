@@ -510,15 +510,15 @@ uint8 PoolradCharacter::getRolledHP(Goldbox::Data::ClassFlag flags) {
 			const int minFirstLevel = (2 * dr.diceSides) / 3;
 			if (used < minFirstLevel)
 				used = minFirstLevel;
-			debug("getRolledHP: base=%u lvl=1 roll=%d min=%d used=%d", (unsigned)base, roll, minFirstLevel, used);
+			// debug("getRolledHP: base=%u lvl=1 roll=%d min=%d used=%d", (unsigned)base, roll, minFirstLevel, used);
 		} else {
-			debug("getRolledHP: base=%u lvl=%u roll=%d used=%d", (unsigned)base, (unsigned)lvl, roll, used);
+			// debug("getRolledHP: base=%u lvl=%u roll=%d used=%d", (unsigned)base, (unsigned)lvl, roll, used);
 		}
 		sum += used;
 	}
 	if (sum < 0) sum = 0;
 	if (sum > 255) sum = 255;
-	debug("getRolledHP: final sum=%d", sum);
+	// debug("getRolledHP: final sum=%d", sum);
 	return (uint8)sum;
 }
 
@@ -862,12 +862,12 @@ void PoolradCharacter::computeSavingThrows() {
 	}
 
 	savingThrows = best;
-	debug("PoolradCharacter::computeSavingThrows -> P=%u Pe=%u R=%u B=%u S=%u",
-		  (unsigned)savingThrows.vsParalysis,
-		  (unsigned)savingThrows.vsPetrification,
-		  (unsigned)savingThrows.vsRodStaffWand,
-		  (unsigned)savingThrows.vsBreathWeapon,
-		  (unsigned)savingThrows.vsSpell);
+	// debug("PoolradCharacter::computeSavingThrows -> P=%u Pe=%u R=%u B=%u S=%u",
+	// 	  (unsigned)savingThrows.vsParalysis,
+	// 	  (unsigned)savingThrows.vsPetrification,
+	// 	  (unsigned)savingThrows.vsRodStaffWand,
+	// 	  (unsigned)savingThrows.vsBreathWeapon,
+	// 	  (unsigned)savingThrows.vsSpell);
 }
 
 void PoolradCharacter::computeThac0() {
@@ -885,8 +885,8 @@ void PoolradCharacter::computeThac0() {
 	// Refresh item limit mask from active base classes
 	itemsLimit = Goldbox::Data::Rules::computeItemLimitMask(levels.levels);
 
-	debug("PoolradCharacter::computeThac0 -> base=%u actual=%d itemsLimit=%u",
-		  (unsigned)thac0.base, 60 - (int)thac0.base, (unsigned)itemsLimit);
+	// debug("PoolradCharacter::computeThac0 -> base=%u actual=%d itemsLimit=%u",
+	// 	  (unsigned)thac0.base, 60 - (int)thac0.base, (unsigned)itemsLimit);
 }
 
 void PoolradCharacter::rollInitialAge() {
@@ -897,7 +897,7 @@ void PoolradCharacter::rollInitialAge() {
 		const Goldbox::Data::Rules::AgeDefEntry &adef = Goldbox::Data::Rules::getAgeDef(raceId, forcedBase);
 		const uint16 maxExtra = (uint16)(adef.dices * adef.sides);
 		age = adef.base + maxExtra;
-		debug("PoolradCharacter::rollInitialAge forced base=%u -> age=%u", (unsigned)forcedBase, (unsigned)age);
+		// debug("PoolradCharacter::rollInitialAge forced base=%u -> age=%u", (unsigned)forcedBase, (unsigned)age);
 		return;
 	}
 
@@ -906,7 +906,7 @@ void PoolradCharacter::rollInitialAge() {
 		const Goldbox::Data::Rules::AgeDefEntry &adef = Goldbox::Data::Rules::getAgeDef(raceId, baseIdx);
 		uint16 extra = (uint16)VmInterface::rollDice(adef.dices, adef.sides);
 		age = adef.base + extra;
-		debug("PoolradCharacter::rollInitialAge single base=%u -> age=%u", (unsigned)baseIdx, (unsigned)age);
+		// debug("PoolradCharacter::rollInitialAge single base=%u -> age=%u", (unsigned)baseIdx, (unsigned)age);
 		return;
 	}
 

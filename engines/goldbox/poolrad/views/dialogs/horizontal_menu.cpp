@@ -54,13 +54,17 @@ void HorizontalMenu::drawText() {
     s.writeStringC(_promptTxt, _promptColor, 0, 24);
 
 	s.setTextPos(_promptTxt.size(), 24);
-    for (uint i = 0; i < _menuItems->items.size(); i++) {
+    for (int i = 0; i < (int)_menuItems->items.size(); i++) {
         const MenuItem &item = _menuItems->items[i];
-        s.writeChar(' ');
 
         if (i == _menuItems->currentSelection) {
-            s.writeCharC(item.shortcut, _selectColor);
-            s.writeStringC(item.text, _selectColor);
+            if (item.shortcutFirst) {
+                s.writeCharC(item.shortcut, _selectColor);
+                s.writeStringC(item.text, _selectColor);
+            } else {
+                s.writeStringC(item.text, _selectColor);
+                s.writeCharC(item.shortcut, _selectColor);
+            }
         } else {
             if (item.shortcutFirst) {
                 s.writeCharC(item.shortcut, _selectColor);
@@ -70,6 +74,7 @@ void HorizontalMenu::drawText() {
                 s.writeCharC(item.shortcut, _selectColor);
             }
         }
+        s.writeChar(' ');
     }
     _redraw = false;
 }

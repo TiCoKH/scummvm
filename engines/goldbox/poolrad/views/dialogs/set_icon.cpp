@@ -38,7 +38,8 @@ using Goldbox::Gfx::Icon;
 SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
     : Dialog(name), _pc(pc) {
     if (_pc) {
-        // Backup current icon data for commit/cancel operations
+        _pc->iconData.iconBody = 0;
+        _pc->iconData.iconHead = 0;
         _backupIconData = _pc->iconData;
 
         // Load selection frame from COMSPR (block 25 = ready, block 153 = action)
@@ -153,7 +154,7 @@ void SetIcon::nextStage() {
 
 void SetIcon::setStage(IconMenuState stage) {
     _stage = stage;
-    
+
     switch (_stage) {
     case ICON_STATE_MAIN_MENU:
         _menuItems.items.clear();
@@ -274,7 +275,7 @@ void SetIcon::setMenuStage(IconMenuState stage) {
 
         _menuItems.items.clear();
         _indexMap.clear();
-        
+
         // Build sub-part menu with dynamic Hair/Face label in specified order
         Common::Array<String> labels;
         labels.push_back(getSubPartLabel(SUBPART_WEAPON));
@@ -284,9 +285,9 @@ void SetIcon::setMenuStage(IconMenuState stage) {
         labels.push_back(getSubPartLabel(SUBPART_ARMS));
         labels.push_back(getSubPartLabel(SUBPART_LEGS));
         labels.push_back("Exit");
-        
+
         _menuItems.generateMenuItems(labels, true);
-        
+
         // Map menu indices to SubPartIndex
         _indexMap.push_back(SUBPART_WEAPON);
         _indexMap.push_back(SUBPART_BODY);
@@ -369,6 +370,13 @@ void SetIcon::syncIconManagerSlots() {
     IconManager *mgr = VmInterface::getIconManager();
     if (!mgr || !_pc)
         return;
+    debug("SetIcon::syncIconManagerSlots: backup size=%u head=%u body=%u | working size=%u head=%u body=%u",
+          (unsigned)_backupIconData.iconSize,
+          (unsigned)_backupIconData.iconHead,
+          (unsigned)_backupIconData.iconBody,
+          (unsigned)_pc->iconData.iconSize,
+          (unsigned)_pc->iconData.iconHead,
+          (unsigned)_pc->iconData.iconBody);
     // Publish icons via IconManager
     mgr->loadIcon(SLOT_OVERLAY_BUFFER, _backupIconData, false);
     mgr->loadIcon(SLOT_RESERVED_START, _backupIconData, true);
@@ -569,7 +577,7 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
             setStage(ICON_STATE_MAIN_MENU);
             return;
         }
-        
+
         // Enter adjustment stage for this sub-part
         setStage(ICON_STATE_ADJUSTMENT);
         break;

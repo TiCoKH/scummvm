@@ -27,6 +27,15 @@
 namespace Goldbox {
 namespace Gfx {
 
+// Helper: ensure we don't double-apply size offsets when stored sprite ids
+// already include the large-size offset. If size marks large and the id is
+// still in the small range, add the large offset; otherwise leave as-is.
+static uint8 resolveSpriteId(uint8 storedId, uint8 size) {
+	if (size == Icon::SIZE_LARGE && storedId < Icon::SIZE_OFFSET_LARGE)
+		return static_cast<uint8>(storedId + Icon::SIZE_OFFSET_LARGE);
+	return storedId;
+}
+
 // Icon member functions
 Icon::Icon(const Data::CombatIconData &iconData,
                              IconState state)
@@ -43,12 +52,20 @@ Icon::Icon(const Data::CombatIconData &iconData,
       _readyBodyPic(nullptr),
       _actionHeadPic(nullptr),
       _actionBodyPic(nullptr) {
+				debug("Icon::Icon(CombatIconData): iconSize=%u head(base)=%u body(base)=%u state=%s",
+				      (unsigned)iconData.iconSize,
+				      (unsigned)iconData.iconHead,
+				      (unsigned)iconData.iconBody,
+				      (state == ICON_STATE_ATTACK ? "ATTACK" : "READY"));
 
-	uint8 sizeOffset = (_size == ICON_SIZE_LARGE) ? 64 : 0;
-	uint8 readyHeadId = iconData.iconHead + sizeOffset;
-	uint8 readyBodyId = iconData.iconBody + sizeOffset;
-	uint8 actionHeadId = readyHeadId + 128;
-	uint8 actionBodyId = readyBodyId + 128;
+	uint8 readyHeadId = resolveSpriteId(iconData.iconHead, _size);
+	uint8 readyBodyId = resolveSpriteId(iconData.iconBody, _size);
+	uint8 actionHeadId = static_cast<uint8>(readyHeadId + ACTION_OFFSET);
+	uint8 actionBodyId = static_cast<uint8>(readyBodyId + ACTION_OFFSET);
+				debug("  - Resolved IDs: readyHead=%u readyBody=%u actionHead=%u actionBody=%u (size=%u)",
+				      (unsigned)readyHeadId, (unsigned)readyBodyId,
+				      (unsigned)actionHeadId, (unsigned)actionBodyId,
+				      (unsigned)_size);
 
 	// Load base sprites from DAX containers (cached)
 	if (!loadBaseSprites(readyHeadId, readyBodyId, actionHeadId, actionBodyId)) {
@@ -59,8 +76,9 @@ Icon::Icon(const Data::CombatIconData &iconData,
 		_actionIcon->clear(0);
 	} else {
 		// Build composite icons using cached base sprites
-		_readyIcon = buildComposite(true, iconData);
-		_actionIcon = buildComposite(false, iconData);
+		// Ready state should use isAction=false; Action state uses isAction=true
+		_readyIcon = buildComposite(false, iconData);
+		_actionIcon = buildComposite(true, iconData);
 	}
 
 	// Build vertically flipped versions
@@ -92,13 +110,15 @@ Icon::Icon(const Pic *readyPic, const Pic *actionPic)
 
 	debug("Icon::Icon(Pic, Pic) Constructor - Loading from provided Pic pointers");
 	debug("  readyPic=%p actionPic=%p", readyPic, actionPic);
+	debug("Icon::Icon(Pic, Pic) Constructor - Loading from provided Pic pointers");
+	debug("  readyPic=%p actionPic=%p", readyPic, actionPic);
 
 	// Use provided pics as sources; fall back to an empty placeholder if both are missing
 	const Pic *readySource = readyPic ? readyPic : actionPic;
 	Pic *placeholder = nullptr;
 	if (!readySource) {
 		debug("  - Both readyPic and actionPic are NULL, creating placeholder");
-		placeholder = new Pic(LARGE_ICON_WIDTH, LARGE_ICON_HEIGHT);
+		placeholder = new Pic(24, 24);
 		placeholder->clear(0);
 		readySource = placeholder;
 	} else {
@@ -112,9 +132,28 @@ Icon::Icon(const Pic *readyPic, const Pic *actionPic)
 		debug("  - Reusing readyPic as actionPic");
 	}
 
-	// Infer size from the supplied art
-	_size = (readySource->w > SMALL_ICON_WIDTH || readySource->h > SMALL_ICON_HEIGHT) ? ICON_SIZE_LARGE : ICON_SIZE_SMALL;
-	debug("  - Inferred size: %s (%dx%d)", (_size == ICON_SIZE_LARGE) ? "LARGE" : "SMALL", readySource->w, readySource->h);
+	// Size categorization should not rely on hardcoded pixel constants.
+	// Use DAX metadata to classify SMALL vs LARGE by comparing typical body sprite sizes.
+	debug("  - Provided art dimensions: %dx%d", readySource->w, readySource->h);
+	{
+		Data::DaxBlockPic *smallBody = static_cast<Data::DaxBlockPic *>(
+			VmInterface::getDaxCBody().getBlockById(0));
+		Data::DaxBlockPic *largeBody = static_cast<Data::DaxBlockPic *>(
+			VmInterface::getDaxCBody().getBlockById(0 + SIZE_OFFSET_LARGE));
+		if (smallBody && largeBody) {
+			if (readySource->w == (int)largeBody->width && readySource->h == (int)largeBody->height) {
+				_size = ICON_SIZE_LARGE;
+				debug("  - Classified as LARGE via DAX body dims (%dx%d)", (int)largeBody->width, (int)largeBody->height);
+			} else {
+				_size = ICON_SIZE_SMALL;
+				debug("  - Classified as SMALL via DAX body dims (%dx%d)", (int)smallBody->width, (int)smallBody->height);
+			}
+		} else {
+			// If DAX metadata is not available, default to SMALL; pixel dims remain authoritative for rendering.
+			_size = ICON_SIZE_SMALL;
+			debug("  - DAX metadata unavailable; defaulting to SMALL category");
+		}
+	}
 
 	_readyIcon = readySource->clone();
 	debug("  - Cloned readyIcon: %p", _readyIcon);
@@ -172,9 +211,9 @@ Icon::Icon(uint16 blockId, IconKind kind)
 		break;
 	default:
 		warning("Icon::Icon(blockId): Invalid kind %d, only SPRITE and CPIC supported", kind);
-		_readyIcon = new Pic(LARGE_ICON_WIDTH, LARGE_ICON_HEIGHT);
+		_readyIcon = new Pic(24, 24);
 		_readyIcon->clear(0);
-		_actionIcon = new Pic(LARGE_ICON_WIDTH, LARGE_ICON_HEIGHT);
+		_actionIcon = new Pic(24, 24);
 		_actionIcon->clear(0);
 		_readyIconFlipped = createFlipped(_readyIcon);
 		_actionIconFlipped = createFlipped(_actionIcon);
@@ -195,9 +234,9 @@ Icon::Icon(uint16 blockId, IconKind kind)
 
 	if (!readyBlock || !actionBlock) {
 		warning("Icon::Icon(blockId): Block not found readyBlock=%p actionBlock=%p", readyBlock, actionBlock);
-		_readyIcon = new Pic(LARGE_ICON_WIDTH, LARGE_ICON_HEIGHT);
+		_readyIcon = new Pic(24, 24);
 		_readyIcon->clear(0);
-		_actionIcon = new Pic(LARGE_ICON_WIDTH, LARGE_ICON_HEIGHT);
+		_actionIcon = new Pic(24, 24);
 		_actionIcon->clear(0);
 		_readyIconFlipped = createFlipped(_readyIcon);
 		_actionIconFlipped = createFlipped(_actionIcon);
@@ -211,9 +250,9 @@ Icon::Icon(uint16 blockId, IconKind kind)
 
 	if (!readyPicBlock || !actionPicBlock) {
 		warning("Icon::Icon(blockId): Block is not DaxBlockPic readyPic=%p actionPic=%p", readyPicBlock, actionPicBlock);
-		_readyIcon = new Pic(LARGE_ICON_WIDTH, LARGE_ICON_HEIGHT);
+		_readyIcon = new Pic(24, 24);
 		_readyIcon->clear(0);
-		_actionIcon = new Pic(LARGE_ICON_WIDTH, LARGE_ICON_HEIGHT);
+		_actionIcon = new Pic(24, 24);
 		_actionIcon->clear(0);
 		_readyIconFlipped = createFlipped(_readyIcon);
 		_actionIconFlipped = createFlipped(_actionIcon);
@@ -222,10 +261,6 @@ Icon::Icon(uint16 blockId, IconKind kind)
 	}
 
 	debug("  - readyPicBlock: %dx%d actionPicBlock: %dx%d", readyPicBlock->width, readyPicBlock->height, actionPicBlock->width, actionPicBlock->height);
-
-	// Infer size from dimensions
-	_size = (readyPicBlock->width > SMALL_ICON_WIDTH || readyPicBlock->height > SMALL_ICON_HEIGHT) ? ICON_SIZE_LARGE : ICON_SIZE_SMALL;
-	debug("  - Inferred size: %s", (_size == ICON_SIZE_LARGE) ? "LARGE" : "SMALL");
 
 	// Create Pics from blocks with appropriate remapping for CTILE
 	const bool isCTile = (kind == ICON_KIND_CPIC || container->getContentType() == Data::ContentType::CTILE);
@@ -245,11 +280,15 @@ Icon::Icon(uint16 blockId, IconKind kind)
 	if (!_readyIcon || !_actionIcon) {
 		warning("Icon::Icon(blockId): Failed to create Pics readyIcon=%p actionIcon=%p", _readyIcon, _actionIcon);
 		if (!_readyIcon) {
-			_readyIcon = new Pic(LARGE_ICON_WIDTH, LARGE_ICON_HEIGHT);
+			int w = readyPicBlock ? (int)readyPicBlock->width : 24;
+			int h = readyPicBlock ? (int)readyPicBlock->height : 24;
+			_readyIcon = new Pic(w, h);
 			_readyIcon->clear(0);
 		}
 		if (!_actionIcon) {
-			_actionIcon = new Pic(LARGE_ICON_WIDTH, LARGE_ICON_HEIGHT);
+			int w = actionPicBlock ? (int)actionPicBlock->width : 24;
+			int h = actionPicBlock ? (int)actionPicBlock->height : 24;
+			_actionIcon = new Pic(w, h);
 			_actionIcon->clear(0);
 		}
 	}
@@ -287,11 +326,10 @@ Icon::Icon(uint16 blockId, IconKind kind)
 	      _actionHeadPic(nullptr),
 	      _actionBodyPic(nullptr) {
 
-		uint8 sizeOffset = (_size == ICON_SIZE_LARGE) ? 64 : 0;
-		uint8 readyHeadId = iconData.iconHead + sizeOffset;
-		uint8 readyBodyId = iconData.iconBody + sizeOffset;
-		uint8 actionHeadId = readyHeadId + 128;
-		uint8 actionBodyId = readyBodyId + 128;
+		uint8 readyHeadId = resolveSpriteId(iconData.iconHead, _size);
+		uint8 readyBodyId = resolveSpriteId(iconData.iconBody, _size);
+		uint8 actionHeadId = static_cast<uint8>(readyHeadId + ACTION_OFFSET);
+		uint8 actionBodyId = static_cast<uint8>(readyBodyId + ACTION_OFFSET);
 
 		// Load base sprites via renderer if available
 		if (!loadBaseSprites(readyHeadId, readyBodyId, actionHeadId, actionBodyId)) {
@@ -331,6 +369,9 @@ bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId,
 									uint8 actionHeadId, uint8 actionBodyId) {
 	debug("Icon::loadBaseSprites ids readyHead=%u readyBody=%u actionHead=%u actionBody=%u renderer=%s",
 			readyHeadId, readyBodyId, actionHeadId, actionBodyId, _renderer ? "yes" : "no");
+			debug("  - Content types: head=%d body=%d",
+			      (int)VmInterface::getDaxCHead().getContentType(),
+			      (int)VmInterface::getDaxCBody().getContentType());
 	if (_renderer) {
 		_readyHeadPic = _renderer->readHead(readyHeadId);
 		_readyBodyPic = _renderer->readBody(readyBodyId);
@@ -385,6 +426,7 @@ Pic *Icon::buildComposite(bool isAction, const Data::CombatIconData &iconData) {
 	// Use cached base sprites (already loaded from DAX)
 	Pic *headPic = isAction ? _actionHeadPic : _readyHeadPic;
 	Pic *bodyPic = isAction ? _actionBodyPic : _readyBodyPic;
+	debug("Icon::buildComposite: isAction=%d headPic=%p bodyPic=%p", (int)isAction, headPic, bodyPic);
 
 	if (!headPic || !bodyPic) {
 		// Create empty placeholder if sprites missing
@@ -427,6 +469,14 @@ Pic *Icon::createFlipped(const Pic *source) const {
 void Icon::remapComposite(Pic *composite, const Data::CombatIconData &iconData) const {
 	if (!composite)
 		return;
+	debug("Icon::remapComposite: size=%u colors BODY(%u,%u) ARM(%u,%u) LEG(%u,%u) SHIELD(%u,%u) WEAP(%u,%u) HAIR=%u FACE=%u",
+	      (unsigned)iconData.iconSize,
+	      (unsigned)iconData.iconColorBody1, (unsigned)iconData.iconColorBody2,
+	      (unsigned)iconData.iconColorArm1, (unsigned)iconData.iconColorArm2,
+	      (unsigned)iconData.iconColorLeg1, (unsigned)iconData.iconColorLeg2,
+	      (unsigned)iconData.iconColorShield1, (unsigned)iconData.iconColorShield2,
+	      (unsigned)iconData.iconColorWeapon1, (unsigned)iconData.iconColorWeapon2,
+	      (unsigned)iconData.iconColorHair, (unsigned)iconData.iconColorFace);
 
 	byte *pixels = (byte *)composite->getPixels();
 	const int pixelCount = composite->w * composite->h;
@@ -497,27 +547,27 @@ uint8 Icon::extractBaseId(uint8 spriteId) {
 }
 
 bool Icon::isValidHeadBaseId(uint8 baseId) {
-	return baseId >= SMALL_HEAD_MIN && baseId <= SMALL_HEAD_MAX;
+	return baseId <= ICON_HEAD_MAX;
 }
 
 bool Icon::isValidBodyBaseId(uint8 baseId) {
-	return baseId >= SMALL_BODY_MIN && baseId <= SMALL_BODY_MAX;
+	return baseId <= ICON_BODY_MAX;
 }
 
 uint8 Icon::nextHead(uint8 currentBaseId) {
-	return (currentBaseId >= SMALL_HEAD_MAX) ? SMALL_HEAD_MIN : currentBaseId + 1;
+	return (currentBaseId >= ICON_HEAD_MAX) ? 0 : static_cast<uint8>(currentBaseId + 1);
 }
 
 uint8 Icon::prevHead(uint8 currentBaseId) {
-	return (currentBaseId == SMALL_HEAD_MIN) ? SMALL_HEAD_MAX : currentBaseId - 1;
+	return (currentBaseId == 0) ? ICON_HEAD_MAX : static_cast<uint8>(currentBaseId - 1);
 }
 
 uint8 Icon::nextBody(uint8 currentBaseId) {
-	return (currentBaseId >= SMALL_BODY_MAX) ? SMALL_BODY_MIN : currentBaseId + 1;
+	return (currentBaseId >= ICON_BODY_MAX) ? 0 : static_cast<uint8>(currentBaseId + 1);
 }
 
 uint8 Icon::prevBody(uint8 currentBaseId) {
-	return (currentBaseId == SMALL_BODY_MIN) ? SMALL_BODY_MAX : currentBaseId - 1;
+	return (currentBaseId == 0) ? ICON_BODY_MAX : static_cast<uint8>(currentBaseId - 1);
 }
 
 uint8 Icon::nextColor(uint8 currentColor) {
@@ -529,12 +579,17 @@ uint8 Icon::prevColor(uint8 currentColor) {
 }
 
 void Icon::getDimensions(uint8 size, int &width, int &height) {
-	if (size == SIZE_SMALL) {
-		width = SMALL_ICON_WIDTH;
-		height = SMALL_ICON_HEIGHT;
+	// Derive dimensions from DAX body sprite metadata for the requested size.
+	const uint8 sizeOffset = (size == SIZE_LARGE) ? SIZE_OFFSET_LARGE : 0;
+	Data::DaxBlockPic *bodyBlock = static_cast<Data::DaxBlockPic *>(
+		VmInterface::getDaxCBody().getBlockById(0 + sizeOffset));
+	if (bodyBlock) {
+		width = (int)bodyBlock->width;
+		height = (int)bodyBlock->height;
 	} else {
-		width = LARGE_ICON_WIDTH;
-		height = LARGE_ICON_HEIGHT;
+		// Fallback to a minimal safe default if metadata unavailable
+		width = 24;
+		height = 24;
 	}
 }
 

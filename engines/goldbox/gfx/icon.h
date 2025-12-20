@@ -330,20 +330,16 @@ public:
 	static void getDimensions(uint8 size, int &width, int &height);
 
 	// Constants
-	static const uint8 SMALL_HEAD_MIN = 0;
-	static const uint8 SMALL_HEAD_MAX = 13;
-	static const uint8 SMALL_BODY_MIN = 0;
-	static const uint8 SMALL_BODY_MAX = 31;
+	static const uint8 ICON_HEAD_MIN = 0;
+	static const uint8 ICON_HEAD_MAX = 13;
+	static const uint8 ICON_BODY_MIN = 0;
+	static const uint8 ICON_BODY_MAX = 31;
 	static const uint8 HEAD_SPRITE_COUNT = 14;
 	static const uint8 BODY_SPRITE_COUNT = 32;
 	static const uint8 SIZE_OFFSET_LARGE = 64;
 	static const uint8 ACTION_OFFSET = 128;
 	static const uint8 SIZE_SMALL = 1;
 	static const uint8 SIZE_LARGE = 2;
-	static const int SMALL_ICON_WIDTH = 16;
-	static const int SMALL_ICON_HEIGHT = 16;
-	static const int LARGE_ICON_WIDTH = 24;
-	static const int LARGE_ICON_HEIGHT = 24;
 	static const uint8 COLOR_MIN = 0;
 	static const uint8 COLOR_MAX = 15;
 	static const uint8 TRANSPARENT_COLOR_INDEX = 0;
