@@ -498,23 +498,23 @@ void Icon::remapComposite(Pic *composite, const Data::CombatIconData &iconData) 
 		const uint8 src = pixels[i];
 		switch (src) {
 		// Body
-		case 1:  pixels[i] = BODY2;   break;
-		case 9:  pixels[i] = BODY1;   break;
+		case 1:  pixels[i] = BODY1;   break;
+		case 9:  pixels[i] = BODY2;   break;
 		// Arms
-		case 2:  pixels[i] = ARM2;    break;
-		case 10: pixels[i] = ARM1;    break;
+		case 2:  pixels[i] = ARM1;    break;
+		case 10: pixels[i] = ARM2;    break;
 		// Legs
-		case 3:  pixels[i] = LEG2;    break;
-		case 11: pixels[i] = LEG1;    break;
+		case 3:  pixels[i] = LEG1;    break;
+		case 11: pixels[i] = LEG2;    break;
 		// Shield
-		case 6:  pixels[i] = SHIELD2; break;
-		case 14: pixels[i] = SHIELD1; break;
+		case 6:  pixels[i] = SHIELD1; break;
+		case 14: pixels[i] = SHIELD2; break;
 		// Weapon
-		case 7:  pixels[i] = WEAP2;   break;
-		case 15: pixels[i] = WEAP1;   break;
+		case 7:  pixels[i] = WEAP1;   break;
+		case 15: pixels[i] = WEAP2;   break;
 		// Head features (may appear across layers e.g., hands/skin)
-		case 4:  pixels[i] = FACE;    break;
-		case 12: pixels[i] = HAIR;    break;
+		case 4:  pixels[i] = HAIR;    break;
+		case 12: pixels[i] = FACE;    break;
 		default:
 			break;
 		}
