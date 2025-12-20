@@ -169,8 +169,7 @@ bool IconManager::loadIcon(uint8 slotId, const Data::CombatIconData &iconData, b
 	return true;
 }
 
-bool IconManager::drawAtPos(Graphics::ManagedSurface *dst, uint8 slotId, uint8 actionFlag,
-			  uint8 /*reserved*/, int iconY, int iconX) {
+bool IconManager::drawAtPos(Graphics::ManagedSurface *dst, int iconX, int iconY, uint8 /*reserved*/, uint8 frame, uint8 slotId) {
 	if (!dst) {
 		warning("IconManager::drawAtPos: Destination surface is NULL");
 		return false;
@@ -180,7 +179,7 @@ bool IconManager::drawAtPos(Graphics::ManagedSurface *dst, uint8 slotId, uint8 a
 		return false;
 	}
 	
-	debug("IconManager::drawAtPos: slot=%d, actionFlag=%d, y=%d, x=%d", slotId, actionFlag, iconY, iconX);
+	debug("IconManager::drawAtPos: x=%d, y=%d, frame=%d, slot=%d", iconX, iconY, frame, slotId);
 	
 	Gfx::Icon *icon = _iconBuffer[slotId];
 	if (!icon) {
@@ -193,8 +192,8 @@ bool IconManager::drawAtPos(Graphics::ManagedSurface *dst, uint8 slotId, uint8 a
 	_slotStates[slotId] = SLOT_IN_USE;
 
 	// Set desired action state
-	debug("  - Setting action state: %s", actionFlag ? "ATTACK" : "READY");
-	icon->setActionState(actionFlag ? Gfx::ICON_STATE_ATTACK : Gfx::ICON_STATE_READY);
+	debug("  - Setting action state: %s", frame ? "ATTACK" : "READY");
+	icon->setActionState(frame ? Gfx::ICON_STATE_ATTACK : Gfx::ICON_STATE_READY);
 
 	// Draw using icon-grid coordinates (Icon expects x, y order)
 	debug("  - Drawing icon at grid position (x=%d, y=%d)", iconX, iconY);
