@@ -35,7 +35,7 @@ using Goldbox::Poolrad::Data::PoolradCharacter;
 
 namespace {
 const byte kPromptColor = 13;
-const byte kTextColor = 10;
+const byte kTextColor   = 10;
 const byte kSelectColor = 15;
 }
 

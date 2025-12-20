@@ -98,12 +98,12 @@ static void logCombatDice(const Goldbox::Poolrad::Data::PoolradCharacter *pc, co
 }
 } // anonymous namespace
 
-const char PICK_RACE[] = "Pick Race";
-const char PICK_GENDER[] = "Pick Gender";
-const char PICK_CLASS[] = "Pick Class";
+const char PICK_RACE[]      = "Pick Race";
+const char PICK_GENDER[]    = "Pick Gender";
+const char PICK_CLASS[]     = "Pick Class";
 const char PICK_ALIGNMENT[] = "Pick Alignment";
 const char KEEP_CHARACTER[] = "Keep this character? ";
-const char CHAR_NAME[] = "Character name: ";
+const char CHAR_NAME[]      = "Character name: ";
 
 
 CreateCharacterView::CreateCharacterView() : View("CreatCharacter"), _stage(CC_STATE_RACE) {

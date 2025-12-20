@@ -35,16 +35,16 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-/**
- * SetIcon dialog allows customization of character icon appearance.
- *
- * State machine for editing character icon colors:
- * - STATE_MAIN_MENU: Initial menu (P/1/2/S keys)
- * - STATE_MAJOR_PART: Select Head or Weapon for color cycling
- * - STATE_NIBBLE_EDIT: Select and edit sub-part color nibbles
- * - STATE_BINARY_ATTR: Toggle binary attribute
- * - STATE_ADJUSTMENT: Inner loop for P/N/K/E adjustments
- */
+// Icon editor menu stages
+enum IconMenuState {
+    ICON_STATE_MAIN_MENU   = 0,   // Parts color-1 color-2 Size Exit
+    ICON_STATE_MAJOR_PART  = 1,   // Head Weapon Exit
+    ICON_STATE_SUB_PART    = 2,   // Weapon Body Hair/Face Shield Arm Leg Exit
+    ICON_STATE_SIZE_SELECT = 3,   // Large Small Exit
+    ICON_STATE_ADJUSTMENT  = 4,   // Next Prev Keep Exit
+    ICON_STATE_CONFIRM     = 5    // Keep Exit
+};
+
 class SetIcon : public Dialog {
 public:
     SetIcon(const Common::String &name,
@@ -54,46 +54,33 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
     void handleMenuResult(bool success, Common::KeyCode key, short value) override;
+    void nextStage();
+    void setStage(IconMenuState stage);
+    IconMenuState getStage() const { return _stage; }
 
 private:
-    static const uint8 MAX_HEAD_ICON = 0x0D;
-    static const uint8 MAX_BODY_ICON = 0x1F;
+    static const uint8 MAX_HEAD_ICON = 13;
+    static const uint8 MAX_BODY_ICON = 31;
 
     // Sub-part indices
     enum SubPartIndex {
-        SUBPART_BODY = 1,
-        SUBPART_ARMS = 2,
-        SUBPART_LEGS = 3,
-        SUBPART_HEAD_FACE = 4,
-        SUBPART_SHIELD = 5,
-        SUBPART_WEAPON = 6
-    };
-
-    // State machine
-    enum IconState {
-        STATE_MAIN_MENU = 1,
-        STATE_MAJOR_PART = 2,
-        STATE_NIBBLE_EDIT = 3,
-        STATE_BINARY_ATTR = 4,
-        STATE_ADJUSTMENT = 5
-    };
-
-    // Adjustment mode (used within STATE_ADJUSTMENT)
-    enum AdjustmentMode {
-        ADJUST_MAJOR_PART = 1,
-        ADJUST_NIBBLE = 2,
-        ADJUST_BINARY_ATTR = 3
+        SUBPART_BODY      = 0,
+        SUBPART_ARMS      = 1,
+        SUBPART_LEGS      = 2,
+        SUBPART_HEAD_FACE = 3,
+        SUBPART_SHIELD    = 4,
+        SUBPART_WEAPON    = 5
     };
 
     // UI constants
     static const uint8 kBackgroundColor = 8;
-    static const uint8 kWindowLeft = 1;
-    static const uint8 kWindowTop = 1;
-    static const uint8 kWindowRight = 38;
-    static const uint8 kWindowBottom = 22;
+    static const uint8 kWindowLeft      = 1;
+    static const uint8 kWindowTop       = 1;
+    static const uint8 kWindowRight     = 38;
+    static const uint8 kWindowBottom    = 22;
 
     static const byte kPromptColor = 13;
-    static const byte kTextColor = 10;
+    static const byte kTextColor   = 10;
     static const byte kSelectColor = 15;
 
     // Data
@@ -101,68 +88,51 @@ private:
     HorizontalMenu *_menu = nullptr;
     Goldbox::MenuItemList _menuItems;
 
-    // Backups for commit/cancel (full icon data backup)
+    // Backups for commit/cancel
     Goldbox::Data::CombatIconData _backupIconData;
-    bool _staticDrawn = false;
-
-    // State tracking
-    IconState _state = STATE_MAIN_MENU;
-    AdjustmentMode _adjustMode = ADJUST_MAJOR_PART;
-
-    // Editing context
-    uint8 _majorPart = 'H';       // 'H' or 'W'
-    SubPartIndex _subPartIndex = SUBPART_BODY;
-    uint8 _nibbleSelection = 0;   // 0 = low, 1 = high
-
-    // Icon cycling state (head and body sprite indices)
-    bool _inHeadBodyMode = false;  // Whether cycling head/body sprites
-
-    // State methods
-    void showMainMenu();
-    void showMajorPartMenu();
-    void showSubPartMenu();
-    void showBinaryAttrMenu();
-    void showAdjustmentMenu();
-
-    void drawEditorText();
-    void drawEditorIcons();
-
-    // Edit handlers
-    void handleMajorPartEdit(Common::KeyCode key);
-    void handleNibbleEdit(Common::KeyCode key);
-    void handleBinaryAttrEdit(Common::KeyCode key);
-    void handleSubPartSelection(Common::KeyCode key);
-    void handleHeadBodyCycle(Common::KeyCode key);
-
-    uint8 packSubpartColor(SubPartIndex index) const;
-    void applySubpartColor(SubPartIndex index, uint8 value);
-
-    // Utility methods
-    void cycleColorIndex(uint8 *colorPtr, uint8 maxValue, bool increment);
-    uint8 incrementNibble(uint8 value);
-    uint8 decrementNibble(uint8 value);
-
-    uint8 getLowNibble(uint8 byte) const;
-    uint8 getHighNibble(uint8 byte) const;
-    uint8 setLowNibble(uint8 byte, uint8 nibble) const;
-    uint8 setHighNibble(uint8 byte, uint8 nibble) const;
-
+    
+    // Stage tracking
+    IconMenuState _stage = ICON_STATE_MAIN_MENU;
+    
+    // Current selections
+    int _selectedMajorPart = 0;    // 0 = Head, 1 = Weapon
+    int _selectedSubPart   = 0;      // Body, Arms, Legs, Head/Face, Shield, Weapon
+    int _selectedSize      = 0;         // 0 = Large, 1 = Small
+    int _colorAdjustMode   = 0;      // Which color being adjusted
+    
+    // Index mapping for sub-part menu (accounts for dynamic Hair/Face)
+    Common::Array<int> _indexMap;
+    
+    // State helpers
+    void buildAndShowMenu(const Common::String &prompt);
+    void setActiveMenu();
+    void setMenuStage(IconMenuState stage);
+    Common::String getSubPartLabel(int index) const;
     void commitChanges();
     void revertChanges();
     void rebuildNewIcon();
 
-    // Head/Body/Speckle features
+    // Utility methods
+    uint8 getLowNibble(uint8 byte) const;
+    uint8 getHighNibble(uint8 byte) const;
+    uint8 setLowNibble(uint8 byte, uint8 nibble) const;
+    uint8 setHighNibble(uint8 byte, uint8 nibble) const;
+    uint8 incrementNibble(uint8 value);
+    uint8 decrementNibble(uint8 value);
+    void cycleColorIndex(uint8 *colorPtr, uint8 maxValue, bool increment);
+
+    uint8 packSubpartColor(SubPartIndex index) const;
+    void applySubpartColor(SubPartIndex index, uint8 value);
+    
+    // Icon manipulation
     void cycleHead(bool forward);
     void cycleBody(bool forward);
     void applySpeckle();
     void rebuildAllIcons();
-
-    // Sync preview icons into global IconManager slots for external access
     void syncIconManagerSlots();
     void drawIconPair(int x, int y, uint8 slotId);
-
-    // Convert icon grid coordinates to pixel coordinates (8x8 cells)
-    void iconPosToPixels(uint8 iconX, uint8 iconY, int &px, int &py) const;
+    void drawEditorText();
+    void drawEditorIcons();
 };
 
 } // namespace Dialogs
