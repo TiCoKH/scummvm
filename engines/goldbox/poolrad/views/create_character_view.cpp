@@ -134,19 +134,7 @@ void CreateCharacterView::initLevelsForClassType() {
 	if (!_newCharacter)
 		return;
 	using namespace Goldbox::Data;
-	// Log before
-	{
-		const Common::Array<uint8> &lv = _newCharacter->levels.levels;
-		debug("initLevels(run): BEFORE [%u,%u,%u,%u,%u,%u,%u,%u]",
-			  (unsigned)(lv.size() > 0 ? lv[0] : 0),
-			  (unsigned)(lv.size() > 1 ? lv[1] : 0),
-			  (unsigned)(lv.size() > 2 ? lv[2] : 0),
-			  (unsigned)(lv.size() > 3 ? lv[3] : 0),
-			  (unsigned)(lv.size() > 4 ? lv[4] : 0),
-			  (unsigned)(lv.size() > 5 ? lv[5] : 0),
-			  (unsigned)(lv.size() > 6 ? lv[6] : 0),
-			  (unsigned)(lv.size() > 7 ? lv[7] : 0));
-	}
+
 	for (uint i = 0; i < _newCharacter->levels.levels.size(); ++i)
 		_newCharacter->levels.levels[i] = 0;
 
@@ -197,20 +185,6 @@ void CreateCharacterView::initLevelsForClassType() {
 					(unsigned)_newCharacter->classType);
 		}
 		break;
-	}
-
-	// Log after
-	{
-		const Common::Array<uint8> &lv = _newCharacter->levels.levels;
-		debug("initLevels(run): AFTER  [%u,%u,%u,%u,%u,%u,%u,%u]",
-			  (unsigned)(lv.size() > 0 ? lv[0] : 0),
-			  (unsigned)(lv.size() > 1 ? lv[1] : 0),
-			  (unsigned)(lv.size() > 2 ? lv[2] : 0),
-			  (unsigned)(lv.size() > 3 ? lv[3] : 0),
-			  (unsigned)(lv.size() > 4 ? lv[4] : 0),
-			  (unsigned)(lv.size() > 5 ? lv[5] : 0),
-			  (unsigned)(lv.size() > 6 ? lv[6] : 0),
-			  (unsigned)(lv.size() > 7 ? lv[7] : 0));
 	}
 }
 
@@ -571,7 +545,7 @@ void CreateCharacterView::initializeRollStatsOnce() {
 	// Run a first reroll-and-recompute to populate all dynamic values
 	performRerollAndRecompute();
 
-	logCombatDice(_newCharacter, "init");
+	//logCombatDice(_newCharacter, "init");
 
 	_hasRolled = true;
 }
@@ -605,7 +579,7 @@ void CreateCharacterView::performRerollAndRecompute() {
 	_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
 	_newCharacter->recalcCombatStats();
 
-	logCombatDice(_newCharacter, "reroll");
+	//logCombatDice(_newCharacter, "reroll");
 }
 
 void CreateCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
@@ -629,42 +603,42 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			debug("Selected race menuID: %d", value);
+			//debug("Selected race menuID: %d", value);
 			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
 			if (value >= 0 && value < (int)_indexMap.size()) {
 				_newCharacter->race = (uint8)_indexMap[value];
-				debug("Selected race ID: %d", _newCharacter->race);
+				//debug("Selected race ID: %d", _newCharacter->race);
 				if (_newCharacter) {
 					switch (_newCharacter->race) {
 					case Goldbox::Data::R_DWARF:
-						_newCharacter->iconDimension = 1;
+						_newCharacter->iconData.iconSize = 1;
 						_newCharacter->setEffect(90, 0, 0xFF, false);
 						_newCharacter->setEffect(97, 0, 0xFF, false);
 						_newCharacter->setEffect(26, 0, 0xFF, false);
 						_newCharacter->setEffect(47, 0, 0xFF, false);
 						break;
 					case Goldbox::Data::R_ELF:
-						_newCharacter->iconDimension = 2;
+						_newCharacter->iconData.iconSize = 2;
 						_newCharacter->setEffect(107, 0, 0xFF, false);
 						break;
 					case Goldbox::Data::R_GNOME:
-						_newCharacter->iconDimension = 1;
+						_newCharacter->iconData.iconSize = 1;
 						_newCharacter->setEffect(97, 0, 0xFF, false);
 						_newCharacter->setEffect(18, 0, 0xFF, false);
 						_newCharacter->setEffect(47, 0, 0xFF, false);
 						_newCharacter->setEffect(48, 0, 0xFF, false);
 						break;
 					case Goldbox::Data::R_HALF_ELF:
-						_newCharacter->iconDimension = 2;
+						_newCharacter->iconData.iconSize = 2;
 						_newCharacter->setEffect(124, 0, 0xFF, false);
 						break;
 					case Goldbox::Data::R_HALFLING:
-						_newCharacter->iconDimension = 1;
+						_newCharacter->iconData.iconSize = 1;
 						_newCharacter->setEffect(90, 0, 0xFF, false);
 						_newCharacter->setEffect(97, 0, 0xFF, false);
 						break;
 					default: // Monster / Human / Half-Orc or any other
-						_newCharacter->iconDimension = 2;
+						_newCharacter->iconData.iconSize = 2;
 						break;
 					}
 				}
@@ -677,11 +651,11 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			debug("Selected gender menuID: %d", value);
+			//debug("Selected gender menuID: %d", value);
 			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
 			if (value >= 0 && value < (int)_indexMap.size()) {
 				_newCharacter->gender = (Goldbox::Data::Gender)_indexMap[value];
-				debug("Selected gender ID: %d", _newCharacter->gender);
+				//debug("Selected gender ID: %d", _newCharacter->gender);
 				nextStage();
 			}
 		}
@@ -691,11 +665,11 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			debug("Selected class menuID: %d", value);
+			//debug("Selected class menuID: %d", value);
 			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
 			if (value >= 0 && value < (int)_indexMap.size()) {
 				_newCharacter->classType = (uint8)_indexMap[value];
-				debug("Selected class ID: %d", _newCharacter->classType);
+				//debug("Selected class ID: %d", _newCharacter->classType);
 				_newCharacter->highestLevel = 1;
 				// Initialize base-class levels from selected class
 				initLevelsForClassType();
@@ -713,11 +687,11 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			debug("Selected alignment menuID: %d", value);
+			//debug("Selected alignment menuID: %d", value);
 			if (!_newCharacter) _newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
 			if (value >= 0 && value < (int)_indexMap.size()) {
 				_newCharacter->alignment = (uint8)_indexMap[value];
-				debug("Selected alignment ID: %d", _newCharacter->alignment);
+				//debug("Selected alignment ID: %d", _newCharacter->alignment);
 				_hasRolled = false;
 			}
 			setAge();
@@ -896,19 +870,19 @@ void CreateCharacterView::setThiefSkillsForNewCharacter() {
     thiefLevel = _newCharacter->levels[Goldbox::Data::C_THIEF];
     const uint8 race = _newCharacter->race;
     const uint8 dexterity = _newCharacter->abilities.dexterity.current;
-	debug("Thief skills for race %d, dex: %d, level: %d", race, dexterity, thiefLevel);
+	//"Thief skills for race %d, dex: %d, level: %d", race, dexterity, thiefLevel);
     // Compute final thief skills via rules
     _newCharacter->thiefSkills =
         Goldbox::Data::Rules::computeThiefSkills(race, dexterity, thiefLevel);
-	debug("Thief skills set:\n pick locks: %d\n find-remove traps: %d\n stealth %d\n hide in shadow: %d\n hear noise: %d\n climb walls: %d\n read languages: %d\n",
-		_newCharacter->thiefSkills.openLocks,
-		_newCharacter->thiefSkills.findRemoveTraps,
-		_newCharacter->thiefSkills.moveSilently,
-		_newCharacter->thiefSkills.hideInShadows,
-		_newCharacter->thiefSkills.hearNoise,
-		_newCharacter->thiefSkills.climbWalls,
-		_newCharacter->thiefSkills.readLanguages
-	);
+	// debug("Thief skills set:\n pick locks: %d\n find-remove traps: %d\n stealth %d\n hide in shadow: %d\n hear noise: %d\n climb walls: %d\n read languages: %d\n",
+	// 	_newCharacter->thiefSkills.openLocks,
+	// 	_newCharacter->thiefSkills.findRemoveTraps,
+	// 	_newCharacter->thiefSkills.moveSilently,
+	// 	_newCharacter->thiefSkills.hideInShadows,
+	// 	_newCharacter->thiefSkills.hearNoise,
+	// 	_newCharacter->thiefSkills.climbWalls,
+	// 	_newCharacter->thiefSkills.readLanguages
+	// );
 }
 
 void CreateCharacterView::setThac0() {
@@ -958,14 +932,14 @@ void CreateCharacterView::applyStatMinMax() {
     const uint8 strMax = isFemale ? mm.strengthMaxFemale : mm.strengthMaxMale;
     const uint8 extStrMax = isFemale ? mm.extStrengthMaxFemale : mm.extStrengthMaxMale;
 
-	debug("applyStatMinMax: start race=%u gender=%u class=%u", (unsigned)_newCharacter->race, (unsigned)_newCharacter->gender, (unsigned)_newCharacter->classType);
-	debug("applyStatMinMax: race bounds STR[%u..%u] STREx<=%u INT[%u..%u] WIS[%u..%u] DEX[%u..%u] CON[%u..%u] CHA[%u..%u]",
-		  (unsigned)strMin, (unsigned)strMax, (unsigned)extStrMax,
-		  (unsigned)mm.intelligenceMin, (unsigned)mm.intelligenceMax,
-		  (unsigned)mm.wisdomMin, (unsigned)mm.wisdomMax,
-		  (unsigned)mm.dexterityMin, (unsigned)mm.dexterityMax,
-		  (unsigned)mm.constitutionMin, (unsigned)mm.constitutionMax,
-		  (unsigned)mm.charismaMin, (unsigned)mm.charismaMax);
+	// debug("applyStatMinMax: start race=%u gender=%u class=%u", (unsigned)_newCharacter->race, (unsigned)_newCharacter->gender, (unsigned)_newCharacter->classType);
+	// debug("applyStatMinMax: race bounds STR[%u..%u] STREx<=%u INT[%u..%u] WIS[%u..%u] DEX[%u..%u] CON[%u..%u] CHA[%u..%u]",
+	// 	  (unsigned)strMin, (unsigned)strMax, (unsigned)extStrMax,
+	// 	  (unsigned)mm.intelligenceMin, (unsigned)mm.intelligenceMax,
+	// 	  (unsigned)mm.wisdomMin, (unsigned)mm.wisdomMax,
+	// 	  (unsigned)mm.dexterityMin, (unsigned)mm.dexterityMax,
+	// 	  (unsigned)mm.constitutionMin, (unsigned)mm.constitutionMax,
+	// 	  (unsigned)mm.charismaMin, (unsigned)mm.charismaMax);
 
     // Helper to clamp a Stat between min and max inclusive (current value only)
     auto clampStatCur = [](Stat &s, uint8 minV, uint8 maxV) {
@@ -974,14 +948,14 @@ void CreateCharacterView::applyStatMinMax() {
     };
 
 	// Apply Strength min/max
-	debug("applyStatMinMax: before STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
-		  (unsigned)_newCharacter->abilities.strength.current,
-		  (unsigned)_newCharacter->abilities.strException.current,
-		  (unsigned)_newCharacter->abilities.intelligence.current,
-		  (unsigned)_newCharacter->abilities.wisdom.current,
-		  (unsigned)_newCharacter->abilities.dexterity.current,
-		  (unsigned)_newCharacter->abilities.constitution.current,
-		  (unsigned)_newCharacter->abilities.charisma.current);
+	// debug("applyStatMinMax: before STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
+	// 	  (unsigned)_newCharacter->abilities.strength.current,
+	// 	  (unsigned)_newCharacter->abilities.strException.current,
+	// 	  (unsigned)_newCharacter->abilities.intelligence.current,
+	// 	  (unsigned)_newCharacter->abilities.wisdom.current,
+	// 	  (unsigned)_newCharacter->abilities.dexterity.current,
+	// 	  (unsigned)_newCharacter->abilities.constitution.current,
+	// 	  (unsigned)_newCharacter->abilities.charisma.current);
     clampStatCur(_newCharacter->abilities.strength, strMin, strMax);
     // Intelligence
     clampStatCur(_newCharacter->abilities.intelligence, mm.intelligenceMin, mm.intelligenceMax);
@@ -998,9 +972,9 @@ void CreateCharacterView::applyStatMinMax() {
 	const ClassMinStats &cms = Goldbox::Data::Rules::getClassMinStats(_newCharacter->classType);
 	if (_newCharacter->abilities.strength.current < cms.strength)
 		_newCharacter->abilities.strength.current = cms.strength;
-	debug("applyStatMinMax: class minima STR>=%u INT>=%u WIS>=%u DEX>=%u CON>=%u CHA>=%u",
-	      (unsigned)cms.strength, (unsigned)cms.intelligence, (unsigned)cms.wisdom,
-	      (unsigned)cms.dexterity, (unsigned)cms.constitution, (unsigned)cms.charisma);
+	// debug("applyStatMinMax: class minima STR>=%u INT>=%u WIS>=%u DEX>=%u CON>=%u CHA>=%u",
+	//       (unsigned)cms.strength, (unsigned)cms.intelligence, (unsigned)cms.wisdom,
+	//       (unsigned)cms.dexterity, (unsigned)cms.constitution, (unsigned)cms.charisma);
 
 	// Exceptional Strength rule: applicable if fighter level > 0 (any combination)
 	bool hasFighterLevel = false;
@@ -1011,23 +985,23 @@ void CreateCharacterView::applyStatMinMax() {
 		// Roll 1d100 for exceptional strength
 		uint8 roll = (uint8)VmInterface::rollDice(1, 100);
 		_newCharacter->abilities.strException.current = roll;
-		debug("applyStatMinMax: rolled STREx=%u (fighter level detected)", (unsigned)roll);
+		// debug("applyStatMinMax: rolled STREx=%u (fighter level detected)", (unsigned)roll);
 	} else {
 		// Other classes do not have exceptional strength (or STR != 18)
 		_newCharacter->abilities.strException.current = 0;
-		debug("applyStatMinMax: STREx set to 0 (no fighter level or STR!=18)");
+		// debug("applyStatMinMax: STREx set to 0 (no fighter level or STR!=18)");
 	}
 	// Clamp Exceptional Strength to gender/race maximum
 	if (_newCharacter->abilities.strException.current > extStrMax)
 		_newCharacter->abilities.strException.current = extStrMax;
-	debug("applyStatMinMax: after clamps STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
-	      (unsigned)_newCharacter->abilities.strength.current,
-	      (unsigned)_newCharacter->abilities.strException.current,
-	      (unsigned)_newCharacter->abilities.intelligence.current,
-	      (unsigned)_newCharacter->abilities.wisdom.current,
-	      (unsigned)_newCharacter->abilities.dexterity.current,
-	      (unsigned)_newCharacter->abilities.constitution.current,
-	      (unsigned)_newCharacter->abilities.charisma.current);
+	// debug("applyStatMinMax: after clamps STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
+	//       (unsigned)_newCharacter->abilities.strength.current,
+	//       (unsigned)_newCharacter->abilities.strException.current,
+	//       (unsigned)_newCharacter->abilities.intelligence.current,
+	//       (unsigned)_newCharacter->abilities.wisdom.current,
+	//       (unsigned)_newCharacter->abilities.dexterity.current,
+	//       (unsigned)_newCharacter->abilities.constitution.current,
+	//       (unsigned)_newCharacter->abilities.charisma.current);
 
 	if (_newCharacter->abilities.intelligence.current < cms.intelligence)
 		_newCharacter->abilities.intelligence.current = cms.intelligence;
@@ -1063,15 +1037,15 @@ void CreateCharacterView::setInitGold() {
 		uint8 lvl = 0;
 		// LevelData operator[] expects ClassADnD; cast base index accordingly
 		lvl = _newCharacter->levels[static_cast<Goldbox::Data::ClassADnD>(base)];
-		debug("setInitGold: base=%u lvl=%u", (unsigned)base, (unsigned)lvl);
+		// debug("setInitGold: base=%u lvl=%u", (unsigned)base, (unsigned)lvl);
 		if (lvl > 0) {
 			const DiceRoll &dr = getInitGoldRoll(base);
 			int classGold = VmInterface::rollDice(dr.diceNum, dr.diceSides);
 			classGold += 1;
 			totalGold += classGold;
 			++classCount;
-			debug("setInitGold: base=%u lvl=%u roll=%uD%u+1 -> %d",
-				  (unsigned)base, (unsigned)lvl, (unsigned)dr.diceNum, (unsigned)dr.diceSides, classGold);
+			// debug("setInitGold: base=%u lvl=%u roll=%uD%u+1 -> %d",
+			// 	  (unsigned)base, (unsigned)lvl, (unsigned)dr.diceNum, (unsigned)dr.diceSides, classGold);
 		} else {
 			debug("setInitGold: skipping base=%u (lvl==0)", (unsigned)base);
 		}
@@ -1080,7 +1054,7 @@ void CreateCharacterView::setInitGold() {
 	// Average across classes (truncate)
 	uint16 finalGold = (classCount > 0) ? static_cast<uint16>((totalGold / classCount) * 10) : 0;
 	_newCharacter->valuableItems[VAL_GOLD] = finalGold;
-	debug("setInitGold: classes=%d total=%d avg=%u (final gold)", classCount, totalGold, (unsigned)finalGold);
+	// debug("setInitGold: classes=%d total=%d avg=%u (final gold)", classCount, totalGold, (unsigned)finalGold);
 	if (classCount == 0) {
 		warning("setInitGold: no base classes with level > 0; gold set to 0. classType=%u", (unsigned)_newCharacter->classType);
 	}

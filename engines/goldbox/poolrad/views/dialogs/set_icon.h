@@ -90,19 +90,19 @@ private:
 
     // Backups for commit/cancel
     Goldbox::Data::CombatIconData _backupIconData;
-    
+
     // Stage tracking
     IconMenuState _stage = ICON_STATE_MAIN_MENU;
-    
+
     // Current selections
     int _selectedMajorPart = 0;    // 0 = Head, 1 = Weapon
-    int _selectedSubPart   = 0;      // Body, Arms, Legs, Head/Face, Shield, Weapon
-    int _selectedSize      = 0;         // 0 = Large, 1 = Small
-    int _colorAdjustMode   = 0;      // Which color being adjusted
-    
+    int _selectedSubPart   = 0;    // Body, Arms, Legs, Head/Face, Shield, Weapon
+    int _selectedSize      = 0;    // 0 = Large, 1 = Small
+    int _colorAdjustMode   = 0;    // Which color being adjusted
+
     // Index mapping for sub-part menu (accounts for dynamic Hair/Face)
     Common::Array<int> _indexMap;
-    
+
     // State helpers
     void buildAndShowMenu(const Common::String &prompt);
     void setActiveMenu();
@@ -123,7 +123,7 @@ private:
 
     uint8 packSubpartColor(SubPartIndex index) const;
     void applySubpartColor(SubPartIndex index, uint8 value);
-    
+
     // Icon manipulation
     void cycleHead(bool forward);
     void cycleBody(bool forward);

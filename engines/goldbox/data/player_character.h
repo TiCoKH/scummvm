@@ -133,16 +133,6 @@ struct CombatIconData {
 	}
 
 	/**
-	 * Validate that all icon data is within acceptable ranges.
-	 * @return true if valid, false otherwise
-	 */
-	bool validate() const {
-		return iconHead <= SMALL_HEAD_MAX &&
-		       iconBody <= SMALL_BODY_MAX &&
-		       iconSize >= 1 && iconSize <= 2;
-	}
-
-	/**
 	 * Compare two CombatIconData structures for equality.
 	 */
 	bool operator==(const CombatIconData &other) const {
@@ -172,8 +162,8 @@ struct CombatIconData {
 	}
 
 	// Constants for validation
-	static const uint8 SMALL_HEAD_MAX = 13;
-	static const uint8 SMALL_BODY_MAX = 31;
+	static const uint8 ICON_HEAD_MAX = 13;
+	static const uint8 ICON_BODY_MAX = 31;
 };
 
 //---------------------------------------------------------------
