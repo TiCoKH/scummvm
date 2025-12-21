@@ -37,12 +37,13 @@ namespace Dialogs {
 
 // Icon editor menu stages
 enum IconMenuState {
-    ICON_STATE_MAIN_MENU   = 0,   // Parts color-1 color-2 Size Exit
-    ICON_STATE_MAJOR_PART  = 1,   // Head Weapon Exit
-    ICON_STATE_SUB_PART    = 2,   // Weapon Body Hair/Face Shield Arm Leg Exit
-    ICON_STATE_SIZE_SELECT = 3,   // Large Small Exit
-    ICON_STATE_ADJUSTMENT  = 4,   // Next Prev Keep Exit
-    ICON_STATE_CONFIRM     = 5    // Keep Exit
+    ICON_STATE_MAIN_MENU      = 0,   // Parts color-1 color-2 Size Exit
+    ICON_STATE_MAJOR_PART     = 1,   // Head Weapon Exit
+    ICON_STATE_SUB_PART       = 2,   // Weapon Body Hair/Face Shield Arm Leg Exit
+    ICON_STATE_SIZE_SELECT    = 3,   // Large Small Exit
+    ICON_PARTS_ADJUSTMENT     = 4,   // Next Prev Keep Exit (for head/weapon)
+    ICON_COLORS_ADJUSTMENT    = 5,   // Next Prev Keep Exit (for colors)
+    ICON_STATE_CONFIRM        = 6    // Keep Exit
 };
 
 class SetIcon : public Dialog {
@@ -133,6 +134,7 @@ private:
     void drawIconPair(int x, int y, uint8 slotId);
     void drawEditorText();
     void drawEditorIcons();
+    void redrawWorkingIcons();
 };
 
 } // namespace Dialogs
