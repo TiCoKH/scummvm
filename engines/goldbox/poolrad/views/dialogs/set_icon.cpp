@@ -104,17 +104,17 @@ uint8 SetIcon::packSubpartColor(SubPartIndex index) const {
 
     switch (index) {
     case SUBPART_BODY:
-        return static_cast<uint8>((_pc->iconData.iconColorBody1 << 4) | _pc->iconData.iconColorBody2);
+        return static_cast<uint8>((_pc->iconData.iconColorBody2 << 4) | (_pc->iconData.iconColorBody1 & 0x0F));
     case SUBPART_ARMS:
-        return static_cast<uint8>((_pc->iconData.iconColorArm1 << 4) | _pc->iconData.iconColorArm2);
+        return static_cast<uint8>((_pc->iconData.iconColorArm2 << 4) | (_pc->iconData.iconColorArm1 & 0x0F));
     case SUBPART_LEGS:
-        return static_cast<uint8>((_pc->iconData.iconColorLeg1 << 4) | _pc->iconData.iconColorLeg2);
+        return static_cast<uint8>((_pc->iconData.iconColorLeg2 << 4) | (_pc->iconData.iconColorLeg1 & 0x0F));
     case SUBPART_HEAD_FACE:
-        return static_cast<uint8>((_pc->iconData.iconColorHair << 4) | _pc->iconData.iconColorFace);
+        return static_cast<uint8>((_pc->iconData.iconColorFace << 4) | (_pc->iconData.iconColorHair & 0x0F));
     case SUBPART_SHIELD:
-        return static_cast<uint8>((_pc->iconData.iconColorShield1 << 4) | _pc->iconData.iconColorShield2);
+        return static_cast<uint8>((_pc->iconData.iconColorShield2 << 4) | (_pc->iconData.iconColorShield1 & 0x0F));
     case SUBPART_WEAPON:
-        return static_cast<uint8>((_pc->iconData.iconColorWeapon1 << 4) | _pc->iconData.iconColorWeapon2);
+        return static_cast<uint8>((_pc->iconData.iconColorWeapon2 << 4) | (_pc->iconData.iconColorWeapon1 & 0x0F));
     default:
         return 0;
     }
@@ -197,7 +197,19 @@ void SetIcon::setStage(IconMenuState stage) {
         }
         buildAndShowMenu("");
         break;
-    case ICON_STATE_ADJUSTMENT:
+    case ICON_PARTS_ADJUSTMENT:
+        _menuItems.items.clear();
+        {
+            Common::Array<String> labels;
+            labels.push_back("Next");
+            labels.push_back("Prev");
+            labels.push_back("Keep");
+            labels.push_back("Exit");
+            _menuItems.generateMenuItems(labels, true);
+        }
+        buildAndShowMenu("");
+        break;
+    case ICON_COLORS_ADJUSTMENT:
         _menuItems.items.clear();
         {
             Common::Array<String> labels;
@@ -448,6 +460,16 @@ void SetIcon::drawEditorIcons() {
         _menu->draw();
 }
 
+void SetIcon::redrawWorkingIcons() {
+    Surface s = getSurface();
+    // Clear only the "new" icon region.
+    // Icon coords (1,4) and (4,4) map to char coords:
+    // charX = iconX * 3 + 1, charY = iconY * 3 + 1. Each icon spans 3 chars.
+    // First icon: x 4..6, second icon: x 13..15, y 13..15.
+    s.clearBox(4, 13, 15, 15, kBackgroundColor);
+    drawIconPair(1, 4, SLOT_EDITOR_WORKING);
+}
+
 void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
     if (!success) {
         // Cancel pressed - revert changes
@@ -458,21 +480,15 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
         return;
     }
 
-    // Get the selected menu item's shortcut character
-    const MenuItem &selectedItem = _menuItems.items[_menuItems.currentSelection];
-    char pressedChar = selectedItem.shortcut;
-
     switch (_stage) {
     case ICON_STATE_MAIN_MENU: {
         // "Parts color-1 color-2 Size Exit"
-        switch (pressedChar) {
-        case 'P':
-        case 'p':
+        switch (key) {
+        case Common::KEYCODE_p:
             // Enter major part selection
             setStage(ICON_STATE_MAJOR_PART);
             break;
-        case 'C':
-        case 'c': {
+        case Common::KEYCODE_c: {
             // Disambiguate color-1 vs color-2 by current selection index
             int sel = _menuItems.currentSelection;
             if (sel == 1) {
@@ -484,23 +500,21 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
             }
             break;
         }
-        case '1':
+        case Common::KEYCODE_1:
             // Color-1 (Hair/Shield1/etc)
             _colorAdjustMode = 0;
             setStage(ICON_STATE_SUB_PART);
             break;
-        case '2':
+        case Common::KEYCODE_2:
             // Color-2 (Face/Shield2/etc)
             _colorAdjustMode = 1;
             setStage(ICON_STATE_SUB_PART);
             break;
-        case 'S':
-        case 's':
+        case Common::KEYCODE_s:
             // Size menu
             setStage(ICON_STATE_SIZE_SELECT);
             break;
-        case 'E':
-        case 'e':
+        case Common::KEYCODE_e:
             // Exit - commit and finish
             commitChanges();
             if (_parent)
@@ -524,19 +538,16 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
 
     case ICON_STATE_MAJOR_PART: {
         // "Head Weapon Exit"
-        switch (pressedChar) {
-        case 'H':
-        case 'h':
+        switch (key) {
+        case Common::KEYCODE_h:
             _selectedMajorPart = 0;
-            setStage(ICON_STATE_ADJUSTMENT);
+            setStage(ICON_PARTS_ADJUSTMENT);
             break;
-        case 'W':
-        case 'w':
+        case Common::KEYCODE_w:
             _selectedMajorPart = 1;
-            setStage(ICON_STATE_ADJUSTMENT);
+            setStage(ICON_PARTS_ADJUSTMENT);
             break;
-        case 'E':
-        case 'e':
+        case Common::KEYCODE_e:
             setStage(ICON_STATE_MAIN_MENU);
             break;
         }
@@ -545,113 +556,139 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
 
     case ICON_STATE_SUB_PART: {
         // Dynamic sub-part menu
-        switch (pressedChar) {
-        case 'B':
-        case 'b':
+        switch (key) {
+        case Common::KEYCODE_b:
             _selectedSubPart = SUBPART_BODY;
             break;
-        case 'A':
-        case 'a':
+        case Common::KEYCODE_a:
             _selectedSubPart = SUBPART_ARMS;
             break;
-        case 'L':
-        case 'l':
+        case Common::KEYCODE_l:
             _selectedSubPart = SUBPART_LEGS;
             break;
-        case 'H':
-        case 'h':
-        case 'F':
-        case 'f':
+        case Common::KEYCODE_h:
+        case Common::KEYCODE_f:
             _selectedSubPart = SUBPART_HEAD_FACE;
             break;
-        case 'S':
-        case 's':
+        case Common::KEYCODE_s:
             _selectedSubPart = SUBPART_SHIELD;
             break;
-        case 'W':
-        case 'w':
+        case Common::KEYCODE_w:
             _selectedSubPart = SUBPART_WEAPON;
             break;
-        case 'E':
-        case 'e':
+        case Common::KEYCODE_e:
             setStage(ICON_STATE_MAIN_MENU);
             return;
         }
 
-        // Enter adjustment stage for this sub-part
-        setStage(ICON_STATE_ADJUSTMENT);
+        // Enter color adjustment stage for this sub-part
+        setStage(ICON_COLORS_ADJUSTMENT);
         break;
     }
 
     case ICON_STATE_SIZE_SELECT: {
         // "Large Small Exit"
-        switch (pressedChar) {
-        case 'L':
-        case 'l':
+        switch (key) {
+        case Common::KEYCODE_l:
             _pc->iconData.iconSize = 2; // Large
             rebuildNewIcon();
             setStage(ICON_STATE_MAIN_MENU);
             break;
-        case 'S':
-        case 's':
+        case Common::KEYCODE_s:
             _pc->iconData.iconSize = 1; // Small
             rebuildNewIcon();
             setStage(ICON_STATE_MAIN_MENU);
             break;
-        case 'E':
-        case 'e':
+        case Common::KEYCODE_e:
             setStage(ICON_STATE_MAIN_MENU);
             break;
         }
         break;
     }
 
-    case ICON_STATE_ADJUSTMENT: {
-        // "Next Prev Keep Exit"
-        switch (pressedChar) {
-        case 'N':
-        case 'n': {
+    case ICON_PARTS_ADJUSTMENT: {
+        // "Next Prev Keep Exit" - for head/weapon parts
+        switch (key) {
+        case Common::KEYCODE_n:
+            // Cycle part forward
+            if (_selectedMajorPart == 0) {
+                cycleHead(true);
+            } else {
+                cycleBody(true);
+            }
+            rebuildNewIcon();
+            redrawWorkingIcons();
+            break;
+        case Common::KEYCODE_p:
+            // Cycle part backward
+            if (_selectedMajorPart == 0) {
+                cycleHead(false);
+            } else {
+                cycleBody(false);
+            }
+            rebuildNewIcon();
+            redrawWorkingIcons();
+            break;
+        case Common::KEYCODE_k:
+            // Keep selection and return to major part menu
+            setStage(ICON_STATE_MAJOR_PART);
+            break;
+        case Common::KEYCODE_e:
+            // Exit adjustment and return to main menu
+            setStage(ICON_STATE_MAIN_MENU);
+            break;
+        }
+        break;
+    }
+
+    case ICON_COLORS_ADJUSTMENT: {
+        // "Next Prev Keep Exit" - for color values
+        switch (key) {
+        case Common::KEYCODE_n: {
             // Adjust color nibbles forward
             uint8 colorByte = packSubpartColor(static_cast<SubPartIndex>(_selectedSubPart));
             uint8 nibbleVal;
             if (_colorAdjustMode == 0) {
-                nibbleVal = getHighNibble(colorByte);
-                nibbleVal = incrementNibble(nibbleVal);
-                colorByte = setHighNibble(colorByte, nibbleVal);
-            } else {
+                // color-1 -> low nibble
                 nibbleVal = getLowNibble(colorByte);
                 nibbleVal = incrementNibble(nibbleVal);
                 colorByte = setLowNibble(colorByte, nibbleVal);
+            } else {
+                // color-2 -> high nibble
+                nibbleVal = getHighNibble(colorByte);
+                nibbleVal = incrementNibble(nibbleVal);
+                colorByte = setHighNibble(colorByte, nibbleVal);
             }
             applySubpartColor(static_cast<SubPartIndex>(_selectedSubPart), colorByte);
             rebuildNewIcon();
+            redrawWorkingIcons();
             break;
         }
-        case 'P':
-        case 'p': {
+        case Common::KEYCODE_p: {
             // Adjust color nibbles backward
             uint8 colorByte = packSubpartColor(static_cast<SubPartIndex>(_selectedSubPart));
             uint8 nibbleVal;
             if (_colorAdjustMode == 0) {
-                nibbleVal = getHighNibble(colorByte);
-                nibbleVal = decrementNibble(nibbleVal);
-                colorByte = setHighNibble(colorByte, nibbleVal);
-            } else {
+                // color-1 -> low nibble
                 nibbleVal = getLowNibble(colorByte);
                 nibbleVal = decrementNibble(nibbleVal);
                 colorByte = setLowNibble(colorByte, nibbleVal);
+            } else {
+                // color-2 -> high nibble
+                nibbleVal = getHighNibble(colorByte);
+                nibbleVal = decrementNibble(nibbleVal);
+                colorByte = setHighNibble(colorByte, nibbleVal);
             }
             applySubpartColor(static_cast<SubPartIndex>(_selectedSubPart), colorByte);
             rebuildNewIcon();
+            redrawWorkingIcons();
             break;
         }
-        case 'K':
-        case 'k':
+        case Common::KEYCODE_k:
             // Keep selection and return to sub-part menu
             setStage(ICON_STATE_SUB_PART);
             break;
-        case 'E':
-        case 'e':
+        case Common::KEYCODE_e:
             // Exit adjustment and return to main menu
             setStage(ICON_STATE_MAIN_MENU);
             break;
@@ -661,15 +698,13 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
 
     case ICON_STATE_CONFIRM: {
         // " Keep Exit"
-        switch (pressedChar) {
-        case 'K':
-        case 'k':
+        switch (key) {
+        case Common::KEYCODE_k:
             commitChanges();
             if (_parent)
                 _parent->handleMenuResult(true, key, 0);
             break;
-        case 'E':
-        case 'e':
+        case Common::KEYCODE_e:
             revertChanges();
             if (_parent)
                 _parent->handleMenuResult(false, key, 0);
