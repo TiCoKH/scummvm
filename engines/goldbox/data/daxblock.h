@@ -26,8 +26,17 @@
 #include "common/scummsys.h"
 #include "common/span.h"
 
+
+
 namespace Goldbox {
 namespace Data {
+
+// Forward declaration for DaxBlockGeo and DaxBlockWalldef
+class DaxBlockGeo;
+class DaxBlockWalldef;
+
+using DungeonMap = DaxBlockGeo;
+using WallSet = DaxBlockWalldef;
 
     struct DaxHeader {
         uint8 id;
@@ -145,6 +154,7 @@ public:
     static const int SLICE_COUNT = 5;
     static const int SLICE_SIZE = 156;
     static const int CHUNK_SIZE = SLICE_COUNT * SLICE_SIZE; // 780
+    static const int VIEW_COUNT = static_cast<int>(WalldefRegionId::WALDEF_REGION_COUNT);
 
     class Slice {
     public:
@@ -155,6 +165,10 @@ public:
             assert(r.offset + r.size <= SLICE_SIZE);
             return Common::Span<const uint8>(_data.data() + r.offset, r.size);
         }
+
+        int cols(WalldefRegionId id) const;
+        int rows(WalldefRegionId id) const;
+        uint8 tileIndex(WalldefRegionId id, int row, int col) const;
 
         Common::Span<const uint8> raw() const { return _data; }
 
@@ -169,6 +183,14 @@ public:
         Slice slice(int idx) const {
             assert(idx >= 0 && idx < SLICE_COUNT);
             return Slice(_data.data() + idx * SLICE_SIZE);
+        }
+
+        uint8 tileIndex(int sliceIdx, WalldefRegionId id, int row, int col) const {
+            return slice(sliceIdx).tileIndex(id, row, col);
+        }
+
+        Common::Span<const uint8> region(int sliceIdx, WalldefRegionId id) const {
+            return slice(sliceIdx).region(id);
         }
 
         Common::Span<const uint8> raw() const { return _data; }
@@ -186,6 +208,59 @@ private:
     void adjust() override;
 
     Common::Array<Chunk> _chunks;
+};
+
+class DaxBlockEcl : public DaxBlock {
+public:
+    DaxBlockEcl();
+
+    Common::Span<const uint8> program() const { return _program; }
+
+private:
+    void adjust() override;
+
+    Common::Span<const uint8> _program;
+};
+
+class DaxBlockGeo : public DaxBlock {
+public:
+    enum Direction { NORTH = 0, EAST = 1, SOUTH = 2, WEST = 3 };
+
+    struct Walls {
+        uint8 north;
+        uint8 east;
+        uint8 south;
+        uint8 west;
+    };
+
+    static const int GRID_SIZE = 16;
+    static const int CELL_COUNT = GRID_SIZE * GRID_SIZE;
+
+    DaxBlockGeo();
+
+    uint16 dataLength() const { return _dataLength; }
+    Common::Span<const uint8> raw() const { return _raw; }
+
+    Walls wallsAt(int row, int col) const;
+    uint8 eventAt(int row, int col) const;
+    uint8 doorAt(int row, int col) const;
+
+    bool canMove(int row, int col, Direction dir) const;
+    bool isDoor(int row, int col, Direction dir) const;
+    uint8 getWallType(int row, int col, Direction dir) const;
+    uint8 getDoorState(int row, int col, Direction dir) const;
+
+private:
+    void adjust() override;
+
+    int cellIndex(int row, int col) const;
+
+    uint16 _dataLength;
+    Common::Span<const uint8> _raw;
+    Common::Span<const uint8> _northEastWalls;
+    Common::Span<const uint8> _southWestWalls;
+    Common::Span<const uint8> _events;
+    Common::Span<const uint8> _doors;
 };
 
 } // namespace Data

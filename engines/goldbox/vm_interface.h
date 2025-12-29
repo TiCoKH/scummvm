@@ -23,6 +23,8 @@
 #define GOLDBOX_VM_INTERFACE_H
 
 #include "goldbox/engine.h"
+#include "common/array.h"
+#include "common/scummsys.h"
 
 namespace Goldbox {
 
@@ -89,6 +91,67 @@ public:
 
     // Icon Manager accessor
     static IconManager *getIconManager();
+};
+
+// Minimal VM scaffolding for ECL execution
+enum VmResult {
+    VM_OK = 0,
+    VM_YIELD,
+    VM_HALTED,
+    VM_ERROR
+};
+
+enum class EntryPointSelector {
+    OnMove = 0,
+    OnSearch = 1,
+    OnRest = 2,
+    OnRestInterrupted = 3,
+    OnInit = 4
+};
+
+struct VMInstruction {
+    uint8 opcode;
+    uint16 imm16;
+};
+
+struct VMState {
+    uint16 pc;
+    Common::Array<uint16> stack;
+};
+
+class VM {
+public:
+    VM();
+
+    void reset();
+    VmResult step();
+    VmResult run(uint32 maxSteps);
+    VmResult runAtEntryPoint(EntryPointSelector entry, uint32 maxSteps);
+
+    /**
+     * Parse ECL script header to extract entry-point offsets.
+     * ECL header format (5 operands, each VAL16 offset):
+     *   Offset 0: OnMove
+     *   Offset 2: OnSearch
+     *   Offset 4: OnRest
+     *   Offset 6: OnRestInterrupted
+     *   Offset 8: OnInit
+     * @param program Raw ECL program bytes
+     * @return VmResult
+     */
+    VmResult loadEntryPoints(Common::Span<const uint8> program);
+
+    /**
+     * Get entry-point offset by selector.
+     * @param entry Entry point selector
+     * @return Offset into program, or 0xFFFF if not found
+     */
+    uint16 getEntryPoint(EntryPointSelector entry) const;
+
+    VMState _state;
+
+private:
+    Common::Array<uint16> _entryPoints; // [OnMove, OnSearch, OnRest, OnRestInterrupted, OnInit]
 };
 
 } // namespace Goldbox

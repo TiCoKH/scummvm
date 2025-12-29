@@ -31,4 +31,60 @@ IconManager *VmInterface::getIconManager() {
 	return engine ? engine->getIconManager() : nullptr;
 }
 
+VM::VM() {
+    reset();
+    _entryPoints.resize(5, 0xFFFF); // Initialize all entry points to invalid
+}
+
+void VM::reset() {
+    _state.pc = 0;
+    _state.stack.clear();
+}
+
+VmResult VM::step() {
+    // Placeholder: real dispatch to be implemented with ECL opcodes
+    return VM_YIELD;
+}
+
+VmResult VM::run(uint32 maxSteps) {
+    for (uint32 i = 0; i < maxSteps; ++i) {
+        VmResult r = step();
+        if (r != VM_OK && r != VM_YIELD) {
+            return r;
+        }
+    }
+    return VM_OK;
+}
+
+VmResult VM::runAtEntryPoint(EntryPointSelector entry, uint32 maxSteps) {
+    uint16 offset = getEntryPoint(entry);
+    if (offset == 0xFFFF) {
+        return VM_ERROR;
+    }
+    _state.pc = offset;
+    return run(maxSteps);
+}
+
+VmResult VM::loadEntryPoints(Common::Span<const uint8> program) {
+    if (program.size() < 10) {
+        // Need at least 5 x VAL16 (2 bytes each) = 10 bytes
+        return VM_ERROR;
+    }
+
+    for (int i = 0; i < 5; ++i) {
+        uint16 offset = program[i * 2] | (program[i * 2 + 1] << 8);
+        _entryPoints[i] = offset;
+    }
+
+    return VM_OK;
+}
+
+uint16 VM::getEntryPoint(EntryPointSelector entry) const {
+    int idx = static_cast<int>(entry);
+    if (idx >= 0 && idx < (int)_entryPoints.size()) {
+        return _entryPoints[idx];
+    }
+    return 0xFFFF;
+}
+
 } // namespace Goldbox
