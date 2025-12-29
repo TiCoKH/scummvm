@@ -8,9 +8,14 @@ MODULE_OBJS = \
 	messages.o \
 	metaengine.o \
 	vm_interface.o \
+	ecl/ecl_decoder.o \
+	ecl/ecl_memory.o \
+	ecl/ecl_syscall_impl.o \
+	ecl/ecl_vm.o \
+	ecl/opcode_handlers.o \
+	ecl/opcode_table.o \
 	core/array.o \
 	core/file.o \
-	core/global.o \
 	core/menu_item.o \
 	core/icon_manager.o \
 	data/player_character.o \
@@ -22,7 +27,6 @@ MODULE_OBJS = \
 	data/pascal_string_buffer.o \
 	data/strings.o \
 	data/strings_data.o \
-	data/effects/effect.o \
 	data/effects/character_effects.o \
 	data/items/base_items.o \
 	data/items/character_item.o \
@@ -44,6 +48,7 @@ MODULE_OBJS = \
 	poolrad/views/credits_view.o \
 	poolrad/views/codewheel_view.o \
 	poolrad/views/mainmenu_view.o \
+	poolrad/views/mainscreen_view.o \
 	poolrad/views/create_character_view.o \
 	poolrad/views/add_character_view.o \
 	poolrad/views/view_character_view.o \

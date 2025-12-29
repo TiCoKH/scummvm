@@ -222,7 +222,6 @@ void MainmenuView::loadCharList() {
     charListFile.close();
 }
 
-
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox

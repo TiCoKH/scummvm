@@ -24,6 +24,7 @@
 
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/views/views.h"
+#include "goldbox/poolrad/views/mainscreen_view.h"
 #include "goldbox/core/icon_manager.h"
 //#include "goldbox/poolrad/data/character.h"
 //#include "goldbox/poolrad/files/game_archive.h"
@@ -46,6 +47,7 @@ private:
 protected:
 	void setup() override;
 	GUI::Debugger *getConsole() override;
+	void onGameStateEnter(GameState prev, GameState next) override;
 
 public:
 

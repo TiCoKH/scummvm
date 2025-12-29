@@ -63,6 +63,12 @@ Common::String Engine::getString(const Common::String &key) const {
     return _strings.getVal(key);
 }
 
+void Engine::setGameState(GameState state) {
+	GameState prev = _gameState;
+	_gameState = state;
+	onGameStateEnter(prev, state);
+}
+
 Common::Error Engine::run() {
 
 	switch (getPlatform()) {

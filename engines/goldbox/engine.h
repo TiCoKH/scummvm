@@ -30,6 +30,7 @@
 #include "engines/engine.h"
 #include "engines/savestate.h"
 
+#include "goldbox/core/global.h"
 #include "goldbox/detection.h"
 #include "goldbox/events.h"
 #include "goldbox/data/player_character.h"
@@ -45,6 +46,7 @@ class Engine : public ::Engine, public Events {
 private:
 	const GoldboxGameDescription *_gameDescription;
 	Common::RandomSource _randomSource;
+	GameState _gameState = GS_START_MENU;
 protected:
 	Data::DaxFileManager _daxManager;
 	// Engine APIs
@@ -66,6 +68,22 @@ public:
 	Data::PlayerCharacter * _selectedCharacter = nullptr;
 	Data::PlayerCharacter * _nextCharacter = nullptr;
 	static Goldbox::Data::Items::Storage gItemProps;
+
+	/**
+	 * Gets the current game state.
+	 */
+	GameState getGameState() const { return _gameState; }
+
+	/**
+	 * Sets the current game state and triggers state-enter hook.
+	 */
+	void setGameState(GameState state);
+
+	/**
+	 * Hook called on every game state transition.
+	 * Default implementation does nothing; engines override to route screens.
+	 */
+	virtual void onGameStateEnter(GameState prev, GameState next) {}
 
 	/**
 	 * Returns the currently selected character.

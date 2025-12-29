@@ -181,6 +181,101 @@ void PoolradEngine::setup() {
 	addView("Title");
 }
 
+void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
+	// Mirror Amiga SCREEN_DrawMainWindows(param) usage from original code:
+	// param = 1 for: SHOP, CAMPING, DUNGEON_MAP, AFTER_COMBAT
+	// param = 0 for: WILDERNESS_MAP
+	// START_MENU draws its own window and does not use main windows layout.
+
+	Views::View *view = nullptr;
+	Views::MainScreenView *mainView = nullptr;
+
+	switch (next) {
+	case GS_START_MENU:
+		addView("Title");
+		view = dynamic_cast<Views::View *>(findView("Title"));
+		if (view) {
+			view->onEnter(next);
+		}
+		break;
+	case GS_SHOP:
+		addView("ViewCharacter");
+		view = dynamic_cast<Views::View *>(findView("ViewCharacter"));
+		mainView = dynamic_cast<Views::MainScreenView *>(view);
+		if (mainView) {
+			mainView->setShowMiniWindow(true);
+		}
+		if (view) {
+			view->onEnter(next);
+		}
+		break;
+	case GS_CAMPING:
+		addView("Mainmenu");
+		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
+		mainView = dynamic_cast<Views::MainScreenView *>(view);
+		if (mainView) {
+			mainView->setShowMiniWindow(true);
+		}
+		if (view) {
+			view->onEnter(next);
+		}
+		break;
+	case GS_DUNGEON_MAP:
+		addView("Mainmenu");
+		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
+		mainView = dynamic_cast<Views::MainScreenView *>(view);
+		if (mainView) {
+			mainView->setShowMiniWindow(true);
+		}
+		if (view) {
+			view->onEnter(next);
+		}
+		break;
+	case GS_WILDERNESS_MAP:
+		addView("Mainmenu");
+		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
+		mainView = dynamic_cast<Views::MainScreenView *>(view);
+		if (mainView) {
+			mainView->setShowMiniWindow(false);
+		}
+		if (view) {
+			view->onEnter(next);
+		}
+		break;
+	case GS_AFTER_COMBAT:
+		addView("Mainmenu");
+		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
+		mainView = dynamic_cast<Views::MainScreenView *>(view);
+		if (mainView) {
+			mainView->setShowMiniWindow(true);
+		}
+		if (view) {
+			view->onEnter(next);
+		}
+		break;
+	case GS_COMBAT:
+		// Not covered by original snippet; keep layout as-is and select main menu for now.
+		addView("Mainmenu");
+		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
+		mainView = dynamic_cast<Views::MainScreenView *>(view);
+		if (mainView) {
+			mainView->setShowMiniWindow(true);
+		}
+		if (view) {
+			view->onEnter(next);
+		}
+		break;
+	case GS_END_GAME:
+		// Placeholder: go back to title; layout irrelevant.
+		addView("Title");
+		view = dynamic_cast<Views::View *>(findView("Title"));
+		if (view) {
+			view->onEnter(next);
+		}
+		break;
+	}
+}
+
 GUI::Debugger *PoolradEngine::getConsole() {
 	return new Console();
 }

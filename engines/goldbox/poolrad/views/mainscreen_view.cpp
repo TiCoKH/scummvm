@@ -19,34 +19,33 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_VIEWS_H
-#define GOLDBOX_POOLRAD_VIEWS_VIEWS_H
-
 #include "goldbox/poolrad/views/mainscreen_view.h"
-#include "goldbox/poolrad/views/title_view.h"
-#include "goldbox/poolrad/views/credits_view.h"
-#include "goldbox/poolrad/views/codewheel_view.h"
-#include "goldbox/poolrad/views/mainmenu_view.h"
-#include "goldbox/poolrad/views/create_character_view.h"
-#include "goldbox/poolrad/views/add_character_view.h"
-#include "goldbox/poolrad/views/view_character_view.h"
 
 namespace Goldbox {
-namespace Poolrad{
+namespace Poolrad {
 namespace Views {
-	
-struct Views {
-	TitleView _title;
-	CreditsView _credits;
-	CodewheelView _codewheel;
-	MainmenuView _mainmenu;
-	CreateCharacterView _createcharacter;
-	AddCharacterView _addcharacter;
-	ViewCharacterView _viewcharacter;
-};
+
+void MainScreenView::drawBaseWindows() {
+	// Draw the three fixed windows that appear in all main screen states
+	// Coordinates match Amiga SCREEN_DrawMainWindows implementation:
+	// SCREEN_DrawWindow(1,1,38,22,0,15,&DAT_00240c2c);
+	drawWindow(1, 1, 38, 22);
+
+	// SCREEN_DrawWindow(1,17,38,22,0,15,&DAT_00240c2e);
+	drawWindow(1, 17, 38, 22);
+
+	// SCREEN_DrawWindow(1,1,15,15,0,15,&DAT_00240c30);
+	drawWindow(1, 1, 15, 15);
+
+	// Conditionally draw the small window when param_1 != 0
+	// if (param_1 != 0) {
+	//     SCREEN_DrawWindow(3,3,13,13,0,15,&DAT_00240c32);
+	// }
+	if (_showMiniWindow) {
+		drawWindow(3, 3, 13, 13);
+	}
+}
 
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
-
-#endif

@@ -25,6 +25,9 @@
 #include "goldbox/events.h"
 
 namespace Goldbox {
+
+enum GameState : int;
+
 namespace Poolrad {
 namespace Views {
 
@@ -72,6 +75,18 @@ public:
 	bool msgMouseMove(const MouseMoveMessage &msg) override;
 	bool msgMouseDown(const MouseDownMessage &msg) override;
 	bool msgMouseUp(const MouseUpMessage &msg) override;
+
+	/**
+	 * Hook called when entering this view with a new game state.
+	 * Derived classes override to perform one-time setup (load resources, etc.).
+	 */
+	virtual void onEnter(Goldbox::GameState state) {}
+
+	/**
+	 * Hook called every frame to perform lightweight updates.
+	 * Derived classes override for idempotent operations (map color refresh, etc.).
+	 */
+	virtual void onUpdate() {}
 };
 
 } // namespace Views
