@@ -31,6 +31,7 @@
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/data/spells/spell.h"
+#include "goldbox/data/spells/spell_book.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -60,8 +61,10 @@ public:
     uint8 monsterType = 0;
     uint8 combatIcon = 0; // probably used in monsters
 
-    // No SpellBook abstraction; we use legacy arrays directly for compatibility
-    // Legacy fields for binary compatibility
+    // Modern spell book storage (runtime use)
+    Goldbox::Data::Spells::SpellBook spellBook;
+
+    // Legacy fields for binary save/load compatibility
     struct {
         uint8 memorizedSpells[21];
         uint8 knownSpells[55];

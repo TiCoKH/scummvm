@@ -33,7 +33,15 @@ private:
 
     void buildMenu();
     void drawMenu();
-    void handleMenuResult(bool accepted, int keyCode, int index);
+    void handleMenuResult(bool accepted, Common::KeyCode keyCode, int index);
+
+    // Action handlers
+    void handleViewItems();
+    void handleViewSpells();
+    void handleTradeValuables();
+    void handleDropValuables();
+    void handleRenameCharacter();
+    void handleExit();
 };
 
 } // namespace Views

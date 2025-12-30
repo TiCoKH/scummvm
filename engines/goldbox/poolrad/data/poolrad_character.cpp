@@ -25,6 +25,7 @@
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/data/spells/spell.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/data/poolrad_spell_mapping.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -133,6 +134,13 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	// 0x033–0x06A: cleric/mage spell knowledge — 55 bytes
 	stream.read(spells.knownSpells, 55);
 
+	// Convert legacy spell arrays to modern SpellBook
+	spellBook.loadFromLegacyArrays(
+		spells.memorizedSpells, POOLRAD_MEMORIZED_SIZE,
+		spells.knownSpells, POOLRAD_KNOWN_SIZE,
+		kPoolradSpellMapping, POOLRAD_KNOWN_SIZE
+	);
+
 	attackLevel = stream.readByte();   // 0x06B
 	iconDimension = stream.readByte(); // 0x06C
 
@@ -159,7 +167,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
 	// 0x07F–0x082: effects address (pointer)
 	stream.seek(0x84, SEEK_SET);
-	npc = stream.readSByte();      // 0x084
+	npc = stream.readSByte();     // 0x084
 	modified = stream.readByte(); // 0x085
 	// 0x086–0x087: unknown
 	stream.seek(0x88, SEEK_SET);
@@ -274,10 +282,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 }
 
 bool PoolradCharacter::haveMemorizedSpell() const {
-	for (int i = 0; i < 21; ++i)
-		if (spells.memorizedSpells[i] > 0)
-			return true;
-	return false;
+	return spellBook.hasAnyMemorized();
 }
 
 void PoolradCharacter::resolveEquippedItems() {
@@ -553,7 +558,14 @@ int8 PoolradCharacter::getConHPModifier() const {
 
 void PoolradCharacter::save(Common::WriteStream &stream) {
 
-	// Write spells from legacy arrays directly
+	// Convert modern SpellBook back to legacy arrays for saving
+	spellBook.saveToLegacyArrays(
+		spells.memorizedSpells, POOLRAD_MEMORIZED_SIZE,
+		spells.knownSpells, POOLRAD_KNOWN_SIZE,
+		kPoolradSpellMapping, POOLRAD_KNOWN_SIZE
+	);
+
+	// Write spells from legacy arrays
 	Goldbox::Data::PascalStringBuffer<15>::write(stream, name);
 	// Ability scores
 	stream.writeByte(abilities.strength.current);
@@ -719,27 +731,13 @@ void PoolradCharacter::save(Common::WriteStream &stream) {
 }
 
 bool PoolradCharacter::isSpellKnown(Goldbox::Data::Spells::Spells spell) const {
-	uint8 id = static_cast<uint8>(spell);
-	if (id == 0)
-		return false;
-	// Legacy known array covers ids 1..55
-	if (id >= 1 && id <= 55)
-		return spells.knownSpells[id - 1] != 0;
-	// Extended ids not supported in legacy Poolrad format
-	return false;
+	return spellBook.isKnown(spell);
 }
 
 void PoolradCharacter::setSpellKnown(Goldbox::Data::Spells::Spells spell) {
-	uint8 id = static_cast<uint8>(spell);
-	if (id == 0)
-		return;
-
-	// Update legacy buffer when within saved range 1..55
-	if (id >= 1 && id <= 55)
-		spells.knownSpells[id - 1] = 1;
-
-	// No SpellBook; legacy buffer already updated
+	spellBook.setKnown(spell, true);
 }
+	// No SpellBook; legacy buffer already updated
 
 byte PoolradCharacter::getNameColor() {
 	if (name.size() == 0) return 0;
