@@ -874,15 +874,6 @@ void CreateCharacterView::setThiefSkillsForNewCharacter() {
     // Compute final thief skills via rules
     _newCharacter->thiefSkills =
         Goldbox::Data::Rules::computeThiefSkills(race, dexterity, thiefLevel);
-	// debug("Thief skills set:\n pick locks: %d\n find-remove traps: %d\n stealth %d\n hide in shadow: %d\n hear noise: %d\n climb walls: %d\n read languages: %d\n",
-	// 	_newCharacter->thiefSkills.openLocks,
-	// 	_newCharacter->thiefSkills.findRemoveTraps,
-	// 	_newCharacter->thiefSkills.moveSilently,
-	// 	_newCharacter->thiefSkills.hideInShadows,
-	// 	_newCharacter->thiefSkills.hearNoise,
-	// 	_newCharacter->thiefSkills.climbWalls,
-	// 	_newCharacter->thiefSkills.readLanguages
-	// );
 }
 
 void CreateCharacterView::setThac0() {
@@ -932,15 +923,6 @@ void CreateCharacterView::applyStatMinMax() {
     const uint8 strMax = isFemale ? mm.strengthMaxFemale : mm.strengthMaxMale;
     const uint8 extStrMax = isFemale ? mm.extStrengthMaxFemale : mm.extStrengthMaxMale;
 
-	// debug("applyStatMinMax: start race=%u gender=%u class=%u", (unsigned)_newCharacter->race, (unsigned)_newCharacter->gender, (unsigned)_newCharacter->classType);
-	// debug("applyStatMinMax: race bounds STR[%u..%u] STREx<=%u INT[%u..%u] WIS[%u..%u] DEX[%u..%u] CON[%u..%u] CHA[%u..%u]",
-	// 	  (unsigned)strMin, (unsigned)strMax, (unsigned)extStrMax,
-	// 	  (unsigned)mm.intelligenceMin, (unsigned)mm.intelligenceMax,
-	// 	  (unsigned)mm.wisdomMin, (unsigned)mm.wisdomMax,
-	// 	  (unsigned)mm.dexterityMin, (unsigned)mm.dexterityMax,
-	// 	  (unsigned)mm.constitutionMin, (unsigned)mm.constitutionMax,
-	// 	  (unsigned)mm.charismaMin, (unsigned)mm.charismaMax);
-
     // Helper to clamp a Stat between min and max inclusive (current value only)
     auto clampStatCur = [](Stat &s, uint8 minV, uint8 maxV) {
         if (s.current < minV) s.current = minV;
@@ -948,14 +930,6 @@ void CreateCharacterView::applyStatMinMax() {
     };
 
 	// Apply Strength min/max
-	// debug("applyStatMinMax: before STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
-	// 	  (unsigned)_newCharacter->abilities.strength.current,
-	// 	  (unsigned)_newCharacter->abilities.strException.current,
-	// 	  (unsigned)_newCharacter->abilities.intelligence.current,
-	// 	  (unsigned)_newCharacter->abilities.wisdom.current,
-	// 	  (unsigned)_newCharacter->abilities.dexterity.current,
-	// 	  (unsigned)_newCharacter->abilities.constitution.current,
-	// 	  (unsigned)_newCharacter->abilities.charisma.current);
     clampStatCur(_newCharacter->abilities.strength, strMin, strMax);
     // Intelligence
     clampStatCur(_newCharacter->abilities.intelligence, mm.intelligenceMin, mm.intelligenceMax);
@@ -972,9 +946,6 @@ void CreateCharacterView::applyStatMinMax() {
 	const ClassMinStats &cms = Goldbox::Data::Rules::getClassMinStats(_newCharacter->classType);
 	if (_newCharacter->abilities.strength.current < cms.strength)
 		_newCharacter->abilities.strength.current = cms.strength;
-	// debug("applyStatMinMax: class minima STR>=%u INT>=%u WIS>=%u DEX>=%u CON>=%u CHA>=%u",
-	//       (unsigned)cms.strength, (unsigned)cms.intelligence, (unsigned)cms.wisdom,
-	//       (unsigned)cms.dexterity, (unsigned)cms.constitution, (unsigned)cms.charisma);
 
 	// Exceptional Strength rule: applicable if fighter level > 0 (any combination)
 	bool hasFighterLevel = false;
@@ -985,24 +956,13 @@ void CreateCharacterView::applyStatMinMax() {
 		// Roll 1d100 for exceptional strength
 		uint8 roll = (uint8)VmInterface::rollDice(1, 100);
 		_newCharacter->abilities.strException.current = roll;
-		// debug("applyStatMinMax: rolled STREx=%u (fighter level detected)", (unsigned)roll);
 	} else {
 		// Other classes do not have exceptional strength (or STR != 18)
 		_newCharacter->abilities.strException.current = 0;
-		// debug("applyStatMinMax: STREx set to 0 (no fighter level or STR!=18)");
 	}
 	// Clamp Exceptional Strength to gender/race maximum
 	if (_newCharacter->abilities.strException.current > extStrMax)
 		_newCharacter->abilities.strException.current = extStrMax;
-	// debug("applyStatMinMax: after clamps STR=%u, STREx=%u, INT=%u, WIS=%u, DEX=%u, CON=%u, CHA=%u",
-	//       (unsigned)_newCharacter->abilities.strength.current,
-	//       (unsigned)_newCharacter->abilities.strException.current,
-	//       (unsigned)_newCharacter->abilities.intelligence.current,
-	//       (unsigned)_newCharacter->abilities.wisdom.current,
-	//       (unsigned)_newCharacter->abilities.dexterity.current,
-	//       (unsigned)_newCharacter->abilities.constitution.current,
-	//       (unsigned)_newCharacter->abilities.charisma.current);
-
 	if (_newCharacter->abilities.intelligence.current < cms.intelligence)
 		_newCharacter->abilities.intelligence.current = cms.intelligence;
 	if (_newCharacter->abilities.wisdom.current < cms.wisdom)

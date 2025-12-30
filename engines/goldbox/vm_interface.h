@@ -64,6 +64,11 @@ public:
         g_engine->setSelectedCharacter(character);
     }
 
+    // Add getGameStatus accessor
+    static GameState getGameStatus() {
+        return g_engine->getGameState();
+    }
+
     // DAX Container accessors
     static Data::DaxBlockContainer &getDax8x8d() { return g_engine->getDax8x8d(); }
     static Data::DaxBlockContainer &getDaxBacpac() { return g_engine->getDaxBacpac(); }
