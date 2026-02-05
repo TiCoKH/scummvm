@@ -345,7 +345,7 @@ void PoolradCharacter::recalcCombatStats() {
 				placed = true;
 			} else if (!equippedItems.slots[(int)Slot::S_RING2]) {
 				equippedItems.slots[(int)Slot::S_RING2] = ptr;
-				placed = true; 
+				placed = true;
 			} else {
 				// More than two rings with slot id 9 equipped — unexpected
 				debug("PoolradCharacter::recalcCombatStats extra ring (slot id 9) cannot be placed: idx=%u type=%u", (unsigned)i, (unsigned)ci.typeIndex);
@@ -973,9 +973,15 @@ void PoolradCharacter::applyAgeingEffects() {
 void PoolradCharacter::computeSpellSlots() {
 	using Goldbox::Data::Spells::SpellEntry;
 	using Goldbox::Data::Spells::SC_CLERIC;
+	using Goldbox::Data::Spells::SC_MAGICUSER;
 	using Goldbox::Data::Spells::Spells;
 
 	const uint8 wis = abilities.wisdom.current;
+
+	debug("PoolradCharacter::computeSpellSlots - Cleric lvl=%u MagicUser lvl=%u Wisdom=%u",
+	      (unsigned)levels[Goldbox::Data::C_CLERIC],
+	      (unsigned)levels[Goldbox::Data::C_MAGICUSER],
+	      (unsigned)wis);
 
 	// Cleric slots and known
 	if (levels[Goldbox::Data::C_CLERIC] > 0) {
@@ -983,6 +989,7 @@ void PoolradCharacter::computeSpellSlots() {
 		spellSlots.cleric.level2 = 0;
 		spellSlots.cleric.level3 = 0;
 
+		// Wisdom bonuses for cleric spells
 		if (spellSlots.cleric.level1 > 0) {
 			if (wis >= 13) spellSlots.cleric.level1 += 1;
 			if (wis >= 14) spellSlots.cleric.level1 += 1;
@@ -995,12 +1002,24 @@ void PoolradCharacter::computeSpellSlots() {
 			if (wis >= 17) spellSlots.cleric.level3 += 1;
 		}
 
+		debug("  Cleric spell slots: L1=%u L2=%u L3=%u",
+		      (unsigned)spellSlots.cleric.level1,
+		      (unsigned)spellSlots.cleric.level2,
+		      (unsigned)spellSlots.cleric.level3);
+
+		// Clerics know all cleric spells of levels they can cast
 		const Common::Array<SpellEntry> &se = Goldbox::Data::Rules::getSpellEntries();
+		int clericSpellsAdded = 0;
 		for (uint i = 0; i < se.size(); ++i) {
 			const SpellEntry &e = se[i];
-			if (e.spellClass == SC_CLERIC && e.spellLevel >= 1 && e.spellLevel <= 3)
+			if (e.spellClass == SC_CLERIC && e.spellLevel >= 1 && e.spellLevel <= 3) {
 				setSpellKnown(static_cast<Spells>(i));
+				clericSpellsAdded++;
+			}
 		}
+		debug("  Added %d cleric spells to known (all available L1-3)", clericSpellsAdded);
+		debug("  SpellBook now has %u total known cleric spells",
+		      spellBook.countKnownByClass(SC_CLERIC));
 	}
 
 	// Magic-User slots and a few initial known spells
@@ -1009,11 +1028,23 @@ void PoolradCharacter::computeSpellSlots() {
 		spellSlots.magicUser.level2 = 0;
 		spellSlots.magicUser.level3 = 0;
 
+		debug("  Magic-User spell slots: L1=%u L2=%u L3=%u",
+		      (unsigned)spellSlots.magicUser.level1,
+		      (unsigned)spellSlots.magicUser.level2,
+		      (unsigned)spellSlots.magicUser.level3);
+
+		// Magic-Users start with a limited set of known spells
 		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_DETECT_MAGIC);
 		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_READ_MAGIC);
 		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_SHIELD);
 		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_SLEEP);
+		debug("  Added 4 starting magic-user spells to known");
+		debug("  SpellBook now has %u total known magic-user spells",
+		      spellBook.countKnownByClass(SC_MAGICUSER));
 	}
+
+	debug("PoolradCharacter::computeSpellSlots - Complete. Total spells in book: %u",
+	      spellBook.getSpells().size());
 }
 
 

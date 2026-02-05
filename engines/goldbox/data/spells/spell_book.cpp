@@ -19,6 +19,8 @@
  */
 
 #include "goldbox/data/spells/spell_book.h"
+#include "goldbox/data/rules/rules.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Data {
@@ -80,32 +82,47 @@ void SpellBook::loadFromLegacyArrays(const uint8 *memorizedArray, int memorizedS
                                      const Spells *spellMapping, int mappingSize) {
 	_spells.clear();
 
+	debug("SpellBook::loadFromLegacyArrays - memorizedSize=%d knownSize=%d mappingSize=%d",
+	      memorizedSize, knownSize, mappingSize);
+
 	// Load known spells from legacy array
 	// Format: array index maps to spell ID via spellMapping
 	// Value of 1 means known, 0 means unknown
+	int knownCount = 0;
 	for (int i = 0; i < knownSize && i < mappingSize; i++) {
 		if (knownArray[i] != 0) {
 			Spells spell = spellMapping[i];
 			setKnown(spell, true);
+			debug("  Known spell at index %d: spell ID=%u value=%u", i, (unsigned)spell, (unsigned)knownArray[i]);
+			knownCount++;
 		}
 	}
 
 	// Load memorized spells from legacy array
 	// Format: array index maps to spell ID via spellMapping
 	// Value indicates count of memorized instances
+	int memorizedCount = 0;
 	for (int i = 0; i < memorizedSize && i < mappingSize; i++) {
 		if (memorizedArray[i] != 0) {
 			Spells spell = spellMapping[i];
 			setMemorized(spell, memorizedArray[i]);
 			// Ensure spell is also marked as known
 			setKnown(spell, true);
+			debug("  Memorized spell at index %d: spell ID=%u count=%u", i, (unsigned)spell, (unsigned)memorizedArray[i]);
+			memorizedCount++;
 		}
 	}
+
+	debug("SpellBook::loadFromLegacyArrays - Loaded %d known spells, %d memorized spells, total unique spells=%u",
+	      knownCount, memorizedCount, _spells.size());
 }
 
 void SpellBook::saveToLegacyArrays(uint8 *memorizedArray, int memorizedSize,
                                    uint8 *knownArray, int knownSize,
                                    const Spells *spellMapping, int mappingSize) const {
+	debug("SpellBook::saveToLegacyArrays - memorizedSize=%d knownSize=%d mappingSize=%d totalSpells=%u",
+	      memorizedSize, knownSize, mappingSize, _spells.size());
+
 	// Clear output arrays
 	for (int i = 0; i < memorizedSize; i++) {
 		memorizedArray[i] = 0;
@@ -115,23 +132,86 @@ void SpellBook::saveToLegacyArrays(uint8 *memorizedArray, int memorizedSize,
 	}
 
 	// Write spell data to legacy arrays using reverse mapping
+	int knownWritten = 0;
+	int memorizedWritten = 0;
 	for (int i = 0; i < mappingSize; i++) {
 		Spells spell = spellMapping[i];
-		
+
 		if (_spells.contains(spell)) {
 			const SpellEntry &entry = _spells[spell];
-			
+
 			// Write known flag
 			if (i < knownSize) {
 				knownArray[i] = entry.known ? 1 : 0;
+				if (entry.known) {
+					debug("  Writing known spell at index %d: spell ID=%u", i, (unsigned)spell);
+					knownWritten++;
+				}
 			}
-			
+
 			// Write memorized count
 			if (i < memorizedSize) {
 				memorizedArray[i] = entry.memorized;
+				if (entry.memorized > 0) {
+					debug("  Writing memorized spell at index %d: spell ID=%u count=%u", i, (unsigned)spell, (unsigned)entry.memorized);
+					memorizedWritten++;
+				}
 			}
 		}
 	}
+
+	debug("SpellBook::saveToLegacyArrays - Wrote %d known spells, %d memorized spells",
+	      knownWritten, memorizedWritten);
+}
+
+uint SpellBook::countKnownByClass(SpellClass spellClass) const {
+	uint count = 0;
+	const Common::Array<Goldbox::Data::Spells::SpellEntry> &allSpells = Goldbox::Data::Rules::getSpellEntries();
+
+	for (Common::HashMap<Spells, SpellBook::SpellEntry>::const_iterator it = _spells.begin();
+	     it != _spells.end(); ++it) {
+		if (it->_value.known) {
+			// Look up the spell's class from the master spell table
+			uint spellId = (uint)it->_key;
+			if (spellId < allSpells.size() && allSpells[spellId].spellClass == spellClass) {
+				count++;
+			}
+		}
+	}
+	return count;
+}
+
+uint SpellBook::countMemorizedByClass(SpellClass spellClass) const {
+	uint count = 0;
+	const Common::Array<Goldbox::Data::Spells::SpellEntry> &allSpells = Goldbox::Data::Rules::getSpellEntries();
+
+	for (Common::HashMap<Spells, SpellBook::SpellEntry>::const_iterator it = _spells.begin();
+	     it != _spells.end(); ++it) {
+		if (it->_value.memorized > 0) {
+			// Look up the spell's class from the master spell table
+			uint spellId = (uint)it->_key;
+			if (spellId < allSpells.size() && allSpells[spellId].spellClass == spellClass) {
+				count += it->_value.memorized;
+			}
+		}
+	}
+	return count;
+}
+
+bool SpellBook::hasMemorizedOfClass(SpellClass spellClass) const {
+	const Common::Array<Goldbox::Data::Spells::SpellEntry> &allSpells = Goldbox::Data::Rules::getSpellEntries();
+
+	for (Common::HashMap<Spells, SpellBook::SpellEntry>::const_iterator it = _spells.begin();
+	     it != _spells.end(); ++it) {
+		if (it->_value.memorized > 0) {
+			// Look up the spell's class from the master spell table
+			uint spellId = (uint)it->_key;
+			if (spellId < allSpells.size() && allSpells[spellId].spellClass == spellClass) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 } // namespace Spells

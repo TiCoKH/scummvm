@@ -40,7 +40,7 @@ namespace Spells {
 /**
  * Modern spell book storage for known and memorized spells.
  * Supports variable spell counts across different Gold Box games.
- * 
+ *
  * Each spell is identified by the Spells enum and stored with:
  * - known flag (can this character learn/use this spell?)
  * - memorized count (how many instances are currently prepared?)
@@ -61,6 +61,14 @@ public:
     bool isKnown(Spells spell) const;
     uint8 getMemorized(Spells spell) const;
     bool hasAnyMemorized() const;
+
+    // Class-specific query methods
+    // Count how many spells of a given class are known
+    uint countKnownByClass(SpellClass spellClass) const;
+    // Count how many spells of a given class are memorized (total instances)
+    uint countMemorizedByClass(SpellClass spellClass) const;
+    // Check if character has any memorized spells of a given class
+    bool hasMemorizedOfClass(SpellClass spellClass) const;
 
     // Modification methods
     void setKnown(Spells spell, bool known = true);

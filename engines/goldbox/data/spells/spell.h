@@ -92,7 +92,7 @@ enum Spells : uint8 {
     SP_MUL3_PROT_F_EVIL_10R = 52,
     SP_MUL3_PROT_F_GOOD_10R = 53,
     SP_MUL3_PROT_F_NORM_MSL = 54,
-    SP_MUL3_SLOW            = 55, // Until this possible set in known spell table
+    SP_MUL3_SLOW            = 55, // Max spell learnable in Pool of Radiance
     SP_CL7_RESTORATION      = 56,
     SP_MI1                  = 57, // Magic Item spells start here
     SP_MI2                  = 58,
