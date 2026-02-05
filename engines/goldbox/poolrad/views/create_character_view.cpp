@@ -978,7 +978,17 @@ void CreateCharacterView::applyStatMinMax() {
 void CreateCharacterView::applySpells() {
 	if (!_newCharacter)
 		return;
+	// Compute spell slots and initialize known spells based on character class:
+	// - Clerics automatically know ALL cleric spells of levels they can cast (L1-3 initially)
+	// - Magic-Users start with only 4 level 1 spells and must find/scribe others
+	// - Multiclass characters (e.g., Cleric/Magic-User) get both spell types
+	// The SpellBook now tracks all spells by ID with separate known/memorized counts
+	// and provides class-specific query methods to distinguish cleric vs magic-user spells
 	_newCharacter->computeSpellSlots();
+
+	debug("CreateCharacterView::applySpells - Character has %u cleric spells, %u magic-user spells known",
+	      _newCharacter->spellBook.countKnownByClass(Goldbox::Data::Spells::SC_CLERIC),
+	      _newCharacter->spellBook.countKnownByClass(Goldbox::Data::Spells::SC_MAGICUSER));
 }
 
 void CreateCharacterView::setInitGold() {
