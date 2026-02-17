@@ -28,11 +28,17 @@ MODULE_OBJS = \
 	data/strings.o \
 	data/strings_data.o \
 	data/effects/character_effects.o \
+	data/effects/effect_handler_base.o \
+	data/effects/effect_system.o \
 	data/items/base_items.o \
 	data/items/character_item.o \
 	data/items/character_inventory.o \
 	data/rules/rules_poolrad.o \
 	data/spells/spell_book.o \
+	spells/spell_casting.o \
+	spells/spell_handlers.o \
+	spells/spell_registry.o \
+	spells/spell_targeter.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/dax_renderer.o \
@@ -41,6 +47,7 @@ MODULE_OBJS = \
 	gfx/combat_renderer.o \
 	gfx/surface.o \
 	poolrad/poolrad.o \
+	poolrad/effect_handler.o \
 	poolrad/console.o \
 	poolrad/data/poolrad_character.o \
 	poolrad/gfx/surface.o \

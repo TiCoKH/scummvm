@@ -69,8 +69,13 @@ void PoolradCharacter::initialize() {
 	encumbrance = 0;
 	actions = 0;
 
+	effectState.clear();
+	effectState.flags = EF_NONE;
+	healthStatus = Goldbox::Data::S_OKAY;
+	enabled = true;
 	hostile = false;
 	quickfight = false;
+
 	npc = 0;
 	modified = 0;
 

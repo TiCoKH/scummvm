@@ -188,7 +188,7 @@ void VerticalMenu::handleMenuResult(bool success, KeyCode key, short value) {
             if (_parent) {
                 _parent->handleMenuResult(success, key, _menuItems->currentSelection);
             }
-            break;
+			return;
     }
 
     if (_redraw) {
@@ -221,8 +221,13 @@ void VerticalMenu::prevPage() {
 }
 
 void VerticalMenu::selectionDown() {
+    int visibleCount = MIN(_menuHeight, _itemNums - _linesAbove);
+    if (visibleCount <= 0) {
+        return;
+    }
+    int maxVisibleIndex = visibleCount - 1;
     int oldScreenIndex = _currentVisibleIndex;
-    if (_currentVisibleIndex < _menuHeight - 1) {
+    if (_currentVisibleIndex < maxVisibleIndex) {
         _menuItems->next();
         _currentVisibleIndex++;
     } else {
@@ -234,12 +239,17 @@ void VerticalMenu::selectionDown() {
 }
 
 void VerticalMenu::selectionUp() {
+    int visibleCount = MIN(_menuHeight, _itemNums - _linesAbove);
+    if (visibleCount <= 0) {
+        return;
+    }
+    int maxVisibleIndex = visibleCount - 1;
     int oldScreenIndex = _currentVisibleIndex;
     if (_currentVisibleIndex > 0) {
         _menuItems->prev();
         _currentVisibleIndex--;
     } else {
-        _currentVisibleIndex = _menuHeight - 1;
+        _currentVisibleIndex = maxVisibleIndex;
         _menuItems->currentSelection = _linesAbove + _currentVisibleIndex;
     }
     redrawLine(_linesAbove + oldScreenIndex);

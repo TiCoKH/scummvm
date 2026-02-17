@@ -99,14 +99,33 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
             _redraw = true;
             break;
         }
-        case Common::KEYCODE_RETURN: {
-            _parent->handleMenuResult(true, keyCode, 0);
-            return true;
-        }
-        case Common::KEYCODE_ESCAPE: {
-            _parent->handleMenuResult(false, keyCode, 0);
-            return true;
-        }
+		case Common::KEYCODE_RETURN: {
+			// If only one menu item, (Exit) on VerticalMenu use simple behavior
+			if (_menuItems->items.size() == 1) {
+				_parent->handleMenuResult(true, keyCode, 0);
+			} else {
+				// Multiple items: simulate pressing the shortcut key of the selected item
+				if (_menuItems->currentSelection >= 0 && _menuItems->currentSelection < (int)_menuItems->items.size()) {
+					const MenuItem &selectedItem = _menuItems->items[_menuItems->currentSelection];
+					char shortcut = selectedItem.shortcut;
+					// Convert uppercase shortcuts to lowercase before casting to KeyCode
+					if (shortcut >= 'A' && shortcut <= 'Z') {
+						shortcut = shortcut + 32;
+					}
+					// Cast the shortcut character to KeyCode to simulate pressing that key
+					KeyCode shortcutKey = (KeyCode)shortcut;
+					_parent->handleMenuResult(true, shortcutKey, _menuItems->currentSelection);
+					deactivate();
+				} else {
+					_parent->handleMenuResult(false, keyCode, 0);
+				}
+			}
+			return true;
+		}
+		case Common::KEYCODE_ESCAPE: {
+			_parent->handleMenuResult(false, keyCode, 0);
+			return true;
+		}
     }
 
     if ((asciiValue >= 'A' && asciiValue <= 'Z') || (asciiValue >= '0' && asciiValue <= '9')) {
