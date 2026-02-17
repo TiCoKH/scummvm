@@ -4,6 +4,7 @@
  */
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/data/items/character_item.h"
 #include "common/keyboard.h"
 
 namespace Goldbox {
@@ -154,7 +155,6 @@ void CharacterProfile::drawValuables() {
 void CharacterProfile::drawLevelExp() {
     const Goldbox::Data::LevelData &levels = _poolradPc->levels;
     String levelStr;
-    int classCount = 0;
     // Collect all nonzero levels
     for (int i = 0; i < 8; ++i) {
         int lvl = levels.levels[i];
@@ -162,14 +162,15 @@ void CharacterProfile::drawLevelExp() {
             if (!levelStr.empty())
                 levelStr += "/";
             levelStr += String::format("%d", lvl);
-            ++classCount;
         }
     }
     Surface s = getSurface();
-    s.writeStringC("level " + levelStr, 15, 1, 15);
+    s.writeStringC("Level", 15, 1, 15);
+    if (!levelStr.empty())
+        s.writeStringC(levelStr, 15, 7, 15);
 
     s.writeStringC("Exp", 15, 17, 15);
-    s.writeStringC(String::format("%u", _poolradPc->experiencePoints), 15, 21, 15);
+    s.writeStringC(String::format("%u", _poolradPc->experiencePoints), 15, 20, 15);
 }
 
 void CharacterProfile::drawCombat() {
@@ -190,10 +191,18 @@ void CharacterProfile::drawCombat() {
 
 void CharacterProfile::drawItems() {
     Surface s = getSurface();
-    s.writeStringC("Weapon", 15, 1, 20);
-    s.writeStringC("-", 10, 8, 20);
-    s.writeStringC("Armor", 15, 2, 21);
-    s.writeStringC("-", 10, 8, 21);
+    using Goldbox::Data::Items::Slot;
+    const Goldbox::Data::Items::CharacterItem *weapon = _poolradPc->getEquippedItem(Slot::S_MAIN_HAND);
+    if (weapon) {
+        s.writeStringC("Weapon", 15, 1, 20);
+        s.writeStringC(weapon->getDisplayName(), 10, 8, 20);
+    }
+
+    const Goldbox::Data::Items::CharacterItem *armor = _poolradPc->getEquippedItem(Slot::S_BODY_ARMOR);
+    if (armor) {
+        s.writeStringC("Armor", 15, 2, 21);
+        s.writeStringC(armor->getDisplayName(), 10, 8, 21);
+    }
 }
 
 void CharacterProfile::drawStatus() {

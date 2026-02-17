@@ -96,6 +96,10 @@ void Events::processEvent(Common::Event &ev) {
 	case Common::EVENT_CUSTOM_ENGINE_ACTION_START:
 		msgAction(ActionMessage(ev.customType));
 		break;
+	// TODO: Mouse events disabled until mouse support is properly implemented
+	// The crash occurs because _focusedElement can become a dangling pointer
+	// when a child UIElement is deleted without clearing the reference
+#if 0
 	case Common::EVENT_LBUTTONDOWN:
 	case Common::EVENT_RBUTTONDOWN:
 		msgMouseDown(MouseDownMessage(ev.type, ev.mouse));
@@ -107,6 +111,7 @@ void Events::processEvent(Common::Event &ev) {
 	case Common::EVENT_MOUSEMOVE:
 		msgMouseMove(MouseMoveMessage(ev.type, ev.mouse));
 		break;
+#endif
 	default:
 		break;
 	}

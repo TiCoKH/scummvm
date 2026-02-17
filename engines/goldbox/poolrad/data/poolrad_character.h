@@ -80,12 +80,53 @@ public:
 
     Goldbox::Data::Effects::CharacterEffects effects;
 
+    enum EffectFlag : uint32 {
+        EF_NONE = 0,
+        EF_HELD = 1 << 0,
+        EF_PARALYZED = 1 << 1,
+        EF_SLEEPING = 1 << 2,
+        EF_HELPLESS = 1 << 3,
+        EF_BLINDED = 1 << 4,
+        EF_SILENCED = 1 << 5,
+        EF_INVISIBLE = 1 << 6,
+        EF_ITEM_INVISIBLE = 1 << 7,
+        EF_CAMOUFLAGE = 1 << 8,
+        EF_CONFUSED = 1 << 9,
+        EF_FUMBLING = 1 << 10,
+        EF_DISPLACE = 1 << 11,
+        EF_IMMUNE_ELEC = 1 << 12,
+        EF_RESIST_COLD = 1 << 13,
+        EF_RESIST_FIRE = 1 << 14,
+        EF_RESIST_FIRE_COLD = 1 << 15,
+        EF_FIRE_RESIST = 1 << 16,
+        EF_PROT_NORMAL_MISSILES = 1 << 17,
+        EF_PROT_DRAG_BREATH = 1 << 18,
+        EF_MINOR_GLOBE = 1 << 19,
+        EF_RAKSHASA_RESIST = 1 << 20,
+        EF_HALF_DAMAGE = 1 << 21,
+        EF_HALF_FIRE_DAMAGE = 1 << 22,
+        EF_DAMAGE_REDUCTION = 1 << 23,
+        EF_FEAR_IMMUNE = 1 << 24,
+        EF_REGEN_1 = 1 << 25,
+        EF_REGEN_3 = 1 << 26,
+        EF_POISONED = 1 << 27,
+        EF_SLOW_POISON = 1 << 28,
+        EF_ENTANGLED = 1 << 29
+    };
+
+    // Effect modifiers/flags storage is in PlayerCharacter::effectState.
+
     uint8 itemsLimit;
     uint8 itemBytes[56] = {};
 
     uint32 actions = 0;
 
     Goldbox::Data::CombatStat acRear;
+
+    uint8 healthStatus = Goldbox::Data::S_OKAY;
+    bool enabled = true;
+    bool hostile = false;
+    bool quickfight = false;
 
     PoolradCharacter();
 
@@ -167,6 +208,10 @@ public:
 
     // draw methods
     byte getNameColor();
+
+    Goldbox::Data::Effects::CharacterEffects *getEffects() override {
+        return &effects;
+    }
 
     // Implementing pure virtual functions from PlayerCharacter
     const char *getRaceName() const override {

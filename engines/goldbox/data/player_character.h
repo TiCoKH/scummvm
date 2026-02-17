@@ -26,9 +26,13 @@
 #include "common/stream.h"
 #include "common/array.h"
 #include "common/util.h"
+#include "common/scummsys.h"
 
 namespace Goldbox {
 namespace Data {
+namespace Effects {
+class CharacterEffects;
+}
 
 enum Gender {
 	G_MALE   = 0,
@@ -166,6 +170,32 @@ struct CombatIconData {
 	static const uint8 ICON_BODY_MAX = 31;
 };
 
+struct EffectModifiers {
+	int8 attackRoll;
+	int8 damage;
+	int8 savingThrow;
+	int8 armorClass;
+	int8 morale;
+	int8 movement;
+
+	EffectModifiers() : attackRoll(0), damage(0), savingThrow(0), armorClass(0),
+				  morale(0), movement(0) {
+	}
+};
+
+struct EffectState {
+	uint32 flags;
+	EffectModifiers mods;
+
+	EffectState() : flags(0), mods() {
+	}
+
+	void clear() {
+		flags = 0;
+		mods = EffectModifiers();
+	}
+};
+
 //---------------------------------------------------------------
 // Base class for all player characters
 
@@ -204,6 +234,9 @@ public:
 	bool hostile = false;
 	bool quickfight = false;
 
+	// Effects runtime state (flags + modifiers).
+	EffectState effectState;
+
 	//-----------------------------------------------------------
 	// Lifecycle
 
@@ -229,6 +262,9 @@ public:
 	// uniformly invoke setEffect on base character pointers. Derived games that
 	// support status effects should override.
 	virtual void setEffect(uint8 /*type*/, uint16 /*durationMin*/, uint8 /*power*/, bool /*unknown*/) {}
+	// Optional access to the character's effect list for runtime systems.
+	// Returns nullptr by default; games that support effects should override.
+	virtual Goldbox::Data::Effects::CharacterEffects *getEffects() { return nullptr; }
 
 	//-----------------------------------------------------------
 	// Common logic

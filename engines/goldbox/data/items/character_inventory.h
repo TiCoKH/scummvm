@@ -33,6 +33,18 @@ namespace Items {
 /// Manages a character’s dynamic inventory file (.ITM).
 class CharacterInventory {
 public:
+    enum { kDefaultMaxItems = 16 };
+
+    struct Rules {
+        uint8 allowedClassMask;   ///< Bitmask of classes the character can use
+        uint16 maxEncumbrance;    ///< Base carry capacity (0 = ignore)
+        int capacityModifier;     ///< Strength tier modifier (can be negative)
+        uint8 maxItems;           ///< Max items (default 16)
+
+        Rules() : allowedClassMask(0xFF), maxEncumbrance(0),
+            capacityModifier(0), maxItems(kDefaultMaxItems) {}
+    };
+
     /// Reads every 63‐byte record from `filename`; leaves `_items` empty if the file is missing.
     bool load(const Common::String &filename);
 
@@ -43,15 +55,51 @@ public:
 
     void debugPrint() const;
 
+    /// Inventory logic helpers (modernized behavior with legacy rules)
+    bool canCarryItem(const CharacterItem &item, const Rules &rules) const;
+    bool addItem(const CharacterItem &item, const Rules &rules,
+                 Common::Array<CharacterItem *> *equippedSlots);
+    bool removeItem(CharacterItem *item,
+                    Common::Array<CharacterItem *> *equippedSlots);
+
+    bool equipItem(CharacterItem *item, Slot slot,
+                   Common::Array<CharacterItem *> &equippedSlots,
+                   uint8 *handsUsed, uint8 *saveBonus);
+    bool unequipItem(Slot slot,
+                     Common::Array<CharacterItem *> &equippedSlots,
+                     uint8 *handsUsed, uint8 *saveBonus);
+
+    CharacterItem *findByLegacyAddress(uint32 legacyAddr);
+    const CharacterItem *findByLegacyAddress(uint32 legacyAddr) const;
+
+    uint16 totalEncumbrance() const;
+    void recomputeEquippedTotals(
+        const Common::Array<CharacterItem *> &equippedSlots,
+        uint8 *handsUsed, uint8 *saveBonus) const;
+
     /// Access loaded items.
     const Common::Array<CharacterItem> &all() const { return _items; }
     int                                count() const { return _items.size(); }
-    CharacterItem                      &operator[](size_t i)       { return _items[i]; }
-    const CharacterItem                &operator[](size_t i) const { return _items[i]; }
+    CharacterItem                      &operator[](size_t i) {
+        return _items[i];
+    }
+    const CharacterItem                &operator[](size_t i) const {
+        return _items[i];
+    }
     const Common::Array<CharacterItem> &items() const { return _items; }
     Common::Array<CharacterItem>       &items() { return _items; }
 
 private:
+    static uint16 calcItemEncumbrance(const CharacterItem &item);
+    static bool meetsClassRestriction(const CharacterItem &item,
+                                      const Rules &rules);
+    static void captureEquippedLegacyOffsets(
+        const Common::Array<CharacterItem *> &equippedSlots,
+        Common::Array<uint32> &offsetsOut);
+    void remapEquippedByLegacyOffsets(
+        Common::Array<CharacterItem *> *equippedSlots,
+        const Common::Array<uint32> &offsets);
+
     Common::Array<CharacterItem> _items;
 };
 

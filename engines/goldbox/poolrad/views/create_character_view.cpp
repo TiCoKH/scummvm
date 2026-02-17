@@ -759,7 +759,7 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 			resetState();
 			replaceView("Mainmenu");
 		} else if (key == Common::KEYCODE_RETURN) {
-			// Icon selection complete, move to DONE
+			// Icon selection confirmed via menu - move to DONE
 			if (_activeSubView == _iconSelector)
 				_activeSubView = nullptr;
 			detachAndDelete(_iconSelector);
@@ -838,7 +838,7 @@ void CreateCharacterView::saveCharacter() {
 	Common::String base = formatBaseFilename(_newCharacter->name);
 	Common::String chrFile = base + ".CHA";
 	Common::DumpFile out;
-	if (out.open(chrFile.c_str(), true)) {
+	if (out.open(chrFile.c_str(), false)) {
 		_newCharacter->save(out);
 		out.flush();
 		out.close();

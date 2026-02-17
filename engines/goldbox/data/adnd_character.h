@@ -161,6 +161,24 @@ public:
 	const Goldbox::Data::Items::CharacterInventory &getInventory() const { return inventory; }
 	void clearInventory() { inventory.clear(); }
 
+	// Inventory wrappers
+	Goldbox::Data::Items::CharacterInventory::Rules
+		buildInventoryRules(uint16 maxEncumbrance = 0,
+						uint8 maxItems =
+							Goldbox::Data::Items::CharacterInventory::kDefaultMaxItems) const;
+	bool canCarryItem(const Goldbox::Data::Items::CharacterItem &item,
+					 uint16 maxEncumbrance = 0,
+					 uint8 maxItems =
+						 Goldbox::Data::Items::CharacterInventory::kDefaultMaxItems) const;
+	bool addItem(const Goldbox::Data::Items::CharacterItem &item,
+				 uint16 maxEncumbrance = 0,
+				 uint8 maxItems =
+					 Goldbox::Data::Items::CharacterInventory::kDefaultMaxItems);
+	bool removeItem(Goldbox::Data::Items::CharacterItem *item);
+	bool equipItem(Goldbox::Data::Items::CharacterItem *item,
+				 Goldbox::Data::Items::Slot slot);
+	bool unequipItem(Goldbox::Data::Items::Slot slot);
+
 
 	// Virtual destructor to ensure proper cleanup in derived classes.
 	virtual ~ADnDCharacter() {}
@@ -202,6 +220,9 @@ public:
 	// Reduces movement.current based on effective encumbrance (encumbrance - capacity modifier).
 	// Uses thresholds: >1024 -> cap at 3, >=769 -> cap at 6, >=513 -> cap at 9.
 	void setMovement();
+
+private:
+	static uint8 getClassMaskForClassType(uint8 classType);
 
 };
 

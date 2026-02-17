@@ -23,6 +23,53 @@
 namespace Goldbox {
 namespace Data {
 
+uint8 ADnDCharacter::getClassMaskForClassType(uint8 classType) {
+    using namespace Goldbox::Data;
+
+    switch (classType) {
+    case C_CLERIC:
+        return CF_CLERIC;
+    case C_DRUID:
+        return CF_DRUID;
+    case C_FIGHTER:
+        return CF_FIGHTER;
+    case C_PALADIN:
+        return CF_PALADIN;
+    case C_RANGER:
+        return CF_RANGER;
+    case C_MAGICUSER:
+        return CF_MAGICUSER;
+    case C_THIEF:
+        return CF_THIEF;
+    case C_MONK:
+        return CF_MONK;
+    case C_CLERIC_FIGHTER:
+        return CF_CLERIC | CF_FIGHTER;
+    case C_CLERIC_FIGHTER_MAGICUSER:
+        return CF_CLERIC | CF_FIGHTER | CF_MAGICUSER;
+    case C_CLERIC_RANGER:
+        return CF_CLERIC | CF_RANGER;
+    case C_CLERIC_MAGICUSER:
+        return CF_CLERIC | CF_MAGICUSER;
+    case C_CLERIC_THIEF:
+        return CF_CLERIC | CF_THIEF;
+    case C_FIGHTER_MAGICUSER:
+        return CF_FIGHTER | CF_MAGICUSER;
+    case C_FIGHTER_THIEF:
+        return CF_FIGHTER | CF_THIEF;
+    case C_FIGHTER_MAGICUSER_THIEF:
+        return CF_FIGHTER | CF_MAGICUSER | CF_THIEF;
+    case C_MAGICUSER_THIEF:
+        return CF_MAGICUSER | CF_THIEF;
+    case C_MONSTER:
+        return CF_ALL;
+    default:
+        break;
+    }
+
+    return CF_ALL;
+}
+
 void ADnDCharacter::clearEquippedItems() {
     equippedItems.clear();
 }
@@ -317,6 +364,51 @@ void ADnDCharacter::setMovement() {
     if (cap < movement.current) {
         movement.current = cap;
     }
+}
+
+Goldbox::Data::Items::CharacterInventory::Rules
+ADnDCharacter::buildInventoryRules(uint16 maxEncumbrance, uint8 maxItems) const {
+    Goldbox::Data::Items::CharacterInventory::Rules rules;
+    rules.allowedClassMask = getClassMaskForClassType(classType);
+    rules.maxEncumbrance = maxEncumbrance;
+    rules.capacityModifier = getCapacityModifier();
+    rules.maxItems = maxItems;
+    return rules;
+}
+
+bool ADnDCharacter::canCarryItem(const Goldbox::Data::Items::CharacterItem &item,
+                                 uint16 maxEncumbrance,
+                                 uint8 maxItems) const {
+    const Goldbox::Data::Items::CharacterInventory::Rules rules =
+        buildInventoryRules(maxEncumbrance, maxItems);
+    return inventory.canCarryItem(item, rules);
+}
+
+bool ADnDCharacter::addItem(const Goldbox::Data::Items::CharacterItem &item,
+                            uint16 maxEncumbrance,
+                            uint8 maxItems) {
+    const Goldbox::Data::Items::CharacterInventory::Rules rules =
+        buildInventoryRules(maxEncumbrance, maxItems);
+    return inventory.addItem(item, rules, &equippedItems.slots);
+}
+
+bool ADnDCharacter::removeItem(Goldbox::Data::Items::CharacterItem *item) {
+    if (!inventory.removeItem(item, &equippedItems.slots))
+        return false;
+    inventory.recomputeEquippedTotals(equippedItems.slots,
+                                      &handsEquipped, &saveBonus);
+    return true;
+}
+
+bool ADnDCharacter::equipItem(Goldbox::Data::Items::CharacterItem *item,
+                              Goldbox::Data::Items::Slot slot) {
+    return inventory.equipItem(item, slot, equippedItems.slots,
+                               &handsEquipped, &saveBonus);
+}
+
+bool ADnDCharacter::unequipItem(Goldbox::Data::Items::Slot slot) {
+    return inventory.unequipItem(slot, equippedItems.slots,
+                                 &handsEquipped, &saveBonus);
 }
 
 } // namespace Data

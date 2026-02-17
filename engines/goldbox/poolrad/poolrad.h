@@ -26,6 +26,7 @@
 #include "goldbox/poolrad/views/views.h"
 #include "goldbox/poolrad/views/mainscreen_view.h"
 #include "goldbox/core/icon_manager.h"
+#include "goldbox/poolrad/effect_handler.h"
 //#include "goldbox/poolrad/data/character.h"
 //#include "goldbox/poolrad/files/game_archive.h"
 //#include "goldbox/poolrad/data/saved.h"
@@ -43,6 +44,7 @@ private:
 	Poolrad::Views::Views *_views = nullptr;
 	IconManager *_iconManager = nullptr;
 	uint16 _mapX = 0, _mapY = 0;
+	EffectHandler _effectsRuntime;
 
 protected:
 	void setup() override;
@@ -67,6 +69,7 @@ public:
 	 * @return Pointer to the icon manager
 	 */
 	IconManager *getIconManager() const { return _iconManager; }
+	EffectHandler &effectsRuntime() { return _effectsRuntime; }
 };
 
 extern PoolradEngine *g_engine;
