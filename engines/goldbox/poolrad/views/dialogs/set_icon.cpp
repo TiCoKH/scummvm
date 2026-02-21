@@ -714,12 +714,10 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
     case ICON_STATE_CONFIRM: {
         // HorizontalYesNo: Yes = commit and exit, No = go back to main menu
         if (key == Common::KEYCODE_y || (success && value == 1)) {
-            // Yes - commit changes and exit
             commitChanges();
             if (_parent)
-                _parent->handleMenuResult(true, key, 0);
+                _parent->handleMenuResult(true, key, 1);
         } else {
-            // No - return to main menu without exiting
             setStage(ICON_STATE_MAIN_MENU);
         }
         break;
