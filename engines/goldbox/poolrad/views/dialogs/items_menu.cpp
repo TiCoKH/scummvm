@@ -75,11 +75,8 @@ ItemsMenu::~ItemsMenu() {
 }
 
 void ItemsMenu::draw() {
+	// Always use the current selected character from the engine
 	Surface s = getSurface();
-
-	if (!_character) {
-		return;
-	}
 
 	drawWindow(1, 1, 38, 22);
 	s.writeStringC(1, 1, _character->getNameColor(), _character->name);

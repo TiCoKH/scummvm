@@ -36,6 +36,7 @@ struct HorizontalYesNoConfig {
     uint8 promptColor;          // Color for the prompt text
     uint8 textColor;            // Color for non-selected option text
     uint8 selectColor;          // Color for selected option text and shortcuts
+    uint8 backgroundColor = 0;  // Background color for the prompt line (optional, defaults to 0)
 };
 
 // A simple horizontal yes/no prompt displayed on the prompt line.
@@ -45,6 +46,7 @@ protected:
     uint8 _textColor;
     uint8 _selectColor;
     uint8 _promptColor;
+    uint8 _backgroundColor;
     Common::String _promptTxt;
     // Internal YES/NO menu items; index 0 => YES, index 1 => NO
     Goldbox::MenuItemList _menuItems;

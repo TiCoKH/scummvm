@@ -61,6 +61,11 @@ SetIcon::~SetIcon() {
         delete _menu;
         _menu = nullptr;
     }
+    if (_yesNoPrompt) {
+        _yesNoPrompt->setParent(nullptr);
+        delete _yesNoPrompt;
+        _yesNoPrompt = nullptr;
+    }
 }
 
 uint8 SetIcon::getLowNibble(uint8 byte) const {
@@ -210,6 +215,8 @@ void SetIcon::setStage(IconMenuState stage) {
         buildAndShowMenu("");
         break;
     case ICON_COLORS_ADJUSTMENT:
+        // Save original color before allowing adjustments
+        _originalColorByte = packSubpartColor(static_cast<SubPartIndex>(_selectedSubPart));
         _menuItems.items.clear();
         {
             Common::Array<String> labels;
@@ -222,14 +229,23 @@ void SetIcon::setStage(IconMenuState stage) {
         buildAndShowMenu("");
         break;
     case ICON_STATE_CONFIRM:
-        _menuItems.items.clear();
-        {
-            Common::Array<String> labels;
-            labels.push_back("Keep");
-            labels.push_back("Exit");
-            _menuItems.generateMenuItems(labels, true);
+        // Clean up menu and create HorizontalYesNo dialog
+        if (_menu) {
+            _menu->setParent(nullptr);
+            delete _menu;
+            _menu = nullptr;
         }
-        buildAndShowMenu("");
+        if (_yesNoPrompt) {
+            _yesNoPrompt->setParent(nullptr);
+            delete _yesNoPrompt;
+            _yesNoPrompt = nullptr;
+        }
+        {
+            HorizontalYesNoConfig ynCfg { "Is this Icon ok? ", kPromptColor, kTextColor, kSelectColor, kBackgroundColor };
+            _yesNoPrompt = new HorizontalYesNo(getName() + "_Confirm", ynCfg);
+            _yesNoPrompt->setParent(this);
+            _yesNoPrompt->activate();
+        }
         break;
     }
 }
@@ -260,6 +276,11 @@ void SetIcon::buildAndShowMenu(const Common::String &prompt) {
         _menu->setParent(nullptr);
         delete _menu;
         _menu = nullptr;
+    }
+    if (_yesNoPrompt) {
+        _yesNoPrompt->setParent(nullptr);
+        delete _yesNoPrompt;
+        _yesNoPrompt = nullptr;
     }
 
     HorizontalMenuConfig cfg = {
@@ -413,6 +434,9 @@ bool SetIcon::msgKeypress(const KeypressMessage &msg) {
     if (_menu) {
         return _menu->msgKeypress(msg);
     }
+    if (_yesNoPrompt) {
+        return _yesNoPrompt->msgKeypress(msg);
+    }
 
     return true;
 }
@@ -443,9 +467,11 @@ void SetIcon::drawEditorIcons() {
     // NEW ICON: Working edits
     drawIconPair(1, 4, SLOT_EDITOR_WORKING);
 
-    // Dynamic content: menus
+    // Dynamic content: menus and dialogs
     if (_menu)
         _menu->draw();
+    if (_yesNoPrompt)
+        _yesNoPrompt->draw();
 }
 
 void SetIcon::redrawWorkingIcons() {
@@ -503,10 +529,8 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
             setStage(ICON_STATE_SIZE_SELECT);
             break;
         case Common::KEYCODE_e:
-            // Exit - commit and finish
-            commitChanges();
-            if (_parent)
-                _parent->handleMenuResult(true, key, 0);
+            // Exit - go to confirmation first
+            setStage(ICON_STATE_CONFIRM);
             break;
         default: {
             // Fallback: use selection index to resolve color items
@@ -677,26 +701,26 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
             setStage(ICON_STATE_SUB_PART);
             break;
         case Common::KEYCODE_e:
-            // Exit adjustment and return to main menu
-            setStage(ICON_STATE_MAIN_MENU);
+            // Exit adjustment - restore original color and return to sub-part menu
+            applySubpartColor(static_cast<SubPartIndex>(_selectedSubPart), _originalColorByte);
+            rebuildNewIcon();
+            redrawWorkingIcons();
+            setStage(ICON_STATE_SUB_PART);
             break;
         }
         break;
     }
 
     case ICON_STATE_CONFIRM: {
-        // " Keep Exit"
-        switch (key) {
-        case Common::KEYCODE_k:
+        // HorizontalYesNo: Yes = commit and exit, No = go back to main menu
+        if (key == Common::KEYCODE_y || (success && value == 1)) {
+            // Yes - commit changes and exit
             commitChanges();
             if (_parent)
                 _parent->handleMenuResult(true, key, 0);
-            break;
-        case Common::KEYCODE_e:
-            revertChanges();
-            if (_parent)
-                _parent->handleMenuResult(false, key, 0);
-            break;
+        } else {
+            // No - return to main menu without exiting
+            setStage(ICON_STATE_MAIN_MENU);
         }
         break;
     }
