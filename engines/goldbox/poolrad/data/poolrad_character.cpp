@@ -290,6 +290,18 @@ bool PoolradCharacter::haveMemorizedSpell() const {
 	return spellBook.hasAnyMemorized();
 }
 
+bool PoolradCharacter::hasItems() const {
+	return getInventory().count() != 0;
+}
+
+bool PoolradCharacter::hasValuables() const {
+	for (int i = 0; i < Goldbox::Data::VALUABLE_COUNT; ++i) {
+		if (valuableItems.values[i] != 0)
+			return true;
+	}
+	return false;
+}
+
 void PoolradCharacter::resolveEquippedItems() {
 	for (int slot = 0; slot < EQUIPMENT_SLOT_COUNT; ++slot) {
 		equipment.slots[slot] = -1;

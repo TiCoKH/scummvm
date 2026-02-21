@@ -34,10 +34,12 @@ namespace Views {
 AddCharacterView::AddCharacterView() : View("AddCharacter") {
 
     loadRosterList();
-    Common::Array<Common::String> promptOptions = {"Add", "Exit"};
+    _promptOptions.push_back("Add");
+    _promptOptions.push_back("Exit");
+    
     Dialogs::VerticalMenuConfig menuConfig = {
         "Add a character:",  // promptTxt
-        promptOptions,       // promptOptions
+        &_promptOptions,     // promptOptions (pointer)
         _rosterList,         // menuItemList (initialized later)
         13,                  // headColor
         10,                  // textColor

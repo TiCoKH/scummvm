@@ -66,6 +66,7 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/horizontal_yesno.o \
 	poolrad/views/dialogs/party_list.o \
 	poolrad/views/dialogs/vertical_menu.o \
+	poolrad/views/dialogs/items_menu.o \
 	poolrad/views/dialogs/character_profile.o \
 	poolrad/views/dialogs/portrait_display.o \
 	poolrad/views/dialogs/set_portrait.o \

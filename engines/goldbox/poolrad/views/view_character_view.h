@@ -16,6 +16,10 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
+namespace Dialogs {
+class ItemsMenu;
+}
+
 class ViewCharacterView : public View {
 public:
 	ViewCharacterView();
@@ -30,6 +34,7 @@ private:
     Goldbox::MenuItemList _menuList;
     Dialogs::HorizontalMenu *_horizontalMenu;
     Dialogs::CharacterProfile *_profileDialog;
+    Dialogs::ItemsMenu *_itemsMenu;
 
     void buildMenu();
     void drawMenu();

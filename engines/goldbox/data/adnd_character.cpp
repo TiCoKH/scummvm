@@ -411,5 +411,9 @@ bool ADnDCharacter::unequipItem(Goldbox::Data::Items::Slot slot) {
                                  &handsEquipped, &saveBonus);
 }
 
+bool ADnDCharacter::isNpc() const {
+    return npc >= 0x80;
+}
+
 } // namespace Data
 } // namespace Goldbox
