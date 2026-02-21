@@ -98,12 +98,12 @@ void Surface::writeStringC(const Common::String &str, int color){
 	writeString(str);
 }
 
-void Surface::writeString(const Common::String &str, int x, int y) {
+void Surface::writeString(int x, int y, const Common::String &str) {
 	setTextPos(x, y);
 	writeString(str);
 }
 
-void Surface::writeStringC(const Common::String &str, int color, int x, int y) {
+void Surface::writeStringC(int x, int y, int color, const Common::String &str) {
 	setTextPos(x, y);
 	setTextColor(color);
 	writeString(str);
@@ -115,13 +115,13 @@ void Surface::writeStringC(const unsigned char *str, int color) {
 	writeString(s);
 }
 
-void Surface::writeString(const unsigned char *str, int x, int y) {
+void Surface::writeString(int x, int y, const unsigned char *str) {
 	setTextPos(x, y);
 	Common::String s((const char *)str);
 	writeString(s);
 }
 
-void Surface::writeStringC(const unsigned char *str, int color, int x, int y) {
+void Surface::writeStringC(int x, int y, int color, const unsigned char *str) {
 	setTextPos(x, y);
 	setTextColor(color);
 	Common::String s((const char *)str);
@@ -130,7 +130,7 @@ void Surface::writeStringC(const unsigned char *str, int color, int x, int y) {
 
 void Surface::writeCenteredString(const Common::String &str, int y) {
 	int x = ((this->w / FONT_W) - str.size()) / 2;
-	writeString(str, x, y);
+	writeString(x, y, str);
 }
 
 void Surface::writeChar(unsigned char c) {
@@ -151,18 +151,18 @@ void Surface::writeCharC(unsigned char c, int color) {
 	writeChar(c);
 }
 
-void Surface::writeChar(unsigned char c, int x, int y) {
+void Surface::writeChar(int x, int y, unsigned char c) {
 	setTextPos(x, y);
 	writeChar(c);
 }
 
-void Surface::writeCharC(unsigned char c, int color, int x, int y) {
+void Surface::writeCharC(int x, int y, int color, unsigned char c) {
 	setTextPos(x, y);
 	setTextColor(color);
 	writeChar(c);
 }
 
-void Surface::writeGlyphC(unsigned char c, int color, int x, int y) {
+void Surface::writeGlyphC(int x, int y, int color, unsigned char c) {
 	setTextPos(x, y);
 	setTextColor(color);
 	writeGlyph(c);
@@ -174,14 +174,14 @@ void Surface::writeSymbol(unsigned char c) {
 	++_textX;
 }
 
-void Surface::writeSymbol(unsigned char c, int x, int y) {
+void Surface::writeSymbol(int x, int y, unsigned char c) {
 	setTextPos(x, y);
 	writeSymbol(c);
 }
 
-void Surface::writeSymbol(unsigned char c, uint32 bgColor, uint32 tpColorIndex) {
+void Surface::writeSymbolC(unsigned char c, uint32 bgColor, uint32 tpColorIndex) {
 	setToSymbols();
-	
+
 	if (bgColor == 0 && tpColorIndex == 0) {
 		// No background color - use standard rendering (color 0 stays transparent/black)
 		_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, _textColor);
@@ -201,9 +201,9 @@ void Surface::writeSymbol(unsigned char c, uint32 bgColor, uint32 tpColorIndex) 
 	++_textX;
 }
 
-void Surface::writeSymbol(unsigned char c, int x, int y, uint32 bgColor, uint32 tpColorIndex) {
+void Surface::writeSymbol(int x, int y, unsigned char c, uint32 bgColor, uint32 tpColorIndex) {
 	setTextPos(x, y);
-	writeSymbol(c, bgColor, tpColorIndex);
+	writeSymbolC(c, bgColor, tpColorIndex);
 }
 
 void Surface::setTextPos(int x, int y) {

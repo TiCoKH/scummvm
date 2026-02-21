@@ -60,7 +60,7 @@ void TitleView::draw() {
 		case 0:
 			s.clear();
 			s.setToText();
-			s.writeStringC("Loading...Please Wait", 10, 0, 24);
+			s.writeStringC(0, 24, 10, "Loading...Please Wait");
 			delaySeconds(1);
 			break;
 		case 1:

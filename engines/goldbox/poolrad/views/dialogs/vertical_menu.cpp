@@ -107,7 +107,7 @@ void VerticalMenu::drawText() {
     // Optional fixed title line (not part of selectable list)
     int titleOffset = 0;
     if (!_title.empty()) {
-        s.writeStringC(_title, _headColor, _xStart, _yStart);
+        s.writeStringC(_xStart, _yStart, _headColor, _title);
         titleOffset = 1;
     }
     // Indent items by 2 spaces if a title is present
@@ -120,7 +120,7 @@ void VerticalMenu::drawText() {
         }
         const auto &item = _menuItems->items[menuIndex];
         int color = (menuIndex == _menuItems->currentSelection) ? _selectColor : _textColor;
-        s.writeStringC(item.text, color, itemX, _yStart + titleOffset + i);
+        s.writeStringC(itemX, _yStart + titleOffset + i, color, item.text);
     }
 }
 
@@ -142,7 +142,7 @@ void VerticalMenu::redrawLine(int index) {
     // Draw the text
     const auto &item = _menuItems->items[index];
     int color = (index == _menuItems->currentSelection) ? _selectColor : _textColor;
-    s.writeStringC(item.text, color, itemX, _yStart + titleOffset + relativeIndex);
+    s.writeStringC(itemX, _yStart + titleOffset + relativeIndex, color, item.text);
 }
 
 void VerticalMenu::updateHorizontalMenu() {

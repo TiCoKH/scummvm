@@ -257,6 +257,17 @@ UIElement::UIElement(const Common::String &name, UIElement *uiParent) :
 	if (_parent)
 		_parent->_children.push_back(this);
 }
+
+UIElement::~UIElement() {
+	// Remove this element from parent's children list before destruction
+	setParent(nullptr);
+
+	// Clean up children (they will remove themselves via their destructors)
+	while (!_children.empty()) {
+		delete _children.back();
+	}
+}
+
 void UIElement::setParent(UIElement *newParent) {
 	if (_parent)
 		_parent->_children.remove(this);
@@ -357,20 +368,18 @@ void UIElement::addView() {
 }
 
 void UIElement::subView(UIElement *child) {
-    if (!child) {
-        debug("subView: Attempted to add a null subview!");
-        return;
-    }
+	if (!child) {
+		debug("subView: Attempted to add a null subview!");
+		return;
+	}
 
-    // Set the current view as the parent
-    child->_parent = this;
+	// Use setParent to properly manage the parent-child relationship
+	// This will remove child from old parent's list and add to this parent's list
+	child->setParent(this);
 
-    // Add the child to the _children list
-    _children.push_back(child);
-
-    // Debug log to confirm the operation
-    debug("subView: Added child '%s' to parent '%s'",
-          child->getName().c_str(), this->getName().c_str());
+	// Debug log to confirm the operation
+	debug("subView: Added child '%s' to parent '%s'",
+		  child->getName().c_str(), this->getName().c_str());
 }
 
 

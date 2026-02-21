@@ -124,7 +124,7 @@ private:
 public:
 	UIElement(const Common::String &name, UIElement *uiParent);
 	UIElement(const Common::String &name);
-	virtual ~UIElement() {}
+	virtual ~UIElement();
 
 	/**
 	 * Changes the parent of an element

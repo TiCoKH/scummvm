@@ -162,8 +162,8 @@ void MainmenuView::drawMenu() {
 	int line_off = 0;
 	for (int i = 0; i < 11; i++) {
 		if (_menuItemList.items[i].active) {
-			s.writeCharC(_menuItemList.items[i].shortcut, 15, 2, 12 + line_off);
-			s.writeStringC(_menuItemList.items[i].text, 10, 3, 12 + line_off);
+			s.writeCharC(2, 12 + line_off, 15, _menuItemList.items[i].shortcut);
+			s.writeStringC(3, 12 + line_off, 10, _menuItemList.items[i].text);
 			line_off++;
 		}
 	}
@@ -202,7 +202,7 @@ void MainmenuView::updateMenuState() {
 void MainmenuView::drawPrompt() {
     Surface s = getSurface();
     s.clearBox(0, 24, 39, 24, 0);
-    s.writeStringC("Choose a function", 13, 0, 24);
+    s.writeStringC(0, 24, 13, "Choose a function");
 }
 
 void MainmenuView::loadCharList() {

@@ -78,8 +78,8 @@ void HorizontalInput::clear() {
 void HorizontalInput::drawText() {
     Surface s = getSurface();
     clear();
-    s.writeStringC(_promptTxt, _promptColor, 0, 24);
-    s.writeStringC(_inputText, 15, _textOffset, 24);
+	s.writeStringC(0, 24, _promptColor, _promptTxt);
+	s.writeStringC(_textOffset, 24, 15, _inputText);
 }
 
 } // namespace Dialogs
