@@ -32,17 +32,17 @@ void PartyList::draw() {
     Surface s = getSurface();
     s.clearBox(1, 1, 28, 11, 0); // Clear the party area
     int y = _yStart;
-    s.writeStringC("Name", 15, _xName, y);
-    s.writeStringC("AC  HP", 15, _xAC, y);
+	s.writeStringC(_xName, y, 15, "Name");
+	s.writeStringC(_xAC,   y, 15, "AC  HP");
     y += 2;
     for (uint _partyIndex = 0; _partyIndex < _party->size(); _partyIndex++) {
         Data::PlayerCharacter *pc = (*_party)[_partyIndex];
         if (pc) {
             int color = (_partyIndex == _selectedCharIndex-1) ? 15 : 11;
-            s.writeStringC(pc->name, color, _xName, y);
+			s.writeStringC(_xName, y, color, pc->name);
             color = (pc->hitPoints.max > 0) ? 10 : 12; 
-            s.writeStringC(Common::String::format("%d", pc->armorClass.current), color, _xAC, y);
-            s.writeStringC(Common::String::format("%d", pc->hitPoints.max), color, _xAC + 4, y);
+            s.writeStringC(_xAC, y, color, Common::String::format("%d", pc->armorClass.current));
+			s.writeStringC(_xAC + 4, y, color, Common::String::format("%d", pc->hitPoints.max));
             y ++;
         }
     }

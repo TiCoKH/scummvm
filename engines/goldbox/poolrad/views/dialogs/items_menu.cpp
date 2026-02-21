@@ -77,12 +77,16 @@ ItemsMenu::~ItemsMenu() {
 void ItemsMenu::draw() {
 	Surface s = getSurface();
 
+	if (!_character) {
+		return;
+	}
+
 	drawWindow(1, 1, 38, 22);
-	s.writeStringC(_character->name, _character->getNameColor(), 1, 1);
+	s.writeStringC(1, 1, _character->getNameColor(), _character->name);
 	s.writeString("'s");
-	s.writeStringC("Items", 14, 1 + _character->name.size() + 4, 1);
+	s.writeStringC(1 + _character->name.size() + 4, 1, 14, "Items");
 	drawWindow(1, 3, 38, 22);
-	s.writeStringC("Ready Item", 15, 1, 5);
+	s.writeStringC(1, 5, 15, "Ready Item");
 
 	// Rebuild the menu with updated items from character's inventory
 	if (_verticalMenu) {

@@ -57,19 +57,26 @@ UIElement *View::getElementAtPos(const Common::Point &pos) const {
 void View::drawFrame(const Common::Rect &r, uint32 bgColor, uint32 tpColorIndex) {
 	Surface s = getSurface();
 
-	s.writeSymbol(20, r.left, r.top, bgColor, tpColorIndex);
+	// Top-left corner
+	s.writeSymbol(r.left, r.top, 20, bgColor, tpColorIndex);
+	// Top edge
 	for (int x = r.left + 1; x <= r.right - 1; x++) {
-		s.writeSymbol(22, bgColor, tpColorIndex);
+		s.writeSymbol(x, r.top, 22, bgColor, tpColorIndex);
 	}
-	s.writeSymbol(20, bgColor, tpColorIndex);
+	// Top-right corner
+	s.writeSymbol(r.right, r.top, 20, bgColor, tpColorIndex);
+	// Left and right edges
 	for (int y = r.top + 1; y <= r.bottom - 1; y++) {
-		s.writeSymbol(21, r.left, y, bgColor, tpColorIndex);
-		s.writeSymbol(21, r.right, y, bgColor, tpColorIndex);
+		s.writeSymbol(r.left, y, 21, bgColor, tpColorIndex);
+		s.writeSymbol(r.right, y, 21, bgColor, tpColorIndex);
 	}
-	s.writeSymbol(20, r.left, r.bottom, bgColor, tpColorIndex);
+	// Bottom-left corner
+	s.writeSymbol(r.left, r.bottom, 20, bgColor, tpColorIndex);
+	// Bottom edge
 	for (int x = r.left + 1; x <= r.right - 1; x++)
-		s.writeSymbol(22, bgColor, tpColorIndex);
-	s.writeSymbol(20, bgColor, tpColorIndex);
+		s.writeSymbol(x, r.bottom, 22, bgColor, tpColorIndex);
+	// Bottom-right corner
+	s.writeSymbol(r.right, r.bottom, 20, bgColor, tpColorIndex);
 }
 
 void View::drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom) {

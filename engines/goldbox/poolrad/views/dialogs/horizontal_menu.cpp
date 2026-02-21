@@ -51,7 +51,7 @@ void HorizontalMenu::drawText() {
 
     Surface s = getSurface();
     s.clearBox(0, 24, 39, 24, _backgroundColor);
-    s.writeStringC(_promptTxt, _promptColor, 0, 24);
+    s.writeStringC(0, 24, _promptColor, _promptTxt);
 
 	s.setTextPos(_promptTxt.size(), 24);
     for (int i = 0; i < (int)_menuItems->items.size(); i++) {

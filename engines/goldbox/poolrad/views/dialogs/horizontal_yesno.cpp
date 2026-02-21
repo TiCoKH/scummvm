@@ -112,7 +112,7 @@ void HorizontalYesNo::drawText() {
         return;
     clear();
     // Show the prompt text; caller should include any punctuation like '?' if desired
-    s.writeStringC(_promptTxt, _promptColor, 0, 24);
+	s.writeStringC(0, 24, _promptColor, _promptTxt);
     s.setTextPos(_promptTxt.size(), 24);
     // Render options using MenuItemList like HorizontalMenu
     for (uint i = 0; i < _menuItems.items.size(); i++) {

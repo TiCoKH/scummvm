@@ -429,10 +429,10 @@ void SetIcon::drawEditorText() {
     s.clearBox(kWindowLeft, kWindowTop, kWindowRight, kWindowBottom, kBackgroundColor);
 
     // Static labels and layout
-    s.writeStringC("old", 15, 8, 6);
-    s.writeStringC("ready   action", 15, 3, 10);
-    s.writeStringC("new", 15, 8, 12);
-    s.writeStringC("ready   action", 15, 3, 16);
+	s.writeStringC(8, 6, 15, "old");
+	s.writeStringC(3, 10, 15, "ready   action");
+	s.writeStringC(8, 12, 15, "new");
+	s.writeStringC(3, 16, 15, "ready   action");
 }
 
 void SetIcon::drawEditorIcons() {

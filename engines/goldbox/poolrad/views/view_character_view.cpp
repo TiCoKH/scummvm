@@ -113,6 +113,11 @@ void ViewCharacterView::buildMenu() {
 void ViewCharacterView::draw() {
     // Always use the current selected character from the engine
     _character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(Goldbox::VmInterface::getSelectedCharacter());
+	
+	if (!_character) {
+		return;
+	}
+	
     buildMenu();
     if (_itemsMenu && _itemsMenu->isActive()) {
         _itemsMenu->setCharacter(_character);
