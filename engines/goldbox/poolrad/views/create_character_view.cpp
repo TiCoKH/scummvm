@@ -759,13 +759,14 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 		if (key == Common::KEYCODE_ESCAPE) {
 			resetState();
 			replaceView("Mainmenu");
-		} else if (key == Common::KEYCODE_e) {
-			// Icon selection confirmed via menu - move to DONE
+		} else if (success && key == Common::KEYCODE_y) {
+			// Icon confirmed (Yes in SetIcon confirm dialog) - save and finish
 			if (_activeSubView == _iconSelector)
 				_activeSubView = nullptr;
 			detachAndDelete(_iconSelector);
 			setStage(CC_STATE_DONE);
 		}
+		// No (KEYCODE_n) is handled inside SetIcon itself - returns to main menu
 		break;
 	case CC_STATE_DONE:
 		replaceView("Mainmenu");
@@ -819,7 +820,7 @@ Common::String CreateCharacterView::formatBaseFilename(const Common::String &nam
 void CreateCharacterView::appendLineToTextFile(const Common::String &fileName, const Common::String &line) {
 	// Append by reading existing content and writing back with new line at end
 	Common::DumpFile df;
-	if (!df.open(fileName.c_str(), true)) { // createPath=true
+	if (!df.open(fileName.c_str(), false)) { // createPath=false - simple filenames don't need path creation
 		warning("Failed to open %s for append", fileName.c_str());
 		return;
 	}
@@ -835,22 +836,29 @@ void CreateCharacterView::saveCharacter() {
 	if (!_newCharacter)
 		return;
 
+	debug("saveCharacter: starting save for character '%s'", _newCharacter->name.c_str());
+
 	// Save .CHA
 	Common::String base = formatBaseFilename(_newCharacter->name);
 	Common::String chrFile = base + ".CHA";
+	debug("saveCharacter: opening '%s' for write", chrFile.c_str());
 	Common::DumpFile out;
 	if (out.open(chrFile.c_str(), false)) {
 		_newCharacter->save(out);
 		out.flush();
 		out.close();
+		debug("saveCharacter: successfully saved '%s'", chrFile.c_str());
 	} else {
 		warning("Failed to create %s", chrFile.c_str());
 	}
 
 	// Create empty .ITM and .SPC via inventory/effects save
+	debug("saveCharacter: saving inventory to '%s.ITM'", base.c_str());
 	_newCharacter->inventory.save(base + ".ITM");
+	debug("saveCharacter: saving effects to '%s.SPC'", base.c_str());
 	_newCharacter->effects.save(base + ".SPC");
 	appendLineToTextFile("CHARLIST.TXT", _newCharacter->name);
+	debug("saveCharacter: completed save for character '%s'", _newCharacter->name.c_str());
 }
 
 void CreateCharacterView::rollAndRecompute() {
