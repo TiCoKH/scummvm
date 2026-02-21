@@ -35,6 +35,7 @@ HorizontalYesNo::HorizontalYesNo(const String &name, const HorizontalYesNoConfig
             _textColor(config.textColor),
             _selectColor(config.selectColor),
             _promptColor(config.promptColor),
+            _backgroundColor(config.backgroundColor),
             _promptTxt(config.promptTxt) {
     // Build internal YES/NO menu using MenuItemList like HorizontalMenu
     Array<String> items;
@@ -103,7 +104,7 @@ void HorizontalYesNo::draw() {
 void HorizontalYesNo::clear() {
     Surface s = getSurface();
     // Clear the prompt line (same placement as HorizontalInput)
-    s.clearBox(0, 24, 39, 24, 0);
+    s.clearBox(0, 24, 39, 24, _backgroundColor);
 }
 
 void HorizontalYesNo::drawText() {

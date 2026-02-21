@@ -24,6 +24,7 @@
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
@@ -87,6 +88,7 @@ private:
     // Data
     Goldbox::Poolrad::Data::PoolradCharacter *_pc;
     HorizontalMenu *_menu = nullptr;
+    HorizontalYesNo *_yesNoPrompt = nullptr;
     Goldbox::MenuItemList _menuItems;
 
     // Backups for commit/cancel
@@ -100,6 +102,8 @@ private:
     int _selectedSubPart   = 0;    // Body, Arms, Legs, Head/Face, Shield, Weapon
     int _selectedSize      = 0;    // 0 = Large, 1 = Small
     int _colorAdjustMode   = 0;    // Which color being adjusted
+
+    uint8 _originalColorByte;
 
     // Index mapping for sub-part menu (accounts for dynamic Hair/Face)
     Common::Array<int> _indexMap;
