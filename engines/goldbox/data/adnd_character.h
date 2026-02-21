@@ -132,7 +132,7 @@ public:
 		uint8 armorBase; // Base armor AC (base + armor magic)
 
 		AcComponents() : dexAdj(0), shield(0), misc(0), ring(0), armorBase(0) {}
-		
+
 		int getTotalAC() const {
 			int total = armorBase + misc + ring + shield + dexAdj;
 			return CLIP<int>(total, 0, 255);
@@ -148,7 +148,7 @@ public:
 
 	// Apply an item's defensive bonuses and protections to character.
 	// Returns true if the item provides protection (protection flag is set).
-	void setItemProtection(const Goldbox::Data::Items::CharacterItem *item, 
+	void setItemProtection(const Goldbox::Data::Items::CharacterItem *item,
 						  AcComponents *acComponents,
 						  bool *magicArmorWorn);
 
@@ -179,6 +179,8 @@ public:
 				 Goldbox::Data::Items::Slot slot);
 	bool unequipItem(Goldbox::Data::Items::Slot slot);
 
+	// Character type helpers (legacy npc flag: < 0x80 player, >= 0x80 NPC)
+	bool isNpc() const;
 
 	// Virtual destructor to ensure proper cleanup in derived classes.
 	virtual ~ADnDCharacter() {}

@@ -9,6 +9,7 @@
 #include "goldbox/poolrad/views/view_character_view.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
+#include "goldbox/poolrad/views/dialogs/items_menu.h"
 #include "goldbox/data/rules/rules_types.h"
 
 namespace Goldbox {
@@ -22,7 +23,11 @@ ViewCharacterView::ViewCharacterView()
     : ViewCharacterView(static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(Goldbox::VmInterface::getSelectedCharacter())) {}
 
 ViewCharacterView::ViewCharacterView(Goldbox::Poolrad::Data::PoolradCharacter *character)
-    : View("ViewCharacter"), _character(character), _horizontalMenu(nullptr), _profileDialog(nullptr) {
+        : View("ViewCharacter"),
+            _character(character),
+            _horizontalMenu(nullptr),
+            _profileDialog(nullptr),
+            _itemsMenu(nullptr) {
 
     Dialogs::HorizontalMenuConfig menuConfig = {
         "View:", // promptTxt
@@ -34,8 +39,10 @@ ViewCharacterView::ViewCharacterView(Goldbox::Poolrad::Data::PoolradCharacter *c
     };
     _horizontalMenu = new Dialogs::HorizontalMenu("CharacterHorizontalMenu", menuConfig);
     _profileDialog = new Dialogs::CharacterProfile(_character, "CharacterProfile");
+    _itemsMenu = new Dialogs::ItemsMenu(_character, "ItemsMenu");
     subView(_profileDialog);
     subView(_horizontalMenu);
+    subView(_itemsMenu);
 }
 
 ViewCharacterView::~ViewCharacterView() {
@@ -47,61 +54,71 @@ ViewCharacterView::~ViewCharacterView() {
         delete _profileDialog;
         _profileDialog = nullptr;
     }
+    if (_itemsMenu) {
+        delete _itemsMenu;
+        _itemsMenu = nullptr;
+    }
 }
 
 void ViewCharacterView::buildMenu() {
     _menuList.items.clear();
+    _menuList.currentSelection = 0;
 
     if (!_character)
         return;
 
+    Common::Array<Common::String> labels;
+
     // Add Items if character has any
-    if (_character->getInventory().count() != 0) {
-        _menuList.push_back("Items");
+    if (_character->hasItems()) {
+        labels.push_back("Items");
     }
 
-    // Check for memorized spells using modern SpellBook API
-    bool hasMemoSpells = _character->spellBook.hasAnyMemorized();
+    // Check for memorized spells using PoolradCharacter helper
+    const bool hasMemoSpells = _character->haveMemorizedSpell();
 
     // Check for valuables using proper API
-    bool hasValuables = false;
-    for (int i = 0; i < Goldbox::Data::VALUABLE_COUNT; i++) {
-        if (_character->valuableItems.values[i] != 0) {
-            hasValuables = true;
-            break;
-        }
-    }
+    const bool hasValuables = _character->hasValuables();
 
     // Add Spells if character has any memorized spells
     if (hasMemoSpells) {
-        _menuList.push_back("Spells");
+        labels.push_back("Spells");
     }
 
-    // Add Trade if: character has valuables AND not in combat
-    // Check npc status: npc < 0x80 means player character, >= 0x80 means NPC
-    if (hasValuables && _character->npc < 0x80) {
+    // Add Trade if: has valuables AND not in combat AND
+    // (npc < 0x80 OR enabled == 0 OR status == STATUS_ANIMATED)
+    const bool tradeAllowed = !_character->isNpc() || (!_character->enabled) ||
+        (_character->healthStatus == Goldbox::Data::S_ANIMATED);
+    if (hasValuables && tradeAllowed) {
         if (Goldbox::VmInterface::getGameStatus() != GS_COMBAT) {
-            _menuList.push_back("Trade");
+            labels.push_back("Trade");
         }
     }
 
     // Add Drop if character has valuables
     if (hasValuables) {
-        _menuList.push_back("Drop");
+        labels.push_back("Drop");
     }
-
+/* Addendum: For now, always show Rename for player characters, as it doesn't require a working prompt dialog yet
     // Add Rename if character is not NPC
-    if (_character->npc < 0x80) {
-        _menuList.push_back("Rename");
+    if (!_character->isNpc()) {
+        labels.push_back("Rename");
     }
+*/
+    labels.push_back("Exit");
 
-    _menuList.push_back("Exit");
+    _menuList.generateMenuItems(labels, true);
 }
 
 void ViewCharacterView::draw() {
-    buildMenu();
     // Always use the current selected character from the engine
     _character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(Goldbox::VmInterface::getSelectedCharacter());
+    buildMenu();
+    if (_itemsMenu && _itemsMenu->isActive()) {
+        _itemsMenu->setCharacter(_character);
+        _itemsMenu->draw();
+        return;
+    }
     if (_profileDialog) {
         // Directly update the internal pointer before drawing
         _profileDialog->_poolradPc = _character;
@@ -111,6 +128,9 @@ void ViewCharacterView::draw() {
 }
 
 bool ViewCharacterView::msgKeypress(const KeypressMessage &msg) {
+    if (_itemsMenu && _itemsMenu->isActive()) {
+        return _itemsMenu->msgKeypress(msg);
+    }
     if (_horizontalMenu) {
         // Let the menu handle the keypress first
         if (_horizontalMenu->msgKeypress(msg))
@@ -132,33 +152,35 @@ void ViewCharacterView::handleMenuResult(bool accepted, Common::KeyCode keyCode,
     if (!_character)
         return;
 
-    // Map menu index to actual menu item by checking the dynamic menu list
-    if (index < 0 || index >= static_cast<int>(_menuList.items.size()))
-        return;
-
-    const Common::String &menuItem = _menuList.items[index].text;
-
-    if (menuItem == "Items") {
+    switch (keyCode) {
+    case Common::KEYCODE_i:
         handleViewItems();
-    } else if (menuItem == "Spells") {
+        break;
+    case Common::KEYCODE_s:
         handleViewSpells();
-    } else if (menuItem == "Trade") {
+        break;
+    case Common::KEYCODE_t:
         handleTradeValuables();
-    } else if (menuItem == "Drop") {
+        break;
+    case Common::KEYCODE_d:
         handleDropValuables();
-    } else if (menuItem == "Rename") {
+        break;
+/*     case Common::KEYCODE_r:
         handleRenameCharacter();
-    } else if (menuItem == "Exit") {
+        break; */
+    case Common::KEYCODE_e:
+    case Common::KEYCODE_ESCAPE:
         handleExit();
+        break;
+    default:
+        break;
     }
 }
 
 void ViewCharacterView::handleViewItems() {
-    // TODO: Implement VIEW_Items equivalent
-    // This should show the character's inventory
-    // Redraw profile after items dialog
-    if (_profileDialog) {
-        _profileDialog->draw();
+    if (_itemsMenu) {
+        _itemsMenu->setCharacter(_character);
+        _itemsMenu->activate();
     }
 }
 

@@ -76,6 +76,7 @@ private:
     Dialogs::HorizontalYesNo *_yesNoPrompt = nullptr;
     // Reusable menu items container
     Goldbox::MenuItemList *_menuItems = nullptr;
+    Common::Array<Common::String> _menuPromptOptions;
     Dialogs::VerticalMenu *_listmenu = nullptr;
 
     Dialogs::CharacterProfile *_profileDialog = nullptr;

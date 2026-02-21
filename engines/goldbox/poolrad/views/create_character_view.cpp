@@ -498,10 +498,11 @@ void CreateCharacterView::chooseIcon() {
 }
 
 void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
-	Common::Array<Common::String> promptOptions = {"Exit"};
+	_menuPromptOptions.clear();
+	_menuPromptOptions.push_back("Exit");
     Dialogs::VerticalMenuConfig menuConfig = {
         "",                  // promptTxt
-        promptOptions,       // promptOptions
+        &_menuPromptOptions, // promptOptions (pointer)
         _menuItems,          // menuItemList (initialized later)
 		kMenuHeadColor,      // headColor
 		kMenuTextColor,      // textColor
@@ -758,7 +759,7 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 		if (key == Common::KEYCODE_ESCAPE) {
 			resetState();
 			replaceView("Mainmenu");
-		} else if (key == Common::KEYCODE_RETURN) {
+		} else if (key == Common::KEYCODE_e) {
 			// Icon selection confirmed via menu - move to DONE
 			if (_activeSubView == _iconSelector)
 				_activeSubView = nullptr;

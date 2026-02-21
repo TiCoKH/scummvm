@@ -62,7 +62,9 @@ VerticalMenu::VerticalMenu(const String &name, const VerticalMenuConfig &config)
         _linesBelow = _itemNums - _menuHeight;
     }
 
-    _hMenuList.generateMenuItems(_promptOptions, true);
+    if (_promptOptions) {
+        _hMenuList.generateMenuItems(*_promptOptions, true);
+    }
 
     updateHorizontalMenu();
 

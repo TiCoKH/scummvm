@@ -170,7 +170,7 @@ void CharacterProfile::drawLevelExp() {
         s.writeStringC(levelStr, 15, 7, 15);
 
     s.writeStringC("Exp", 15, 17, 15);
-    s.writeStringC(String::format("%u", _poolradPc->experiencePoints), 15, 20, 15);
+    s.writeStringC(String::format("%u", _poolradPc->experiencePoints), 15, 21, 15);
 }
 
 void CharacterProfile::drawCombat() {

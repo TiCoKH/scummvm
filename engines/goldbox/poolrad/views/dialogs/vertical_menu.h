@@ -34,7 +34,7 @@ namespace Dialogs {
 
 struct VerticalMenuConfig {
     Common::String promptTxt;
-    Common::Array<Common::String> promptOptions;
+    Common::Array<Common::String> *promptOptions;
     Goldbox::MenuItemList *menuItemList;
     int headColor;
     int textColor;
@@ -55,7 +55,7 @@ private:
     int _selectColor;
     int _headColor;
     Common::String _promptTxt;
-    Common::Array<Common::String> _promptOptions;
+    Common::Array<Common::String> *_promptOptions;
     int _xStart, _yStart, _xEnd, _yEnd;
     bool _nextNeed;
     bool _prevNeed;

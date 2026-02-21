@@ -139,6 +139,8 @@ public:
 
     bool meetsClassRequirements() const;
     bool haveMemorizedSpell() const;
+    bool hasItems() const;
+    bool hasValuables() const;
     void finalizeName();
 
     // Returns true if the character knows the given spell (by Spells enum id).

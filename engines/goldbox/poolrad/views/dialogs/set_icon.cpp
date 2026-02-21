@@ -410,18 +410,6 @@ void SetIcon::drawIconPair(int x, int y, uint8 slotId) {
 bool SetIcon::msgKeypress(const KeypressMessage &msg) {
     KeyCode keyCode = msg.keycode;
 
-    if (keyCode == Common::KEYCODE_ESCAPE) {
-        if (_parent)
-            _parent->handleMenuResult(false, keyCode, -1);
-        return true;
-    }
-
-    if (keyCode == Common::KEYCODE_RETURN) {
-        if (_parent)
-            _parent->handleMenuResult(true, keyCode, -1);
-        return true;
-    }
-
     if (_menu) {
         return _menu->msgKeypress(msg);
     }

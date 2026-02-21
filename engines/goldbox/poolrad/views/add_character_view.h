@@ -33,6 +33,7 @@ class AddCharacterView : public View {
 private:
 	Goldbox::MenuItemList *_rosterList;
 	Dialogs::VerticalMenu *_rosterMenu;
+	Common::Array<Common::String> _promptOptions;
 	Common::String formatFilename(const Common::String &name);
 	void loadCharacter(int index);
 
