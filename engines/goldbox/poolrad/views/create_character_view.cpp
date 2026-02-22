@@ -22,6 +22,8 @@
 #include "common/system.h"
 #include "common/file.h"
 #include "common/savefile.h"
+#include "common/config-manager.h"
+#include "common/fs.h"
 #include "graphics/palette.h"
 //#include "goldbox/keymapping.h"
 #include "goldbox/vm_interface.h"
@@ -818,13 +820,48 @@ Common::String CreateCharacterView::formatBaseFilename(const Common::String &nam
 }
 
 void CreateCharacterView::appendLineToTextFile(const Common::String &fileName, const Common::String &line) {
-	// Append by reading existing content and writing back with new line at end
+	// Get the save directory path
+	Common::Path savePath = ConfMan.getPath("savepath");
+	if (savePath.empty())
+		savePath = ConfMan.getPath("currentpath");
+
+	// Create the save directory if it doesn't exist
+	Common::FSNode saveNode(savePath);
+	if (!saveNode.isDirectory()) {
+		if (!saveNode.createDirectory()) {
+			warning("Failed to create save directory: %s", savePath.toString().c_str());
+			return;
+		}
+	}
+
+	// Build the full path to the file
+	Common::Path filePath = savePath / fileName;
+
+	// Read existing content
+	Common::String existingContent;
+	Common::File existingFile;
+	if (existingFile.open(filePath)) {
+		char buffer[4096];
+		size_t bytesRead;
+		while ((bytesRead = existingFile.read(buffer, sizeof(buffer))) > 0) {
+			existingContent += Common::String(buffer, bytesRead);
+		}
+		existingFile.close();
+	}
+
+	// Append the new line
 	Common::DumpFile df;
-	if (!df.open(fileName.c_str(), false)) { // createPath=false - simple filenames don't need path creation
-		warning("Failed to open %s for append", fileName.c_str());
+	if (!df.open(filePath)) {
+		warning("Failed to open %s for write", filePath.toString().c_str());
 		return;
 	}
-	// Ensure trailing newline
+
+	// Write existing content first
+	if (!existingContent.empty()) {
+		df.write(existingContent.c_str(), existingContent.size());
+	}
+
+	// Write the new line with trailing newline
 	Common::String out = line;
 	out += "\n";
 	df.write(out.c_str(), out.size());
@@ -838,25 +875,47 @@ void CreateCharacterView::saveCharacter() {
 
 	debug("saveCharacter: starting save for character '%s'", _newCharacter->name.c_str());
 
-	// Save .CHA
+	// Get the save directory path
+	Common::Path savePath = ConfMan.getPath("savepath");
+	if (savePath.empty())
+		savePath = ConfMan.getPath("currentpath");
+
+	// Create the save directory if it doesn't exist
+	Common::FSNode saveNode(savePath);
+	if (!saveNode.isDirectory()) {
+		if (!saveNode.createDirectory()) {
+			warning("Failed to create save directory: %s", savePath.toString().c_str());
+			return;
+		}
+	}
+
+	// Build the base filename
 	Common::String base = formatBaseFilename(_newCharacter->name);
-	Common::String chrFile = base + ".CHA";
-	debug("saveCharacter: opening '%s' for write", chrFile.c_str());
+
+	// Build full paths for character files
+	Common::Path chrFile = savePath / (base + ".CHA");
+	Common::Path itmFile = savePath / (base + ".ITM");
+	Common::Path spcFile = savePath / (base + ".SPC");
+
+	// Save .CHA file
+	debug("saveCharacter: opening '%s' for write", chrFile.toString().c_str());
 	Common::DumpFile out;
-	if (out.open(chrFile.c_str(), false)) {
+	if (out.open(chrFile)) {
 		_newCharacter->save(out);
-		out.flush();
 		out.close();
-		debug("saveCharacter: successfully saved '%s'", chrFile.c_str());
+		debug("saveCharacter: successfully saved '%s'", chrFile.toString().c_str());
 	} else {
-		warning("Failed to create %s", chrFile.c_str());
+		warning("Failed to create %s", chrFile.toString().c_str());
+		return;
 	}
 
 	// Create empty .ITM and .SPC via inventory/effects save
-	debug("saveCharacter: saving inventory to '%s.ITM'", base.c_str());
-	_newCharacter->inventory.save(base + ".ITM");
-	debug("saveCharacter: saving effects to '%s.SPC'", base.c_str());
-	_newCharacter->effects.save(base + ".SPC");
+	debug("saveCharacter: saving inventory to '%s'", itmFile.toString().c_str());
+	_newCharacter->inventory.save(itmFile.toString());
+	debug("saveCharacter: saving effects to '%s'", spcFile.toString().c_str());
+	_newCharacter->effects.save(spcFile.toString());
+
+	// Append character name to CHARLIST.TXT
 	appendLineToTextFile("CHARLIST.TXT", _newCharacter->name);
 	debug("saveCharacter: completed save for character '%s'", _newCharacter->name.c_str());
 }
