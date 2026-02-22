@@ -136,7 +136,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
 	hitPoints.max = stream.readByte(); // 0x032
 
-	// 0x033–0x06A: cleric/mage spell knowledge — 55 bytes
+	// 0x033–0x069: cleric/mage spell knowledge — 55 bytes
 	stream.read(spells.knownSpells, 55);
 
 	// Convert legacy spell arrays to modern SpellBook
@@ -145,6 +145,8 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 		spells.knownSpells, POOLRAD_KNOWN_SIZE,
 		kPoolradSpellMapping, POOLRAD_KNOWN_SIZE
 	);
+
+	stream.readByte(); // Padding/Unknown at 0x06A
 
 	attackLevel = stream.readByte();   // 0x06B
 	iconDimension = stream.readByte(); // 0x06C
@@ -609,6 +611,8 @@ void PoolradCharacter::save(Common::WriteStream &stream) {
 
 	// Known spells (55 bytes in Poolrad layout)
 	stream.write(spells.knownSpells, 55);
+
+	stream.writeByte(0); // Padding/Unknown at 0x06A
 
 	stream.writeByte(attackLevel);
 	stream.writeByte(iconDimension);
