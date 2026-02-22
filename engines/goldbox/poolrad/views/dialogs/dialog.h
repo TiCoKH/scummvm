@@ -32,14 +32,21 @@ namespace Dialogs {
 class Dialog : public View {
 protected:
 	bool _isActive = false;
+	bool _isVisible = true;
 
 public:
 	Dialog(const Common::String &name) : View(name) {}
 	virtual ~Dialog() {}
 
-	void activate() { _isActive = true; }
-    void deactivate() { _isActive = false; }
+	void activate() { _isActive = true; _isVisible = true; }
+	void deactivate() { _isActive = false; _isVisible = false; }
     bool isActive() const { return _isActive; }
+    bool isVisible() const { return _isVisible; }
+
+	void show() { _isVisible = true; }
+    void hide() { _isVisible = false; }
+
+	void draw() override;
 };
 
 } // namespace Dialogs

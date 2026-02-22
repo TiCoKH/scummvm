@@ -93,7 +93,9 @@ VerticalMenu::~VerticalMenu() {
 }
 
 void VerticalMenu::draw() {
-    drawText();
+    if (!isActive())
+        return;
+     drawText();
 
     if (_horizontalMenu) {
         _horizontalMenu->draw();

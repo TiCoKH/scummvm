@@ -30,13 +30,7 @@
 #include "goldbox/core/menu_item.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/data/spells/spell.h"
-#include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/views/create_character_view.h"
-#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
-#include "goldbox/poolrad/views/dialogs/character_profile.h"
-#include "goldbox/poolrad/views/dialogs/horizontal_input.h"
-#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
-#include "goldbox/poolrad/views/dialogs/set_icon.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -115,12 +109,6 @@ CreateCharacterView::CreateCharacterView() : View("CreatCharacter"), _stage(CC_S
 }
 
 CreateCharacterView::~CreateCharacterView() {
-	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
-	if (_activeSubView == _nameInput) _activeSubView = nullptr;
-	if (_activeSubView == _yesNoPrompt) _activeSubView = nullptr;
-	if (_activeSubView == _listmenu) _activeSubView = nullptr;
-	if (_activeSubView == _portraitSelector) _activeSubView = nullptr;
-	if (_activeSubView == _iconSelector) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
 	detachAndDelete(_yesNoPrompt);
@@ -283,11 +271,9 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 }
 
 void CreateCharacterView::draw() {
-	Surface s = getSurface();
 	// In CC_STATE_ICON, let SetIcon handle all drawing (including custom background)
 	if (_stage != CC_STATE_ICON) {
 		drawWindow(kWinLeft, kWinTop, kWinRight, kWinBottom);
-	} else {
 	}
 	// Draw the profile only in states where it should be visible (not CC_STATE_ICON)
 	if (_stage != CC_STATE_ICON && _profileDialog && _profileDialog->isActive()) {
@@ -332,29 +318,18 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 			_yesNoPrompt->msgKeypress(msg);
 			return true;
 		}
-		if (msg.keycode == Common::KEYCODE_r || msg.ascii == 'R') {
-			performRerollAndRecompute();
-			if (_profileDialog)
-				_profileDialog->redrawStats(), _profileDialog->redrawValuables(), _profileDialog->redrawCombat();
-			return true;
-		}
 	}
 	// In all other cases, if we have an active subview (e.g., name input or menu),
 	// forward the keypress to the concrete dialog instance.
 	if (_activeSubView) {
 		if (_activeSubView == static_cast<Dialogs::Dialog *>(_nameInput) && _nameInput) {
-			// Handle HorizontalInput completion (similar to codewheel_view pattern)
-			if (msg.keycode == Common::KEYCODE_RETURN || msg.keycode == Common::KEYCODE_ESCAPE) {
-				// Let handleMenuResult process the result
+			if (msg.keycode == Common::KEYCODE_RETURN) {
 				handleMenuResult(true, msg.keycode, 0);
 				return true;
 			}
-			// Pass other keys to the input handler for character accumulation
 			static_cast<Dialogs::HorizontalInput *>(_nameInput)->msgKeypress(msg);
 			return true;
 		}
-		// Other dialogs (like the menu) are registered as children and will
-		// be handled by the base View implementation below.
 	}
 	return View::msgKeypress(msg);
 }
@@ -779,12 +754,6 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 void CreateCharacterView::resetState() {
 	// Delete subviews safely: detach from parent so redraw traversal doesn't
 	// see freed memory.
-	if (_activeSubView == _profileDialog) _activeSubView = nullptr;
-	if (_activeSubView == _nameInput) _activeSubView = nullptr;
-	if (_activeSubView == _yesNoPrompt) _activeSubView = nullptr;
-	if (_activeSubView == _portraitSelector) _activeSubView = nullptr;
-	if (_activeSubView == _iconSelector) _activeSubView = nullptr;
-	if (_activeSubView == _listmenu) _activeSubView = nullptr;
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
 	detachAndDelete(_yesNoPrompt);

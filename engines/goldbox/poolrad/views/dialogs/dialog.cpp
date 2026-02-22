@@ -26,6 +26,10 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+void Dialog::draw() {
+	if (!_isVisible)
+		return;
+}
 
 } // namespace Dialogs
 } // namespace Views
