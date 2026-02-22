@@ -40,8 +40,6 @@ ItemsMenu::ItemsMenu(Goldbox::Poolrad::Data::PoolradCharacter *character, const 
 	: Dialog(name),
 	  _character(character),
 	  _verticalMenu(nullptr),
-	  _continueAfterAction(false),
-	  _selectedItemIndex(-1),
 	  _showingActions(false) {
 
 	buildActionMenu();
@@ -64,6 +62,7 @@ ItemsMenu::ItemsMenu(Goldbox::Poolrad::Data::PoolradCharacter *character, const 
 
 	_verticalMenu = new VerticalMenu("ItemsVerticalMenu", menuConfig);
 	subView(_verticalMenu);
+	_verticalMenu->deactivate();
 	deactivate();
 }
 
@@ -74,8 +73,29 @@ ItemsMenu::~ItemsMenu() {
 	}
 }
 
+void ItemsMenu::activate() {
+	Dialog::activate();
+	if (_verticalMenu)
+		_verticalMenu->activate();
+}
+
+void ItemsMenu::deactivate() {
+	Dialog::deactivate();
+	if (_verticalMenu)
+		_verticalMenu->deactivate();
+}
+
 void ItemsMenu::draw() {
-	// Always use the current selected character from the engine
+	// Only draw when active
+	if (!isActive()) {
+		return;
+	}
+
+	// Ensure character is set
+	if (!_character) {
+		return;
+	}
+
 	Surface s = getSurface();
 
 	drawWindow(1, 1, 38, 22);
@@ -132,107 +152,19 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 }
 
 void ItemsMenu::handleMenuResult(bool success, Common::KeyCode key, short value) {
-	if (!success) {
-		// Exit action menu and return to item list
-		if (_showingActions) {
+	// Handle action menu selection
+	if (success) {
+		if (key == Common::KEYCODE_ESCAPE) {
+			// Exit action menu, return to item list
 			_showingActions = false;
-			_selectedItemIndex = -1;
-		} else {
-			handleExit();
-		}
-		return;
-	}
-
-	if (!_showingActions) {
-		// Item selected - show action menu
-		if (value < 0 || value >= (int)_itemList.size()) {
+			buildItemsListMenu();
+			if (_verticalMenu) {
+				_verticalMenu->rebuild(&_menuList, "ITEMS");
+			}
 			return;
 		}
-
-		_selectedItemIndex = value;
-		Goldbox::Data::Items::CharacterItem *selectedItem = _itemList[value];
-		if (!selectedItem) {
-			return;
-		}
-
-		// Build and show action menu based on character state (already built, just show)
-		_showingActions = true;
-
-	} else {
-		// Action selected - execute it
-		if (_selectedItemIndex < 0 || _selectedItemIndex >= (int)_itemList.size()) {
-			_showingActions = false;
-			_selectedItemIndex = -1;
-			return;
-		}
-
-		Goldbox::Data::Items::CharacterItem *selectedItem = _itemList[_selectedItemIndex];
-		if (!selectedItem) {
-			_showingActions = false;
-			_selectedItemIndex = -1;
-			return;
-		}
-
-		// Execute action based on keyCode
-		switch (key) {
-		case Common::KEYCODE_r:
-			handleReadyItem(selectedItem);
-			break;
-		case Common::KEYCODE_u:
-			handleUseItem(selectedItem);
-			break;
-		case Common::KEYCODE_t:
-			handleTradeItem(selectedItem);
-			break;
-		case Common::KEYCODE_d:
-			handleDropItem(selectedItem);
-			break;
-		case Common::KEYCODE_h:
-			handleHalveItem(selectedItem);
-			break;
-		case Common::KEYCODE_j:
-			handleJoinItem(selectedItem);
-			break;
-		case Common::KEYCODE_s:
-			handleSellItem(selectedItem);
-			break;
-		case Common::KEYCODE_i:
-			handleIdentifyItem(selectedItem);
-			break;
-		case Common::KEYCODE_e:
-		case Common::KEYCODE_ESCAPE:
-			// Just close action menu, return to item list
-			break;
-		default:
-			break;
-		}
-
-		// Return to item list
-		_showingActions = false;
-		_selectedItemIndex = -1;
-	}
-}
-
-void ItemsMenu::buildActionMenu() {
-	// Build the horizontal action menu based on character state and game state
-	_actionMenuList.clear();
-
-	if (!_character) {
-		return;
 	}
 
-	// Ready - always available
-	_actionMenuList.push_back("Ready");
-
-	// Use - if character enabled + no geo restriction + valid game state
-	if (_character->enabled) {
-		// TODO: Check geo restriction at GB_PTR_MEM_GEO + 458
-		// For now, assume geo check passes
-		bool geoCheckPassed = true;
-		if (geoCheckPassed) {
-			_actionMenuList.push_back("Use");
-		}
-	}
 
 	// Trade - if character is player (not NPC) OR disabled OR animated + not in combat
 	if ((_character->enabled || !_character->isNpc() || (_character->healthStatus == Goldbox::Data::S_ANIMATED)) &&
@@ -363,10 +295,7 @@ void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
 	// Check if item is a ring or has proper effect flags
 	// Call appropriate use handling
 
-	// If not in combat, clear continue action
-	if (!isCharacterInCombat()) {
-		_continueAfterAction = false;
-	}
+
 }
 
 void ItemsMenu::handleTradeItem(Goldbox::Data::Items::CharacterItem *item) {
@@ -453,6 +382,10 @@ void ItemsMenu::handleIdentifyItem(Goldbox::Data::Items::CharacterItem *item) {
 
 void ItemsMenu::handleExit() {
 	deactivate();
+	// Notify parent view that we're done
+	if (_parent) {
+		_parent->handleMenuResult(false, Common::KEYCODE_ESCAPE, 0);
+	}
 }
 
 bool ItemsMenu::isCharacterInCombat() const {

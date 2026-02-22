@@ -1,14 +1,27 @@
 /* ScummVM - Graphic Adventure Engine
  *
- * ViewCharacterView - Character view with horizontal menu
+ * ScummVM is the legal property of its developers, whose names
+ * are too numerous to list here. Please refer to the COPYRIGHT
+ * file distributed with this source distribution.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 #include "goldbox/vm_interface.h"
-#include "goldbox/data/player_character.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/views/view_character_view.h"
-#include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
-#include "goldbox/poolrad/views/dialogs/character_profile.h"
 #include "goldbox/poolrad/views/dialogs/items_menu.h"
 #include "goldbox/data/rules/rules_types.h"
 
@@ -26,8 +39,9 @@ ViewCharacterView::ViewCharacterView(Goldbox::Poolrad::Data::PoolradCharacter *c
         : View("ViewCharacter"),
             _character(character),
             _horizontalMenu(nullptr),
-            _profileDialog(nullptr),
-            _itemsMenu(nullptr) {
+            _profileDialog(nullptr)
+            // _itemsMenu(nullptr)
+             {
 
     Dialogs::HorizontalMenuConfig menuConfig = {
         "View:", // promptTxt
@@ -39,10 +53,12 @@ ViewCharacterView::ViewCharacterView(Goldbox::Poolrad::Data::PoolradCharacter *c
     };
     _horizontalMenu = new Dialogs::HorizontalMenu("CharacterHorizontalMenu", menuConfig);
     _profileDialog = new Dialogs::CharacterProfile(_character, "CharacterProfile");
-    _itemsMenu = new Dialogs::ItemsMenu(_character, "ItemsMenu");
+//    _itemsMenu = new Dialogs::ItemsMenu(_character, "ItemsMenu");
     subView(_profileDialog);
     subView(_horizontalMenu);
-    subView(_itemsMenu);
+    // subView(_itemsMenu);
+
+    setStage(VC_STATE_PROFILE);
 }
 
 ViewCharacterView::~ViewCharacterView() {
@@ -54,10 +70,10 @@ ViewCharacterView::~ViewCharacterView() {
         delete _profileDialog;
         _profileDialog = nullptr;
     }
-    if (_itemsMenu) {
-        delete _itemsMenu;
-        _itemsMenu = nullptr;
-    }
+    // if (_itemsMenu) {
+    //     delete _itemsMenu;
+    //     _itemsMenu = nullptr;
+    // }
 }
 
 void ViewCharacterView::buildMenu() {
@@ -108,48 +124,55 @@ void ViewCharacterView::buildMenu() {
     labels.push_back("Exit");
 
     _menuList.generateMenuItems(labels, true);
+    if (_horizontalMenu) {
+        _horizontalMenu->setRedraw();
+    }
 }
 
 void ViewCharacterView::draw() {
-    // Always use the current selected character from the engine
     _character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(Goldbox::VmInterface::getSelectedCharacter());
-	
+
 	if (!_character) {
 		return;
 	}
-	
+
+    //if (_stage == VC_STATE_ITEMS && _itemsMenu && !_itemsMenu->isActive()) {
+    //    setStage(VC_STATE_PROFILE);
+    //}
+
+    //if (_stage == VC_STATE_ITEMS) {
+    //    if (_itemsMenu) {
+    //        _itemsMenu->setCharacter(_character);
+    //        _itemsMenu->draw();
+    //    }
+    //    return;
+    //}
+
+    // Profile stage: rebuild menu and draw both profile and menu
     buildMenu();
-    if (_itemsMenu && _itemsMenu->isActive()) {
-        _itemsMenu->setCharacter(_character);
-        _itemsMenu->draw();
-        return;
-    }
     if (_profileDialog) {
         // Directly update the internal pointer before drawing
         _profileDialog->_poolradPc = _character;
         _profileDialog->draw();
     }
-    if (_horizontalMenu) _horizontalMenu->draw();
+    // Only draw horizontal menu in PROFILE stage
+    if (_horizontalMenu) {
+        _horizontalMenu->draw();
+    }
 }
 
 bool ViewCharacterView::msgKeypress(const KeypressMessage &msg) {
-    if (_itemsMenu && _itemsMenu->isActive()) {
-        return _itemsMenu->msgKeypress(msg);
+    if (_activeSubView && _activeSubView->send(msg)) {
+        return true;
     }
-    if (_horizontalMenu) {
-        // Let the menu handle the keypress first
-        if (_horizontalMenu->msgKeypress(msg))
-            return true;
-    }
-    // Handle other keypresses here if needed
-    return false;
+    return View::msgKeypress(msg);
 }
 
 // Skeleton for handling menu results from HorizontalMenu
-void ViewCharacterView::handleMenuResult(bool accepted, Common::KeyCode keyCode, int index) {
-    if (!accepted) {
+void ViewCharacterView::handleMenuResult(bool success, Common::KeyCode keyCode, short value) {
+    if (!success) {
         if (_parent) {
-            _parent->handleMenuResult(false,  keyCode, index);
+            _parent->handleMenuResult(false, keyCode, value);
         }
         return;
     }
@@ -182,11 +205,44 @@ void ViewCharacterView::handleMenuResult(bool accepted, Common::KeyCode keyCode,
     }
 }
 
-void ViewCharacterView::handleViewItems() {
-    if (_itemsMenu) {
-        _itemsMenu->setCharacter(_character);
-        _itemsMenu->activate();
+void ViewCharacterView::setStage(ViewCharacterState stage) {
+    _stage = stage;
+
+    switch (_stage) {
+    case VC_STATE_PROFILE:
+        // if (_itemsMenu)
+        //     _itemsMenu->deactivate();
+        if (_profileDialog)
+            _profileDialog->activate();
+        if (_horizontalMenu)
+            _horizontalMenu->activate();
+        setActiveSubView(_horizontalMenu);
+        break;
+    case VC_STATE_ITEMS:
+        if (_horizontalMenu)
+            _horizontalMenu->deactivate();
+        if (_profileDialog)
+            _profileDialog->deactivate();
+        // if (_itemsMenu)
+        //     _itemsMenu->activate();
+        // setActiveSubView(_itemsMenu);
+        break;
     }
+}
+
+void ViewCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
+    if (_activeSubView && _activeSubView != dlg) {
+        _activeSubView->deactivate();
+    }
+    _activeSubView = dlg;
+    if (_activeSubView)
+        _activeSubView->activate();
+}
+
+void ViewCharacterView::handleViewItems() {
+    // if (_itemsMenu)
+    //     _itemsMenu->setCharacter(_character);
+    // setStage(VC_STATE_ITEMS);
 }
 
 void ViewCharacterView::handleViewSpells() {

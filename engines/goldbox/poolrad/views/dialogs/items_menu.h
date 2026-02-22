@@ -60,7 +60,8 @@ public:
 			const Common::String &name = "ItemsMenu");
 	~ItemsMenu() override;
 
-
+	void activate();
+	void deactivate();
 	bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
     void handleMenuResult(bool success, Common::KeyCode key, short value) override;
