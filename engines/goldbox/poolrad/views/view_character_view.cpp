@@ -29,19 +29,14 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-// Global pointer to selected character (define in a suitable cpp file)
-Goldbox::Poolrad::Data::PoolradCharacter *g_selectedCharacter = nullptr;
-
 ViewCharacterView::ViewCharacterView()
-    : ViewCharacterView(static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(Goldbox::VmInterface::getSelectedCharacter())) {}
-
-ViewCharacterView::ViewCharacterView(Goldbox::Poolrad::Data::PoolradCharacter *character)
         : View("ViewCharacter"),
-            _character(character),
+            _character(nullptr),
             _horizontalMenu(nullptr),
-            _profileDialog(nullptr)
+            _profileDialog(nullptr),
+            _activeSubView(nullptr)
             // _itemsMenu(nullptr)
-             {
+{
 
     Dialogs::HorizontalMenuConfig menuConfig = {
         "View:", // promptTxt
@@ -52,13 +47,13 @@ ViewCharacterView::ViewCharacterView(Goldbox::Poolrad::Data::PoolradCharacter *c
         false // allowNumPad
     };
     _horizontalMenu = new Dialogs::HorizontalMenu("CharacterHorizontalMenu", menuConfig);
-    _profileDialog = new Dialogs::CharacterProfile(_character, "CharacterProfile");
+    _profileDialog = new Dialogs::CharacterProfile();
 //    _itemsMenu = new Dialogs::ItemsMenu(_character, "ItemsMenu");
     subView(_profileDialog);
     subView(_horizontalMenu);
     // subView(_itemsMenu);
 
-    setStage(VC_STATE_PROFILE);
+    // Don't call setStage here - defer to activate() when character data is available
 }
 
 ViewCharacterView::~ViewCharacterView() {
@@ -129,10 +124,34 @@ void ViewCharacterView::buildMenu() {
     }
 }
 
-void ViewCharacterView::draw() {
-    _character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(Goldbox::VmInterface::getSelectedCharacter());
+void ViewCharacterView::syncSelectedCharacter(bool forceRefresh) {
+    Goldbox::Poolrad::Data::PoolradCharacter *selectedCharacter =
+        static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
+            VmInterface::getSelectedCharacter()
+        );
 
-	if (!_character) {
+    if (!forceRefresh && selectedCharacter == _character) {
+        return;
+    }
+
+    _character = selectedCharacter;
+    if (_profileDialog) {
+        _profileDialog->activate();
+    }
+    if (_horizontalMenu) {
+        _horizontalMenu->setRedraw();
+    }
+}
+
+void ViewCharacterView::onEnter(Goldbox::GameState state) {
+    View::onEnter(state);
+    syncSelectedCharacter(true);
+    setStage(VC_STATE_PROFILE);
+}
+
+void ViewCharacterView::draw() {
+	syncSelectedCharacter(false);
+    if (!_character) {
 		return;
 	}
 
@@ -151,8 +170,6 @@ void ViewCharacterView::draw() {
     // Profile stage: rebuild menu and draw both profile and menu
     buildMenu();
     if (_profileDialog) {
-        // Directly update the internal pointer before drawing
-        _profileDialog->_poolradPc = _character;
         _profileDialog->draw();
     }
     // Only draw horizontal menu in PROFILE stage
@@ -197,7 +214,6 @@ void ViewCharacterView::handleMenuResult(bool success, Common::KeyCode keyCode, 
         handleRenameCharacter();
         break; */
     case Common::KEYCODE_e:
-    case Common::KEYCODE_ESCAPE:
         handleExit();
         break;
     default:

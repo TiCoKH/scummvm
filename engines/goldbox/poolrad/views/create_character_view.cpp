@@ -303,15 +303,7 @@ void CreateCharacterView::timeout() {
 }
 
 bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
-	// Global immediate exit on Escape from any stage (except DONE which already returns)
-	if (msg.keycode == Common::KEYCODE_ESCAPE) {
-		// Proactively reset internal state so that re-opening the view does not
-		// reference stale dialogs or deleted objects.
-		resetState();
-		replaceView("Mainmenu");
-		return true;
-	}
-	// Only intercept profile specific actions; otherwise let active dialog handle
+	// Let active dialogs handle the keypress first (including ESC if appropriate)
 	if (_stage == CC_STATE_ROLLSTATS) {
 		// If the Yes/No prompt is active, route the key directly to it and consume
 		if (_yesNoPrompt && _activeSubView == static_cast<Dialogs::Dialog *>(_yesNoPrompt)) {
@@ -330,6 +322,15 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 			static_cast<Dialogs::HorizontalInput *>(_nameInput)->msgKeypress(msg);
 			return true;
 		}
+	}
+	// Global immediate exit on Escape from any stage (except DONE which already returns)
+	// This happens AFTER active dialogs have had their chance to handle the key
+	if (msg.keycode == Common::KEYCODE_ESCAPE) {
+		// Proactively reset internal state so that re-opening the view does not
+		// reference stale dialogs or deleted objects.
+		resetState();
+		replaceView("Mainmenu");
+		return true;
 	}
 	return View::msgKeypress(msg);
 }
@@ -413,10 +414,12 @@ void CreateCharacterView::chooseAlignment() {
 }
 
 void CreateCharacterView::showProfileDialog() {
-	// Note: Without a working temp character instance here, just show an empty profile safely
+	// Set the selected character so CharacterProfile can fetch it
+	VmInterface::setSelectedCharacter(_newCharacter);
 	detachAndDelete(_profileDialog);
-	_profileDialog = new Dialogs::CharacterProfile(_newCharacter, "CreateProfile");
+	_profileDialog = new Dialogs::CharacterProfile();
 	subView(_profileDialog);
+	_profileDialog->activate();
 	// Do not attach input handlers here; profile is reused across stages.
 }
 
@@ -561,12 +564,15 @@ void CreateCharacterView::performRerollAndRecompute() {
 }
 
 void CreateCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
+	// Defensive check: only deactivate if _activeSubView is valid and different from new dlg
 	if (_activeSubView && _activeSubView != dlg) {
 		_activeSubView->deactivate();
 	}
 	_activeSubView = dlg;
-	if (_activeSubView)
+	// Only activate if dlg is not null
+	if (_activeSubView) {
 		_activeSubView->activate();
+	}
 }
 
 void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, short value) {
@@ -747,6 +753,9 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 		break;
 	case CC_STATE_DONE:
 		replaceView("Mainmenu");
+		break;
+	default:
+		debug("CreateCharacterView::handleMenuResult - unhandled stage %d", (int)_stage);
 		break;
 	}
 }

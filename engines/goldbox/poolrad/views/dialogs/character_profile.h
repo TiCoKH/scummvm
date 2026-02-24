@@ -25,9 +25,10 @@ public:
     Goldbox::Poolrad::Data::PoolradCharacter *_poolradPc;
     Goldbox::Poolrad::Views::Dialogs::PortraitDisplay _portraitDisplay;
 
-    CharacterProfile(Goldbox::Poolrad::Data::PoolradCharacter *pc, const Common::String &name = "CharacterProfile");
+    CharacterProfile(const Common::String &name = "CharacterProfile");
     virtual ~CharacterProfile() {}
 
+    void activate();
     void draw() override;
     void handleMenuResult(bool success, Common::KeyCode key, short value) override;
 

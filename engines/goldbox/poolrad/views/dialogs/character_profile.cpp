@@ -29,10 +29,13 @@ const uint8 CharacterProfile::kBodyDaxBlockIds[12] = {
 
 using Common::String;
 
-CharacterProfile::CharacterProfile(Goldbox::Poolrad::Data::PoolradCharacter *pc, const Common::String &name)
-    : Dialog(name), _poolradPc(pc) {
-    if (_poolradPc) {
-    }
+CharacterProfile::CharacterProfile(const Common::String &name)
+    : Dialog(name), _poolradPc(nullptr) {
+}
+
+void CharacterProfile::activate() {
+    _poolradPc = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(VmInterface::getSelectedCharacter());
+    Dialog::activate();
 }
 
 void CharacterProfile::draw() {
