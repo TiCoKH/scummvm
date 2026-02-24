@@ -32,7 +32,7 @@
 #define VIEW   4
 #define ADD    5
 #define REMOVE 6
-#define LOAD   7 
+#define LOAD   7
 #define SAVE   8
 #define BEGIN  9
 #define EXIT  10
@@ -46,7 +46,7 @@ using Common::Array;
 using Common::StringTokenizer;
 
 MainmenuView::MainmenuView() : View("Mainmenu") {
-    
+
     Array<String> menuOptions;
 
     const String shortcuts = VmInterface::getString("mainmenu.0");
@@ -128,12 +128,12 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
             replaceView("Mainmenu");
             break;
         case Common::KEYCODE_END	:
-            if (_party->size()>1) 
+            if (_party->size()>1)
                 _partyList->nextChar();
                 Goldbox::VmInterface::setSelectedCharacter((*_party)[_partyList->getSelectedCharIndex()-1]);
             break;
         case Common::KEYCODE_HOME:
-            if (_party->size()>1) 
+            if (_party->size()>1)
                 _partyList->prevChar();
                 Goldbox::VmInterface::setSelectedCharacter((*_party)[_partyList->getSelectedCharIndex()-1]);
             break;

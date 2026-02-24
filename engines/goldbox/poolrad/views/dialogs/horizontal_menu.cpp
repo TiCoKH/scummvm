@@ -49,7 +49,8 @@ void HorizontalMenu::drawText() {
 
     if (!_redraw) return;
 
-    Surface s = getSurface();
+
+	Surface s = getSurface();
     s.clearBox(0, 24, 39, 24, _backgroundColor);
     s.writeStringC(0, 24, _promptColor, _promptTxt);
 

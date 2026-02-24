@@ -37,12 +37,11 @@ HorizontalYesNo::HorizontalYesNo(const String &name, const HorizontalYesNoConfig
             _promptColor(config.promptColor),
             _backgroundColor(config.backgroundColor),
             _promptTxt(config.promptTxt) {
-    // Build internal YES/NO menu using MenuItemList like HorizontalMenu
     Array<String> items;
     items.push_back("YES");
     items.push_back("NO");
-    _menuItems.generateMenuItems(items, true); // generate shortcuts 'Y' and 'N'
-    _menuItems.currentSelection = 1; // default to NO
+    _menuItems.generateMenuItems(items, true);
+    _menuItems.currentSelection = 1;
     activate();
 }
 
@@ -57,7 +56,6 @@ bool HorizontalYesNo::msgKeypress(const KeypressMessage &msg) {
     if (asciiValue >= 'a' && asciiValue <= 'z')
         asciiValue -= 32;
 
-    // Left/Right style navigation similar to HorizontalMenu
     if (keyCode == Common::KEYCODE_LEFT || keyCode == Common::KEYCODE_COMMA) {
         _menuItems.prevActive();
         _redraw = true;
@@ -65,10 +63,9 @@ bool HorizontalYesNo::msgKeypress(const KeypressMessage &msg) {
         _menuItems.nextActive();
         _redraw = true;
     } else if (keyCode == Common::KEYCODE_SPACE) {
-        _menuItems.currentSelection = 0; // default to YES
+        _menuItems.currentSelection = 0;
         _redraw = true;
     } else if (keyCode == Common::KEYCODE_RETURN) {
-        // Map selection to y/n and send to parent
         if (_parent) {
             if (_menuItems.currentSelection == 0)
                 _parent->handleMenuResult(true, Common::KEYCODE_y, 1);

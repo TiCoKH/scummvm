@@ -40,12 +40,14 @@ class ItemsMenu;
 class ViewCharacterView : public View {
 public:
 	ViewCharacterView();
-    ViewCharacterView(Goldbox::Poolrad::Data::PoolradCharacter *character);
     ~ViewCharacterView() override;
 
+    void onEnter(Goldbox::GameState state) override;
     void draw() override;
     bool msgKeypress(const KeypressMessage &msg) override;
     void handleMenuResult(bool success, Common::KeyCode key, short value) override;
+
+    Goldbox::Poolrad::Data::PoolradCharacter *getCharacter() const { return _character; }
 
 private:
     enum ViewCharacterState {
@@ -55,6 +57,7 @@ private:
 
     ViewCharacterState _stage = VC_STATE_PROFILE;
 
+protected:
     Goldbox::Poolrad::Data::PoolradCharacter *_character;
     Goldbox::MenuItemList _menuList;
     Dialogs::HorizontalMenu *_horizontalMenu;
@@ -66,6 +69,7 @@ private:
     void drawMenu();
     void setStage(ViewCharacterState stage);
     void setActiveSubView(Dialogs::Dialog *dlg);
+    void syncSelectedCharacter(bool forceRefresh);
 
     // Action handlers
     void handleViewItems();
