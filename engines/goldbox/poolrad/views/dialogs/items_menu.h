@@ -24,12 +24,13 @@
 
 #include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "common/array.h"
 
 namespace Goldbox {
 namespace Data {
 namespace Items {
-class CharacterItem;
+struct CharacterItem;
 }
 }
 namespace Poolrad {
@@ -38,8 +39,6 @@ class PoolradCharacter;
 }
 namespace Views {
 namespace Dialogs {
-
-class VerticalMenu;
 
 /**
  * ItemsMenu provides an interactive in-game item management menu
@@ -56,8 +55,7 @@ class VerticalMenu;
  */
 class ItemsMenu : public Dialog {
 public:
-	ItemsMenu(Goldbox::Poolrad::Data::PoolradCharacter *character,
-			const Common::String &name = "ItemsMenu");
+	ItemsMenu(const Common::String &name = "ItemsMenu");
 	~ItemsMenu() override;
 
 	void activate();
@@ -65,13 +63,13 @@ public:
 	bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
     void handleMenuResult(bool success, Common::KeyCode key, short value) override;
-	void setCharacter(Goldbox::Poolrad::Data::PoolradCharacter *character) { _character = character; }
 
 private:
 	Goldbox::Poolrad::Data::PoolradCharacter *_character;
 	Goldbox::MenuItemList _menuList;
 	Common::Array<Goldbox::Data::Items::CharacterItem *> _itemList;
 	Common::Array<Common::String> _actionMenuList;
+	VerticalMenuConfig _menuConfig;
 	VerticalMenu *_verticalMenu;
 	bool _continueAfterAction;
 	int _selectedItemIndex;

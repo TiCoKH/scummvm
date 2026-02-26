@@ -20,17 +20,37 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/party_list.h"
+#include "common/keyboard.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+void PartyList::activate() {
+    _party = Goldbox::VmInterface::getParty();
+    Dialog::activate();
+}
+
+void PartyList::updateSelectedCharacter() {
+    if (_party && _party->size() > 0) {
+        if (_selectedCharIndex < 1)
+            _selectedCharIndex = 1;
+        if (_selectedCharIndex > _party->size())
+            _selectedCharIndex = _party->size();
+
+        Goldbox::VmInterface::setSelectedCharacter((*_party)[_selectedCharIndex - 1]);
+    }
+}
+
 void PartyList::draw() {
-    if (!_party)
+    if (!_party || _party->size() == 0)
         return;
+
+    updateSelectedCharacter();
+
     Surface s = getSurface();
-    s.clearBox(1, 1, 28, 11, 0); // Clear the party area
+    s.clearBox(1, 1, 28, 11, 0);
     int y = _yStart;
 	s.writeStringC(_xName, y, 15, "Name");
 	s.writeStringC(_xAC,   y, 15, "AC  HP");
@@ -40,8 +60,8 @@ void PartyList::draw() {
         if (pc) {
             int color = (_partyIndex == _selectedCharIndex-1) ? 15 : 11;
 			s.writeStringC(_xName, y, color, pc->name);
-            color = (pc->hitPoints.max > 0) ? 10 : 12; 
-            s.writeStringC(_xAC, y, color, Common::String::format("%d", pc->armorClass.current));
+            color = (pc->hitPoints.max > 0) ? 10 : 12;
+            s.writeStringC(_xAC, y, color, Common::String::format("%d", pc->armorClass.getCurrent()));
 			s.writeStringC(_xAC + 4, y, color, Common::String::format("%d", pc->hitPoints.max));
             y ++;
         }
@@ -49,21 +69,52 @@ void PartyList::draw() {
 }
 
 void PartyList::nextChar() {
+    if (!_party || _party->size() == 0)
+        return;
+
     if (_selectedCharIndex < _party->size()) {
         _selectedCharIndex++;
     } else {
         _selectedCharIndex = 1;
     }
-    draw();
+    updateSelectedCharacter();
 }
 
 void PartyList::prevChar() {
+    if (!_party || _party->size() == 0)
+        return;
+
     if (_selectedCharIndex > 1) {
         _selectedCharIndex--;
     } else {
         _selectedCharIndex = _party->size();
     }
-    draw(); 
+    updateSelectedCharacter();
+}
+
+bool PartyList::msgKeypress(const KeypressMessage &msg) {
+    // Only handle navigation if there's more than one party member
+    if (!_party || _party->size() <= 1)
+        return false;
+
+    switch (msg.keycode) {
+        case Common::KEYCODE_END:
+        case Common::KEYCODE_KP1:
+            nextChar();
+            redraw();
+            return true;
+
+        case Common::KEYCODE_HOME:
+        case Common::KEYCODE_KP7:
+            prevChar();
+            redraw();
+            return true;
+
+        default:
+            break;
+    }
+
+    return Dialog::msgKeypress(msg);
 }
 
 } // namespace Dialogs

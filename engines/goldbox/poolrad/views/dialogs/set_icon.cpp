@@ -429,8 +429,6 @@ void SetIcon::drawIconPair(int x, int y, uint8 slotId) {
 }
 
 bool SetIcon::msgKeypress(const KeypressMessage &msg) {
-    KeyCode keyCode = msg.keycode;
-
     if (_menu) {
         return _menu->msgKeypress(msg);
     }

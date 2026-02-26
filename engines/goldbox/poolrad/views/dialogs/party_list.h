@@ -33,16 +33,15 @@ namespace Dialogs {
 class PartyList : public Dialog {
 public:
     PartyList(const Common::String &name = "PartyList")
-        : Dialog(name), _xName(1), _xAC(33), _yStart(2) {
-            _party = Goldbox::VmInterface::getParty();
-        }
+        : Dialog(name), _xName(1), _xAC(33), _yStart(2), _selectedCharIndex(1), _party(nullptr) {}
     virtual ~PartyList() {}
 
+    void activate();
     void draw() override;
+    bool msgKeypress(const KeypressMessage &msg) override;
     void setLayout(uint xName, uint xAC, uint yStart) {
         _xName = xName; _xAC = xAC; _yStart = yStart;
     }
-    void setSelectedCharIndex(uint idx) { _selectedCharIndex = idx; }
     uint getSelectedCharIndex() const { return _selectedCharIndex; }
     void nextChar();
     void prevChar();
@@ -51,6 +50,8 @@ private:
     uint _xName, _xAC, _yStart;
     uint _selectedCharIndex;
     Common::Array<Goldbox::Data::PlayerCharacter *> *_party;
+
+    void updateSelectedCharacter();
 
 };
 

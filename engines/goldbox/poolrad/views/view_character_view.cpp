@@ -145,8 +145,17 @@ void ViewCharacterView::syncSelectedCharacter(bool forceRefresh) {
 
 void ViewCharacterView::onEnter(Goldbox::GameState state) {
     View::onEnter(state);
+    // Setup moved to msgFocus() for view-load handling
+}
+
+bool ViewCharacterView::msgFocus(const FocusMessage &msg) {
+    View::msgFocus(msg);
+
+    // Setup when view gets focus (called by replaceView/addView)
     syncSelectedCharacter(true);
     setStage(VC_STATE_PROFILE);
+
+    return true;
 }
 
 void ViewCharacterView::draw() {
@@ -213,6 +222,7 @@ void ViewCharacterView::handleMenuResult(bool success, Common::KeyCode keyCode, 
 /*     case Common::KEYCODE_r:
         handleRenameCharacter();
         break; */
+    case Common::KEYCODE_ESCAPE:
     case Common::KEYCODE_e:
         handleExit();
         break;
@@ -294,9 +304,8 @@ void ViewCharacterView::handleRenameCharacter() {
 }
 
 void ViewCharacterView::handleExit() {
-    // Signal exit from this view to parent
-    if (_parent) {
-        _parent->handleMenuResult(true, Common::KEYCODE_ESCAPE, 0);
+    if (Goldbox::VmInterface::getGameStatus() == GS_START_MENU) {
+        replaceView("Mainmenu");
     }
 }
 

@@ -36,34 +36,24 @@ namespace Dialogs {
 using Common::String;
 using Common::KeyCode;
 
-ItemsMenu::ItemsMenu(Goldbox::Poolrad::Data::PoolradCharacter *character, const String &name)
+ItemsMenu::ItemsMenu(const String &name)
 	: Dialog(name),
-	  _character(character),
+	  _character(nullptr),
 	  _verticalMenu(nullptr),
 	  _showingActions(false) {
 
-	buildActionMenu();
-	buildItemList();
-	buildItemsListMenu();
-
-	VerticalMenuConfig menuConfig;
-	menuConfig.promptTxt = "";
-	menuConfig.promptOptions = &_actionMenuList;
-	menuConfig.menuItemList = &_menuList;
-	menuConfig.headColor = 0;
-	menuConfig.textColor = 10;
-	menuConfig.selectColor = 15;
-	menuConfig.xStart = 1;
-	menuConfig.yStart = 5;
-	menuConfig.xEnd = 38;
-	menuConfig.yEnd = 20;
-	menuConfig.title = "ITEMS";
-	menuConfig.asHeader = true;
-
-	_verticalMenu = new VerticalMenu("ItemsVerticalMenu", menuConfig);
-	subView(_verticalMenu);
-	_verticalMenu->deactivate();
-	deactivate();
+	_menuConfig.promptTxt = "";
+	_menuConfig.promptOptions = &_actionMenuList;
+	_menuConfig.menuItemList = &_menuList;
+	_menuConfig.headColor = 0;
+	_menuConfig.textColor = 10;
+	_menuConfig.selectColor = 15;
+	_menuConfig.xStart = 1;
+	_menuConfig.yStart = 5;
+	_menuConfig.xEnd = 38;
+	_menuConfig.yEnd = 20;
+	_menuConfig.title = "ITEMS";
+	_menuConfig.asHeader = true;
 }
 
 ItemsMenu::~ItemsMenu() {
@@ -75,6 +65,19 @@ ItemsMenu::~ItemsMenu() {
 
 void ItemsMenu::activate() {
 	Dialog::activate();
+
+	_character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
+		VmInterface::getSelectedCharacter()
+	);
+
+	if (!_verticalMenu) {
+		buildActionMenu();
+		buildItemList();
+		buildItemsListMenu();
+		_verticalMenu = new VerticalMenu("ItemsVerticalMenu", _menuConfig);
+		subView(_verticalMenu);
+	}
+
 	if (_verticalMenu)
 		_verticalMenu->activate();
 }
@@ -164,7 +167,14 @@ void ItemsMenu::handleMenuResult(bool success, Common::KeyCode key, short value)
 			return;
 		}
 	}
+	// TODO: Handle other action menu selections
+}
 
+void ItemsMenu::buildActionMenu() {
+	_actionMenuList.clear();
+
+	if (!_character)
+		return;
 
 	// Trade - if character is player (not NPC) OR disabled OR animated + not in combat
 	if ((_character->enabled || !_character->isNpc() || (_character->healthStatus == Goldbox::Data::S_ANIMATED)) &&

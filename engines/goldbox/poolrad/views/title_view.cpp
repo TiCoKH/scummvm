@@ -81,6 +81,8 @@ void TitleView::draw() {
 			delete _pic2;
 			replaceView("Mainmenu"); //TODO Option to skip Copy Protection
 			break;
+		default:
+			debug("Unknown state in TitleView");
 
 	}
 }
