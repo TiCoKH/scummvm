@@ -43,10 +43,6 @@ constexpr int EQUIPMENT_SLOT_COUNT = static_cast<int>(Goldbox::Data::Items::Slot
 constexpr uint8 CLASS_COUNT = 8;
 constexpr uint8 MAX_CLASSES_PER_RACE = 11;
 
-struct Equipment {
-    int slots[EQUIPMENT_SLOT_COUNT];
-};
-
 class PoolradCharacter : public Goldbox::Data::ADnDCharacter {
 public:
 
@@ -70,7 +66,6 @@ public:
         uint8 knownSpells[55];
     } spells;
 
-    Equipment equipment;
     uint32 equippedOffsets[EQUIPMENT_SLOT_COUNT];
 
     uint8 hitPointsRolled = 0;

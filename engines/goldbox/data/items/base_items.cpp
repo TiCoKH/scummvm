@@ -19,10 +19,19 @@
  *
  */
 #include "goldbox/data/items/base_items.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Data {
 namespace Items {
+
+Common::String ItemNameComponents::getComponent(uint8 code) {
+    if (code == 0)
+        return "";
+    // Each game defines its own itemnamecomponents in global_strings.yml
+    return Goldbox::VmInterface::getString(
+        Common::String::format("itemnamecomponents.%d", code));
+}
 
 void Storage::load(Common::SeekableReadStream &stream) {
     

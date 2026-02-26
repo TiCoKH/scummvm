@@ -305,18 +305,8 @@ bool PoolradCharacter::hasValuables() const {
 }
 
 void PoolradCharacter::resolveEquippedItems() {
-	for (int slot = 0; slot < EQUIPMENT_SLOT_COUNT; ++slot) {
-		equipment.slots[slot] = -1;
-		for (size_t i = 0; i < inventory.items().size(); ++i) {
-			if (inventory.items()[i].nextAddress == equippedOffsets[slot]) {
-				equipment.slots[slot] = static_cast<int>(i);
-				break;
-			}
-		}
-	}
-
-	// Also populate the pointer-based equippedItems for runtime usage
-	resolveEquippedFromLegacyOffsets(equippedOffsets);
+	// Populate equippedItems from readied flags and slotID properties.
+	ADnDCharacter::resolveEquippedItems();
 }
 
 void PoolradCharacter::recalcCombatStats() {

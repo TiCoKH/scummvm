@@ -74,25 +74,63 @@ void ADnDCharacter::clearEquippedItems() {
     equippedItems.clear();
 }
 
-void ADnDCharacter::resolveEquippedFromLegacyOffsets(const uint32 *offsets) {
-    if (!offsets)
-        return;
-    clearEquippedItems();
-    const Common::Array<Goldbox::Data::Items::CharacterItem> &itemsArr = inventory.items();
-    for (int slot = 0; slot < EQUIPPED_SLOT_COUNT; ++slot) {
-        uint32 wanted = offsets[slot];
-        if (wanted == 0) {
-            equippedItems.slots[slot] = nullptr;
-            continue;
-        }
-        for (uint i = 0; i < itemsArr.size(); ++i) {
-            if (itemsArr[i].nextAddress == wanted) {
-                equippedItems.slots[slot] = const_cast<Goldbox::Data::Items::CharacterItem *>(&itemsArr[i]);
-                break;
-            }
-        }
-    }
-    using Slot = Goldbox::Data::Items::Slot;
+void ADnDCharacter::resolveEquippedItems() {
+	clearEquippedItems();
+	const Common::Array<Goldbox::Data::Items::CharacterItem> &itemsArr = inventory.items();
+
+    int readiedCount = 0;
+    int placedCount = 0;
+    debug("ADnDCharacter::resolveEquippedItems: totalItems=%u",
+          (unsigned)itemsArr.size());
+
+	// Resolve equipped items using readied flags and slotID from item properties.
+	// This is the only reliable method for platform-independent save/load.
+	// Legacy DOS segment:offset pointers cannot be restored across platforms.
+	for (uint i = 0; i < itemsArr.size(); ++i) {
+		const auto &item = itemsArr[i];
+		if (!item.isEquipped())
+			continue;
+        ++readiedCount;
+
+		const auto &prop = item.prop();
+		int slot = (int)prop.slotID;
+        Common::String displayName = item.getDisplayName();
+        debug("ADnDCharacter::resolveEquippedItems: readied item[%u] displayName='%s' type=%u slot=%d prop.slotID=%u readied=%u nameCode=[%u,%u,%u]",
+              (unsigned)i, displayName.c_str(), (unsigned)item.typeIndex, slot, (unsigned)prop.slotID, (unsigned)item.readied,
+		      (unsigned)item.nameCode1, (unsigned)item.nameCode2, (unsigned)item.nameCode3);
+		if (slot < 0 || slot >= EQUIPPED_SLOT_COUNT) {
+			debug("WARNING: Equipped item '%s' has invalid slotID %d (corrupted save data?)",
+				  item.name.c_str(), slot);
+			continue;
+		}
+
+		// For multiple-slot items (rings), place in first available slot
+		if (slot == (int)Goldbox::Data::Items::Slot::S_RING1 || 
+			slot == (int)Goldbox::Data::Items::Slot::S_RING2) {
+			if (!equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING1]) {
+				equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING1] = 
+					const_cast<Goldbox::Data::Items::CharacterItem *>(&item);
+                ++placedCount;
+			} else if (!equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING2]) {
+				equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING2] = 
+					const_cast<Goldbox::Data::Items::CharacterItem *>(&item);
+                ++placedCount;
+            } else {
+                debug("ADnDCharacter::resolveEquippedItems: extra ring equipped, cannot place item[%u] name='%s'",
+                      (unsigned)i, item.name.c_str());
+			}
+		} else if (!equippedItems.slots[slot]) {
+			// For other slots, direct assignment
+			equippedItems.slots[slot] = const_cast<Goldbox::Data::Items::CharacterItem *>(&item);
+            ++placedCount;
+        } else {
+            debug("ADnDCharacter::resolveEquippedItems: slot %d already occupied, item[%u] name='%s' skipped",
+                  slot, (unsigned)i, item.name.c_str());
+		}
+	}
+
+    debug("ADnDCharacter::resolveEquippedItems: readied=%d placed=%d",
+          readiedCount, placedCount);
 }
 
 void ADnDCharacter::buildLegacyOffsetsFromEquipped(uint32 *offsetsOut) const {

@@ -103,9 +103,11 @@ public:
 	// Clear equippedItems to nullptrs
 	void clearEquippedItems();
 
-	// Populate equippedItems from legacy offsets table and current inventory.
-	// Any unmatched offsets result in -1 for the corresponding slot.
-	void resolveEquippedFromLegacyOffsets(const uint32 *offsets);
+	// Populate equippedItems from readied flags and slotID properties in the inventory.
+	// Uses modern platform-independent resolution; legacy DOS segment:offset pointers
+	// cannot be reliably restored across platforms. Logs debug warnings if items have
+	// invalid or missing slot information.
+	void resolveEquippedItems();
 
 	// Build legacy offsets for saving from equippedItems (or, if empty,
 	// infer from items' readied flags). Writes 0 when no item.
