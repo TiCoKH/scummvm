@@ -34,16 +34,14 @@ Common::String ItemNameComponents::getComponent(uint8 code) {
 }
 
 void Storage::load(Common::SeekableReadStream &stream) {
-    
+
     _items.clear();
 
     // Skip the 2-byte header (not a count)
     stream.skip(2);
-    // First entry is empty (No Item)
-    _items.push_back(ItemProperty{});
 
     const int recordSize = 16;
-    int total = stream.size(); 
+    int total = stream.size();
 
     while (stream.pos() + recordSize <= total) {
         ItemProperty ip;

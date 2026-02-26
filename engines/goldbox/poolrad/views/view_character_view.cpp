@@ -34,9 +34,8 @@ ViewCharacterView::ViewCharacterView()
             _character(nullptr),
             _horizontalMenu(nullptr),
             _profileDialog(nullptr),
-            _activeSubView(nullptr)
-            // _itemsMenu(nullptr)
-{
+            _itemsMenu(nullptr),
+            _activeSubView(nullptr) {
 
     Dialogs::HorizontalMenuConfig menuConfig = {
         "View:", // promptTxt
@@ -48,10 +47,10 @@ ViewCharacterView::ViewCharacterView()
     };
     _horizontalMenu = new Dialogs::HorizontalMenu("CharacterHorizontalMenu", menuConfig);
     _profileDialog = new Dialogs::CharacterProfile();
-//    _itemsMenu = new Dialogs::ItemsMenu(_character, "ItemsMenu");
+    _itemsMenu = new Dialogs::ItemsMenu("ItemsMenu");
     subView(_profileDialog);
     subView(_horizontalMenu);
-    // subView(_itemsMenu);
+    // Don't add ItemsMenu as subView yet - only when activated
 
     // Don't call setStage here - defer to activate() when character data is available
 }
@@ -65,10 +64,10 @@ ViewCharacterView::~ViewCharacterView() {
         delete _profileDialog;
         _profileDialog = nullptr;
     }
-    // if (_itemsMenu) {
-    //     delete _itemsMenu;
-    //     _itemsMenu = nullptr;
-    // }
+    if (_itemsMenu) {
+        delete _itemsMenu;
+        _itemsMenu = nullptr;
+    }
 }
 
 void ViewCharacterView::buildMenu() {
@@ -164,18 +163,22 @@ void ViewCharacterView::draw() {
 		return;
 	}
 
-    //if (_stage == VC_STATE_ITEMS && _itemsMenu && !_itemsMenu->isActive()) {
-    //    setStage(VC_STATE_PROFILE);
-    //}
+    debug("ViewCharacterView::draw() - stage=%d", _stage);
 
-    //if (_stage == VC_STATE_ITEMS) {
-    //    if (_itemsMenu) {
-    //        _itemsMenu->setCharacter(_character);
-    //        _itemsMenu->draw();
-    //    }
-    //    return;
-    //}
+    if (_stage == VC_STATE_ITEMS && _itemsMenu && !_itemsMenu->isActive()) {
+        debug("ViewCharacterView::draw() - ItemsMenu not active, switching to PROFILE");
+        setStage(VC_STATE_PROFILE);
+    }
 
+    if (_stage == VC_STATE_ITEMS) {
+        debug("ViewCharacterView::draw() - drawing ItemsMenu");
+        if (_itemsMenu) {
+            _itemsMenu->draw();
+        }
+        return;
+    }
+
+    debug("ViewCharacterView::draw() - drawing PROFILE stage");
     // Profile stage: rebuild menu and draw both profile and menu
     buildMenu();
     if (_profileDialog) {
@@ -232,12 +235,16 @@ void ViewCharacterView::handleMenuResult(bool success, Common::KeyCode keyCode, 
 }
 
 void ViewCharacterView::setStage(ViewCharacterState stage) {
+    debug("ViewCharacterView::setStage() - changing from %d to %d", _stage, stage);
     _stage = stage;
 
     switch (_stage) {
     case VC_STATE_PROFILE:
-        // if (_itemsMenu)
-        //     _itemsMenu->deactivate();
+        debug("ViewCharacterView::setStage() - setting PROFILE stage");
+        if (_itemsMenu) {
+            _itemsMenu->deactivate();
+            _itemsMenu->setParent(nullptr); // Remove from subView list
+        }
         if (_profileDialog)
             _profileDialog->activate();
         if (_horizontalMenu)
@@ -245,13 +252,16 @@ void ViewCharacterView::setStage(ViewCharacterState stage) {
         setActiveSubView(_horizontalMenu);
         break;
     case VC_STATE_ITEMS:
+        debug("ViewCharacterView::setStage() - setting ITEMS stage");
         if (_horizontalMenu)
             _horizontalMenu->deactivate();
         if (_profileDialog)
             _profileDialog->deactivate();
-        // if (_itemsMenu)
-        //     _itemsMenu->activate();
-        // setActiveSubView(_itemsMenu);
+        if (_itemsMenu) {
+            subView(_itemsMenu); // Add to subView list
+            _itemsMenu->activate();
+        }
+        setActiveSubView(_itemsMenu);
         break;
     }
 }
@@ -266,9 +276,7 @@ void ViewCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
 }
 
 void ViewCharacterView::handleViewItems() {
-    // if (_itemsMenu)
-    //     _itemsMenu->setCharacter(_character);
-    // setStage(VC_STATE_ITEMS);
+    setStage(VC_STATE_ITEMS);
 }
 
 void ViewCharacterView::handleViewSpells() {
