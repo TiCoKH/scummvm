@@ -11,7 +11,7 @@ namespace Data {
     class DaxHeaderContainer {
     private:
         Common::Array<DaxHeader> headers;
-        uint16 dataOffset;
+        uint16 dataOffset = 0;
 
     public:
         void parseHeadersLE(Common::ReadStream &stream);

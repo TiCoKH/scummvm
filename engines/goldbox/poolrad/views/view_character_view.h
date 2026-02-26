@@ -43,6 +43,7 @@ public:
     ~ViewCharacterView() override;
 
     void onEnter(Goldbox::GameState state) override;
+    bool msgFocus(const FocusMessage &msg) override;
     void draw() override;
     bool msgKeypress(const KeypressMessage &msg) override;
     void handleMenuResult(bool success, Common::KeyCode key, short value) override;

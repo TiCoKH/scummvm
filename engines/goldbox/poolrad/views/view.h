@@ -23,10 +23,9 @@
 #define GOLDBOX_POOLRAD_VIEWS_VIEW_H
 
 #include "goldbox/events.h"
+#include "goldbox/core/global.h"
 
 namespace Goldbox {
-
-enum GameState : int;
 
 namespace Poolrad {
 namespace Views {

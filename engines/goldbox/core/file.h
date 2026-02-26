@@ -34,7 +34,7 @@ private:
 
 public:
     Data::DaxHeaderContainer headerContainer;
-    Data::ContentType _ctype;
+	Data::ContentType _ctype = Data::ContentType::UNKNOWN;
 
 	File() : Common::File() {}
 	File(const Common::Path &filename);

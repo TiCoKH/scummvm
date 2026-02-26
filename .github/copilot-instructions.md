@@ -60,3 +60,35 @@
 - All platform-dependent code must be isolated and guarded with preprocessor macros.
 
 By following these instructions, Copilot will generate code consistent with ScummVM's standards for formatting, style, and portability.
+
+## Event System Usage Guide
+
+### View Constructor (loadtime - runs once)
+✓ Create member pointers, empty UI elements, parse static data
+✗ Don't access game state, VmInterface, or assume visibility
+
+### msgFocus (view gains focus via replaceView/addView)
+✓ Get game state/party, activate/deactivate UI, refresh data
+✗ Don't create dialogs or init pointers (constructor's job)
+
+### msgUnfocus (view loses focus)
+✓ Save changes, cleanup temp state, stop timers
+✗ Don't delete children or block the unfocus
+
+### msgKeypress (keyboard input)
+✓ Forward to child dialogs first, return true if handled, call redraw()
+✗ Don't handle all keys - return false for unhandled
+
+### msgMouseMove/Enter/Leave (mouse hover)
+✓ Update hover states, tooltips, cursor appearance
+✗ Don't trigger actions (MouseDown/Up) or expensive ops (called often)
+
+### msgMouseDown/Up (clicks)
+✓ Use MouseUp for confirmation, check active/enabled, return true if handled
+✗ Don't trigger on MouseDown only or skip bounds checks
+
+### draw() (every frame)
+✓ Draw static then child dialogs, keep idempotent, mark dirty with redraw()
+✗ Don't modify game state or create UI (constructor) or load data (msgFocus)
+
+### Event Flow: User Action → Events routes to focused view → msgXXX → forward to children → redraw()

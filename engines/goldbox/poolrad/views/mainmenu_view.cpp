@@ -45,8 +45,7 @@ using Common::String;
 using Common::Array;
 using Common::StringTokenizer;
 
-MainmenuView::MainmenuView() : View("Mainmenu") {
-
+MainmenuView::MainmenuView() : View("Mainmenu"), _partyList(nullptr), _party(nullptr) {
     Array<String> menuOptions;
 
     const String shortcuts = VmInterface::getString("mainmenu.0");
@@ -60,22 +59,38 @@ MainmenuView::MainmenuView() : View("Mainmenu") {
     _menuItemList.generateMenuItems(menuOptions, true);
     _menuItemList.activate(CREATE);
     _menuItemList.activate(EXIT);
-    _party = Goldbox::VmInterface::getParty();
-    _partyList = new Views::Dialogs::PartyList();
 }
 
 MainmenuView::~MainmenuView() {
-    delete _partyList;
+    if (_partyList) {
+        delete _partyList;
+        _partyList = nullptr;
+    }
 }
 
 void MainmenuView::draw() {
     Surface s = getSurface();
 
+    _party = Goldbox::VmInterface::getParty();
+
+    if (!_partyList && _party && _party->size() > 0) {
+        _partyList = new Views::Dialogs::PartyList();
+        subView(_partyList);
+        _partyList->activate();
+    }
+
+    // Deactivate PartyList if party becomes empty
+    if (_partyList && (!_party || _party->size() == 0)) {
+        _partyList->deactivate();
+    }
+    // Activate PartyList if party has members
+    if (_partyList && _party && _party->size() > 0 && !_partyList->isActive()) {
+        _partyList->activate();
+    }
+
     drawWindow( 1, 1, 38, 22);
     updateMenuState();
-    if (_party->size() > 0 && _partyList) {
-        _partyList->setSelectedCharIndex(_party->size());
-        Goldbox::VmInterface::setSelectedCharacter((*_party)[_partyList->getSelectedCharIndex()-1]);
+    if (_party && _party->size() > 0 && _partyList) {
         _partyList->draw();
     }
     drawMenu();
@@ -83,6 +98,14 @@ void MainmenuView::draw() {
 }
 
 bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
+    // Forward keypresses to active PartyList dialog first
+    if (_partyList && _partyList->isActive()) {
+        if (_partyList->msgKeypress(msg)) {
+            redraw();
+            return true;
+        }
+    }
+
     switch (msg.keycode) {
         case Common::KEYCODE_c:
             if (_menuItemList.isActive(CREATE))
@@ -101,8 +124,9 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
                 replaceView("Mainmenu");
             break;
         case Common::KEYCODE_v:
-            if (_menuItemList.isActive(VIEW))
+            if (_menuItemList.isActive(VIEW)) {
                 replaceView("ViewCharacter");
+            }
             break;
         case Common::KEYCODE_a:
             if (_menuItemList.isActive(ADD))
@@ -127,16 +151,6 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
         case Common::KEYCODE_e:
             replaceView("Mainmenu");
             break;
-        case Common::KEYCODE_END	:
-            if (_party->size()>1)
-                _partyList->nextChar();
-                Goldbox::VmInterface::setSelectedCharacter((*_party)[_partyList->getSelectedCharIndex()-1]);
-            break;
-        case Common::KEYCODE_HOME:
-            if (_party->size()>1)
-                _partyList->prevChar();
-                Goldbox::VmInterface::setSelectedCharacter((*_party)[_partyList->getSelectedCharIndex()-1]);
-            break;
         default:
             break;
     }
@@ -145,6 +159,21 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
 
 bool MainmenuView::msgFocus(const FocusMessage &msg) {
     View::msgFocus(msg);
+
+    // Setup when view gets focus (called by replaceView/addView)
+    _party = Goldbox::VmInterface::getParty();
+    if (!_partyList) {
+        _partyList = new Views::Dialogs::PartyList();
+        subView(_partyList);
+    }
+    if (_partyList) {
+        if (_party && _party->size() > 0) {
+            _partyList->activate();
+        } else {
+            _partyList->deactivate();
+        }
+    }
+
     return true;
 }
 
@@ -170,7 +199,7 @@ void MainmenuView::drawMenu() {
 }
 
 void MainmenuView::updateMenuState() {
-    int partySize = _party->size();
+    int partySize = _party ? _party->size() : 0;
 
     if (partySize > 0) {
         _menuItemList.activate(DROP);

@@ -185,7 +185,6 @@ void CreateCharacterView::nextStage() {
 
 void CreateCharacterView::setStage(CharacterCreateState stage) {
 	_stage = stage;
-	// Show the appropriate dialog/view for the new stage
 	switch (_stage) {
 	case CC_STATE_RACE:
 		chooseRace();
@@ -267,6 +266,8 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 		saveCharacter();
 		replaceView("Mainmenu");
 		break;
+	default:
+		debug("CreateCharacterView: setStage(%d) unknow stage", (int)stage);
 	}
 }
 
@@ -275,11 +276,9 @@ void CreateCharacterView::draw() {
 	if (_stage != CC_STATE_ICON) {
 		drawWindow(kWinLeft, kWinTop, kWinRight, kWinBottom);
 	}
-	// Draw the profile only in states where it should be visible (not CC_STATE_ICON)
 	if (_stage != CC_STATE_ICON && _profileDialog && _profileDialog->isActive()) {
 		_profileDialog->draw();
 	}
-	// Then draw the active subview (menu, yes/no prompt, name input, etc.)
 	if (_activeSubView && _activeSubView != static_cast<Dialogs::Dialog *>(_profileDialog)) {
 		_activeSubView->draw();
 	} else {
@@ -288,7 +287,6 @@ void CreateCharacterView::draw() {
 }
 
 bool CreateCharacterView::msgFocus(const FocusMessage &msg) {
-	// When (re)entering this view, ensure a clean initial state if we're beyond first stage
 	if (_stage != CC_STATE_RACE) {
 		resetState();
 	}
