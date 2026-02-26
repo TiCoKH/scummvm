@@ -77,6 +77,15 @@ enum class ScrollType : uint8 {
     ST_CLERIC     = 12
 };
 
+/// Utility class for accessing item name components from global strings
+class ItemNameComponents {
+public:
+    /// Get a localized item name component by code
+    /// @param code The nameCode value (1-based index into itemnamecomponents)
+    /// @return Localized component string, or empty string if code is 0
+    static Common::String getComponent(uint8 code);
+};
+
 enum class HandsNeeded : uint8 {
     HN_NONE = 0,
     HN_ONE  = 1,

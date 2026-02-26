@@ -19,6 +19,7 @@
  *
  */
 
+#include "common/debug.h"
 #include "common/file.h"
 #include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/data/items/character_inventory.h"
@@ -33,18 +34,29 @@ bool CharacterInventory::load(const Common::String &filename) {
     clear();
 
     Common::File file;
-    if (!file.open(filename.c_str()))
+    if (!file.open(filename.c_str())) {
+        debug("CharacterInventory::load: missing .ITM file '%s'", filename.c_str());
         return false;  // no .ITM → empty inventory
+    }
 
     auto &s = file;  // File implements SeekableReadStream
 
     const int recSize = 63;
     int    total   = s.size();
 
+    if ((total % recSize) != 0) {
+        debug("CharacterInventory::load: file '%s' size=%d not multiple of recSize=%d",
+              filename.c_str(), total, recSize);
+    }
+
+    debug("CharacterInventory::load: file '%s' size=%d recSize=%d",
+          filename.c_str(), total, recSize);
+
+    int index = 0;
     while (s.pos() + recSize <= total) {
         CharacterItem it;
 
-        it.name = PascalStringBuffer<42>::read(s);
+        it.name = PascalStringBuffer<41>::read(s);
         // --- dynamic fields at offsets 0x2A–0x3E ---
         it.nextAddress = s.readUint32LE();
         it.typeIndex   = s.readByte();
@@ -65,12 +77,21 @@ bool CharacterInventory::load(const Common::String &filename) {
         it.effect2     = s.readByte();
         it.effect3     = s.readByte();
 
-        s.skip(1);
-
         _items.push_back(it);
+
+        if (it.readied != 0) {
+            Common::String displayName = it.getDisplayName();
+            debug("CharacterInventory::load: item[%d] equipped displayName='%s' type=%u readied=%u next=0x%08x nameCode=[%u,%u,%u] cachedBuffer='%s'",
+                  index, displayName.c_str(), (unsigned)it.typeIndex, (unsigned)it.readied,
+                  (unsigned)it.nextAddress, (unsigned)it.nameCode1, (unsigned)it.nameCode2, (unsigned)it.nameCode3,
+                  it.name.c_str());
+        }
+        ++index;
     }
 
     file.close();
+    debug("CharacterInventory::load: loaded %u items from '%s'",
+          (unsigned)_items.size(), filename.c_str());
     return true;
 }
 
@@ -82,8 +103,9 @@ bool CharacterInventory::save(const Common::String &filename) const {
     auto &s = file;  // DumpFile supports WriteStream
 
     for (const auto &it : _items) {
-        PascalStringBuffer<44>::write(s, it.name);
+        PascalStringBuffer<41>::write(s, it.name);
 
+        s.writeUint32LE(it.nextAddress);
         s.writeByte(it.typeIndex);
         s.writeByte(it.nameCode1);
         s.writeByte(it.nameCode2);
@@ -101,10 +123,6 @@ bool CharacterInventory::save(const Common::String &filename) const {
         s.writeByte(it.effect1);
         s.writeByte(it.effect2);
         s.writeByte(it.effect3);
-
-        // write 4 bytes of zero to reserve far pointer space
-        uint8 zeroes[4] = {0, 0, 0, 0};
-        s.write(zeroes, 4);
     }
 
     file.flush();

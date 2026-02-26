@@ -27,13 +27,20 @@ namespace Items {
 
 const ItemProperty &CharacterItem::prop() const {
     const auto &all = Engine::gItemProps.all();
-    assert(typeIndex < all.size());
-    return all[typeIndex];
+    if (typeIndex >= all.size()) {
+        warning("CharacterItem::prop: typeIndex %u out of range (max %u)",
+                (unsigned)typeIndex, (unsigned)all.size());
+        // Return first item as fallback
+        static ItemProperty dummy;
+        return dummy;
+    }
+    const ItemProperty &p = all[typeIndex];
+    return p;
 }
 
 Common::String CharacterItem::getNameComponent(int componentIndex) const {
     uint8 componentCode = 0;
-    
+
     switch (componentIndex) {
     case 0:
         componentCode = nameCode1;
@@ -47,26 +54,24 @@ Common::String CharacterItem::getNameComponent(int componentIndex) const {
     default:
         return "";
     }
-    
-    if (componentCode == 0)
-        return "";
-        
-    return g_engine->getString(Common::String::format("itemnamecomponents.%d", componentCode));
+
+    return ItemNameComponents::getComponent(componentCode);
 }
 
 Common::String CharacterItem::getDisplayName() const {
-    // If name is explicitly defined, use it
-    if (!name.empty())
-        return name;
-        
     Common::String result;
-    
-    // The first 3 bits of hidden control which name components are shown
-    // If a bit is set (1), the component should be hidden
-    for (int i = 0; i < 3; i++) {
+
+    // Build name exclusively from nameCode components and hidden flags.
+    // The 'name' field in .ITM is just a cached display buffer from the original engine
+    // and should NOT be used for display in our implementation.
+
+    // Bits 0-2 of 'hidden' control which name components are shown
+    // If a bit is set (1), that component should be hidden
+    // Use reverse order (2,1,0) to match original item naming layout.
+    for (int i = 2; i >= 0; --i) {
         if (hidden & (1 << i))
             continue;  // Skip this component if hidden bit is set
-            
+
         Common::String component = getNameComponent(i);
         if (!component.empty()) {
             if (!result.empty())
@@ -74,12 +79,21 @@ Common::String CharacterItem::getDisplayName() const {
             result += component;
         }
     }
-    
+
     // Add bonus indicator if it's greater than 0 and not hidden by bit 3
     if (bonus > 0 && !(hidden & 0x8)) {
         result += Common::String::format(" +%d", bonus);
     }
-    
+
+    // Prefix stack count for stackable items (e.g., "11 Darts")
+    if (stackSize > 1 && !result.empty()) {
+        // Simple pluralization: append 's' if not already ending with s/S
+        const char lastChar = result[result.size() - 1];
+        if (lastChar != 's' && lastChar != 'S')
+            result += "s";
+        result = Common::String::format("%u ", (unsigned)stackSize) + result;
+    }
+
     return result;
 }
 
@@ -93,11 +107,11 @@ int CharacterItem::getCharges() const {
     // For scrolls, the number of charges typically indicates number of spells
     if (isScroll())
         return effect1;
-        
+
     // For wands and similar items that use charges
     if (effect3 < 128)
         return effect1;
-        
+
     return 0;
 }
 
