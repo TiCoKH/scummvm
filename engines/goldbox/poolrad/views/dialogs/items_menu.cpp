@@ -19,8 +19,8 @@
  *
  */
 
-#include "goldbox/poolrad/views/dialogs/items_menu.h"
 
+#include "goldbox/poolrad/views/dialogs/items_menu.h"
 #include "common/system.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/rules_types.h"
@@ -39,12 +39,11 @@ using Common::KeyCode;
 ItemsMenu::ItemsMenu(const String &name)
 	: Dialog(name),
 	  _character(nullptr),
-	  _verticalMenu(nullptr),
-	  _showingActions(false) {
+	  _verticalMenu(nullptr) {
 
 	_menuConfig.promptTxt = "";
-	_menuConfig.promptOptions = &_actionMenuList;
-	_menuConfig.menuItemList = &_menuList;
+	_menuConfig.promptOptions = &_horizontalMenuLabels;
+	_menuConfig.menuItemList = &_itemsMenuList;
 	_menuConfig.headColor = 0;
 	_menuConfig.textColor = 10;
 	_menuConfig.selectColor = 15;
@@ -52,8 +51,13 @@ ItemsMenu::ItemsMenu(const String &name)
 	_menuConfig.yStart = 5;
 	_menuConfig.xEnd = 38;
 	_menuConfig.yEnd = 20;
-	_menuConfig.title = "ITEMS";
+	_menuConfig.title = "";
 	_menuConfig.asHeader = true;
+
+	_verticalMenu = new VerticalMenu("ItemsVerticalMenu", _menuConfig);
+	subView(_verticalMenu);
+	_verticalMenu->deactivate();
+	_verticalMenu->deactivateHorizontalMenu();
 }
 
 ItemsMenu::~ItemsMenu() {
@@ -64,38 +68,45 @@ ItemsMenu::~ItemsMenu() {
 }
 
 void ItemsMenu::activate() {
+	debug("ItemsMenu::activate() called");
 	Dialog::activate();
 
 	_character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
 		VmInterface::getSelectedCharacter()
 	);
 
-	if (!_verticalMenu) {
-		buildActionMenu();
-		buildItemList();
-		buildItemsListMenu();
-		_verticalMenu = new VerticalMenu("ItemsVerticalMenu", _menuConfig);
-		subView(_verticalMenu);
-	}
+	buildActionMenu();
+	buildItemList();
+	buildItemsListMenu();
 
-	if (_verticalMenu)
+	if (_verticalMenu) {
 		_verticalMenu->activate();
+		_verticalMenu->activateHorizontalMenu();
+	}
 }
 
 void ItemsMenu::deactivate() {
+	debug("ItemsMenu::deactivate() called");
 	Dialog::deactivate();
-	if (_verticalMenu)
+
+	if (_verticalMenu) {
+		_verticalMenu->deactivateHorizontalMenu();
 		_verticalMenu->deactivate();
+	}
 }
 
 void ItemsMenu::draw() {
 	// Only draw when active
 	if (!isActive()) {
+		debug("ItemsMenu::draw() - NOT ACTIVE, skipping draw");
 		return;
 	}
 
+	debug("ItemsMenu::draw() - ACTIVE, drawing");
+
 	// Ensure character is set
 	if (!_character) {
+		debug("ItemsMenu::draw() - no character set");
 		return;
 	}
 
@@ -108,11 +119,8 @@ void ItemsMenu::draw() {
 	drawWindow(1, 3, 38, 22);
 	s.writeStringC(1, 5, 15, "Ready Item");
 
-	// Rebuild the menu with updated items from character's inventory
-	if (_verticalMenu) {
-		_verticalMenu->rebuild(&_menuList, "ITEMS");
+	if (_verticalMenu)
 		_verticalMenu->draw();
-	}
 
 	// TODO: After item is selected, display HORIZONTAL action menu
 	// This menu shows: Ready, Use, Drop, Halve, Join, Sell, Identify, Exit
@@ -126,22 +134,20 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 	}
 
 	// Handle navigation within item list
-	if (!_showingActions) {
-		// HOME/END for vertical menu navigation
-		if (msg.keycode == Common::KEYCODE_HOME) {
-			if (_verticalMenu && !_itemList.empty()) {
-				_menuList.currentSelection = 0;
-				_verticalMenu->rebuild(&_menuList, "ITEMS");
-			}
-			return true;
+	// HOME/END for vertical menu navigation
+	if (msg.keycode == Common::KEYCODE_HOME) {
+		if (_verticalMenu && !_itemList.empty()) {
+			_itemsMenuList.currentSelection = 0;
+			redraw();
 		}
-		if (msg.keycode == Common::KEYCODE_END) {
-			if (_verticalMenu && !_itemList.empty()) {
-				_menuList.currentSelection = _itemList.size() - 1;
-				_verticalMenu->rebuild(&_menuList, "ITEMS");
-			}
-			return true;
+		return true;
+	}
+	if (msg.keycode == Common::KEYCODE_END) {
+		if (_verticalMenu && !_itemList.empty()) {
+			_itemsMenuList.currentSelection = _itemList.size() - 1;
+			redraw();
 		}
+		return true;
 	}
 
 	// Global exit
@@ -155,15 +161,9 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 }
 
 void ItemsMenu::handleMenuResult(bool success, Common::KeyCode key, short value) {
-	// Handle action menu selection
 	if (success) {
 		if (key == Common::KEYCODE_ESCAPE) {
-			// Exit action menu, return to item list
-			_showingActions = false;
-			buildItemsListMenu();
-			if (_verticalMenu) {
-				_verticalMenu->rebuild(&_menuList, "ITEMS");
-			}
+			handleExit();
 			return;
 		}
 	}
@@ -171,39 +171,30 @@ void ItemsMenu::handleMenuResult(bool success, Common::KeyCode key, short value)
 }
 
 void ItemsMenu::buildActionMenu() {
-	_actionMenuList.clear();
+	_horizontalMenuLabels.clear();
 
 	if (!_character)
 		return;
 
-	// Trade - if character is player (not NPC) OR disabled OR animated + not in combat
 	if ((_character->enabled || !_character->isNpc() || (_character->healthStatus == Goldbox::Data::S_ANIMATED)) &&
 		Goldbox::VmInterface::getGameStatus() != GS_COMBAT) {
-		_actionMenuList.push_back("Trade");
+		_horizontalMenuLabels.push_back("Trade");
 	}
 
-	// Drop - always available
-	_actionMenuList.push_back("Drop");
+	_horizontalMenuLabels.push_back("Drop");
+	_horizontalMenuLabels.push_back("Halve");
+	_horizontalMenuLabels.push_back("Join");
 
-	// Halve - always available (inventory check done in handler)
-	_actionMenuList.push_back("Halve");
-
-	// Join - always available
-	_actionMenuList.push_back("Join");
-
-	// Sell - if character is player (not NPC) OR disabled OR animated + in shop
 	if ((_character->enabled || !_character->isNpc() || (_character->healthStatus == Goldbox::Data::S_ANIMATED)) &&
 		Goldbox::VmInterface::getGameStatus() == GS_SHOP) {
-		_actionMenuList.push_back("Sell");
+		_horizontalMenuLabels.push_back("Sell");
 	}
 
-	// Identify - if in shop
 	if (Goldbox::VmInterface::getGameStatus() == GS_SHOP) {
-		_actionMenuList.push_back("Id");
+		_horizontalMenuLabels.push_back("Id");
 	}
 
-	// Add Exit option
-	_actionMenuList.push_back("Exit");
+	_horizontalMenuLabels.push_back("Exit");
 }
 
 void ItemsMenu::buildItemList() {
@@ -220,32 +211,25 @@ void ItemsMenu::buildItemList() {
 }
 
 void ItemsMenu::buildItemsListMenu() {
-	const int previousSelection = _menuList.currentSelection;
-	_menuList.items.clear();
-	_menuList.currentSelection = 0;
+	const int previousSelection = _itemsMenuList.currentSelection;
+	_itemsMenuList.items.clear();
+	_itemsMenuList.currentSelection = 0;
 
 	if (!_character || _itemList.empty()) {
 		return;
 	}
 
-	// Build a simple list of display strings
-	// Index correlation: _menuList.items[n] corresponds to _itemList[n]
 	Common::Array<Common::String> itemLabels;
 	for (auto &item : _itemList) {
-		// Format: "Item Name" + readied status column
-		// Example: "Longsword                        YES"
-		// or:      "Shield                           NO"
 		Common::String displayText;
 		if (item) {
 			displayText = item->name;
 		}
 
-		// Pad item name to 33 characters
 		while (displayText.size() < 33) {
 			displayText += " ";
 		}
 
-		// Add readied status (YES/NO)
 		if (item && item->readied != 0) {
 			displayText += "YES";
 		} else {
@@ -255,20 +239,17 @@ void ItemsMenu::buildItemsListMenu() {
 		itemLabels.push_back(displayText);
 	}
 
-	// Generate menu items from the label list
-	_menuList.generateMenuItems(itemLabels, true);
+	_itemsMenuList.generateMenuItems(itemLabels, true);
 
-	// Preserve cursor position when possible after rebuild.
-	if (_menuList.items.empty()) {
-		_menuList.currentSelection = 0;
+	if (_itemsMenuList.items.empty()) {
+		_itemsMenuList.currentSelection = 0;
 	} else if (previousSelection < 0) {
-		_menuList.currentSelection = 0;
-	} else if (previousSelection >= (int)_menuList.items.size()) {
-		_menuList.currentSelection = _menuList.items.size() - 1;
+		_itemsMenuList.currentSelection = 0;
+	} else if (previousSelection >= (int)_itemsMenuList.items.size()) {
+		_itemsMenuList.currentSelection = _itemsMenuList.items.size() - 1;
 	} else {
-		_menuList.currentSelection = previousSelection;
+		_itemsMenuList.currentSelection = previousSelection;
 	}
-
 }
 
 
@@ -282,12 +263,9 @@ void ItemsMenu::handleReadyItem(Goldbox::Data::Items::CharacterItem *item) {
 	// For now, just toggle the readied flag as a placeholder
 	item->readied = item->readied ? 0 : 1;
 
-	// Keep menu text in sync with updated inventory item state.
 	buildItemList();
 	buildItemsListMenu();
-	if (_verticalMenu) {
-		_verticalMenu->rebuild(&_menuList, "ITEMS");
-	}
+	redraw();
 }
 
 void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
@@ -339,9 +317,7 @@ void ItemsMenu::handleDropItem(Goldbox::Data::Items::CharacterItem *item) {
 	if (_character->removeItem(item)) {
 		buildItemList();
 		buildItemsListMenu();
-		if (_verticalMenu) {
-			_verticalMenu->rebuild(&_menuList, "ITEMS");
-		}
+		redraw();
 	}
 }
 
@@ -520,6 +496,19 @@ bool ItemsMenu::canSellItem(const Goldbox::Data::Items::CharacterItem *item) con
 	}
 
 	return true;
+}
+
+bool ItemsMenu::canIdentifyItem(const Goldbox::Data::Items::CharacterItem *item) const {
+	if (!item) return false;
+
+	// Can only identify in shop
+	if (Goldbox::VmInterface::getGameStatus() != GS_SHOP) {
+		return false;
+	} else
+		return true;
+
+	// Can identify unidentified items
+	//return !item->identified;
 }
 
 } // namespace Dialogs

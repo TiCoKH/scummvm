@@ -66,14 +66,11 @@ public:
 
 private:
 	Goldbox::Poolrad::Data::PoolradCharacter *_character;
-	Goldbox::MenuItemList _menuList;
+	Goldbox::MenuItemList _itemsMenuList;
 	Common::Array<Goldbox::Data::Items::CharacterItem *> _itemList;
-	Common::Array<Common::String> _actionMenuList;
+	Common::Array<Common::String> _horizontalMenuLabels;
 	VerticalMenuConfig _menuConfig;
 	VerticalMenu *_verticalMenu;
-	bool _continueAfterAction;
-	int _selectedItemIndex;
-	bool _showingActions;
 
 	void buildItemsListMenu();
 	void buildItemList();

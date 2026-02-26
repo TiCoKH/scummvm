@@ -63,7 +63,7 @@ protected:
     Goldbox::MenuItemList _menuList;
     Dialogs::HorizontalMenu *_horizontalMenu;
     Dialogs::CharacterProfile *_profileDialog;
-    //Dialogs::ItemsMenu *_itemsMenu;
+    Dialogs::ItemsMenu *_itemsMenu;
     Dialogs::Dialog *_activeSubView = nullptr;
 
     void buildMenu();
