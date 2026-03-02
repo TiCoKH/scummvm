@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/view.h"
+#include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/engine.h"
 
 
@@ -83,6 +84,32 @@ void View::drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom) {
 	drawFrame(Common::Rect(left - 1, top - 1, right + 1, bottom + 1));
 	Surface s = getSurface();
 	s.clearBox(left, top, right, bottom, 0);
+}
+
+void View::switchActiveDialog(Dialogs::Dialog *&activeDialog,
+		Dialogs::Dialog *nextDialog) {
+	if (activeDialog && activeDialog != nextDialog)
+		activeDialog->deactivate();
+
+	activeDialog = nextDialog;
+
+	if (activeDialog)
+		activeDialog->activate();
+}
+
+void View::setDialogParent(Dialogs::Dialog *dialog, UIElement *parent) {
+	if (!dialog)
+		return;
+
+	dialog->setParent(parent);
+}
+
+void View::attachDialog(Dialogs::Dialog *dialog) {
+	setDialogParent(dialog, this);
+}
+
+void View::detachDialog(Dialogs::Dialog *dialog) {
+	setDialogParent(dialog, nullptr);
 }
 
 bool View::msgFocus(const FocusMessage &msg) {

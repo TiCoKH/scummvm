@@ -83,6 +83,8 @@ public:
     VerticalMenu(const Common::String &name, const VerticalMenuConfig &config);
     ~VerticalMenu();
 
+    void activate() override;
+    void deactivate() override;
     void draw() override;
     void redrawLine(int lineNum);
 	void handleMenuResult(bool success, Common::KeyCode key, short value) override;

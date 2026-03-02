@@ -36,7 +36,7 @@ public:
         : Dialog(name), _xName(1), _xAC(33), _yStart(2), _selectedCharIndex(1), _party(nullptr) {}
     virtual ~PartyList() {}
 
-    void activate();
+    void activate() override;
     void draw() override;
     bool msgKeypress(const KeypressMessage &msg) override;
     void setLayout(uint xName, uint xAC, uint yStart) {

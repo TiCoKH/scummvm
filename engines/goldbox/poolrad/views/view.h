@@ -30,6 +30,10 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
+namespace Dialogs {
+class Dialog;
+}
+
 /**
  * Base view class for screens and dialogs that appear on-screen.
  * The View class takes care of two important things:
@@ -58,6 +62,10 @@ private:
 protected:
 	void drawFrame(const Common::Rect &r, uint32 bgColor = 0, uint32 tpColorIndex = 0);
 	void drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom);
+	void switchActiveDialog(Dialogs::Dialog *&activeDialog, Dialogs::Dialog *nextDialog);
+	void setDialogParent(Dialogs::Dialog *dialog, UIElement *parent);
+	void attachDialog(Dialogs::Dialog *dialog);
+	void detachDialog(Dialogs::Dialog *dialog);
 
 public:
 	View(const Common::String &name, UIElement *uiParent) :

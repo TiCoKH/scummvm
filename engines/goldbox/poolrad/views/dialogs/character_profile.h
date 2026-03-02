@@ -28,7 +28,7 @@ public:
     CharacterProfile(const Common::String &name = "CharacterProfile");
     virtual ~CharacterProfile() {}
 
-    void activate();
+    void activate() override;
     void draw() override;
     void handleMenuResult(bool success, Common::KeyCode key, short value) override;
 

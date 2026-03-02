@@ -70,10 +70,16 @@ void AddCharacterView::draw() {
 }
 
 bool AddCharacterView::msgFocus(const FocusMessage &msg) {
+    if (_rosterMenu) {
+        _rosterMenu->activate();
+    }
 	return true;
 }
 
 bool AddCharacterView::msgUnfocus(const UnfocusMessage &msg) {
+    if (_rosterMenu) {
+        _rosterMenu->deactivate();
+    }
 	return true;
 }
 
