@@ -48,8 +48,8 @@ ViewCharacterView::ViewCharacterView()
     _horizontalMenu = new Dialogs::HorizontalMenu("CharacterHorizontalMenu", menuConfig);
     _profileDialog = new Dialogs::CharacterProfile();
     _itemsMenu = new Dialogs::ItemsMenu("ItemsMenu");
-    subView(_profileDialog);
-    subView(_horizontalMenu);
+    attachDialog(_profileDialog);
+    attachDialog(_horizontalMenu);
     // Don't add ItemsMenu as subView yet - only when activated
 
     // Don't call setStage here - defer to activate() when character data is available
@@ -242,24 +242,18 @@ void ViewCharacterView::setStage(ViewCharacterState stage) {
     case VC_STATE_PROFILE:
         debug("ViewCharacterView::setStage() - setting PROFILE stage");
         if (_itemsMenu) {
-            _itemsMenu->deactivate();
-            _itemsMenu->setParent(nullptr); // Remove from subView list
+            detachDialog(_itemsMenu); // Remove from subView list
         }
         if (_profileDialog)
             _profileDialog->activate();
-        if (_horizontalMenu)
-            _horizontalMenu->activate();
         setActiveSubView(_horizontalMenu);
         break;
     case VC_STATE_ITEMS:
         debug("ViewCharacterView::setStage() - setting ITEMS stage");
-        if (_horizontalMenu)
-            _horizontalMenu->deactivate();
         if (_profileDialog)
             _profileDialog->deactivate();
         if (_itemsMenu) {
-            subView(_itemsMenu); // Add to subView list
-            _itemsMenu->activate();
+            attachDialog(_itemsMenu); // Add to subView list
         }
         setActiveSubView(_itemsMenu);
         break;
@@ -267,12 +261,7 @@ void ViewCharacterView::setStage(ViewCharacterState stage) {
 }
 
 void ViewCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
-    if (_activeSubView && _activeSubView != dlg) {
-        _activeSubView->deactivate();
-    }
-    _activeSubView = dlg;
-    if (_activeSubView)
-        _activeSubView->activate();
+    switchActiveDialog(_activeSubView, dlg);
 }
 
 void ViewCharacterView::handleViewItems() {

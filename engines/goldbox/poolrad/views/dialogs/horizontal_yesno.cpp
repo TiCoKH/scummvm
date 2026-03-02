@@ -42,7 +42,6 @@ HorizontalYesNo::HorizontalYesNo(const String &name, const HorizontalYesNoConfig
     items.push_back("NO");
     _menuItems.generateMenuItems(items, true);
     _menuItems.currentSelection = 1;
-    activate();
 }
 
 bool HorizontalYesNo::msgKeypress(const KeypressMessage &msg) {

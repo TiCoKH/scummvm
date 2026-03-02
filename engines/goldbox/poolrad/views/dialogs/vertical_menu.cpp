@@ -79,7 +79,6 @@ VerticalMenu::VerticalMenu(const String &name, const VerticalMenuConfig &config)
 
     _horizontalMenu = new HorizontalMenu(name + "_Horizontal", hMenuConfig);
     subView(_horizontalMenu);
-    activate();
 }
 
 VerticalMenu::~VerticalMenu() {
@@ -90,6 +89,16 @@ VerticalMenu::~VerticalMenu() {
         delete _horizontalMenu;
         _horizontalMenu = nullptr;
     }
+}
+
+void VerticalMenu::activate() {
+    Dialog::activate();
+    activateHorizontalMenu();
+}
+
+void VerticalMenu::deactivate() {
+    deactivateHorizontalMenu();
+    Dialog::deactivate();
 }
 
 void VerticalMenu::draw() {

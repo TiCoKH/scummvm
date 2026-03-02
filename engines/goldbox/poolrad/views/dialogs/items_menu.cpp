@@ -57,7 +57,6 @@ ItemsMenu::ItemsMenu(const String &name)
 	_verticalMenu = new VerticalMenu("ItemsVerticalMenu", _menuConfig);
 	subView(_verticalMenu);
 	_verticalMenu->deactivate();
-	_verticalMenu->deactivateHorizontalMenu();
 }
 
 ItemsMenu::~ItemsMenu() {
@@ -81,7 +80,6 @@ void ItemsMenu::activate() {
 
 	if (_verticalMenu) {
 		_verticalMenu->activate();
-		_verticalMenu->activateHorizontalMenu();
 	}
 }
 
@@ -90,7 +88,6 @@ void ItemsMenu::deactivate() {
 	Dialog::deactivate();
 
 	if (_verticalMenu) {
-		_verticalMenu->deactivateHorizontalMenu();
 		_verticalMenu->deactivate();
 	}
 }

@@ -38,8 +38,8 @@ public:
 	Dialog(const Common::String &name) : View(name) {}
 	virtual ~Dialog() {}
 
-	void activate() { _isActive = true; _isVisible = true; }
-	void deactivate() { _isActive = false; _isVisible = false; }
+	virtual void activate() { _isActive = true; _isVisible = true; }
+	virtual void deactivate() { _isActive = false; _isVisible = false; }
     bool isActive() const { return _isActive; }
     bool isVisible() const { return _isVisible; }
 

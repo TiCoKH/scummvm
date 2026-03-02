@@ -35,7 +35,6 @@ HorizontalInput::HorizontalInput(const String &name, const HorizontalInputConfig
       _promptColor(config.promptColor),
       _maxInputLength(config.maxInputLength),
       _inputText("") {
-    activate();
     _textOffset = _promptTxt.empty() ? 0 : _promptTxt.size();
 }
 
