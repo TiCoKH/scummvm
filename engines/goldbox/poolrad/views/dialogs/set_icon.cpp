@@ -193,15 +193,7 @@ void SetIcon::setStage(IconMenuState stage) {
         setMenuStage(ICON_STATE_SUB_PART);
         break;
     case ICON_STATE_SIZE_SELECT:
-        _menuItems.items.clear();
-        {
-            Common::Array<String> labels;
-            labels.push_back("Large");
-            labels.push_back("Small");
-            labels.push_back("Exit");
-            _menuItems.generateMenuItems(labels, true);
-        }
-        buildAndShowMenu("");
+        buildSizeMenu(true);
         break;
     case ICON_PARTS_ADJUSTMENT:
         _menuItems.items.clear();
@@ -249,6 +241,31 @@ void SetIcon::setStage(IconMenuState stage) {
         }
         break;
     }
+}
+
+void SetIcon::buildSizeMenu(bool saveInitialSize) {
+    if (!_pc)
+        return;
+
+    if (saveInitialSize) {
+        _initialSizeByte = _pc->iconData.iconSize;
+        _hasInitialSize = true;
+    }
+
+    _menuItems.items.clear();
+    {
+        Common::Array<String> labels;
+        // First option is always the opposite of current size.
+        if (_pc->iconData.iconSize == 2) {
+            labels.push_back("Small");
+        } else {
+            labels.push_back("Large");
+        }
+        labels.push_back("Keep");
+        labels.push_back("Exit");
+        _menuItems.generateMenuItems(labels, true);
+    }
+    buildAndShowMenu("");
 }
 
 Common::String SetIcon::getSubPartLabel(int index) const {
@@ -602,19 +619,35 @@ void SetIcon::handleMenuResult(const MenuResultMessage &result) {
     }
 
     case ICON_STATE_SIZE_SELECT: {
-        // "Large Small Exit"
+        // "(Large|Small) Keep Exit"
         switch (key) {
         case Common::KEYCODE_l:
-            _pc->iconData.iconSize = 2; // Large
+            // Set large, redraw, and regenerate first option to opposite.
+            _pc->iconData.iconSize = 2;
             rebuildNewIcon();
-            setStage(ICON_STATE_MAIN_MENU);
+            redrawWorkingIcons();
+            buildSizeMenu(false);
             break;
         case Common::KEYCODE_s:
-            _pc->iconData.iconSize = 1; // Small
+            // Set small, redraw, and regenerate first option to opposite.
+            _pc->iconData.iconSize = 1;
             rebuildNewIcon();
+            redrawWorkingIcons();
+            buildSizeMenu(false);
+            break;
+        case Common::KEYCODE_k:
+            // Keep current working size.
+            _hasInitialSize = false;
             setStage(ICON_STATE_MAIN_MENU);
             break;
         case Common::KEYCODE_e:
+            // Exit without keeping size changes made in this stage.
+            if (_hasInitialSize) {
+                _pc->iconData.iconSize = _initialSizeByte;
+                rebuildNewIcon();
+                redrawWorkingIcons();
+            }
+            _hasInitialSize = false;
             setStage(ICON_STATE_MAIN_MENU);
             break;
         }

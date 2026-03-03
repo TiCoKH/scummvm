@@ -41,7 +41,7 @@ enum IconMenuState {
     ICON_STATE_MAIN_MENU      = 0,   // Parts color-1 color-2 Size Exit
     ICON_STATE_MAJOR_PART     = 1,   // Head Weapon Exit
     ICON_STATE_SUB_PART       = 2,   // Weapon Body Hair/Face Shield Arm Leg Exit
-    ICON_STATE_SIZE_SELECT    = 3,   // Large Small Exit
+    ICON_STATE_SIZE_SELECT    = 3,   // (Large|Small) Keep Exit
     ICON_PARTS_ADJUSTMENT     = 4,   // Next Prev Keep Exit (for head/weapon)
     ICON_COLORS_ADJUSTMENT    = 5,   // Next Prev Keep Exit (for colors)
     ICON_STATE_CONFIRM        = 6    // Keep Exit
@@ -100,8 +100,9 @@ private:
     // Current selections
     int _selectedMajorPart = 0;    // 0 = Head, 1 = Weapon
     int _selectedSubPart   = 0;    // Body, Arms, Legs, Head/Face, Shield, Weapon
-    int _selectedSize      = 0;    // 0 = Large, 1 = Small
     int _colorAdjustMode   = 0;    // Which color being adjusted
+    uint8 _initialSizeByte = 0;
+    bool _hasInitialSize = false;
 
     uint8 _originalColorByte;
 
@@ -110,6 +111,7 @@ private:
 
     // State helpers
     void buildAndShowMenu(const Common::String &prompt);
+    void buildSizeMenu(bool saveInitialSize);
     void setActiveMenu();
     void setMenuStage(IconMenuState stage);
     Common::String getSubPartLabel(int index) const;
