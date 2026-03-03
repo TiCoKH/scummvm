@@ -61,6 +61,8 @@ void Events::runGame() {
 			}
 		}
 
+		dispatchPendingMenuResults();
+
 		if (_views.empty())
 			break;
 
@@ -74,6 +76,29 @@ void Events::runGame() {
 	}
 
 	delete _screen;
+}
+
+void Events::dispatchPendingMenuResults() {
+	if (_pendingMenuResults.empty())
+		return;
+
+	Common::Array<MenuResultMessage> pending = _pendingMenuResults;
+	_pendingMenuResults.clear();
+
+	for (uint i = 0; i < pending.size(); ++i) {
+		const MenuResultMessage &msg = pending[i];
+		UIElement *target = nullptr;
+
+		if (!msg._targetViewName.empty()) {
+			target = findView(msg._targetViewName);
+		} else {
+			target = focusedView();
+		}
+
+		if (target) {
+			target->handleMenuResult(msg);
+		}
+	}
 }
 
 #define SHOW_CURSOR           \
@@ -204,6 +229,24 @@ void Events::addKeypress(const Common::KeyCode kc) {
 		ks.ascii = kc;
 
 	focusedView()->msgKeypress(KeypressMessage(ks));
+}
+
+void Events::postMenuResult(const Common::String &targetViewName,
+		bool success,
+		Common::KeyCode keyCode,
+		int intValue,
+		const Common::String &stringValue,
+		bool hasIntValue,
+		bool hasStringValue) {
+	MenuResultMessage msg;
+	msg._targetViewName = targetViewName;
+	msg._success = success;
+	msg._keyCode = keyCode;
+	msg._intValue = intValue;
+	msg._stringValue = stringValue;
+	msg._hasIntValue = hasIntValue;
+	msg._hasStringValue = hasStringValue;
+	postMenuResult(msg);
 }
 
 void Events::setCursor(int cursorNum) {

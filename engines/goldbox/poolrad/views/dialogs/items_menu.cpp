@@ -22,6 +22,7 @@
 
 #include "goldbox/poolrad/views/dialogs/items_menu.h"
 #include "common/system.h"
+#include "goldbox/events.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
@@ -165,6 +166,11 @@ void ItemsMenu::handleMenuResult(bool success, Common::KeyCode key, short value)
 		}
 	}
 	// TODO: Handle other action menu selections
+}
+
+void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
+	short value = result._hasIntValue ? (short)result._intValue : 0;
+	handleMenuResult(result._success, result._keyCode, value);
 }
 
 void ItemsMenu::buildActionMenu() {
@@ -367,7 +373,8 @@ void ItemsMenu::handleExit() {
 	deactivate();
 	// Notify parent view that we're done
 	if (_parent) {
-		_parent->handleMenuResult(false, Common::KEYCODE_ESCAPE, 0);
+		g_events->postMenuResult(_parent->getName(), false,
+			Common::KEYCODE_ESCAPE, 0, Common::String(), true, false);
 	}
 }
 

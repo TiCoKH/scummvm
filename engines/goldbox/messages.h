@@ -106,6 +106,74 @@ struct ActionMessage : public Message {
 	}
 };
 
+struct MenuResultMessage : public Message {
+	Common::String _targetViewName;
+	bool _success;
+	Common::KeyCode _keyCode;
+	int _intValue;
+	Common::String _stringValue;
+	bool _hasIntValue;
+	bool _hasStringValue;
+
+	MenuResultMessage() : Message(),
+		_success(false),
+		_keyCode(Common::KEYCODE_INVALID),
+		_intValue(0),
+		_hasIntValue(false),
+		_hasStringValue(false) {
+	}
+
+	MenuResultMessage(const Common::String &targetViewName,
+			bool success,
+			Common::KeyCode keyCode) : Message(),
+		_targetViewName(targetViewName),
+		_success(success),
+		_keyCode(keyCode),
+		_intValue(0),
+		_hasIntValue(false),
+		_hasStringValue(false) {
+	}
+
+	MenuResultMessage(const Common::String &targetViewName,
+			bool success,
+			Common::KeyCode keyCode,
+			int intValue) : Message(),
+		_targetViewName(targetViewName),
+		_success(success),
+		_keyCode(keyCode),
+		_intValue(intValue),
+		_hasIntValue(true),
+		_hasStringValue(false) {
+	}
+
+	MenuResultMessage(const Common::String &targetViewName,
+			bool success,
+			Common::KeyCode keyCode,
+			const Common::String &stringValue) : Message(),
+		_targetViewName(targetViewName),
+		_success(success),
+		_keyCode(keyCode),
+		_intValue(0),
+		_stringValue(stringValue),
+		_hasIntValue(false),
+		_hasStringValue(true) {
+	}
+
+	MenuResultMessage(const Common::String &targetViewName,
+			bool success,
+			Common::KeyCode keyCode,
+			int intValue,
+			const Common::String &stringValue) : Message(),
+		_targetViewName(targetViewName),
+		_success(success),
+		_keyCode(keyCode),
+		_intValue(intValue),
+		_stringValue(stringValue),
+		_hasIntValue(true),
+		_hasStringValue(true) {
+	}
+};
+
 } // namespace Goldbox
 
 #endif

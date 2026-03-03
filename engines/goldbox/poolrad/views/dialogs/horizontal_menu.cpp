@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/events.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -105,7 +106,7 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
 			if (_menuItems->items.size() == 1) {
                 deactivate();
                 if (_parent)
-                    _parent->handleMenuResult(true, keyCode, 0);
+                    g_events->postMenuResult(_parent->getName(), true, keyCode, 0, Common::String(), true, false);
 			} else {
 				// Multiple items: simulate pressing the shortcut key of the selected item
 				if (_menuItems->currentSelection >= 0 && _menuItems->currentSelection < (int)_menuItems->items.size()) {
@@ -119,10 +120,13 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
 					KeyCode shortcutKey = (KeyCode)shortcut;
 					deactivate();
                     if (_parent)
-                        _parent->handleMenuResult(true, shortcutKey, _menuItems->currentSelection);
+                        g_events->postMenuResult(_parent->getName(), true,
+                            shortcutKey, _menuItems->currentSelection,
+                            Common::String(), true, false);
 				} else {
                     if (_parent)
-                        _parent->handleMenuResult(false, keyCode, 0);
+                        g_events->postMenuResult(_parent->getName(), false,
+                            keyCode, 0, Common::String(), true, false);
 				}
 			}
 			return true;
@@ -130,7 +134,8 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
 		case Common::KEYCODE_ESCAPE: {
             deactivate();
             if (_parent)
-                _parent->handleMenuResult(false, keyCode, 0);
+                g_events->postMenuResult(_parent->getName(), false, keyCode,
+                    0, Common::String(), true, false);
 			return true;
 		}
     }
@@ -140,8 +145,9 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
         if (index != -1 && _menuItems->items[index].active) {
             _menuItems->currentSelection = index;
             deactivate();
-            if (_parent)
-                _parent->handleMenuResult(true, keyCode, index);
+			if (_parent)
+				g_events->postMenuResult(_parent->getName(), true, keyCode,
+					index, Common::String(), true, false);
             return true;
         }
         if (_allowNumPad) {
@@ -186,7 +192,8 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
         }
         deactivate();
         if (_parent)
-            _parent->handleMenuResult(true, keyCode, 0);
+			g_events->postMenuResult(_parent->getName(), true, keyCode,
+				0, Common::String(), true, false);
         return true;
         }
     }
@@ -194,8 +201,9 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
 
     if (keyCode >= Common::KEYCODE_UP && keyCode <= Common::KEYCODE_PAGEDOWN) {
         deactivate();
-		if (_parent)
-			_parent->handleMenuResult(true, keyCode, 0);
+        if (_parent)
+			g_events->postMenuResult(_parent->getName(), true, keyCode,
+				0, Common::String(), true, false);
         return true;
     }
 

@@ -260,6 +260,11 @@ public:
         // Default implementation (optional)
     }
 
+	virtual void handleMenuResult(const MenuResultMessage &result) {
+		short value = result._hasIntValue ? (short)result._intValue : 0;
+		handleMenuResult(result._success, result._keyCode, value);
+	}
+
 	/**
 	 * Handles events
 	 */
@@ -332,9 +337,11 @@ private:
 	Common::Stack<UIElement *> _views;
 	bool _cursorVisible = false;
 	int _cursorNum = -1;
+	Common::Array<MenuResultMessage> _pendingMenuResults;
 
 protected:
 	CursorArray _cursors;
+	void dispatchPendingMenuResults();
 
 protected:
 	/**
@@ -454,6 +461,18 @@ public:
 	 * Add a keypress to the event queue
 	 */
 	void addKeypress(const Common::KeyCode kc);
+
+	void postMenuResult(const MenuResultMessage &result) {
+		_pendingMenuResults.push_back(result);
+	}
+
+	void postMenuResult(const Common::String &targetViewName,
+			bool success,
+			Common::KeyCode keyCode,
+			int intValue = 0,
+			const Common::String &stringValue = Common::String(),
+			bool hasIntValue = false,
+			bool hasStringValue = false);
 
 	/**
 	 * Events manager doesn't have any intrinsic drawing

@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/events.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -67,20 +68,24 @@ bool HorizontalYesNo::msgKeypress(const KeypressMessage &msg) {
     } else if (keyCode == Common::KEYCODE_RETURN) {
         if (_parent) {
             if (_menuItems.currentSelection == 0)
-                _parent->handleMenuResult(true, Common::KEYCODE_y, 1);
+                g_events->postMenuResult(_parent->getName(), true,
+                    Common::KEYCODE_y, 1, Common::String(), true, false);
             else
-                _parent->handleMenuResult(true, Common::KEYCODE_n, 0);
+                g_events->postMenuResult(_parent->getName(), true,
+                    Common::KEYCODE_n, 0, Common::String(), true, false);
         }
         return true;
     } else if (asciiValue == 'Y') {
         _menuItems.currentSelection = 0;
         if (_parent)
-            _parent->handleMenuResult(true, Common::KEYCODE_y, 1);
+            g_events->postMenuResult(_parent->getName(), true,
+                Common::KEYCODE_y, 1, Common::String(), true, false);
         return true;
     } else if (asciiValue == 'N') {
         _menuItems.currentSelection = 1;
         if (_parent)
-            _parent->handleMenuResult(true, Common::KEYCODE_n, 0);
+            g_events->postMenuResult(_parent->getName(), true,
+                Common::KEYCODE_n, 0, Common::String(), true, false);
         return true;
     } else {
         // Ignore other keys

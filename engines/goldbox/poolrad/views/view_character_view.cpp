@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/vm_interface.h"
+#include "goldbox/events.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/views/view_character_view.h"
 #include "goldbox/poolrad/views/dialogs/items_menu.h"
@@ -197,11 +198,17 @@ bool ViewCharacterView::msgKeypress(const KeypressMessage &msg) {
     return View::msgKeypress(msg);
 }
 
+void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
+	short value = result._hasIntValue ? (short)result._intValue : 0;
+	handleMenuResult(result._success, result._keyCode, value);
+}
+
 // Skeleton for handling menu results from HorizontalMenu
 void ViewCharacterView::handleMenuResult(bool success, Common::KeyCode keyCode, short value) {
     if (!success) {
         if (_parent) {
-            _parent->handleMenuResult(false, keyCode, value);
+			g_events->postMenuResult(_parent->getName(), false,
+				keyCode, value, Common::String(), true, false);
         }
         return;
     }
