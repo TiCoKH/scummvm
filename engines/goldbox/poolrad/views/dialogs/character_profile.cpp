@@ -3,6 +3,7 @@
  * CharacterProfile dialog for displaying character details
  */
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
+#include "goldbox/events.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/data/items/character_item.h"
 #include "common/keyboard.h"
@@ -55,7 +56,13 @@ void CharacterProfile::draw() {
 
 void CharacterProfile::handleMenuResult(bool success, Common::KeyCode key, short value) {
     if (_parent)
-        _parent->handleMenuResult(success, key, value);
+        g_events->postMenuResult(_parent->getName(), success,
+            key, value, Common::String(), true, false);
+}
+
+void CharacterProfile::handleMenuResult(const MenuResultMessage &result) {
+    short value = result._hasIntValue ? (short)result._intValue : 0;
+    handleMenuResult(result._success, result._keyCode, value);
 }
 
 // Clear and redraw only the stats area (rows 7..12, left block)

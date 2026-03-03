@@ -58,6 +58,7 @@ public:
     void nextStage();
     void setStage(CharacterCreateState stage);
     CharacterCreateState getStage() const { return _stage; }
+    void handleMenuResult(const MenuResultMessage &result) override;
     void handleMenuResult(bool success, Common::KeyCode key, short value) override;
 
 private:

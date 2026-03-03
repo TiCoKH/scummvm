@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/views/dialogs/set_portrait.h"
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
+#include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -118,7 +119,8 @@ void SetPortrait::refresh() {
 void SetPortrait::handleMenuResult(bool success, Common::KeyCode key, short value) {
     if (!success) {
         if (_parent) {
-            _parent->handleMenuResult(false, key, value);
+			g_events->postMenuResult(_parent->getName(), false,
+				key, value, Common::String(), true, false);
         }
         return;
     }
@@ -132,7 +134,8 @@ void SetPortrait::handleMenuResult(bool success, Common::KeyCode key, short valu
         break;
     case Common::KEYCODE_k:
         if (_parent) {
-            _parent->handleMenuResult(true, key, 0);
+			g_events->postMenuResult(_parent->getName(), true,
+				key, 0, Common::String(), true, false);
         } else {
             debug("SetPortrait::handleMenuResult - ERROR: No parent set!");
         }
@@ -141,6 +144,11 @@ void SetPortrait::handleMenuResult(bool success, Common::KeyCode key, short valu
         debug("SetPortrait::handleMenuResult - unknown key %d", key);
         break;
     }
+}
+
+void SetPortrait::handleMenuResult(const MenuResultMessage &result) {
+    short value = result._hasIntValue ? (short)result._intValue : 0;
+    handleMenuResult(result._success, result._keyCode, value);
 }
 
 } // namespace Dialogs

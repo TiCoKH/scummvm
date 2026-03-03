@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/set_icon.h"
+#include "goldbox/events.h"
 #include "goldbox/gfx/icon.h"
 #include "goldbox/core/icon_manager.h"
 #include "goldbox/vm_interface.h"
@@ -487,7 +488,8 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
         // Cancel pressed - revert changes
         revertChanges();
         if (_parent) {
-            _parent->handleMenuResult(false, key, value);
+			g_events->postMenuResult(_parent->getName(), false,
+				key, value, Common::String(), true, false);
         }
         return;
     }
@@ -714,7 +716,8 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
         if (key == Common::KEYCODE_y || (success && value == 1)) {
             commitChanges();
             if (_parent)
-                _parent->handleMenuResult(true, key, 1);
+				g_events->postMenuResult(_parent->getName(), true,
+					key, 1, Common::String(), true, false);
         } else {
             setStage(ICON_STATE_MAIN_MENU);
         }
@@ -724,6 +727,11 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
     default:
         break;
     }
+}
+
+void SetIcon::handleMenuResult(const MenuResultMessage &result) {
+	short value = result._hasIntValue ? (short)result._intValue : 0;
+	handleMenuResult(result._success, result._keyCode, value);
 }
 
 } // namespace Dialogs

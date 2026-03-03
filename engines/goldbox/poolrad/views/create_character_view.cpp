@@ -310,10 +310,6 @@ bool CreateCharacterView::msgKeypress(const KeypressMessage &msg) {
 	// forward the keypress to the concrete dialog instance.
 	if (_activeSubView) {
 		if (_activeSubView == static_cast<Dialogs::Dialog *>(_nameInput) && _nameInput) {
-			if (msg.keycode == Common::KEYCODE_RETURN) {
-				handleMenuResult(true, msg.keycode, 0);
-				return true;
-			}
 			static_cast<Dialogs::HorizontalInput *>(_nameInput)->msgKeypress(msg);
 			return true;
 		}
@@ -560,6 +556,29 @@ void CreateCharacterView::performRerollAndRecompute() {
 
 void CreateCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
 	switchActiveDialog(_activeSubView, dlg);
+}
+
+void CreateCharacterView::handleMenuResult(const MenuResultMessage &result) {
+	short value = result._hasIntValue ? (short)result._intValue : 0;
+
+	if (_stage == CC_STATE_NAME &&
+		result._success &&
+		result._keyCode == Common::KEYCODE_RETURN &&
+		result._hasStringValue) {
+		_enteredName = result._stringValue;
+		if (!_newCharacter)
+			_newCharacter = new Goldbox::Poolrad::Data::PoolradCharacter();
+		_newCharacter->name = _enteredName;
+		if (_profileDialog)
+			_profileDialog->drawName();
+		if (_activeSubView == static_cast<Dialogs::Dialog *>(_nameInput))
+			setActiveSubView(nullptr);
+		detachAndDelete(_nameInput);
+		setStage(CC_STATE_PORTRAIT);
+		return;
+	}
+
+	handleMenuResult(result._success, result._keyCode, value);
 }
 
 void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, short value) {

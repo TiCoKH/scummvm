@@ -87,6 +87,10 @@ void AddCharacterView::timeout() {
 //	replaceView("Codewheel");
 }
 
+void AddCharacterView::handleMenuResult(const MenuResultMessage &result) {
+    short value = result._hasIntValue ? (short)result._intValue : 0;
+    handleMenuResult(result._success, result._keyCode, value);
+}
 
 void AddCharacterView::handleMenuResult(bool success, Common::KeyCode key, short value) {
 

@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
+#include "goldbox/events.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -45,7 +46,8 @@ bool HorizontalInput::msgKeypress(const KeypressMessage &msg) {
     if (_isActive) {
         if (keyCode == Common::KEYCODE_RETURN || keyCode == Common::KEYCODE_ESCAPE) {
             if (_parent) {
-                _parent->handleMenuResult(true, keyCode, 0);
+                g_events->postMenuResult(_parent->getName(), true,
+                    keyCode, 0, _inputText, false, true);
             }
             return true;
         }

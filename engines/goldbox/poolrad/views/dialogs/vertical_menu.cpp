@@ -22,6 +22,7 @@
 #include "common/util.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "vertical_menu.h"
+#include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -199,7 +200,9 @@ void VerticalMenu::handleMenuResult(bool success, KeyCode key, short value) {
 
         default:
             if (_parent) {
-                _parent->handleMenuResult(success, key, _menuItems->currentSelection);
+				g_events->postMenuResult(_parent->getName(), success,
+					key, _menuItems->currentSelection,
+					Common::String(), true, false);
             }
 			return;
     }
