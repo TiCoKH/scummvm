@@ -80,6 +80,11 @@ void ItemsMenu::activate() {
 	buildItemsListMenu();
 
 	if (_verticalMenu) {
+		// Regenerate horizontal menu items from updated action labels
+		_verticalMenu->_hMenuList.items.clear();
+		_verticalMenu->_hMenuList.generateMenuItems(_horizontalMenuLabels, true);
+
+		_verticalMenu->rebuild(&_itemsMenuList, "");
 		_verticalMenu->activate();
 	}
 }
@@ -94,15 +99,12 @@ void ItemsMenu::deactivate() {
 }
 
 void ItemsMenu::draw() {
-	// Only draw when active
+
 	if (!isActive()) {
 		debug("ItemsMenu::draw() - NOT ACTIVE, skipping draw");
 		return;
 	}
 
-	debug("ItemsMenu::draw() - ACTIVE, drawing");
-
-	// Ensure character is set
 	if (!_character) {
 		debug("ItemsMenu::draw() - no character set");
 		return;
@@ -111,11 +113,13 @@ void ItemsMenu::draw() {
 	Surface s = getSurface();
 
 	drawWindow(1, 1, 38, 22);
-	s.writeStringC(1, 1, _character->getNameColor(), _character->name);
+	s.writeStringC(1, 1, 11, _character->name);
 	s.writeString("'s");
-	s.writeStringC(1 + _character->name.size() + 4, 1, 14, "Items");
+	s.writeStringC(1 + _character->name.size() + 3, 1, 10, "Items");
+
+	// Draw column headers at row 5 (one row above menu which starts at yStart=6)
 	drawWindow(1, 3, 38, 22);
-	s.writeStringC(1, 5, 15, "Ready Item");
+	s.writeStringC(1, 3, 15, "Ready Item");
 
 	if (_verticalMenu)
 		_verticalMenu->draw();
@@ -129,6 +133,15 @@ void ItemsMenu::draw() {
 bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 	if (!isActive()) {
 		return false;
+	}
+
+	// Handle Ready (Equip) - 'R' key
+	if (msg.keycode == Common::KEYCODE_r) {
+		if (!_itemList.empty() && _itemsMenuList.currentSelection >= 0 &&
+			_itemsMenuList.currentSelection < (int)_itemList.size()) {
+			handleReadyItem(_itemList[_itemsMenuList.currentSelection]);
+		}
+		return true;
 	}
 
 	// Handle navigation within item list
@@ -158,7 +171,9 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 	return View::msgKeypress(msg);
 }
 
-void ItemsMenu::handleMenuResult(bool success, Common::KeyCode key, short value) {
+void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
+	bool success = result._success;
+	Common::KeyCode key = result._keyCode;
 	if (success) {
 		if (key == Common::KEYCODE_ESCAPE) {
 			handleExit();
@@ -166,11 +181,6 @@ void ItemsMenu::handleMenuResult(bool success, Common::KeyCode key, short value)
 		}
 	}
 	// TODO: Handle other action menu selections
-}
-
-void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
-	short value = result._hasIntValue ? (short)result._intValue : 0;
-	handleMenuResult(result._success, result._keyCode, value);
 }
 
 void ItemsMenu::buildActionMenu() {
@@ -204,6 +214,7 @@ void ItemsMenu::buildItemList() {
 	_itemList.clear();
 
 	if (!_character || !_character->hasItems()) {
+		debug("ItemsMenu::buildItemList - no character or no items");
 		return;
 	}
 
@@ -211,6 +222,7 @@ void ItemsMenu::buildItemList() {
 	for (auto &item : _character->inventory.items()) {
 		_itemList.push_back(&item);
 	}
+	debug("ItemsMenu::buildItemList - built list with %u items", (unsigned)_itemList.size());
 }
 
 void ItemsMenu::buildItemsListMenu() {
@@ -219,30 +231,38 @@ void ItemsMenu::buildItemsListMenu() {
 	_itemsMenuList.currentSelection = 0;
 
 	if (!_character || _itemList.empty()) {
+		debug("ItemsMenu::buildItemsListMenu - no character or empty item list");
 		return;
 	}
 
+	debug("ItemsMenu::buildItemsListMenu - building menu for %u items", (unsigned)_itemList.size());
+
 	Common::Array<Common::String> itemLabels;
 	for (auto &item : _itemList) {
-		Common::String displayText;
+		Common::String itemName;
 		if (item) {
-			displayText = item->name;
+			// Use getDisplayName() to build name from nameCode components
+			itemName = item->getDisplayName();
 		}
 
-		while (displayText.size() < 33) {
-			displayText += " ";
-		}
-
+		// Ready column begins at x=2 (under 'E' of "Ready" in "Ready Item")
+		// Item name begins at x=7 (under 'I' of "Item")
+		Common::String readyStr;
 		if (item && item->readied != 0) {
-			displayText += "YES";
+			readyStr = "YES";
 		} else {
-			displayText += " NO";
+			readyStr = " NO";
 		}
+
+		Common::String displayText = Common::String::format(" %s  %s",
+			readyStr.c_str(), itemName.c_str());
 
 		itemLabels.push_back(displayText);
 	}
 
 	_itemsMenuList.generateMenuItems(itemLabels, true);
+
+	debug("ItemsMenu::buildItemsListMenu - generated %u menu items", (unsigned)_itemsMenuList.items.size());
 
 	if (_itemsMenuList.items.empty()) {
 		_itemsMenuList.currentSelection = 0;
@@ -261,14 +281,38 @@ void ItemsMenu::handleReadyItem(Goldbox::Data::Items::CharacterItem *item) {
 		return;
 	}
 
-	// TODO: Implement equipping/readying logic
-	// This should call character's equipItem method with appropriate slot
-	// For now, just toggle the readied flag as a placeholder
+	// Toggle the readied flag
 	item->readied = item->readied ? 0 : 1;
+	debug("ItemsMenu::handleReadyItem - toggled item to readied=%u", item->readied);
 
-	buildItemList();
-	buildItemsListMenu();
-	redraw();
+	// Find the item's index in _itemList to update its menu display
+	int itemIndex = -1;
+	for (int i = 0; i < (int)_itemList.size(); ++i) {
+		if (_itemList[i] == item) {
+			itemIndex = i;
+			break;
+		}
+	}
+
+	if (itemIndex >= 0 && itemIndex < (int)_itemsMenuList.items.size()) {
+		// Rebuild the display text for this item (YES/NO status changed)
+		Common::String itemName = item->getDisplayName();
+		Common::String readyStr = (item->readied != 0) ? "YES" : " NO";
+		Common::String displayText = Common::String::format(" %s  %s",
+			readyStr.c_str(), itemName.c_str());
+		
+		_itemsMenuList.items[itemIndex].text = displayText;
+		
+		// Redraw just this line in the vertical menu
+		if (_verticalMenu) {
+			_verticalMenu->redrawLine(itemIndex);
+		}
+	}
+
+	// Recalculate character combat stats (equipment changed)
+	_character->resolveEquippedItems();
+	
+	debug("ItemsMenu::handleReadyItem - equipment resolved");
 }
 
 void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {

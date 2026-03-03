@@ -560,6 +560,8 @@ void CreateCharacterView::setActiveSubView(Dialogs::Dialog *dlg) {
 
 void CreateCharacterView::handleMenuResult(const MenuResultMessage &result) {
 	short value = result._hasIntValue ? (short)result._intValue : 0;
+	bool success = result._success;
+	Common::KeyCode key = result._keyCode;
 
 	if (_stage == CC_STATE_NAME &&
 		result._success &&
@@ -578,10 +580,6 @@ void CreateCharacterView::handleMenuResult(const MenuResultMessage &result) {
 		return;
 	}
 
-	handleMenuResult(result._success, result._keyCode, value);
-}
-
-void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, short value) {
 	if (!success) {
 		replaceView("Mainmenu");
 		return;

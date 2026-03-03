@@ -116,7 +116,11 @@ void SetPortrait::refresh() {
     }
 }
 
-void SetPortrait::handleMenuResult(bool success, Common::KeyCode key, short value) {
+void SetPortrait::handleMenuResult(const MenuResultMessage &result) {
+	bool success = result._success;
+	Common::KeyCode key = result._keyCode;
+	short value = result._hasIntValue ? (short)result._intValue : 0;
+
     if (!success) {
         if (_parent) {
 			g_events->postMenuResult(_parent->getName(), false,
@@ -144,11 +148,6 @@ void SetPortrait::handleMenuResult(bool success, Common::KeyCode key, short valu
         debug("SetPortrait::handleMenuResult - unknown key %d", key);
         break;
     }
-}
-
-void SetPortrait::handleMenuResult(const MenuResultMessage &result) {
-    short value = result._hasIntValue ? (short)result._intValue : 0;
-    handleMenuResult(result._success, result._keyCode, value);
 }
 
 } // namespace Dialogs

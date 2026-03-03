@@ -63,7 +63,6 @@ public:
 	bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
     void handleMenuResult(const MenuResultMessage &result) override;
-    void handleMenuResult(bool success, Common::KeyCode key, short value) override;
 
 private:
 	Goldbox::Poolrad::Data::PoolradCharacter *_character;

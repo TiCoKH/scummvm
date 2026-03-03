@@ -54,15 +54,12 @@ void CharacterProfile::draw() {
 	drawPortrait();
 }
 
-void CharacterProfile::handleMenuResult(bool success, Common::KeyCode key, short value) {
-    if (_parent)
-        g_events->postMenuResult(_parent->getName(), success,
-            key, value, Common::String(), true, false);
-}
-
 void CharacterProfile::handleMenuResult(const MenuResultMessage &result) {
-    short value = result._hasIntValue ? (short)result._intValue : 0;
-    handleMenuResult(result._success, result._keyCode, value);
+    if (_parent) {
+        short value = result._hasIntValue ? (short)result._intValue : 0;
+        g_events->postMenuResult(_parent->getName(), result._success,
+            result._keyCode, value, Common::String(), true, false);
+    }
 }
 
 // Clear and redraw only the stats area (rows 7..12, left block)

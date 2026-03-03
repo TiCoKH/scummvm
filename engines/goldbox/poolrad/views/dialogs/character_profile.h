@@ -31,7 +31,6 @@ public:
     void activate() override;
     void draw() override;
     void handleMenuResult(const MenuResultMessage &result) override;
-    void handleMenuResult(bool success, Common::KeyCode key, short value) override;
 
     void redrawStats();
     void redrawValuables();
