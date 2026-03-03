@@ -109,6 +109,7 @@ CreateCharacterView::CreateCharacterView() : View("CreatCharacter"), _stage(CC_S
 }
 
 CreateCharacterView::~CreateCharacterView() {
+	setActiveSubView(nullptr);
 	detachAndDelete(_profileDialog);
 	detachAndDelete(_nameInput);
 	detachAndDelete(_yesNoPrompt);
@@ -410,6 +411,8 @@ void CreateCharacterView::chooseAlignment() {
 void CreateCharacterView::showProfileDialog() {
 	// Set the selected character so CharacterProfile can fetch it
 	VmInterface::setSelectedCharacter(_newCharacter);
+	if (_activeSubView == static_cast<Dialogs::Dialog *>(_profileDialog))
+		setActiveSubView(nullptr);
 	detachAndDelete(_profileDialog);
 	_profileDialog = new Dialogs::CharacterProfile();
 	attachDialog(_profileDialog);
@@ -708,6 +711,8 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 					_profileDialog->drawName();
 				}
 			}
+			if (_activeSubView == static_cast<Dialogs::Dialog *>(_nameInput))
+				setActiveSubView(nullptr);
 			detachAndDelete(_nameInput);
 			setStage(CC_STATE_PORTRAIT);
 		}
@@ -743,6 +748,7 @@ void CreateCharacterView::handleMenuResult(bool success, Common::KeyCode key, sh
 }
 
 void CreateCharacterView::resetState() {
+	setActiveSubView(nullptr);
 	// Delete subviews safely: detach from parent so redraw traversal doesn't
 	// see freed memory.
 	detachAndDelete(_profileDialog);
