@@ -93,6 +93,7 @@ VerticalMenu::~VerticalMenu() {
 }
 
 void VerticalMenu::activate() {
+    debug("VerticalMenu::activate() - itemNums=%d, menuHeight=%d", _itemNums, _menuHeight);
     Dialog::activate();
     activateHorizontalMenu();
 }
@@ -103,9 +104,12 @@ void VerticalMenu::deactivate() {
 }
 
 void VerticalMenu::draw() {
-    if (!isActive())
+    if (!isActive()) {
+        debug("VerticalMenu::draw() - NOT ACTIVE, skipping");
         return;
-     drawText();
+    }
+    debug("VerticalMenu::draw() - drawing %d items", _linesToRender);
+    drawText();
 
     if (_horizontalMenu) {
         _horizontalMenu->draw();
@@ -115,6 +119,9 @@ void VerticalMenu::draw() {
 void VerticalMenu::drawText() {
     Surface s = getSurface();
     s.clearBox(_xStart, _yStart, _xEnd, _yEnd, 0);
+
+    debug("VerticalMenu::drawText() - clearing box (%d,%d) to (%d,%d), rendering %d items",
+          _xStart, _yStart, _xEnd, _yEnd, _linesToRender);
 
     // Optional fixed title line (not part of selectable list)
     int titleOffset = 0;
@@ -178,7 +185,9 @@ void VerticalMenu::updateHorizontalMenu() {
     }
 }
 
-void VerticalMenu::handleMenuResult(bool success, KeyCode key, short value) {
+void VerticalMenu::handleMenuResult(const MenuResultMessage &result) {
+	bool success = result._success;
+	KeyCode key = result._keyCode;
     switch (key) {
         case Common::KEYCODE_END:
             selectionDown();

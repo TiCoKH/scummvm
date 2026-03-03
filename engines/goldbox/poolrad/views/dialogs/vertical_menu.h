@@ -87,7 +87,7 @@ public:
     void deactivate() override;
     void draw() override;
     void redrawLine(int lineNum);
-	void handleMenuResult(bool success, Common::KeyCode key, short value) override;
+	void handleMenuResult(const MenuResultMessage &result) override;
     void activateHorizontalMenu();
     void deactivateHorizontalMenu();
 

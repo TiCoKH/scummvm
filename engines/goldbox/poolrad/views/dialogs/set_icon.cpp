@@ -483,7 +483,10 @@ void SetIcon::redrawWorkingIcons() {
     drawIconPair(1, 4, SLOT_EDITOR_WORKING);
 }
 
-void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
+void SetIcon::handleMenuResult(const MenuResultMessage &result) {
+	bool success = result._success;
+	Common::KeyCode key = result._keyCode;
+	short value = result._hasIntValue ? (short)result._intValue : 0;
     if (!success) {
         // Cancel pressed - revert changes
         revertChanges();
@@ -727,11 +730,6 @@ void SetIcon::handleMenuResult(bool success, Common::KeyCode key, short value) {
     default:
         break;
     }
-}
-
-void SetIcon::handleMenuResult(const MenuResultMessage &result) {
-	short value = result._hasIntValue ? (short)result._intValue : 0;
-	handleMenuResult(result._success, result._keyCode, value);
 }
 
 } // namespace Dialogs

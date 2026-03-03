@@ -200,11 +200,10 @@ bool ViewCharacterView::msgKeypress(const KeypressMessage &msg) {
 
 void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
 	short value = result._hasIntValue ? (short)result._intValue : 0;
-	handleMenuResult(result._success, result._keyCode, value);
-}
+    bool success = result._success;
+    Common::KeyCode keyCode = result._keyCode;
 
-// Skeleton for handling menu results from HorizontalMenu
-void ViewCharacterView::handleMenuResult(bool success, Common::KeyCode keyCode, short value) {
+    // Skeleton for handling menu results from HorizontalMenu
     if (!success) {
         if (_parent) {
 			g_events->postMenuResult(_parent->getName(), false,
