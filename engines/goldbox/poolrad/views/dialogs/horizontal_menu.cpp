@@ -103,7 +103,9 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
 		case Common::KEYCODE_RETURN: {
 			// If only one menu item, (Exit) on VerticalMenu use simple behavior
 			if (_menuItems->items.size() == 1) {
-				_parent->handleMenuResult(true, keyCode, 0);
+                deactivate();
+                if (_parent)
+                    _parent->handleMenuResult(true, keyCode, 0);
 			} else {
 				// Multiple items: simulate pressing the shortcut key of the selected item
 				if (_menuItems->currentSelection >= 0 && _menuItems->currentSelection < (int)_menuItems->items.size()) {
@@ -115,16 +117,20 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
 					}
 					// Cast the shortcut character to KeyCode to simulate pressing that key
 					KeyCode shortcutKey = (KeyCode)shortcut;
-					_parent->handleMenuResult(true, shortcutKey, _menuItems->currentSelection);
 					deactivate();
+                    if (_parent)
+                        _parent->handleMenuResult(true, shortcutKey, _menuItems->currentSelection);
 				} else {
-					_parent->handleMenuResult(false, keyCode, 0);
+                    if (_parent)
+                        _parent->handleMenuResult(false, keyCode, 0);
 				}
 			}
 			return true;
 		}
 		case Common::KEYCODE_ESCAPE: {
-			_parent->handleMenuResult(false, keyCode, 0);
+            deactivate();
+            if (_parent)
+                _parent->handleMenuResult(false, keyCode, 0);
 			return true;
 		}
     }
@@ -133,8 +139,9 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
         int index = _menuItems->findByShortcut(asciiValue);
         if (index != -1 && _menuItems->items[index].active) {
             _menuItems->currentSelection = index;
-            _parent->handleMenuResult(true, keyCode, index);
             deactivate();
+            if (_parent)
+                _parent->handleMenuResult(true, keyCode, index);
             return true;
         }
         if (_allowNumPad) {
@@ -177,16 +184,18 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
                 break;
             }
         }
-        _parent->handleMenuResult(true, keyCode, 0);
         deactivate();
+        if (_parent)
+            _parent->handleMenuResult(true, keyCode, 0);
         return true;
         }
     }
 
 
     if (keyCode >= Common::KEYCODE_UP && keyCode <= Common::KEYCODE_PAGEDOWN) {
-        _parent->handleMenuResult(true, keyCode, 0);
         deactivate();
+		if (_parent)
+			_parent->handleMenuResult(true, keyCode, 0);
         return true;
     }
 
