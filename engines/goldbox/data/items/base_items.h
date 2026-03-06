@@ -120,6 +120,13 @@ struct ItemProperty {
     dmgSmallMed = {0, 0, 0};
     }
 
+    /// Determines if this item is a missile weapon (arrows, bolts, etc.)
+    /// Checks if slotID is in the missile range: S_ARROW (11) to S_BOLT (12)
+    bool isMissile() const {
+        return slotID >= static_cast<uint8>(Slot::S_ARROW) &&
+               slotID < static_cast<uint8>(Slot::SLOT_COUNT);
+    }
+
     void debugPrint(int index = -1) const {
     if (index >= 0)
         debug("ItemProperty[%d]:", index);

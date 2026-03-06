@@ -45,6 +45,7 @@ constexpr uint8 MAX_CLASSES_PER_RACE = 11;
 
 class PoolradCharacter : public Goldbox::Data::ADnDCharacter {
 public:
+    using ReadyItemResult = Goldbox::Data::ADnDCharacter::ReadyItemResult;
 
     static constexpr uint8 BASE_ICON_VALUES[7] = {0x0A, 0x01, 0x02, 0x03, 0x04, 0x06, 0x07};
 
@@ -235,6 +236,14 @@ public:
         // Provide implementation
         return "StatusName";
     }
+
+protected:
+    uint8 getReadyAllowedClassMask() const override;
+    bool ignoreHandsLimitForReady() const override;
+    const Goldbox::Data::Items::CharacterItem *getExtraReadyConflictItem(
+            const Goldbox::Data::Items::CharacterItem *item) const override;
+    void onReadyItemEffect(Goldbox::Data::Items::CharacterItem *item,
+                     bool equipping) override;
 };
 
 } // namespace Data

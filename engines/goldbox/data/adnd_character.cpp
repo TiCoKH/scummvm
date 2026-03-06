@@ -19,6 +19,7 @@
  */
 
 #include "goldbox/data/adnd_character.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Data {
@@ -447,6 +448,120 @@ bool ADnDCharacter::equipItem(Goldbox::Data::Items::CharacterItem *item,
 bool ADnDCharacter::unequipItem(Goldbox::Data::Items::Slot slot) {
     return inventory.unequipItem(slot, equippedItems.slots,
                                  &handsEquipped, &saveBonus);
+}
+
+ADnDCharacter::ReadyItemResult ADnDCharacter::canReadyItem(
+    const Goldbox::Data::Items::CharacterItem *item,
+    const Goldbox::Data::Items::CharacterItem **conflictingItem) const {
+    using namespace Goldbox::Data::Items;
+
+    if (conflictingItem)
+        *conflictingItem = nullptr;
+
+    if (!item)
+        return RIR_INVALID;
+
+    const ItemProperty &prop = item->prop();
+    const Slot itemSlot = static_cast<Slot>(prop.slotID);
+
+    // Match original precedence: hands -> slot conflict -> extra conflict -> class.
+    uint8 result = RIR_SUCCESS;
+
+    if (!ignoreHandsLimitForReady() &&
+        ((uint)handsEquipped + (uint)prop.hands > 2)) {
+        result = RIR_HANDS_FULL;
+    }
+
+    const CharacterItem *conflict = nullptr;
+    if (itemSlot < Slot::S_RING1) {
+        conflict = equippedItems.slots[(int)itemSlot];
+        if (conflict)
+            result = RIR_SLOT_IN_USE;
+    } else if (itemSlot == Slot::S_RING1) {
+        conflict = equippedItems.slots[(int)Slot::S_RING2];
+        if (conflict)
+            result = RIR_SLOT_IN_USE;
+    }
+
+    const CharacterItem *extraConflict = getExtraReadyConflictItem(item);
+    if (extraConflict) {
+        conflict = extraConflict;
+        result = RIR_SLOT_IN_USE;
+    }
+
+    const uint8 allowedMask = getReadyAllowedClassMask();
+    if ((allowedMask & prop.classMask) == 0)
+        result = RIR_WRONG_CLASS;
+
+    if (result == RIR_SLOT_IN_USE && conflictingItem)
+        *conflictingItem = conflict;
+
+    return static_cast<ReadyItemResult>(result);
+}
+
+ADnDCharacter::ReadyItemResult ADnDCharacter::toggleReadyItem(
+    Goldbox::Data::Items::CharacterItem *item,
+    const Goldbox::Data::Items::CharacterItem **conflictingItem) {
+    using namespace Goldbox::Data::Items;
+
+    if (conflictingItem)
+        *conflictingItem = nullptr;
+
+    if (!item)
+        return RIR_INVALID;
+
+    if (item->readied == 0) {
+        const ReadyItemResult canReady = canReadyItem(item, conflictingItem);
+        if (canReady != RIR_SUCCESS)
+            return canReady;
+
+        const Slot slot = static_cast<Slot>(item->prop().slotID);
+        if (!equipItem(item, slot))
+            return RIR_SLOT_IN_USE;
+
+        onReadyItemEffect(item, true);
+        return RIR_SUCCESS;
+    }
+
+    if (item->cursed)
+        return RIR_CURSED;
+
+    Slot slot = Slot::S_NONE;
+    for (int i = 0; i < EQUIPPED_SLOT_COUNT; ++i) {
+        if (equippedItems.slots[i] == item) {
+            slot = static_cast<Slot>(i);
+            break;
+        }
+    }
+
+    if (slot != Slot::S_NONE) {
+        if (!unequipItem(slot))
+            return RIR_CURSED;
+    } else {
+        item->readied = 0;
+        resolveEquippedItems();
+    }
+
+    onReadyItemEffect(item, false);
+    return RIR_SUCCESS;
+}
+
+uint8 ADnDCharacter::getReadyAllowedClassMask() const {
+    return getClassMaskForClassType(classType);
+}
+
+bool ADnDCharacter::ignoreHandsLimitForReady() const {
+    return false;
+}
+
+const Goldbox::Data::Items::CharacterItem *ADnDCharacter::getExtraReadyConflictItem(
+    const Goldbox::Data::Items::CharacterItem * /*item*/) const {
+    return nullptr;
+}
+
+void ADnDCharacter::onReadyItemEffect(
+    Goldbox::Data::Items::CharacterItem * /*item*/, bool /*equipping*/) {
+    // Default: no special equip/unequip side effects.
 }
 
 bool ADnDCharacter::isNpc() const {

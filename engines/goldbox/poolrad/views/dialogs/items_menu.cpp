@@ -27,6 +27,7 @@
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
+#include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -64,6 +65,10 @@ ItemsMenu::~ItemsMenu() {
 	if (_verticalMenu) {
 		delete _verticalMenu;
 		_verticalMenu = nullptr;
+	}
+	if (_activePrompt) {
+		delete _activePrompt;
+		_activePrompt = nullptr;
 	}
 }
 
@@ -188,6 +193,7 @@ void ItemsMenu::buildActionMenu() {
 
 	if (!_character)
 		return;
+	_horizontalMenuLabels.push_back("Ready");
 
 	if ((_character->enabled || !_character->isNpc() || (_character->healthStatus == Goldbox::Data::S_ANIMATED)) &&
 		Goldbox::VmInterface::getGameStatus() != GS_COMBAT) {
@@ -239,28 +245,17 @@ void ItemsMenu::buildItemsListMenu() {
 
 	Common::Array<Common::String> itemLabels;
 	for (auto &item : _itemList) {
-		Common::String itemName;
 		if (item) {
-			// Use getDisplayName() to build name from nameCode components
-			itemName = item->getDisplayName();
-		}
-
-		// Ready column begins at x=2 (under 'E' of "Ready" in "Ready Item")
-		// Item name begins at x=7 (under 'I' of "Item")
-		Common::String readyStr;
-		if (item && item->readied != 0) {
-			readyStr = "YES";
+			// Use CharacterItem helper to keep list formatting logic centralized.
+			// TODO: Replace false with party Identify effect state when implemented.
+			itemLabels.push_back(item->getListDisplayText(true, false));
 		} else {
-			readyStr = " NO";
+			itemLabels.push_back("");
 		}
-
-		Common::String displayText = Common::String::format(" %s  %s",
-			readyStr.c_str(), itemName.c_str());
-
-		itemLabels.push_back(displayText);
 	}
 
-	_itemsMenuList.generateMenuItems(itemLabels, true);
+	// Inventory rows are display text, not command labels; keep text literal.
+	_itemsMenuList.generateMenuItems(itemLabels, false);
 
 	debug("ItemsMenu::buildItemsListMenu - generated %u menu items", (unsigned)_itemsMenuList.items.size());
 
@@ -281,38 +276,23 @@ void ItemsMenu::handleReadyItem(Goldbox::Data::Items::CharacterItem *item) {
 		return;
 	}
 
-	// Toggle the readied flag
-	item->readied = item->readied ? 0 : 1;
-	debug("ItemsMenu::handleReadyItem - toggled item to readied=%u", item->readied);
+	const Goldbox::Data::Items::CharacterItem *conflictingItem = nullptr;
+	const Goldbox::Poolrad::Data::PoolradCharacter::ReadyItemResult result =
+		_character->toggleReadyItem(item, &conflictingItem);
 
-	// Find the item's index in _itemList to update its menu display
-	int itemIndex = -1;
-	for (int i = 0; i < (int)_itemList.size(); ++i) {
-		if (_itemList[i] == item) {
-			itemIndex = i;
-			break;
+	if (result != Goldbox::Poolrad::Data::PoolradCharacter::RIR_SUCCESS) {
+		if (result == Goldbox::Poolrad::Data::PoolradCharacter::RIR_CURSED) {
+			displayMessage("It's Cursed");
+		} else {
+			displayEquipError(static_cast<uint8>(result),
+						 conflictingItem ? conflictingItem : item);
 		}
+		return;
 	}
 
-	if (itemIndex >= 0 && itemIndex < (int)_itemsMenuList.items.size()) {
-		// Rebuild the display text for this item (YES/NO status changed)
-		Common::String itemName = item->getDisplayName();
-		Common::String readyStr = (item->readied != 0) ? "YES" : " NO";
-		Common::String displayText = Common::String::format(" %s  %s",
-			readyStr.c_str(), itemName.c_str());
-		
-		_itemsMenuList.items[itemIndex].text = displayText;
-		
-		// Redraw just this line in the vertical menu
-		if (_verticalMenu) {
-			_verticalMenu->redrawLine(itemIndex);
-		}
-	}
-
-	// Recalculate character combat stats (equipment changed)
+	// Update menu display and recalculate equipment
+	updateReadyItemDisplay(item);
 	_character->resolveEquippedItems();
-	
-	debug("ItemsMenu::handleReadyItem - equipment resolved");
 }
 
 void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
@@ -438,20 +418,6 @@ bool ItemsMenu::isCharacterAnimated() const {
 	return _character->healthStatus == Goldbox::Data::S_ANIMATED;
 }
 
-bool ItemsMenu::isItemRing(const Goldbox::Data::Items::CharacterItem *item) const {
-	if (!item) {
-		return false;
-	}
-
-	// Check if item is a ring based on its slot property
-	const Goldbox::Data::Items::ItemProperty &prop = item->prop();
-	const Goldbox::Data::Items::Slot itemSlot =
-		static_cast<Goldbox::Data::Items::Slot>(prop.slotID);
-
-	return itemSlot == Goldbox::Data::Items::Slot::S_RING1 ||
-		   itemSlot == Goldbox::Data::Items::Slot::S_RING2;
-}
-
 bool ItemsMenu::isItemReadied(const Goldbox::Data::Items::CharacterItem *item) const {
 	if (!item) return false;
 	return item->readied != 0;
@@ -557,6 +523,97 @@ bool ItemsMenu::canIdentifyItem(const Goldbox::Data::Items::CharacterItem *item)
 
 	// Can identify unidentified items
 	//return !item->identified;
+}
+
+void ItemsMenu::displayEquipError(uint8 errorCode, const Goldbox::Data::Items::CharacterItem *item) {
+	if (!item) {
+		return;
+	}
+
+	Common::String message;
+
+	switch (errorCode) {
+	case 1:
+		message = "Wrong Class";
+		break;
+	case 2: {
+		// "Already using [item name]"
+		const Goldbox::Data::Items::ItemProperty &prop = item->prop();
+		const Goldbox::Data::Items::Slot slot = static_cast<Goldbox::Data::Items::Slot>(prop.slotID);
+
+		Goldbox::Data::Items::CharacterItem *equippedItem = nullptr;
+		if (slot == Goldbox::Data::Items::Slot::S_RING1 ||
+		    slot == Goldbox::Data::Items::Slot::S_RING2) {
+			// Find which ring is equipped
+			if (_character->equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING1]) {
+				equippedItem = _character->equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING1];
+			} else if (_character->equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING2]) {
+				equippedItem = _character->equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING2];
+			}
+		} else {
+			equippedItem = _character->equippedItems.slots[(int)slot];
+		}
+
+		if (equippedItem) {
+			message = Common::String::format("Already using %s", equippedItem->getDisplayName().c_str());
+		} else {
+			message = "Slot already in use";
+		}
+		break;
+	}
+	case 3:
+		message = "Your hands are full!";
+		break;
+	default:
+		message = "Cannot equip this item";
+		break;
+	}
+
+	displayMessage(message);
+}
+
+void ItemsMenu::displayMessage(const Common::String &message) {
+	// Clean up old prompt if any
+	if (_activePrompt) {
+		detachDialog(_activePrompt);
+		delete _activePrompt;
+		_activePrompt = nullptr;
+	}
+
+	// Create and display new prompt message
+	PromptMessageConfig cfg;
+	cfg.message = message;
+	cfg.textColor = 10;      // Light green (standard message color)
+	cfg.backgroundColor = 0; // Black
+
+	_activePrompt = new PromptMessage("ItemsPromptMsg", cfg);
+	attachDialog(_activePrompt);
+}
+
+void ItemsMenu::updateReadyItemDisplay(Goldbox::Data::Items::CharacterItem *item) {
+	if (!item) {
+		return;
+	}
+
+	// Find the item's index in _itemList
+	int itemIndex = -1;
+	for (int i = 0; i < (int)_itemList.size(); ++i) {
+		if (_itemList[i] == item) {
+			itemIndex = i;
+			break;
+		}
+	}
+
+	if (itemIndex >= 0 && itemIndex < (int)_itemsMenuList.items.size()) {
+		// Update display text (ready status + name formatting in CharacterItem)
+		// TODO: Replace false with party Identify effect state when implemented.
+		_itemsMenuList.items[itemIndex].text = item->getListDisplayText(true, false);
+
+		// Redraw menu
+		if (_verticalMenu) {
+			_verticalMenu->redrawLine(itemIndex);
+		}
+	}
 }
 
 } // namespace Dialogs

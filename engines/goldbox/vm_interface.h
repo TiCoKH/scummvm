@@ -64,6 +64,16 @@ public:
         g_engine->setSelectedCharacter(character);
     }
 
+    // Add getTextDelay accessor
+    static uint getTextDelay() {
+        return g_engine->getTextDelay();
+    }
+
+    // Add setTextDelay accessor
+    static void setTextDelay(uint delay) {
+        g_engine->setTextDelay(delay);
+    }
+
     // Add getGameStatus accessor
     static GameState getGameStatus() {
         return g_engine->getGameState();
