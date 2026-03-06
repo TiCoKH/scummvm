@@ -25,6 +25,7 @@
 #include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "common/array.h"
 
@@ -73,16 +74,16 @@ private:
 	VerticalMenuConfig _menuConfig;
 	VerticalMenu *_verticalMenu;
 	PromptMessage *_activePrompt = nullptr;
+	HorizontalYesNo *_removeConfirm = nullptr;
+	Goldbox::Data::Items::CharacterItem *_pendingRemoveItem = nullptr;
 
 	void buildItemsListMenu();
 	void buildItemList();
 	void buildActionMenu();
-	bool canUseItem(const Goldbox::Data::Items::CharacterItem *item) const;
 	bool canTradeItem(const Goldbox::Data::Items::CharacterItem *item) const;
-	bool canDropItem(const Goldbox::Data::Items::CharacterItem *item) const;
+	bool isFreeToRemove(Goldbox::Data::Items::CharacterItem *item);
 	bool canHalveItem(const Goldbox::Data::Items::CharacterItem *item) const;
 	bool canSellItem(const Goldbox::Data::Items::CharacterItem *item) const;
-	bool canIdentifyItem(const Goldbox::Data::Items::CharacterItem *item) const;
 
 	// Action handlers matching original keycode shortcuts
 	void handleReadyItem(Goldbox::Data::Items::CharacterItem *item);
@@ -97,9 +98,7 @@ private:
 
 	// Helper functions
 	bool isCharacterInCombat() const;
-	bool isCharacterNPC() const;
 	bool isCharacterAnimated() const;
-	bool isItemRing(const Goldbox::Data::Items::CharacterItem *item) const;
 	bool isItemReadied(const Goldbox::Data::Items::CharacterItem *item) const;
 
 	// UI helpers for ready/equip feedback

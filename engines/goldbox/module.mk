@@ -65,6 +65,7 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/horizontal_menu.o \
 	poolrad/views/dialogs/horizontal_yesno.o \
 	poolrad/views/dialogs/party_list.o \
+	poolrad/views/dialogs/party_selector.o \
 	poolrad/views/dialogs/vertical_menu.o \
 	poolrad/views/dialogs/prompt_message.o \
 	poolrad/views/dialogs/items_menu.o \

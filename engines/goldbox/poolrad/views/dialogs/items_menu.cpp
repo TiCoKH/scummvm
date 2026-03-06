@@ -66,6 +66,10 @@ ItemsMenu::~ItemsMenu() {
 		delete _verticalMenu;
 		_verticalMenu = nullptr;
 	}
+	if (_removeConfirm) {
+		delete _removeConfirm;
+		_removeConfirm = nullptr;
+	}
 	if (_activePrompt) {
 		delete _activePrompt;
 		_activePrompt = nullptr;
@@ -101,6 +105,14 @@ void ItemsMenu::deactivate() {
 	if (_verticalMenu) {
 		_verticalMenu->deactivate();
 	}
+
+	if (_removeConfirm) {
+		detachDialog(_removeConfirm);
+		_removeConfirm->clear();
+		delete _removeConfirm;
+		_removeConfirm = nullptr;
+	}
+	_pendingRemoveItem = nullptr;
 }
 
 void ItemsMenu::draw() {
@@ -140,6 +152,10 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 		return false;
 	}
 
+	if (_removeConfirm && _removeConfirm->isActive()) {
+		return View::msgKeypress(msg);
+	}
+
 	// Handle Ready (Equip) - 'R' key
 	if (msg.keycode == Common::KEYCODE_r) {
 		if (!_itemList.empty() && _itemsMenuList.currentSelection >= 0 &&
@@ -177,6 +193,28 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 }
 
 void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
+	if (_removeConfirm) {
+		const bool confirmed = result._success &&
+			(result._keyCode == Common::KEYCODE_y ||
+			 (result._hasIntValue && result._intValue == 1));
+
+		Goldbox::Data::Items::CharacterItem *itemToRemove = _pendingRemoveItem;
+
+		detachDialog(_removeConfirm);
+		_removeConfirm->clear();
+		delete _removeConfirm;
+		_removeConfirm = nullptr;
+		_pendingRemoveItem = nullptr;
+
+		if (confirmed && itemToRemove && _character &&
+			_character->removeItem(itemToRemove)) {
+			buildItemList();
+			buildItemsListMenu();
+			redraw();
+		}
+		return;
+	}
+
 	bool success = result._success;
 	Common::KeyCode key = result._keyCode;
 	if (success) {
@@ -195,8 +233,28 @@ void ItemsMenu::buildActionMenu() {
 		return;
 	_horizontalMenuLabels.push_back("Ready");
 
+	const int gameStatus = Goldbox::VmInterface::getGameStatus();
+
+	// TODO: Replace with real GEO memory check equivalent to
+	// *(short *)(GB_PTR_MEM_GEO + 458) == 0 once available.
+	const bool geoAllowsUse = true;
+
+	// TODO: Combat readiness source is not wired yet. Replace this with
+	// _character->combat_address[2] != 0 (or equivalent runtime flag).
+	const bool combatAllowsUse = false;
+
+	if (_character->enabled && geoAllowsUse &&
+		((gameStatus == GS_CAMPING) ||
+		 (gameStatus == GS_WILDERNESS_MAP) ||
+		 (gameStatus == GS_DUNGEON_MAP) ||
+		 ((gameStatus == GS_COMBAT) && combatAllowsUse))) {
+		_horizontalMenuLabels.push_back("Use");
+	}
+
+
+
 	if ((_character->enabled || !_character->isNpc() || (_character->healthStatus == Goldbox::Data::S_ANIMATED)) &&
-		Goldbox::VmInterface::getGameStatus() != GS_COMBAT) {
+		gameStatus != GS_COMBAT) {
 		_horizontalMenuLabels.push_back("Trade");
 	}
 
@@ -205,16 +263,18 @@ void ItemsMenu::buildActionMenu() {
 	_horizontalMenuLabels.push_back("Join");
 
 	if ((_character->enabled || !_character->isNpc() || (_character->healthStatus == Goldbox::Data::S_ANIMATED)) &&
-		Goldbox::VmInterface::getGameStatus() == GS_SHOP) {
+		gameStatus == GS_SHOP) {
 		_horizontalMenuLabels.push_back("Sell");
 	}
 
-	if (Goldbox::VmInterface::getGameStatus() == GS_SHOP) {
+	if (gameStatus == GS_SHOP) {
 		_horizontalMenuLabels.push_back("Id");
 	}
 
 	_horizontalMenuLabels.push_back("Exit");
+
 }
+
 
 void ItemsMenu::buildItemList() {
 	_itemList.clear();
@@ -317,7 +377,29 @@ void ItemsMenu::handleTradeItem(Goldbox::Data::Items::CharacterItem *item) {
 	if (!item || !_character) {
 		return;
 	}
+/*
+Canonical Logic from ACTION_tradeItem
 
+void tradeItem(Item *item) {
+    Character *tradeTarget = g_lastTradeTarget;   // remembered target from prior trade
+    screenByState();
+    selectCharacter("Trade with Whom?", true, &tradeTarget);
+
+    if (tradeTarget != NULL) {
+        g_lastTradeTarget = tradeTarget;
+
+        // Important: legacy return convention is inverted
+        // 0 = can carry, nonzero = cannot carry
+        if (canCharacterReceiveItem(tradeTarget, item) == 0) {
+            addItemToCharacter(tradeTarget, item);          // move-to target
+            removeItemFromCharacter(g_selectedCharacter, item); // remove from source
+            recalcCombatStats(tradeTarget);
+        } else {
+            promptMessage("Overloaded");
+        }
+    }
+}
+*/
 	// Check if item is free to trade
 	if (!canTradeItem(item)) {
 		// TODO: Display message about item being restricted
@@ -333,14 +415,10 @@ void ItemsMenu::handleDropItem(Goldbox::Data::Items::CharacterItem *item) {
 	}
 
 	// Check if item is free to drop
-	if (!canDropItem(item)) {
-		// TODO: Display message about item being restricted
+	if (!isFreeToRemove(item)) {
 		return;
 	}
 
-	// TODO: Implement drop confirmation dialog
-	// Build confirmation message with item name
-	// If confirmed, remove item from character's inventory
 	if (_character->removeItem(item)) {
 		buildItemList();
 		buildItemsListMenu();
@@ -406,13 +484,6 @@ bool ItemsMenu::isCharacterInCombat() const {
 	return Goldbox::VmInterface::getGameStatus() == GS_COMBAT;
 }
 
-bool ItemsMenu::isCharacterNPC() const {
-	if (!_character) return false;
-	// Use the isNpc() method from ADnDCharacter base class
-	// npc flag: < 0x80 player character, >= 0x80 NPC
-	return _character->isNpc();
-}
-
 bool ItemsMenu::isCharacterAnimated() const {
 	if (!_character) return false;
 	return _character->healthStatus == Goldbox::Data::S_ANIMATED;
@@ -421,44 +492,6 @@ bool ItemsMenu::isCharacterAnimated() const {
 bool ItemsMenu::isItemReadied(const Goldbox::Data::Items::CharacterItem *item) const {
 	if (!item) return false;
 	return item->readied != 0;
-}
-
-bool ItemsMenu::canUseItem(const Goldbox::Data::Items::CharacterItem *item) const {
-	if (!item || !_character) return false;
-
-	// Character must be enabled
-	if (!_character->enabled) {
-		return false;
-	}
-
-	// TODO: Check geo restriction at GB_PTR_MEM_GEO + 458
-	// if (*(int16 *)(GB_PTR_MEM_GEO + 458) != 0) return false;
-	// For now, assume geo check passes
-	bool geoCheckPassed = true;
-	if (!geoCheckPassed) {
-		return false;
-	}
-
-	// Valid game states: camping, wilderness, dungeon, or combat
-	int gameStatus = Goldbox::VmInterface::getGameStatus();
-	if (gameStatus == GS_CAMPING || gameStatus == GS_WILDERNESS_MAP ||
-		gameStatus == GS_DUNGEON_MAP) {
-		return true;
-	}
-
-	// TODO: In combat, verify character has combat_address set with combat flag
-	// Combat handling not yet fully implemented
-	// if (gameStatus == GS_COMBAT && _character->combat_address != nullptr &&
-	//     _character->combat_address[2] != 0) {
-	//     return true;
-	// }
-
-	if (gameStatus == GS_COMBAT) {
-		// Default false for now until combat handling is implemented
-		return false;
-	}
-
-	return false;
 }
 
 bool ItemsMenu::canTradeItem(const Goldbox::Data::Items::CharacterItem *item) const {
@@ -474,14 +507,48 @@ bool ItemsMenu::canTradeItem(const Goldbox::Data::Items::CharacterItem *item) co
 	return !_character->isNpc() || !_character->enabled || isCharacterAnimated();
 }
 
-bool ItemsMenu::canDropItem(const Goldbox::Data::Items::CharacterItem *item) const {
-	if (!item) return false;
-	// Cannot drop cursed items
-	if (item->cursed) {
+bool ItemsMenu::isFreeToRemove(Goldbox::Data::Items::CharacterItem *item) {
+	if (!item || !_character) {
 		return false;
 	}
-	// All non-cursed items can be dropped
-	return true;
+
+	if (item->readied != 0) {
+		displayMessage("Must be unreadied");
+		return false;
+	}
+
+	if (!item->isMissile()) {
+		return true;
+	}
+
+/* Special effect threshold: 0x80 (128) is the magic number separating normal charges from special effects
+Missile + special effects: The warning only appears for missiles with special effects (any effect >= 128),
+ likely because these are scrolls that can be scribed */
+	if (item->effect1 < 0x80 && item->effect2 < 0x80 && item->effect3 < 0x80) {
+		return true;
+	}
+
+	if (_removeConfirm && _removeConfirm->isActive()) {
+		return false;
+	}
+
+	if (_removeConfirm) {
+		detachDialog(_removeConfirm);
+		_removeConfirm->clear();
+		delete _removeConfirm;
+		_removeConfirm = nullptr;
+	}
+
+	const Common::String prompt = Common::String::format(
+		"%s was going to scribe from that scroll. Is it okay to lose it? ",
+		_character->name.c_str());
+	HorizontalYesNoConfig ynCfg = {prompt, 13, 10, 15, 0};
+	_removeConfirm = new HorizontalYesNo("ItemsRemoveConfirm", ynCfg);
+	attachDialog(_removeConfirm);
+	_removeConfirm->activate();
+
+	_pendingRemoveItem = item;
+	return false;
 }
 
 bool ItemsMenu::canHalveItem(const Goldbox::Data::Items::CharacterItem *item) const {
@@ -510,19 +577,6 @@ bool ItemsMenu::canSellItem(const Goldbox::Data::Items::CharacterItem *item) con
 	}
 
 	return true;
-}
-
-bool ItemsMenu::canIdentifyItem(const Goldbox::Data::Items::CharacterItem *item) const {
-	if (!item) return false;
-
-	// Can only identify in shop
-	if (Goldbox::VmInterface::getGameStatus() != GS_SHOP) {
-		return false;
-	} else
-		return true;
-
-	// Can identify unidentified items
-	//return !item->identified;
 }
 
 void ItemsMenu::displayEquipError(uint8 errorCode, const Goldbox::Data::Items::CharacterItem *item) {
