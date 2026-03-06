@@ -36,8 +36,8 @@ struct CharacterItem {
     uint32       nextAddress;  ///< 0x2A-0x2D next item address segment (LE) (not needed)
     uint8        typeIndex;    ///< 0x2E index into gItemProps.all()
     uint8        nameCode1;    ///< 0x2F raw name‐flag1
-    uint8        nameCode2;    ///< 0x30 raw name‐flag2 
-    uint8        nameCode3;    ///< 0x31 raw name‐flag2 
+    uint8        nameCode2;    ///< 0x30 raw name‐flag2
+    uint8        nameCode3;    ///< 0x31 raw name‐flag2
     uint8        bonus;        ///< 0x32 enchantment bonus
     uint8        saveBonus;    ///< 0x33 saving‐throw bonus
     uint8        readied;      ///< 0x34 equipped/readied flags
@@ -55,31 +55,41 @@ struct CharacterItem {
 
     /// Get the name component for this item by index (0-2)
     Common::String getNameComponent(int componentIndex) const;
-    
+
     /// Returns the full display name considering hidden flags
     Common::String getDisplayName() const;
-    
+
+    /// Get full menu display text with ready status and magic indicators.
+    /// Equivalent to original ITEM_buildListDisplayText() without screen rendering.
+    /// @param withReady       Include "Yes"/"No" ready/equipped prefix
+    /// @param identifyActive  Apply Identify spell effect (show magic property markers)
+    /// @return                Formatted text for inventory menu display
+    Common::String getListDisplayText(bool withReady = true, bool identifyActive = false) const;
+
     /// Determines if this item is a scroll based on its type
     bool isScroll() const;
-    
+
     /// Gets number of charges for wands, potions, etc.
     int getCharges() const;
-    
+
     /// Checks if this item is equipped
     bool isEquipped() const;
-    
+
+    /// Determines if this item is a missile weapon (arrows, bolts, darts, etc.)
+    bool isMissile() const;
+
     /// Determines if this is a special effect item (effect3 >= 128)
     bool hasSpecialEffect() const;
-    
+
     /// Get effect description (for special items)
     Common::String getEffectDescription() const;
 
-    /// Debug print for CharacterItem  
-    void debugPrint(int index = -1) const {  
-        if (index >= 0)  
-            debug("CharacterItem[%d]:", index);  
-        debug("  Name: %s, TypeIndex: %u, Bonus: %u, Readied: %u, Hidden: %u, Cursed: %u, Weight: %u, Stack: %u, Value: %u, Effects: %u,%u,%u",  
-            name.c_str(), typeIndex, bonus, readied, hidden, cursed, weight, stackSize, value, effect1, effect2, effect3);  
+    /// Debug print for CharacterItem
+    void debugPrint(int index = -1) const {
+        if (index >= 0)
+            debug("CharacterItem[%d]:", index);
+        debug("  Name: %s, TypeIndex: %u, Bonus: %u, Readied: %u, Hidden: %u, Cursed: %u, Weight: %u, Stack: %u, Value: %u, Effects: %u,%u,%u",
+            name.c_str(), typeIndex, bonus, readied, hidden, cursed, weight, stackSize, value, effect1, effect2, effect3);
     }
 };
 

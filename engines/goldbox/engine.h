@@ -67,6 +67,7 @@ public:
 	Common::Array<Data::PlayerCharacter *> _party;
 	Data::PlayerCharacter * _selectedCharacter = nullptr;
 	Data::PlayerCharacter * _nextCharacter = nullptr;
+	uint _textDelay = 3; // 1-5 range (1=fastest, 5=slowest), maps to original BYTE_DELAY
 	static Goldbox::Data::Items::Storage gItemProps;
 
 	/**
@@ -94,6 +95,25 @@ public:
 	 * Sets the currently selected character.
 	 */
 	void setSelectedCharacter(Data::PlayerCharacter *character) { _selectedCharacter = character; }
+
+	/**
+	 * Gets the text display delay (1-5 range).
+	 * 1 = fastest (shortest display time)
+	 * 5 = slowest (longest display time)
+	 * Maps to original BYTE_DELAY: low value = fast, high value = slow
+	 */
+	uint getTextDelay() const { return _textDelay; }
+
+	/**
+	 * Sets the text display delay (1-5 range).
+	 * Affects message display duration in PromptMessage and other text dialogs.
+	 * Low value = fast display, High value = slow display.
+	 */
+	void setTextDelay(uint delay) {
+		if (delay < 1) delay = 1;
+		if (delay > 5) delay = 5;
+		_textDelay = delay;
+	}
 
 
 	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);

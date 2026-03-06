@@ -38,6 +38,15 @@ namespace Data {
 // This class defines the core (common) data and behavior shared among AD&D–based games.
 class ADnDCharacter : public PlayerCharacter {
 public:
+	enum ReadyItemResult {
+		RIR_SUCCESS = 0,
+		RIR_WRONG_CLASS = 1,
+		RIR_SLOT_IN_USE = 2,
+		RIR_HANDS_FULL = 3,
+		RIR_CURSED = 4,
+		RIR_INVALID = 0xFF
+	};
+
 	// Grouped data for clarity
 	SpellData spells;              // Memorized spells or spell book data
 	SavingThrows savingThrows;      // Saving throw values (protections)
@@ -180,6 +189,10 @@ public:
 	bool equipItem(Goldbox::Data::Items::CharacterItem *item,
 				 Goldbox::Data::Items::Slot slot);
 	bool unequipItem(Goldbox::Data::Items::Slot slot);
+	ReadyItemResult canReadyItem(const Goldbox::Data::Items::CharacterItem *item,
+							 const Goldbox::Data::Items::CharacterItem **conflictingItem = nullptr) const;
+	ReadyItemResult toggleReadyItem(Goldbox::Data::Items::CharacterItem *item,
+						   const Goldbox::Data::Items::CharacterItem **conflictingItem = nullptr);
 
 	// Character type helpers (legacy npc flag: < 0x80 player, >= 0x80 NPC)
 	bool isNpc() const;
@@ -224,6 +237,14 @@ public:
 	// Reduces movement.current based on effective encumbrance (encumbrance - capacity modifier).
 	// Uses thresholds: >1024 -> cap at 3, >=769 -> cap at 6, >=513 -> cap at 9.
 	void setMovement();
+
+protected:
+	virtual uint8 getReadyAllowedClassMask() const;
+	virtual bool ignoreHandsLimitForReady() const;
+	virtual const Goldbox::Data::Items::CharacterItem *getExtraReadyConflictItem(
+			const Goldbox::Data::Items::CharacterItem *item) const;
+	virtual void onReadyItemEffect(Goldbox::Data::Items::CharacterItem *item,
+						 bool equipping);
 
 private:
 	static uint8 getClassMaskForClassType(uint8 classType);

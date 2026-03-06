@@ -31,6 +31,23 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Data {
 
+namespace {
+
+void callItemReadyEffect(PoolradCharacter *character,
+					Goldbox::Data::Items::CharacterItem *item, bool equipping) {
+	if (!character || !item || item->effect3 <= 0x7f) {
+		return;
+	}
+
+	// TODO: Hook up original item effect dispatch table.
+	debug("PoolradCharacter::callItemReadyEffect - effect3=%u mode=%u for %s",
+			  (unsigned)item->effect3,
+			  equipping ? 0u : 1u,
+			  item->getDisplayName().c_str());
+}
+
+} // namespace
+
 using namespace Goldbox::Data;
 
 PoolradCharacter::PoolradCharacter() {
@@ -302,6 +319,39 @@ bool PoolradCharacter::hasValuables() const {
 			return true;
 	}
 	return false;
+}
+
+uint8 PoolradCharacter::getReadyAllowedClassMask() const {
+	return itemsLimit;
+}
+
+bool PoolradCharacter::ignoreHandsLimitForReady() const {
+	return Goldbox::VmInterface::getGameStatus() == GS_COMBAT && quickfight;
+}
+
+const Goldbox::Data::Items::CharacterItem *
+PoolradCharacter::getExtraReadyConflictItem(
+		const Goldbox::Data::Items::CharacterItem *item) const {
+	using namespace Goldbox::Data::Items;
+
+	if (!item) {
+		return nullptr;
+	}
+
+	if (item->typeIndex == 0x49) {
+		return equippedItems.slots[(int)Slot::S_ARROW];
+	}
+
+	if (item->typeIndex == 0x1c) {
+		return equippedItems.slots[(int)Slot::S_BOLT];
+	}
+
+	return nullptr;
+}
+
+void PoolradCharacter::onReadyItemEffect(
+		Goldbox::Data::Items::CharacterItem *item, bool equipping) {
+	callItemReadyEffect(this, item, equipping);
 }
 
 void PoolradCharacter::resolveEquippedItems() {

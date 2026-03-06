@@ -97,6 +97,38 @@ Common::String CharacterItem::getDisplayName() const {
     return result;
 }
 
+Common::String CharacterItem::getListDisplayText(bool withReady, bool identifyActive) const {
+    Common::String result;
+
+    // 1. Ready/Equipped prefix (Yes/No column)
+    if (withReady) {
+        result += (readied != 0) ? " YES" : " NO ";
+        result += "  ";  // Column spacing
+    }
+
+    // 2. Magic property indicator (*)
+    // Add asterisk if Identify spell is active AND item has magical properties
+    if (identifyActive && (bonus > 0 || saveBonus > 0 || cursed)) {
+        result += "* ";
+    }
+
+    // 3. Full item name (includes nameCode components, bonus, stack)
+    result += getDisplayName();
+
+    // TODO: Status token appending from original ITEM_buildListDisplayText()
+    // The original function appended status effect tokens based on:
+    //   - effect1/effect2 fields and hidden flag visibility (bits 0-2 of hidden)
+    //   - 21-byte stride into STR_ARRAY_STATUS table (status token lookup)
+    //   - Special plural rules for item types 0x56, 0x49, 0x1C with nameCode3 gating (0xB1)
+    //   - Stack-based comma/space joining logic
+    // Implementation requires:
+    //   - Access to status token lookup table
+    //   - Character context for additional status effects
+    //   - Item property database for special type handling
+
+    return result;
+}
+
 constexpr uint8 SCROLL_TYPE_INDEX = 63;
 
 bool CharacterItem::isScroll() const {
@@ -117,6 +149,10 @@ int CharacterItem::getCharges() const {
 
 bool CharacterItem::isEquipped() const {
     return readied != 0;
+}
+
+bool CharacterItem::isMissile() const {
+    return prop().isMissile();
 }
 
 bool CharacterItem::hasSpecialEffect() const {

@@ -25,6 +25,7 @@
 #include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
+#include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "common/array.h"
 
 namespace Goldbox {
@@ -71,6 +72,7 @@ private:
 	Common::Array<Common::String> _horizontalMenuLabels;
 	VerticalMenuConfig _menuConfig;
 	VerticalMenu *_verticalMenu;
+	PromptMessage *_activePrompt = nullptr;
 
 	void buildItemsListMenu();
 	void buildItemList();
@@ -99,6 +101,11 @@ private:
 	bool isCharacterAnimated() const;
 	bool isItemRing(const Goldbox::Data::Items::CharacterItem *item) const;
 	bool isItemReadied(const Goldbox::Data::Items::CharacterItem *item) const;
+
+	// UI helpers for ready/equip feedback
+	void displayEquipError(uint8 errorCode, const Goldbox::Data::Items::CharacterItem *item);
+	void displayMessage(const Common::String &message);
+	void updateReadyItemDisplay(Goldbox::Data::Items::CharacterItem *item);
 };
 
 } // namespace Dialogs
