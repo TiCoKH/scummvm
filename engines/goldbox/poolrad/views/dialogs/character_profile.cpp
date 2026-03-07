@@ -13,6 +13,18 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+namespace {
+
+const Window kPaneIdentity(1, 1, 27, 5);
+const Window kPaneStats(1, 7, 10, 12);
+const Window kPaneValuables(11, 7, 24, 14);
+const Window kPaneLevelExp(1, 15, 38, 15);
+const Window kPaneCombat(1, 17, 38, 18);
+const Window kPaneItems(1, 20, 38, 21);
+const Window kPaneStatus(1, 22, 38, 22);
+
+} // namespace
+
 // Head DAX block IDs indexed by portrait head ID (1-14)
 const uint8 CharacterProfile::kHeadDaxBlockIds[14] = {
     0x00, 0x08, 0x09, 0x0D,
@@ -32,6 +44,9 @@ using Common::String;
 
 CharacterProfile::CharacterProfile(const Common::String &name)
     : Dialog(name), _poolradPc(nullptr) {
+    // Pane rendering uses getSurface(Window), which relies on initialized
+    // inner bounds. Set full text-screen bounds for this dialog.
+    setBounds(Window(0, 0, 39, 24));
 }
 
 void CharacterProfile::activate() {
@@ -66,8 +81,8 @@ void CharacterProfile::handleMenuResult(const MenuResultMessage &result) {
 void CharacterProfile::redrawStats() {
     if (!_poolradPc)
         return;
-    Surface s = getSurface();
-    s.clearBox(1, 7, 10, 12, 0);
+    Surface s = getSurface(kPaneStats);
+    s.clearBox(0, 0, kPaneStats.width() - 1, kPaneStats.height() - 1, 0);
     drawStats();
 }
 
@@ -75,8 +90,8 @@ void CharacterProfile::redrawStats() {
 void CharacterProfile::redrawValuables() {
     if (!_poolradPc)
         return;
-    Surface s = getSurface();
-    s.clearBox(11, 7, 24, 14, 0);
+    Surface s = getSurface(kPaneValuables);
+    s.clearBox(0, 0, kPaneValuables.width() - 1, kPaneValuables.height() - 1, 0);
     drawValuables();
 }
 
@@ -84,8 +99,8 @@ void CharacterProfile::redrawValuables() {
 void CharacterProfile::redrawCombat() {
     if (!_poolradPc)
         return;
-    Surface s = getSurface();
-    s.clearBox(1, 17, 38, 18, 0);
+    Surface s = getSurface(kPaneCombat);
+    s.clearBox(0, 0, kPaneCombat.width() - 1, kPaneCombat.height() - 1, 0);
     drawCombat();
 }
 
@@ -93,36 +108,36 @@ void CharacterProfile::redrawCombat() {
 void CharacterProfile::redrawName() {
     if (!_poolradPc)
         return;
-    Surface s = getSurface();
-    s.clearBox(1, 1, 27, 1, 0);
+    Surface s = getSurface(kPaneIdentity);
+    s.clearBox(0, 0, kPaneIdentity.width() - 1, 0, 0);
     drawName();
 }
 
 void CharacterProfile::drawName() {
-    Surface s = getSurface();
-	s.writeStringC(1, 1, _poolradPc->getNameColor(), _poolradPc->name);
+    Surface s = getSurface(kPaneIdentity);
+	s.writeStringC(0, 0, _poolradPc->getNameColor(), _poolradPc->name);
     if (_poolradPc->npc < 0) {
-		s.writeStringC(1 + _poolradPc->name.size() + 3, 1, 14, "(NPC)");
+		s.writeStringC(_poolradPc->name.size() + 3, 0, 14, "(NPC)");
     }
 }
 
 void CharacterProfile::drawIdentity() {
-    Surface s = getSurface();
+    Surface s = getSurface(kPaneIdentity);
     drawName();
 	String raceClass = VmInterface::getString(String::format("stats.gender.%d", _poolradPc->gender));
     raceClass += " ";
     raceClass += VmInterface::getString(String::format("stats.races.%d", _poolradPc->race));
     raceClass += " AGE ";
     raceClass += String::format("%d", _poolradPc->age);
-    s.writeStringC(1, 3, 15, raceClass);
-    s.writeStringC(1, 4, 15, VmInterface::getString(String::format("stats.alignments.%d", _poolradPc->alignment)));
-    s.writeStringC(1, 5, 15, VmInterface::getString(String::format("stats.classes.%d", _poolradPc->classType)));
+    s.writeStringC(0, 2, 15, raceClass);
+    s.writeStringC(0, 3, 15, VmInterface::getString(String::format("stats.alignments.%d", _poolradPc->alignment)));
+    s.writeStringC(0, 4, 15, VmInterface::getString(String::format("stats.classes.%d", _poolradPc->classType)));
 }
 
 void CharacterProfile::drawStats() {
-    Surface s = getSurface();
-    s.writeStringC(1, 7, 10, "STR");
-    s.writeStringC(5, 7, 10, String::format("%d", _poolradPc->abilities.strength.current));
+    Surface s = getSurface(kPaneStats);
+    s.writeStringC(0, 0, 10, "STR");
+    s.writeStringC(4, 0, 10, String::format("%d", _poolradPc->abilities.strength.current));
     uint8 strEx = _poolradPc->abilities.strException.current;
     if (strEx > 0 && strEx <= 100) {
         String strExStr;
@@ -130,30 +145,30 @@ void CharacterProfile::drawStats() {
             strExStr = "(00)";
         else
             strExStr = String::format("(%02d)", strEx);
-        s.writeStringC(7, 7, 10, strExStr);
+        s.writeStringC(6, 0, 10, strExStr);
     }
-    s.writeStringC(1, 8, 10, "INT");
-    s.writeStringC(5, 8, 10, String::format("%d", _poolradPc->abilities.intelligence.current));
-    s.writeStringC(1, 9, 10, "WIS");
-    s.writeStringC(5, 9, 10, String::format("%d", _poolradPc->abilities.wisdom.current));
-    s.writeStringC(1, 10, 10, "DEX");
-    s.writeStringC(5, 10, 10, String::format("%d", _poolradPc->abilities.dexterity.current));
-    s.writeStringC(1, 11, 10, "CON");
-    s.writeStringC(5, 11, 10, String::format("%d", _poolradPc->abilities.constitution.current));
-    s.writeStringC(1, 12, 10, "CHA");
-    s.writeStringC(5, 12, 10, String::format("%d", _poolradPc->abilities.charisma.current));
+    s.writeStringC(0, 1, 10, "INT");
+    s.writeStringC(4, 1, 10, String::format("%d", _poolradPc->abilities.intelligence.current));
+    s.writeStringC(0, 2, 10, "WIS");
+    s.writeStringC(4, 2, 10, String::format("%d", _poolradPc->abilities.wisdom.current));
+    s.writeStringC(0, 3, 10, "DEX");
+    s.writeStringC(4, 3, 10, String::format("%d", _poolradPc->abilities.dexterity.current));
+    s.writeStringC(0, 4, 10, "CON");
+    s.writeStringC(4, 4, 10, String::format("%d", _poolradPc->abilities.constitution.current));
+    s.writeStringC(0, 5, 10, "CHA");
+    s.writeStringC(4, 5, 10, String::format("%d", _poolradPc->abilities.charisma.current));
 }
 
 void CharacterProfile::drawValuables() {
-    Surface s = getSurface();
-    int y = 7;
-    int nameRAlign = 20;
+    Surface s = getSurface(kPaneValuables);
+    int y = 0;
+    int nameRAlign = 9;
     for (int i = Goldbox::Data::VALUABLE_COUNT - 1; i >= 0; --i) {
         uint16 count = _poolradPc->valuableItems[static_cast<Goldbox::Data::ValuableType>(i)];
         if (count != 0) {
             String name = VmInterface::getString(String::format("stats.currencies.%d", i));
             s.writeStringC(nameRAlign-name.size(), y, 10, name);
-            s.writeStringC(22, y, 10, String::format("%d", count));
+            s.writeStringC(11, y, 10, String::format("%d", count));
             y++;
         }
     }
@@ -171,51 +186,51 @@ void CharacterProfile::drawLevelExp() {
             levelStr += String::format("%d", lvl);
         }
     }
-    Surface s = getSurface();
-    s.writeStringC(1, 15, 15, "Level");
+    Surface s = getSurface(kPaneLevelExp);
+    s.writeStringC(0, 0, 15, "Level");
     if (!levelStr.empty())
-        s.writeStringC(7, 15, 15, levelStr);
+        s.writeStringC(6, 0, 15, levelStr);
 
-    s.writeStringC(17, 15, 15, "Exp");
-    s.writeStringC(21, 15, 15, String::format("%u", _poolradPc->experiencePoints));
+    s.writeStringC(16, 0, 15, "Exp");
+    s.writeStringC(20, 0, 15, String::format("%u", _poolradPc->experiencePoints));
 }
 
 void CharacterProfile::drawCombat() {
-    Surface s = getSurface();
-    s.writeStringC(1, 17, 15, "AC");
-    s.writeStringC(4, 17, 10, String::format("%d", _poolradPc->armorClass.getCurrent()));
-    s.writeStringC(1, 18, 15, "HP");
-    s.writeStringC(4, 18, 10, String::format("%d", _poolradPc->hitPoints.current));
-    s.writeStringC(9, 17, 15, "THAC0");
-    s.writeStringC(15, 17, 10, String::format("%d", _poolradPc->thac0.getCurrent()));
-	s.writeStringC(8, 18, 15, "Damage");
-    s.writeStringC(15, 18, 10, formatDamageText());
-    s.writeStringC(22, 17, 15, "Encumbrance");
-    s.writeStringC(34, 17, 10, String::format("%d", _poolradPc->encumbrance));
-    s.writeStringC(25, 18, 15, "Movement");
-    s.writeStringC(34, 18, 10, String::format("%d", _poolradPc->movement.base));
+    Surface s = getSurface(kPaneCombat);
+    s.writeStringC(0, 0, 15, "AC");
+    s.writeStringC(3, 0, 10, String::format("%d", _poolradPc->armorClass.getCurrent()));
+    s.writeStringC(0, 1, 15, "HP");
+    s.writeStringC(3, 1, 10, String::format("%d", _poolradPc->hitPoints.current));
+    s.writeStringC(8, 0, 15, "THAC0");
+    s.writeStringC(14, 0, 10, String::format("%d", _poolradPc->thac0.getCurrent()));
+	s.writeStringC(7, 1, 15, "Damage");
+    s.writeStringC(14, 1, 10, formatDamageText());
+    s.writeStringC(21, 0, 15, "Encumbrance");
+    s.writeStringC(33, 0, 10, String::format("%d", _poolradPc->encumbrance));
+    s.writeStringC(24, 1, 15, "Movement");
+    s.writeStringC(33, 1, 10, String::format("%d", _poolradPc->movement.base));
 }
 
 void CharacterProfile::drawItems() {
-    Surface s = getSurface();
+    Surface s = getSurface(kPaneItems);
     using Goldbox::Data::Items::Slot;
     const Goldbox::Data::Items::CharacterItem *weapon = _poolradPc->getEquippedItem(Slot::S_MAIN_HAND);
     if (weapon) {
-        s.writeStringC(1, 20, 15, "Weapon");
-        s.writeStringC(8, 20, 10, weapon->getDisplayName());
+        s.writeStringC(0, 0, 15, "Weapon");
+        s.writeStringC(7, 0, 10, weapon->getDisplayName());
     }
 
     const Goldbox::Data::Items::CharacterItem *armor = _poolradPc->getEquippedItem(Slot::S_BODY_ARMOR);
     if (armor) {
-        s.writeStringC(2, 21, 15, "Armor");
-        s.writeStringC(8, 21, 10, armor->getDisplayName());
+        s.writeStringC(1, 1, 15, "Armor");
+        s.writeStringC(7, 1, 10, armor->getDisplayName());
     }
 }
 
 void CharacterProfile::drawStatus() {
-    Surface s = getSurface();
-    s.writeStringC(1, 22, 15, "Status");
-    s.writeStringC(8, 22, 10, VmInterface::getString(String::format("stats.conditions.%d", _poolradPc->healthStatus)));
+    Surface s = getSurface(kPaneStatus);
+    s.writeStringC(0, 0, 15, "Status");
+    s.writeStringC(7, 0, 10, VmInterface::getString(String::format("stats.conditions.%d", _poolradPc->healthStatus)));
 }
 
 void CharacterProfile::drawPortrait() {

@@ -48,6 +48,9 @@ VerticalMenu::VerticalMenu(const String &name, const VerticalMenuConfig &config)
       _title(config.title),
       _titleAsHeader(config.asHeader),
       _horizontalMenu(nullptr) {
+	// Restrict this dialog's drawing to the vertical list area.
+	setBounds(Window(_xStart, _yStart, _xEnd, _yEnd));
+
     // Total vertical span including possible title/header line
     int totalHeight = _yEnd - _yStart + 1;
     if (!_title.empty()) {
@@ -118,7 +121,9 @@ void VerticalMenu::draw() {
 
 void VerticalMenu::drawText() {
     Surface s = getSurface();
-    s.clearBox(_xStart, _yStart, _xEnd, _yEnd, 0);
+    const int localWidth = _xEnd - _xStart + 1;
+    const int localHeight = _yEnd - _yStart + 1;
+    s.clearBox(0, 0, localWidth - 1, localHeight - 1, 0);
 
     debug("VerticalMenu::drawText() - clearing box (%d,%d) to (%d,%d), rendering %d items",
           _xStart, _yStart, _xEnd, _yEnd, _linesToRender);
@@ -126,11 +131,11 @@ void VerticalMenu::drawText() {
     // Optional fixed title line (not part of selectable list)
     int titleOffset = 0;
     if (!_title.empty()) {
-        s.writeStringC(_xStart, _yStart, _headColor, _title);
+        s.writeStringC(0, 0, _headColor, _title);
         titleOffset = 1;
     }
     // Indent items by 2 spaces if a title is present
-    int itemX = _xStart + ((_title.empty()) ? 0 : 2);
+    int itemX = (_title.empty()) ? 0 : 2;
 
     for (int i = 0; i < _linesToRender; i++) {
         int menuIndex = i + _linesAbove;
@@ -139,7 +144,7 @@ void VerticalMenu::drawText() {
         }
         const auto &item = _menuItems->items[menuIndex];
         int color = (menuIndex == _menuItems->currentSelection) ? _selectColor : _textColor;
-        s.writeStringC(itemX, _yStart + titleOffset + i, color, item.text);
+        s.writeStringC(itemX, titleOffset + i, color, item.text);
     }
 }
 
@@ -154,14 +159,16 @@ void VerticalMenu::redrawLine(int index) {
         return;
 
     int titleOffset = _title.empty() ? 0 : 1;
-    int itemX = _xStart + ((_title.empty()) ? 0 : 2);
+    int itemX = (_title.empty()) ? 0 : 2;
+    const int localWidth = _xEnd - _xStart + 1;
     // Clear that line
-    s.clearBox(_xStart, _yStart + titleOffset + relativeIndex, _xEnd, _yStart + titleOffset + relativeIndex, 0);
+    s.clearBox(0, titleOffset + relativeIndex,
+        localWidth - 1, titleOffset + relativeIndex, 0);
 
     // Draw the text
     const auto &item = _menuItems->items[index];
     int color = (index == _menuItems->currentSelection) ? _selectColor : _textColor;
-    s.writeStringC(itemX, _yStart + titleOffset + relativeIndex, color, item.text);
+    s.writeStringC(itemX, titleOffset + relativeIndex, color, item.text);
 }
 
 void VerticalMenu::updateHorizontalMenu() {

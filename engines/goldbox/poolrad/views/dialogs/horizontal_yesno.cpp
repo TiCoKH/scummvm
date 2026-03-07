@@ -43,6 +43,9 @@ HorizontalYesNo::HorizontalYesNo(const String &name, const HorizontalYesNoConfig
     items.push_back("NO");
     _menuItems.generateMenuItems(items, true);
     _menuItems.currentSelection = 1;
+
+	// Restrict drawing to bottom prompt row.
+	setBounds(Window(0, 24, 39, 24));
 }
 
 bool HorizontalYesNo::msgKeypress(const KeypressMessage &msg) {
@@ -104,8 +107,8 @@ void HorizontalYesNo::draw() {
 
 void HorizontalYesNo::clear() {
     Surface s = getSurface();
-    // Clear the prompt line (same placement as HorizontalInput)
-    s.clearBox(0, 24, 39, 24, _backgroundColor);
+	// This dialog is clipped to a single row, so use local row 0.
+    s.clearBox(0, 0, 39, 0, _backgroundColor);
 }
 
 void HorizontalYesNo::drawText() {
@@ -114,8 +117,8 @@ void HorizontalYesNo::drawText() {
         return;
     clear();
     // Show the prompt text; caller should include any punctuation like '?' if desired
-	s.writeStringC(0, 24, _promptColor, _promptTxt);
-    s.setTextPos(_promptTxt.size(), 24);
+	s.writeStringC(0, 0, _promptColor, _promptTxt);
+    s.setTextPos(_promptTxt.size(), 0);
     // Render options using MenuItemList like HorizontalMenu
     for (uint i = 0; i < _menuItems.items.size(); i++) {
         const MenuItem &item = _menuItems.items[i];
