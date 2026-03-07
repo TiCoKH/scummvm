@@ -40,6 +40,9 @@ HorizontalMenu::HorizontalMenu(const String &name, const HorizontalMenuConfig &c
       _allowNumPad(config.allowNumPad),
       _promptTxt(config.promptTxt) {
     assert(_menuItems != nullptr);
+
+	// Restrict drawing to bottom prompt row.
+	setBounds(Window(0, 24, 39, 24));
 }
 
 void HorizontalMenu::draw() {
@@ -52,10 +55,10 @@ void HorizontalMenu::drawText() {
 
 
 	Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, _backgroundColor);
-    s.writeStringC(0, 24, _promptColor, _promptTxt);
+    s.clearBox(0, 0, 39, 0, _backgroundColor);
+    s.writeStringC(0, 0, _promptColor, _promptTxt);
 
-	s.setTextPos(_promptTxt.size(), 24);
+	s.setTextPos(_promptTxt.size(), 0);
     for (int i = 0; i < (int)_menuItems->items.size(); i++) {
         const MenuItem &item = _menuItems->items[i];
 

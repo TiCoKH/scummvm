@@ -37,6 +37,9 @@ HorizontalInput::HorizontalInput(const String &name, const HorizontalInputConfig
       _maxInputLength(config.maxInputLength),
       _inputText("") {
     _textOffset = _promptTxt.empty() ? 0 : _promptTxt.size();
+
+	// Restrict drawing to bottom prompt row.
+	setBounds(Window(0, 24, 39, 24));
 }
 
 bool HorizontalInput::msgKeypress(const KeypressMessage &msg) {
@@ -73,14 +76,14 @@ void HorizontalInput::draw() {
 
 void HorizontalInput::clear() {
     Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 0);
+	s.clearBox(0, 0, 39, 0, 0);
 }
 
 void HorizontalInput::drawText() {
     Surface s = getSurface();
     clear();
-	s.writeStringC(0, 24, _promptColor, _promptTxt);
-	s.writeStringC(_textOffset, 24, 15, _inputText);
+    s.writeStringC(0, 0, _promptColor, _promptTxt);
+    s.writeStringC(_textOffset, 0, 15, _inputText);
 }
 
 } // namespace Dialogs
