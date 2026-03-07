@@ -195,7 +195,15 @@ public:
 
     void resolveEquippedItems();
     void recalcCombatStats();
-
+    // Legacy Pool of Radiance receive-item fit check (CHARACTER_checkItemFit).
+    // Returns true when the character can receive/carry the item.
+    // Rules: max 16 items total (0..15 valid before add), and
+    // encumbrance + itemWeight <= (1500 + capacity modifier).
+    bool canReceiveItemLegacy(const Goldbox::Data::Items::CharacterItem &item);
+	// Legacy receive-item operation (checkOverloaded equivalent).
+	// Combines fit-check + add + recalc in one atomic operation.
+	// Returns true on success (item added), false on failure (overloaded).
+	bool receiveItem(const Goldbox::Data::Items::CharacterItem &item);
     // Set current damage and to-hit based on equipped weapon and stats.
     // Sets current primary dice/sides/modifier and applies STR/DEX, ammo enchantment and racial adjustments.
     void setDamage();

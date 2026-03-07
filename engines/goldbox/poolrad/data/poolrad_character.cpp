@@ -359,6 +359,53 @@ void PoolradCharacter::resolveEquippedItems() {
 	ADnDCharacter::resolveEquippedItems();
 }
 
+bool PoolradCharacter::canReceiveItemLegacy(
+		const Goldbox::Data::Items::CharacterItem &item) {
+	// Original flow recalculates combat stats before checking fit.
+	recalcCombatStats();
+
+	if (numOfItems > 15) {
+		return false;
+	}
+
+	uint32 itemWeight = item.weight;
+	if (item.stackSize != 0) {
+		itemWeight *= item.stackSize;
+	}
+
+	const uint32 projectedEncumbrance =
+		static_cast<uint32>(encumbrance) + itemWeight;
+	const int capacityLimit = getCapacityModifier() + 1500;
+
+	if (capacityLimit < 0) {
+		return false;
+	}
+
+	return projectedEncumbrance <= static_cast<uint32>(capacityLimit);
+}
+
+bool PoolradCharacter::receiveItem(
+		const Goldbox::Data::Items::CharacterItem &item) {
+	// Equivalent to original checkOverloaded() logic:
+	// 1. Check if item fits (recalcs internally)
+	// 2. If fits: add item, recalc stats, return success
+	// 3. If doesn't fit: return failure (caller shows "Overloaded")
+
+	if (!canReceiveItemLegacy(item)) {
+		return false; // overloaded
+	}
+
+	// Item fits - add it using Poolrad legacy limits (1500 base capacity, 16 items)
+	if (!addItem(item, 1500, 16)) {
+		return false; // unexpected failure
+	}
+
+	// Recalculate combat stats after adding item
+	recalcCombatStats();
+
+	return true; // success
+}
+
 void PoolradCharacter::recalcCombatStats() {
 	using namespace Goldbox::Data::Items;
 

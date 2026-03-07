@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/events.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/vm_interface.h"
@@ -28,6 +29,24 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
+
+namespace {
+
+void markHorizontalMenusForRedraw(UIElement *root) {
+	if (!root)
+		return;
+
+	if (HorizontalMenu *hMenu = dynamic_cast<HorizontalMenu *>(root)) {
+		hMenu->setRedraw();
+	}
+
+	Common::Array<UIElement *> children = root->getChildren();
+	for (uint i = 0; i < children.size(); ++i) {
+		markHorizontalMenusForRedraw(children[i]);
+	}
+}
+
+} // namespace
 
 PromptMessage::PromptMessage(const Common::String &name, const PromptMessageConfig &config)
 	: Dialog(name),
@@ -44,14 +63,6 @@ PromptMessage::PromptMessage(const Common::String &name, const PromptMessageConf
 
 uint PromptMessage::_calculateDisplayFrames() const {
 	uint textDelay = VmInterface::getTextDelay();
-
-	// Simple formula: delay directly controls display time
-	// textDelay * FRAME_RATE / 2 gives:
-	// textDelay 1: 10 frames (0.5 seconds)
-	// textDelay 2: 20 frames (1.0 second)
-	// textDelay 3: 30 frames (1.5 seconds)
-	// textDelay 4: 40 frames (2.0 seconds)
-	// textDelay 5: 50 frames (2.5 seconds)
 	return textDelay * FRAME_RATE / 2;
 }
 
@@ -73,16 +84,27 @@ void PromptMessage::draw() {
 		return;
 
 	Surface s = getSurface();
-	s.clearBox(0, 24, 39, 24, _backgroundColor);
-	s.writeStringC(0, 24, _textColor, _message);
+	// This dialog is clipped to a single bottom row (y=24), so drawing here
+	// must use local row 0 coordinates.
+	s.clearBox(0, 0, 39, 0, _backgroundColor);
+	s.writeStringC(0, 0, _textColor, _message);
 }
 
 void PromptMessage::timeout() {
 	// Called when display timer expires
 	debug("PromptMessage::timeout() - Auto-closing message");
 	Surface s = getSurface();
-	s.clearBox(0, 24, 39, 24, _backgroundColor);
-	close();
+	s.clearBox(0, 0, 39, 0, _backgroundColor);
+
+	// PromptMessage is attached as a child dialog, not pushed as a focused
+	// top-level view. Calling close() would assert in UIElement::close().
+	UIElement *parent = _parent;
+	deactivate();
+	setParent(nullptr);
+	if (parent) {
+		markHorizontalMenusForRedraw(parent);
+		parent->redraw();
+	}
 }
 
 } // namespace Dialogs
