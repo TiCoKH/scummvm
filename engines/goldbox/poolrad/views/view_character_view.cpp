@@ -202,8 +202,25 @@ void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
 	short value = result._hasIntValue ? (short)result._intValue : 0;
     bool success = result._success;
     Common::KeyCode keyCode = result._keyCode;
+    Common::String action;
 
-    // Skeleton for handling menu results from HorizontalMenu
+    if (result._hasIntValue && value >= 0 && value < (short)_menuList.items.size()) {
+        action = _menuList.items[value].text;
+    }
+
+    debug("ViewCharacterView::handleMenuResult() stage=%d success=%d key=%d hasInt=%d int=%d action='%s'",
+        (int)_stage, (int)success, (int)keyCode, (int)result._hasIntValue,
+        (int)(result._hasIntValue ? result._intValue : -1), action.c_str());
+
+    // Handle Exit from ItemsMenu locally (one level back to PROFILE)
+    if (!success && _stage == VC_STATE_ITEMS &&
+        (keyCode == Common::KEYCODE_ESCAPE || keyCode == Common::KEYCODE_e)) {
+        debug("ViewCharacterView::handleMenuResult() consume ITEMS exit locally");
+        setStage(VC_STATE_PROFILE);
+        return;
+    }
+
+    // Forward cancellation from this view's own menu to parent
     if (!success) {
         if (_parent) {
 			g_events->postMenuResult(_parent->getName(), false,
@@ -214,6 +231,27 @@ void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
 
     if (!_character)
         return;
+
+    if (action == "Items") {
+        handleViewItems();
+        return;
+    }
+    if (action == "Spells") {
+        handleViewSpells();
+        return;
+    }
+    if (action == "Trade") {
+        handleTradeValuables();
+        return;
+    }
+    if (action == "Drop") {
+        handleDropValuables();
+        return;
+    }
+    if (action == "Exit") {
+        handleExit();
+        return;
+    }
 
     switch (keyCode) {
     case Common::KEYCODE_i:
@@ -307,7 +345,12 @@ void ViewCharacterView::handleRenameCharacter() {
 }
 
 void ViewCharacterView::handleExit() {
-    if (Goldbox::VmInterface::getGameStatus() == GS_START_MENU) {
+    // Post result to parent (if exists), otherwise go to MainMenu
+    if (_parent) {
+        g_events->postMenuResult(_parent->getName(), false,
+            Common::KEYCODE_e, 0, Common::String(), true, false);
+    } else {
+        // No parent - fall back to MainMenu
         replaceView("Mainmenu");
     }
 }

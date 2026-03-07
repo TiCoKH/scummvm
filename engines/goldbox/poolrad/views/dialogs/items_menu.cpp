@@ -23,9 +23,11 @@
 #include "goldbox/poolrad/views/dialogs/items_menu.h"
 #include "common/system.h"
 #include "goldbox/events.h"
+#include "goldbox/data/items/character_item.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/vm_interface.h"
@@ -152,48 +154,25 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 		return false;
 	}
 
+	debug("ItemsMenu::msgKeypress() keycode=%d ascii=%d", (int)msg.keycode,
+		(int)msg.ascii);
+
 	if (_removeConfirm && _removeConfirm->isActive()) {
 		return View::msgKeypress(msg);
 	}
 
-	// Handle Ready (Equip) - 'R' key
-	if (msg.keycode == Common::KEYCODE_r) {
-		if (!_itemList.empty() && _itemsMenuList.currentSelection >= 0 &&
-			_itemsMenuList.currentSelection < (int)_itemList.size()) {
-			handleReadyItem(_itemList[_itemsMenuList.currentSelection]);
-		}
-		return true;
-	}
-
-	// Handle navigation within item list
-	// HOME/END for vertical menu navigation
-	if (msg.keycode == Common::KEYCODE_HOME) {
-		if (_verticalMenu && !_itemList.empty()) {
-			_itemsMenuList.currentSelection = 0;
-			redraw();
-		}
-		return true;
-	}
-	if (msg.keycode == Common::KEYCODE_END) {
-		if (_verticalMenu && !_itemList.empty()) {
-			_itemsMenuList.currentSelection = _itemList.size() - 1;
-			redraw();
-		}
-		return true;
-	}
-
-	// Global exit
-	if (msg.keycode == Common::KEYCODE_ESCAPE) {
-		handleExit();
-		return true;
-	}
-
-	// Let the View base class handle keypress delegate to active menus
+	// Let child menus handle keypress and bubble valid actions through
+	// handleMenuResult().
 	return View::msgKeypress(msg);
 }
 
 void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
-	if (_removeConfirm) {
+	debug("ItemsMenu::handleMenuResult() success=%d key=%d hasInt=%d int=%d sel=%d",
+		(int)result._success, (int)result._keyCode, (int)result._hasIntValue,
+		(int)(result._hasIntValue ? result._intValue : -1),
+		(int)_itemsMenuList.currentSelection);
+
+	if (_removeConfirm && _removeConfirm->isActive()) {
 		const bool confirmed = result._success &&
 			(result._keyCode == Common::KEYCODE_y ||
 			 (result._hasIntValue && result._intValue == 1));
@@ -217,13 +196,68 @@ void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
 
 	bool success = result._success;
 	Common::KeyCode key = result._keyCode;
-	if (success) {
-		if (key == Common::KEYCODE_ESCAPE) {
+
+	// NOTE: result._intValue is propagated by VerticalMenu as current ITEM index,
+	// not horizontal ACTION index. Action must be resolved from key.
+	debug("ItemsMenu::handleMenuResult() itemIndex(from int)=%d",
+		(int)(result._hasIntValue ? result._intValue : -1));
+
+	if (!success) {
+		if (key == Common::KEYCODE_ESCAPE || key == Common::KEYCODE_e) {
+			debug("ItemsMenu::handleMenuResult() cancel/exit -> handleExit()");
 			handleExit();
-			return;
 		}
+		return;
 	}
-	// TODO: Handle other action menu selections
+
+	Goldbox::Data::Items::CharacterItem *selectedItem = nullptr;
+	if (_itemsMenuList.currentSelection >= 0 &&
+		_itemsMenuList.currentSelection < (int)_itemList.size()) {
+		selectedItem = _itemList[_itemsMenuList.currentSelection];
+	}
+
+	switch (key) {
+	case Common::KEYCODE_r:
+		debug("ItemsMenu::handleMenuResult() action=Ready");
+		handleReadyItem(selectedItem);
+		break;
+	case Common::KEYCODE_u:
+		debug("ItemsMenu::handleMenuResult() action=Use");
+		handleUseItem(selectedItem);
+		break;
+	case Common::KEYCODE_t:
+		debug("ItemsMenu::handleMenuResult() action=Trade");
+		handleTradeItem(selectedItem);
+		break;
+	case Common::KEYCODE_d:
+		debug("ItemsMenu::handleMenuResult() action=Drop");
+		handleDropItem(selectedItem);
+		break;
+	case Common::KEYCODE_h:
+		debug("ItemsMenu::handleMenuResult() action=Halve");
+		handleHalveItem(selectedItem);
+		break;
+	case Common::KEYCODE_j:
+		debug("ItemsMenu::handleMenuResult() action=Join");
+		handleJoinItem(selectedItem);
+		break;
+	case Common::KEYCODE_s:
+		debug("ItemsMenu::handleMenuResult() action=Sell");
+		handleSellItem(selectedItem);
+		break;
+	case Common::KEYCODE_i:
+		debug("ItemsMenu::handleMenuResult() action=Identify");
+		handleIdentifyItem(selectedItem);
+		break;
+	case Common::KEYCODE_ESCAPE:
+	case Common::KEYCODE_e:
+		debug("ItemsMenu::handleMenuResult() action=Exit");
+		handleExit();
+		break;
+	default:
+		debug("ItemsMenu::handleMenuResult() unhandled key=%d", (int)key);
+		break;
+	}
 }
 
 void ItemsMenu::buildActionMenu() {
@@ -377,36 +411,49 @@ void ItemsMenu::handleTradeItem(Goldbox::Data::Items::CharacterItem *item) {
 	if (!item || !_character) {
 		return;
 	}
-/*
-Canonical Logic from ACTION_tradeItem
 
-void tradeItem(Item *item) {
-    Character *tradeTarget = g_lastTradeTarget;   // remembered target from prior trade
-    screenByState();
-    selectCharacter("Trade with Whom?", true, &tradeTarget);
-
-    if (tradeTarget != NULL) {
-        g_lastTradeTarget = tradeTarget;
-
-        // Important: legacy return convention is inverted
-        // 0 = can carry, nonzero = cannot carry
-        if (canCharacterReceiveItem(tradeTarget, item) == 0) {
-            addItemToCharacter(tradeTarget, item);          // move-to target
-            removeItemFromCharacter(g_selectedCharacter, item); // remove from source
-            recalcCombatStats(tradeTarget);
-        } else {
-            promptMessage("Overloaded");
-        }
-    }
-}
-*/
-	// Check if item is free to trade
-	if (!canTradeItem(item)) {
-		// TODO: Display message about item being restricted
+	if (item->readied != 0) {
+		debug("ItemsMenu::handleTradeItem() blocked: readied item");
+		displayMessage("Must be unreadied");
 		return;
 	}
 
-	// TODO: Implement DIALOG_tradeItem equivalent
+	// Check if item is free to trade (not in combat, or char is player/disabled/animated)
+	if (!canTradeItem(item)) {
+		debug("ItemsMenu::handleTradeItem() blocked: canTradeItem=false");
+		displayMessage("Cannot trade this item");
+		return;
+	}
+
+	// TODO: Implement character selection dialog ("Trade with Whom?")
+	// When character selector is wired, use this pattern:
+	//
+	// Goldbox::Poolrad::Data::PoolradCharacter *tradeTarget = ... (from selector result);
+	// if (!tradeTarget || tradeTarget == _character) {
+	//     return; // cancelled or selected self
+	// }
+	//
+	// // Modern equivalent of checkOverloaded + transfer logic:
+	// if (!tradeTarget->receiveItem(*item)) {
+	//     displayMessage("Overloaded");
+	//     return;
+	// }
+	//
+	// // Remove from source character
+	// if (!_character->removeItem(item)) {
+	//     // Unexpected failure - item was added to target but couldn't remove from source
+	//     warning("Trade: item added to target but removal from source failed");
+	//     return;
+	// }
+	//
+	// // Refresh both character states
+	// _character->recalcCombatStats();
+	// buildItemList();
+	// buildItemsListMenu();
+	// redraw();
+
+	debug("ItemsMenu::handleTradeItem() TODO path: selector not implemented");
+	displayMessage("Character selector not yet implemented");
 }
 
 void ItemsMenu::handleDropItem(Goldbox::Data::Items::CharacterItem *item) {
@@ -472,6 +519,7 @@ void ItemsMenu::handleIdentifyItem(Goldbox::Data::Items::CharacterItem *item) {
 
 
 void ItemsMenu::handleExit() {
+	debug("ItemsMenu::handleExit() parent=%s", _parent ? _parent->getName().c_str() : "<null>");
 	deactivate();
 	// Notify parent view that we're done
 	if (_parent) {
@@ -642,6 +690,7 @@ void ItemsMenu::displayMessage(const Common::String &message) {
 
 	_activePrompt = new PromptMessage("ItemsPromptMsg", cfg);
 	attachDialog(_activePrompt);
+	_activePrompt->activate();
 }
 
 void ItemsMenu::updateReadyItemDisplay(Goldbox::Data::Items::CharacterItem *item) {
