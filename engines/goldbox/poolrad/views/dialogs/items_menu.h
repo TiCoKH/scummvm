@@ -26,6 +26,7 @@
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/poolrad/views/dialogs/party_selector.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "common/array.h"
 
@@ -48,6 +49,11 @@ namespace Dialogs {
  * and perform various actions on items (equipping, using, trading, dropping,
  * halving, joining, selling, identifying).
  *
+ * Staging Pattern:
+ * - STAGE_ITEM_SELECTION: Main view with item list and action menu
+ * - STAGE_CONFIRM_DROP: Drop confirmation for special items (scrolls)
+ * - STAGE_SELECT_TRADE_TARGET: Character selection for trade action
+ *
  * UI Layout:
  * - Based on x86 DOS implementation from UI_Layout_Specification.md
  * - Window: 38×22 characters, position (1,1)
@@ -57,6 +63,12 @@ namespace Dialogs {
  */
 class ItemsMenu : public Dialog {
 public:
+	enum ItemsMenuStage {
+		STAGE_ITEM_SELECTION = 0,    // Main item/action menu
+		STAGE_CONFIRM_DROP,           // Drop confirmation dialog
+		STAGE_SELECT_TRADE_TARGET     // Party selector for trade
+	};
+
 	ItemsMenu(const Common::String &name = "ItemsMenu");
 	~ItemsMenu() override;
 
@@ -67,6 +79,7 @@ public:
     void handleMenuResult(const MenuResultMessage &result) override;
 
 private:
+	ItemsMenuStage _stage = STAGE_ITEM_SELECTION;
 	Goldbox::Poolrad::Data::PoolradCharacter *_character;
 	Goldbox::MenuItemList _itemsMenuList;
 	Common::Array<Goldbox::Data::Items::CharacterItem *> _itemList;
@@ -76,7 +89,10 @@ private:
 	PromptMessage *_activePrompt = nullptr;
 	HorizontalYesNo *_removeConfirm = nullptr;
 	Goldbox::Data::Items::CharacterItem *_pendingRemoveItem = nullptr;
+	PartySelector *_partySelector = nullptr;
+	Goldbox::Data::Items::CharacterItem *_pendingTradeItem = nullptr;
 
+	void setStage(ItemsMenuStage stage);
 	void buildItemsListMenu();
 	void buildItemList();
 	void buildActionMenu();
@@ -105,6 +121,10 @@ private:
 	void displayEquipError(uint8 errorCode, const Goldbox::Data::Items::CharacterItem *item);
 	void displayMessage(const Common::String &message);
 	void updateReadyItemDisplay(Goldbox::Data::Items::CharacterItem *item);
+
+	// Subdialog management
+	void handleDropConfirmResult(const MenuResultMessage &result);
+	void handleTradeSelectionResult(const MenuResultMessage &result);
 };
 
 } // namespace Dialogs

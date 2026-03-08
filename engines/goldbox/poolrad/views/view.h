@@ -62,6 +62,24 @@ private:
 protected:
 	void drawFrame(const Common::Rect &r, uint32 bgColor = 0, uint32 tpColorIndex = 0);
 	void drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom);
+	
+	/**
+	 * Draws the main screen window layout (original SCREEN_DrawMainWindows).
+	 * Matches M68K/DOS decomp: 3 base windows + 1 optional overlay.
+	 * 
+	 * M68K signature: SCREEN_DrawMainWindows(bool param_1)
+	 * DOS signature:  SCREEN_DrawMainWindows(int param_1)
+	 * 
+	 * Windows drawn:
+	 * - (1,1)-(38,22)   Main frame (always)
+	 * - (1,17)-(38,22)  Bottom status strip (always)
+	 * - (1,1)-(15,15)   Left panel (always)
+	 * - (3,3)-(13,13)   Inner overlay (conditional on showMiniWindow)
+	 * 
+	 * @param showMiniWindow If true, draws inner window overlay for ready/menu states
+	 */
+	void drawMainScreenWindows(bool showMiniWindow = false);
+	
 	void switchActiveDialog(Dialogs::Dialog *&activeDialog, Dialogs::Dialog *nextDialog);
 	void setDialogParent(Dialogs::Dialog *dialog, UIElement *parent);
 	void attachDialog(Dialogs::Dialog *dialog);

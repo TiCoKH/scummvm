@@ -35,31 +35,8 @@ namespace Views {
  * Derived views add state-specific overlays (portraits, party list, etc.).
  */
 class MainScreenView : public View {
-protected:
-	bool _showMiniWindow = false;
-
-	/**
-	 * Draws the base main screen windows.
-	 * Mirrors Amiga SCREEN_DrawMainWindows(param) behavior:
-	 * - Always draws: (1,1,38,22), (1,17,38,22), (1,1,15,15)
-	 * - Conditionally draws: (3,3,13,13) when _showMiniWindow is true
-	 */
-	void drawBaseWindows();
-
 public:
 	MainScreenView(const Common::String &name) : View(name) {}
-	virtual ~MainScreenView() {}
-
-	/**
-	 * Sets whether the small 13x13 window should be shown.
-	 * Called by the engine router based on game state.
-	 */
-	void setShowMiniWindow(bool show) { _showMiniWindow = show; }
-
-	/**
-	 * Returns whether the mini window is shown.
-	 */
-	bool getShowMiniWindow() const { return _showMiniWindow; }
 
 	/**
 	 * Hook called when entering this view with a new game state.

@@ -25,26 +25,8 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-void MainScreenView::drawBaseWindows() {
-	// Draw the three fixed windows that appear in all main screen states
-	// Coordinates match Amiga SCREEN_DrawMainWindows implementation:
-	// SCREEN_DrawWindow(1,1,38,22,0,15,&DAT_00240c2c);
-	drawWindow(1, 1, 38, 22);
-
-	// SCREEN_DrawWindow(1,17,38,22,0,15,&DAT_00240c2e);
-	drawWindow(1, 17, 38, 22);
-
-	// SCREEN_DrawWindow(1,1,15,15,0,15,&DAT_00240c30);
-	drawWindow(1, 1, 15, 15);
-
-	// Conditionally draw the small window when param_1 != 0
-	// if (param_1 != 0) {
-	//     SCREEN_DrawWindow(3,3,13,13,0,15,&DAT_00240c32);
-	// }
-	if (_showMiniWindow) {
-		drawWindow(3, 3, 13, 13);
-	}
-}
+// MainScreenView is now a simple marker class.
+// Window drawing logic moved to View::drawMainScreenWindows().
 
 } // namespace Views
 } // namespace Poolrad
