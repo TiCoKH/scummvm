@@ -86,6 +86,26 @@ void View::drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom) {
 	s.clearBox(left, top, right, bottom, 0);
 }
 
+void View::drawMainScreenWindows(bool showMiniWindow) {
+	// Decomp mapping (M68K version - cleaner parameter order):
+	// SCREEN_DrawWindow(1,1,38,22,0,15,s__00240c2c);   → Main frame
+	// SCREEN_DrawWindow(1,17,38,22,0,15,s__00240c2e);  → Bottom status
+	// SCREEN_DrawWindow(1,1,15,15,0,15,s__00240c30);   → Left panel
+	// if (param_1) {
+	//     SCREEN_DrawWindow(3,3,13,13,0,15,s__00240c32); → Inner overlay
+	// }
+	
+	// Base windows (always drawn)
+	drawWindow(1, 1, 38, 22);   // Main frame
+	drawWindow(1, 17, 38, 22);  // Bottom status strip
+	drawWindow(1, 1, 15, 15);   // Left panel
+	
+	// Optional mini window (ready menu overlay, NPC portraits, etc.)
+	if (showMiniWindow) {
+		drawWindow(3, 3, 13, 13);
+	}
+}
+
 void View::switchActiveDialog(Dialogs::Dialog *&activeDialog,
 		Dialogs::Dialog *nextDialog) {
 	if (activeDialog && activeDialog != nextDialog)

@@ -222,6 +222,13 @@ void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
 
     // Forward cancellation from this view's own menu to parent
     if (!success) {
+        if (_stage == VC_STATE_PROFILE &&
+            (keyCode == Common::KEYCODE_ESCAPE || keyCode == Common::KEYCODE_e)) {
+            debug("ViewCharacterView::handleMenuResult() consume PROFILE exit locally");
+            handleExit();
+            return;
+        }
+
         if (_parent) {
 			g_events->postMenuResult(_parent->getName(), false,
 				keyCode, value, Common::String(), true, false);
@@ -290,7 +297,12 @@ void ViewCharacterView::setStage(ViewCharacterState stage) {
         }
         if (_profileDialog)
             _profileDialog->activate();
+        if (_profileDialog)
+            _profileDialog->redraw();
+        if (_horizontalMenu)
+            _horizontalMenu->setRedraw();
         setActiveSubView(_horizontalMenu);
+        redraw();
         break;
     case VC_STATE_ITEMS:
         debug("ViewCharacterView::setStage() - setting ITEMS stage");
@@ -300,6 +312,7 @@ void ViewCharacterView::setStage(ViewCharacterState stage) {
             attachDialog(_itemsMenu); // Add to subView list
         }
         setActiveSubView(_itemsMenu);
+        redraw();
         break;
     }
 }
@@ -345,14 +358,7 @@ void ViewCharacterView::handleRenameCharacter() {
 }
 
 void ViewCharacterView::handleExit() {
-    // Post result to parent (if exists), otherwise go to MainMenu
-    if (_parent) {
-        g_events->postMenuResult(_parent->getName(), false,
-            Common::KEYCODE_e, 0, Common::String(), true, false);
-    } else {
-        // No parent - fall back to MainMenu
-        replaceView("Mainmenu");
-    }
+    replaceView("Mainmenu");
 }
 
 } // namespace Views

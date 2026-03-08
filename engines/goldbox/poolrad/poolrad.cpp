@@ -188,7 +188,6 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 	// START_MENU draws its own window and does not use main windows layout.
 
 	Views::View *view = nullptr;
-	Views::MainScreenView *mainView = nullptr;
 
 	switch (next) {
 	case GS_START_MENU:
@@ -199,56 +198,41 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 		}
 		break;
 	case GS_SHOP:
+				// Uses drawMainScreenWindows(true) - shows mini window for NPC portraits
 		addView("ViewCharacter");
 		view = dynamic_cast<Views::View *>(findView("ViewCharacter"));
-		mainView = dynamic_cast<Views::MainScreenView *>(view);
-		if (mainView) {
-			mainView->setShowMiniWindow(true);
-		}
 		if (view) {
 			view->onEnter(next);
 		}
 		break;
 	case GS_CAMPING:
+				// Uses drawMainScreenWindows(true) - shows mini window for camp menu
 		addView("Mainmenu");
 		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
-		mainView = dynamic_cast<Views::MainScreenView *>(view);
-		if (mainView) {
-			mainView->setShowMiniWindow(true);
-		}
 		if (view) {
 			view->onEnter(next);
 		}
 		break;
 	case GS_DUNGEON_MAP:
+				// Uses drawMainScreenWindows(true) - shows mini window for 3D view
 		addView("Mainmenu");
 		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
-		mainView = dynamic_cast<Views::MainScreenView *>(view);
-		if (mainView) {
-			mainView->setShowMiniWindow(true);
-		}
 		if (view) {
 			view->onEnter(next);
 		}
 		break;
 	case GS_WILDERNESS_MAP:
+				// Uses drawMainScreenWindows(false) - no mini window for outdoor map
 		addView("Mainmenu");
 		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
-		mainView = dynamic_cast<Views::MainScreenView *>(view);
-		if (mainView) {
-			mainView->setShowMiniWindow(false);
-		}
 		if (view) {
 			view->onEnter(next);
 		}
 		break;
 	case GS_AFTER_COMBAT:
+				// Uses drawMainScreenWindows(true) - shows mini window for loot screen
 		addView("Mainmenu");
 		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
-		mainView = dynamic_cast<Views::MainScreenView *>(view);
-		if (mainView) {
-			mainView->setShowMiniWindow(true);
-		}
 		if (view) {
 			view->onEnter(next);
 		}
@@ -257,10 +241,6 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 		// Not covered by original snippet; keep layout as-is and select main menu for now.
 		addView("Mainmenu");
 		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
-		mainView = dynamic_cast<Views::MainScreenView *>(view);
-		if (mainView) {
-			mainView->setShowMiniWindow(true);
-		}
 		if (view) {
 			view->onEnter(next);
 		}

@@ -28,6 +28,7 @@
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/poolrad/views/dialogs/party_selector.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/vm_interface.h"
@@ -43,7 +44,9 @@ using Common::KeyCode;
 ItemsMenu::ItemsMenu(const String &name)
 	: Dialog(name),
 	  _character(nullptr),
-	  _verticalMenu(nullptr) {
+	  _verticalMenu(nullptr),
+	  _partySelector(nullptr),
+	  _pendingTradeItem(nullptr) {
 
 	_menuConfig.promptTxt = "";
 	_menuConfig.promptOptions = &_horizontalMenuLabels;
@@ -65,16 +68,24 @@ ItemsMenu::ItemsMenu(const String &name)
 
 ItemsMenu::~ItemsMenu() {
 	if (_verticalMenu) {
+		_verticalMenu->setParent(nullptr);
 		delete _verticalMenu;
 		_verticalMenu = nullptr;
 	}
 	if (_removeConfirm) {
+		_removeConfirm->setParent(nullptr);
 		delete _removeConfirm;
 		_removeConfirm = nullptr;
 	}
 	if (_activePrompt) {
+		_activePrompt->setParent(nullptr);
 		delete _activePrompt;
 		_activePrompt = nullptr;
+	}
+	if (_partySelector) {
+		_partySelector->setParent(nullptr);
+		delete _partySelector;
+		_partySelector = nullptr;
 	}
 }
 
@@ -98,23 +109,26 @@ void ItemsMenu::activate() {
 		_verticalMenu->rebuild(&_itemsMenuList, "");
 		_verticalMenu->activate();
 	}
+
+	// Reset to main stage
+	setStage(STAGE_ITEM_SELECTION);
 }
 
 void ItemsMenu::deactivate() {
 	debug("ItemsMenu::deactivate() called");
 	Dialog::deactivate();
 
+	// Deactivate main vertical menu
 	if (_verticalMenu) {
 		_verticalMenu->deactivate();
 	}
 
-	if (_removeConfirm) {
-		detachDialog(_removeConfirm);
-		_removeConfirm->clear();
-		delete _removeConfirm;
-		_removeConfirm = nullptr;
-	}
+	// Return to main stage (cleans up subdialogs)
+	setStage(STAGE_ITEM_SELECTION);
+	
+	// Clear pending items
 	_pendingRemoveItem = nullptr;
+	_pendingTradeItem = nullptr;
 }
 
 void ItemsMenu::draw() {
@@ -167,31 +181,24 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 }
 
 void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
-	debug("ItemsMenu::handleMenuResult() success=%d key=%d hasInt=%d int=%d sel=%d",
-		(int)result._success, (int)result._keyCode, (int)result._hasIntValue,
+	debug("ItemsMenu::handleMenuResult() stage=%d success=%d key=%d hasInt=%d int=%d sel=%d",
+		(int)_stage, (int)result._success, (int)result._keyCode, (int)result._hasIntValue,
 		(int)(result._hasIntValue ? result._intValue : -1),
 		(int)_itemsMenuList.currentSelection);
 
-	if (_removeConfirm && _removeConfirm->isActive()) {
-		const bool confirmed = result._success &&
-			(result._keyCode == Common::KEYCODE_y ||
-			 (result._hasIntValue && result._intValue == 1));
-
-		Goldbox::Data::Items::CharacterItem *itemToRemove = _pendingRemoveItem;
-
-		detachDialog(_removeConfirm);
-		_removeConfirm->clear();
-		delete _removeConfirm;
-		_removeConfirm = nullptr;
-		_pendingRemoveItem = nullptr;
-
-		if (confirmed && itemToRemove && _character &&
-			_character->removeItem(itemToRemove)) {
-			buildItemList();
-			buildItemsListMenu();
-			redraw();
-		}
+	// Handle stage-specific results
+	switch (_stage) {
+	case STAGE_CONFIRM_DROP:
+		handleDropConfirmResult(result);
 		return;
+	case STAGE_SELECT_TRADE_TARGET:
+		handleTradeSelectionResult(result);
+		return;
+	case STAGE_ITEM_SELECTION:
+		// Fall through to main item action handling
+		break;
+	default:
+		break;
 	}
 
 	bool success = result._success;
@@ -425,35 +432,9 @@ void ItemsMenu::handleTradeItem(Goldbox::Data::Items::CharacterItem *item) {
 		return;
 	}
 
-	// TODO: Implement character selection dialog ("Trade with Whom?")
-	// When character selector is wired, use this pattern:
-	//
-	// Goldbox::Poolrad::Data::PoolradCharacter *tradeTarget = ... (from selector result);
-	// if (!tradeTarget || tradeTarget == _character) {
-	//     return; // cancelled or selected self
-	// }
-	//
-	// // Modern equivalent of checkOverloaded + transfer logic:
-	// if (!tradeTarget->receiveItem(*item)) {
-	//     displayMessage("Overloaded");
-	//     return;
-	// }
-	//
-	// // Remove from source character
-	// if (!_character->removeItem(item)) {
-	//     // Unexpected failure - item was added to target but couldn't remove from source
-	//     warning("Trade: item added to target but removal from source failed");
-	//     return;
-	// }
-	//
-	// // Refresh both character states
-	// _character->recalcCombatStats();
-	// buildItemList();
-	// buildItemsListMenu();
-	// redraw();
-
-	debug("ItemsMenu::handleTradeItem() TODO path: selector not implemented");
-	displayMessage("Character selector not yet implemented");
+	// Store pending item and switch to trade selection stage
+	_pendingTradeItem = item;
+	setStage(STAGE_SELECT_TRADE_TARGET);
 }
 
 void ItemsMenu::handleDropItem(Goldbox::Data::Items::CharacterItem *item) {
@@ -580,22 +561,9 @@ Missile + special effects: The warning only appears for missiles with special ef
 		return false;
 	}
 
-	if (_removeConfirm) {
-		detachDialog(_removeConfirm);
-		_removeConfirm->clear();
-		delete _removeConfirm;
-		_removeConfirm = nullptr;
-	}
-
-	const Common::String prompt = Common::String::format(
-		"%s was going to scribe from that scroll. Is it okay to lose it? ",
-		_character->name.c_str());
-	HorizontalYesNoConfig ynCfg = {prompt, 13, 10, 15, 0};
-	_removeConfirm = new HorizontalYesNo("ItemsRemoveConfirm", ynCfg);
-	attachDialog(_removeConfirm);
-	_removeConfirm->activate();
-
+	// Store pending item and switch to confirmation stage
 	_pendingRemoveItem = item;
+	setStage(STAGE_CONFIRM_DROP);
 	return false;
 }
 
@@ -691,6 +659,136 @@ void ItemsMenu::displayMessage(const Common::String &message) {
 	_activePrompt = new PromptMessage("ItemsPromptMsg", cfg);
 	attachDialog(_activePrompt);
 	_activePrompt->activate();
+}
+
+void ItemsMenu::handleDropConfirmResult(const MenuResultMessage &result) {
+	const bool confirmed = result._success &&
+		(result._keyCode == Common::KEYCODE_y ||
+		 (result._hasIntValue && result._intValue == 1));
+
+	Goldbox::Data::Items::CharacterItem *itemToRemove = _pendingRemoveItem;
+	_pendingRemoveItem = nullptr;
+
+	// Return to item selection stage
+	setStage(STAGE_ITEM_SELECTION);
+
+	// Process the drop if confirmed
+	if (confirmed && itemToRemove && _character &&
+		_character->removeItem(itemToRemove)) {
+		buildItemList();
+		buildItemsListMenu();
+		redraw();
+	}
+}
+
+void ItemsMenu::handleTradeSelectionResult(const MenuResultMessage &result) {
+	Goldbox::Data::Items::CharacterItem *itemToTrade = _pendingTradeItem;
+	_pendingTradeItem = nullptr;
+
+	// Return to item selection stage
+	setStage(STAGE_ITEM_SELECTION);
+
+	// Check if user cancelled or invalid result
+	if (!result._success || !result._hasIntValue || !itemToTrade || !_character) {
+		return;
+	}
+
+	// Get target character from party
+	const int targetIndex = result._intValue;
+	Common::Array<Goldbox::Data::PlayerCharacter *> *party = VmInterface::getParty();
+	if (!party || targetIndex < 0 || targetIndex >= (int)party->size()) {
+		return;
+	}
+
+	Goldbox::Poolrad::Data::PoolradCharacter *tradeTarget =
+		static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>((*party)[targetIndex]);
+
+	if (!tradeTarget || tradeTarget == _character) {
+		return;
+	}
+
+	// Attempt to transfer item
+	if (!tradeTarget->receiveItem(*itemToTrade)) {
+		displayMessage("Overloaded");
+		return;
+	}
+
+	if (!_character->removeItem(itemToTrade)) {
+		warning("Trade: item added to target but removal from source failed");
+		return;
+	}
+
+	// Update character state and refresh UI
+	_character->recalcCombatStats();
+	buildItemList();
+	buildItemsListMenu();
+	redraw();
+}
+
+void ItemsMenu::setStage(ItemsMenuStage stage) {
+	debug("ItemsMenu::setStage() - changing from %d to %d", (int)_stage, (int)stage);
+	_stage = stage;
+
+	switch (_stage) {
+	case STAGE_ITEM_SELECTION: {
+		debug("ItemsMenu::setStage() - ITEM_SELECTION stage");
+		// Clean up any active subdialogs
+		if (_removeConfirm) {
+			detachDialog(_removeConfirm);
+			_removeConfirm->clear();
+			delete _removeConfirm;
+			_removeConfirm = nullptr;
+		}
+		if (_partySelector) {
+			detachDialog(_partySelector);
+			delete _partySelector;
+			_partySelector = nullptr;
+		}
+		// Main vertical menu should already be active from activate()
+		redraw();
+		break;
+	}
+	case STAGE_CONFIRM_DROP: {
+		debug("ItemsMenu::setStage() - CONFIRM_DROP stage");
+		if (_removeConfirm) {
+			detachDialog(_removeConfirm);
+			_removeConfirm->clear();
+			delete _removeConfirm;
+			_removeConfirm = nullptr;
+		}
+		// Create and show drop confirmation dialog
+		if (_character && _pendingRemoveItem) {
+			const Common::String prompt = Common::String::format(
+				"%s was going to scribe from that scroll. Is it okay to lose it? ",
+				_character->name.c_str());
+			HorizontalYesNoConfig ynCfg = {prompt, 13, 10, 15, 0};
+			_removeConfirm = new HorizontalYesNo("ItemsRemoveConfirm", ynCfg);
+			attachDialog(_removeConfirm);
+			_removeConfirm->activate();
+			redraw();
+		}
+		break;
+	}
+	case STAGE_SELECT_TRADE_TARGET: {
+		debug("ItemsMenu::setStage() - SELECT_TRADE_TARGET stage");
+		if (_partySelector) {
+			detachDialog(_partySelector);
+			delete _partySelector;
+			_partySelector = nullptr;
+		}
+		// Create and show party selector
+		PartySelectorConfig config;
+		config.promptText = "Trade with Whom?";
+		config.allowExit = true;
+		_partySelector = new PartySelector("ItemsTradeSelector", config);
+		attachDialog(_partySelector);
+		_partySelector->activate();
+		redraw();
+		break;
+	}
+	default:
+		break;
+	}
 }
 
 void ItemsMenu::updateReadyItemDisplay(Goldbox::Data::Items::CharacterItem *item) {
