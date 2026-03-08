@@ -121,6 +121,8 @@ private:
 	void displayEquipError(uint8 errorCode, const Goldbox::Data::Items::CharacterItem *item);
 	void displayMessage(const Common::String &message);
 	void updateReadyItemDisplay(Goldbox::Data::Items::CharacterItem *item);
+	void prepareTradeSelectionBackdrop();
+    bool hasTradeTarget() const;
 
 	// Subdialog management
 	void handleDropConfirmResult(const MenuResultMessage &result);

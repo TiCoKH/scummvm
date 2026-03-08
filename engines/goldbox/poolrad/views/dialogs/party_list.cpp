@@ -32,13 +32,57 @@ void PartyList::activate() {
     Dialog::activate();
 }
 
-void PartyList::updateSelectedCharacter() {
-    if (_party && _party->size() > 0) {
-        if (_selectedCharIndex < 1)
-            _selectedCharIndex = 1;
-        if (_selectedCharIndex > _party->size())
-            _selectedCharIndex = _party->size();
+bool PartyList::isSelectableIndex(uint index) const {
+    if (!_party || index < 1 || index > _party->size())
+        return false;
 
+    Goldbox::Data::PlayerCharacter *candidate = (*_party)[index - 1];
+    if (!candidate)
+        return false;
+
+    if (_excludedCharacter && candidate == _excludedCharacter)
+        return false;
+
+    return true;
+}
+
+bool PartyList::findNextSelectableFrom(uint startIndex, int direction, uint &outIndex) const {
+    if (!_party || _party->empty())
+        return false;
+
+    const uint partySize = (uint)_party->size();
+    uint idx = (startIndex < 1) ? 1 : ((startIndex > partySize) ? partySize : startIndex);
+
+    for (uint i = 0; i < partySize; ++i) {
+        if (isSelectableIndex(idx)) {
+            outIndex = idx;
+            return true;
+        }
+
+        if (direction >= 0)
+            idx = (idx < partySize) ? (idx + 1) : 1;
+        else
+            idx = (idx > 1) ? (idx - 1) : partySize;
+    }
+
+    return false;
+}
+
+void PartyList::updateSelectedCharacter() {
+    if (!_party || _party->empty())
+        return;
+
+    const uint partySize = (uint)_party->size();
+    if (_selectedCharIndex < 1)
+        _selectedCharIndex = 1;
+    if (_selectedCharIndex > partySize)
+        _selectedCharIndex = partySize;
+
+    uint resolvedIndex = _selectedCharIndex;
+    if (findNextSelectableFrom(_selectedCharIndex, 1, resolvedIndex))
+        _selectedCharIndex = resolvedIndex;
+
+    if (_syncVmSelection && isSelectableIndex(_selectedCharIndex)) {
         Goldbox::VmInterface::setSelectedCharacter((*_party)[_selectedCharIndex - 1]);
     }
 }
@@ -72,24 +116,26 @@ void PartyList::nextChar() {
     if (!_party || _party->size() == 0)
         return;
 
-    if (_selectedCharIndex < _party->size()) {
-        _selectedCharIndex++;
-    } else {
-        _selectedCharIndex = 1;
+    const uint partySize = (uint)_party->size();
+    const uint start = (_selectedCharIndex < partySize) ? (_selectedCharIndex + 1) : 1;
+    uint nextIndex = _selectedCharIndex;
+    if (findNextSelectableFrom(start, 1, nextIndex)) {
+        _selectedCharIndex = nextIndex;
+        updateSelectedCharacter();
     }
-    updateSelectedCharacter();
 }
 
 void PartyList::prevChar() {
     if (!_party || _party->size() == 0)
         return;
 
-    if (_selectedCharIndex > 1) {
-        _selectedCharIndex--;
-    } else {
-        _selectedCharIndex = _party->size();
+    const uint partySize = (uint)_party->size();
+    const uint start = (_selectedCharIndex > 1) ? (_selectedCharIndex - 1) : partySize;
+    uint prevIndex = _selectedCharIndex;
+    if (findNextSelectableFrom(start, -1, prevIndex)) {
+        _selectedCharIndex = prevIndex;
+        updateSelectedCharacter();
     }
-    updateSelectedCharacter();
 }
 
 bool PartyList::msgKeypress(const KeypressMessage &msg) {

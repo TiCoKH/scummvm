@@ -93,6 +93,9 @@ void PartySelector::activate() {
     Dialog::activate();
 
     if (_partyList) {
+        _partyList->setSyncVmSelection(false);
+        _partyList->setExcludedCharacter(_config.excludedCharacter);
+        _partyList->setSelectedCharIndex(1);
         _partyList->activate();
     }
     if (_horizontalMenu) {
@@ -158,7 +161,12 @@ void PartySelector::postSelectionResult(bool success, Common::KeyCode keyCode) {
         return;
     }
 
-    const int selectedIndex = _partyList ? (int)_partyList->getSelectedCharIndex() : 0;
+    // PartyList is 1-based; post 0-based party index to parent handlers.
+    int selectedIndex = _partyList ? (int)_partyList->getSelectedCharIndex() : 1;
+    if (selectedIndex < 1)
+        selectedIndex = 1;
+    selectedIndex -= 1;
+
     g_events->postMenuResult(_parent->getName(), success, keyCode,
         selectedIndex, Common::String(), true, false);
 }
@@ -167,9 +175,6 @@ void PartySelector::handleMenuResult(const MenuResultMessage &result) {
     const Common::KeyCode keyCode = result._keyCode;
 
     if (!result._success) {
-        if (_config.allowExit) {
-            Goldbox::VmInterface::setSelectedCharacter(nullptr);
-        }
         postSelectionResult(false, keyCode);
         deactivate();
         return;
@@ -200,7 +205,6 @@ void PartySelector::handleMenuResult(const MenuResultMessage &result) {
     }
 
     if (_config.allowExit && keyCode == Common::KEYCODE_e) {
-        Goldbox::VmInterface::setSelectedCharacter(nullptr);
         postSelectionResult(false, keyCode);
         deactivate();
         return;

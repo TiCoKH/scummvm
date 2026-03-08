@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_PARTY_LIST_H
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/data/player_character.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -33,7 +34,9 @@ namespace Dialogs {
 class PartyList : public Dialog {
 public:
     PartyList(const Common::String &name = "PartyList")
-        : Dialog(name), _xName(1), _xAC(33), _yStart(2), _selectedCharIndex(1), _party(nullptr) {}
+        : Dialog(name), _xName(1), _xAC(33), _yStart(2),
+          _selectedCharIndex(1), _party(nullptr),
+          _syncVmSelection(true), _excludedCharacter(nullptr) {}
     virtual ~PartyList() {}
 
     void activate() override;
@@ -42,6 +45,9 @@ public:
     void setLayout(uint xName, uint xAC, uint yStart) {
         _xName = xName; _xAC = xAC; _yStart = yStart;
     }
+    void setSyncVmSelection(bool syncVmSelection) { _syncVmSelection = syncVmSelection; }
+    void setExcludedCharacter(Goldbox::Data::PlayerCharacter *excludedCharacter) { _excludedCharacter = excludedCharacter; }
+    void setSelectedCharIndex(uint selectedCharIndex) { _selectedCharIndex = selectedCharIndex; }
     uint getSelectedCharIndex() const { return _selectedCharIndex; }
     void nextChar();
     void prevChar();
@@ -50,8 +56,12 @@ private:
     uint _xName, _xAC, _yStart;
     uint _selectedCharIndex;
     Common::Array<Goldbox::Data::PlayerCharacter *> *_party;
+    bool _syncVmSelection;
+    Goldbox::Data::PlayerCharacter *_excludedCharacter;
 
     void updateSelectedCharacter();
+    bool isSelectableIndex(uint index) const;
+    bool findNextSelectableFrom(uint startIndex, int direction, uint &outIndex) const;
 
 };
 
