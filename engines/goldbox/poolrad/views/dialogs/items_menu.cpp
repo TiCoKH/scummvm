@@ -125,7 +125,7 @@ void ItemsMenu::deactivate() {
 
 	// Return to main stage (cleans up subdialogs)
 	setStage(STAGE_ITEM_SELECTION);
-	
+
 	// Clear pending items
 	_pendingRemoveItem = nullptr;
 	_pendingTradeItem = nullptr;
@@ -157,10 +157,6 @@ void ItemsMenu::draw() {
 	if (_verticalMenu)
 		_verticalMenu->draw();
 
-	// TODO: After item is selected, display HORIZONTAL action menu
-	// This menu shows: Ready, Use, Drop, Halve, Join, Sell, Identify, Exit
-	// Positioned below the window or as external popup
-	// On action selection, route to appropriate handler (handleReadyItem, etc)
 }
 
 bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
@@ -429,6 +425,11 @@ void ItemsMenu::handleTradeItem(Goldbox::Data::Items::CharacterItem *item) {
 	if (!canTradeItem(item)) {
 		debug("ItemsMenu::handleTradeItem() blocked: canTradeItem=false");
 		displayMessage("Cannot trade this item");
+		return;
+	}
+
+	if (!hasTradeTarget()) {
+		displayMessage("No one to trade with");
 		return;
 	}
 
@@ -707,6 +708,9 @@ void ItemsMenu::handleTradeSelectionResult(const MenuResultMessage &result) {
 		return;
 	}
 
+	// Set the target character globally for potential future combat reuse
+	VmInterface::setTargetCharacter(tradeTarget);
+
 	// Attempt to transfer item
 	if (!tradeTarget->receiveItem(*itemToTrade)) {
 		displayMessage("Overloaded");
@@ -720,8 +724,50 @@ void ItemsMenu::handleTradeSelectionResult(const MenuResultMessage &result) {
 
 	// Update character state and refresh UI
 	_character->recalcCombatStats();
+	tradeTarget->recalcCombatStats();
 	buildItemList();
 	buildItemsListMenu();
+	redraw();
+}
+
+bool ItemsMenu::hasTradeTarget() const {
+	if (!_character)
+		return false;
+
+	Common::Array<Goldbox::Data::PlayerCharacter *> *party = VmInterface::getParty();
+	if (!party)
+		return false;
+
+	for (uint i = 0; i < party->size(); ++i) {
+		Goldbox::Data::PlayerCharacter *pc = (*party)[i];
+		if (pc && pc != _character)
+			return true;
+	}
+
+	return false;
+}
+
+void ItemsMenu::prepareTradeSelectionBackdrop() {
+	const int gameStatus = Goldbox::VmInterface::getGameStatus();
+
+	// Modern equivalent of legacy GAME_ScreenByState layout prep.
+	switch (gameStatus) {
+	case GS_SHOP:
+	case GS_CAMPING:
+	case GS_DUNGEON_MAP:
+	case GS_AFTER_COMBAT:
+	case GS_COMBAT:
+		drawMainScreenWindows(true);
+		break;
+	case GS_WILDERNESS_MAP:
+		drawMainScreenWindows(false);
+		break;
+	default:
+		// Keep ItemsMenu base layout in unknown states.
+		drawWindow(1, 1, 38, 22);
+		break;
+	}
+
 	redraw();
 }
 
@@ -776,10 +822,14 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 			delete _partySelector;
 			_partySelector = nullptr;
 		}
+
+		prepareTradeSelectionBackdrop();
+
 		// Create and show party selector
 		PartySelectorConfig config;
 		config.promptText = "Trade with Whom?";
 		config.allowExit = true;
+		config.excludedCharacter = _character;
 		_partySelector = new PartySelector("ItemsTradeSelector", config);
 		attachDialog(_partySelector);
 		_partySelector->activate();

@@ -66,6 +66,7 @@ public:
 	Data::StringsData _strings;
 	Common::Array<Data::PlayerCharacter *> _party;
 	Data::PlayerCharacter * _selectedCharacter = nullptr;
+	Data::PlayerCharacter * _targetCharacter = nullptr;
 	Data::PlayerCharacter * _nextCharacter = nullptr;
 	uint _textDelay = 3; // 1-5 range (1=fastest, 5=slowest), maps to original BYTE_DELAY
 	static Goldbox::Data::Items::Storage gItemProps;
@@ -95,6 +96,16 @@ public:
 	 * Sets the currently selected character.
 	 */
 	void setSelectedCharacter(Data::PlayerCharacter *character) { _selectedCharacter = character; }
+
+	/**
+	 * Returns the currently selected trade/combat target character.
+	 */
+	Data::PlayerCharacter *getTargetCharacter() const { return _targetCharacter; }
+
+	/**
+	 * Sets the currently selected trade/combat target character.
+	 */
+	void setTargetCharacter(Data::PlayerCharacter *character) { _targetCharacter = character; }
 
 	/**
 	 * Gets the text display delay (1-5 range).

@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_PARTY_SELECTOR_H
 
 #include "goldbox/core/menu_item.h"
+#include "goldbox/data/player_character.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/party_list.h"
@@ -35,8 +36,10 @@ namespace Dialogs {
 struct PartySelectorConfig {
     Common::String promptText;
     bool allowExit;
+    Goldbox::Data::PlayerCharacter *excludedCharacter;
 
-    PartySelectorConfig() : promptText("Select"), allowExit(true) {
+    PartySelectorConfig() : promptText("Select"), allowExit(true),
+                            excludedCharacter(nullptr) {
     }
 };
 
