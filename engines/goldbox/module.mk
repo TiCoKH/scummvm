@@ -10,6 +10,7 @@ MODULE_OBJS = \
 	vm_interface.o \
 	ecl/ecl_decoder.o \
 	ecl/ecl_memory.o \
+	ecl/runtime_layout.o \
 	ecl/ecl_syscall_impl.o \
 	ecl/ecl_vm.o \
 	ecl/opcode_handlers.o \
@@ -18,6 +19,8 @@ MODULE_OBJS = \
 	core/file.o \
 	core/menu_item.o \
 	core/icon_manager.o \
+	core/vm_bank.o \
+	core/vm_layout.o \
 	data/player_character.o \
 	data/adnd_character.o \
 	data/daxblock.o \
@@ -50,6 +53,7 @@ MODULE_OBJS = \
 	poolrad/effect_handler.o \
 	poolrad/console.o \
 	poolrad/data/poolrad_character.o \
+	poolrad/data/poolrad_vm_layout.o \
 	poolrad/gfx/surface.o \
 	poolrad/views/view.o \
 	poolrad/views/title_view.o \

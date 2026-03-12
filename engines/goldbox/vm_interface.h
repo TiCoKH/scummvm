@@ -64,6 +64,16 @@ public:
         g_engine->setSelectedCharacter(character);
     }
 
+    // Add getTargetCharacter accessor
+    static Data::PlayerCharacter *getTargetCharacter() {
+        return g_engine->getTargetCharacter();
+    }
+
+    // Add setTargetCharacter accessor
+    static void setTargetCharacter(Data::PlayerCharacter *character) {
+        g_engine->setTargetCharacter(character);
+    }
+
     // Add getTextDelay accessor
     static uint getTextDelay() {
         return g_engine->getTextDelay();

@@ -49,6 +49,8 @@
 #include "goldbox/ecl/ecl_vm.h"
 #include "goldbox/ecl/opcode_handlers.h"
 #include "goldbox/ecl/game_config.h"
+#include "goldbox/ecl/runtime_layout.h"
+#include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "common/memstream.h"
 
 namespace Goldbox {
@@ -109,6 +111,11 @@ bool EclVM::parseECLHeader(Common::Span<const uint8> program) {
 void EclVM::initializeECLState() {
     if (!_config) return;
 
+    EclLayoutAccess layout(
+        Goldbox::Poolrad::Data::getPoolradVmLayout(),
+        Goldbox::Poolrad::Data::getPoolradGlobalVmLayout(),
+        Goldbox::Poolrad::Data::getPoolradEclRuntimeLayout());
+
     // Clear transient flags (script-local variables)
     uint16 flagBase = _config->getFlagBase();
     uint16 transientCount = _config->getTransientFlagCount();
@@ -117,24 +124,24 @@ void EclVM::initializeECLState() {
     }
 
     // Clear execution control flags
-    _memory.write8(ECLMemoryLayout::OFFSET_ECL_HALT, 0);
-    _memory.write8(ECLMemoryLayout::OFFSET_BREAK_FLAG, 0);
-    _memory.write8(ECLMemoryLayout::OFFSET_EXIT_SCRIPT, 0);
-    _memory.write8(ECLMemoryLayout::OFFSET_PROGRAM_STATE, 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeHaltFlag), 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeBreakFlag), 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeExitScript), 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeProgramState), 0);
 
     // Set default game state (dungeon)
-    _memory.write8(ECLMemoryLayout::OFFSET_GAME_STATE, GS_DUNGEON_MAP);
+    _memory.write8(layout.runtimeField(kEclRuntimeGameState), GS_DUNGEON_MAP);
 
     // Clear character pointers
-    _memory.write16LE(ECLMemoryLayout::OFFSET_SEL_CHAR_PTR, 0);
-    _memory.write16LE(ECLMemoryLayout::OFFSET_NEXT_CHAR_PTR, 0);
+    _memory.write16LE(layout.runtimeField(kEclRuntimeSelectedCharPtr), 0);
+    _memory.write16LE(layout.runtimeField(kEclRuntimeNextCharPtr), 0);
 
     // Clear menu/combat state
-    _memory.write8(ECLMemoryLayout::OFFSET_MENU_COMBAT_STATE, 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeMenuCombatState), 0);
 
     // Clear text output flags
-    _memory.write8(ECLMemoryLayout::OFFSET_TEXT_PRINT_FLAG, 0);
-    _memory.write8(ECLMemoryLayout::OFFSET_TEXT_OUTPUT_FLAG, 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeTextPrintFlag), 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeTextOutputFlag), 0);
 }
 
 VmResult EclVM::runAtEntryPoint(EntryPointSelector entry, uint32 maxSteps) {
