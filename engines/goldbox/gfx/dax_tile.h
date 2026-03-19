@@ -44,6 +44,12 @@ public:
 
     DaxTile(Data::DaxBlock8x8D *daxBlock);
 
+	uint32 getTileCount() const {
+		return _chars.size();
+	}
+
+	const Graphics::ManagedSurface *getTileSurface(uint32 chr) const;
+
 		/**
 	 * Get the font height
 	 */

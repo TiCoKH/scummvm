@@ -24,6 +24,8 @@
 #include "common/random.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/ecl/game_config.h"
+#include "goldbox/ecl/runtime_layout.h"
+#include "goldbox/poolrad/data/poolrad_vm_layout.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -32,6 +34,15 @@ namespace ECL {
 using HandlerMap = Common::HashMap<uint8, OpcodeHandler>;
 static HandlerMap g_handlers;
 static Common::RandomSource g_random("eclvm");
+
+static const EclLayoutAccess &getOpcodeLayout() {
+    static EclLayoutAccess s_layout(
+        Goldbox::Poolrad::Data::getPoolradVmLayout(),
+        Goldbox::Poolrad::Data::getPoolradGlobalVmLayout(),
+        Goldbox::Poolrad::Data::getPoolradEclRuntimeLayout()
+    );
+    return s_layout;
+}
 
 uint16 resolveVar(AddressSpace &mem, const EclOperand &operand) {
     if (operand.type == OperandType::VAL8) {
@@ -234,30 +245,30 @@ static int handle_0x0A_LOAD_CHARACTER(AddressSpace &mem, const EclInstruction &i
         return VM_ERROR;
     }
     uint8 sel = insn.operands[0].u8;
-    uint8 partySize = mem.read8(ECL::ECLMemoryLayout::OFFSET_PARTY_SIZE);
+        uint8 partySize = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldPartyCount).vmAddr);
 
     // Store selection index for engine/UI reference
-    mem.write8(ECL::ECLMemoryLayout::OFFSET_SELECTED_CHAR, sel);
+        mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldSelectedPcIndex).vmAddr, sel);
 
     if (sel < 128) {
         if (sel < partySize) {
             // Point selected character pointer to this member's data block
-            uint16 base = ECL::ECLMemoryLayout::OFFSET_CHARACTER_DATA + sel * ECL::ECLMemoryLayout::CHARACTER_DATA_SIZE;
-            mem.write16LE(ECL::ECLMemoryLayout::OFFSET_SEL_CHAR_PTR, base);
+                uint16 base = ECLMemoryLayout::OFFSET_CHARACTER_DATA + sel * ECLMemoryLayout::CHARACTER_DATA_SIZE;
+                mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeSelectedCharPtr), base);
         } else {
             // Select a monster from the list (index after party members)
             uint16 monsterIndex = sel - partySize;
             // Without a defined monster record size, point to start for now
-            uint16 base = ECL::ECLMemoryLayout::OFFSET_MONSTER_DATA; // TODO: add record size and index into list
+                uint16 base = getOpcodeLayout().runtimeField(kEclRuntimeMonsterData); // TODO: add record size and index into list
             (void)monsterIndex;
-            mem.write16LE(ECL::ECLMemoryLayout::OFFSET_SEL_CHAR_PTR, base);
+                mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeSelectedCharPtr), base);
         }
     } else {
         // Monster (sel - 128) will be placed on party side in next combat
         // Record selection; engine should interpret this when starting combat
-        uint16 base = ECL::ECLMemoryLayout::OFFSET_MONSTER_DATA; // Placeholder pointer
-        mem.write16LE(ECL::ECLMemoryLayout::OFFSET_SEL_CHAR_PTR, base);
-        mem.write8(ECL::ECLMemoryLayout::OFFSET_MENU_COMBAT_STATE, 1); // Mark pending special placement
+            uint16 base = getOpcodeLayout().runtimeField(kEclRuntimeMonsterData); // Placeholder pointer
+            mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeSelectedCharPtr), base);
+            mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeMenuCombatState), 1); // Mark pending special placement
     }
     return VM_OK;
 }
@@ -274,12 +285,12 @@ static int handle_0x0B_LOAD_MONSTER(AddressSpace &mem, const EclInstruction &ins
     uint16 graphicId = resolveVar(mem, insn.operands[2]);
 
     // Update monster count; actual list population will be handled by the engine
-    uint16 currentCount = mem.read16LE(ECL::ECLMemoryLayout::OFFSET_MONSTER_COUNT);
+    uint16 currentCount = mem.read16LE(getOpcodeLayout().runtimeField(kEclRuntimeMonsterCount));
     uint16 newCount = (currentCount + (count & 0xFF)) & 0xFFFF;
-    mem.write16LE(ECL::ECLMemoryLayout::OFFSET_MONSTER_COUNT, newCount);
+    mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeMonsterCount), newCount);
 
     // Stash last loaded monster info in encounter flags area for engine consumption
-    mem.write16LE(ECL::ECLMemoryLayout::OFFSET_ENCOUNTER_FLAGS, (monsterId & 0xFF));
+    mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeEncounterFlags), (monsterId & 0xFF));
     (void)graphicId; // Graphic mapping handled by picture system later
     return VM_OK;
 }
@@ -297,11 +308,11 @@ static int handle_0x0C_SETUP_MONSTER(AddressSpace &mem, const EclInstruction &in
 
     // Clamp distance to 0..2
     uint8 dist = (distance > 2) ? 2 : (uint8)distance;
-    mem.write8(ECL::ECLMemoryLayout::OFFSET_MONSTER_DISTANCE, dist);
+    mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr, dist);
 
     // Mark game state as combat and store primary monster ID
-    mem.write8(ECL::ECLMemoryLayout::OFFSET_GAME_STATE, (uint8)GS_COMBAT);
-    mem.write16LE(ECL::ECLMemoryLayout::OFFSET_ENCOUNTER_FLAGS, (monsterId & 0xFF));
+    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeGameState), (uint8)GS_COMBAT);
+    mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeEncounterFlags), (monsterId & 0xFF));
     (void)graphicId;
 
     VmResult r = syscalls->startCombat();
@@ -312,10 +323,10 @@ static int handle_0x0C_SETUP_MONSTER(AddressSpace &mem, const EclInstruction &in
 // Monsters from SETUP MONSTER close distance by 1 square.
 static int handle_0x0D_APPROACH(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    uint8 dist = mem.read8(ECL::ECLMemoryLayout::OFFSET_MONSTER_DISTANCE);
+        uint8 dist = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr);
     if (dist > 0) {
         dist -= 1;
-        mem.write8(ECL::ECLMemoryLayout::OFFSET_MONSTER_DISTANCE, dist);
+            mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr, dist);
     }
     return VM_OK;
 }
@@ -328,7 +339,7 @@ static int handle_0x0E_PICTURE(AddressSpace &mem, const EclInstruction &insn,
         return VM_ERROR;
     }
     uint8 picId = insn.operands[0].u8;
-    mem.write8(ECL::ECLMemoryLayout::OFFSET_PICTURE_ID, picId);
+    mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr, picId);
 
     VmResult r = syscalls->displayPicture(picId);
     return r;
@@ -396,7 +407,7 @@ static int handle_0x14_COMPARE_AND(AddressSpace &mem, const EclInstruction &insn
     // Store comparison flags for subsequent IF commands
     bool cmp1 = (var1 == var2);
     bool cmp2 = (var3 == var4);
-    mem.write8(ECL::ECLMemoryLayout::OFFSET_BREAK_FLAG, (cmp1 && cmp2) ? 1 : 0);
+    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag), (cmp1 && cmp2) ? 1 : 0);
     return VM_OK;
 }
 
@@ -421,7 +432,7 @@ static int handle_0x15_VERTICAL_MENU(AddressSpace &mem, const EclInstruction &in
 // 0x16-0x1B: IF commands (skip next instruction if comparison fails)
 static int handleIF(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, uint8 opcode) {
-    uint8 comparisonFlag = mem.read8(ECL::ECLMemoryLayout::OFFSET_BREAK_FLAG);
+    uint8 comparisonFlag = mem.read8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag));
     bool shouldSkip = false;
     
     switch (opcode) {
@@ -479,7 +490,7 @@ static int handle_0x1B_IF_GREATER_EQUAL(AddressSpace &mem, const EclInstruction 
 // 0x1C: CLEARMONSTERS
 static int handle_0x1C_CLEARMONSTERS(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    mem.write16LE(ECL::ECLMemoryLayout::OFFSET_MONSTER_COUNT, 0);
+    mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeMonsterCount), 0);
     return VM_OK;
 }
 
@@ -528,12 +539,38 @@ static int handle_0x20_NEWECL(AddressSpace &mem, const EclInstruction &insn,
     return syscalls->loadScript(scriptId);
 }
 
+// 0x21: LOAD FILES <geoBlockId> <unused> <iconTrigger>
+// Loads the dungeon GEO map block (indoor) or outdoor icon strip (outdoor).
+// Mirrors the GEO branch of INSTR_LoadAreaDeco from the original.
 static int handle_0x21_LOAD_FILES(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    // Load GEO map and related map resources (0x21: LOAD FILES)
-    // TODO: Parse operands from VARARGS to determine which map/resources to load
-    // Expected: Load GEO file, initialize map graphics, set up encounter zones
-    // For now, return VM_OK to continue execution
+    if (insn.operands.size() < 3 || !syscalls)
+        return VM_ERROR;
+
+    // Three params match abStack_8[1..3] in INSTR_LoadAreaDeco
+    uint8 geoBlockId  = (uint8)resolveVar(mem, insn.operands[0]); // abStack_8[1]
+    // insn.operands[1] (abStack_8[2]) is fetched but unused in the GEO branch
+    uint8 iconTrigger = (uint8)resolveVar(mem, insn.operands[2]); // abStack_8[3]
+
+    // IndoorModeFlag at +0x1CC: non-zero = dungeon/indoor, zero = outdoor/city
+    bool indoorMode = (mem.read8(
+        getOpcodeLayout().vmField(kVmFieldIndoorModeFlag).vmAddr) != 0);
+
+    // Load GEO block only in indoor mode; 0xFF = skip, 0x7F = special stub
+    if (geoBlockId != 0xFF && geoBlockId != 0x7F && indoorMode) {
+        mem.write8(getOpcodeLayout().vmField(kVmFieldGeoBlockId).vmAddr,
+            geoBlockId);
+        syscalls->loadGeoBlock(geoBlockId);
+        // Reset movement-block counter after loading new map
+        mem.write8(
+            getOpcodeLayout().vmGlobalField(kVmGlobalFieldMovementBlock).vmAddr,
+            0);
+    }
+
+    // Load outdoor icon strip when not in indoor mode and trigger is valid
+    if (iconTrigger != 0xFF && !indoorMode)
+        syscalls->loadIconBlock();
+
     return VM_OK;
 }
 
@@ -563,7 +600,7 @@ static int handle_0x23_SURPRISE(AddressSpace &mem, const EclInstruction &insn,
     
     // TODO: Roll dice and calculate surprise
     // For now, set to 0 (neither side surprised)
-    mem.write8(ECL::ECLMemoryLayout::OFFSET_SURPRISE_FLAGS, 0);
+    mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldCombatIsAmbush).vmAddr, 0);
     return VM_OK;
 }
 
@@ -574,15 +611,15 @@ static int handle_0x24_COMBAT(AddressSpace &mem, const EclInstruction &insn,
         return VM_ERROR;
     }
     
-    uint8 templeFlag = mem.read8(ECL::ECLMemoryLayout::OFFSET_TEMPLE_FLAG);
-    uint8 shopFlag = mem.read8(ECL::ECLMemoryLayout::OFFSET_SHOP_FLAG);
+    uint8 templeFlag = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldEnterTemplePending).vmAddr);
+    uint8 shopFlag = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldShopFlag).vmAddr);
     
     if (templeFlag == 1) {
-        mem.write8(ECL::ECLMemoryLayout::OFFSET_TEMPLE_FLAG, 0);
+        mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldEnterTemplePending).vmAddr, 0);
         // TODO: Enter temple
         return VM_OK;
     } else if (shopFlag == 1) {
-        mem.write8(ECL::ECLMemoryLayout::OFFSET_SHOP_FLAG, 0);
+        mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldShopFlag).vmAddr, 0);
         // TODO: Enter shop
         return VM_OK;
     } else {
@@ -659,7 +696,7 @@ static int handle_0x2A_GETTABLE(AddressSpace &mem, const EclInstruction &insn,
     mem.write16LE(destAddr, value);
     
     // Store comparison flag for IF commands
-    mem.write8(ECL::ECLMemoryLayout::OFFSET_BREAK_FLAG, (value == 0) ? 1 : 0);
+    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag), (value == 0) ? 1 : 0);
     return VM_OK;
 }
 
@@ -712,7 +749,7 @@ static int handle_0x2E_DAMAGE(AddressSpace &mem, const EclInstruction &insn,
 // 0x31: SPRITE OFF
 static int handle_0x31_SPRITE_OFF(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    mem.write8(ECL::ECLMemoryLayout::OFFSET_SPRITE_STATE, 0);
+    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeSpriteState), 0);
     return VM_OK;
 }
 
@@ -725,7 +762,7 @@ static int handle_0x32_FIND_ITEM(AddressSpace &mem, const EclInstruction &insn,
     uint8 itemId = insn.operands[0].u8;
     // TODO: Search party inventory for item
     // For now, set comparison flag to 0 (not found)
-    mem.write8(ECL::ECLMemoryLayout::OFFSET_BREAK_FLAG, 0);
+    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag), 0);
     return VM_OK;
 }
 
@@ -760,12 +797,48 @@ static int handle_0x36_ADD_NPC(AddressSpace &mem, const EclInstruction &insn,
     return VM_OK;
 }
 
+// 0x37: LOAD PIECES <primaryBlockId> <middleBlockId> <secondaryBlockId>
+// Loads walldef geometry and 8x8 tile graphics into dynamic cache slots 1-3.
+// Mirrors the walldef branch of INSTR_LoadAreaDeco from the original.
+// Slots 0 and 4 are fixed (loaded at game init) and never touched here.
 static int handle_0x37_LOAD_PIECES(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    // Load wall definitions and piece graphics (0x37: LOAD PIECES)
-    // TODO: Parse operands from VARARGS to determine which wallset/pieces to load
-    // Expected: Load wallset definitions, sprite data, enable piece rendering
-    // For now, return VM_OK to continue execution
+    if (insn.operands.size() < 3 || !syscalls)
+        return VM_ERROR;
+
+    // Three params match abStack_8[1..3] in INSTR_LoadAreaDeco
+    uint8 primaryBlockId   = (uint8)resolveVar(mem, insn.operands[0]); // slot 1
+    uint8 middleBlockId    = (uint8)resolveVar(mem, insn.operands[1]); // slot 2
+    uint8 secondaryBlockId = (uint8)resolveVar(mem, insn.operands[2]); // slot 3
+
+    // WallSetPrimary (+0x1CE) and WallSetSecondary (+0x1D0): when both are
+    // non-zero the engine uses paired-wallset mode; otherwise independent mode.
+    bool hasPrimary   = (mem.read8(
+        getOpcodeLayout().vmField(kVmFieldWallSetPrimary).vmAddr) != 0);
+    bool hasSecondary = (mem.read8(
+        getOpcodeLayout().vmField(kVmFieldWallSetSecondary).vmAddr) != 0);
+
+    if (primaryBlockId == 0x7F) {
+        // Special default: load empty/default wallset block 0 into slot 1
+        syscalls->loadWallSet(0, 1);
+    } else if (!hasPrimary || !hasSecondary) {
+        // Independent mode: each param drives its own slot directly.
+        // Slot 2 may be explicitly filled here (param2 != 0xFF).
+        for (uint8 slot = 1; slot <= 3; ++slot) {
+            uint8 blockId = (slot == 1) ? primaryBlockId
+                          : (slot == 2) ? middleBlockId
+                                        : secondaryBlockId;
+            // 0xFF = invalidate/clear this slot
+            syscalls->loadWallSet(blockId, slot);
+        }
+    } else {
+        // Paired-wallset mode: primary block fills slot 1 (and implicitly
+        // slot 2 if the walldef has multiple 780-byte chunks); secondary
+        // fills slot 3.  Middle param is unused in this mode.
+        syscalls->loadWallSet(primaryBlockId, 1);
+        syscalls->loadWallSet(secondaryBlockId, 3);
+    }
+
     return VM_OK;
 }
 

@@ -27,6 +27,13 @@ DaxTile::DaxTile(Data::DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock) {
     load();
 }
 
+const Graphics::ManagedSurface *DaxTile::getTileSurface(uint32 chr) const {
+	if (chr >= _chars.size())
+		return nullptr;
+
+	return &_chars[chr];
+}
+
 void DaxTile::load() {
     assert(_daxBlock != nullptr);
     _chars.resize(_daxBlock->item_count);

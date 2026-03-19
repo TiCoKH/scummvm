@@ -22,24 +22,25 @@
 #include "common/endian.h"
 #include "common/textconsole.h"
 #include "common/memstream.h"
+#include "common/util.h"
 #include "goldbox/core/vm_bank.h"
 
 namespace Goldbox {
 
 int32 VmAddressMapper::toByteOffset(uint16 vmAddr, uint16 firstVmAddr) {
-	return static_cast<int32>(vmAddr - firstVmAddr) * 2;
+	return static_cast<int32>(vmAddr - firstVmAddr);
 }
 
 uint16 VmAddressMapper::toVmAddr(uint16 firstVmAddr, uint16 wordIndex) {
-	return firstVmAddr + wordIndex;
+	return firstVmAddr + wordIndex * 2;
 }
 
 int32 VmAddressMapper::toLegacyByteOffset(uint16 vmAddr, int32 legacyBias) {
-	return static_cast<int32>(vmAddr) * 2 + legacyBias;
+	return static_cast<int32>(vmAddr) + legacyBias;
 }
 
 uint16 VmAddressMapper::fromLegacyByteOffset(int32 byteOffset, int32 legacyBias) {
-	return static_cast<uint16>((byteOffset - legacyBias) / 2);
+	return static_cast<uint16>(byteOffset - legacyBias);
 }
 
 VmWordBank::VmWordBank(uint16 firstVmAddr, uint16 wordCount)
@@ -52,11 +53,12 @@ VmWordBank::~VmWordBank() {
 }
 
 uint16 VmWordBank::lastVmAddr() const {
-	return _firstVmAddr + _wordCount - 1;
+	return _firstVmAddr + (_wordCount * 2) - 2;
 }
 
 bool VmWordBank::containsWordAddr(uint16 vmAddr) const {
-	return vmAddr >= _firstVmAddr && vmAddr <= lastVmAddr();
+	return vmAddr >= _firstVmAddr && vmAddr <= lastVmAddr() &&
+		((vmAddr - _firstVmAddr) % 2 == 0);
 }
 
 bool VmWordBank::containsByteAddr(uint16 vmAddr) const {
@@ -69,7 +71,7 @@ int32 VmWordBank::byteOffsetFromWordAddr(uint16 vmAddr) const {
 		return -1;
 	}
 
-	return static_cast<int32>(vmAddr - _firstVmAddr) * 2;
+	return static_cast<int32>(vmAddr - _firstVmAddr);
 }
 
 uint16 VmWordBank::readWord(uint16 vmAddr) const {
@@ -120,12 +122,9 @@ void VmWordBank::sync(Common::Serializer &s) {
 	s.syncBytes(_data, byteSize());
 }
 
-Common::MemoryReadStream *VmWordBank::openReadStream() const {
-	return new Common::MemoryReadStream(_data, byteSize());
-}
-
-Common::SeekableMemoryWriteStream *VmWordBank::openWriteStream() {
-	return new Common::SeekableMemoryWriteStream(_data, byteSize());
+Common::MemorySeekableReadWriteStream *VmWordBank::openReadWriteStream() {
+	return new Common::MemorySeekableReadWriteStream(
+		_data, byteSize(), DisposeAfterUse::NO);
 }
 
 VmBankRouter::VmBankRouter() {
@@ -181,6 +180,102 @@ void VmBankRouter::writeWord(VmBankId bankId, uint16 vmAddr, uint16 value) {
 	}
 
 	bank->writeWord(vmAddr, value);
+}
+
+VmFlatMemory::VmFlatMemory() : _data(new byte[kMemorySize]()) {
+	for (int i = 0; i < kVmBankCount; ++i) {
+		_debugRanges[i].enabled = false;
+		_debugRanges[i].firstVmAddr = 0;
+		_debugRanges[i].lastVmAddr = 0;
+	}
+}
+
+VmFlatMemory::~VmFlatMemory() {
+	delete[] _data;
+}
+
+uint8 VmFlatMemory::readByte(uint16 addr) const {
+	return _data[addr];
+}
+
+void VmFlatMemory::writeByte(uint16 addr, uint8 value) {
+	_data[addr] = value;
+}
+
+uint16 VmFlatMemory::readWordLE(uint16 addr) const {
+	if (addr + 1 >= kMemorySize) {
+		warning("VmFlatMemory::readWordLE out of range addr=0x%04x", addr);
+		return 0;
+	}
+
+	return READ_LE_UINT16(_data + addr);
+}
+
+void VmFlatMemory::writeWordLE(uint16 addr, uint16 value) {
+	if (addr + 1 >= kMemorySize) {
+		warning("VmFlatMemory::writeWordLE out of range addr=0x%04x", addr);
+		return;
+	}
+
+	WRITE_LE_UINT16(_data + addr, value);
+}
+
+void VmFlatMemory::clear(uint8 value) {
+	for (uint32 i = 0; i < kMemorySize; ++i) {
+		_data[i] = value;
+	}
+}
+
+void VmFlatMemory::sync(Common::Serializer &s) {
+	s.syncBytes(_data, kMemorySize);
+}
+
+Common::MemorySeekableReadWriteStream *VmFlatMemory::openReadWriteStream() {
+	return new Common::MemorySeekableReadWriteStream(
+		_data, kMemorySize, DisposeAfterUse::NO);
+}
+
+void VmFlatMemory::setDebugRange(VmBankId bankId, uint16 firstVmAddr,
+		uint16 lastVmAddr) {
+	if (bankId < 0 || bankId >= kVmBankCount || firstVmAddr > lastVmAddr) {
+		warning("VmFlatMemory::setDebugRange invalid input bank=%d first=0x%04x last=0x%04x",
+			static_cast<int>(bankId), firstVmAddr, lastVmAddr);
+		return;
+	}
+
+	_debugRanges[bankId].enabled = true;
+	_debugRanges[bankId].firstVmAddr = firstVmAddr;
+	_debugRanges[bankId].lastVmAddr = lastVmAddr;
+}
+
+bool VmFlatMemory::classifyAddr(uint16 addr, VmBankId &bankId,
+		uint16 &byteOffset) const {
+	static const VmBankId kPriority[kVmBankCount] = {
+		kVmBankSystem,
+		kVmBankEcl,
+		kVmBankGeo,
+		kVmBankDat,
+		kVmBankHeap
+	};
+
+	for (int i = 0; i < kVmBankCount; ++i) {
+		VmBankId candidate = kPriority[i];
+		const DebugRange &range = _debugRanges[candidate];
+		if (!range.enabled) {
+			continue;
+		}
+
+		if (addr >= range.firstVmAddr && addr <= range.lastVmAddr) {
+			bankId = candidate;
+			byteOffset = static_cast<uint16>(
+				VmAddressMapper::toByteOffset(addr, range.firstVmAddr));
+			return true;
+		}
+	}
+
+	bankId = kVmBankSystem;
+	byteOffset = addr;
+	return true;
 }
 
 } // namespace Goldbox

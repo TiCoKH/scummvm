@@ -24,10 +24,9 @@
 
 #include "common/scummsys.h"
 #include "common/str.h"
+#include "engines/goldbox/vm_interface.h"
 
 namespace Goldbox {
-
-enum VmResult : int;
 
 namespace ECL {
 
@@ -122,6 +121,33 @@ public:
      * @return VmResult
      */
     virtual VmResult loadScript(uint8 scriptID) = 0;
+
+    /**
+     * Load a GEO dungeon map block by block ID.
+     * Corresponds to Open_GeoBlock / GEO_LoadMapBlock in the original.
+     * @param blockId  DAX GEO block ID to load
+     * @return VmResult
+     */
+    virtual VmResult loadGeoBlock(uint8 blockId) { return VM_OK; }
+
+    /**
+     * Load a wallset definition and its associated 8x8 tile graphics into
+     * a cache slot. Corresponds to Walldef_LoadBlock / GFX_LoadWallSet.
+     * Slots 1-3 are dynamic (set per area); slots 0 and 4 are fixed at init.
+     * If blockId is 0xFF the slot should be cleared/invalidated.
+     * @param blockId  DAX WALLDEF block ID (0xFF = clear slot)
+     * @param setSlot  Cache slot to populate (1, 2, or 3)
+     * @return VmResult
+     */
+    virtual VmResult loadWallSet(uint8 blockId, uint8 setSlot) { return VM_OK; }
+
+    /**
+     * Load the outdoor/city icon strip (BACPAC file).
+     * Called when the area is not in indoor/dungeon mode.
+     * Corresponds to DAX_LoadIconBlock(s_BACPAC).
+     * @return VmResult
+     */
+    virtual VmResult loadIconBlock() { return VM_OK; }
 
     /**
      * Get the current yield reason (for debugging).

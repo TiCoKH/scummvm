@@ -56,6 +56,7 @@ static const char *kPoolradVmFieldNames[Goldbox::kVmFieldCount] = {
 	"WildernessX",
 	"WildernessY",
 	"GeoBlockId",
+	"ClockUnits",
 	"ClockMinuteOnes",
 	"ClockMinuteTens",
 	"ClockHour",
@@ -103,8 +104,37 @@ static const char *kPoolradVmGlobalFieldNames[Goldbox::kVmGlobalFieldCount] = {
 	"DungeonY",
 	"DungeonDir",
 	"MapWallType",
-	"MapSquareInfo"
+	"MapSquareInfo",
+	"MonsterDistance",
+	"ShopFlag"
 };
+
+static_assert(sizeof(kPoolradVmFieldNames) / sizeof(kPoolradVmFieldNames[0]) ==
+	Goldbox::kVmFieldCount,
+	"Poolrad VM field-name table must match VmFieldId enum count");
+static_assert(sizeof(kPoolradVmGlobalFieldNames) /
+	sizeof(kPoolradVmGlobalFieldNames[0]) == Goldbox::kVmGlobalFieldCount,
+	"Poolrad VM global field-name table must match VmGlobalFieldId enum count");
+
+static void validatePoolradLayoutMappings() {
+	static bool validated = false;
+	if (validated) {
+		return;
+	}
+
+	PoolradVmLayout vmLayout;
+	PoolradGlobalVmLayout globalLayout;
+
+	assert(vmLayout.field(kVmFieldSavedMapX).vmAddr == 0x49F0);
+	assert(vmLayout.field(kVmFieldSavedMapY).vmAddr == 0x49F1);
+	assert(vmLayout.field(kVmFieldSavedMapId).vmAddr == 0x49F2);
+
+	assert(globalLayout.field(kVmGlobalFieldPartyCount).vmAddr == 0x6E3E);
+	assert(globalLayout.field(kVmGlobalFieldMonsterDistance).vmAddr == 0x6DC1);
+	assert(globalLayout.field(kVmGlobalFieldShopFlag).vmAddr == 0x6E6C);
+
+	validated = true;
+}
 
 } // namespace
 
@@ -114,10 +144,13 @@ const char *PoolradVmLayout::layoutName() const {
 
 Goldbox::VmFieldLocation PoolradVmLayout::field(Goldbox::VmFieldId fieldId) const {
 	switch (fieldId) {
+	// Note: VM addresses are word-addressed. Incrementing vmAddr by 1 means
+	// +2 bytes in legacy decompile-style bank offsets.
 	// GEO bank, ordered by VM address / offset
-	case kVmFieldWildernessX:                  return {kVmBankGeo, 0x49C3}; // @ +0x186
+	case kVmFieldWildernessX:                  return {kVmBankGeo, 0x49C2}; // @ +0x186
 	case kVmFieldWildernessY:                  return {kVmBankGeo, 0x49C4}; // @ +0x188
-	case kVmFieldGeoBlockId:                   return {kVmBankGeo, 0x49C5}; // @ +0x18A
+	case kVmFieldGeoBlockId:                   return {kVmBankGeo, 0x49C6}; // @ +0x18A
+	case kVmFieldClockUnits:                   return {kVmBankGeo, 0x49C5}; // @ +0x18C
 	case kVmFieldClockMinuteOnes:              return {kVmBankGeo, 0x49C7}; // @ +0x18E
 	case kVmFieldClockMinuteTens:              return {kVmBankGeo, 0x49C8}; // @ +0x190
 	case kVmFieldClockHour:                    return {kVmBankGeo, 0x49C9}; // @ +0x192
@@ -145,6 +178,7 @@ Goldbox::VmFieldLocation PoolradVmLayout::field(Goldbox::VmFieldId fieldId) cons
 }
 
 const Goldbox::VmLayout &getPoolradVmLayout() {
+	validatePoolradLayoutMappings();
 	static PoolradVmLayout layout;
 	return layout;
 }
@@ -158,6 +192,7 @@ Goldbox::VmFieldLocation PoolradGlobalVmLayout::field(
 	switch (fieldId) {
 	// DAT bank, ordered by VM address / offset
 	case kVmGlobalFieldSelectedPcIndex:        return {kVmBankDat, 0x6DB1}; // @ +0x562
+	case kVmGlobalFieldMonsterDistance:        return {kVmBankDat, 0x6DC1}; // @ +0x582
 	case kVmGlobalFieldMoraleThreshold:        return {kVmBankDat, 0x6DC6}; // @ +0x58C
 	case kVmGlobalFieldCombatResult:           return {kVmBankDat, 0x6DC7}; // @ +0x58E
 	case kVmGlobalFieldCombatantCount:         return {kVmBankDat, 0x6DC8}; // @ +0x590
@@ -173,6 +208,7 @@ Goldbox::VmFieldLocation PoolradGlobalVmLayout::field(
 	case kVmGlobalFieldNoItemCombatFlag:       return {kVmBankDat, 0x6DE3}; // @ +0x5C6
 	case kVmGlobalFieldPartyCount:             return {kVmBankDat, 0x6E3E}; // @ +0x67C
 	case kVmGlobalFieldDivisionModulo:         return {kVmBankDat, 0x6E3F}; // @ +0x67E
+	case kVmGlobalFieldShopFlag:               return {kVmBankDat, 0x6E6C}; // @ +0x6D8
 	case kVmGlobalFieldShopPriceMultiplier:    return {kVmBankDat, 0x6E6D}; // @ +0x6DA
 	case kVmGlobalFieldMonsterThac0Bonus:      return {kVmBankDat, 0x6E70}; // @ +0x6E0
 	case kVmGlobalFieldPartyThac0DmgBonus:     return {kVmBankDat, 0x6E71}; // @ +0x6E2
@@ -184,12 +220,15 @@ Goldbox::VmFieldLocation PoolradGlobalVmLayout::field(
 	case kVmGlobalFieldDungeonDir:             return {kVmBankSystem, 0xC04D}; // @ +0x004
 	case kVmGlobalFieldMapWallType:            return {kVmBankSystem, 0xC04E}; // @ +0x006
 	case kVmGlobalFieldMapSquareInfo:          return {kVmBankSystem, 0xC04F}; // @ +0x008
+
+
 	default:
 		return Goldbox::VmLayout::invalidLocation();
 	}
 }
 
 const Goldbox::VmGlobalLayout &getPoolradGlobalVmLayout() {
+	validatePoolradLayoutMappings();
 	static PoolradGlobalVmLayout layout;
 	return layout;
 }
@@ -232,7 +271,15 @@ public:
 } // namespace
 
 const Goldbox::ECL::EclRuntimeLayout &getPoolradEclRuntimeLayout() {
+	validatePoolradLayoutMappings();
 	static PoolradEclRuntimeLayout layout;
+	static bool runtimeValidated = false;
+	if (!runtimeValidated) {
+		assert(layout.field(Goldbox::ECL::kEclRuntimeBreakFlag) == 0x442E);
+		assert(layout.field(Goldbox::ECL::kEclRuntimeGameState) == 0x4431);
+		assert(layout.field(Goldbox::ECL::kEclRuntimeMonsterCount) == 0x0580);
+		runtimeValidated = true;
+	}
 	return layout;
 }
 

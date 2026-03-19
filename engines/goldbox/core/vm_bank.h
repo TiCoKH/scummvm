@@ -38,10 +38,11 @@ enum VmBankId {
 };
 
 /**
- * Helpers for converting between VM word addresses and byte offsets.
+ * Helpers for converting between VM byte addresses and byte offsets.
  *
- * Gold Box VM variables are generally word-addressed, while legacy memory banks
- * are byte arrays. These helpers keep the conversion logic in one place.
+ * Gold Box VM addresses are byte addresses. Word-sized variables occupy
+ * 2 consecutive bytes at even-aligned addresses. These helpers keep the
+ * conversion logic in one place.
  */
 class VmAddressMapper {
 public:
@@ -50,7 +51,7 @@ public:
 
 	/**
 	 * Legacy conversion helper for formulas like:
-	 *   byteOffset = vmAddr * 2 - 0x9200
+	 *   byteOffset = vmAddr + legacyBias
 	 */
 	static int32 toLegacyByteOffset(uint16 vmAddr, int32 legacyBias);
 	static uint16 fromLegacyByteOffset(int32 byteOffset, int32 legacyBias);
@@ -60,11 +61,11 @@ public:
  * Fixed-size word-addressed VM state bank backed by a raw little-endian byte buffer.
  *
  * The buffer holds wordCount words as 2 * wordCount bytes in LE layout.
- * Word addresses map to byte offsets as: byteOffset = (vmAddr - firstVmAddr) * 2
- * Byte addresses are sequential over the same buffer: byteOffset = vmAddr - firstVmAddr
+ * VM addresses are byte addresses: byteOffset = vmAddr - firstVmAddr
+ * Word addresses are always even (aligned to 2-byte boundaries).
  *
- * A MemoryReadStream or SeekableMemoryWriteStream view can be obtained via
- * openReadStream() / openWriteStream() for code that prefers stream-based access.
+ * A seekable read/write stream view can be obtained via
+ * openReadWriteStream() for code that prefers stream-based access.
  */
 class VmWordBank {
 public:
@@ -93,16 +94,10 @@ public:
 	const byte *getData() const { return _data; }
 
 	/**
-	 * Returns a new MemoryReadStream over the entire bank buffer.
+	 * Returns a new seekable read/write stream over the entire bank buffer.
 	 * Caller takes ownership and must delete the returned object.
 	 */
-	Common::MemoryReadStream *openReadStream() const;
-
-	/**
-	 * Returns a new SeekableMemoryWriteStream over the entire bank buffer.
-	 * Caller takes ownership and must delete the returned object.
-	 */
-	Common::SeekableMemoryWriteStream *openWriteStream();
+	Common::MemorySeekableReadWriteStream *openReadWriteStream();
 
 private:
 	int32 byteOffsetFromWordAddr(uint16 vmAddr) const;
@@ -130,6 +125,48 @@ public:
 
 private:
 	VmWordBank *_banks[kVmBankCount];
+};
+
+/**
+ * Flat 16-bit VM memory with optional debug bank range metadata.
+ *
+ * This class is intended for runtime paths that want a single canonical
+ * address space and stream-friendly contiguous storage while still being able
+ * to classify addresses by legacy bank boundaries for diagnostics.
+ */
+class VmFlatMemory {
+public:
+	static const uint32 kMemorySize = 65536;
+
+	VmFlatMemory();
+	~VmFlatMemory();
+
+	uint8 readByte(uint16 addr) const;
+	void writeByte(uint16 addr, uint8 value);
+
+	uint16 readWordLE(uint16 addr) const;
+	void writeWordLE(uint16 addr, uint16 value);
+
+	void clear(uint8 value = 0);
+	void sync(Common::Serializer &s);
+
+	byte *getData() { return _data; }
+	const byte *getData() const { return _data; }
+
+	Common::MemorySeekableReadWriteStream *openReadWriteStream();
+
+	void setDebugRange(VmBankId bankId, uint16 firstVmAddr, uint16 lastVmAddr);
+	bool classifyAddr(uint16 addr, VmBankId &bankId, uint16 &byteOffset) const;
+
+private:
+	struct DebugRange {
+		bool enabled;
+		uint16 firstVmAddr;
+		uint16 lastVmAddr;
+	};
+
+	byte *_data;
+	DebugRange _debugRanges[kVmBankCount];
 };
 
 } // namespace Goldbox
