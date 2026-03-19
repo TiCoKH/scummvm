@@ -43,7 +43,7 @@ public:
 
 class PoolradScriptFlags {
 public:
-	static const uint16 kFirstVmAddr = 0x4A00;
+	static const uint16 kFirstVmAddr = 0x4B00;
 	static const uint16 kFlagCount = 0x100;
 	static const uint16 kTransientFlagCount = 0x20;
 

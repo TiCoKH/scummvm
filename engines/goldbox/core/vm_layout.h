@@ -31,6 +31,7 @@ enum VmFieldId {
 	kVmFieldWildernessX = 0,
 	kVmFieldWildernessY,
 	kVmFieldGeoBlockId,
+	kVmFieldClockUnits,
 	kVmFieldClockMinuteOnes,
 	kVmFieldClockMinuteTens,
 	kVmFieldClockHour,
@@ -81,13 +82,15 @@ enum VmGlobalFieldId {
 	kVmGlobalFieldDungeonDir,
 	kVmGlobalFieldMapWallType,
 	kVmGlobalFieldMapSquareInfo,
+	kVmGlobalFieldMonsterDistance,
+	kVmGlobalFieldShopFlag,
 	kVmGlobalFieldCount
 };
 
 struct VmFieldLocation {
 	VmBankId bankId;
-	// Canonical VM word address. Convert to bank byte offset with VmAddressMapper
-	// (or the bank's base formula) when matching decompiled +0xXXX references.
+	// Canonical VM byte address. Convert to bank byte offset with
+	// VmAddressMapper: offset = vmAddr - bankBase.
 	uint16 vmAddr;
 };
 

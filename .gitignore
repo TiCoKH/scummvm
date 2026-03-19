@@ -307,3 +307,6 @@ scummvm.prg
 
 #Ignore Python generated files
 __pycache__/
+
+**/.info/
+*/goldbox/src/

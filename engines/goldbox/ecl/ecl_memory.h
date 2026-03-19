@@ -22,19 +22,21 @@
 #ifndef GOLDBOX_ECL_ECL_MEMORY_H
 #define GOLDBOX_ECL_ECL_MEMORY_H
 
-#include "common/array.h"
 #include "common/scummsys.h"
+#include "goldbox/core/vm_bank.h"
 
 namespace Goldbox {
 namespace ECL {
 
 /**
- * Represents the 16-bit ECL virtual address space.
- * Pool of Radiance uses addresses like $4A00 for flags, $6B00 for character data, etc.
+ * Flat 16-bit ECL virtual address space.
+ *
+ * VM/layout addresses are canonical word-address values used throughout the
+ * engine. Bank identity is retained only as debug metadata.
  */
 class AddressSpace {
 public:
-    static const uint32 MEMORY_SIZE = 65536; // 16-bit address space
+    static const uint32 MEMORY_SIZE = 65536; // 16-bit virtual address space
 
     AddressSpace();
 
@@ -72,7 +74,7 @@ public:
     void clear();
 
     /**
-     * Clear script flags ($4A00 to $4A1F for persistent flags area).
+     * Clear script flags ($4B00 to $4B3F for persistent flags area).
      * Called when NEWECL loads a new script.
      */
     void clearTransientFlags(uint16 flagBase, uint16 transientCount);
@@ -86,7 +88,7 @@ public:
     Common::String dumpRegion(uint16 startAddr, uint16 length) const;
 
 private:
-    Common::Array<uint8> _memory;
+    VmFlatMemory _memory;
 };
 
 } // namespace ECL
