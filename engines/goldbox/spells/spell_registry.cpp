@@ -20,6 +20,7 @@
 
 #include "goldbox/spells/spell_registry.h"
 #include "goldbox/data/rules/rules.h"
+#include "goldbox/spells/spell_metadata.h"
 
 namespace Goldbox {
 namespace Spells {
@@ -66,7 +67,7 @@ void SpellRegistry::buildDefinitions() {
         Goldbox::Data::Spells::Spells spellId =
             static_cast<Goldbox::Data::Spells::Spells>(i);
         SpellDefinition def(spellId, &entries[i], kHandlerUnimplemented,
-                            Common::String());
+                            getSpellName(spellId));
         _definitions[static_cast<int>(spellId)] = def;
     }
 }

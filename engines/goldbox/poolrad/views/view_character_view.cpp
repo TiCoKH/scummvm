@@ -21,10 +21,11 @@
 
 #include "goldbox/vm_interface.h"
 #include "goldbox/events.h"
-#include "goldbox/poolrad/data/poolrad_character.h"
-#include "goldbox/poolrad/views/view_character_view.h"
-#include "goldbox/poolrad/views/dialogs/items_menu.h"
 #include "goldbox/data/rules/rules_types.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/views/dialogs/items_menu.h"
+#include "goldbox/poolrad/views/dialogs/spells_menu.h"
+#include "goldbox/poolrad/views/view_character_view.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -36,6 +37,7 @@ ViewCharacterView::ViewCharacterView()
             _horizontalMenu(nullptr),
             _profileDialog(nullptr),
             _itemsMenu(nullptr),
+            _spellsMenu(nullptr),
             _activeSubView(nullptr) {
 
     Dialogs::HorizontalMenuConfig menuConfig = {
@@ -49,6 +51,7 @@ ViewCharacterView::ViewCharacterView()
     _horizontalMenu = new Dialogs::HorizontalMenu("CharacterHorizontalMenu", menuConfig);
     _profileDialog = new Dialogs::CharacterProfile();
     _itemsMenu = new Dialogs::ItemsMenu("ItemsMenu");
+    _spellsMenu = new Dialogs::SpellsMenu("SpellsMenu");
     attachDialog(_profileDialog);
     attachDialog(_horizontalMenu);
     // Don't add ItemsMenu as subView yet - only when activated
@@ -68,6 +71,10 @@ ViewCharacterView::~ViewCharacterView() {
     if (_itemsMenu) {
         delete _itemsMenu;
         _itemsMenu = nullptr;
+    }
+    if (_spellsMenu) {
+        delete _spellsMenu;
+        _spellsMenu = nullptr;
     }
 }
 
@@ -171,10 +178,23 @@ void ViewCharacterView::draw() {
         setStage(VC_STATE_PROFILE);
     }
 
+    if (_stage == VC_STATE_SPELLS && _spellsMenu && !_spellsMenu->isActive()) {
+        debug("ViewCharacterView::draw() - SpellsMenu not active, switching to PROFILE");
+        setStage(VC_STATE_PROFILE);
+    }
+
     if (_stage == VC_STATE_ITEMS) {
         debug("ViewCharacterView::draw() - drawing ItemsMenu");
         if (_itemsMenu) {
             _itemsMenu->draw();
+        }
+        return;
+    }
+
+    if (_stage == VC_STATE_SPELLS) {
+        debug("ViewCharacterView::draw() - drawing SpellsMenu");
+        if (_spellsMenu) {
+            _spellsMenu->draw();
         }
         return;
     }
@@ -218,6 +238,26 @@ void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
         debug("ViewCharacterView::handleMenuResult() consume ITEMS exit locally");
         setStage(VC_STATE_PROFILE);
         return;
+    }
+
+    // Handle SpellsMenu results locally until spell execution is wired up
+    if (_stage == VC_STATE_SPELLS) {
+        if (!success &&
+                (keyCode == Common::KEYCODE_ESCAPE ||
+                 keyCode == Common::KEYCODE_e)) {
+            debug("ViewCharacterView::handleMenuResult() consume SPELLS exit locally");
+            setStage(VC_STATE_PROFILE);
+            return;
+        }
+
+        if (success && _spellsMenu) {
+            debug("ViewCharacterView::handleMenuResult() spell selected legacy=%d spell=%d name='%s'",
+                _spellsMenu->getSelectedLegacyIndex(),
+                (int)_spellsMenu->getSelectedSpell(),
+                _spellsMenu->getSelectedSpellName().c_str());
+            setStage(VC_STATE_PROFILE);
+            return;
+        }
     }
 
     // Forward cancellation from this view's own menu to parent
@@ -293,7 +333,10 @@ void ViewCharacterView::setStage(ViewCharacterState stage) {
     case VC_STATE_PROFILE:
         debug("ViewCharacterView::setStage() - setting PROFILE stage");
         if (_itemsMenu) {
-            detachDialog(_itemsMenu); // Remove from subView list
+            detachDialog(_itemsMenu);
+        }
+        if (_spellsMenu) {
+            detachDialog(_spellsMenu);
         }
         if (_profileDialog)
             _profileDialog->activate();
@@ -308,10 +351,26 @@ void ViewCharacterView::setStage(ViewCharacterState stage) {
         debug("ViewCharacterView::setStage() - setting ITEMS stage");
         if (_profileDialog)
             _profileDialog->deactivate();
+        if (_spellsMenu) {
+            detachDialog(_spellsMenu);
+        }
         if (_itemsMenu) {
-            attachDialog(_itemsMenu); // Add to subView list
+            attachDialog(_itemsMenu);
         }
         setActiveSubView(_itemsMenu);
+        redraw();
+        break;
+    case VC_STATE_SPELLS:
+        debug("ViewCharacterView::setStage() - setting SPELLS stage");
+        if (_profileDialog)
+            _profileDialog->deactivate();
+        if (_itemsMenu) {
+            detachDialog(_itemsMenu);
+        }
+        if (_spellsMenu) {
+            attachDialog(_spellsMenu);
+        }
+        setActiveSubView(_spellsMenu);
         redraw();
         break;
     }
@@ -326,12 +385,11 @@ void ViewCharacterView::handleViewItems() {
 }
 
 void ViewCharacterView::handleViewSpells() {
-    // TODO: Implement VIEW_Spells equivalent
-    // This should show memorized spells
-    // Redraw profile after spells dialog
-    if (_profileDialog) {
-        _profileDialog->draw();
+    if (_spellsMenu) {
+        _spellsMenu->configure(Dialogs::SpellsMenu::SL_IN_MEMORY,
+            Dialogs::SpellsMenu::SA_CAST);
     }
+    setStage(VC_STATE_SPELLS);
 }
 
 void ViewCharacterView::handleTradeValuables() {

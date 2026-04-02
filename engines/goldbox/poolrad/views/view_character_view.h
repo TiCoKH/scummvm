@@ -25,8 +25,9 @@
 #include "common/array.h"
 #include "goldbox/poolrad/views/view.h"
 #include "goldbox/data/player_character.h"
-#include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/spells_menu.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -35,6 +36,7 @@ namespace Views {
 namespace Dialogs {
 class Dialog;
 class ItemsMenu;
+class SpellsMenu;
 }
 
 class ViewCharacterView : public View {
@@ -53,7 +55,8 @@ public:
 private:
     enum ViewCharacterState {
         VC_STATE_PROFILE = 0,
-        VC_STATE_ITEMS
+        VC_STATE_ITEMS,
+        VC_STATE_SPELLS
     };
 
     ViewCharacterState _stage = VC_STATE_PROFILE;
@@ -64,6 +67,7 @@ protected:
     Dialogs::HorizontalMenu *_horizontalMenu;
     Dialogs::CharacterProfile *_profileDialog;
     Dialogs::ItemsMenu *_itemsMenu;
+    Dialogs::SpellsMenu *_spellsMenu;
     Dialogs::Dialog *_activeSubView = nullptr;
 
     void buildMenu();

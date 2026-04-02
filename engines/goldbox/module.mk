@@ -38,6 +38,7 @@ MODULE_OBJS = \
 	data/items/character_inventory.o \
 	data/rules/rules_poolrad.o \
 	data/spells/spell_book.o \
+	spells/spell_metadata.o \
 	spells/spell_casting.o \
 	spells/spell_handlers.o \
 	spells/spell_registry.o \
@@ -74,6 +75,7 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/vertical_menu.o \
 	poolrad/views/dialogs/prompt_message.o \
 	poolrad/views/dialogs/items_menu.o \
+	poolrad/views/dialogs/spells_menu.o \
 	poolrad/views/dialogs/character_profile.o \
 	poolrad/views/dialogs/portrait_display.o \
 	poolrad/views/dialogs/set_portrait.o \
