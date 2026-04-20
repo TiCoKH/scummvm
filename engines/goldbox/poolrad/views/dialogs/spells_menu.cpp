@@ -141,14 +141,21 @@ void SpellsMenu::handleMenuResult(const MenuResultMessage &result) {
         return;
     }
 
-    const int selection = _spellMenuList.currentSelection;
-    if (selection < 0 || selection >= (int)_spellEntries.size()) {
+    // Map the raw menu-list index (which includes separator rows) back to the
+    // corresponding _spellEntries index via _menuIndexToEntry.
+    const int menuIdx = _spellMenuList.currentSelection;
+    if (menuIdx < 0 || menuIdx >= (int)_menuIndexToEntry.size()) {
+        return;
+    }
+    const int entryIdx = _menuIndexToEntry[menuIdx];
+    if (entryIdx < 0 || entryIdx >= (int)_spellEntries.size()) {
+        // Separator row was somehow selected; ignore.
         return;
     }
 
-    _lastSelection = selection;
-    _selectedLegacyIndex = _spellEntries[selection].legacyIndex;
-    _selectedSpell = _spellEntries[selection].spellId;
+    _lastSelection = entryIdx;
+    _selectedLegacyIndex = _spellEntries[entryIdx].legacyIndex;
+    _selectedSpell = _spellEntries[entryIdx].spellId;
     _selectedSpellName = Goldbox::Spells::getSpellName(_selectedSpell);
 
     deactivate();
@@ -187,9 +194,21 @@ void SpellsMenu::rebuildVerticalMenu() {
     _verticalMenu = new VerticalMenu(getName() + "_Vertical", menuConfig);
     attachDialog(_verticalMenu);
 
+    // Restore the cursor to the previously chosen entry.  _lastSelection is an
+    // _spellEntries index; find the corresponding menu-item index (skip
+    // separator rows which have _menuIndexToEntry value of -1).
+    int startMenuIdx = 0;
+    if (!_menuIndexToEntry.empty()) {
+        for (int i = 0; i < (int)_menuIndexToEntry.size(); ++i) {
+            if (_menuIndexToEntry[i] == _lastSelection) {
+                startMenuIdx = i;
+                break;
+            }
+        }
+    }
     if (!_spellMenuList.items.empty()) {
         _spellMenuList.currentSelection = CLIP<int>(
-            _lastSelection, 0, (int)_spellMenuList.items.size() - 1);
+            startMenuIdx, 0, (int)_spellMenuList.items.size() - 1);
     } else {
         _spellMenuList.currentSelection = 0;
     }
@@ -198,12 +217,14 @@ void SpellsMenu::rebuildVerticalMenu() {
 void SpellsMenu::buildSpellList() {
     _spellEntries.clear();
     _spellMenuList.items.clear();
+    _menuIndexToEntry.clear();
     _spellMenuList.currentSelection = 0;
 
     if (!_character) {
         return;
     }
 
+    // Phase 1: collect spell entries (no separators yet).
     switch (_location) {
     case SL_IN_MEMORY:
         for (int i = 0; i < Goldbox::Poolrad::Data::POOLRAD_MEMORIZED_SIZE; ++i) {
@@ -265,11 +286,39 @@ void SpellsMenu::buildSpellList() {
         break;
     }
 
-    Common::Array<Common::String> labels;
-    for (uint i = 0; i < _spellEntries.size(); ++i) {
-        labels.push_back(formatSpellLine(_spellEntries[i]));
+    // Phase 2: build _spellMenuList with interleaved level-separator rows,
+    // mirroring the original SPELL_addToList level-change logic.
+    // Separators are inactive (non-selectable) and rendered with headColor.
+    const Common::Array<Goldbox::Data::Spells::SpellEntry> &spellData =
+        Goldbox::Data::Rules::getSpellEntries();
+
+    uint8 lastLevel = 0;
+    for (int i = 0; i < (int)_spellEntries.size(); ++i) {
+        const SpellListEntry &entry = _spellEntries[i];
+        const uint spellIdx = (uint)entry.spellId;
+        uint8 currentLevel = 0;
+        if (spellIdx < spellData.size()) {
+            currentLevel = spellData[spellIdx].spellLevel;
+        }
+
+        if (currentLevel != lastLevel) {
+            // Insert a level-header separator row (not selectable).
+            MenuItem sep;
+            sep.text = buildLevelSeparatorLabel(entry.spellId);
+            sep.active = false;
+            sep.shortcut = 0;
+            _spellMenuList.items.push_back(sep);
+            _menuIndexToEntry.push_back(-1);
+            lastLevel = currentLevel;
+        }
+
+        MenuItem item;
+        item.text = formatSpellLine(entry);
+        item.active = true;
+        item.shortcut = 0;
+        _spellMenuList.items.push_back(item);
+        _menuIndexToEntry.push_back(i);
     }
-    _spellMenuList.generateMenuItems(labels, false);
 }
 
 void SpellsMenu::buildPromptOptions() {
@@ -387,12 +436,29 @@ Common::String SpellsMenu::formatSpellLine(const SpellListEntry &entry) const {
             (unsigned)entry.count);
     }
 
-    if (_location == SL_TO_BE_MEMORIZED && entry.count > 0) {
-        return Common::String::format("%s (%u)", spellName.c_str(),
-            (unsigned)entry.count);
+    // Original SPELL_addToList prefixes pending-memorize spells (high-bit set
+    // in mem_spells[]) with "*" to signal they are queued, not yet memorized.
+    if (_location == SL_TO_BE_MEMORIZED) {
+        if (entry.count > 0) {
+            return Common::String::format("*%s (%u)", spellName.c_str(),
+                (unsigned)entry.count);
+        }
+        return Common::String::format("*%s", spellName.c_str());
     }
 
     return spellName;
+}
+
+Common::String SpellsMenu::buildLevelSeparatorLabel(
+        Goldbox::Data::Spells::Spells spellId) const {
+    // Mirror original SPELL_addToList which copies the level label string from
+    // SPRITE_ARRAY_5 indexed by sp_level * 41.  We reconstruct an equivalent
+    // human-readable header from the spell metadata.
+    Common::String levelText = Goldbox::Spells::getSpellLevelText(spellId);
+    if (levelText.empty()) {
+        return Common::String();
+    }
+    return Common::String::format("- %s -", levelText.c_str());
 }
 
 } // namespace Dialogs
