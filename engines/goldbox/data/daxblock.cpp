@@ -107,12 +107,43 @@ namespace Data {
 
 DaxBlockWalldef::DaxBlockWalldef() {}
 
+const uint16 DaxBlockWalldef::kTileSlotBase[5] = { 1, 46, 116, 186, 256 };
+
+int DaxBlockWalldef::tileOffsetForSlot(int slot) {
+	// offset = symbol_set_fix[slot] - symbol_set_fix[1]
+	if (slot < 1 || slot > 4)
+		return 0;
+	return (int)kTileSlotBase[slot] - (int)kTileSlotBase[1];
+}
+
 void DaxBlockWalldef::adjust() {
 	_chunks.clear();
+	_patchedData.clear();
 	size_t count = _data.size() / CHUNK_SIZE;
 	for (size_t i = 0; i < count; ++i) {
 		_chunks.push_back(Chunk(_data.data() + i * CHUNK_SIZE));
+		_patchedData.push_back(Common::Array<uint8>());
 	}
+}
+
+void DaxBlockWalldef::applyTileOffset(int chunkIdx, int offset) {
+	if (chunkIdx < 0 || chunkIdx >= (int)_chunks.size())
+		return;
+
+	// Lazily copy this chunk's raw bytes into _patchedData so we don't
+	// mutate _data (which backs un-patched Chunk spans from other slots).
+	const uint8 *src = _data.data() + chunkIdx * CHUNK_SIZE;
+	Common::Array<uint8> &patched = _patchedData[chunkIdx];
+	patched.resize(CHUNK_SIZE);
+	for (int i = 0; i < CHUNK_SIZE; ++i) {
+		uint8 val = src[i];
+		if (val >= kTileUniversalCount)
+			val = (uint8)(val + offset);
+		patched[i] = val;
+	}
+
+	// Rebuild Chunk span pointing at patched buffer.
+	_chunks[chunkIdx] = Chunk(patched.data());
 }
 
 int DaxBlockWalldef::Slice::cols(WalldefRegionId id) const {
@@ -283,6 +314,19 @@ uint8 DaxBlockGeo::getDoorState(int row, int col, Direction dir) const {
 	// Bits [1:0]=North, [3:2]=East, [5:4]=South, [7:6]=West
 	int shift = dir * 2;
 	return (doorByte >> shift) & 0x03;
+}
+
+DaxBlockGeo::MapCell DaxBlockGeo::cellAt(int row, int col) const {
+	MapCell cell = {};
+	Walls w = wallsAt(row, col);
+	cell.wallType[NORTH] = w.north;
+	cell.wallType[EAST]  = w.east;
+	cell.wallType[SOUTH] = w.south;
+	cell.wallType[WEST]  = w.west;
+	cell.event = eventAt(row, col);
+	for (int d = 0; d < 4; ++d)
+		cell.doorState[d] = getDoorState(row, col, static_cast<Direction>(d));
+	return cell;
 }
 
 } // namespace Data

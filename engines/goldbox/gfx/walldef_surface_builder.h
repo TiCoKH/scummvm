@@ -84,6 +84,49 @@ public:
 			const Tile8x8Cache &tileCache);
 };
 
+/**
+ * Runtime cache of pre-built WallSurfaceSet arrays for the three dynamic
+ * walldef symbol-set slots (1–3). Replaces C# gbl.wallDef (WallDefs class).
+ *
+ * Slot mapping (mirrors gbl.symbol_set_fix):
+ *   wallType  1- 5 → slot 1, slice 0-4
+ *   wallType  6-10 → slot 2, slice 0-4
+ *   wallType 11-15 → slot 3, slice 0-4
+ *
+ * Each slot is loaded via ECL opcode 0x37 (LOAD_PIECES / loadWallSet).
+ */
+class WalldefSlotCache {
+public:
+	static const int kSlotCount = 3; // dynamic slots 1, 2, 3
+
+	WalldefSlotCache();
+
+	/**
+	 * Build and store the WallSurfaceSet array for slot (1..3).
+	 * Applies the tile ID offset for the slot before building surfaces.
+	 * @param slot      Symbol-set slot (1..3)
+	 * @param walldef   Source DaxBlockWalldef (must be non-null)
+	 * @param chunkIdx  Which chunk within the block (0-based)
+	 * @param tileCache Active tile atlas cache
+	 */
+	void loadSlot(int slot, Data::DaxBlockWalldef *walldef, int chunkIdx,
+			const Tile8x8Cache &tileCache);
+
+	/** Clear all WallSurfaceSet data for a slot. */
+	void clearSlot(int slot);
+
+	/**
+	 * Return the WallSurfaceSet for a given wallType (1..15).
+	 * Selects slot as (wallType-1)/5 + 1, slice as (wallType-1)%5.
+	 * Returns nullptr if the slot is not loaded or out of range.
+	 */
+	const WallSurfaceSet *surfaceSetForWallType(uint8 wallType) const;
+
+private:
+	// _slices[slot-1] holds one WallSurfaceSet per slice within the loaded chunk
+	Common::Array<WallSurfaceSet> _slices[kSlotCount];
+};
+
 } // namespace Gfx
 } // namespace Goldbox
 

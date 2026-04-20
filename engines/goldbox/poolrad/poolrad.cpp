@@ -139,26 +139,8 @@ void PoolradEngine::setup() {
 	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(symbols));
 	_symbols = daxScreenTiles;
 
-	Goldbox::File walldefFile;
-	if (!walldefFile.open("walldef3.dax")) {
-		error("Failed to open WALLDEF3.DAX");
-	}
-
-	Goldbox::Data::DaxBlock *block = walldefFile.getBlockById(0);
-	auto walldef = dynamic_cast<Goldbox::Data::DaxBlockWalldef *>(block);
-
-	// Example: Access the first chunk, first slice, closeForward region
-	if (walldef->chunkCount() > 0) {
-		const auto &chunk = walldef->chunk(0);
-		auto slice = chunk.slice(0);
-		auto closeForward = slice.region(Goldbox::Data::WalldefRegionId::CLOSE_FORWARD);
-		// Now you can iterate over closeForward to get the tile indices
-		//for (uint8 tile : closeForward) {
-			// Use tile...
-		//}
-	}
-
-	walldefFile.close();
+	// Populate universal tile cache slot 0 (8x8D block 202, IDs 1–45)
+	_tileCache.setSlot(0, daxScreenTiles);
 
 
 	if (!_strings.load("global_strings.yml")){

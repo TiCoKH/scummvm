@@ -27,6 +27,7 @@
 #include "goldbox/poolrad/views/mainscreen_view.h"
 #include "goldbox/core/icon_manager.h"
 #include "goldbox/poolrad/effect_handler.h"
+#include "goldbox/gfx/walldef_surface_builder.h"
 //#include "goldbox/poolrad/data/character.h"
 //#include "goldbox/poolrad/files/game_archive.h"
 //#include "goldbox/poolrad/data/saved.h"
@@ -45,6 +46,11 @@ private:
 	IconManager *_iconManager = nullptr;
 	uint16 _mapX = 0, _mapY = 0;
 	EffectHandler _effectsRuntime;
+
+	/** Runtime 3D wall graphics cache (loaded by ECL LOAD_PIECES opcode). */
+	Gfx::WalldefSlotCache _walldefSlotCache;
+	/** 5-slot tile atlas cache (slots 0-4 for universal + walldef tiles). */
+	Gfx::Tile8x8Cache _tileCache;
 
 protected:
 	void setup() override;
@@ -70,6 +76,8 @@ public:
 	 */
 	IconManager *getIconManager() const { return _iconManager; }
 	EffectHandler &effectsRuntime() { return _effectsRuntime; }
+	Gfx::WalldefSlotCache &getWalldefSlotCache() { return _walldefSlotCache; }
+	Gfx::Tile8x8Cache &getTileCache() { return _tileCache; }
 };
 
 extern PoolradEngine *g_engine;

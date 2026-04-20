@@ -199,15 +199,51 @@ public:
         Common::Span<const uint8> _data;
     };
 
+    /**
+     * Tile ID slot base offsets. Index N gives the first global tile ID that
+     * belongs to cache slot N. Matches gbl.symbol_set_fix = {1,46,116,186,256}
+     * from the C# reimplementation.
+     * - Slot 0: IDs  1-45   (universal/common tiles, 8x8D block 203)
+     * - Slot 1: IDs 46-115  (WALLDEF symbolSet 1, tileOffset = 0)
+     * - Slot 2: IDs 116-185 (WALLDEF symbolSet 2, tileOffset = 70)
+     * - Slot 3: IDs 186-255 (WALLDEF symbolSet 3, tileOffset = 140)
+     * - Slot 4: IDs 256+    (extra/extended tiles)
+     */
+    static const uint16 kTileSlotBase[5];
+
+    /**
+     * Return the tile ID offset for the given 1-based symbol set slot (1-3).
+     * Mirrors: offset = symbol_set_fix[slot] - symbol_set_fix[1]
+     * slot=1 → 0, slot=2 → 70, slot=3 → 140.
+     */
+    static int tileOffsetForSlot(int slot);
+
     DaxBlockWalldef();
 
     int chunkCount() const { return _chunks.size(); }
     const Chunk &chunk(int idx) const { return _chunks[idx]; }
 
+    /**
+     * Patch tile indices in-place so that slot-specific IDs (>= kTileUniversalCount)
+     * are remapped to their global tile IDs for the given slot.
+     * Mirrors WallDefBlock.Offset(off) / WallDefs.BlockOffset(slot, off):
+     *   for each byte b in all slices: if b >= kTileUniversalCount: b += offset
+     * Must be called after adjust() and before WalldefSurfaceBuilder::buildChunk().
+     * @param chunkIdx  Which chunk to patch (0-based)
+     * @param offset    Value to add: tileOffsetForSlot(slot)
+     */
+    void applyTileOffset(int chunkIdx, int offset);
+
 private:
     void adjust() override;
 
+    // Number of universal (shared) tiles; indices < this threshold are
+    // unchanged by applyTileOffset. Mirrors the >= 45 threshold in C#.
+    static const int kTileUniversalCount = 45;
+
     Common::Array<Chunk> _chunks;
+    // Mutable patched copy of _data for offset-adjusted chunks.
+    Common::Array<Common::Array<uint8> > _patchedData;
 };
 
 class DaxBlockEcl : public DaxBlock {
@@ -225,6 +261,57 @@ private:
 class DaxBlockGeo : public DaxBlock {
 public:
     enum Direction { NORTH = 0, EAST = 1, SOUTH = 2, WEST = 3 };
+
+    /**
+     * 2-bit door state packed per direction into plane 3 of the GEO block.
+     * Matches GeoWallRecord door constants from the C# reimplementation:
+     *   ndoor/edoor/sdoor/wdoor      = DOOR_OPEN   (1)
+     *   ndoor_locked/...             = DOOR_LOCKED  (2)
+     *   ndoor_wizard/...             = DOOR_WIZARD  (3)
+     * Bit layout within doorAt() byte:
+     *   bits [1:0] = North, [3:2] = East, [5:4] = South, [7:6] = West
+     */
+    enum DoorState {
+        DOOR_NONE   = 0,
+        DOOR_OPEN   = 1,
+        DOOR_LOCKED = 2,
+        DOOR_WIZARD = 3
+    };
+
+    /**
+     * Per-direction door bit-masks within the raw door byte.
+     * Mirrors GeoWallRecord: ndoor=1, ndoor_locked=2, edoor=4, edoor_locked=8, etc.
+     */
+    enum DoorMask {
+        DOOR_MASK_NORTH        = 0x01,
+        DOOR_MASK_NORTH_LOCKED = 0x02,
+        DOOR_MASK_NORTH_WIZARD = 0x03,
+        DOOR_MASK_EAST         = 0x04,
+        DOOR_MASK_EAST_LOCKED  = 0x08,
+        DOOR_MASK_EAST_WIZARD  = 0x0C,
+        DOOR_MASK_SOUTH        = 0x10,
+        DOOR_MASK_SOUTH_LOCKED = 0x20,
+        DOOR_MASK_SOUTH_WIZARD = 0x30,
+        DOOR_MASK_WEST         = 0x40,
+        DOOR_MASK_WEST_LOCKED  = 0x80,
+        DOOR_MASK_WEST_WIZARD  = 0xC0
+    };
+
+    /**
+     * Decoded representation of a single GEO grid cell.
+     * Mirrors MapInfo from the C# reimplementation.
+     *
+     * Wall type nibbles (4 bits each, from planes 0 and 1):
+     *   wallType[NORTH/EAST] packed in plane 0 byte: high nibble=N, low nibble=E
+     *   wallType[SOUTH/WEST] packed in plane 1 byte: high nibble=S, low nibble=W
+     * Event byte (plane 2): event number 0-127 triggering ECL execution.
+     * Door state (plane 3): 2-bit state per direction (see DoorState enum).
+     */
+    struct MapCell {
+        uint8 wallType[4];  // indexed by Direction
+        uint8 doorState[4]; // 2-bit DoorState per Direction
+        uint8 event;        // ECL event number (0 = none)
+    };
 
     struct Walls {
         uint8 north;
@@ -244,6 +331,12 @@ public:
     Walls wallsAt(int row, int col) const;
     uint8 eventAt(int row, int col) const;
     uint8 doorAt(int row, int col) const;
+
+    /**
+     * Return fully decoded cell at (row, col).
+     * Combines wallsAt(), eventAt(), and getDoorState() into one struct.
+     */
+    MapCell cellAt(int row, int col) const;
 
     bool canMove(int row, int col, Direction dir) const;
     bool isDoor(int row, int col, Direction dir) const;
