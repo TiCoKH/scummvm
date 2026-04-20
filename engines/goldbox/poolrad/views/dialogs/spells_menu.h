@@ -107,6 +107,9 @@ private:
     Goldbox::MenuItemList _spellMenuList;
     Common::Array<Common::String> _horizontalMenuLabels;
     Common::Array<SpellListEntry> _spellEntries;
+    // Parallel to _spellMenuList.items: maps menu-item index -> _spellEntries
+    // index, or -1 for separator rows.
+    Common::Array<int> _menuIndexToEntry;
     VerticalMenu *_verticalMenu;
     int _lastSelection;
     int _selectedLegacyIndex;
@@ -127,6 +130,8 @@ private:
     Common::String getLocationSuffix() const;
     Common::String getActionLabel() const;
     Common::String formatSpellLine(const SpellListEntry &entry) const;
+    Common::String buildLevelSeparatorLabel(
+        Goldbox::Data::Spells::Spells spellId) const;
 };
 
 } // namespace Dialogs

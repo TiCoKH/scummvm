@@ -56,6 +56,26 @@ uint16 resolveVar(AddressSpace &mem, const EclOperand &operand) {
     return 0;
 }
 
+// Compare result helpers (mirrors original's BOOL_EQ_FLAG/BOOL_NE_FLAG/BOOL_LT_FLAG/BOOL_GT_FLAG/BOOL_LE_FLAG/BOOL_GE_FLAG).
+// Original x86: VM_SetIntCompareFlags sets 6 separate bool globals; the IF opcodes each check one.
+// Here we collapse them to a signed int8 stored at kEclRuntimeBreakFlag:
+//   <0 (-1) = LT  (BOOL_LT_FLAG + BOOL_NE_FLAG + BOOL_LE_FLAG)
+//    0      = EQ  (BOOL_EQ_FLAG + BOOL_LE_FLAG + BOOL_GE_FLAG)
+//   >0 (+1) = GT  (BOOL_GT_FLAG + BOOL_NE_FLAG + BOOL_GE_FLAG)
+static void setCmpResult(AddressSpace &mem, int32 result) {
+    int8 sign = (result < 0) ? -1 : (result > 0) ? 1 : 0;
+    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag), (uint8)sign);
+}
+
+static int8 getCmpResult(AddressSpace &mem) {
+    return (int8)mem.read8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag));
+}
+
+// Static state for FOR loop (not nested; matches Java VirtualMachine behavior).
+static uint16 g_forLoopBodyStart = 0;
+static uint16 g_forLoopCount = 0;
+static uint16 g_forLoopMax = 0;
+
 // Opcode handlers
 
 static int handle_0x00_EXIT(AddressSpace &mem, const EclInstruction &insn,
@@ -80,9 +100,18 @@ static int handle_0x02_GOSUB(AddressSpace &mem, const EclInstruction &insn,
     return VM_OK;
 }
 
+// 0x03: COMPARE <var1> <var2>
+// Sets comparison flags for subsequent IF opcodes.
+// Original: VM_SetIntCompareFlags(arg1, arg0) sets 6 bool globals (EQ,NE,LT,GT,LE,GE).
+// String variant: compares via Pascal string comparison operators.
 static int handle_0x03_COMPARE(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    // Stub for now; full implementation would update comparison flags
+    if (insn.operands.size() < 2)
+        return VM_ERROR;
+    uint16 a0 = resolveVar(mem, insn.operands[0]);
+    uint16 a1 = resolveVar(mem, insn.operands[1]);
+    // Unsigned word subtraction matching original word comparison semantics.
+    setCmpResult(mem, (int32)a0 - (int32)a1);
     return VM_OK;
 }
 
@@ -179,27 +208,33 @@ static int handle_0x13_RETURN(AddressSpace &mem, const EclInstruction &insn,
     return VM_OK;
 }
 
+// 0x2F: AND <var1> <var2> <destAddr>
+// Original: stores result AND sets compare flags (EQ if result==0, GT if result!=0).
 static int handle_0x2F_AND(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    if (insn.operands.size() < 3) {
+    if (insn.operands.size() < 3)
         return VM_ERROR;
-    }
     uint16 var1 = resolveVar(mem, insn.operands[0]);
     uint16 var2 = resolveVar(mem, insn.operands[1]);
     uint16 addr = insn.operands[2].u16;
-    mem.write16LE(addr, var1 & var2);
+    uint16 result = var1 & var2;
+    mem.write16LE(addr, result);
+    setCmpResult(mem, result == 0 ? 0 : 1);
     return VM_OK;
 }
 
+// 0x30: OR <var1> <var2> <destAddr>
+// Original: stores result AND sets compare flags (EQ if result==0, GT if result!=0).
 static int handle_0x30_OR(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    if (insn.operands.size() < 3) {
+    if (insn.operands.size() < 3)
         return VM_ERROR;
-    }
     uint16 var1 = resolveVar(mem, insn.operands[0]);
     uint16 var2 = resolveVar(mem, insn.operands[1]);
     uint16 addr = insn.operands[2].u16;
-    mem.write16LE(addr, var1 | var2);
+    uint16 result = var1 | var2;
+    mem.write16LE(addr, result);
+    setCmpResult(mem, result == 0 ? 0 : 1);
     return VM_OK;
 }
 
@@ -394,20 +429,18 @@ static int handle_0x3D_CLEAR_BOX(AddressSpace &mem, const EclInstruction &insn,
 }
 
 // 0x14: COMPARE AND <var1> <var2> <var3> <var4>
+// Original: calls VM_SetIntCompareFlags twice; result is EQ if BOTH pairs are equal.
+// Only EQ/NE flags are meaningful after this opcode (no magnitude comparison).
 static int handle_0x14_COMPARE_AND(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    if (insn.operands.size() < 4) {
+    if (insn.operands.size() < 4)
         return VM_ERROR;
-    }
     uint16 var1 = resolveVar(mem, insn.operands[0]);
     uint16 var2 = resolveVar(mem, insn.operands[1]);
     uint16 var3 = resolveVar(mem, insn.operands[2]);
     uint16 var4 = resolveVar(mem, insn.operands[3]);
-    
-    // Store comparison flags for subsequent IF commands
-    bool cmp1 = (var1 == var2);
-    bool cmp2 = (var3 == var4);
-    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag), (cmp1 && cmp2) ? 1 : 0);
+    bool bothEqual = (var1 == var2) && (var3 == var4);
+    setCmpResult(mem, bothEqual ? 0 : 1);
     return VM_OK;
 }
 
@@ -429,31 +462,23 @@ static int handle_0x15_VERTICAL_MENU(AddressSpace &mem, const EclInstruction &in
     return syscalls->verticalMenu(message, options, resultAddr);
 }
 
-// 0x16-0x1B: IF commands (skip next instruction if comparison fails)
+// 0x16-0x1B: IF commands — execute the next instruction only if condition holds.
+// Original: each opcode tests one of BOOL_EQ/NE/LT/GT/LE/GE_FLAG set by COMPARE.
+// When condition is false the NEXT decoded instruction is skipped (nextPc += 1).
 static int handleIF(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, uint8 opcode) {
-    uint8 comparisonFlag = mem.read8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag));
-    bool shouldSkip = false;
-    
+    int8 cmp = getCmpResult(mem);
+    bool cond = false;
     switch (opcode) {
-    case 0x16: // IF =
-        shouldSkip = (comparisonFlag == 0);
-        break;
-    case 0x17: // IF <>
-        shouldSkip = (comparisonFlag != 0);
-        break;
-    case 0x18: // IF <
-    case 0x19: // IF >
-    case 0x1A: // IF <=
-    case 0x1B: // IF >=
-        // For these, we need the actual comparison values stored
-        shouldSkip = (comparisonFlag == 0);
-        break;
+    case 0x16: cond = (cmp == 0); break;  // IF =  : EQ_FLAG
+    case 0x17: cond = (cmp != 0); break;  // IF <> : NE_FLAG
+    case 0x18: cond = (cmp <  0); break;  // IF <  : LT_FLAG
+    case 0x19: cond = (cmp >  0); break;  // IF >  : GT_FLAG
+    case 0x1A: cond = (cmp <= 0); break;  // IF <= : LE_FLAG
+    case 0x1B: cond = (cmp >= 0); break;  // IF >= : GE_FLAG
     }
-    
-    if (shouldSkip) {
-        nextPc += 1; // Skip next instruction
-    }
+    if (!cond)
+        nextPc += 1; // skip next instruction
     return VM_OK;
 }
 
@@ -694,9 +719,8 @@ static int handle_0x2A_GETTABLE(AddressSpace &mem, const EclInstruction &insn,
     
     uint16 value = mem.read16LE(baseAddr + index);
     mem.write16LE(destAddr, value);
-    
-    // Store comparison flag for IF commands
-    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag), (value == 0) ? 1 : 0);
+    // Set compare flags: EQ if zero, GT if nonzero (mirrors AND/OR convention).
+    setCmpResult(mem, value == 0 ? 0 : 1);
     return VM_OK;
 }
 
@@ -760,9 +784,9 @@ static int handle_0x32_FIND_ITEM(AddressSpace &mem, const EclInstruction &insn,
         return VM_ERROR;
     }
     uint8 itemId = insn.operands[0].u8;
-    // TODO: Search party inventory for item
-    // For now, set comparison flag to 0 (not found)
-    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag), 0);
+    // TODO: Search party inventory for item.
+    // Original: sets NE_FLAG (not-found = cmp != 0); founder sets EQ_FLAG.
+    setCmpResult(mem, 1); // not found (GT): IF_EQUAL skips, IF_NOT_EQUAL continues
     return VM_OK;
 }
 
@@ -869,6 +893,139 @@ static int handle_0x3B_SPELL(AddressSpace &mem, const EclInstruction &insn,
     return VM_OK;
 }
 
+// 0x3E: NPC REMOVE
+// Removes the currently loaded NPC from the party roster.
+static int handle_0x3E_NPC_REMOVE(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+  //  if (syscalls)
+   //     syscalls->removeNpc();
+    return VM_OK;
+}
+
+// 0x3F: HAS EFFECT <effectID>  /  LOGBOOK ENTRY <string> <index>
+// PoR variant (1 arg): tests whether a party-wide effect is active.
+// Sets compare EQ if effect present, NE if not.
+static int handle_0x3F_HAS_EFFECT(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    // TODO: check active effects list
+    setCmpResult(mem, 1); // not present (NE)
+    return VM_OK;
+}
+
+// 0x40: DESTROY ITEM <itemID>
+// Removes a specific item from the party inventory.
+static int handle_0x40_DESTROY_ITEM(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    // TODO: remove item from party inventory
+    return VM_OK;
+}
+
+// 0x41: GIVE EXP <amount> <divideFlag>
+// Awards experience to all party members.
+// arg0 = base XP amount, arg1 = how to split (0 = each, 1 = divide by party size).
+static int handle_0x41_GIVE_EXP(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    // TODO: distribute experience points
+    return VM_OK;
+}
+
+// 0x42: STOP MOVE (variant B, 0 args)
+// Identical to 0x23 STOP_MOVE: halts VM, updates position, clears display.
+static int handle_0x42_STOP_MOVE(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    if (syscalls) {
+//        syscalls->updatePosition();
+//        syscalls->clearDisplay();
+    }
+    return VM_HALTED;
+}
+
+// 0x43: SOUND EVENT <soundID>
+static int handle_0x43_SOUND(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    // TODO: trigger sound effect
+    return VM_OK;
+}
+
+// 0x44: (unknown 0 args)
+static int handle_0x44_UNKNOWN(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    return VM_OK;
+}
+
+// 0x45: RANDOM0 <destAddr> <maxVal>
+// Writes random(0..maxVal) to destAddr; writes 0 if maxVal == 0.
+// Differs from 0x08 RANDOM in that dest is arg0 and max is arg1 (reversed).
+static int handle_0x45_RANDOM0(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    if (insn.operands.size() < 2)
+        return VM_ERROR;
+    uint16 destAddr = insn.operands[0].u16;
+    uint16 maxVal = resolveVar(mem, insn.operands[1]);
+    uint16 result = (maxVal > 0) ? (uint16)g_random.getRandomNumber(maxVal) : 0;
+    mem.write16LE(destAddr, result);
+    return VM_OK;
+}
+
+// 0x46: FOR START <initVal> <maxVal>
+// Starts a counted loop. Loop body begins at the instruction immediately following.
+// Original: stores loop counter in a dedicated var; loop runs while counter <= maxVal.
+static int handle_0x46_FOR_START(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    if (insn.operands.size() < 2)
+        return VM_ERROR;
+    g_forLoopCount = (uint16)resolveVar(mem, insn.operands[0]);
+    g_forLoopMax   = (uint16)resolveVar(mem, insn.operands[1]);
+    g_forLoopBodyStart = nextPc; // decoded instruction index of loop body's first instruction
+    return VM_OK;
+}
+
+// 0x47: FOR REPEAT
+// Increments counter; jumps back to loop body if counter <= maxVal.
+static int handle_0x47_FOR_REPEAT(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    g_forLoopCount++;
+    if (g_forLoopCount <= g_forLoopMax)
+        nextPc = g_forLoopBodyStart;
+    return VM_OK;
+}
+
+// 0x48: (unknown, 1 arg)
+static int handle_0x48_UNKNOWN(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    return VM_OK;
+}
+
+// 0x49: (unknown, 6 args)
+static int handle_0x49_UNKNOWN(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    return VM_OK;
+}
+
+// 0x4A: (unknown, 0 args)
+static int handle_0x4A_UNKNOWN(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    return VM_OK;
+}
+
+// 0x4B: (unknown, 1 arg)
+static int handle_0x4B_UNKNOWN(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    return VM_OK;
+}
+
+// 0x4C: PICTURE 2 <pictureID> <variant>
+// Extended picture display with variant parameter.
+static int handle_0x4C_PICTURE2(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    if (insn.operands.size() < 2 || !syscalls)
+        return VM_ERROR;
+    uint8 picId = insn.operands[0].u8;
+    uint8 variant = (uint8)resolveVar(mem, insn.operands[1]);
+    mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr, picId);
+    return syscalls->displayPicture(picId);
+}
+
 void registerOpcodeHandlers() {
     g_handlers[0x00] = handle_0x00_EXIT;
     g_handlers[0x01] = handle_0x01_GOTO;
@@ -931,6 +1088,21 @@ void registerOpcodeHandlers() {
     g_handlers[0x3B] = handle_0x3B_SPELL;
     g_handlers[0x3C] = handle_0x3C_PROTECTION;
     g_handlers[0x3D] = handle_0x3D_CLEAR_BOX;
+    g_handlers[0x3E] = handle_0x3E_NPC_REMOVE;
+    g_handlers[0x3F] = handle_0x3F_HAS_EFFECT;
+    g_handlers[0x40] = handle_0x40_DESTROY_ITEM;
+    g_handlers[0x41] = handle_0x41_GIVE_EXP;
+    g_handlers[0x42] = handle_0x42_STOP_MOVE;
+    g_handlers[0x43] = handle_0x43_SOUND;
+    g_handlers[0x44] = handle_0x44_UNKNOWN;
+    g_handlers[0x45] = handle_0x45_RANDOM0;
+    g_handlers[0x46] = handle_0x46_FOR_START;
+    g_handlers[0x47] = handle_0x47_FOR_REPEAT;
+    g_handlers[0x48] = handle_0x48_UNKNOWN;
+    g_handlers[0x49] = handle_0x49_UNKNOWN;
+    g_handlers[0x4A] = handle_0x4A_UNKNOWN;
+    g_handlers[0x4B] = handle_0x4B_UNKNOWN;
+    g_handlers[0x4C] = handle_0x4C_PICTURE2;
 }
 
 OpcodeHandler getOpcodeHandler(uint8 opcode) {

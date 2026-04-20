@@ -66,6 +66,16 @@ VerticalMenu::VerticalMenu(const String &name, const VerticalMenuConfig &config)
         _linesBelow = _itemNums - _menuHeight;
     }
 
+    // Count leading consecutive separator (inactive) rows so Prev-page
+    // navigation never scrolls above the first level-header.
+    _selectMin = 0;
+    for (int i = 0; i < _itemNums; ++i) {
+        if (!_menuItems->items[i].active)
+            _selectMin++;
+        else
+            break;
+    }
+
     if (_promptOptions) {
         _hMenuList.generateMenuItems(*_promptOptions, true);
     }
@@ -98,6 +108,25 @@ VerticalMenu::~VerticalMenu() {
 void VerticalMenu::activate() {
     debug("VerticalMenu::activate() - itemNums=%d, menuHeight=%d", _itemNums, _menuHeight);
     Dialog::activate();
+
+    // Sync _currentVisibleIndex with externally pre-set currentSelection and
+    // skip past any inactive (separator) items at the start of the visible page.
+    if (_menuItems && !_menuItems->items.empty()) {
+        _currentVisibleIndex = _menuItems->currentSelection - _linesAbove;
+        _currentVisibleIndex = CLIP(_currentVisibleIndex, 0, MAX(0, _linesToRender - 1));
+        int tries = _linesToRender;
+        while (tries > 0 && _currentVisibleIndex < _linesToRender &&
+                !_menuItems->items[_linesAbove + _currentVisibleIndex].active) {
+            _currentVisibleIndex++;
+            tries--;
+        }
+        // If all visible items are inactive, keep at 0
+        if (tries == 0 || _currentVisibleIndex >= _linesToRender) {
+            _currentVisibleIndex = 0;
+        }
+        _menuItems->currentSelection = _linesAbove + _currentVisibleIndex;
+    }
+
     activateHorizontalMenu();
 }
 
@@ -143,7 +172,13 @@ void VerticalMenu::drawText() {
             break;
         }
         const auto &item = _menuItems->items[menuIndex];
-        int color = (menuIndex == _menuItems->currentSelection) ? _selectColor : _textColor;
+        int color;
+        if (!item.active) {
+            // Separator / level-header rows use the heading colour.
+            color = _headColor;
+        } else {
+            color = (menuIndex == _menuItems->currentSelection) ? _selectColor : _textColor;
+        }
         s.writeStringC(itemX, titleOffset + i, color, item.text);
     }
 }
@@ -181,7 +216,10 @@ void VerticalMenu::updateHorizontalMenu() {
         _hMenuList.push_back("Next");
         _hMenuList.generateShortcut(_hMenuList.items.size() - 1);
     }
-    if (_linesAbove > 0) {
+    // Show Prev only when there are selectable items above the current page.
+    // _selectMin is the number of leading separator rows that must always stay
+    // visible; scrolling back stops when _linesAbove == _selectMin.
+    if (_selectMin < _linesAbove) {
         _hMenuList.push_back("Prev");
         _hMenuList.generateShortcut(_hMenuList.items.size() - 1);
     }
@@ -233,20 +271,38 @@ void VerticalMenu::nextPage() {
         int moveLines = MIN(_linesBelow, _menuHeight);
         _linesAbove += moveLines;
         _linesBelow -= moveLines;
-        _menuItems->currentSelection = _linesAbove;
+        // Advance cursor past any separator row at the top of the new page.
         _currentVisibleIndex = 0;
+        const int visOnPage = MIN(_menuHeight, _itemNums - _linesAbove);
+        while (_currentVisibleIndex < visOnPage &&
+                !_menuItems->items[_linesAbove + _currentVisibleIndex].active) {
+            _currentVisibleIndex++;
+        }
+        if (_currentVisibleIndex >= visOnPage)
+            _currentVisibleIndex = 0;
+        _menuItems->currentSelection = _linesAbove + _currentVisibleIndex;
         _redraw = true;
     }
     updateHorizontalMenu();
 }
 
 void VerticalMenu::prevPage() {
-    if (_linesAbove > 0) {
-        int moveLines = MIN(_linesAbove, _menuHeight);
+    // Can only scroll back above _selectMin (the leading separator floor).
+    const int canGoBack = _linesAbove - _selectMin;
+    if (canGoBack > 0) {
+        int moveLines = MIN(canGoBack, _menuHeight);
         _linesAbove -= moveLines;
         _linesBelow += moveLines;
-        _menuItems->currentSelection = _linesAbove;
+        // Advance cursor past any separator row at the top of the revealed page.
         _currentVisibleIndex = 0;
+        const int visOnPage = MIN(_menuHeight, _itemNums - _linesAbove);
+        while (_currentVisibleIndex < visOnPage &&
+                !_menuItems->items[_linesAbove + _currentVisibleIndex].active) {
+            _currentVisibleIndex++;
+        }
+        if (_currentVisibleIndex >= visOnPage)
+            _currentVisibleIndex = 0;
+        _menuItems->currentSelection = _linesAbove + _currentVisibleIndex;
         _redraw = true;
     }
     updateHorizontalMenu();
@@ -259,13 +315,18 @@ void VerticalMenu::selectionDown() {
     }
     int maxVisibleIndex = visibleCount - 1;
     int oldScreenIndex = _currentVisibleIndex;
-    if (_currentVisibleIndex < maxVisibleIndex) {
-        _menuItems->next();
-        _currentVisibleIndex++;
-    } else {
-        _menuItems->currentSelection = _linesAbove;
-        _currentVisibleIndex = 0;
-    }
+
+    // Advance within the visible page, skipping over inactive (separator) items.
+    int nextIndex = _currentVisibleIndex;
+    int tries = visibleCount;
+    do {
+        nextIndex = (nextIndex < maxVisibleIndex) ? nextIndex + 1 : 0;
+        tries--;
+    } while (tries > 0 && !_menuItems->items[_linesAbove + nextIndex].active);
+
+    _menuItems->currentSelection = _linesAbove + nextIndex;
+    _currentVisibleIndex = nextIndex;
+
     redrawLine(_linesAbove + oldScreenIndex);
     redrawLine(_linesAbove + _currentVisibleIndex);
 }
@@ -277,13 +338,18 @@ void VerticalMenu::selectionUp() {
     }
     int maxVisibleIndex = visibleCount - 1;
     int oldScreenIndex = _currentVisibleIndex;
-    if (_currentVisibleIndex > 0) {
-        _menuItems->prev();
-        _currentVisibleIndex--;
-    } else {
-        _currentVisibleIndex = maxVisibleIndex;
-        _menuItems->currentSelection = _linesAbove + _currentVisibleIndex;
-    }
+
+    // Retreat within the visible page, skipping over inactive (separator) items.
+    int nextIndex = _currentVisibleIndex;
+    int tries = visibleCount;
+    do {
+        nextIndex = (nextIndex > 0) ? nextIndex - 1 : maxVisibleIndex;
+        tries--;
+    } while (tries > 0 && !_menuItems->items[_linesAbove + nextIndex].active);
+
+    _menuItems->currentSelection = _linesAbove + nextIndex;
+    _currentVisibleIndex = nextIndex;
+
     redrawLine(_linesAbove + oldScreenIndex);
     redrawLine(_linesAbove + _currentVisibleIndex);
 }
@@ -328,6 +394,14 @@ void VerticalMenu::rebuild(Goldbox::MenuItemList *newItems, const String &newTit
     _linesToRender = MIN(_menuHeight, _itemNums);
     if (_itemNums > _menuHeight) {
         _linesBelow = _itemNums - _menuHeight;
+    }
+    // Recompute leading separator floor after new item list is wired in.
+    _selectMin = 0;
+    for (int i = 0; i < _itemNums; ++i) {
+        if (_menuItems && !_menuItems->items[i].active)
+            _selectMin++;
+        else
+            break;
     }
     if (_menuItems)
         _menuItems->currentSelection = 0;

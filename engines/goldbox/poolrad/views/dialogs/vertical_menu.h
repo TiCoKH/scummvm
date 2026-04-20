@@ -59,6 +59,10 @@ private:
     int _xStart, _yStart, _xEnd, _yEnd;
     bool _nextNeed;
     bool _prevNeed;
+    // Count of leading consecutive inactive (separator) rows at the top of the
+    // item list.  This is the minimum value _linesAbove may reach via Prev-page
+    // navigation — the first level-header separator must always remain visible.
+    int _selectMin = 0;
     int _linesAbove = 0;
     int _linesBelow = 0;
     int _menuHeight;
