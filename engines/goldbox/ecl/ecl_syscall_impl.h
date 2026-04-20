@@ -25,6 +25,7 @@
 #include "common/scummsys.h"
 #include "common/str.h"
 #include "common/array.h"
+#include "common/ptr.h"
 #include "goldbox/ecl/syscall_handler.h"
 #include "goldbox/ecl/ecl_memory.h"
 
@@ -32,6 +33,10 @@ namespace Goldbox {
 
 class Engine;
 class View;
+
+namespace Gfx {
+class DaxTile;
+}
 
 namespace ECL {
 
@@ -74,6 +79,8 @@ public:
     VmResult clearTextBox() override;
     
     VmResult loadScript(uint8 scriptID) override;
+    VmResult loadWallSet(uint8 blockId, uint8 setSlot) override;
+    VmResult loadGeoBlock(uint8 blockId) override;
     
     YieldReason getYieldReason() const override { return _yieldReason; }
     void setYieldReason(YieldReason reason) override { _yieldReason = reason; }
@@ -83,6 +90,9 @@ private:
     AddressSpace *_memory;               // Reference to ECL virtual memory
     YieldReason _yieldReason;            // Current yield state
     uint16 _pendingInputAddr;            // Address to store input result
+
+    // Owned DaxTile instances for walldef tile atlases (indexed by slot 1-3)
+    Common::ScopedPtr<Gfx::DaxTile> _walldefTiles[3];
     
     // Helper methods for dialog/view integration
     void _showMessageBox(const Common::String &text, bool clear);

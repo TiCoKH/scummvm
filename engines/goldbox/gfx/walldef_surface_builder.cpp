@@ -211,5 +211,45 @@ Common::Array<WallSurfaceSet> WalldefSurfaceBuilder::buildChunk(
 	return buildChunk(walldef.chunk(chunkIdx), tileCache);
 }
 
+// ---------------------------------------------------------------------------
+// WalldefSlotCache
+// ---------------------------------------------------------------------------
+
+WalldefSlotCache::WalldefSlotCache() {
+	// _slices arrays start empty; slots are populated via loadSlot()
+}
+
+void WalldefSlotCache::loadSlot(int slot, Data::DaxBlockWalldef *walldef,
+		int chunkIdx, const Tile8x8Cache &tileCache) {
+	assert(slot >= 1 && slot <= kSlotCount);
+	assert(walldef != nullptr);
+	assert(chunkIdx >= 0 && chunkIdx < walldef->chunkCount());
+
+	const int slotIdx = slot - 1;
+	walldef->applyTileOffset(chunkIdx,
+			Data::DaxBlockWalldef::tileOffsetForSlot(slot));
+	_slices[slotIdx] = WalldefSurfaceBuilder::buildChunk(
+			walldef->chunk(chunkIdx), tileCache);
+}
+
+void WalldefSlotCache::clearSlot(int slot) {
+	assert(slot >= 1 && slot <= kSlotCount);
+	_slices[slot - 1].clear();
+}
+
+const WallSurfaceSet *WalldefSlotCache::surfaceSetForWallType(
+		uint8 wallType) const {
+	if (wallType == 0)
+		return nullptr;
+	const int slotIdx  = (wallType - 1) / 5; // 0-based: 0..2
+	const int sliceIdx = (wallType - 1) % 5;
+	if (slotIdx >= kSlotCount)
+		return nullptr;
+	const Common::Array<WallSurfaceSet> &arr = _slices[slotIdx];
+	if (sliceIdx >= (int)arr.size())
+		return nullptr;
+	return &arr[sliceIdx];
+}
+
 } // namespace Gfx
 } // namespace Goldbox

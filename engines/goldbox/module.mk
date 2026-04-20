@@ -46,6 +46,7 @@ MODULE_OBJS = \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/dax_renderer.o \
+	gfx/first_person_renderer.o \
 	gfx/pic.o \
 	gfx/walldef_surface_builder.o \
 	gfx/icon.o \
