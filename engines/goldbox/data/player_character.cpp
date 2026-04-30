@@ -20,7 +20,6 @@
  */
 
 #include "goldbox/data/player_character.h"
-#include "goldbox/gfx/icon.h"
 
 namespace Goldbox {
 namespace Data {

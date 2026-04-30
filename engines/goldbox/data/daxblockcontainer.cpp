@@ -21,7 +21,7 @@
 
 #include "common/util.h"
 #include "goldbox/data/daxblockcontainer.h"
-#include "goldbox/core/file.h"
+#include "goldbox/data/daxresourcefile.h"
 
 namespace Goldbox {
 namespace Data {
@@ -36,14 +36,15 @@ DaxBlockContainer::~DaxBlockContainer() {
     clear();
 }
 
-void DaxBlockContainer::loadFromFile(File *file) {
+void DaxBlockContainer::loadFromFile(DaxResourceFile *file) {
     if (!file || !file->isOpen()) {
         warning("DaxBlockContainer::loadFromFile: Invalid or closed file");
         return;
     }
 
     // Get all headers from the file
-    const Common::Array<DaxHeader> &headers = file->headerContainer.getHeaders();
+    const Common::Array<DaxHeader> &headers =
+            file->getHeaderContainer().getHeaders();
 
     // Load each block
     for (const auto &header : headers) {
@@ -54,33 +55,18 @@ void DaxBlockContainer::loadFromFile(File *file) {
             continue;
         }
 
-        // Get block data from file
-        file->seek(file->headerContainer.getFileDataOffset() + header.offset, SEEK_SET);
-        Common::Array<uint8> daxData(header.compSize);
-        file->read(daxData.data(), header.compSize);
-
         // Use container's content type, or fall back to file's type if not set
-        ContentType blockContentType = (_contentType != ContentType::UNKNOWN) ? _contentType : file->_ctype;
+        ContentType blockContentType = (_contentType != ContentType::UNKNOWN)
+                ? _contentType
+                : file->getContentType();
 
         // Create the appropriate DaxBlock
-        DaxBlock *daxBlock = DaxBlock::createDaxBlock(blockContentType);
+        DaxBlock *daxBlock = file->loadBlock(header, blockContentType);
         if (!daxBlock) {
             warning("DaxBlockContainer::loadFromFile: Unknown content type %d for block ID: %d (container type: %d)",
                     (int)blockContentType, blockId, (int)_contentType);
             continue;
         }
-
-        // Decode data if necessary
-        if (header.rawSize <= 0) {
-            daxBlock->_data = daxData;
-        } else {
-            Common::Array<uint8> decodeData(header.rawSize);
-            file->decodeRLE(header.compSize, decodeData.data(), daxData.data());
-            daxBlock->_data = decodeData;
-        }
-
-        daxBlock->blockId = blockId;
-        daxBlock->adjust();
 
         // Store in container (first occurrence only)
         _blocks[blockId] = Common::SharedPtr<DaxBlock>(daxBlock);

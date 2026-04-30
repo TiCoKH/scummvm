@@ -19,10 +19,7 @@
  *
  */
 
-#include "common/array.h"
-#include "common/memstream.h"
 #include "common/util.h"
-#include "goldbox/poolrad/poolrad.h"
 #include "goldbox/core/file.h"
 
 namespace Goldbox {
@@ -40,94 +37,8 @@ bool File::open(const Common::Path &filename) {
         error("Could not open file - %s", filename.toString(Common::Path::kNativeSeparator).c_str());
         return false;
     }
-    _ctype = determineContentType(filename);
-    parseHeaders();
+
     return true;
-}
-
-void File::parseHeaders() {
-    Common::Platform platform = g_engine->getPlatform();
-    if (platform == Common::kPlatformAmiga) {
-        headerContainer.parseHeadersBE(*this);
-    } else {
-        headerContainer.parseHeadersLE(*this);
-    }
-}
-
-Data::ContentType File::determineContentType(const Common::Path &filename) {
-    Common::String s = filename.toString();
-    if (s.contains("8x8d")) return Data::ContentType::TILE;
-    if (s.contains("bacpac")) return Data::ContentType::TILE;
-    if (s.contains("dungcom")) return Data::ContentType::TILE;
-    if (s.contains("randcom")) return Data::ContentType::TILE;
-    if (s.contains("sqrpaci")) return Data::ContentType::TILE;
-    if (s.contains("back")) return Data::ContentType::BACK;
-    if (s.contains("bigpic")) return Data::ContentType::BIGPIC;
-    if (s.contains("cbody")) return Data::ContentType::CTILE;
-    if (s.contains("chead")) return Data::ContentType::CTILE;
-    if (s.contains("cpic")) return Data::ContentType::CTILE;
-    if (s.contains("comspr")) return Data::ContentType::CTILE;
-    if (s.contains("body")) return Data::ContentType::PIC;
-    if (s.contains("head")) return Data::ContentType::PIC;
-    if (s.contains("ecl")) return Data::ContentType::ECL;
-    if (s.contains("geo")) return Data::ContentType::GEO;
-    if (s.contains("cha")) return Data::ContentType::CHARACTER;
-    if (s.contains("itm")) return Data::ContentType::ITEM;
-    if (s.contains("spc")) return Data::ContentType::SPELL;
-    if (s.contains("pic")) return Data::ContentType::PIC;
-    if (s.contains("sprit")) return Data::ContentType::SPRIT;
-    if (s.contains("title")) return Data::ContentType::PIC;
-    if (s.contains("walldef")) return Data::ContentType::WALLDEF;
-    return Data::ContentType::UNKNOWN;
-}
-
-Data::DaxBlock* File::getBlockById(int blockId) {
-    for (const auto &header : headerContainer.getHeaders()) {
-        if (header.id == blockId) {
-            seek(headerContainer.getFileDataOffset() + header.offset, SEEK_SET);
-            Common::Array<uint8> dax_data(header.compSize);
-            read(dax_data.data(), header.compSize);
-
-            Data::DaxBlock* daxBlock = Data::DaxBlock::createDaxBlock(_ctype);
-            if (!daxBlock) {
-                error("Unknown content type for block ID: %d", blockId);
-                return nullptr;
-            }
-
-            if (header.rawSize <= 0) {
-                daxBlock->_data = dax_data;
-            } else {
-                Common::Array<uint8> decode_data(header.rawSize);
-                decodeRLE(header.compSize, decode_data.data(), dax_data.data());
-                daxBlock->_data = decode_data;
-            }
-            daxBlock->blockId = blockId;
-            daxBlock->adjust();
-            return daxBlock;
-        }
-    }
-    error("Block not found: %d", blockId);
-    return nullptr;
-}
-
-void File::decodeRLE(int dataLength, uint8 *output_ptr, const uint8 *input_ptr) {
-    int input_index = 0;
-    int output_index = 0;
-
-    while (input_index < dataLength) {
-        int8 run_length = static_cast<int8>(input_ptr[input_index]);
-
-        if (run_length >= 0) {
-            memcpy(output_ptr + output_index, input_ptr + input_index + 1, run_length + 1);
-            input_index += run_length + 2;
-            output_index += run_length + 1;
-        } else {
-            run_length = -run_length;
-            memset(output_ptr + output_index, input_ptr[input_index + 1], run_length);
-            input_index += 2;
-            output_index += run_length;
-        }
-    }
 }
 
 } // namespace Goldbox

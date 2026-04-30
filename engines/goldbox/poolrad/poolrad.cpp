@@ -22,7 +22,6 @@
 #include "common/config-manager.h"
 #include "common/engine_data.h"
 #include "common/fs.h"
-#include "goldbox/core/file.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"

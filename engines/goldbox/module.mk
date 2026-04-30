@@ -27,6 +27,7 @@ MODULE_OBJS = \
 	data/daxblockcontainer.o \
 	data/daxfilemanager.o \
 	data/daxheadercontainer.o \
+	data/daxresourcefile.o \
 	data/pascal_string_buffer.o \
 	data/strings.o \
 	data/strings_data.o \

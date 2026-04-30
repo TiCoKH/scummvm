@@ -33,7 +33,8 @@ Engine *g_engine;
 Data::Items::Storage Engine::gItemProps;
 
 Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine(syst),
-	_gameDescription(gameDesc), _randomSource("Goldbox") {
+	_gameDescription(gameDesc), _randomSource("Goldbox"),
+	_daxManager(gameDesc->desc.platform) {
 	g_engine = this;
 }
 

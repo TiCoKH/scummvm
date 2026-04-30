@@ -22,12 +22,13 @@
 #include "common/util.h"
 #include "common/debug.h"
 #include "goldbox/data/daxfilemanager.h"
-#include "goldbox/core/file.h"
+#include "goldbox/data/daxresourcefile.h"
 
 namespace Goldbox {
 namespace Data {
 
-DaxFileManager::DaxFileManager() :
+DaxFileManager::DaxFileManager(Common::Platform platform) :
+    _platform(platform),
     _container8x8d(ContentType::TILE),
     _containerBacpac(ContentType::TILE),
     _containerDungcom(ContentType::TILE),
@@ -65,11 +66,10 @@ void DaxFileManager::loadFile(const Common::Path &path) {
     Common::String filename = path.toString(Common::Path::kNativeSeparator);
     filename.toUppercase();
 
-    File *file = new File(path);
-    if (!file->isOpen()) {
+    DaxResourceFile file;
+    if (!file.open(path, _platform)) {
         warning("DaxFileManager::loadFile: Failed to open file: %s",
                 path.toString(Common::Path::kNativeSeparator).c_str());
-        delete file;
         return;
     }
 
@@ -78,77 +78,73 @@ void DaxFileManager::loadFile(const Common::Path &path) {
     // Determine which container to load into based on filename
     if (filename.contains("8X8D")) {
         debug("  - Detected 8X8D container");
-        _container8x8d.loadFromFile(file);
+        _container8x8d.loadFromFile(&file);
     } else if (filename.contains("BACPAC")) {
         debug("  - Detected BACPAC container");
-        _containerBacpac.loadFromFile(file);
+        _containerBacpac.loadFromFile(&file);
     } else if (filename.contains("DUNGCOM")) {
         debug("  - Detected DUNGCOM container");
-        _containerDungcom.loadFromFile(file);
+        _containerDungcom.loadFromFile(&file);
     } else if (filename.contains("RANDCOM")) {
         debug("  - Detected RANDCOM container");
-        _containerRandcom.loadFromFile(file);
+        _containerRandcom.loadFromFile(&file);
     } else if (filename.contains("SQRPACI")) {
         debug("  - Detected SQRPACI container");
-        _containerSqrpaci.loadFromFile(file);
+        _containerSqrpaci.loadFromFile(&file);
     } else if (filename.contains("CBODY")) {
         debug("  - Detected CBODY container");
-        _containerCBody.loadFromFile(file);
+        _containerCBody.loadFromFile(&file);
     } else if (filename.contains("BODY")) {
         debug("  - Detected BODY container");
-        _containerBody.loadFromFile(file);
+        _containerBody.loadFromFile(&file);
     } else if (filename.contains("CHEAD")) {
         debug("  - Detected CHEAD container");
-        _containerCHead.loadFromFile(file);
+        _containerCHead.loadFromFile(&file);
     } else if (filename.contains("COMSPR")) {
         debug("  - Detected COMSPR container (IMPORTANT!)");
-        _containerComSpr.loadFromFile(file);
+        _containerComSpr.loadFromFile(&file);
         debug("  - COMSPR loaded, block count: %zu", _containerComSpr.getBlockCount());
     } else if (filename.contains("CPIC")) {
         debug("  - Detected CPIC container");
-        _containerCPic.loadFromFile(file);
+        _containerCPic.loadFromFile(&file);
     } else if (filename.contains("ECL")) {
         debug("  - Detected ECL container");
-        _containerEcl.loadFromFile(file);
+        _containerEcl.loadFromFile(&file);
     } else if (filename.contains("GEO")) {
         debug("  - Detected GEO container");
-        _containerGeo.loadFromFile(file);
+        _containerGeo.loadFromFile(&file);
     } else if (filename.contains("HEAD")) {
         debug("  - Detected HEAD container");
-        _containerHead.loadFromFile(file);
+        _containerHead.loadFromFile(&file);
     } else if (filename.contains("MON") && filename.contains("CHA")) {
         debug("  - Detected MONCHA container");
-        _containerMonCha.loadFromFile(file);
+        _containerMonCha.loadFromFile(&file);
     } else if (filename.contains("MON") && filename.contains("ITM")) {
         debug("  - Detected MONITM container");
-        _containerMonItm.loadFromFile(file);
+        _containerMonItm.loadFromFile(&file);
     } else if (filename.contains("MON") && filename.contains("SPC")) {
         debug("  - Detected MONSPC container");
-        _containerMonSpc.loadFromFile(file);
+        _containerMonSpc.loadFromFile(&file);
     } else if (filename.contains("TITLE")) {
         debug("  - Detected TITLE container");
-        _containerTitle.loadFromFile(file);
+        _containerTitle.loadFromFile(&file);
     } else if (filename.contains("SPRIT")) {
         debug("  - Detected SPRIT container");
-        _containerSprit.loadFromFile(file);
+        _containerSprit.loadFromFile(&file);
     } else if (filename.contains("WALLDEF")) {
         debug("  - Detected WALLDEF container");
-        _containerWalldef.loadFromFile(file);
+        _containerWalldef.loadFromFile(&file);
     } else if (filename.contains("PIC")) {
         debug("  - Detected PIC container");
-        _containerPic.loadFromFile(file);
+        _containerPic.loadFromFile(&file);
     } else if (filename.contains("WILDCOM")) {
         debug("  - Detected WILDCOM container");
-        _containerWildcom.loadFromFile(file);
+        _containerWildcom.loadFromFile(&file);
     } else {
         debug("  - No matching container for filename");
     }
 
-    // Close file only if it was successfully opened
-    if (file->isOpen()) {
-        file->close();
-    }
-    delete file;
+    file.close();
 }
 
 void DaxFileManager::clear() {

@@ -24,7 +24,6 @@
 
 #include "common/str.h"
 #include "common/array.h"
-#include "goldbox/core/file.h"
 
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/items/base_items.h"

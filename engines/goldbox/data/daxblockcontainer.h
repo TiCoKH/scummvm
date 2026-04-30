@@ -31,7 +31,9 @@
 namespace Goldbox {
 
 // Forward declaration
-class File;
+namespace Data {
+class DaxResourceFile;
+}
 
 namespace Data {
 
@@ -56,7 +58,7 @@ public:
      * @param file The DAX file to load blocks from
      * Note: This is intended for internal use by DaxFileManager.
      */
-    void loadFromFile(File *file);
+    void loadFromFile(DaxResourceFile *file);
 
     /**
      * Get a block by its ID.

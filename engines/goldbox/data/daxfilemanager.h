@@ -24,6 +24,7 @@
 
 #include "common/array.h"
 #include "common/path.h"
+#include "common/platform.h"
 #include "common/ptr.h"
 #include "goldbox/data/daxblockcontainer.h"
 
@@ -39,6 +40,8 @@ namespace Data {
  */
 class DaxFileManager {
 private:
+    Common::Platform _platform;
+
     // Containers for each content type
     DaxBlockContainer _container8x8d;
     DaxBlockContainer _containerBacpac;
@@ -63,8 +66,11 @@ private:
     DaxBlockContainer _containerWildcom;
 
 public:
-    DaxFileManager();
+    explicit DaxFileManager(Common::Platform platform = Common::kPlatformUnknown);
     ~DaxFileManager();
+
+    void setPlatform(Common::Platform platform) { _platform = platform; }
+    Common::Platform getPlatform() const { return _platform; }
 
     /**
      * Load DAX files from a directory or list of files.
