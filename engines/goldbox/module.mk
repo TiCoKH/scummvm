@@ -18,7 +18,6 @@ MODULE_OBJS = \
 	core/array.o \
 	core/file.o \
 	core/menu_item.o \
-	gfx/icon_manager.o \
 	core/vm_bank.o \
 	core/vm_layout.o \
 	data/player_character.o \
@@ -51,6 +50,7 @@ MODULE_OBJS = \
 	gfx/pic.o \
 	gfx/walldef_surface_builder.o \
 	gfx/icon.o \
+	gfx/icon_manager.o \
 	gfx/combat_renderer.o \
 	gfx/surface.o \
 	poolrad/poolrad.o \

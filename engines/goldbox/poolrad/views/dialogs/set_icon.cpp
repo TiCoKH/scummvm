@@ -22,7 +22,7 @@
 #include "goldbox/poolrad/views/dialogs/set_icon.h"
 #include "goldbox/events.h"
 #include "goldbox/gfx/icon.h"
-#include "goldbox/core/icon_manager.h"
+#include "goldbox/gfx/icon_manager.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -35,6 +35,12 @@ using Common::KeyCode;
 using Common::Array;
 using Goldbox::Poolrad::Data::PoolradCharacter;
 using Goldbox::Gfx::Icon;
+using Goldbox::Gfx::IconManager;
+using Goldbox::Gfx::ICON_KIND_SPRITE;
+using Goldbox::Gfx::SLOT_SELECTFRAME;
+using Goldbox::Gfx::SLOT_OVERLAY_BUFFER;
+using Goldbox::Gfx::SLOT_RESERVED_START;
+using Goldbox::Gfx::SLOT_EDITOR_WORKING;
 
 SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
     : Dialog(name), _pc(pc) {

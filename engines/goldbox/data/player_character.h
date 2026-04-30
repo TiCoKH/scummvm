@@ -27,6 +27,7 @@
 #include "common/array.h"
 #include "common/util.h"
 #include "common/scummsys.h"
+#include "goldbox/data/combat_icon_data.h"
 
 namespace Goldbox {
 namespace Data {
@@ -91,83 +92,6 @@ struct PortraitData {
 	uint8 body;
 
 	PortraitData() : head(0), body(0) {}
-};
-
-struct CombatIconData {
-	uint8 iconHead;
-	uint8 iconBody;
-	uint8 iconSize;
-	uint8 iconSlotId;
-	uint8 iconColorBody1, iconColorBody2;
-	uint8 iconColorArm1, iconColorArm2;
-	uint8 iconColorLeg1, iconColorLeg2;
-	uint8 iconColorHair, iconColorFace;
-	uint8 iconColorShield1, iconColorShield2;
-	uint8 iconColorWeapon1, iconColorWeapon2;
-
-
-	void setBodyColor(uint8 value) {
-		iconColorBody1 = value & 0x0F;
-		iconColorBody2 = value >> 4;
-	}
-
-	void setArmColor(uint8 value) {
-		iconColorArm1 = value & 0x0F;
-		iconColorArm2 = value >> 4;
-	}
-
-	void setLegColor(uint8 value) {
-		iconColorLeg1 = value & 0x0F;
-		iconColorLeg2 = value >> 4;
-	}
-
-	void setHairFaceColor(uint8 value) {
-		iconColorHair = value & 0x0F;
-		iconColorFace = value >> 4;
-	}
-
-	void setShieldColor(uint8 value) {
-		iconColorShield1 = value & 0x0F;
-		iconColorShield2 = value >> 4;
-	}
-
-	void setWeaponColor(uint8 value) {
-		iconColorWeapon1 = value & 0x0F;
-		iconColorWeapon2 = value >> 4;
-	}
-
-	/**
-	 * Compare two CombatIconData structures for equality.
-	 */
-	bool operator==(const CombatIconData &other) const {
-		return iconHead == other.iconHead &&
-		       iconBody == other.iconBody &&
-		       iconSize == other.iconSize &&
-			   iconSlotId == other.iconSlotId &&
-		       iconColorBody1 == other.iconColorBody1 &&
-		       iconColorBody2 == other.iconColorBody2 &&
-		       iconColorArm1 == other.iconColorArm1 &&
-		       iconColorArm2 == other.iconColorArm2 &&
-		       iconColorLeg1 == other.iconColorLeg1 &&
-		       iconColorLeg2 == other.iconColorLeg2 &&
-		       iconColorHair == other.iconColorHair &&
-		       iconColorFace == other.iconColorFace &&
-		       iconColorShield1 == other.iconColorShield1 &&
-		       iconColorShield2 == other.iconColorShield2 &&
-		       iconColorWeapon1 == other.iconColorWeapon1 &&
-		       iconColorWeapon2 == other.iconColorWeapon2;
-	}
-
-	/**
-	 * Compare two CombatIconData structures for inequality.
-	 */
-	bool operator!=(const CombatIconData &other) const {
-		return !(*this == other);
-	}
-
-	// Constants for validation
-	static const uint8 ICON_HEAD_MAX = 13;
-	static const uint8 ICON_BODY_MAX = 31;
 };
 
 struct EffectModifiers {
