@@ -25,7 +25,7 @@
 #include "common/scummsys.h"
 #include "goldbox/gfx/pic.h"
 #include "goldbox/gfx/dax_renderer.h"
-#include "goldbox/data/player_character.h"
+#include "goldbox/data/combat_icon_data.h"
 
 namespace Goldbox {
 namespace Data {

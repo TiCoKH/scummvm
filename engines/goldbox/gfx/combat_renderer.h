@@ -26,7 +26,7 @@
 #include "graphics/managed_surface.h"
 #include "goldbox/gfx/icon.h"
 #include "goldbox/gfx/dax_renderer.h"
-#include "goldbox/data/player_character.h"
+// CombatIconData is the only data-layer type used here; included via icon.h
 
 namespace Goldbox {
 namespace Gfx {

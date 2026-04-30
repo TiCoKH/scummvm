@@ -149,7 +149,7 @@ bool IconManager::loadIcon(uint8 slotId, IconKind kind, uint16 blockId) {
 	return true;
 }
 
-bool IconManager::loadIcon(uint8 slotId, const Data::CombatIconData &iconData, bool isAction) {
+bool IconManager::loadIcon(uint8 slotId, const CombatIconData &iconData, bool isAction) {
 	if (slotId >= SLOT_COUNT) {
 		return false;
 	}

@@ -25,12 +25,18 @@
 #include "common/array.h"
 #include "graphics/managed_surface.h"
 #include "goldbox/gfx/pic.h"
-#include "goldbox/data/player_character.h"
+
+namespace Goldbox {
+namespace Data {
+struct CombatIconData;
+}
+}
 
 namespace Goldbox {
 namespace Gfx {
 
 class Icon;
+using ::Goldbox::Data::CombatIconData;
 
 // IconKind is defined in gfx/icon.h; forward-declare here to avoid pulling in
 // the full Icon header from this management-layer header.
@@ -170,7 +176,7 @@ public:
 	 * @param isAction Whether to build the action state icon
 	 * @return true if successfully stored
 	 */
-	bool loadIcon(uint8 slotId, const Data::CombatIconData &iconData, bool isAction);
+	bool loadIcon(uint8 slotId, const CombatIconData &iconData, bool isAction);
 
 private:
 	Common::Array<Icon *> _iconBuffer;    // Fixed 256-slot array
