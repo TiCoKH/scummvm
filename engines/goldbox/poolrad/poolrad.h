@@ -25,7 +25,7 @@
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/views/views.h"
 #include "goldbox/poolrad/views/mainscreen_view.h"
-#include "goldbox/core/icon_manager.h"
+#include "goldbox/gfx/icon_manager.h"
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
 //#include "goldbox/poolrad/data/character.h"
@@ -43,7 +43,7 @@ const int MAX_NPC_IN_PARTY = 2;
 class PoolradEngine : public Goldbox::Engine {
 private:
 	Poolrad::Views::Views *_views = nullptr;
-	IconManager *_iconManager = nullptr;
+	Gfx::IconManager *_iconManager = nullptr;
 	uint16 _mapX = 0, _mapY = 0;
 	EffectHandler _effectsRuntime;
 
@@ -74,7 +74,7 @@ public:
 	 * Get the global icon manager.
 	 * @return Pointer to the icon manager
 	 */
-	IconManager *getIconManager() const { return _iconManager; }
+	Gfx::IconManager *getIconManager() const { return _iconManager; }
 	EffectHandler &effectsRuntime() { return _effectsRuntime; }
 	Gfx::WalldefSlotCache &getWalldefSlotCache() { return _walldefSlotCache; }
 	Gfx::Tile8x8Cache &getTileCache() { return _tileCache; }

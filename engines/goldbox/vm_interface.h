@@ -29,7 +29,9 @@
 namespace Goldbox {
 
 // Forward declarations
-class IconManager;
+namespace Gfx {
+    class IconManager;
+}
 
 namespace Poolrad {
 	class PoolradEngine;
@@ -115,7 +117,7 @@ public:
     static Data::DaxFileManager &getDaxManager() { return g_engine->getDaxManager(); }
 
     // Icon Manager accessor
-    static IconManager *getIconManager();
+    static Gfx::IconManager *getIconManager();
 };
 
 // Minimal VM scaffolding for ECL execution

@@ -120,7 +120,7 @@ void PoolradEngine::setup() {
 
 
 	// Initialize icon manager
-	_iconManager = new IconManager();
+	_iconManager = new Gfx::IconManager();
 
 	// Populate daxFont from container
 	Goldbox::Data::DaxBlock *pc_font = getDax8x8d().getBlockById(201);

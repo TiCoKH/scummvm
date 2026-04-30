@@ -18,7 +18,7 @@ MODULE_OBJS = \
 	core/array.o \
 	core/file.o \
 	core/menu_item.o \
-	core/icon_manager.o \
+	gfx/icon_manager.o \
 	core/vm_bank.o \
 	core/vm_layout.o \
 	data/player_character.o \

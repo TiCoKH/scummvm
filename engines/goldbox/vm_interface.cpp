@@ -21,12 +21,12 @@
 
 #include "goldbox/engine.h"  // for accessing engine methods
 #include "goldbox/vm_interface.h"
-#include "goldbox/core/icon_manager.h"
+#include "goldbox/gfx/icon_manager.h"
 #include "goldbox/poolrad/poolrad.h"
 
 namespace Goldbox {
 
-IconManager *VmInterface::getIconManager() {
+Gfx::IconManager *VmInterface::getIconManager() {
 	Poolrad::PoolradEngine *engine = dynamic_cast<Poolrad::PoolradEngine *>(g_engine);
 	return engine ? engine->getIconManager() : nullptr;
 }
