@@ -62,7 +62,25 @@ struct OpcodeInfo {
  * Lookup opcode info by opcode byte.
  * Returns nullptr if opcode is undefined.
  */
-OpcodeInfo *getOpcodeInfo(uint8 opcode);
+const OpcodeInfo *getOpcodeInfo(uint8 opcode);
+
+/**
+ * Clear all registered opcode metadata entries.
+ */
+void clearOpcodeTable();
+
+/**
+ * Register one opcode metadata entry.
+ */
+void registerOpcodeInfo(uint8 opcode, const OpcodeInfo *info);
+
+/**
+ * Register the current default opcode table used by Pool of Radiance.
+ *
+ * This function is intentionally explicit: game-side configuration should call
+ * it during dialect setup instead of relying on implicit core selection.
+ */
+void registerDefaultOpcodeTable();
 
 /**
  * Get human-readable opcode name.

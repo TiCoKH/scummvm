@@ -108,7 +108,7 @@ static bool readString(Common::Span<const uint8> program, uint32 offset,
 }
 
 DecodeStatus decodeProgram(Common::Span<const uint8> program, uint16 startPc,
-        Common::Array<EclInstruction> &outInstructions) {
+    Common::Array<EclInstruction> &outInstructions) {
     outInstructions.clear();
 
     uint32 pc = startPc;
@@ -118,7 +118,7 @@ DecodeStatus decodeProgram(Common::Span<const uint8> program, uint16 startPc,
             return DECODE_OUT_OF_BOUNDS;
         }
 
-        OpcodeInfo *info = getOpcodeInfo(opcode);
+        const OpcodeInfo *info = getOpcodeInfo(opcode);
         if (!info) {
             return DECODE_UNKNOWN_OPCODE;
         }

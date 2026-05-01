@@ -74,7 +74,20 @@ typedef int (*OpcodeHandler)(AddressSpace &mem, const EclInstruction &insn,
  * Register all opcode handlers.
  * Called once at VM startup.
  */
-void registerOpcodeHandlers();
+void clearOpcodeHandlers();
+
+/**
+ * Register one opcode handler.
+ */
+void registerOpcodeHandler(uint8 opcode, OpcodeHandler handler);
+
+/**
+ * Register the current default opcode handler table used by Pool of Radiance.
+ *
+ * This function is intentionally explicit: game-side configuration should call
+ * it during dialect setup instead of relying on implicit core selection.
+ */
+void registerDefaultOpcodeHandlers();
 
 /**
  * Get handler for an opcode.
