@@ -24,6 +24,8 @@
 
 #include "common/scummsys.h"
 #include "common/str.h"
+#include "goldbox/ecl/opcode_handlers.h"
+#include "goldbox/ecl/opcode_table.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -78,6 +80,13 @@ class GameConfig {
 public:
     virtual ~GameConfig() = default;
 
+    /**
+     * Register this game's ECL dialect metadata and handlers.
+     *
+     * This keeps game-specific opcode sets out of generic VM control flow.
+     */
+    virtual void registerDialect() const = 0;
+
     // Flag storage
     virtual uint16 getFlagBase() const { return ECLMemoryLayout::OFFSET_TRANSIENT_FLAGS; }
     virtual uint16 getTransientFlagCount() const { return ECLMemoryLayout::TRANSIENT_FLAG_COUNT; }
@@ -108,6 +117,11 @@ public:
 /** Pool of Radiance configuration. */
 class PoolradConfig : public GameConfig {
 public:
+    void registerDialect() const override {
+        registerDefaultOpcodeTable();
+        registerDefaultOpcodeHandlers();
+    }
+
     Common::String getGameName() const override { return "Pool of Radiance"; }
 };
 

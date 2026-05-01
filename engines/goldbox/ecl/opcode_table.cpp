@@ -24,6 +24,8 @@
 namespace Goldbox {
 namespace ECL {
 
+static const OpcodeInfo *g_opcodeRegistry[256] = { nullptr };
+
 // Forward declarations for operand type arrays
 static OperandType noOps[] = { OperandType::NONE };
 static OperandType addrOps[] = { OperandType::ADDR16, OperandType::NONE };
@@ -32,10 +34,18 @@ static OperandType val16Ops[] = { OperandType::VAL16, OperandType::NONE };
 static OperandType addr2Ops[] = { OperandType::ADDR16, OperandType::ADDR16, OperandType::NONE };
 static OperandType val8AddrOps[] = { OperandType::VAL8, OperandType::ADDR16, OperandType::NONE };
 static OperandType val16AddrOps[] = { OperandType::VAL16, OperandType::ADDR16, OperandType::NONE };
+static OperandType val16Val8Ops[] = { OperandType::VAL16, OperandType::VAL8, OperandType::NONE };
+static OperandType addr16Val8Ops[] = { OperandType::ADDR16, OperandType::VAL8, OperandType::NONE };
+static OperandType val8Val8Ops[] = { OperandType::VAL8, OperandType::VAL8, OperandType::NONE };
+static OperandType sixVal8Ops[] = {
+    OperandType::VAL8, OperandType::VAL8, OperandType::VAL8,
+    OperandType::VAL8, OperandType::VAL8, OperandType::VAL8,
+    OperandType::NONE
+};
 static OperandType val8Val8AddrOps[] = { OperandType::VAL8, OperandType::VAL8, OperandType::ADDR16, OperandType::NONE };
 static OperandType varArgsOps[] = { OperandType::VARARGS, OperandType::NONE };
 
-// ECL opcode table for Pool of Radiance (0x00-0x3D)
+// ECL opcode table for Pool of Radiance (0x00-0x4C)
 static OpcodeInfo opcodeTable[] = {
     { 0x00, "EXIT", noOps, "Stops execution and returns control to the player" },
     { 0x01, "GOTO", addrOps, "Continue execution at address" },
@@ -98,23 +108,52 @@ static OpcodeInfo opcodeTable[] = {
     { 0x3A, "DELAY", noOps, "Delay execution" },
     { 0x3B, "SPELL", varArgsOps, "Search for spell in party" },
     { 0x3C, "PROTECTION", val8Ops, "Print runic phrase" },
-    { 0x3D, "CLEAR BOX", noOps, "Clear text box" }
+    { 0x3D, "CLEAR BOX", noOps, "Clear text box" },
+    { 0x3E, "NPC REMOVE", noOps, "Remove NPC from party" },
+    { 0x3F, "HAS EFFECT", val8Ops, "Check whether a party effect is active" },
+    { 0x40, "DESTROY ITEM", val8Ops, "Destroy item from party inventory" },
+    { 0x41, "GIVE EXP", val16Val8Ops, "Award experience to party" },
+    { 0x42, "STOP MOVE", noOps, "Stop movement and halt script" },
+    { 0x43, "SOUND EVENT", val8Ops, "Play a sound effect" },
+    { 0x44, "UNKNOWN44", noOps, "Unknown opcode" },
+    { 0x45, "RANDOM0", addr16Val8Ops, "Random 0..max into destination" },
+    { 0x46, "FOR START", val8Val8Ops, "Initialize counted loop" },
+    { 0x47, "FOR REPEAT", noOps, "Repeat counted loop" },
+    { 0x48, "UNKNOWN48", val8Ops, "Unknown opcode" },
+    { 0x49, "UNKNOWN49", sixVal8Ops, "Unknown opcode" },
+    { 0x4A, "UNKNOWN4A", noOps, "Unknown opcode" },
+    { 0x4B, "UNKNOWN4B", val8Ops, "Unknown opcode" },
+    { 0x4C, "PICTURE2", val8Val8Ops, "Display picture with variant" }
 };
 
-OpcodeInfo *getOpcodeInfo(uint8 opcode) {
-    if (opcode >= 0x00 && opcode <= 0x3D) {
-        return &opcodeTable[opcode];
+void clearOpcodeTable() {
+    for (uint i = 0; i < ARRAYSIZE(g_opcodeRegistry); ++i) {
+        g_opcodeRegistry[i] = nullptr;
     }
-    return nullptr;
+}
+
+void registerOpcodeInfo(uint8 opcode, const OpcodeInfo *info) {
+    g_opcodeRegistry[opcode] = info;
+}
+
+void registerDefaultOpcodeTable() {
+    clearOpcodeTable();
+    for (uint8 opcode = 0; opcode <= 0x4C; ++opcode) {
+        registerOpcodeInfo(opcode, &opcodeTable[opcode]);
+    }
+}
+
+const OpcodeInfo *getOpcodeInfo(uint8 opcode) {
+    return g_opcodeRegistry[opcode];
 }
 
 const char *getOpcodeName(uint8 opcode) {
-    OpcodeInfo *info = getOpcodeInfo(opcode);
+    const OpcodeInfo *info = getOpcodeInfo(opcode);
     return info ? info->name : "UNKNOWN";
 }
 
 int getOperandCount(uint8 opcode) {
-    OpcodeInfo *info = getOpcodeInfo(opcode);
+    const OpcodeInfo *info = getOpcodeInfo(opcode);
     if (!info || !info->operands) {
         return 0;
     }

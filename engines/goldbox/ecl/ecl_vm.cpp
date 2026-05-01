@@ -58,7 +58,9 @@ namespace ECL {
 
 EclVM::EclVM(GameConfig *config, SyscallHandler *syscalls)
     : _config(config), _syscalls(syscalls), _pc(0), _scriptId(0xFF) {
-    registerOpcodeHandlers();
+    if (_config) {
+        _config->registerDialect();
+    }
 }
 
 EclVM::~EclVM() {

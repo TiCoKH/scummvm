@@ -146,7 +146,7 @@ private:
  * @return DecodeStatus
  */
 DecodeStatus decodeProgram(Common::Span<const uint8> program, uint16 startPc,
-        Common::Array<EclInstruction> &outInstructions);
+    Common::Array<EclInstruction> &outInstructions);
 
 /**
  * Decompress 6-bit packed string.
