@@ -19,36 +19,20 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_VIEWS_H
-#define GOLDBOX_POOLRAD_VIEWS_VIEWS_H
-
-#include "goldbox/poolrad/views/mainscreen_view.h"
-#include "goldbox/poolrad/views/title_view.h"
-#include "goldbox/poolrad/views/credits_view.h"
-#include "goldbox/poolrad/views/codewheel_view.h"
-#include "goldbox/poolrad/views/mainmenu_view.h"
-#include "goldbox/poolrad/views/create_character_view.h"
-#include "goldbox/poolrad/views/add_character_view.h"
-#include "goldbox/poolrad/views/view_character_view.h"
-#include "goldbox/poolrad/views/in_game_view.h"
+#ifndef GOLDBOX_POOLRAD_ECL_POOLRAD_OPCODE_HANDLERS_H
+#define GOLDBOX_POOLRAD_ECL_POOLRAD_OPCODE_HANDLERS_H
 
 namespace Goldbox {
-namespace Poolrad{
-namespace Views {
-	
-struct Views {
-	TitleView _title;
-	CreditsView _credits;
-	CodewheelView _codewheel;
-	MainmenuView _mainmenu;
-	CreateCharacterView _createcharacter;
-	AddCharacterView _addcharacter;
-	ViewCharacterView _viewcharacter;
-	InGameView _ingame;
-};
+namespace Poolrad {
 
-} // namespace Views
+/**
+ * Register Pool of Radiance-specific opcode handlers (0x3E-0x4C) and their
+ * corresponding opcode table entries.
+ * Called via PoolradGameConfig::registerGameOpcodeHandlers().
+ */
+void registerPoolradOpcodeHandlers();
+
 } // namespace Poolrad
 } // namespace Goldbox
 
-#endif
+#endif // GOLDBOX_POOLRAD_ECL_POOLRAD_OPCODE_HANDLERS_H

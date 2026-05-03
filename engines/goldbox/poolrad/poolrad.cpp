@@ -160,6 +160,14 @@ void PoolradEngine::setup() {
 	// Setup game views
 	_views = new Views::Views();
 	addView("Title");
+
+	// Phase 1: initialise ECL VM runtime
+	// 1. Construct VM (memory is owned by VM; no syscall handler yet).
+	_eclVm.reset(new ECL::EclVM(&_eclConfig));
+	// 2. Construct game host (needs a pointer into VM memory).
+	_eclHost.reset(new PoolradEngineHostImpl(this, &_eclVm->getMemory()));
+	// 3. Wire host as the VM's syscall dispatch target.
+	_eclVm->setSyscallHandler(_eclHost.get());
 }
 
 void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
@@ -179,52 +187,46 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 		}
 		break;
 	case GS_SHOP:
-				// Uses drawMainScreenWindows(true) - shows mini window for NPC portraits
-		addView("ViewCharacter");
-		view = dynamic_cast<Views::View *>(findView("ViewCharacter"));
-		if (view) {
+		// InGameView kModeShop: drawMainScreenWindows(true) + NPC portrait at (3,3).
+		addView("InGame");
+		view = dynamic_cast<Views::View *>(findView("InGame"));
+		if (view)
 			view->onEnter(next);
-		}
 		break;
 	case GS_CAMPING:
-				// Uses drawMainScreenWindows(true) - shows mini window for camp menu
-		addView("Mainmenu");
-		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
-		if (view) {
+		// InGameView kModeCamping: drawMainScreenWindows(true) + camp state area.
+		addView("InGame");
+		view = dynamic_cast<Views::View *>(findView("InGame"));
+		if (view)
 			view->onEnter(next);
-		}
 		break;
 	case GS_DUNGEON_MAP:
-				// Uses drawMainScreenWindows(true) - shows mini window for 3D view
-		addView("Mainmenu");
-		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
-		if (view) {
+		// InGameView kModeDungeon: drawMainScreenWindows(true) + 3D view + party panel.
+		addView("InGame");
+		view = dynamic_cast<Views::View *>(findView("InGame"));
+		if (view)
 			view->onEnter(next);
-		}
 		break;
 	case GS_WILDERNESS_MAP:
-				// Uses drawMainScreenWindows(false) - no mini window for outdoor map
-		addView("Mainmenu");
-		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
-		if (view) {
+		// InGameView kModeWilderness: drawMainScreenWindows(false) + area-map block.
+		addView("InGame");
+		view = dynamic_cast<Views::View *>(findView("InGame"));
+		if (view)
 			view->onEnter(next);
-		}
 		break;
 	case GS_AFTER_COMBAT:
-				// Uses drawMainScreenWindows(true) - shows mini window for loot screen
-		addView("Mainmenu");
-		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
-		if (view) {
+		// InGameView kModeAfterCombat: drawMainScreenWindows(true) + loot panel.
+		addView("InGame");
+		view = dynamic_cast<Views::View *>(findView("InGame"));
+		if (view)
 			view->onEnter(next);
-		}
 		break;
 	case GS_COMBAT:
-		// Not covered by original snippet; keep layout as-is and select main menu for now.
-		addView("Mainmenu");
-		view = dynamic_cast<Views::View *>(findView("Mainmenu"));
-		if (view) {
+		// InGameView kModeCombat: layout to be defined.
+		addView("InGame");
+		view = dynamic_cast<Views::View *>(findView("InGame"));
+		if (view)
 			view->onEnter(next);
-		}
 		break;
 	case GS_END_GAME:
 		// Placeholder: go back to title; layout irrelevant.

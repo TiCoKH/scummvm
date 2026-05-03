@@ -28,6 +28,10 @@
 #include "goldbox/gfx/icon_manager.h"
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
+#include "goldbox/ecl/ecl_vm.h"
+#include "goldbox/poolrad/ecl/poolrad_game_config.h"
+#include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
+#include "common/ptr.h"
 //#include "goldbox/poolrad/data/character.h"
 //#include "goldbox/poolrad/files/game_archive.h"
 //#include "goldbox/poolrad/data/saved.h"
@@ -51,6 +55,25 @@ private:
 	Gfx::WalldefSlotCache _walldefSlotCache;
 	/** 5-slot tile atlas cache (slots 0-4 for universal + walldef tiles). */
 	Gfx::Tile8x8Cache _tileCache;
+
+	// -------------------------------------------------------------------
+	// ECL VM runtime
+	// -------------------------------------------------------------------
+
+	/** Flags tracking async ECL completion states. */
+	struct EclRuntimeFlags {
+		bool wallsetReady  = false;
+		bool geoReady      = false;
+		bool mapDataReady  = false;
+		bool screenRefresh = false;
+		bool eclReady      = false;
+		bool suspended     = false;
+	};
+
+	PoolradGameConfig                           _eclConfig;
+	Common::ScopedPtr<ECL::EclVM>              _eclVm;
+	Common::ScopedPtr<PoolradEngineHostImpl>   _eclHost;
+	EclRuntimeFlags                            _eclFlags;
 
 protected:
 	void setup() override;

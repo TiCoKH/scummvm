@@ -25,20 +25,11 @@
 #include "common/scummsys.h"
 #include "common/str.h"
 #include "engines/goldbox/vm_interface.h"
+#include "goldbox/ecl/syscall_handler.h"
 
 namespace Goldbox {
 
 namespace ECL {
-
-enum class YieldReason {
-    None = 0,
-    WaitingForInput,
-    WaitingForCombat,
-    WaitingForPicture,
-    WaitingForMenu,
-    WaitingForScript,
-    WaitingForCharacterLoad
-};
 
 /**
  * Host interface provided by the Goldbox engine to the ECL VM.
@@ -49,7 +40,7 @@ enum class YieldReason {
  * Non-pure virtual methods have a default no-op implementation and
  * may be overridden by game-specific hosts as needed.
  */
-class EclEngineHost {
+class EclEngineHost : public SyscallHandler {
 public:
     virtual ~EclEngineHost() = default;
 

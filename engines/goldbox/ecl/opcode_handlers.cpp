@@ -35,7 +35,11 @@ using HandlerMap = Common::HashMap<uint8, OpcodeHandler>;
 static HandlerMap g_handlers;
 static Common::RandomSource g_random("eclvm");
 
-static const EclLayoutAccess &getOpcodeLayout() {
+Common::RandomSource &getOpcodeRandom() {
+    return g_random;
+}
+
+const EclLayoutAccess &getOpcodeLayout() {
     static EclLayoutAccess s_layout(
         Goldbox::Poolrad::Data::getPoolradVmLayout(),
         Goldbox::Poolrad::Data::getPoolradGlobalVmLayout(),
