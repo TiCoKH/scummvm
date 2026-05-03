@@ -86,6 +86,14 @@ public:
     VmResult runAtEntryPoint(EntryPointSelector entry, uint32 maxSteps = 10000);
 
     /**
+     * Run script starting at an arbitrary bytecode address (original ENGINE_Execute behavior).
+     * @param scriptPc Bytecode PC in VM address space (e.g. 0x9900+offset)
+     * @param maxSteps Maximum instructions before timeout
+     * @return Result code
+     */
+    VmResult runAtScriptAddress(uint16 scriptPc, uint32 maxSteps = 10000);
+
+    /**
      * Resume script execution from current PC.
      * Used after async operations complete.
      * @param maxSteps Maximum instructions
@@ -145,6 +153,13 @@ private:
     Common::Array<uint16> _entryPoints;
 
     /**
+     * Find decoded instruction index by bytecode PC.
+     * @param scriptPc Bytecode PC in VM address space
+     * @return instruction index or -1 if not found
+     */
+    int findInstructionIndexByPc(uint16 scriptPc) const;
+
+    /**
      * Parse ECL header (first 10 bytes) to extract entry point offsets.
      * @param program Raw bytecode starting with header
      * @return True if header parsed successfully
@@ -157,7 +172,7 @@ private:
      */
     void initializeECLState();
 
-    VmResult executeInstruction(const EclInstruction &insn);
+    VmResult executeInstruction(const EclInstruction &insn, uint16 defaultNextPc);
 };
 
 } // namespace ECL

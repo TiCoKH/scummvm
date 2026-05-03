@@ -23,9 +23,11 @@
 #define GOLDBOX_ECL_OPCODE_HANDLERS_H
 
 #include "common/array.h"
+#include "common/random.h"
 #include "common/scummsys.h"
 #include "goldbox/ecl/ecl_decoder.h"
 #include "goldbox/ecl/ecl_memory.h"
+#include "goldbox/ecl/runtime_layout.h"
 #include "goldbox/ecl/syscall_handler.h"
 
 namespace Goldbox {
@@ -98,6 +100,17 @@ OpcodeHandler getOpcodeHandler(uint8 opcode);
  * Helper to resolve a variable value (dereference if address).
  */
 uint16 resolveVar(AddressSpace &mem, const EclOperand &operand);
+
+/**
+ * Get the shared layout accessor used by opcode handlers.
+ * Backed by the Pool of Radiance VM / global / runtime layout tables.
+ */
+const EclLayoutAccess &getOpcodeLayout();
+
+/**
+ * Get the shared random source used by opcode handlers.
+ */
+Common::RandomSource &getOpcodeRandom();
 
 } // namespace ECL
 } // namespace Goldbox

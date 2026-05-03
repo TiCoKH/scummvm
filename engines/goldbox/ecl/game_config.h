@@ -68,11 +68,12 @@ namespace ECLMemoryLayout {
 
 }
 
-/** Game state values used by ECL scripts. */
-enum GameStateValue {
-    GS_DUNGEON_MAP = 0,
-    GS_WILDERNESS_MAP = 1,
-    GS_COMBAT = 2
+/** Identifies a logical VM address bank (address window populated from DAX). */
+enum VmBankId {
+    kVmBankGeo  = 0,  ///< GEO dungeon-map block window
+    kVmBankDat  = 1,  ///< DAT character/party-data block window
+    kVmBankHeap = 2,  ///< Heap/scratch window
+    kVmBankEcl  = 3   ///< ECL script bank
 };
 
 /** Game-specific ECL configuration. */
@@ -86,6 +87,11 @@ public:
      * This keeps game-specific opcode sets out of generic VM control flow.
      */
     virtual void registerDialect() const = 0;
+
+    // VM address layout
+    virtual uint16 getScriptVmStart() const { return ECLMemoryLayout::MEM_START_DEFAULT; }
+    virtual bool getVmBankRange(VmBankId /*bankId*/, uint16 & /*firstAddr*/,
+            uint16 & /*lastAddr*/) const { return false; }
 
     // Flag storage
     virtual uint16 getFlagBase() const { return ECLMemoryLayout::OFFSET_TRANSIENT_FLAGS; }

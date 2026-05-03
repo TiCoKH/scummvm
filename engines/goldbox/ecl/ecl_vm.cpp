@@ -57,7 +57,8 @@ namespace Goldbox {
 namespace ECL {
 
 EclVM::EclVM(GameConfig *config, SyscallHandler *syscalls)
-    : _config(config), _syscalls(syscalls), _pc(0), _scriptId(0xFF) {
+        : _config(config), _syscalls(syscalls),
+            _pc(ECLMemoryLayout::MEM_START_POOLRAD), _scriptId(0xFF) {
     if (_config) {
         _config->registerDialect();
     }
@@ -68,7 +69,7 @@ EclVM::~EclVM() {
 
 DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptId) {
     _scriptId = scriptId;
-    _pc = 0;
+    _pc = ECLMemoryLayout::MEM_START_POOLRAD;
     _callStack.clear();
     _program.clear();
     _entryPoints.clear();
@@ -78,11 +79,18 @@ DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptI
         return DECODE_OUT_OF_BOUNDS;
     }
 
-    // Decode the entire program starting from offset 10 (after header)
+    // Decode script body (after 10-byte header) and normalize decoded PCs
+    // to VM address space (0x9900-based), matching original WORD_ECL_PC.
     Common::Span<const uint8> programBody = program.subspan(10);
-    DecodeStatus status = decodeProgram(programBody, 10, _program);
+    DecodeStatus status = decodeProgram(programBody, 0, _program);
     if (status != DECODE_OK) {
         return status;
+    }
+
+    const uint16 vmPcBase = static_cast<uint16>(
+        ECLMemoryLayout::MEM_START_POOLRAD + 10);
+    for (uint i = 0; i < _program.size(); ++i) {
+        _program[i].pc = static_cast<uint16>(vmPcBase + _program[i].pc);
     }
 
     // Initialize ECL state for new script
@@ -157,17 +165,15 @@ VmResult EclVM::runAtEntryPoint(EntryPointSelector entry, uint32 maxSteps) {
         return VM_ERROR;
     }
 
-    uint16 offset = _entryPoints[entryIdx];
+    return runAtScriptAddress(_entryPoints[entryIdx], maxSteps);
+}
 
-    // Find instruction at this offset
-    _pc = 0;
-    for (uint i = 0; i < _program.size(); ++i) {
-        if (_program[i].pc == offset) {
-            _pc = i;
-            break;
-        }
+VmResult EclVM::runAtScriptAddress(uint16 scriptPc, uint32 maxSteps) {
+    if (findInstructionIndexByPc(scriptPc) < 0) {
+        return VM_ERROR;
     }
 
+    _pc = scriptPc;
     return resume(maxSteps);
 }
 
@@ -182,24 +188,28 @@ VmResult EclVM::resume(uint32 maxSteps) {
 }
 
 VmResult EclVM::step() {
-    if (_pc >= _program.size()) {
+    int insnIndex = findInstructionIndexByPc(_pc);
+    if (insnIndex < 0) {
         return VM_HALTED;
     }
 
-    const EclInstruction &insn = _program[_pc];
-    _pc += 1;
+    const EclInstruction &insn = _program[insnIndex];
+    uint16 defaultNextPc = (insnIndex + 1 < (int)_program.size())
+            ? _program[insnIndex + 1].pc
+            : static_cast<uint16>(insn.pc + 1);
 
-    return executeInstruction(insn);
+    return executeInstruction(insn, defaultNextPc);
 }
 
-VmResult EclVM::executeInstruction(const EclInstruction &insn) {
+VmResult EclVM::executeInstruction(const EclInstruction &insn,
+        uint16 defaultNextPc) {
     OpcodeHandler handler = getOpcodeHandler(insn.opcode);
     if (!handler) {
         // No handler registered; stub with yield
         return VM_YIELD;
     }
 
-    uint16 nextPc = _pc;
+    uint16 nextPc = defaultNextPc;
     VmResult result = static_cast<VmResult>(handler(_memory, insn, nextPc, _callStack, _syscalls));
 
     if (result == VM_OK) {
@@ -211,6 +221,16 @@ VmResult EclVM::executeInstruction(const EclInstruction &insn) {
 
 Common::String EclVM::dumpMemory(uint16 startAddr, uint16 length) const {
     return _memory.dumpRegion(startAddr, length);
+}
+
+int EclVM::findInstructionIndexByPc(uint16 scriptPc) const {
+    for (uint i = 0; i < _program.size(); ++i) {
+        if (_program[i].pc == scriptPc) {
+            return static_cast<int>(i);
+        }
+    }
+
+    return -1;
 }
 
 } // namespace ECL

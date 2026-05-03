@@ -30,6 +30,7 @@
 #include "goldbox/poolrad/views/create_character_view.h"
 #include "goldbox/poolrad/views/add_character_view.h"
 #include "goldbox/poolrad/views/view_character_view.h"
+#include "goldbox/poolrad/views/in_game_view.h"
 
 namespace Goldbox {
 namespace Poolrad{
@@ -43,6 +44,7 @@ struct Views {
 	CreateCharacterView _createcharacter;
 	AddCharacterView _addcharacter;
 	ViewCharacterView _viewcharacter;
+	InGameView _ingame;
 };
 
 } // namespace Views

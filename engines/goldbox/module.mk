@@ -56,6 +56,8 @@ MODULE_OBJS = \
 	poolrad/poolrad.o \
 	poolrad/effect_handler.o \
 	poolrad/console.o \
+	poolrad/ecl/poolrad_engine_host_impl.o \
+	poolrad/ecl/poolrad_opcode_handlers.o \
 	poolrad/data/poolrad_character.o \
 	poolrad/data/poolrad_vm_layout.o \
 	poolrad/gfx/surface.o \
@@ -68,6 +70,7 @@ MODULE_OBJS = \
 	poolrad/views/create_character_view.o \
 	poolrad/views/add_character_view.o \
 	poolrad/views/view_character_view.o \
+	poolrad/views/in_game_view.o \
 	poolrad/views/dialogs/dialog.o \
 	poolrad/views/dialogs/horizontal_input.o \
 	poolrad/views/dialogs/horizontal_menu.o \
