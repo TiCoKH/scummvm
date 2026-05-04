@@ -75,6 +75,28 @@ static int8 getCmpResult(AddressSpace &mem) {
     return (int8)mem.read8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag));
 }
 
+static Common::String resolveStringOperand(AddressSpace &mem,
+        const EclOperand &operand) {
+    if (operand.type != OperandType::STRING) {
+        return Common::String();
+    }
+
+    if (!operand.str.empty()) {
+        return operand.str;
+    }
+
+    Common::String text;
+    uint16 addr = operand.u16;
+    for (;;) {
+        uint8 ch = mem.read8(addr++);
+        if (ch == 0) {
+            break;
+        }
+        text += (char)ch;
+    }
+    return text;
+}
+
 // Static state for FOR loop (not nested; matches Java VirtualMachine behavior).
 static uint16 g_forLoopBodyStart = 0;
 static uint16 g_forLoopCount = 0;
@@ -187,7 +209,7 @@ static int handle_0x11_PRINT(AddressSpace &mem, const EclInstruction &insn,
     if (!syscalls || insn.operands.empty()) {
         return VM_ERROR;
     }
-    Common::String text = insn.operands[0].str;
+    Common::String text = resolveStringOperand(mem, insn.operands[0]);
     syscalls->printText(text, false);
     return VM_OK;
 }
@@ -197,7 +219,7 @@ static int handle_0x12_PRINTCLEAR(AddressSpace &mem, const EclInstruction &insn,
     if (!syscalls || insn.operands.empty()) {
         return VM_ERROR;
     }
-    Common::String text = insn.operands[0].str;
+    Common::String text = resolveStringOperand(mem, insn.operands[0]);
     syscalls->printText(text, true);
     return VM_OK;
 }
@@ -455,12 +477,12 @@ static int handle_0x15_VERTICAL_MENU(AddressSpace &mem, const EclInstruction &in
         return VM_ERROR;
     }
     uint16 resultAddr = insn.operands[0].u16;
-    Common::String message = insn.operands[1].str;
+    Common::String message = resolveStringOperand(mem, insn.operands[1]);
     uint8 count = insn.operands[2].u8;
     
     Common::Array<Common::String> options;
     for (int i = 0; i < count && (3 + i) < (int)insn.operands.size(); ++i) {
-        options.push_back(insn.operands[3 + i].str);
+        options.push_back(resolveStringOperand(mem, insn.operands[3 + i]));
     }
     
     return syscalls->verticalMenu(message, options, resultAddr);
@@ -739,7 +761,7 @@ static int handle_0x2B_HORIZONTAL_MENU(AddressSpace &mem, const EclInstruction &
     
     Common::Array<Common::String> options;
     for (int i = 0; i < count && (2 + i) < (int)insn.operands.size(); ++i) {
-        options.push_back(insn.operands[2 + i].str);
+        options.push_back(resolveStringOperand(mem, insn.operands[2 + i]));
     }
     
     return syscalls->horizontalMenu(options, resultAddr);

@@ -68,6 +68,30 @@ public:
     void registerDialect() const override {
         registerPoolradOpcodeHandlers();
     }
+
+    bool getOpcodeOperandCount(uint8 opcode, int &count) const override {
+        switch (opcode) {
+        case 0x0C: count = 3; return true;   // SPRITE_START3
+        case 0x1D: count = 1; return true;   // PARTY_STRENGTH
+        case 0x1F: count = 0; return true;   // UNUSED_1F
+        case 0x21: count = 3; return true;   // LOAD_AREA_MAP
+        case 0x22: count = 2; return true;   // PARTY_SKILL_CHECK2
+        case 0x23: count = 4; return true;   // SURPRISE
+        case 0x27: count = 8; return true;   // TREASURE_MULTICOIN
+        case 0x29: count = 14; return true;  // ENCOUNTER_MENU
+        case 0x2C: count = 6; return true;   // PARLAY
+        case 0x31: count = 0; return true;   // SPRITE_OFF
+        case 0x32: count = 1; return true;   // FIND_ITEM
+        case 0x34: count = 1; return true;   // CLOCK1 (PoR)
+        case 0x37: count = 3; return true;   // LOAD_AREA_DECO
+        case 0x3F: count = 1; return true;   // HAS_EFFECT
+        case 0x40: count = 1; return true;   // DESTROY_ITEM
+        case 0x42: count = 0; return true;   // UNUSED_42 / STOP_MOVE_42
+        default:
+            break;
+        }
+        return false;
+    }
 };
 
 } // namespace Poolrad

@@ -115,20 +115,21 @@ public:
     virtual bool usesSixBitStringEncoding() const { return true; }
 
     /**
+     * Optional opcode-variant override for operand count.
+     *
+     * Multi-variant opcode bytes (for example 0x0C, 0x22, 0x29, 0x42) can
+     * represent different logical instructions in different game profiles.
+     * Return true when this config defines an explicit operand count for
+     * the given opcode byte.
+     */
+    virtual bool getOpcodeOperandCount(uint8 /*opcode*/, int & /*count*/) const {
+        return false;
+    }
+
+    /**
      * Get a human-readable name for this config (for debugging).
      */
     virtual Common::String getGameName() const { return "Unknown"; }
-};
-
-/** Pool of Radiance configuration. */
-class PoolradConfig : public GameConfig {
-public:
-    void registerDialect() const override {
-        registerDefaultOpcodeTable();
-        registerDefaultOpcodeHandlers();
-    }
-
-    Common::String getGameName() const override { return "Pool of Radiance"; }
 };
 
 } // namespace ECL

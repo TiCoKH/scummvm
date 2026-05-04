@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/ecl/ecl_decoder.h"
+#include "goldbox/ecl/game_config.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -54,61 +55,205 @@ static bool read16(Common::Span<const uint8> program, uint32 offset, uint16 &val
     return true;
 }
 
-static bool readString(Common::Span<const uint8> program, uint32 offset,
-        Common::String &outStr, uint32 &bytesConsumed) {
-    bytesConsumed = 0;
-    uint8 marker = 0;
-    if (!read8(program, offset, marker)) {
-        return false;
+static uint32 getPackedStringSize(uint8 decodedLength) {
+    // 4 decoded chars are packed into 3 bytes.
+    return (decodedLength * 3 + 3) / 4;
+}
+
+static uint16 operandAsU16(const EclOperand &op) {
+    switch (op.type) {
+    case OperandType::VAL8:
+        return op.u8;
+    case OperandType::VAL16:
+    case OperandType::ADDR16:
+    case OperandType::STRING:
+        return op.u16;
+    case OperandType::VARARGS:
+    case OperandType::NONE:
+    default:
+        return 0;
+    }
+}
+
+enum OperandCountMode {
+    kOperandCountFixed = 0,
+    kOperandCountVerticalMenu,
+    kOperandCountOnJump,
+    kOperandCountHorizontalMenu
+};
+
+static bool getOperandCountPolicy(uint8 opcode, int &baseCount,
+        OperandCountMode &mode, const GameConfig *config) {
+    mode = kOperandCountFixed;
+
+    switch (opcode) {
+    case 0x00: baseCount = 0; return true;
+    case 0x01: baseCount = 1; return true;
+    case 0x02: baseCount = 1; return true;
+    case 0x03: baseCount = 2; return true;
+    case 0x04: baseCount = 3; return true;
+    case 0x05: baseCount = 3; return true;
+    case 0x06: baseCount = 3; return true;
+    case 0x07: baseCount = 3; return true;
+    case 0x08: baseCount = 2; return true;
+    case 0x09: baseCount = 2; return true;
+    case 0x0A: baseCount = 1; return true;
+    case 0x0B: baseCount = 3; return true;
+    case 0x0C: baseCount = 3; return true;
+    case 0x0D: baseCount = 0; return true;
+    case 0x0E: baseCount = 1; return true;
+    case 0x0F: baseCount = 2; return true;
+    case 0x10: baseCount = 2; return true;
+    case 0x11: baseCount = 1; return true;
+    case 0x12: baseCount = 1; return true;
+    case 0x13: baseCount = 0; return true;
+    case 0x14: baseCount = 4; return true;
+    case 0x15: baseCount = 3; mode = kOperandCountVerticalMenu; return true;
+    case 0x16: baseCount = 0; return true;
+    case 0x17: baseCount = 0; return true;
+    case 0x18: baseCount = 0; return true;
+    case 0x19: baseCount = 0; return true;
+    case 0x1A: baseCount = 0; return true;
+    case 0x1B: baseCount = 0; return true;
+    case 0x1C: baseCount = 0; return true;
+    case 0x1D: baseCount = 1; return true;
+    case 0x1E: baseCount = 6; return true;
+    case 0x1F: baseCount = 0; return true;
+    case 0x20: baseCount = 1; return true;
+    case 0x21: baseCount = 3; return true;
+    case 0x22: baseCount = 2; return true;
+    case 0x23: baseCount = 4; return true;
+    case 0x24: baseCount = 0; return true;
+    case 0x25: baseCount = 2; mode = kOperandCountOnJump; return true;
+    case 0x26: baseCount = 2; mode = kOperandCountOnJump; return true;
+    case 0x27: baseCount = 8; return true;
+    case 0x28: baseCount = 3; return true;
+    case 0x29: baseCount = 14; return true;
+    case 0x2A: baseCount = 3; return true;
+    case 0x2B: baseCount = 2; mode = kOperandCountHorizontalMenu; return true;
+    case 0x2C: baseCount = 6; return true;
+    case 0x2D: baseCount = 1; return true;
+    case 0x2E: baseCount = 5; return true;
+    case 0x2F: baseCount = 3; return true;
+    case 0x30: baseCount = 3; return true;
+    case 0x31: baseCount = 0; return true;
+    case 0x32: baseCount = 1; return true;
+    case 0x33: baseCount = 0; return true;
+    case 0x34: baseCount = 2; return true;
+    case 0x35: baseCount = 3; return true;
+    case 0x36: baseCount = 2; return true;
+    case 0x37: baseCount = 3; return true;
+    case 0x38: baseCount = 1; return true;
+    case 0x39: baseCount = 1; return true;
+    case 0x3A: baseCount = 0; return true;
+    case 0x3B: baseCount = 3; return true;
+    case 0x3C: baseCount = 1; return true;
+    case 0x3D: baseCount = 0; return true;
+    case 0x3E: baseCount = 0; return true;
+    case 0x3F: baseCount = 1; return true;
+    case 0x40: baseCount = 1; return true;
+    case 0x41: baseCount = 2; return true;
+    case 0x42: baseCount = 0; return true;
+    case 0x43: baseCount = 1; return true;
+    case 0x44: baseCount = 0; return true;
+    case 0x45: baseCount = 2; return true;
+    case 0x46: baseCount = 2; return true;
+    case 0x47: baseCount = 0; return true;
+    case 0x48: baseCount = 1; return true;
+    case 0x49: baseCount = 6; return true;
+    case 0x4A: baseCount = 0; return true;
+    case 0x4B: baseCount = 1; return true;
+    case 0x4C: baseCount = 2; return true;
+    default:
+        break;
     }
 
-    if (marker == 0x80) {
-        // Compressed 6-bit string: 0x80 <length> <compressed_data>
-        bytesConsumed = 1;
-        uint8 len = 0;
-        if (!read8(program, offset + 1, len)) {
-            return false;
-        }
-        bytesConsumed += 1;
+    if (config && config->getOpcodeOperandCount(opcode, baseCount)) {
+        return true;
+    }
 
-        // Compressed size is approximately (len * 3) / 4, round up
-        uint32 compressedSize = (len * 3 + 3) / 4;
-        if (offset + 2 + compressedSize > program.size()) {
-            return false;
-        }
+    return false;
+}
 
-        outStr = decompress6BitString(&program[offset + 2], len);
-        bytesConsumed += compressedSize;
-        return true;
-    } else if (marker == 0x81) {
-        // String from memory: 0x81 <addr16>
-        // Read address, actual string lookup deferred to runtime
-        bytesConsumed = 1;
-        uint16 addr = 0;
-        if (!read16(program, offset + 1, addr)) {
-            return false;
+static DecodeStatus decodeTaggedOperand(Common::Span<const uint8> program,
+        uint32 &pc, EclOperand &outOperand) {
+    uint8 typeTag = 0;
+    uint8 low = 0;
+    if (!read8(program, pc, typeTag) || !read8(program, pc + 1, low)) {
+        return DECODE_OUT_OF_BOUNDS;
+    }
+
+    outOperand.type = OperandType::NONE;
+    outOperand.u8 = 0;
+    outOperand.u16 = 0;
+    outOperand.str.clear();
+    outOperand.bytes.clear();
+
+    switch (typeTag) {
+    case 0x00:
+        outOperand.type = OperandType::VAL8;
+        outOperand.u8 = low;
+        outOperand.u16 = low;
+        pc += 2;
+        return DECODE_OK;
+
+    case 0x01:
+    case 0x03: {
+        uint8 high = 0;
+        if (!read8(program, pc + 2, high)) {
+            return DECODE_OUT_OF_BOUNDS;
         }
-        bytesConsumed += 2;
-        outStr = Common::String::format("[MEM:0x%04X]", addr);
-        return true;
-    } else {
-        // Legacy format: <length> <raw_bytes>
-        uint8 len = marker;
-        bytesConsumed = 1;
-        if (offset + 1 + len > program.size()) {
-            return false;
+        outOperand.type = OperandType::ADDR16;
+        outOperand.u16 = (uint16)(low | (high << 8));
+        pc += 3;
+        return DECODE_OK;
+    }
+
+    case 0x02: {
+        uint8 high = 0;
+        if (!read8(program, pc + 2, high)) {
+            return DECODE_OUT_OF_BOUNDS;
         }
-        outStr.clear();
-        for (uint8 i = 0; i < len; ++i) {
-            outStr += (char)program[offset + 1 + i];
+        outOperand.type = OperandType::VAL16;
+        outOperand.u16 = (uint16)(low | (high << 8));
+        pc += 3;
+        return DECODE_OK;
+    }
+
+    case 0x80: {
+        uint8 decodedLength = low;
+        uint32 packedSize = getPackedStringSize(decodedLength);
+        if (pc + 2 + packedSize > program.size()) {
+            return DECODE_OUT_OF_BOUNDS;
         }
-        bytesConsumed += len;
-        return true;
+        outOperand.type = OperandType::STRING;
+        outOperand.u8 = decodedLength;
+        outOperand.u16 = decodedLength;
+        outOperand.str = decompress6BitString(&program[pc + 2], decodedLength);
+        pc += 2 + packedSize;
+        return DECODE_OK;
+    }
+
+    case 0x81: {
+        uint8 high = 0;
+        if (!read8(program, pc + 2, high)) {
+            return DECODE_OUT_OF_BOUNDS;
+        }
+        outOperand.type = OperandType::STRING;
+        outOperand.u16 = (uint16)(low | (high << 8));
+        outOperand.str.clear();
+        pc += 3;
+        return DECODE_OK;
+    }
+
+    default:
+        return DECODE_MALFORMED_OPERAND;
     }
 }
 
 DecodeStatus decodeProgram(Common::Span<const uint8> program, uint16 startPc,
-    Common::Array<EclInstruction> &outInstructions) {
+    Common::Array<EclInstruction> &outInstructions,
+    const GameConfig *config) {
     outInstructions.clear();
 
     uint32 pc = startPc;
@@ -123,63 +268,37 @@ DecodeStatus decodeProgram(Common::Span<const uint8> program, uint16 startPc,
             return DECODE_UNKNOWN_OPCODE;
         }
 
-        // Varargs instructions need opcode-specific parsing not yet provided.
-        if (info->operands && info->operands[0] == OperandType::VARARGS) {
-            return DECODE_VARARGS_UNSUPPORTED;
-        }
-
         EclInstruction insn;
         insn.pc = (uint16)pc;
         insn.opcode = opcode;
 
         pc += 1;
 
-        if (info->operands) {
-            for (int i = 0; info->operands[i] != OperandType::NONE; ++i) {
-                OperandType t = info->operands[i];
-                EclOperand val;
-                val.type = t;
-                val.u8 = 0;
-                val.u16 = 0;
+        int targetOperandCount = 0;
+        OperandCountMode countMode = kOperandCountFixed;
+        if (!getOperandCountPolicy(opcode, targetOperandCount, countMode,
+                config)) {
+            return DECODE_UNKNOWN_OPCODE;
+        }
 
-                switch (t) {
-                case OperandType::VAL8: {
-                    uint8 b = 0;
-                    if (!read8(program, pc, b)) {
-                        return DECODE_OUT_OF_BOUNDS;
-                    }
-                    val.u8 = b;
-                    pc += 1;
-                    break;
-                }
-                case OperandType::ADDR16:
-                case OperandType::VAL16: {
-                    uint16 w = 0;
-                    if (!read16(program, pc, w)) {
-                        return DECODE_OUT_OF_BOUNDS;
-                    }
-                    val.u16 = w;
-                    pc += 2;
-                    break;
-                }
-                case OperandType::STRING: {
-                    uint32 consumed = 0;
-                    Common::String s;
-                    if (!readString(program, pc, s, consumed)) {
-                        return DECODE_OUT_OF_BOUNDS;
-                    }
-                    val.str = s;
-                    pc += consumed;
-                    break;
-                }
-                case OperandType::VARARGS:
-                    return DECODE_VARARGS_UNSUPPORTED;
-                case OperandType::NONE:
-                default:
-                    break;
-                }
+        while ((int)insn.operands.size() < targetOperandCount) {
+            EclOperand operand;
+            DecodeStatus opStatus = decodeTaggedOperand(program, pc, operand);
+            if (opStatus != DECODE_OK) {
+                return opStatus;
+            }
+            insn.operands.push_back(operand);
 
-                insn.operands.push_back(val);
+            // Vararg-style decode completion rules.
+            if (countMode == kOperandCountVerticalMenu &&
+                    (int)insn.operands.size() == 3) {
+                targetOperandCount = 3 + operandAsU16(insn.operands[2]);
+            } else if (countMode == kOperandCountOnJump &&
+                    (int)insn.operands.size() == 2) {
+                targetOperandCount = 2 + operandAsU16(insn.operands[1]);
+            } else if (countMode == kOperandCountHorizontalMenu &&
+                    (int)insn.operands.size() == 2) {
+                targetOperandCount = 2 + operandAsU16(insn.operands[1]);
             }
         }
 

@@ -31,6 +31,8 @@
 namespace Goldbox {
 namespace ECL {
 
+class GameConfig;
+
 enum DecodeStatus {
     DECODE_OK = 0,
     DECODE_OUT_OF_BOUNDS,
@@ -146,7 +148,8 @@ private:
  * @return DecodeStatus
  */
 DecodeStatus decodeProgram(Common::Span<const uint8> program, uint16 startPc,
-    Common::Array<EclInstruction> &outInstructions);
+    Common::Array<EclInstruction> &outInstructions,
+    const GameConfig *config = nullptr);
 
 /**
  * Decompress 6-bit packed string.

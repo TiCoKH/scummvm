@@ -262,6 +262,7 @@ public:
 		case Goldbox::ECL::kEclRuntimeMonsterCount:      return 0x0580;
 		case Goldbox::ECL::kEclRuntimeMonsterData:       return 0x0582;
 		case Goldbox::ECL::kEclRuntimeEncounterFlags:    return 0x0594;
+		case Goldbox::ECL::kEclRuntimePc:               return 0x4426;
 		default:
 			return Goldbox::ECL::EclRuntimeLayout::kInvalidVmAddr;
 		}
@@ -278,6 +279,27 @@ const Goldbox::ECL::EclRuntimeLayout &getPoolradEclRuntimeLayout() {
 		assert(layout.field(Goldbox::ECL::kEclRuntimeBreakFlag) == 0x442E);
 		assert(layout.field(Goldbox::ECL::kEclRuntimeGameState) == 0x4431);
 		assert(layout.field(Goldbox::ECL::kEclRuntimeMonsterCount) == 0x0580);
+
+		// Validate PC field returns a valid address
+		assert(layout.field(Goldbox::ECL::kEclRuntimePc) !=
+			Goldbox::ECL::EclRuntimeLayout::kInvalidVmAddr);
+
+		// Validate no address collisions between any runtime fields
+		uint16 fieldAddrs[Goldbox::ECL::kEclRuntimeFieldCount];
+		for (int i = 0; i < Goldbox::ECL::kEclRuntimeFieldCount; ++i) {
+			fieldAddrs[i] = layout.field(
+				static_cast<Goldbox::ECL::EclRuntimeFieldId>(i));
+		}
+		for (int i = 0; i < Goldbox::ECL::kEclRuntimeFieldCount; ++i) {
+			if (fieldAddrs[i] == Goldbox::ECL::EclRuntimeLayout::kInvalidVmAddr)
+				continue;
+			for (int j = i + 1; j < Goldbox::ECL::kEclRuntimeFieldCount; ++j) {
+				if (fieldAddrs[j] == Goldbox::ECL::EclRuntimeLayout::kInvalidVmAddr)
+					continue;
+				assert(fieldAddrs[i] != fieldAddrs[j]);
+			}
+		}
+
 		runtimeValidated = true;
 	}
 	return layout;
