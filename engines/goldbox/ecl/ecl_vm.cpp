@@ -82,7 +82,7 @@ DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptI
     // Decode script body (after 10-byte header) and normalize decoded PCs
     // to VM address space (0x9900-based), matching original WORD_ECL_PC.
     Common::Span<const uint8> programBody = program.subspan(10);
-    DecodeStatus status = decodeProgram(programBody, 0, _program);
+    DecodeStatus status = decodeProgram(programBody, 0, _program, _config);
     if (status != DECODE_OK) {
         return status;
     }
