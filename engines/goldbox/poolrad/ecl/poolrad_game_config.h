@@ -23,7 +23,9 @@
 #define GOLDBOX_POOLRAD_ECL_POOLRAD_GAME_CONFIG_H
 
 #include "goldbox/ecl/game_config.h"
-#include "goldbox/poolrad/ecl/poolrad_opcode_handlers.h"
+#include "goldbox/ecl/opcode_handlers.h"
+#include "goldbox/ecl/opcode_table.h"
+#include "goldbox/poolrad/data/poolrad_vm_layout.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -35,6 +37,18 @@ static const uint16 kPoolradScriptVmStart = 0x9900;
 /** Pool of Radiance ECL configuration. */
 class PoolradGameConfig : public ECL::GameConfig {
 public:
+    const Goldbox::VmLayout &getVmLayout() const override {
+        return Data::getPoolradVmLayout();
+    }
+
+    const Goldbox::VmGlobalLayout &getVmGlobalLayout() const override {
+        return Data::getPoolradGlobalVmLayout();
+    }
+
+    const ECL::EclRuntimeLayout &getEclRuntimeLayout() const override {
+        return Data::getPoolradEclRuntimeLayout();
+    }
+
     uint16 getScriptVmStart() const override {
         return kPoolradScriptVmStart;
     }
@@ -66,7 +80,10 @@ public:
     Common::String getGameName() const override { return "Pool of Radiance"; }
 
     void registerDialect() const override {
-        registerPoolradOpcodeHandlers();
+        ECL::setOpcodeLayout(getVmLayout(), getVmGlobalLayout(),
+            getEclRuntimeLayout(), getCharacterBase(), getCharacterSize());
+        Goldbox::ECL::registerBaselineOpcodeTable(*this);
+        ECL::registerBaselineOpcodeHandlers();
     }
 
     bool getOpcodeOperandCount(uint8 opcode, int &count) const override {
@@ -84,9 +101,6 @@ public:
         case 0x32: count = 1; return true;   // FIND_ITEM
         case 0x34: count = 1; return true;   // CLOCK1 (PoR)
         case 0x37: count = 3; return true;   // LOAD_AREA_DECO
-        case 0x3F: count = 1; return true;   // HAS_EFFECT
-        case 0x40: count = 1; return true;   // DESTROY_ITEM
-        case 0x42: count = 0; return true;   // UNUSED_42 / STOP_MOVE_42
         default:
             break;
         }

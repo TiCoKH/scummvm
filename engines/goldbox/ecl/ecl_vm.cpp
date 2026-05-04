@@ -50,7 +50,6 @@
 #include "goldbox/ecl/opcode_handlers.h"
 #include "goldbox/ecl/game_config.h"
 #include "goldbox/ecl/runtime_layout.h"
-#include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "common/memstream.h"
 
 namespace Goldbox {
@@ -58,7 +57,9 @@ namespace ECL {
 
 EclVM::EclVM(GameConfig *config, SyscallHandler *syscalls)
         : _config(config), _syscalls(syscalls),
-            _pc(ECLMemoryLayout::MEM_START_POOLRAD), _scriptId(0xFF) {
+            _pc(config ? config->getScriptVmStart()
+                    : ECLMemoryLayout::MEM_START_DEFAULT),
+            _scriptId(0xFF) {
     if (_config) {
         _config->registerDialect();
     }
@@ -68,52 +69,73 @@ EclVM::~EclVM() {
 }
 
 DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptId) {
+    const uint16 scriptVmStart = _config ? _config->getScriptVmStart()
+            : ECLMemoryLayout::MEM_START_DEFAULT;
+
     _scriptId = scriptId;
-    _pc = ECLMemoryLayout::MEM_START_POOLRAD;
+    _pc = scriptVmStart;
     _callStack.clear();
     _program.clear();
     _entryPoints.clear();
 
-    // Parse entry points from header
+    // Mirror original ECL_LoadHeader order: reset runtime state first,
+    // then fetch five header words by advancing WORD_ECL_PC from script base.
+    initializeECLState();
+
+    // Parse entry points from header.
     if (!parseECLHeader(program)) {
         return DECODE_OUT_OF_BOUNDS;
     }
 
     // Decode script body (after 10-byte header) and normalize decoded PCs
-    // to VM address space (0x9900-based), matching original WORD_ECL_PC.
-    Common::Span<const uint8> programBody = program.subspan(10);
+    // to VM address space, matching original WORD_ECL_PC addressing.
+    Common::Span<const uint8> programBody = program.subspan(kEclHeaderSize);
     DecodeStatus status = decodeProgram(programBody, 0, _program, _config);
     if (status != DECODE_OK) {
         return status;
     }
 
     const uint16 vmPcBase = static_cast<uint16>(
-        ECLMemoryLayout::MEM_START_POOLRAD + 10);
+        scriptVmStart + kEclHeaderSize);
     for (uint i = 0; i < _program.size(); ++i) {
         _program[i].pc = static_cast<uint16>(vmPcBase + _program[i].pc);
     }
-
-    // Initialize ECL state for new script
-    initializeECLState();
 
     return DECODE_OK;
 }
 
 bool EclVM::parseECLHeader(Common::Span<const uint8> program) {
-    if (program.size() < 10) {
+    if (program.size() < kEclHeaderSize) {
         return false;
     }
 
-    // Parse 5 entry point offsets (little-endian, 2 bytes each)
-    // [0-1]:  vm_run_addr_1 (Main execution)
-    // [2-3]:  SearchLocationAddr
-    // [4-5]:  PreCampCheckAddr
-    // [6-7]:  CampInterruptedAddr
-    // [8-9]:  ecl_initial_entryPoint
-    for (int i = 0; i < 5; ++i) {
-        uint16 offset = program[i * 2] | (program[i * 2 + 1] << 8);
-        _entryPoints.push_back(offset);
+    const uint16 scriptVmStart = _config ? _config->getScriptVmStart()
+            : ECLMemoryLayout::MEM_START_DEFAULT;
+        EclLayoutAccess layout = _config->getLayoutAccess();
+    static const EclRuntimeFieldId kEntryRuntimeFields[kEclHeaderWordCount] = {
+        kEclRuntimeOnMoveEntry,
+        kEclRuntimeOnSearchEntry,
+        kEclRuntimeOnRestEntry,
+        kEclRuntimeOnRestInterruptEntry,
+        kEclRuntimeOnInitEntry
+    };
+
+    uint16 rawPc = scriptVmStart;
+    syncRuntimePc(rawPc);
+
+    // Original loader consumes the header via repeated word fetches from
+    // WORD_ECL_PC starting at the script base address.
+    for (uint i = 0; i < kEclHeaderWordCount; ++i) {
+        const uint16 offset = static_cast<uint16>(i * 2);
+        const uint16 entryPc = static_cast<uint16>(program[offset] |
+            (program[offset + 1] << 8));
+        _entryPoints.push_back(entryPc);
+        _memory.write16LE(layout.runtimeField(kEntryRuntimeFields[i]), entryPc);
+        rawPc = static_cast<uint16>(rawPc + 2);
+        syncRuntimePc(rawPc);
     }
+
+    _pc = rawPc;
 
     return true;
 }
@@ -121,10 +143,7 @@ bool EclVM::parseECLHeader(Common::Span<const uint8> program) {
 void EclVM::initializeECLState() {
     if (!_config) return;
 
-    EclLayoutAccess layout(
-        Goldbox::Poolrad::Data::getPoolradVmLayout(),
-        Goldbox::Poolrad::Data::getPoolradGlobalVmLayout(),
-        Goldbox::Poolrad::Data::getPoolradEclRuntimeLayout());
+    EclLayoutAccess layout = _config->getLayoutAccess();
 
     // Clear transient flags (script-local variables)
     uint16 flagBase = _config->getFlagBase();
@@ -138,9 +157,16 @@ void EclVM::initializeECLState() {
     _memory.write8(layout.runtimeField(kEclRuntimeBreakFlag), 0);
     _memory.write8(layout.runtimeField(kEclRuntimeExitScript), 0);
     _memory.write8(layout.runtimeField(kEclRuntimeProgramState), 0);
+    _memory.write16LE(layout.runtimeField(kEclRuntimeOnMoveEntry), 0);
+    _memory.write16LE(layout.runtimeField(kEclRuntimeOnSearchEntry), 0);
+    _memory.write16LE(layout.runtimeField(kEclRuntimeOnRestEntry), 0);
+    _memory.write16LE(layout.runtimeField(kEclRuntimeOnRestInterruptEntry), 0);
+    _memory.write16LE(layout.runtimeField(kEclRuntimeOnInitEntry), 0);
 
     // Set default game state (dungeon)
     _memory.write8(layout.runtimeField(kEclRuntimeGameState), GS_DUNGEON_MAP);
+    _memory.write8(layout.vmField(kVmFieldNoMagicFlag).vmAddr, 0);
+    _memory.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
 
     // Clear character pointers
     _memory.write16LE(layout.runtimeField(kEclRuntimeSelectedCharPtr), 0);
@@ -152,6 +178,29 @@ void EclVM::initializeECLState() {
     // Clear text output flags
     _memory.write8(layout.runtimeField(kEclRuntimeTextPrintFlag), 0);
     _memory.write8(layout.runtimeField(kEclRuntimeTextOutputFlag), 0);
+
+    // Original ECL_LoadHeader reset side effects.
+    _memory.write8(layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr,
+        0xFF);
+    _memory.write8(layout.vmGlobalField(kVmGlobalFieldRestSafeTime).vmAddr,
+        0);
+    _memory.write8(
+        layout.vmGlobalField(kVmGlobalFieldRestInterruptChance).vmAddr, 0);
+
+    syncRuntimePc(_config->getScriptVmStart());
+}
+
+void EclVM::setPC(uint16 pc) {
+    _pc = pc;
+    syncRuntimePc(pc);
+}
+
+void EclVM::syncRuntimePc(uint16 pc) {
+    if (!_config)
+        return;
+
+    EclLayoutAccess layout = _config->getLayoutAccess();
+    _memory.write16LE(layout.runtimeField(kEclRuntimePc), pc);
 }
 
 VmResult EclVM::runAtEntryPoint(EntryPointSelector entry, uint32 maxSteps) {
@@ -173,7 +222,7 @@ VmResult EclVM::runAtScriptAddress(uint16 scriptPc, uint32 maxSteps) {
         return VM_ERROR;
     }
 
-    _pc = scriptPc;
+    setPC(scriptPc);
     return resume(maxSteps);
 }
 
@@ -213,7 +262,7 @@ VmResult EclVM::executeInstruction(const EclInstruction &insn,
     VmResult result = static_cast<VmResult>(handler(_memory, insn, nextPc, _callStack, _syscalls));
 
     if (result == VM_OK) {
-        _pc = nextPc;
+        setPC(nextPc);
     }
 
     return result;

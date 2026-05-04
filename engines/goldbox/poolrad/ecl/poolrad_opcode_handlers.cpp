@@ -45,7 +45,9 @@ static uint16 g_forLoopCount = 0;
 static uint16 g_forLoopMax = 0;
 
 // -------------------------------------------------------------------------
-// Pool of Radiance-specific opcode handlers (0x3E-0x4C)
+// Legacy extension-opcode scaffold (0x3E-0x4C).
+// Not currently registered by PoolradGameConfig because Pool of Radiance ends
+// at opcode 0x3D.
 // -------------------------------------------------------------------------
 
 // 0x3E: NPC REMOVE

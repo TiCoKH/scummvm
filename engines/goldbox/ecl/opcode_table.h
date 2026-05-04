@@ -24,6 +24,7 @@
 
 #include "common/scummsys.h"
 #include "common/str.h"
+#include "goldbox/ecl/game_config.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -75,12 +76,13 @@ void clearOpcodeTable();
 void registerOpcodeInfo(uint8 opcode, const OpcodeInfo *info);
 
 /**
- * Register the current default opcode table used by Pool of Radiance.
+ * Register the shared baseline opcode table.
  *
- * This function is intentionally explicit: game-side configuration should call
- * it during dialect setup instead of relying on implicit core selection.
+ * The baseline opcode metadata is registered up to the maximum opcode byte
+ * specified by the game's configuration. Pool of Radiance uses 0x00-0x3D.
+ * Future games may extend this range by overriding GameConfig::getMaxOpcodeTableByte().
  */
-void registerDefaultOpcodeTable();
+void registerBaselineOpcodeTable(const GameConfig &config);
 
 /**
  * Get human-readable opcode name.

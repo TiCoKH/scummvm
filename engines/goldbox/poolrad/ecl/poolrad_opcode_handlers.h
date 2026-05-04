@@ -26,9 +26,11 @@ namespace Goldbox {
 namespace Poolrad {
 
 /**
- * Register Pool of Radiance-specific opcode handlers (0x3E-0x4C) and their
- * corresponding opcode table entries.
- * Called via PoolradGameConfig::registerGameOpcodeHandlers().
+ * Legacy extension-opcode registration scaffold.
+ *
+ * Pool of Radiance currently stops at opcode 0x3D, so this hook is not wired
+ * into PoolradGameConfig. Keep it only as a staging point for future game
+ * dialects until those opcodes are moved into their own game-specific folder.
  */
 void registerPoolradOpcodeHandlers();
 

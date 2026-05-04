@@ -24,8 +24,8 @@
 
 #include "common/scummsys.h"
 #include "common/str.h"
-#include "goldbox/ecl/opcode_handlers.h"
-#include "goldbox/ecl/opcode_table.h"
+#include "goldbox/core/vm_layout.h"
+#include "goldbox/ecl/runtime_layout.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -87,6 +87,24 @@ public:
      * This keeps game-specific opcode sets out of generic VM control flow.
      */
     virtual void registerDialect() const = 0;
+
+    /**
+     * Get the maximum opcode byte for this game's ECL dialect.
+     * 
+     * The baseline (Pool of Radiance) uses 0x00-0x3D.
+     * Future games may extend this range by overriding this method.
+     */
+    virtual uint8 getMaxOpcodeTableByte() const { return 0x3D; }
+
+    // Concrete VM/global/runtime layout tables for this game profile.
+    virtual const Goldbox::VmLayout &getVmLayout() const = 0;
+    virtual const Goldbox::VmGlobalLayout &getVmGlobalLayout() const = 0;
+    virtual const EclRuntimeLayout &getEclRuntimeLayout() const = 0;
+
+    EclLayoutAccess getLayoutAccess() const {
+        return EclLayoutAccess(getVmLayout(), getVmGlobalLayout(),
+            getEclRuntimeLayout());
+    }
 
     // VM address layout
     virtual uint16 getScriptVmStart() const { return ECLMemoryLayout::MEM_START_DEFAULT; }
