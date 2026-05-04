@@ -84,12 +84,21 @@ void clearOpcodeHandlers();
 void registerOpcodeHandler(uint8 opcode, OpcodeHandler handler);
 
 /**
- * Register the current default opcode handler table used by Pool of Radiance.
- *
- * This function is intentionally explicit: game-side configuration should call
- * it during dialect setup instead of relying on implicit core selection.
+ * Configure the VM/global/runtime layout tables used by shared core handlers.
+ * Must be called by the active game dialect before any opcode execution.
  */
-void registerDefaultOpcodeHandlers();
+void setOpcodeLayout(const Goldbox::VmLayout &vmLayout,
+    const Goldbox::VmGlobalLayout &vmGlobalLayout,
+    const EclRuntimeLayout &runtimeLayout,
+    uint16 characterBase, uint16 characterSize);
+
+/**
+ * Register the baseline opcode handler table.
+ *
+ * This registers handlers for all baseline opcodes (0x00-0x3D).
+ * Game-specific handlers are registered separately by dialect configuration.
+ */
+void registerBaselineOpcodeHandlers();
 
 /**
  * Get handler for an opcode.
@@ -105,7 +114,7 @@ uint16 resolveVar(AddressSpace &mem, const EclOperand &operand);
  * Get the shared layout accessor used by opcode handlers.
  * Backed by the Pool of Radiance VM / global / runtime layout tables.
  */
-const EclLayoutAccess &getOpcodeLayout();
+EclLayoutAccess getOpcodeLayout();
 
 /**
  * Get the shared random source used by opcode handlers.

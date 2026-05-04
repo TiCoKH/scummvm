@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/ecl/opcode_table.h"
+#include "goldbox/ecl/game_config.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -45,7 +46,8 @@ static OperandType sixVal8Ops[] = {
 static OperandType val8Val8AddrOps[] = { OperandType::VAL8, OperandType::VAL8, OperandType::ADDR16, OperandType::NONE };
 static OperandType varArgsOps[] = { OperandType::VARARGS, OperandType::NONE };
 
-// ECL opcode table for Pool of Radiance (0x00-0x4C)
+// Shared baseline ECL opcode table.
+// Pool of Radiance uses 0x00-0x3D; later games may extend beyond that.
 static OpcodeInfo opcodeTable[] = {
     { 0x00, "EXIT", noOps, "Stops execution and returns control to the player" },
     { 0x01, "GOTO", addrOps, "Continue execution at address" },
@@ -108,22 +110,7 @@ static OpcodeInfo opcodeTable[] = {
     { 0x3A, "DELAY", noOps, "Delay execution" },
     { 0x3B, "SPELL", varArgsOps, "Search for spell in party" },
     { 0x3C, "PROTECTION", val8Ops, "Print runic phrase" },
-    { 0x3D, "CLEAR BOX", noOps, "Clear text box" },
-    { 0x3E, "NPC REMOVE", noOps, "Remove NPC from party" },
-    { 0x3F, "HAS EFFECT", val8Ops, "Check whether a party effect is active" },
-    { 0x40, "DESTROY ITEM", val8Ops, "Destroy item from party inventory" },
-    { 0x41, "GIVE EXP", val16Val8Ops, "Award experience to party" },
-    { 0x42, "STOP MOVE", noOps, "Stop movement and halt script" },
-    { 0x43, "SOUND EVENT", val8Ops, "Play a sound effect" },
-    { 0x44, "UNKNOWN44", noOps, "Unknown opcode" },
-    { 0x45, "RANDOM0", addr16Val8Ops, "Random 0..max into destination" },
-    { 0x46, "FOR START", val8Val8Ops, "Initialize counted loop" },
-    { 0x47, "FOR REPEAT", noOps, "Repeat counted loop" },
-    { 0x48, "UNKNOWN48", val8Ops, "Unknown opcode" },
-    { 0x49, "UNKNOWN49", sixVal8Ops, "Unknown opcode" },
-    { 0x4A, "UNKNOWN4A", noOps, "Unknown opcode" },
-    { 0x4B, "UNKNOWN4B", val8Ops, "Unknown opcode" },
-    { 0x4C, "PICTURE2", val8Val8Ops, "Display picture with variant" }
+    { 0x3D, "CLEAR BOX", noOps, "Clear text box" }
 };
 
 void clearOpcodeTable() {
@@ -136,9 +123,9 @@ void registerOpcodeInfo(uint8 opcode, const OpcodeInfo *info) {
     g_opcodeRegistry[opcode] = info;
 }
 
-void registerDefaultOpcodeTable() {
+void registerBaselineOpcodeTable(const GameConfig &config) {
     clearOpcodeTable();
-    for (uint8 opcode = 0; opcode <= 0x4C; ++opcode) {
+    for (uint8 opcode = 0; opcode <= config.getMaxOpcodeTableByte(); ++opcode) {
         registerOpcodeInfo(opcode, &opcodeTable[opcode]);
     }
 }

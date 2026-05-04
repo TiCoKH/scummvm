@@ -49,6 +49,11 @@ enum EclRuntimeFieldId {
 	kEclRuntimeMonsterData,
 	kEclRuntimeEncounterFlags,
 	kEclRuntimePc,
+	kEclRuntimeOnMoveEntry,
+	kEclRuntimeOnSearchEntry,
+	kEclRuntimeOnRestEntry,
+	kEclRuntimeOnRestInterruptEntry,
+	kEclRuntimeOnInitEntry,
 	kEclRuntimeFieldCount
 };
 

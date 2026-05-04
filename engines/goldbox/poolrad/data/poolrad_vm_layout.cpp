@@ -263,6 +263,12 @@ public:
 		case Goldbox::ECL::kEclRuntimeMonsterData:       return 0x0582;
 		case Goldbox::ECL::kEclRuntimeEncounterFlags:    return 0x0594;
 		case Goldbox::ECL::kEclRuntimePc:               return 0x4426;
+		case Goldbox::ECL::kEclRuntimeOnMoveEntry:      return 0x4433;
+		case Goldbox::ECL::kEclRuntimeOnSearchEntry:    return 0x4435;
+		case Goldbox::ECL::kEclRuntimeOnRestEntry:      return 0x4437;
+		case Goldbox::ECL::kEclRuntimeOnRestInterruptEntry:
+			return 0x4439;
+		case Goldbox::ECL::kEclRuntimeOnInitEntry:      return 0x443B;
 		default:
 			return Goldbox::ECL::EclRuntimeLayout::kInvalidVmAddr;
 		}

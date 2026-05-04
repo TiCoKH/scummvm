@@ -67,6 +67,9 @@ public:
     explicit EclVM(GameConfig *config, SyscallHandler *syscalls = nullptr);
     ~EclVM();
 
+    static const uint16 kEclHeaderWordCount = 5;
+    static const uint16 kEclHeaderSize = kEclHeaderWordCount * 2;
+
     /**
      * Load and parse an ECL program.
      * Extracts entry points and prepares for execution.
@@ -115,7 +118,7 @@ public:
     /**
      * Set PC (for debugging/save/load).
      */
-    void setPC(uint16 pc) { _pc = pc; }
+    void setPC(uint16 pc);
 
     /**
      * Access address space for direct memory operations.
@@ -171,6 +174,11 @@ private:
      * Clears transient flags, sets default state, prepares memory.
      */
     void initializeECLState();
+
+    /**
+     * Keep the runtime WORD_ECL_PC mirror synchronized with VM state.
+     */
+    void syncRuntimePc(uint16 pc);
 
     VmResult executeInstruction(const EclInstruction &insn, uint16 defaultNextPc);
 };
