@@ -151,6 +151,9 @@ public:
 	uint32 getRandomNumber(uint minVal, uint maxVal) {
 		return _randomSource.getRandomNumberRng(minVal, maxVal);
 	}
+	Common::RandomSource &getRandomSource() {
+		return _randomSource;
+	}
 
 	int rollDice(int number, int sides) {
 		int total = 0;
