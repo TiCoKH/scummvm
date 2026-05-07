@@ -235,6 +235,11 @@ Common::MemorySeekableReadWriteStream *VmFlatMemory::openReadWriteStream() {
 		_data, kMemorySize, DisposeAfterUse::NO);
 }
 
+Common::MemoryReadStream *VmFlatMemory::openReadStream() const {
+	return new Common::MemoryReadStream(
+		_data, kMemorySize, DisposeAfterUse::NO);
+}
+
 void VmFlatMemory::setDebugRange(VmBankId bankId, uint16 firstVmAddr,
 		uint16 lastVmAddr) {
 	if (bankId < 0 || bankId >= kVmBankCount || firstVmAddr > lastVmAddr) {

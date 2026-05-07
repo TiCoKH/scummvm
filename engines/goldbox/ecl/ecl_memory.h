@@ -23,6 +23,8 @@
 #define GOLDBOX_ECL_ECL_MEMORY_H
 
 #include "common/scummsys.h"
+#include "common/memstream.h"
+#include "common/span.h"
 #include "goldbox/core/vm_bank.h"
 
 namespace Goldbox {
@@ -78,6 +80,22 @@ public:
      * Called when NEWECL loads a new script.
      */
     void clearTransientFlags(uint16 flagBase, uint16 transientCount);
+
+    /**
+     * Bulk copy bytes into VM memory at destAddr.
+     * Clamps to the 64K address space boundary.
+     * @param destAddr  Destination 16-bit VM address.
+     * @param src       Source byte span to copy.
+     */
+    void loadBytes(uint16 destAddr, Common::Span<const uint8> src);
+
+    /**
+     * Returns a new seekable read/write stream view over the entire 64K buffer.
+     * Caller takes ownership and must delete the returned object.
+     * Seek to a VM address then use readUint16LE() / writeUint16LE() etc.
+     */
+    Common::MemorySeekableReadWriteStream *openReadWriteStream();
+    Common::MemoryReadStream *openReadStream() const;
 
     /**
      * Dump memory region for debugging.

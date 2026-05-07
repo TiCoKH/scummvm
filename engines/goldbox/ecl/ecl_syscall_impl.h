@@ -25,18 +25,13 @@
 #include "common/scummsys.h"
 #include "common/str.h"
 #include "common/array.h"
-#include "common/ptr.h"
-#include "goldbox/ecl/syscall_handler.h"
+#include "goldbox/ecl/ecl_engine_host.h"
 #include "goldbox/ecl/ecl_memory.h"
 
 namespace Goldbox {
 
 class Engine;
 class View;
-
-namespace Gfx {
-class DaxTile;
-}
 
 namespace ECL {
 
@@ -52,7 +47,7 @@ namespace ECL {
  * - Pictures → Picture display system
  * - Scripts → ECL VM loader
  */
-class EclSyscallImpl : public SyscallHandler {
+class EclSyscallImpl : public EclEngineHost {
 public:
     /**
      * Constructor.
@@ -60,7 +55,7 @@ public:
      * @param memory Reference to ECL virtual memory for reading/writing results
      */
     EclSyscallImpl(::Goldbox::Engine *engine, AddressSpace *memory);
-    ~EclSyscallImpl() override = default;
+    virtual ~EclSyscallImpl() override = default;
 
     // SyscallHandler interface implementation
     void printText(const Common::String &text, bool clearBox = false) override;
@@ -82,12 +77,9 @@ public:
     VmResult loadWallSet(uint8 blockId, uint8 setSlot) override;
     VmResult loadGeoBlock(uint8 blockId) override;
 
-private:
+protected:
     ::Goldbox::Engine *_engine;         // Reference to main engine
-    AddressSpace *_memory;               // Reference to ECL virtual memory
-
-    // Owned DaxTile instances for walldef tile atlases (indexed by slot 1-3)
-    Common::ScopedPtr<Gfx::DaxTile> _walldefTiles[3];
+    AddressSpace *_memory;              // Reference to ECL virtual memory
 
     // Helper methods for dialog/view integration
     void _showMessageBox(const Common::String &text, bool clear);

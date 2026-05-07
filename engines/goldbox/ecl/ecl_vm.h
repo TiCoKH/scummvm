@@ -27,6 +27,7 @@
 #include "common/scummsys.h"
 #include "common/span.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/ecl/ecl_types.h"
 #include "goldbox/ecl/ecl_decoder.h"
 #include "goldbox/ecl/ecl_memory.h"
 #include "goldbox/ecl/game_config.h"
@@ -34,29 +35,6 @@
 
 namespace Goldbox {
 namespace ECL {
-
-/**
- * ECL Block Entry Points (from 10-byte header).
- * Each ECL block starts with 5 word addresses (little-endian):
- *   [0-1]:  vm_run_addr_1 - Main execution entry point
- *   [2-3]:  SearchLocationAddr - Location search handler
- *   [4-5]:  PreCampCheckAddr - Pre-camp validation
- *   [6-7]:  CampInterruptedAddr - Camp interruption handler
- *   [8-9]:  ecl_initial_entryPoint - Initial startup entry
- *
- * Event System Integration:
- *   - Maps reference ECL blocks via 0x21 (LOAD FILES) with geoID and block number
- *   - Event numbers (0-127) stored in map cells trigger ECL execution
- *   - ON GOTO/GOSUB (0x25/0x26) dispatch to event subroutines
- *   - Annotations in disassembly track event entry points for debugging
- */
-enum class ECLEntryPoint {
-    ON_MOVE           = 0, // Executed during party movement
-    ON_SEARCH         = 1, // When searching a location
-    ON_REST           = 2, // When party rests
-    ON_REST_INTERRUPT = 3, // When rest is interrupted
-    ON_INIT           = 4  // Initialization event on map
-};
 
 /**
  * ECL Script VM: Bytecode interpreter with entry-point dispatch.
@@ -86,7 +64,7 @@ public:
      * @param maxSteps Watchdog limit (guards against infinite loops in bad scripts)
      * @return Result code
      */
-    VmResult runAtEntryPoint(EntryPointSelector entry, uint32 maxSteps = 1000000);
+    VmResult runAtEntryPoint(ECLEntryPoint entry, uint32 maxSteps = 1000000);
 
     /**
      * Run script starting at an arbitrary bytecode address (original ENGINE_Execute behavior).
@@ -138,6 +116,45 @@ public:
      */
     void setSyscallHandler(SyscallHandler *handler) { _syscalls = handler; }
 
+    /**
+     * Decode N operands from VM flat memory at the current instruction PC.
+     * Mirrors original VM_GetOprand(N): reads type tag + bytes from script stream,
+     * builds _opValues[1..N] (decoded words) and _opTypes[1..N] (type tags).
+     * _opValues[0] stores N as a count sentinel.
+     * Uses MemorySeekableReadWriteStream for LE word reads.
+     */
+    void getOperand(uint8 opCount);
+
+    /**
+     * Return decoded word at 1-based index from the last getOperand call.
+     * For ADDR16 (0x01/0x03/0x81) this is the raw address.
+     * For VAL8/VAL16 (0x00/0x02) this is the immediate value.
+     * Index 0 returns the count sentinel.
+     */
+    uint16 getOpWord(uint8 index) const;
+
+    /**
+     * Return the operand type tag at 1-based index from the last getOperand call.
+     * Matches original tags: 0x00=VAL8, 0x01/0x03=ADDR16, 0x02=VAL16,
+     * 0x80=STRING_INLINE, 0x81=STRING_PTR.
+     */
+    uint8 getOpType(uint8 index) const;
+
+    /**
+     * Resolve operand N as a numeric value.
+     * ADDR16 (0x01/0x03): dereferences VM memory (read16LE at the address).
+     * VAL8/VAL16 (0x00/0x02): returns the immediate value directly.
+     * Mirrors original toWord(HI_SAVE[i], LOW_SAVE[i]) + optional dereference.
+     */
+    uint16 readVar(uint8 index) const;
+
+    /**
+     * Read operand N as a string.
+     * 0x80 (compressed inline): decompresses 6-bit packed data from VM bytes.
+     * 0x81/0x03/0x01 (pointer): reads null-terminated string from VM flat memory.
+     */
+    Common::String readString(uint8 index) const;
+
 private:
     GameConfig *_config;
     SyscallHandler *_syscalls;
@@ -147,6 +164,13 @@ private:
     uint8 _scriptId;
     Common::Array<uint16> _callStack;
     Common::Array<uint16> _entryPoints;
+
+    // Operand decode buffer — populated by getOperand().
+    // _opValues[0] = count, _opValues[1..N] = decoded word per operand.
+    // _opTypes[0]  = 0,     _opTypes[1..N]  = type tag per operand.
+    Common::Array<uint16> _opValues;
+    Common::Array<uint8>  _opTypes;
+    uint16 _opStartPc;
 
     /**
      * Find decoded instruction index by bytecode PC.

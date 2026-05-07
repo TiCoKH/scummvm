@@ -33,43 +33,15 @@
 namespace Goldbox {
 namespace ECL {
 
-/**
- * Helper to read operand values from a decoded instruction.
- */
-class OperandReader {
-public:
-    explicit OperandReader(const EclInstruction &insn) : _insn(insn), _index(0) {}
-
-    uint8 readU8() {
-        if (_index < (int)_insn.operands.size() && _insn.operands[_index].type == OperandType::VAL8) {
-            return _insn.operands[_index++].u8;
-        }
-        return 0;
-    }
-
-    uint16 readU16() {
-        if (_index < (int)_insn.operands.size() &&
-            (_insn.operands[_index].type == OperandType::VAL16 ||
-             _insn.operands[_index].type == OperandType::ADDR16)) {
-            return _insn.operands[_index++].u16;
-        }
-        return 0;
-    }
-
-    uint16 readAddr() {
-        return readU16();
-    }
-
-private:
-    const EclInstruction &_insn;
-    int _index;
-};
+// Forward declaration — full type in ecl_vm.h.
+class EclVM;
 
 /**
  * Handler function for an opcode.
  * Returns int (cast from VmResult): VM_OK to continue, VM_YIELD for async, VM_HALTED to exit.
+ * EclVM provides getOperand(N)/getOpWord(i)/readVar(i)/readString(i) for operand access.
  */
-typedef int (*OpcodeHandler)(AddressSpace &mem, const EclInstruction &insn,
+typedef int (*OpcodeHandler)(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls);
 
 /**
@@ -104,11 +76,6 @@ void registerBaselineOpcodeHandlers();
  * Get handler for an opcode.
  */
 OpcodeHandler getOpcodeHandler(uint8 opcode);
-
-/**
- * Helper to resolve a variable value (dereference if address).
- */
-uint16 resolveVar(AddressSpace &mem, const EclOperand &operand);
 
 /**
  * Get the shared layout accessor used by opcode handlers.

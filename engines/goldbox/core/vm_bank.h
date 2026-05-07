@@ -154,6 +154,7 @@ public:
 	const byte *getData() const { return _data; }
 
 	Common::MemorySeekableReadWriteStream *openReadWriteStream();
+	Common::MemoryReadStream *openReadStream() const;
 
 	void setDebugRange(VmBankId bankId, uint16 firstVmAddr, uint16 lastVmAddr);
 	bool classifyAddr(uint16 addr, VmBankId &bankId, uint16 &byteOffset) const;

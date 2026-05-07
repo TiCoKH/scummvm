@@ -23,10 +23,6 @@
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/vm_interface.h"
-#include "goldbox/gfx/dax_tile.h"
-#include "goldbox/gfx/walldef_surface_builder.h"
-#include "goldbox/data/daxblockcontainer.h"
-#include "goldbox/poolrad/poolrad.h"
 #include "common/str.h"
 
 namespace Goldbox {
@@ -132,58 +128,10 @@ VmResult EclSyscallImpl::loadScript(uint8 scriptID) {
 }
 
 VmResult EclSyscallImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
-    if (!_engine) return VmResult::VM_ERROR;
-    if (setSlot < 1 || setSlot > 3) return VmResult::VM_ERROR;
-
-    Poolrad::PoolradEngine *poolrad =
-            dynamic_cast<Poolrad::PoolradEngine *>(_engine);
-    if (!poolrad) return VmResult::VM_ERROR;
-
-    Gfx::WalldefSlotCache &walldefCache = poolrad->getWalldefSlotCache();
-    Gfx::Tile8x8Cache &tileCache = poolrad->getTileCache();
-
-    // Get the walldef block from the pre-loaded DAX container
-    Data::DaxBlock *rawBlock =
-            _engine->getDaxManager().getWalldef().getBlockById(blockId);
-    if (!rawBlock) {
-        warning("EclSyscallImpl::loadWallSet: walldef block %d not found",
-                blockId);
-        return VmResult::VM_ERROR;
-    }
-    Data::DaxBlockWalldef *walldef =
-            dynamic_cast<Data::DaxBlockWalldef *>(rawBlock);
-    if (!walldef) return VmResult::VM_ERROR;
-
-    // Each chunk in the block occupies one symbol-set slot.
-    // Load consecutive slots starting at setSlot.
-    const int numChunks = walldef->chunkCount();
-    for (int i = 0; i < numChunks; ++i) {
-        const int curSlot = setSlot + i;
-        if (curSlot < 1 || curSlot > 3)
-            break;
-
-        // Build walldef surfaces for this slot (applies tile ID offset)
-        walldefCache.loadSlot(curSlot, walldef, i, tileCache);
-
-        // Load corresponding 8x8D tile atlas for this slot.
-        // Default mapping: blockId directly identifies the tile atlas block.
-        // (Game-area-specific overrides such as area 3/5 are handled by the
-        //  caller via blockId before invoking this syscall.)
-        const uint16 tileBlockId = static_cast<uint16>(blockId);
-        Data::DaxBlock *tileRaw =
-                _engine->getDaxManager().get8x8d().getBlockById(
-                        static_cast<uint8>(tileBlockId));
-        if (tileRaw) {
-            Data::DaxBlock8x8D *tile8x8 =
-                    dynamic_cast<Data::DaxBlock8x8D *>(tileRaw);
-            if (tile8x8) {
-                const int slotIdx = curSlot - 1; // 0-based for _walldefTiles[]
-                _walldefTiles[slotIdx].reset(new Gfx::DaxTile(tile8x8));
-                tileCache.setSlot(curSlot, _walldefTiles[slotIdx].get());
-            }
-        }
-    }
-
+    // Shared base has no game-specific wallset cache implementation.
+    // Dialect hosts (e.g. Poolrad) override this.
+    (void)blockId;
+    (void)setSlot;
     return VmResult::VM_OK;
 }
 
