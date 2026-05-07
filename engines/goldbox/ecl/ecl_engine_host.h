@@ -23,8 +23,9 @@
 #define GOLDBOX_ECL_ECL_ENGINE_HOST_H
 
 #include "common/scummsys.h"
+#include "common/array.h"
 #include "common/str.h"
-#include "engines/goldbox/vm_interface.h"
+#include "goldbox/ecl/ecl_types.h"
 #include "goldbox/ecl/syscall_handler.h"
 
 namespace Goldbox {

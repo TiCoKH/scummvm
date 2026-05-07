@@ -21,6 +21,7 @@
 
 #include "goldbox/ecl/ecl_memory.h"
 #include "common/str.h"
+#include "common/util.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -90,6 +91,24 @@ void AddressSpace::clearTransientFlags(uint16 flagBase, uint16 transientCount) {
     for (uint16 i = 0; i < transientCount; ++i) {
         _memory.writeWordLE(static_cast<uint16>(flagBase + i * 2), 0);
     }
+}
+
+void AddressSpace::loadBytes(uint16 destAddr, Common::Span<const uint8> src) {
+    if (src.size() == 0)
+        return;
+
+    const uint32 available = MEMORY_SIZE - destAddr;
+    const uint32 copyLen = MIN<uint32>(static_cast<uint32>(src.size()),
+        available);
+    memcpy(_memory.getData() + destAddr, src.data(), copyLen);
+}
+
+Common::MemorySeekableReadWriteStream *AddressSpace::openReadWriteStream() {
+    return _memory.openReadWriteStream();
+}
+
+Common::MemoryReadStream *AddressSpace::openReadStream() const {
+    return _memory.openReadStream();
 }
 
 Common::String AddressSpace::dumpRegion(uint16 startAddr, uint16 length) const {

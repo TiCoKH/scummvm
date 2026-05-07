@@ -24,7 +24,7 @@
 
 #include "common/scummsys.h"
 #include "common/str.h"
-#include "engines/goldbox/vm_interface.h"
+#include "goldbox/ecl/ecl_types.h"
 
 namespace Goldbox {
 

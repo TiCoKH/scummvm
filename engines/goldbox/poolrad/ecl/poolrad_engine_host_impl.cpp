@@ -22,112 +22,17 @@
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/poolrad.h"
-#include "goldbox/poolrad/views/dialogs/dialog.h"
-#include "goldbox/vm_interface.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
-#include "common/str.h"
 
 namespace Goldbox {
 namespace Poolrad {
 
 PoolradEngineHostImpl::PoolradEngineHostImpl(::Goldbox::Engine *engine,
         ECL::AddressSpace *memory)
-    : _engine(engine), _memory(memory) {
-}
-
-void PoolradEngineHostImpl::printText(const Common::String &text, bool clearBox) {
-    if (!_engine) return;
-    _showMessageBox(text, clearBox);
-}
-
-int16 PoolradEngineHostImpl::inputNumber(uint8 maxDigits) {
-    if (!_engine) return -1;
-
-    // TODO: Show input number dialog via View/Dialog system; block until
-    // the player confirms. Return the entered value.
-    return 0;
-}
-
-Common::String PoolradEngineHostImpl::inputString(uint8 maxLength) {
-    if (!_engine) return Common::String();
-
-    // TODO: Show input string dialog via View/Dialog system; block until
-    // the player confirms. Return the entered string.
-    return Common::String();
-}
-
-VmResult PoolradEngineHostImpl::displayPicture(uint8 picID) {
-    if (!_engine) return VmResult::VM_ERROR;
-
-    if (picID == 255) {
-        _updateViewState();
-        return VmResult::VM_OK;
-    }
-
-    // TODO: Load and display picture from PIC?.DAX; block until display is ready.
-    return VmResult::VM_OK;
-}
-
-int16 PoolradEngineHostImpl::verticalMenu(const Common::String &message,
-        const Common::Array<Common::String> &options) {
-    if (!_engine) return -1;
-
-    // TODO: Show vertical menu dialog via Dialog system; block until player
-    // selects. Return 0-based index, or -1 on cancel.
-    return 0;
-}
-
-int16 PoolradEngineHostImpl::horizontalMenu(
-        const Common::Array<Common::String> &options) {
-    if (!_engine) return -1;
-
-    // TODO: Show horizontal menu on bottom bar; block until player selects.
-    // Return 0-based index, or -1 on cancel.
-    return 0;
-}
-
-VmResult PoolradEngineHostImpl::startCombat() {
-    if (!_engine) return VmResult::VM_ERROR;
-
-    // TODO: Initiate combat with monsters from ECL memory; block until
-    // combat is resolved.
-    return VmResult::VM_OK;
-}
-
-VmResult PoolradEngineHostImpl::executeProgram(uint8 programID) {
-    if (!_engine) return VmResult::VM_ERROR;
-
-    switch (programID) {
-    case 0:
-        // TODO: Show training hall dialog; block until complete.
-        break;
-    case 8:
-        // TODO: Show win game / victory sequence; block until complete.
-        return VmResult::VM_HALTED;
-    case 9:
-        // TODO: Show camp / rest menu; block until complete.
-        break;
-    default:
-        warning("PoolradEngineHostImpl::executeProgram: unknown programID %d",
-                programID);
-        return VmResult::VM_ERROR;
-    }
-
-    return VmResult::VM_OK;
-}
-
-void PoolradEngineHostImpl::clearTextBox() {
-    if (!_engine) return;
-    _showMessageBox(Common::String(""), true);
-}
-
-VmResult PoolradEngineHostImpl::loadScript(uint8 scriptID) {
-    if (!_engine) return VmResult::VM_ERROR;
-    // TODO: Load new ECL script via engine; the current script chain ends here.
-    return VmResult::VM_HALTED;
+    : EclSyscallImpl(engine, memory) {
 }
 
 VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
@@ -175,31 +80,6 @@ VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
     }
 
     return VmResult::VM_OK;
-}
-
-VmResult PoolradEngineHostImpl::loadGeoBlock(uint8 blockId) {
-    if (!_engine) return VmResult::VM_ERROR;
-    // TODO: Load DaxBlockGeo from _engine->getDaxManager().getGeo()
-    return VmResult::VM_OK;
-}
-
-void PoolradEngineHostImpl::_showMessageBox(const Common::String &text,
-        bool clear) {
-    if (!_engine) return;
-    // TODO: Route to message box system:
-    // - Write text to ECL memory buffer at 0x84c8
-    // - Set print-ready flag at 0x84de / output-complete at 0x84df
-}
-
-View *PoolradEngineHostImpl::_getCurrentView() const {
-    if (!_engine) return nullptr;
-    // TODO: Return current active View from engine
-    return nullptr;
-}
-
-void PoolradEngineHostImpl::_updateViewState() {
-    if (!_engine) return;
-    // TODO: Call engine to redraw current view after picture/menu/input
 }
 
 } // namespace Poolrad
