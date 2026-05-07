@@ -64,36 +64,31 @@ public:
 
     // SyscallHandler interface implementation
     void printText(const Common::String &text, bool clearBox = false) override;
-    
-    VmResult inputNumber(uint8 maxDigits, uint16 resultAddr) override;
-    VmResult inputString(uint8 maxLength, uint16 resultAddr) override;
-    
+
+    int16 inputNumber(uint8 maxDigits) override;
+    Common::String inputString(uint8 maxLength) override;
+
     VmResult displayPicture(uint8 picID) override;
-    
-    VmResult verticalMenu(const Common::String &message,
-            const Common::Array<Common::String> &options, uint16 resultAddr) override;
-    VmResult horizontalMenu(const Common::Array<Common::String> &options, uint16 resultAddr) override;
-    
+
+    int16 verticalMenu(const Common::String &message,
+            const Common::Array<Common::String> &options) override;
+    int16 horizontalMenu(const Common::Array<Common::String> &options) override;
+
     VmResult startCombat() override;
     VmResult executeProgram(uint8 programID) override;
-    VmResult clearTextBox() override;
-    
+    void clearTextBox() override;
+
     VmResult loadScript(uint8 scriptID) override;
     VmResult loadWallSet(uint8 blockId, uint8 setSlot) override;
     VmResult loadGeoBlock(uint8 blockId) override;
-    
-    YieldReason getYieldReason() const override { return _yieldReason; }
-    void setYieldReason(YieldReason reason) override { _yieldReason = reason; }
 
 private:
     ::Goldbox::Engine *_engine;         // Reference to main engine
     AddressSpace *_memory;               // Reference to ECL virtual memory
-    YieldReason _yieldReason;            // Current yield state
-    uint16 _pendingInputAddr;            // Address to store input result
 
     // Owned DaxTile instances for walldef tile atlases (indexed by slot 1-3)
     Common::ScopedPtr<Gfx::DaxTile> _walldefTiles[3];
-    
+
     // Helper methods for dialog/view integration
     void _showMessageBox(const Common::String &text, bool clear);
     View *_getCurrentView() const;

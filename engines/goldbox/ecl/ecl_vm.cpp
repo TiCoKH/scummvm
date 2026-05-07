@@ -223,10 +223,6 @@ VmResult EclVM::runAtScriptAddress(uint16 scriptPc, uint32 maxSteps) {
     }
 
     setPC(scriptPc);
-    return resume(maxSteps);
-}
-
-VmResult EclVM::resume(uint32 maxSteps) {
     for (uint32 i = 0; i < maxSteps; ++i) {
         VmResult r = step();
         if (r != VM_OK) {
@@ -254,8 +250,10 @@ VmResult EclVM::executeInstruction(const EclInstruction &insn,
         uint16 defaultNextPc) {
     OpcodeHandler handler = getOpcodeHandler(insn.opcode);
     if (!handler) {
-        // No handler registered; stub with yield
-        return VM_YIELD;
+        warning("EclVM: no handler registered for opcode 0x%02X at PC 0x%04X",
+                insn.opcode, insn.pc);
+        setPC(defaultNextPc);
+        return VM_OK;
     }
 
     uint16 nextPc = defaultNextPc;

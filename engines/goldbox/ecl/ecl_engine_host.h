@@ -57,77 +57,71 @@ public:
 
     /**
      * Clear the text/message box.
-     * @return VmResult
      */
-    virtual VmResult clearTextBox() = 0;
+    virtual void clearTextBox() = 0;
 
     /**
-     * Input a number from the player.
+     * Input a number from the player. Blocks until the player confirms.
      * @param maxDigits Maximum digits to accept
-     * @param resultAddr Memory address where result should be stored
-     * @return VM_YIELD while waiting, VM_OK when done
+     * @return Value entered by the player (non-negative), or -1 on cancel
      */
-    virtual VmResult inputNumber(uint8 maxDigits, uint16 resultAddr) = 0;
+    virtual int16 inputNumber(uint8 maxDigits) = 0;
 
     /**
-     * Input a string from the player.
-     * @param maxLength  Maximum characters to accept
-     * @param resultAddr Memory address where result should be stored
-     * @return VM_YIELD while waiting, VM_OK when done
+     * Input a string from the player. Blocks until the player confirms.
+     * @param maxLength Maximum characters to accept
+     * @return String entered by the player (may be empty on cancel)
      */
-    virtual VmResult inputString(uint8 maxLength, uint16 resultAddr) = 0;
+    virtual Common::String inputString(uint8 maxLength) = 0;
 
     // -----------------------------------------------------------------------
     // Menus
     // -----------------------------------------------------------------------
 
     /**
-     * Display a vertical (list) menu and wait for selection.
-     * @param message    Prompt message shown above the list
-     * @param options    Option strings (one per entry)
-     * @param resultAddr Memory address to store 0-based selection index
-     * @return VM_YIELD while waiting, VM_OK when done
+     * Display a vertical (list) menu and wait for selection. Blocks until the
+     * player selects an entry.
+     * @param message Prompt message shown above the list
+     * @param options Option strings (one per entry)
+     * @return 0-based selection index, or -1 on cancel
      */
-    virtual VmResult verticalMenu(const Common::String &message,
-            const Common::Array<Common::String> &options, uint16 resultAddr) = 0;
+    virtual int16 verticalMenu(const Common::String &message,
+            const Common::Array<Common::String> &options) = 0;
 
     /**
-     * Display a horizontal (hotkey) menu and wait for selection.
-     * @param options    Option strings (one per key)
-     * @param resultAddr Memory address to store 0-based selection index
-     * @return VM_YIELD while waiting, VM_OK when done
+     * Display a horizontal (hotkey) menu and wait for selection. Blocks until
+     * the player selects an entry.
+     * @param options Option strings (one per key)
+     * @return 0-based selection index, or -1 on cancel
      */
-    virtual VmResult horizontalMenu(const Common::Array<Common::String> &options,
-            uint16 resultAddr) = 0;
+    virtual int16 horizontalMenu(const Common::Array<Common::String> &options) = 0;
 
     /**
      * Display the parlay attitude menu (0x2C PARLAY).
      * Presents five attitudes: haughty, sly, nice, meek, abusive.
-     * @param attitudes  Five attitude text strings in original order
-     * @param resultAddr Memory address to store selected attitude index (0-4)
-     * @return VM_YIELD while waiting, VM_OK when done
+     * Blocks until the player selects an attitude.
+     * @param attitudes Five attitude text strings in original order
+     * @return Selected attitude index (0-4), or -1 on cancel
      */
-    virtual VmResult parlayMenu(const Common::Array<Common::String> &attitudes,
-            uint16 resultAddr) { return VM_OK; }
+    virtual int16 parlayMenu(const Common::Array<Common::String> &attitudes) { return 0; }
 
     /**
      * Display the encounter menu (0x29 ENCOUNTER MENU).
      * Full encounter loop: fight / parlay / advance / flee options.
-     * @param operands   Raw operand data from the decoded instruction
-     * @param resultAddr Memory address to store result
-     * @return VM_YIELD while waiting, VM_OK when done
+     * Blocks until encounter is resolved. Host writes all result values to
+     * memory directly from the operand addresses.
+     * @param operands Raw operand data from the decoded instruction
+     * @return VmResult
      */
-    virtual VmResult encounterMenu(const Common::Array<uint8> &operands,
-            uint16 resultAddr) { return VM_OK; }
+    virtual VmResult encounterMenu(const Common::Array<uint8> &operands) { return VM_OK; }
 
     /**
-     * Ask the player to select a party member (0x39 WHO).
-     * @param message    Prompt message to display
-     * @param resultAddr Memory address to store selected member index
-     * @return VM_YIELD while waiting, VM_OK when done
+     * Ask the player to select a party member (0x39 WHO). Blocks until
+     * the player makes a selection.
+     * @param message Prompt message to display
+     * @return 0-based party member index, or -1 on cancel
      */
-    virtual VmResult selectPartyMember(const Common::String &message,
-            uint16 resultAddr) { return VM_OK; }
+    virtual int16 selectPartyMember(const Common::String &message) { return 0; }
 
     // -----------------------------------------------------------------------
     // Graphics / Pictures
@@ -402,25 +396,12 @@ public:
     virtual VmResult stopMove() { return VM_HALTED; }
 
     /**
-     * Execute a special program routine (0x38 PROGRAM).
+     * Execute a special program routine (0x38 PROGRAM). Blocks until the
+     * program completes.
      * @param programID 0=main menu / training, 8=win screen, 9=encamp
-     * @return VmResult (may return VM_YIELD for async operations)
+     * @return VM_OK on completion, VM_HALTED if the program ends the game
      */
     virtual VmResult executeProgram(uint8 programID) = 0;
-
-    // -----------------------------------------------------------------------
-    // Yield state
-    // -----------------------------------------------------------------------
-
-    /**
-     * Get the current yield reason (for debugging / async continuation).
-     */
-    virtual YieldReason getYieldReason() const = 0;
-
-    /**
-     * Set yield reason.
-     */
-    virtual void setYieldReason(YieldReason reason) = 0;
 };
 
 } // namespace ECL

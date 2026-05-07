@@ -80,29 +80,22 @@ public:
     DecodeStatus loadProgram(Common::Span<const uint8> program, uint8 scriptId);
 
     /**
-     * Run script starting at an entry point.
-     * Non-blocking; yields on async calls (I/O, combat, etc.).
+     * Run script starting at an entry point. Synchronous: all syscalls block
+     * internally until resolved; this method returns when the script halts.
      * @param entry Entry point selector
-     * @param maxSteps Maximum instructions before timeout
+     * @param maxSteps Watchdog limit (guards against infinite loops in bad scripts)
      * @return Result code
      */
-    VmResult runAtEntryPoint(EntryPointSelector entry, uint32 maxSteps = 10000);
+    VmResult runAtEntryPoint(EntryPointSelector entry, uint32 maxSteps = 1000000);
 
     /**
      * Run script starting at an arbitrary bytecode address (original ENGINE_Execute behavior).
+     * Synchronous: all syscalls block internally until resolved.
      * @param scriptPc Bytecode PC in VM address space (e.g. 0x9900+offset)
-     * @param maxSteps Maximum instructions before timeout
+     * @param maxSteps Watchdog limit
      * @return Result code
      */
-    VmResult runAtScriptAddress(uint16 scriptPc, uint32 maxSteps = 10000);
-
-    /**
-     * Resume script execution from current PC.
-     * Used after async operations complete.
-     * @param maxSteps Maximum instructions
-     * @return Result code
-     */
-    VmResult resume(uint32 maxSteps = 10000);
+    VmResult runAtScriptAddress(uint16 scriptPc, uint32 maxSteps = 1000000);
 
     /**
      * Step a single instruction.
