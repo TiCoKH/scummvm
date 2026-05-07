@@ -31,15 +31,10 @@ namespace ECL {
 // Use a typedef alias for easier reference
 using HandlerMap = Common::HashMap<uint8, OpcodeHandler>;
 static HandlerMap g_handlers;
-static Common::RandomSource g_random("eclvm");
-static const Goldbox::VmLayout *g_vmLayout = nullptr;
-static const Goldbox::VmGlobalLayout *g_vmGlobalLayout = nullptr;
-static const EclRuntimeLayout *g_runtimeLayout = nullptr;
-static uint16 g_characterBase = 0;
-static uint16 g_characterSize = 0;
 
 Common::RandomSource &getOpcodeRandom() {
-    return g_random;
+    assert(Goldbox::g_engine);
+    return Goldbox::g_engine->getRandomSource();
 }
 
 void setOpcodeLayout(const Goldbox::VmLayout &vmLayout,
@@ -287,7 +282,7 @@ static int handle_0x08_RANDOM(AddressSpace &mem, const EclInstruction &insn,
     }
     uint16 maxVal = resolveVar(mem, insn.operands[0]);
     uint16 addr = insn.operands[1].u16;
-    uint16 randVal = (uint16)g_random.getRandomNumber(maxVal);
+    uint16 randVal = (uint16)getOpcodeRandom().getRandomNumber(maxVal);
     mem.write16LE(addr, randVal);
     return VM_OK;
 }
@@ -495,12 +490,12 @@ static int handle_0x15_VERTICAL_MENU(AddressSpace &mem, const EclInstruction &in
     uint16 resultAddr = insn.operands[0].u16;
     Common::String message = resolveStringOperand(mem, insn.operands[1]);
     uint8 count = insn.operands[2].u8;
-    
+
     Common::Array<Common::String> options;
     for (int i = 0; i < count && (3 + i) < (int)insn.operands.size(); ++i) {
         options.push_back(resolveStringOperand(mem, insn.operands[3 + i]));
     }
-    
+
     return syscalls->verticalMenu(message, options, resultAddr);
 }
 
@@ -584,7 +579,7 @@ static int handle_0x1E_CHECKPARTY(AddressSpace &mem, const EclInstruction &insn,
     uint16 effectID = resolveVar(mem, insn.operands[1]);
     uint16 addr1 = insn.operands[3].u16;
     uint16 addr2 = insn.operands[5].u16;
-    
+
     if (attributeAddr != 0 && effectID == 0) {
         // Check attribute values
         mem.write16LE(addr1, 18); // Placeholder highest
@@ -664,7 +659,7 @@ static int handle_0x23_SURPRISE(AddressSpace &mem, const EclInstruction &insn,
     uint16 addr2 = insn.operands[1].u16;
     uint16 mod1 = resolveVar(mem, insn.operands[2]);
     uint16 mod2 = resolveVar(mem, insn.operands[3]);
-    
+
     // TODO: Roll dice and calculate surprise
     // For now, set to 0 (neither side surprised)
     mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldCombatIsAmbush).vmAddr, 0);
@@ -677,10 +672,10 @@ static int handle_0x24_COMBAT(AddressSpace &mem, const EclInstruction &insn,
     if (!syscalls) {
         return VM_ERROR;
     }
-    
+
     uint8 templeFlag = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldEnterTemplePending).vmAddr);
     uint8 shopFlag = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldShopFlag).vmAddr);
-    
+
     if (templeFlag == 1) {
         mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldEnterTemplePending).vmAddr, 0);
         // TODO: Enter temple
@@ -702,7 +697,7 @@ static int handle_0x25_ON_GOTO(AddressSpace &mem, const EclInstruction &insn,
     }
     uint16 var = resolveVar(mem, insn.operands[0]);
     uint8 count = insn.operands[1].u8;
-    
+
     if (var < count && (2 + var) < insn.operands.size()) {
         nextPc = insn.operands[2 + var].u16;
     }
@@ -717,7 +712,7 @@ static int handle_0x26_ON_GOSUB(AddressSpace &mem, const EclInstruction &insn,
     }
     uint16 var = resolveVar(mem, insn.operands[0]);
     uint8 count = insn.operands[1].u8;
-    
+
     if (var < count && (2 + var) < insn.operands.size()) {
         callStack.push_back(nextPc);
         nextPc = insn.operands[2 + var].u16;
@@ -758,7 +753,7 @@ static int handle_0x2A_GETTABLE(AddressSpace &mem, const EclInstruction &insn,
     uint16 baseAddr = insn.operands[0].u16;
     uint16 index = resolveVar(mem, insn.operands[1]);
     uint16 destAddr = insn.operands[2].u16;
-    
+
     uint16 value = mem.read16LE(baseAddr + index);
     mem.write16LE(destAddr, value);
     // Set compare flags: EQ if zero, GT if nonzero (mirrors AND/OR convention).
@@ -774,12 +769,12 @@ static int handle_0x2B_HORIZONTAL_MENU(AddressSpace &mem, const EclInstruction &
     }
     uint16 resultAddr = insn.operands[0].u16;
     uint8 count = insn.operands[1].u8;
-    
+
     Common::Array<Common::String> options;
     for (int i = 0; i < count && (2 + i) < (int)insn.operands.size(); ++i) {
         options.push_back(resolveStringOperand(mem, insn.operands[2 + i]));
     }
-    
+
     return syscalls->horizontalMenu(options, resultAddr);
 }
 
@@ -848,7 +843,7 @@ static int handle_0x35_SAVE_TABLE(AddressSpace &mem, const EclInstruction &insn,
     uint16 value = resolveVar(mem, insn.operands[0]);
     uint16 baseAddr = insn.operands[1].u16;
     uint16 index = resolveVar(mem, insn.operands[2]);
-    
+
     mem.write16LE(baseAddr + index, value);
     return VM_OK;
 }
@@ -928,11 +923,145 @@ static int handle_0x3B_SPELL(AddressSpace &mem, const EclInstruction &insn,
     uint8 spellId = insn.operands[0].u8;
     uint16 addr1 = insn.operands[1].u16;
     uint16 addr2 = insn.operands[2].u16;
-    
+
     // TODO: Search party for character with spell
     // For now, assume not found
     mem.write16LE(addr1, 255);
     return VM_OK;
+}
+
+// 0x3E: NPC REMOVE
+// Removes the currently loaded NPC from the party roster.
+static int handle_0x3E_NPC_REMOVE(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+  //  if (syscalls)
+   //     syscalls->removeNpc();
+    return VM_OK;
+}
+
+// 0x3F: HAS EFFECT <effectID>  /  LOGBOOK ENTRY <string> <index>
+// PoR variant (1 arg): tests whether a party-wide effect is active.
+// Sets compare EQ if effect present, NE if not.
+static int handle_0x3F_HAS_EFFECT(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    // TODO: check active effects list
+    setCmpResult(mem, 1); // not present (NE)
+    return VM_OK;
+}
+
+// 0x40: DESTROY ITEM <itemID>
+// Removes a specific item from the party inventory.
+static int handle_0x40_DESTROY_ITEM(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    // TODO: remove item from party inventory
+    return VM_OK;
+}
+
+// 0x41: GIVE EXP <amount> <divideFlag>
+// Awards experience to all party members.
+// arg0 = base XP amount, arg1 = how to split (0 = each, 1 = divide by party size).
+static int handle_0x41_GIVE_EXP(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    // TODO: distribute experience points
+    return VM_OK;
+}
+
+// 0x42: STOP MOVE (variant B, 0 args)
+// Identical to 0x23 STOP_MOVE: halts VM, updates position, clears display.
+static int handle_0x42_STOP_MOVE(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    if (syscalls) {
+//        syscalls->updatePosition();
+//        syscalls->clearDisplay();
+    }
+    return VM_HALTED;
+}
+
+// 0x43: SOUND EVENT <soundID>
+static int handle_0x43_SOUND(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    // TODO: trigger sound effect
+    return VM_OK;
+}
+
+// 0x44: (unknown 0 args)
+static int handle_0x44_UNKNOWN(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    return VM_OK;
+}
+
+// 0x45: RANDOM0 <destAddr> <maxVal>
+// Writes random(0..maxVal) to destAddr; writes 0 if maxVal == 0.
+// Differs from 0x08 RANDOM in that dest is arg0 and max is arg1 (reversed).
+static int handle_0x45_RANDOM0(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    if (insn.operands.size() < 2)
+        return VM_ERROR;
+    uint16 destAddr = insn.operands[0].u16;
+    uint16 maxVal = resolveVar(mem, insn.operands[1]);
+    uint16 result = (maxVal > 0) ?
+            (uint16)getOpcodeRandom().getRandomNumber(maxVal) : 0;
+    mem.write16LE(destAddr, result);
+    return VM_OK;
+}
+
+// 0x46: FOR START <initVal> <maxVal>
+// Starts a counted loop. Loop body begins at the instruction immediately following.
+// Original: stores loop counter in a dedicated var; loop runs while counter <= maxVal.
+static int handle_0x46_FOR_START(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    if (insn.operands.size() < 2)
+        return VM_ERROR;
+    g_forLoopCount = (uint16)resolveVar(mem, insn.operands[0]);
+    g_forLoopMax   = (uint16)resolveVar(mem, insn.operands[1]);
+    g_forLoopBodyStart = nextPc; // decoded instruction index of loop body's first instruction
+    return VM_OK;
+}
+
+// 0x47: FOR REPEAT
+// Increments counter; jumps back to loop body if counter <= maxVal.
+static int handle_0x47_FOR_REPEAT(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    g_forLoopCount++;
+    if (g_forLoopCount <= g_forLoopMax)
+        nextPc = g_forLoopBodyStart;
+    return VM_OK;
+}
+
+// 0x48: (unknown, 1 arg)
+static int handle_0x48_UNKNOWN(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    return VM_OK;
+}
+
+// 0x49: (unknown, 6 args)
+static int handle_0x49_UNKNOWN(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    return VM_OK;
+}
+
+// 0x4A: (unknown, 0 args)
+static int handle_0x4A_UNKNOWN(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    return VM_OK;
+}
+
+// 0x4B: (unknown, 1 arg)
+static int handle_0x4B_UNKNOWN(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    return VM_OK;
+}
+
+// 0x4C: PICTURE 2 <pictureID> <variant>
+// Extended picture display with variant parameter.
+static int handle_0x4C_PICTURE2(AddressSpace &mem, const EclInstruction &insn,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    if (insn.operands.size() < 2 || !syscalls)
+        return VM_ERROR;
+    uint8 picId = insn.operands[0].u8;
+    uint8 variant = (uint8)resolveVar(mem, insn.operands[1]);
+    mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr, picId);
+    return syscalls->displayPicture(picId);
 }
 
 void clearOpcodeHandlers() {
