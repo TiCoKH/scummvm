@@ -69,33 +69,26 @@ public:
     // EclEngineHost interface
     void printText(const Common::String &text, bool clearBox = false) override;
 
-    VmResult inputNumber(uint8 maxDigits, uint16 resultAddr) override;
-    VmResult inputString(uint8 maxLength, uint16 resultAddr) override;
+    int16 inputNumber(uint8 maxDigits) override;
+    Common::String inputString(uint8 maxLength) override;
 
     VmResult displayPicture(uint8 picID) override;
 
-    VmResult verticalMenu(const Common::String &message,
-            const Common::Array<Common::String> &options,
-            uint16 resultAddr) override;
-    VmResult horizontalMenu(const Common::Array<Common::String> &options,
-            uint16 resultAddr) override;
+    int16 verticalMenu(const Common::String &message,
+            const Common::Array<Common::String> &options) override;
+    int16 horizontalMenu(const Common::Array<Common::String> &options) override;
 
     VmResult startCombat() override;
     VmResult executeProgram(uint8 programID) override;
-    VmResult clearTextBox() override;
+    void clearTextBox() override;
 
     VmResult loadScript(uint8 scriptID) override;
     VmResult loadWallSet(uint8 blockId, uint8 setSlot) override;
     VmResult loadGeoBlock(uint8 blockId) override;
 
-    ECL::YieldReason getYieldReason() const override { return _yieldReason; }
-    void setYieldReason(ECL::YieldReason reason) override { _yieldReason = reason; }
-
 private:
     ::Goldbox::Engine *_engine;
     ECL::AddressSpace *_memory;
-    ECL::YieldReason _yieldReason;
-    uint16 _pendingInputAddr;
 
     // Owned DaxTile instances for walldef tile atlases (slots 1-3, 0-based idx)
     Common::ScopedPtr<Gfx::DaxTile> _walldefTiles[3];

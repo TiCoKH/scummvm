@@ -23,6 +23,7 @@
 #include "common/hashmap.h"
 #include "common/random.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/core/vm_layout.h"
 #include "goldbox/ecl/runtime_layout.h"
 
 namespace Goldbox {
@@ -31,6 +32,12 @@ namespace ECL {
 // Use a typedef alias for easier reference
 using HandlerMap = Common::HashMap<uint8, OpcodeHandler>;
 static HandlerMap g_handlers;
+
+static const Goldbox::VmLayout *g_vmLayout = nullptr;
+static const Goldbox::VmGlobalLayout *g_vmGlobalLayout = nullptr;
+static const EclRuntimeLayout *g_runtimeLayout = nullptr;
+static uint16 g_characterBase = 0;
+static uint16 g_characterSize = 0;
 
 Common::RandomSource &getOpcodeRandom() {
     assert(Goldbox::g_engine);
@@ -294,7 +301,10 @@ static int handle_0x0F_INPUT_NUMBER(AddressSpace &mem, const EclInstruction &ins
     }
     uint8 maxDigits = insn.operands[0].u8;
     uint16 addr = insn.operands[1].u16;
-    syscalls->inputNumber(maxDigits, addr);
+    int16 value = syscalls->inputNumber(maxDigits);
+    if (value >= 0) {
+        mem.write16LE(addr, static_cast<uint16>(value));
+    }
     return VM_OK;
 }
 
@@ -305,8 +315,13 @@ static int handle_0x10_INPUT_STRING(AddressSpace &mem, const EclInstruction &ins
     }
     uint8 maxLength = insn.operands[0].u8;
     uint16 addr = insn.operands[1].u16;
-    VmResult result = syscalls->inputString(maxLength, addr);
-    return result;
+    Common::String result = syscalls->inputString(maxLength);
+    // Write null-terminated string to VM memory
+    for (uint i = 0; i < result.size(); ++i) {
+        mem.write8(static_cast<uint16>(addr + i), static_cast<uint8>(result[i]));
+    }
+    mem.write8(static_cast<uint16>(addr + result.size()), 0);
+    return VM_OK;
 }
 
 // 0x0A: LOAD CHARACTER <var>
@@ -428,7 +443,9 @@ static int handle_0x33_PRINT_RETURN(AddressSpace &mem, const EclInstruction &ins
 
 static int handle_0x3A_DELAY(AddressSpace &mem, const EclInstruction &insn,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    return VM_YIELD;
+    // In synchronous model, frame delays are no-ops: the engine pump inside
+    // each blocking syscall handles timing naturally.
+    return VM_OK;
 }
 
 static int handle_0x38_PROGRAM(AddressSpace &mem, const EclInstruction &insn,
@@ -461,8 +478,8 @@ static int handle_0x3D_CLEAR_BOX(AddressSpace &mem, const EclInstruction &insn,
     if (!syscalls) {
         return VM_ERROR;
     }
-    VmResult result = syscalls->clearTextBox();
-    return result;
+    syscalls->clearTextBox();
+    return VM_OK;
 }
 
 // 0x14: COMPARE AND <var1> <var2> <var3> <var4>
@@ -496,7 +513,11 @@ static int handle_0x15_VERTICAL_MENU(AddressSpace &mem, const EclInstruction &in
         options.push_back(resolveStringOperand(mem, insn.operands[3 + i]));
     }
 
-    return syscalls->verticalMenu(message, options, resultAddr);
+    int16 selection = syscalls->verticalMenu(message, options);
+    if (selection >= 0) {
+        mem.write16LE(resultAddr, static_cast<uint16>(selection));
+    }
+    return VM_OK;
 }
 
 // 0x16-0x1B: IF commands — execute the next instruction only if condition holds.
@@ -775,7 +796,11 @@ static int handle_0x2B_HORIZONTAL_MENU(AddressSpace &mem, const EclInstruction &
         options.push_back(resolveStringOperand(mem, insn.operands[2 + i]));
     }
 
-    return syscalls->horizontalMenu(options, resultAddr);
+    int16 selection = syscalls->horizontalMenu(options);
+    if (selection >= 0) {
+        mem.write16LE(resultAddr, static_cast<uint16>(selection));
+    }
+    return VM_OK;
 }
 
 // 0x2C: PARLAY <haughty> <sly> <nice> <meek> <abusive> <address>

@@ -30,19 +30,11 @@ namespace Goldbox {
 
 namespace ECL {
 
-enum class YieldReason {
-    None = 0,
-    WaitingForInput,
-    WaitingForCombat,
-    WaitingForPicture,
-    WaitingForMenu,
-    WaitingForScript,
-    WaitingForCharacterLoad
-};
-
 /**
  * Interface for ECL syscalls (I/O, combat, menus, etc.).
- * Implemented by the engine to handle async operations.
+ * All blocking operations are synchronous: the syscall pumps the event loop
+ * internally and only returns when the operation is fully resolved. The ECL VM
+ * never suspends mid-script; save points are always between ECL invocations.
  */
 class SyscallHandler {
 public:
@@ -50,75 +42,73 @@ public:
 
     /**
      * Print text to the message/text box.
-     * @param text Text to print (may be encoded)
+     * @param text     Text to print (may be encoded)
      * @param clearBox If true, clear text box before printing
      */
     virtual void printText(const Common::String &text, bool clearBox = false) = 0;
 
     /**
-     * Input number from player.
+     * Input a number from the player. Blocks until the player confirms.
      * @param maxDigits Maximum digits to accept
-     * @param resultAddr Memory address where input result should be stored
-     * @return VmResult (should return VM_YIELD, completion sets result in address)
+     * @return Value entered by the player (non-negative), or -1 on cancel
      */
-    virtual VmResult inputNumber(uint8 maxDigits, uint16 resultAddr) = 0;
+    virtual int16 inputNumber(uint8 maxDigits) = 0;
 
     /**
-     * Input string from player.
+     * Input a string from the player. Blocks until the player confirms.
      * @param maxLength Maximum characters to accept
-     * @param resultAddr Memory address where input result should be stored
-     * @return VmResult (should return VM_YIELD)
+     * @return String entered by the player (may be empty on cancel)
      */
-    virtual VmResult inputString(uint8 maxLength, uint16 resultAddr) = 0;
+    virtual Common::String inputString(uint8 maxLength) = 0;
 
     /**
-     * Display picture/sprite.
-     * @param picID Picture ID (255 to end display)
+     * Display picture/sprite. Blocks until display is complete.
+     * @param picID Picture ID (0xFF to clear display and redraw 3D view)
      * @return VmResult
      */
     virtual VmResult displayPicture(uint8 picID) = 0;
 
     /**
-     * Display vertical menu with options.
-     * @param message Prompt message
+     * Display a vertical (list) menu and wait for selection. Blocks until the
+     * player selects an entry.
+     * @param message Prompt message shown above the list
      * @param options Array of option strings
-     * @param resultAddr Memory address to store selection (0-based index)
-     * @return VmResult (should return VM_YIELD)
+     * @return 0-based selection index, or -1 on cancel
      */
-    virtual VmResult verticalMenu(const Common::String &message,
-            const Common::Array<Common::String> &options, uint16 resultAddr) = 0;
+    virtual int16 verticalMenu(const Common::String &message,
+            const Common::Array<Common::String> &options) = 0;
 
     /**
-     * Display horizontal menu (for bottom bar selection).
-     * @param options Array of option strings
-     * @param resultAddr Memory address to store selection (0-based index)
-     * @return VmResult (should return VM_YIELD)
+     * Display a horizontal (hotkey) menu and wait for selection. Blocks until
+     * the player selects an entry.
+     * @param options Array of option strings (one per key)
+     * @return 0-based selection index, or -1 on cancel
      */
-    virtual VmResult horizontalMenu(const Common::Array<Common::String> &options, uint16 resultAddr) = 0;
+    virtual int16 horizontalMenu(const Common::Array<Common::String> &options) = 0;
 
     /**
-     * Start combat with monsters.
-     * @return VmResult (should return VM_YIELD)
+     * Start the main combat loop with currently loaded monsters. Blocks until
+     * combat resolution.
+     * @return VmResult
      */
     virtual VmResult startCombat() = 0;
 
     /**
-     * Execute special program routine.
+     * Execute a special program routine. Blocks until the program completes.
      * @param programID Program ID (0=training, 8=win, 9=camp)
-     * @return VmResult (may return VM_YIELD for async operations)
+     * @return VM_OK on completion, VM_HALTED if the program ends the game
      */
     virtual VmResult executeProgram(uint8 programID) = 0;
 
     /**
      * Clear the text/message box.
-     * @return VmResult
      */
-    virtual VmResult clearTextBox() = 0;
+    virtual void clearTextBox() = 0;
 
     /**
-     * Load a new ECL script.
+     * Load a new ECL script, replacing the current one.
      * @param scriptID Script ID to load
-     * @return VmResult
+     * @return VM_HALTED to signal that the current script chain has ended
      */
     virtual VmResult loadScript(uint8 scriptID) = 0;
 
@@ -148,16 +138,6 @@ public:
      * @return VmResult
      */
     virtual VmResult loadIconBlock() { return VM_OK; }
-
-    /**
-     * Get the current yield reason (for debugging).
-     */
-    virtual YieldReason getYieldReason() const = 0;
-
-    /**
-     * Set yield reason.
-     */
-    virtual void setYieldReason(YieldReason reason) = 0;
 };
 
 } // namespace ECL

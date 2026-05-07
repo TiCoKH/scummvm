@@ -35,8 +35,7 @@ namespace Poolrad {
 
 PoolradEngineHostImpl::PoolradEngineHostImpl(::Goldbox::Engine *engine,
         ECL::AddressSpace *memory)
-    : _engine(engine), _memory(memory),
-      _yieldReason(ECL::YieldReason::None), _pendingInputAddr(0) {
+    : _engine(engine), _memory(memory) {
 }
 
 void PoolradEngineHostImpl::printText(const Common::String &text, bool clearBox) {
@@ -44,24 +43,20 @@ void PoolradEngineHostImpl::printText(const Common::String &text, bool clearBox)
     _showMessageBox(text, clearBox);
 }
 
-VmResult PoolradEngineHostImpl::inputNumber(uint8 maxDigits, uint16 resultAddr) {
-    if (!_engine || !_memory) return VmResult::VM_ERROR;
+int16 PoolradEngineHostImpl::inputNumber(uint8 maxDigits) {
+    if (!_engine) return -1;
 
-    _pendingInputAddr = resultAddr;
-    _yieldReason = ECL::YieldReason::WaitingForInput;
-
-    // TODO: Show input number dialog via View/Dialog system
-    return VmResult::VM_YIELD;
+    // TODO: Show input number dialog via View/Dialog system; block until
+    // the player confirms. Return the entered value.
+    return 0;
 }
 
-VmResult PoolradEngineHostImpl::inputString(uint8 maxLength, uint16 resultAddr) {
-    if (!_engine || !_memory) return VmResult::VM_ERROR;
+Common::String PoolradEngineHostImpl::inputString(uint8 maxLength) {
+    if (!_engine) return Common::String();
 
-    _pendingInputAddr = resultAddr;
-    _yieldReason = ECL::YieldReason::WaitingForInput;
-
-    // TODO: Show input string dialog via View/Dialog system
-    return VmResult::VM_YIELD;
+    // TODO: Show input string dialog via View/Dialog system; block until
+    // the player confirms. Return the entered string.
+    return Common::String();
 }
 
 VmResult PoolradEngineHostImpl::displayPicture(uint8 picID) {
@@ -72,56 +67,48 @@ VmResult PoolradEngineHostImpl::displayPicture(uint8 picID) {
         return VmResult::VM_OK;
     }
 
-    // TODO: Load and display picture from PIC?.DAX
-    _yieldReason = ECL::YieldReason::WaitingForPicture;
-    return VmResult::VM_YIELD;
+    // TODO: Load and display picture from PIC?.DAX; block until display is ready.
+    return VmResult::VM_OK;
 }
 
-VmResult PoolradEngineHostImpl::verticalMenu(const Common::String &message,
-        const Common::Array<Common::String> &options, uint16 resultAddr) {
-    if (!_engine || !_memory) return VmResult::VM_ERROR;
+int16 PoolradEngineHostImpl::verticalMenu(const Common::String &message,
+        const Common::Array<Common::String> &options) {
+    if (!_engine) return -1;
 
-    _pendingInputAddr = resultAddr;
-    _yieldReason = ECL::YieldReason::WaitingForMenu;
-
-    // TODO: Show vertical menu dialog via Dialog system
-    return VmResult::VM_YIELD;
+    // TODO: Show vertical menu dialog via Dialog system; block until player
+    // selects. Return 0-based index, or -1 on cancel.
+    return 0;
 }
 
-VmResult PoolradEngineHostImpl::horizontalMenu(
-        const Common::Array<Common::String> &options, uint16 resultAddr) {
-    if (!_engine || !_memory) return VmResult::VM_ERROR;
+int16 PoolradEngineHostImpl::horizontalMenu(
+        const Common::Array<Common::String> &options) {
+    if (!_engine) return -1;
 
-    _pendingInputAddr = resultAddr;
-    _yieldReason = ECL::YieldReason::WaitingForMenu;
-
-    // TODO: Show horizontal menu on bottom bar
-    return VmResult::VM_YIELD;
+    // TODO: Show horizontal menu on bottom bar; block until player selects.
+    // Return 0-based index, or -1 on cancel.
+    return 0;
 }
 
 VmResult PoolradEngineHostImpl::startCombat() {
     if (!_engine) return VmResult::VM_ERROR;
 
-    _yieldReason = ECL::YieldReason::WaitingForCombat;
-
-    // TODO: Initiate combat with monsters from ECL memory
-    return VmResult::VM_YIELD;
+    // TODO: Initiate combat with monsters from ECL memory; block until
+    // combat is resolved.
+    return VmResult::VM_OK;
 }
 
 VmResult PoolradEngineHostImpl::executeProgram(uint8 programID) {
     if (!_engine) return VmResult::VM_ERROR;
 
-    _yieldReason = ECL::YieldReason::WaitingForScript;
-
     switch (programID) {
     case 0:
-        // TODO: Show training hall dialog
+        // TODO: Show training hall dialog; block until complete.
         break;
     case 8:
-        // TODO: Show win game / victory sequence
-        break;
+        // TODO: Show win game / victory sequence; block until complete.
+        return VmResult::VM_HALTED;
     case 9:
-        // TODO: Show camp / rest menu
+        // TODO: Show camp / rest menu; block until complete.
         break;
     default:
         warning("PoolradEngineHostImpl::executeProgram: unknown programID %d",
@@ -129,20 +116,18 @@ VmResult PoolradEngineHostImpl::executeProgram(uint8 programID) {
         return VmResult::VM_ERROR;
     }
 
-    return VmResult::VM_YIELD;
+    return VmResult::VM_OK;
 }
 
-VmResult PoolradEngineHostImpl::clearTextBox() {
-    if (!_engine) return VmResult::VM_ERROR;
+void PoolradEngineHostImpl::clearTextBox() {
+    if (!_engine) return;
     _showMessageBox(Common::String(""), true);
-    return VmResult::VM_OK;
 }
 
 VmResult PoolradEngineHostImpl::loadScript(uint8 scriptID) {
     if (!_engine) return VmResult::VM_ERROR;
-    _yieldReason = ECL::YieldReason::WaitingForScript;
-    // TODO: Engine should call ECL VM to load new script
-    return VmResult::VM_YIELD;
+    // TODO: Load new ECL script via engine; the current script chain ends here.
+    return VmResult::VM_HALTED;
 }
 
 VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
