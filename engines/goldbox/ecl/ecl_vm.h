@@ -155,6 +155,22 @@ public:
      */
     Common::String readString(uint8 index) const;
 
+    /**
+     * Store compare result sign into runtime compare flag field.
+     */
+    void setCmpResult(int32 result);
+
+    /**
+     * Read compare result sign from runtime compare flag field.
+     */
+    int8 getCmpResult() const;
+
+    /**
+     * VM write path with region-aware behavior and legacy side effects.
+     */
+    void writeVmMemory(uint16 vmAddr, uint16 value,
+        SyscallHandler *syscalls = nullptr);
+
 private:
     GameConfig *_config;
     SyscallHandler *_syscalls;
@@ -166,10 +182,12 @@ private:
     Common::Array<uint16> _entryPoints;
 
     // Operand decode buffer — populated by getOperand().
-    // _opValues[0] = count, _opValues[1..N] = decoded word per operand.
-    // _opTypes[0]  = 0,     _opTypes[1..N]  = type tag per operand.
-    Common::Array<uint16> _opValues;
-    Common::Array<uint8>  _opTypes;
+    // Fixed-size arrays matching original's global stacks (never resized).
+    // _opValues[0] = count sentinel, _opValues[1..N] = decoded word per operand.
+    // _opTypes[0]  = 0,              _opTypes[1..N]  = type tag per operand.
+    static const uint8 kMaxOperands = 16;
+    uint16 _opValues[kMaxOperands + 1];
+    uint8  _opTypes[kMaxOperands + 1];
     uint16 _opStartPc;
 
     /**
@@ -197,7 +215,11 @@ private:
      */
     void syncRuntimePc(uint16 pc);
 
-    VmResult executeInstruction(const EclInstruction &insn, uint16 defaultNextPc);
+    uint8 getMemoryRegion(uint16 vmAddr) const;
+    void writeVmCharacterValue(uint16 vmAddr, uint16 value,
+        SyscallHandler *syscalls);
+
+    VmResult executeInstruction(uint8 opcode, uint16 defaultNextPc);
 };
 
 } // namespace ECL

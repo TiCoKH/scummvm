@@ -77,6 +77,15 @@ public:
         }
     }
 
+    Common::Array<ECL::MemoryRegionRange> getMemoryRegions() const override {
+        Common::Array<ECL::MemoryRegionRange> ranges;
+        ranges.push_back({0x4900, 0x4CFF});
+        ranges.push_back({0x6B00, 0x6EFF});
+        ranges.push_back({0x9700, 0x98FF});
+        ranges.push_back({kPoolradScriptVmStart, 0xB6FF});
+        return ranges;
+    }
+
     Common::String getGameName() const override { return "Pool of Radiance"; }
 
     void registerDialect() const override {

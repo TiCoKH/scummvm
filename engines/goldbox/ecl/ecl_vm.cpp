@@ -60,6 +60,8 @@ EclVM::EclVM(GameConfig *config, SyscallHandler *syscalls)
             _pc(config ? config->getScriptVmStart()
                     : ECLMemoryLayout::MEM_START_DEFAULT),
             _scriptId(0xFF), _opStartPc(0) {
+    memset(_opValues, 0, sizeof(_opValues));
+    memset(_opTypes, 0, sizeof(_opTypes));
     if (_config) {
         _config->registerDialect();
     }
@@ -249,21 +251,20 @@ VmResult EclVM::step() {
             ? _program[insnIndex + 1].pc
             : static_cast<uint16>(insn.pc + 1);
 
-    return executeInstruction(insn, defaultNextPc);
+    return executeInstruction(insn.opcode, defaultNextPc);
 }
 
-VmResult EclVM::executeInstruction(const EclInstruction &insn,
-        uint16 defaultNextPc) {
-    OpcodeHandler handler = getOpcodeHandler(insn.opcode);
+VmResult EclVM::executeInstruction(uint8 opcode, uint16 defaultNextPc) {
+    OpcodeHandler handler = getOpcodeHandler(opcode);
     if (!handler) {
         warning("EclVM: no handler registered for opcode 0x%02X at PC 0x%04X",
-                insn.opcode, insn.pc);
+                opcode, _pc);
         setPC(defaultNextPc);
         return VM_OK;
     }
 
     uint16 nextPc = defaultNextPc;
-    VmResult result = static_cast<VmResult>(handler(*this, _memory, insn, nextPc, _callStack, _syscalls));
+    VmResult result = static_cast<VmResult>(handler(*this, _memory, nextPc, _callStack, _syscalls));
 
     if (result == VM_OK) {
         setPC(nextPc);
@@ -274,13 +275,12 @@ VmResult EclVM::executeInstruction(const EclInstruction &insn,
 
 void EclVM::getOperand(uint8 opCount) {
     _opStartPc = _pc;
-    _opValues.resize(opCount + 1);
-    _opTypes.resize(opCount + 1);
     _opValues[0] = opCount;
-    _opTypes[0]  = 0;
 
     if (opCount == 0)
         return;
+
+    assert(opCount <= kMaxOperands);
 
     Common::MemorySeekableReadWriteStream *stream = _memory.openReadWriteStream();
     // Operand bytes start one past the opcode byte.
@@ -323,20 +323,19 @@ void EclVM::getOperand(uint8 opCount) {
 }
 
 uint16 EclVM::getOpWord(uint8 index) const {
-    if (index < static_cast<uint8>(_opValues.size()))
+    if (index <= kMaxOperands)
         return _opValues[index];
     return 0;
 }
 
 uint8 EclVM::getOpType(uint8 index) const {
-    if (index < static_cast<uint8>(_opTypes.size()))
+    if (index <= kMaxOperands)
         return _opTypes[index];
     return 0;
 }
 
 uint16 EclVM::readVar(uint8 index) const {
-    if (index >= static_cast<uint8>(_opTypes.size()) ||
-            index >= static_cast<uint8>(_opValues.size()))
+    if (index > kMaxOperands)
         return 0;
     const uint8  tag = _opTypes[index];
     const uint16 val = _opValues[index];
@@ -407,6 +406,78 @@ Common::String EclVM::readString(uint8 index) const {
 
     delete stream;
     return Common::String();
+}
+
+void EclVM::setCmpResult(int32 result) {
+    if (!_config)
+        return;
+
+    EclLayoutAccess layout = _config->getLayoutAccess();
+    int8 sign = (result < 0) ? -1 : (result > 0) ? 1 : 0;
+    _memory.write8(layout.runtimeField(kEclRuntimeBreakFlag), (uint8)sign);
+}
+
+int8 EclVM::getCmpResult() const {
+    if (!_config)
+        return 0;
+
+    EclLayoutAccess layout = _config->getLayoutAccess();
+    return (int8)_memory.read8(layout.runtimeField(kEclRuntimeBreakFlag));
+}
+
+uint8 EclVM::getMemoryRegion(uint16 vmAddr) const {
+    if (!_config)
+        return 0;
+
+    const Common::Array<MemoryRegionRange> ranges = _config->getMemoryRegions();
+    for (uint i = 0; i < ranges.size(); ++i) {
+        const MemoryRegionRange &r = ranges[i];
+        if (r._startAddr > r._endAddr)
+            continue;
+        if (vmAddr >= r._startAddr && vmAddr <= r._endAddr)
+            return (uint8)i;
+    }
+
+    return (uint8)ranges.size();
+}
+
+void EclVM::writeVmCharacterValue(uint16 vmAddr, uint16 value,
+        SyscallHandler *syscalls) {
+    const uint16 local = (uint16)(vmAddr + 0x9500);
+
+    if (value <= 0x80)
+        return;
+
+    SyscallHandler *activeSyscalls = syscalls ? syscalls : _syscalls;
+    if (!activeSyscalls)
+        return;
+
+    if (local == 0x322) {
+        activeSyscalls->loadWallSet((uint8)(value & 0x7F), 1);
+    } else if (local == 0x324) {
+        activeSyscalls->loadWallSet((uint8)(value & 0x7F), 2);
+    } else if (local == 0x326) {
+        activeSyscalls->loadWallSet((uint8)(value & 0x7F), 3);
+    }
+}
+
+void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
+        SyscallHandler *syscalls) {
+    const uint8 region = getMemoryRegion(vmAddr);
+
+    if (region == 3) {
+        _memory.write8(vmAddr, (uint8)value);
+        return;
+    }
+
+    if (region == 4 && vmAddr == 0xC04D) {
+        value = (uint16)(value & 0x3);
+    }
+
+    _memory.write16LE(vmAddr, value);
+
+    if (region == 1)
+        writeVmCharacterValue(vmAddr, value, syscalls);
 }
 
 Common::String EclVM::dumpMemory(uint16 startAddr, uint16 length) const {

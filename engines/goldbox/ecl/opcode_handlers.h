@@ -25,7 +25,6 @@
 #include "common/array.h"
 #include "common/random.h"
 #include "common/scummsys.h"
-#include "goldbox/ecl/ecl_decoder.h"
 #include "goldbox/ecl/ecl_memory.h"
 #include "goldbox/ecl/runtime_layout.h"
 #include "goldbox/ecl/syscall_handler.h"
@@ -40,8 +39,11 @@ class EclVM;
  * Handler function for an opcode.
  * Returns int (cast from VmResult): VM_OK to continue, VM_YIELD for async, VM_HALTED to exit.
  * EclVM provides getOperand(N)/getOpWord(i)/readVar(i)/readString(i) for operand access.
+ *
+ * All operand data is accessed at runtime via EclVM methods that read directly
+ * from VM flat memory. There is no pre-decoded operand array.
  */
-typedef int (*OpcodeHandler)(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+typedef int (*OpcodeHandler)(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls);
 
 /**

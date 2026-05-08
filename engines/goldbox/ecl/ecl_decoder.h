@@ -41,110 +41,23 @@ enum DecodeStatus {
     DECODE_MALFORMED_OPERAND
 };
 
-struct EclOperand {
-    OperandType type;
-    uint8 u8;
-    uint16 u16;
-    Common::String str;
-    Common::Array<uint8> bytes;
-};
-
+/**
+ * Lightweight instruction record used only for PC-to-index mapping.
+ * All operand access at runtime goes through EclVM::getOperand()/readVar()/readString()
+ * which read directly from VM flat memory (Path B). No operand data is stored here.
+ */
 struct EclInstruction {
     uint16 pc;
     uint8 opcode;
-    Common::Array<EclOperand> operands;
 };
 
 /**
- * Helper class for reading operands from a decoded instruction.
- * Matches original VM semantics where operands are pre-buffered and accessed by index.
- * Supports both sequential reading and random access.
- */
-class OperandBuffer {
-public:
-    explicit OperandBuffer(const EclInstruction &insn)
-        : _insn(insn), _nextIndex(0) {}
-
-    /**
-     * Read next operand as 8-bit value (sequential access).
-     * Mimics original: uVar1 = thunk_FUN_0022752e('\x01')
-     * @return 8-bit unsigned value, 0 if out of bounds
-     */
-    uint8 readU8() {
-        if (_nextIndex < (int)_insn.operands.size()) {
-            return _insn.operands[_nextIndex++].u8;
-        }
-        return 0;
-    }
-
-    /**
-     * Read next operand as 16-bit value (sequential access).
-     * Mimics original: toWord(0, 0)
-     * @return 16-bit unsigned value, 0 if out of bounds
-     */
-    uint16 readU16() {
-        if (_nextIndex < (int)_insn.operands.size()) {
-            const EclOperand &op = _insn.operands[_nextIndex++];
-            if (op.type == OperandType::VAL16 || op.type == OperandType::ADDR16) {
-                return op.u16;
-            }
-            // If only 8-bit available, pad with zero
-            return op.u8;
-        }
-        return 0;
-    }
-
-    /**
-     * Read operand at specific 1-based index (random access).
-     * Mimics original: getOperand(1), getOperand(2), etc.
-     * @param index 1-based operand number
-     * @return 8-bit value, 0 if out of bounds
-     */
-    uint8 readByIndex(int index) {
-        if (index < 1 || index > (int)_insn.operands.size()) {
-            return 0;
-        }
-        return _insn.operands[index - 1].u8;
-    }
-
-    /**
-     * Read 16-bit operand at specific 1-based index.
-     * @param index 1-based operand number
-     * @return 16-bit value, 0 if out of bounds
-     */
-    uint16 readU16ByIndex(int index) {
-        if (index < 1 || index > (int)_insn.operands.size()) {
-            return 0;
-        }
-        const EclOperand &op = _insn.operands[index - 1];
-        if (op.type == OperandType::VAL16 || op.type == OperandType::ADDR16) {
-            return op.u16;
-        }
-        return op.u8;
-    }
-
-    /**
-     * Get total number of operands available.
-     * Useful for bounds checking.
-     */
-    int count() const { return _insn.operands.size(); }
-
-    /**
-     * Reset sequential reader to start.
-     */
-    void reset() { _nextIndex = 0; }
-
-private:
-    const EclInstruction &_insn;
-    int _nextIndex;
-};
-
-/**
- * Decode a raw ECL program into instructions.
- * For now, varargs opcodes are flagged as unsupported.
+ * Scan a raw ECL program to build an instruction index (PC + opcode only).
+ * Operand bytes are skipped to determine instruction boundaries but not stored.
  * @param program Raw byte span of the ECL block
  * @param startPc Starting PC (usually 0)
- * @param outInstructions Output decoded instruction list
+ * @param outInstructions Output instruction index
+ * @param config Optional game config for extended opcode operand counts
  * @return DecodeStatus
  */
 DecodeStatus decodeProgram(Common::Span<const uint8> program, uint16 startPc,

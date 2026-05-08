@@ -137,6 +137,62 @@ detachDialog(_itemsMenu);
 setActiveSubView(_profileDialog);
 ```
 
+## ECL VM Architecture (Goldbox Engine)
+
+### Single Operand Access Path (Runtime Path B)
+The ECL VM uses a **single operand access path**: all operand data is read at runtime directly from VM flat memory via `EclVM::getOperand(N)`, `readVar(i)`, `readString(i)`, and `getOpWord(i)`.
+
+- `EclInstruction` is a **lightweight boundary record** containing only `pc` and `opcode`. It does NOT store operand data.
+- `decodeProgram()` scans bytecode to find instruction boundaries (skipping operand bytes) but does NOT decode or store operands.
+- Opcode handlers access operands exclusively through `EclVM` methods that parse from flat memory at the current PC.
+
+### Opcode Handler Signature
+```cpp
+typedef int (*OpcodeHandler)(EclVM &vm, AddressSpace &mem,
+        uint16 &nextPc, Common::Array<uint16> &callStack,
+        SyscallHandler *syscalls);
+```
+- No `EclInstruction` parameter — handlers never receive pre-decoded operand data.
+- Handlers call `vm.getOperand(N)` to parse N operands from the bytecode stream at the current PC.
+- Use `vm.readVar(i)` for dereferenced numeric values, `vm.getOpWord(i)` for raw addresses, `vm.readString(i)` for strings.
+
+### Varargs Opcodes (ON GOTO, ON GOSUB, VERTICAL MENU, HORIZONTAL MENU)
+For variable-argument opcodes:
+1. First call `vm.getOperand(fixedCount)` to read the count operand.
+2. Then call `vm.getOperand(fixedCount + count)` to re-decode all operands including varargs.
+3. Access varargs via `vm.getOpWord(fixedCount + 1 + index)`.
+
+### Parameter Roles
+- **`vm`** — Operand decoding only. Call `vm.getOperand(N)` to read N operands from the bytecode stream, then `vm.readVar(i)` for resolved values, `vm.getOpWord(i)` for raw addresses, `vm.readString(i)` for strings. Never call `vm.step()` or touch `vm._pc` directly.
+- **`mem`** — Flat 64K VM address space. All game state lives here. Use `getOpcodeLayout()` to resolve named fields to VM addresses.
+- **`nextPc`** — Next instruction PC, passed by reference. Already set to the default next instruction. Overwrite it for branches (`GOTO`, `GOSUB`, `RETURN`, `IF` skip). Do not set it to the current instruction's PC.
+- **`callStack`** — GOSUB/RETURN return-address stack. `GOSUB` pushes `nextPc` then overwrites it; `RETURN` pops into `nextPc`.
+- **`syscalls`** — Engine-side callbacks (rendering, menus, combat, sound). Always guard with `if (!syscalls) return VM_ERROR` before use.
+
+### Return Values
+- `VM_OK` — continue to `nextPc`
+- `VM_HALTED` — script ended (`EXIT`, `STOP MOVE`)
+- `VM_ERROR` — unrecoverable fault (null syscalls, empty call stack, divide by zero)
+- `VM_YIELD` — reserved for future async suspension; do not use in handlers
+
+### Key Rules
+- NEVER store operand data in `EclInstruction` or any pre-decoded structure.
+- NEVER pass `EclInstruction` to opcode handlers.
+- ALWAYS use `vm.getOperand()` / `vm.readVar()` / `vm.readString()` for operand access.
+- The decoder exists solely to build a PC→instruction-index mapping for `findInstructionIndexByPc()`.
+
+### Rules
+✓ Call `vm.getOperand(N)` before any `readVar`/`getOpWord`/`readString` call
+✓ Use `setCmpResult(mem, ...)` for all compare-style opcodes (IF opcodes read from it)
+✓ Guard syscall use with `if (!syscalls) return VM_ERROR`
+✓ Return `VM_OK` for stubs/no-ops rather than leaving them unregistered
+✗ Don't modify `vm._pc` directly — only `nextPc`
+✗ Don't skip registering a handler — unregistered opcodes return `VM_ERROR` at runtime
+✗ Don't add entries to `opcode_table.cpp` without a matching registered handler
+
+### Operand Count Source of Truth
+The handler's `vm.getOperand(N)` call determines the actual operand count consumed. The `opcode_table.cpp` entry is metadata for the decoder/disassembler and must match.
+
 ## MenuResult Event System
 
 Child dialogs communicate results to parent views/dialogs via event-based messaging:

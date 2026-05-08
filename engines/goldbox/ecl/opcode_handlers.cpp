@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -48,7 +48,7 @@ Common::RandomSource &getOpcodeRandom() {
 void setOpcodeLayout(const Goldbox::VmLayout &vmLayout,
         const Goldbox::VmGlobalLayout &vmGlobalLayout,
         const EclRuntimeLayout &runtimeLayout,
-        uint16 characterBase, uint16 characterSize) {
+    uint16 characterBase, uint16 characterSize) {
     g_vmLayout = &vmLayout;
     g_vmGlobalLayout = &vmGlobalLayout;
     g_runtimeLayout = &runtimeLayout;
@@ -67,25 +67,6 @@ static uint16 getCharacterBlockBase(uint8 index) {
     return static_cast<uint16>(g_characterBase + index * g_characterSize);
 }
 
-uint16 resolveVar(AddressSpace &mem, const EclOperand &operand) {
-    (void)mem; (void)operand;
-    return 0; // Deprecated: use EclVM::readVar()
-}
-
-// Compare result helpers (mirrors original's BOOL_EQ_FLAG/BOOL_NE_FLAG/BOOL_LT_FLAG/BOOL_GT_FLAG/BOOL_LE_FLAG/BOOL_GE_FLAG).
-// Original x86: VM_SetIntCompareFlags sets 6 separate bool globals; the IF opcodes each check one.
-// Here we collapse them to a signed int8 stored at kEclRuntimeBreakFlag:
-//   <0 (-1) = LT  (BOOL_LT_FLAG + BOOL_NE_FLAG + BOOL_LE_FLAG)
-//    0      = EQ  (BOOL_EQ_FLAG + BOOL_LE_FLAG + BOOL_GE_FLAG)
-//   >0 (+1) = GT  (BOOL_GT_FLAG + BOOL_NE_FLAG + BOOL_GE_FLAG)
-static void setCmpResult(AddressSpace &mem, int32 result) {
-    int8 sign = (result < 0) ? -1 : (result > 0) ? 1 : 0;
-    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag), (uint8)sign);
-}
-
-static int8 getCmpResult(AddressSpace &mem) {
-    return (int8)mem.read8(getOpcodeLayout().runtimeField(kEclRuntimeBreakFlag));
-}
 
 // Static state for FOR loop (not nested; matches Java VirtualMachine behavior).
 static uint16 g_forLoopBodyStart = 0;
@@ -94,24 +75,24 @@ static uint16 g_forLoopMax = 0;
 
 // Opcode handlers
 
-static int handle_0x00_EXIT(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x00_EXIT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_HALTED;
 }
 
-static int handle_0x01_GOTO(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x01_GOTO(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)callStack; (void)syscalls;
+    (void)mem; (void)callStack; (void)syscalls;
     // VM_GetOprand(1); WORD_ECL_PC = toWord(HI_SAVE[1], LOW_SAVE[1]);
     vm.getOperand(1);
     nextPc = vm.getOpWord(1);
     return VM_OK;
 }
 
-static int handle_0x02_GOSUB(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x02_GOSUB(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)syscalls;
+    (void)mem; (void)syscalls;
     vm.getOperand(1);
     callStack.push_back(nextPc);
     nextPc = vm.getOpWord(1);
@@ -119,76 +100,94 @@ static int handle_0x02_GOSUB(EclVM &vm, AddressSpace &mem, const EclInstruction 
 }
 
 // 0x03: COMPARE <var1> <var2>
-static int handle_0x03_COMPARE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x03_COMPARE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(2);
-    const uint16 a0 = vm.readVar(1);
-    const uint16 a1 = vm.readVar(2);
-    setCmpResult(mem, static_cast<int32>(a0) - static_cast<int32>(a1));
+    const uint8 type1 = vm.getOpType(1);
+    const uint8 type2 = vm.getOpType(2);
+
+    if (type1 >= 0x80 || type2 >= 0x80) {
+        // String compare path: case-insensitive strcmp
+        Common::String s1 = vm.readString(1);
+        Common::String s2 = vm.readString(2);
+        s1.toUppercase();
+        s2.toUppercase();
+        int cmp = strcmp(s1.c_str(), s2.c_str());
+        vm.setCmpResult(cmp);
+    } else {
+        // Unsigned integer compare
+        const uint16 a0 = vm.readVar(1);
+        const uint16 a1 = vm.readVar(2);
+        int32 result = (a0 < a1) ? -1 : (a0 > a1) ? 1 : 0;
+        vm.setCmpResult(result);
+    }
     return VM_OK;
 }
 
-static int handle_0x04_ADD(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x04_ADD(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
     const uint16 var1 = vm.readVar(1);
     const uint16 var2 = vm.readVar(2);
     const uint16 addr = vm.getOpWord(3);
-    mem.write16LE(addr, static_cast<uint16>((var1 + var2) & 0xFFFF));
+    vm.writeVmMemory(addr, static_cast<uint16>((var1 + var2) & 0xFFFF),
+        syscalls);
     return VM_OK;
 }
 
-static int handle_0x05_SUBTRACT(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x05_SUBTRACT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
     const uint16 var1 = vm.readVar(1);
     const uint16 var2 = vm.readVar(2);
     const uint16 addr = vm.getOpWord(3);
     // Pool of Radiance: subtracts var1 from var2.
-    mem.write16LE(addr, static_cast<uint16>((var2 - var1) & 0xFFFF));
+    vm.writeVmMemory(addr, static_cast<uint16>((var2 - var1) & 0xFFFF),
+        syscalls);
     return VM_OK;
 }
 
-static int handle_0x06_DIVIDE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x06_DIVIDE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
     const uint16 var1 = vm.readVar(1);
     const uint16 var2 = vm.readVar(2);
     const uint16 addr = vm.getOpWord(3);
     if (var2 == 0)
         return VM_ERROR;
-    mem.write16LE(addr, var1 / var2);
+    vm.writeVmMemory(addr, static_cast<uint16>(var1 / var2), syscalls);
     return VM_OK;
 }
 
-static int handle_0x07_MULTIPLY(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x07_MULTIPLY(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
     const uint16 var1 = vm.readVar(1);
     const uint16 var2 = vm.readVar(2);
     const uint16 addr = vm.getOpWord(3);
-    mem.write16LE(addr, static_cast<uint16>((var1 * var2) & 0xFFFF));
+    vm.writeVmMemory(addr, static_cast<uint16>((var1 * var2) & 0xFFFF),
+        syscalls);
     return VM_OK;
 }
 
-static int handle_0x09_SAVE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x09_SAVE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(2);
     const uint16 val  = vm.readVar(1);
     const uint16 addr = vm.getOpWord(2);
-    mem.write16LE(addr, val);
+    vm.writeVmMemory(addr, val, syscalls);
     return VM_OK;
 }
 
-static int handle_0x11_PRINT(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x11_PRINT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
@@ -196,9 +195,9 @@ static int handle_0x11_PRINT(EclVM &vm, AddressSpace &mem, const EclInstruction 
     return VM_OK;
 }
 
-static int handle_0x12_PRINTCLEAR(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x12_PRINTCLEAR(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
@@ -206,9 +205,9 @@ static int handle_0x12_PRINTCLEAR(EclVM &vm, AddressSpace &mem, const EclInstruc
     return VM_OK;
 }
 
-static int handle_0x13_RETURN(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x13_RETURN(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)syscalls;
+    (void)vm; (void)mem; (void)syscalls;
     if (callStack.empty())
         return VM_ERROR;
     nextPc = callStack.back();
@@ -217,40 +216,42 @@ static int handle_0x13_RETURN(EclVM &vm, AddressSpace &mem, const EclInstruction
 }
 
 // 0x2F: AND <var1> <var2> <destAddr>
-static int handle_0x2F_AND(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x2F_AND(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
     const uint16 result = vm.readVar(1) & vm.readVar(2);
     mem.write16LE(vm.getOpWord(3), result);
-    setCmpResult(mem, result == 0 ? 0 : 1);
+    vm.setCmpResult(result == 0 ? 0 : 1);
     return VM_OK;
 }
 
 // 0x30: OR <var1> <var2> <destAddr>
-static int handle_0x30_OR(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x30_OR(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
     const uint16 result = vm.readVar(1) | vm.readVar(2);
     mem.write16LE(vm.getOpWord(3), result);
-    setCmpResult(mem, result == 0 ? 0 : 1);
+    vm.setCmpResult(result == 0 ? 0 : 1);
     return VM_OK;
 }
 
-static int handle_0x08_RANDOM(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x08_RANDOM(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(2);
     const uint16 maxVal  = vm.readVar(1);
     const uint16 destAddr = vm.getOpWord(2);
-    mem.write16LE(destAddr, static_cast<uint16>(getOpcodeRandom().getRandomNumber(maxVal)));
+    vm.writeVmMemory(destAddr,
+        static_cast<uint16>(getOpcodeRandom().getRandomNumber(maxVal)),
+        syscalls);
     return VM_OK;
 }
 
-static int handle_0x0F_INPUT_NUMBER(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x0F_INPUT_NUMBER(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(2);
@@ -258,13 +259,13 @@ static int handle_0x0F_INPUT_NUMBER(EclVM &vm, AddressSpace &mem, const EclInstr
     const uint16 addr      = vm.getOpWord(2);
     const int16  value     = syscalls->inputNumber(maxDigits);
     if (value >= 0)
-        mem.write16LE(addr, static_cast<uint16>(value));
+        vm.writeVmMemory(addr, static_cast<uint16>(value), syscalls);
     return VM_OK;
 }
 
-static int handle_0x10_INPUT_STRING(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x10_INPUT_STRING(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(2);
@@ -278,9 +279,9 @@ static int handle_0x10_INPUT_STRING(EclVM &vm, AddressSpace &mem, const EclInstr
 }
 
 // 0x0A: LOAD CHARACTER <var>
-static int handle_0x0A_LOAD_CHARACTER(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x0A_LOAD_CHARACTER(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(1);
     const uint8 sel = static_cast<uint8>(vm.getOpWord(1));
     const uint8 partySize = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldPartyCount).vmAddr);
@@ -304,9 +305,9 @@ static int handle_0x0A_LOAD_CHARACTER(EclVM &vm, AddressSpace &mem, const EclIns
 }
 
 // 0x0B: LOAD MONSTER <monsterID> <count> <graphicID>
-static int handle_0x0B_LOAD_MONSTER(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x0B_LOAD_MONSTER(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
     const uint16 monsterId = vm.readVar(1);
     const uint16 count     = vm.readVar(2);
@@ -318,9 +319,9 @@ static int handle_0x0B_LOAD_MONSTER(EclVM &vm, AddressSpace &mem, const EclInstr
 }
 
 // 0x0C: SETUP MONSTER <monsterID> <distance> <graphicID>
-static int handle_0x0C_SETUP_MONSTER(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x0C_SETUP_MONSTER(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(3);
@@ -334,9 +335,9 @@ static int handle_0x0C_SETUP_MONSTER(EclVM &vm, AddressSpace &mem, const EclInst
 }
 
 // 0x0D: APPROACH
-static int handle_0x0D_APPROACH(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x0D_APPROACH(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)nextPc; (void)callStack; (void)syscalls;
     uint8 dist = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr);
     if (dist > 0)
         mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr, dist - 1);
@@ -344,9 +345,9 @@ static int handle_0x0D_APPROACH(EclVM &vm, AddressSpace &mem, const EclInstructi
 }
 
 // 0x0E: PICTURE <pictureID>
-static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
@@ -355,33 +356,33 @@ static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem, const EclInstructio
     return syscalls->displayPicture(picId);
 }
 
-static int handle_0x33_PRINT_RETURN(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x33_PRINT_RETURN(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)insn; (void)nextPc; (void)callStack;
+    (void)vm; (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     syscalls->printText(Common::String(), false);
     return VM_OK;
 }
 
-static int handle_0x3A_DELAY(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x3A_DELAY(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
-static int handle_0x38_PROGRAM(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x38_PROGRAM(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
     return syscalls->executeProgram(static_cast<uint8>(vm.getOpWord(1)));
 }
 
-static int handle_0x3C_PROTECTION(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x3C_PROTECTION(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
@@ -394,9 +395,9 @@ static int handle_0x3C_PROTECTION(EclVM &vm, AddressSpace &mem, const EclInstruc
     return VM_OK;
 }
 
-static int handle_0x3D_CLEAR_BOX(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x3D_CLEAR_BOX(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     syscalls->clearTextBox();
@@ -406,17 +407,17 @@ static int handle_0x3D_CLEAR_BOX(EclVM &vm, AddressSpace &mem, const EclInstruct
 // 0x14: COMPARE AND <var1> <var2> <var3> <var4>
 // Original: calls VM_SetIntCompareFlags twice; result is EQ if BOTH pairs are equal.
 // Only EQ/NE flags are meaningful after this opcode (no magnitude comparison).
-static int handle_0x14_COMPARE_AND(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x14_COMPARE_AND(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(4);
     const bool bothEqual = (vm.readVar(1) == vm.readVar(2)) && (vm.readVar(3) == vm.readVar(4));
-    setCmpResult(mem, bothEqual ? 0 : 1);
+    vm.setCmpResult(bothEqual ? 0 : 1);
     return VM_OK;
 }
 
 // 0x15: VERTICAL MENU <address> <message> <count> <stringVarargs>
-static int handle_0x15_VERTICAL_MENU(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x15_VERTICAL_MENU(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack;
     if (!syscalls)
@@ -434,15 +435,16 @@ static int handle_0x15_VERTICAL_MENU(EclVM &vm, AddressSpace &mem, const EclInst
 
     const int16 selection = syscalls->verticalMenu(message, options);
     if (selection >= 0)
-        mem.write16LE(resultAddr, static_cast<uint16>(selection));
+        vm.writeVmMemory(resultAddr, static_cast<uint16>(selection),
+            syscalls);
     return VM_OK;
 }
 
 // 0x16-0x1B: IF commands
-static int handleIF(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handleIF(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, uint8 opcode) {
-    (void)vm; (void)insn; (void)callStack;
-    const int8 cmp = getCmpResult(mem);
+    (void)vm; (void)callStack;
+    const int8 cmp = vm.getCmpResult();
     bool cond = false;
     switch (opcode) {
     case 0x16: cond = (cmp == 0); break;
@@ -457,64 +459,64 @@ static int handleIF(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
     return VM_OK;
 }
 
-static int handle_0x16_IF_EQUAL(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x16_IF_EQUAL(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)syscalls;
-    return handleIF(vm, mem, insn, nextPc, callStack, 0x16);
+    return handleIF(vm, mem, nextPc, callStack, 0x16);
 }
 
-static int handle_0x17_IF_NOT_EQUAL(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x17_IF_NOT_EQUAL(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)syscalls;
-    return handleIF(vm, mem, insn, nextPc, callStack, 0x17);
+    return handleIF(vm, mem, nextPc, callStack, 0x17);
 }
 
-static int handle_0x18_IF_LESS(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x18_IF_LESS(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)syscalls;
-    return handleIF(vm, mem, insn, nextPc, callStack, 0x18);
+    return handleIF(vm, mem, nextPc, callStack, 0x18);
 }
 
-static int handle_0x19_IF_GREATER(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x19_IF_GREATER(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)syscalls;
-    return handleIF(vm, mem, insn, nextPc, callStack, 0x19);
+    return handleIF(vm, mem, nextPc, callStack, 0x19);
 }
 
-static int handle_0x1A_IF_LESS_EQUAL(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x1A_IF_LESS_EQUAL(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)syscalls;
-    return handleIF(vm, mem, insn, nextPc, callStack, 0x1A);
+    return handleIF(vm, mem, nextPc, callStack, 0x1A);
 }
 
-static int handle_0x1B_IF_GREATER_EQUAL(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x1B_IF_GREATER_EQUAL(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)syscalls;
-    return handleIF(vm, mem, insn, nextPc, callStack, 0x1B);
+    return handleIF(vm, mem, nextPc, callStack, 0x1B);
 }
 
 // 0x1C: CLEARMONSTERS
-static int handle_0x1C_CLEARMONSTERS(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x1C_CLEARMONSTERS(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)nextPc; (void)callStack; (void)syscalls;
     mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeMonsterCount), 0);
     return VM_OK;
 }
 
 // 0x1D: PARTYSTRENGTH <address>
-static int handle_0x1D_PARTYSTRENGTH(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x1D_PARTYSTRENGTH(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(1);
     // TODO: Calculate party strength based on character levels/stats
-    mem.write16LE(vm.getOpWord(1), 100);
+    vm.writeVmMemory(vm.getOpWord(1), 100, syscalls);
     return VM_OK;
 }
 
 // 0x1E: CHECKPARTY <attributeAddress> <effectID> <unknown> <address1> <unknown> <address2>
-static int handle_0x1E_CHECKPARTY(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x1E_CHECKPARTY(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(6);
     const uint16 attributeAddr = vm.readVar(1);
     const uint16 effectID      = vm.readVar(2);
@@ -522,18 +524,25 @@ static int handle_0x1E_CHECKPARTY(EclVM &vm, AddressSpace &mem, const EclInstruc
     const uint16 addr2         = vm.getOpWord(6);
 
     if (attributeAddr != 0 && effectID == 0) {
-        mem.write16LE(addr1, 18); // Placeholder highest
-        mem.write16LE(addr2, 3);  // Placeholder lowest
+        vm.writeVmMemory(addr1, 18, syscalls); // Placeholder highest
+        vm.writeVmMemory(addr2, 3, syscalls);  // Placeholder lowest
     } else if (attributeAddr == 0 && effectID != 0) {
-        mem.write16LE(addr2, 0); // Placeholder: no characters have effect
+        vm.writeVmMemory(addr2, 0, syscalls); // Placeholder: no effect
     }
     return VM_OK;
 }
 
-// 0x20: NEWECL <script>
-static int handle_0x20_NEWECL(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+// 0x1F: UNDEFINED (no-op)
+static int handle_0x1F_UNDEFINED(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    return VM_OK;
+}
+
+// 0x20: NEWECL <script>
+static int handle_0x20_NEWECL(EclVM &vm, AddressSpace &mem,
+        uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
@@ -541,9 +550,9 @@ static int handle_0x20_NEWECL(EclVM &vm, AddressSpace &mem, const EclInstruction
 }
 
 // 0x21: LOAD FILES <geoBlockId> <unused> <iconTrigger>
-static int handle_0x21_LOAD_FILES(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x21_LOAD_FILES(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(3);
@@ -563,19 +572,19 @@ static int handle_0x21_LOAD_FILES(EclVM &vm, AddressSpace &mem, const EclInstruc
 }
 
 // 0x22: PARTY SURPRISE <address1> <address2>
-static int handle_0x22_PARTY_SURPRISE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x22_PARTY_SURPRISE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(2);
-    mem.write16LE(vm.getOpWord(1), 2);
-    mem.write16LE(vm.getOpWord(2), 2);
+    vm.writeVmMemory(vm.getOpWord(1), 2, syscalls);
+    vm.writeVmMemory(vm.getOpWord(2), 2, syscalls);
     return VM_OK;
 }
 
 // 0x23: SURPRISE <address1> <address2> <var1> <var2>
-static int handle_0x23_SURPRISE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x23_SURPRISE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(4);
     // TODO: Roll dice using readVar(3)/readVar(4) and calculate surprise
     mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldCombatIsAmbush).vmAddr, 0);
@@ -583,9 +592,9 @@ static int handle_0x23_SURPRISE(EclVM &vm, AddressSpace &mem, const EclInstructi
 }
 
 // 0x24: COMBAT
-static int handle_0x24_COMBAT(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x24_COMBAT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)insn; (void)nextPc; (void)callStack;
+    (void)vm; (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     const uint8 templeFlag = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldEnterTemplePending).vmAddr);
@@ -601,68 +610,74 @@ static int handle_0x24_COMBAT(EclVM &vm, AddressSpace &mem, const EclInstruction
 }
 
 // 0x25: ON GOTO <var> <count> <addressVarargs>
-static int handle_0x25_ON_GOTO(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x25_ON_GOTO(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)mem; (void)callStack; (void)syscalls;
+    // First pass: read var and count.
     vm.getOperand(2);
     const uint16 var   = vm.readVar(1);
     const uint8  count = static_cast<uint8>(vm.getOpWord(2));
-    if (var < count && (2 + var) < (uint16)insn.operands.size())
-        nextPc = insn.operands[2 + var].u16;
+    // Re-decode all operands including varargs jump targets.
+    vm.getOperand(static_cast<uint8>(2 + count));
+    if (var < count)
+        nextPc = vm.getOpWord(static_cast<uint8>(3 + var));
     return VM_OK;
 }
 
 // 0x26: ON GOSUB <var> <count> <addressVarargs>
-static int handle_0x26_ON_GOSUB(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x26_ON_GOSUB(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)mem; (void)syscalls;
+    // First pass: read var and count.
     vm.getOperand(2);
     const uint16 var   = vm.readVar(1);
     const uint8  count = static_cast<uint8>(vm.getOpWord(2));
-    if (var < count && (2 + var) < (uint16)insn.operands.size()) {
+    // Re-decode all operands including varargs jump targets.
+    vm.getOperand(static_cast<uint8>(2 + count));
+    if (var < count) {
         callStack.push_back(nextPc);
-        nextPc = insn.operands[2 + var].u16;
+        nextPc = vm.getOpWord(static_cast<uint8>(3 + var));
     }
     return VM_OK;
 }
 
 // 0x27: TREASURE <copper> <silver> <electrum> <gold> <platinum> <gems> <jewelry> <treasureID>
-static int handle_0x27_TREASURE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x27_TREASURE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x28: ROB <isWholeParty> <percentMoney> <itemChance>
-static int handle_0x28_ROB(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x28_ROB(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x29: ENCOUNTER MENU (varargs)
-static int handle_0x29_ENCOUNTER_MENU(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x29_ENCOUNTER_MENU(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x2A: GETTABLE <address1> <var> <address2>
-static int handle_0x2A_GETTABLE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x2A_GETTABLE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
     const uint16 baseAddr = vm.getOpWord(1);
     const uint16 index    = vm.readVar(2);
     const uint16 destAddr = vm.getOpWord(3);
     const uint16 value    = mem.read16LE(static_cast<uint16>(baseAddr + index));
-    mem.write16LE(destAddr, value);
-    setCmpResult(mem, value == 0 ? 0 : 1);
+    vm.writeVmMemory(destAddr, value, syscalls);
+    vm.setCmpResult(value == 0 ? 0 : 1);
     return VM_OK;
 }
 
 // 0x2B: HORIZONTAL MENU <address> <count> <stringVarargs>
-static int handle_0x2B_HORIZONTAL_MENU(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x2B_HORIZONTAL_MENU(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack;
     if (!syscalls)
@@ -678,74 +693,76 @@ static int handle_0x2B_HORIZONTAL_MENU(EclVM &vm, AddressSpace &mem, const EclIn
 
     const int16 selection = syscalls->horizontalMenu(options);
     if (selection >= 0)
-        mem.write16LE(resultAddr, static_cast<uint16>(selection));
+        vm.writeVmMemory(resultAddr, static_cast<uint16>(selection),
+            syscalls);
     return VM_OK;
 }
 
 // 0x2C: PARLAY <haughty> <sly> <nice> <meek> <abusive> <address>
-static int handle_0x2C_PARLAY(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x2C_PARLAY(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(6);
-    mem.write16LE(vm.getOpWord(6), 0); // TODO: parlay dialog
+    vm.writeVmMemory(vm.getOpWord(6), 0, syscalls); // TODO: parlay dialog
     return VM_OK;
 }
 
 // 0x2D: CALL <address>
-static int handle_0x2D_CALL(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x2D_CALL(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x2E: DAMAGE <var1> <dice> <sides> <bonus> <var2>
-static int handle_0x2E_DAMAGE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x2E_DAMAGE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(5);
     return VM_OK;
 }
 
 // 0x31: SPRITE OFF
-static int handle_0x31_SPRITE_OFF(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x31_SPRITE_OFF(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)nextPc; (void)callStack; (void)syscalls;
     mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeSpriteState), 0);
     return VM_OK;
 }
 
 // 0x32: FIND ITEM <itemID>
-static int handle_0x32_FIND_ITEM(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x32_FIND_ITEM(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(1);
-    setCmpResult(mem, 1); // TODO: search inventory
+    vm.setCmpResult(1); // TODO: search inventory
     return VM_OK;
 }
 
 // 0x34: ECL CLOCK <var> <timeunit>
-static int handle_0x34_ECL_CLOCK(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x34_ECL_CLOCK(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x35: SAVE TABLE <var1> <address> <var2>
-static int handle_0x35_SAVE_TABLE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x35_SAVE_TABLE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
     const uint16 value    = vm.readVar(1);
     const uint16 baseAddr = vm.getOpWord(2);
     const uint16 index    = vm.readVar(3);
-    mem.write16LE(static_cast<uint16>(baseAddr + index), value);
+    vm.writeVmMemory(static_cast<uint16>(baseAddr + index), value,
+        syscalls);
     return VM_OK;
 }
 
 // 0x36: ADD NPC <monsterID> <morale>
-static int handle_0x36_ADD_NPC(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x36_ADD_NPC(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(2);
     return VM_OK;
 }
@@ -754,9 +771,9 @@ static int handle_0x36_ADD_NPC(EclVM &vm, AddressSpace &mem, const EclInstructio
 // Loads walldef geometry and 8x8 tile graphics into dynamic cache slots 1-3.
 // Mirrors the walldef branch of INSTR_LoadAreaDeco from the original.
 // Slots 0 and 4 are fixed (loaded at game init) and never touched here.
-static int handle_0x37_LOAD_PIECES(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x37_LOAD_PIECES(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(3);
@@ -796,93 +813,93 @@ static int handle_0x37_LOAD_PIECES(EclVM &vm, AddressSpace &mem, const EclInstru
 }
 
 // 0x39: WHO <message>
-static int handle_0x39_WHO(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x39_WHO(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(1);
     return VM_OK;
 }
 
 // 0x3B: SPELL <spellID> <address1> <address2>
-static int handle_0x3B_SPELL(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x3B_SPELL(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
-    mem.write16LE(vm.getOpWord(2), 255); // TODO: search for spell caster
+    vm.writeVmMemory(vm.getOpWord(2), 255, syscalls);
     return VM_OK;
 }
 
 // 0x3E: NPC REMOVE
-static int handle_0x3E_NPC_REMOVE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x3E_NPC_REMOVE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x3F: HAS EFFECT <effectID>
-static int handle_0x3F_HAS_EFFECT(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x3F_HAS_EFFECT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(1);
-    setCmpResult(mem, 1); // TODO: check active effects
+    vm.setCmpResult(1); // TODO: check active effects
     return VM_OK;
 }
 
 // 0x40: DESTROY ITEM <itemID>
-static int handle_0x40_DESTROY_ITEM(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x40_DESTROY_ITEM(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(1);
     return VM_OK;
 }
 
 // 0x41: GIVE EXP <amount> <divideFlag>
-static int handle_0x41_GIVE_EXP(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x41_GIVE_EXP(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(2);
     return VM_OK;
 }
 
 // 0x42: STOP MOVE
-static int handle_0x42_STOP_MOVE(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x42_STOP_MOVE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_HALTED;
 }
 
 // 0x43: SOUND EVENT <soundID>
-static int handle_0x43_SOUND(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x43_SOUND(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(1);
     return VM_OK;
 }
 
 // 0x44: (unknown 0 args)
-static int handle_0x44_UNKNOWN(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x44_UNKNOWN(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x45: RANDOM0 <destAddr> <maxVal>
-static int handle_0x45_RANDOM0(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x45_RANDOM0(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(2);
     const uint16 destAddr = vm.getOpWord(1);
     const uint16 maxVal   = vm.readVar(2);
     const uint16 result   = (maxVal > 0) ?
         static_cast<uint16>(getOpcodeRandom().getRandomNumber(maxVal)) : 0;
-    mem.write16LE(destAddr, result);
+    vm.writeVmMemory(destAddr, result, syscalls);
     return VM_OK;
 }
 
 // 0x46: FOR START <initVal> <maxVal>
-static int handle_0x46_FOR_START(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x46_FOR_START(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)callStack; (void)syscalls;
+    (void)mem; (void)callStack; (void)syscalls;
     vm.getOperand(2);
     g_forLoopCount     = vm.readVar(1);
     g_forLoopMax       = vm.readVar(2);
@@ -891,9 +908,9 @@ static int handle_0x46_FOR_START(EclVM &vm, AddressSpace &mem, const EclInstruct
 }
 
 // 0x47: FOR REPEAT
-static int handle_0x47_FOR_REPEAT(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x47_FOR_REPEAT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)callStack; (void)syscalls;
     g_forLoopCount++;
     if (g_forLoopCount <= g_forLoopMax)
         nextPc = g_forLoopBodyStart;
@@ -901,40 +918,40 @@ static int handle_0x47_FOR_REPEAT(EclVM &vm, AddressSpace &mem, const EclInstruc
 }
 
 // 0x48: (unknown, 1 arg)
-static int handle_0x48_UNKNOWN(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x48_UNKNOWN(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(1);
     return VM_OK;
 }
 
 // 0x49: (unknown, 6 args)
-static int handle_0x49_UNKNOWN(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x49_UNKNOWN(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(6);
     return VM_OK;
 }
 
 // 0x4A: (unknown, 0 args)
-static int handle_0x4A_UNKNOWN(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x4A_UNKNOWN(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x4B: (unknown, 1 arg)
-static int handle_0x4B_UNKNOWN(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x4B_UNKNOWN(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(1);
     return VM_OK;
 }
 
 // 0x4C: PICTURE 2 <pictureID> <variant>
-static int handle_0x4C_PICTURE2(EclVM &vm, AddressSpace &mem, const EclInstruction &insn,
+static int handle_0x4C_PICTURE2(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)insn; (void)nextPc; (void)callStack;
+    (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(2);
@@ -984,6 +1001,7 @@ void registerBaselineOpcodeHandlers() {
     registerOpcodeHandler(0x1C, handle_0x1C_CLEARMONSTERS);
     registerOpcodeHandler(0x1D, handle_0x1D_PARTYSTRENGTH);
     registerOpcodeHandler(0x1E, handle_0x1E_CHECKPARTY);
+    registerOpcodeHandler(0x1F, handle_0x1F_UNDEFINED);
     registerOpcodeHandler(0x20, handle_0x20_NEWECL);
     registerOpcodeHandler(0x21, handle_0x21_LOAD_FILES);
     registerOpcodeHandler(0x22, handle_0x22_PARTY_SURPRISE);
@@ -1014,6 +1032,21 @@ void registerBaselineOpcodeHandlers() {
     registerOpcodeHandler(0x3B, handle_0x3B_SPELL);
     registerOpcodeHandler(0x3C, handle_0x3C_PROTECTION);
     registerOpcodeHandler(0x3D, handle_0x3D_CLEAR_BOX);
+    registerOpcodeHandler(0x3E, handle_0x3E_NPC_REMOVE);
+    registerOpcodeHandler(0x3F, handle_0x3F_HAS_EFFECT);
+    registerOpcodeHandler(0x40, handle_0x40_DESTROY_ITEM);
+    registerOpcodeHandler(0x41, handle_0x41_GIVE_EXP);
+    registerOpcodeHandler(0x42, handle_0x42_STOP_MOVE);
+    registerOpcodeHandler(0x43, handle_0x43_SOUND);
+    registerOpcodeHandler(0x44, handle_0x44_UNKNOWN);
+    registerOpcodeHandler(0x45, handle_0x45_RANDOM0);
+    registerOpcodeHandler(0x46, handle_0x46_FOR_START);
+    registerOpcodeHandler(0x47, handle_0x47_FOR_REPEAT);
+    registerOpcodeHandler(0x48, handle_0x48_UNKNOWN);
+    registerOpcodeHandler(0x49, handle_0x49_UNKNOWN);
+    registerOpcodeHandler(0x4A, handle_0x4A_UNKNOWN);
+    registerOpcodeHandler(0x4B, handle_0x4B_UNKNOWN);
+    registerOpcodeHandler(0x4C, handle_0x4C_PICTURE2);
 }
 
 OpcodeHandler getOpcodeHandler(uint8 opcode) {
