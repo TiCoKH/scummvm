@@ -47,14 +47,6 @@ enum VmBankId {
 class VmAddressMapper {
 public:
 	static int32 toByteOffset(uint16 vmAddr, uint16 firstVmAddr);
-	static uint16 toVmAddr(uint16 firstVmAddr, uint16 wordIndex);
-
-	/**
-	 * Legacy conversion helper for formulas like:
-	 *   byteOffset = vmAddr + legacyBias
-	 */
-	static int32 toLegacyByteOffset(uint16 vmAddr, int32 legacyBias);
-	static uint16 fromLegacyByteOffset(int32 byteOffset, int32 legacyBias);
 };
 
 /**
@@ -105,26 +97,6 @@ private:
 	uint16 _firstVmAddr;
 	uint16 _wordCount;
 	byte *_data;
-};
-
-/**
- * Lightweight holder for VM banks indexed by VmBankId.
- */
-class VmBankRouter {
-public:
-	VmBankRouter();
-
-	void setBank(VmBankId bankId, VmWordBank *bank);
-	VmWordBank *getBank(VmBankId bankId);
-	const VmWordBank *getBank(VmBankId bankId) const;
-
-	bool hasBank(VmBankId bankId) const;
-
-	uint16 readWord(VmBankId bankId, uint16 vmAddr) const;
-	void writeWord(VmBankId bankId, uint16 vmAddr, uint16 value);
-
-private:
-	VmWordBank *_banks[kVmBankCount];
 };
 
 /**

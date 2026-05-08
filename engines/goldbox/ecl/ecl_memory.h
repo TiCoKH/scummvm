@@ -30,6 +30,8 @@
 namespace Goldbox {
 namespace ECL {
 
+class GameConfig;
+
 /**
  * Flat 16-bit ECL virtual address space.
  *
@@ -40,7 +42,7 @@ class AddressSpace {
 public:
     static const uint32 MEMORY_SIZE = 65536; // 16-bit virtual address space
 
-    AddressSpace();
+    explicit AddressSpace(const GameConfig *config = nullptr);
 
     /**
      * Read 8-bit value at address.

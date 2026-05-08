@@ -103,8 +103,6 @@ public:
 	virtual const char *layoutName() const = 0;
 	virtual VmFieldLocation field(VmFieldId fieldId) const = 0;
 
-	bool hasField(VmFieldId fieldId) const;
-
 	static VmFieldLocation invalidLocation();
 	static bool isValid(const VmFieldLocation &location);
 };
@@ -115,8 +113,6 @@ public:
 
 	virtual const char *layoutName() const = 0;
 	virtual VmFieldLocation field(VmGlobalFieldId fieldId) const = 0;
-
-	bool hasField(VmGlobalFieldId fieldId) const;
 };
 
 } // namespace Goldbox

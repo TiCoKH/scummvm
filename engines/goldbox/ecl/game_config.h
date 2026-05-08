@@ -31,6 +31,9 @@
 namespace Goldbox {
 namespace ECL {
 
+class AddressSpace;
+class SyscallHandler;
+
 struct MemoryRegionRange {
     uint16 _startAddr;
     uint16 _endAddr;
@@ -74,14 +77,6 @@ namespace ECLMemoryLayout {
 
 }
 
-/** Identifies a logical VM address bank (address window populated from DAX). */
-enum VmBankId {
-    kVmBankGeo  = 0,  ///< GEO dungeon-map block window
-    kVmBankDat  = 1,  ///< DAT character/party-data block window
-    kVmBankHeap = 2,  ///< Heap/scratch window
-    kVmBankEcl  = 3   ///< ECL script bank
-};
-
 /** Game-specific ECL configuration. */
 class GameConfig {
 public:
@@ -114,7 +109,8 @@ public:
 
     // VM address layout
     virtual uint16 getScriptVmStart() const { return ECLMemoryLayout::MEM_START_DEFAULT; }
-    virtual bool getVmBankRange(VmBankId /*bankId*/, uint16 & /*firstAddr*/,
+        virtual bool getVmBankRange(Goldbox::VmBankId /*bankId*/,
+            uint16 & /*firstAddr*/,
             uint16 & /*lastAddr*/) const { return false; }
 
     // Flag storage
@@ -139,11 +135,46 @@ public:
      */
     virtual Common::Array<MemoryRegionRange> getMemoryRegions() const {
         Common::Array<MemoryRegionRange> ranges;
-        ranges.push_back({0x4900, 0x4CFF}); // GEO
-        ranges.push_back({0x6B00, 0x6EFF}); // DAT
-        ranges.push_back({0x9700, 0x98FF}); // HEAP
-        ranges.push_back({0x9900, 0xB6FF}); // ECL
+
+        const Goldbox::VmBankId banks[] = {
+            Goldbox::kVmBankGeo,
+            Goldbox::kVmBankDat,
+            Goldbox::kVmBankHeap,
+            Goldbox::kVmBankEcl
+        };
+
+        for (uint i = 0; i < ARRAYSIZE(banks); ++i) {
+            uint16 firstAddr = 0;
+            uint16 lastAddr = 0;
+            if (!getVmBankRange(banks[i], firstAddr, lastAddr)) {
+                continue;
+            }
+            if (firstAddr > lastAddr) {
+                continue;
+            }
+            ranges.push_back({firstAddr, lastAddr});
+        }
+
         return ranges;
+    }
+
+    /**
+     * Optional game-specific VM read interception.
+     * Return true if handled and set outValue; false to use base behavior.
+     */
+    virtual bool onReadVmMemory(const AddressSpace & /*memory*/,
+            uint16 /*vmAddr*/, uint16 & /*outValue*/) const {
+        return false;
+    }
+
+    /**
+     * Optional game-specific VM write interception.
+     * Return true if handled; false to use base behavior.
+     */
+    virtual bool onWriteVmMemory(AddressSpace & /*memory*/, uint16 /*vmAddr*/,
+            uint16 & /*ioValue*/, uint8 /*region*/,
+            SyscallHandler * /*syscalls*/) const {
+        return false;
     }
 
     // Specific character attribute offsets (relative to character base)

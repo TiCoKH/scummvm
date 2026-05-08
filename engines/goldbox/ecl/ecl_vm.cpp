@@ -55,7 +55,7 @@ namespace Goldbox {
 namespace ECL {
 
 EclVM::EclVM(GameConfig *config, SyscallHandler *syscalls)
-        : _config(config), _syscalls(syscalls),
+    : _config(config), _syscalls(syscalls), _memory(config),
             _pc(config ? config->getScriptVmStart()
                     : ECLMemoryLayout::MEM_START_DEFAULT),
             _scriptId(0xFF), _opStartPc(0), _nextInsnPc(0) {
@@ -314,7 +314,7 @@ uint16 EclVM::readVar(uint8 index) const {
     const uint16 val = _opValues[index];
     // ADDR16 types dereference VM memory to get the numeric value.
     if (tag == 0x01 || tag == 0x03)
-        return _memory.read16LE(val);
+        return readVmMemory(val);
     return val;
 }
 
@@ -411,6 +411,15 @@ uint8 EclVM::getMemoryRegion(uint16 vmAddr) const {
     return (uint8)ranges.size();
 }
 
+uint16 EclVM::readVmMemory(uint16 vmAddr) const {
+    uint16 value = 0;
+    if (_config && _config->onReadVmMemory(_memory, vmAddr, value)) {
+        return value;
+    }
+
+    return _memory.read16LE(vmAddr);
+}
+
 void EclVM::writeVmCharacterValue(uint16 vmAddr, uint16 value,
         SyscallHandler *syscalls) {
     const uint16 local = (uint16)(vmAddr + 0x9500);
@@ -433,28 +442,29 @@ void EclVM::writeVmCharacterValue(uint16 vmAddr, uint16 value,
 
 void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
         SyscallHandler *syscalls) {
+    SyscallHandler *activeSyscalls = syscalls ? syscalls : _syscalls;
     const uint8 region = getMemoryRegion(vmAddr);
 
+    uint16 writeValue = value;
+    if (_config && _config->onWriteVmMemory(_memory, vmAddr, writeValue,
+            region, activeSyscalls)) {
+        return;
+    }
+
     if (region == 3) {
-        _memory.write8(vmAddr, (uint8)value);
+        _memory.write8(vmAddr, (uint8)writeValue);
         return;
     }
 
     if (region == 4 && vmAddr == 0xC04D) {
-        value = (uint16)(value & 0x3);
+        writeValue = (uint16)(writeValue & 0x3);
     }
 
-    _memory.write16LE(vmAddr, value);
+    _memory.write16LE(vmAddr, writeValue);
 
     if (region == 1)
-        writeVmCharacterValue(vmAddr, value, syscalls);
+        writeVmCharacterValue(vmAddr, writeValue, activeSyscalls);
 }
-
-Common::String EclVM::dumpMemory(uint16 startAddr, uint16 length) const {
-    return _memory.dumpRegion(startAddr, length);
-}
-
-
 
 } // namespace ECL
 } // namespace Goldbox
