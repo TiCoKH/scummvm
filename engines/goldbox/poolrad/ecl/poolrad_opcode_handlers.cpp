@@ -49,27 +49,22 @@ static uint16 g_forLoopMax = 0;
 
 // -------------------------------------------------------------------------
 // Legacy extension-opcode scaffold (0x3E-0x4C).
-// Not currently registered by PoolradGameConfig because Pool of Radiance ends
-// at opcode 0x3D.
 // -------------------------------------------------------------------------
 
 // 0x3E: NPC REMOVE
-// Removes the currently loaded NPC from the party roster.
-static int handle_0x3E_NPC_REMOVE(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x3E_NPC_REMOVE(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     return asHost(syscalls)->removeNpc();
 }
 
 // 0x3F: HAS EFFECT <effectID>
-// PoR variant (1 arg): tests whether a party-wide effect is active.
-// Sets compare EQ if effect present, NE if not.
-static int handle_0x3F_HAS_EFFECT(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x3F_HAS_EFFECT(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
     (void)mem; (void)nextPc; (void)callStack;
-    if (insn.operands.empty() || !syscalls)
+    if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
     uint8 effectId = (uint8)vm.readVar(1);
@@ -78,11 +73,10 @@ static int handle_0x3F_HAS_EFFECT(EclVM &vm, ECL::AddressSpace &mem, const ECL::
 }
 
 // 0x40: DESTROY ITEM <itemID>
-// Removes a specific item from the party inventory.
-static int handle_0x40_DESTROY_ITEM(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x40_DESTROY_ITEM(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
     (void)mem; (void)nextPc; (void)callStack;
-    if (insn.operands.empty() || !syscalls)
+    if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
     uint8 itemId = (uint8)vm.readVar(1);
@@ -90,12 +84,10 @@ static int handle_0x40_DESTROY_ITEM(EclVM &vm, ECL::AddressSpace &mem, const ECL
 }
 
 // 0x41: GIVE EXP <amount> <divideFlag>
-// Awards experience to all party members.
-// arg0 = base XP amount, arg1 = how to split (0 = each, 1 = divide by party size).
-static int handle_0x41_GIVE_EXP(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x41_GIVE_EXP(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
     (void)mem; (void)nextPc; (void)callStack;
-    if (insn.operands.size() < 2 || !syscalls)
+    if (!syscalls)
         return VM_ERROR;
     vm.getOperand(2);
     uint16 amount    = vm.readVar(1);
@@ -103,21 +95,20 @@ static int handle_0x41_GIVE_EXP(EclVM &vm, ECL::AddressSpace &mem, const ECL::Ec
     return asHost(syscalls)->giveExperience(amount, divideFlag);
 }
 
-// 0x42: STOP MOVE (variant B, 0 args)
-// Identical to 0x23 STOP_MOVE: halts VM, updates position, clears display.
-static int handle_0x42_STOP_MOVE(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+// 0x42: STOP MOVE
+static int handle_0x42_STOP_MOVE(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_HALTED;
     return asHost(syscalls)->stopMove();
 }
 
 // 0x43: SOUND EVENT <soundID>
-static int handle_0x43_SOUND(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x43_SOUND(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
     (void)mem; (void)nextPc; (void)callStack;
-    if (insn.operands.empty() || !syscalls)
+    if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
     uint8 soundId = (uint8)vm.readVar(1);
@@ -125,20 +116,16 @@ static int handle_0x43_SOUND(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclIn
 }
 
 // 0x44: (unknown 0 args)
-static int handle_0x44_UNKNOWN(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x44_UNKNOWN(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x45: RANDOM0 <destAddr> <maxVal>
-// Writes random(0..maxVal) to destAddr; writes 0 if maxVal == 0.
-// Differs from 0x08 RANDOM in that dest is arg0 and max is arg1 (reversed).
-static int handle_0x45_RANDOM0(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x45_RANDOM0(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack; (void)syscalls;
-    if (insn.operands.size() < 2)
-        return VM_ERROR;
     vm.getOperand(2);
     uint16 destAddr = vm.getOpWord(1);
     uint16 maxVal = vm.readVar(2);
@@ -148,13 +135,9 @@ static int handle_0x45_RANDOM0(EclVM &vm, ECL::AddressSpace &mem, const ECL::Ecl
 }
 
 // 0x46: FOR START <initVal> <maxVal>
-// Starts a counted loop. Loop body begins at the instruction immediately following.
-// Original: stores loop counter in a dedicated var; loop runs while counter <= maxVal.
-static int handle_0x46_FOR_START(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x46_FOR_START(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
     (void)mem; (void)callStack; (void)syscalls;
-    if (insn.operands.size() < 2)
-        return VM_ERROR;
     vm.getOperand(2);
     g_forLoopCount = vm.readVar(1);
     g_forLoopMax   = vm.readVar(2);
@@ -163,10 +146,9 @@ static int handle_0x46_FOR_START(EclVM &vm, ECL::AddressSpace &mem, const ECL::E
 }
 
 // 0x47: FOR REPEAT
-// Increments counter; jumps back to loop body if counter <= maxVal.
-static int handle_0x47_FOR_REPEAT(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x47_FOR_REPEAT(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)callStack; (void)syscalls;
     g_forLoopCount++;
     if (g_forLoopCount <= g_forLoopMax)
         nextPc = g_forLoopBodyStart;
@@ -174,39 +156,38 @@ static int handle_0x47_FOR_REPEAT(EclVM &vm, ECL::AddressSpace &mem, const ECL::
 }
 
 // 0x48: (unknown, 1 arg)
-static int handle_0x48_UNKNOWN(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x48_UNKNOWN(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x49: (unknown, 6 args)
-static int handle_0x49_UNKNOWN(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x49_UNKNOWN(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x4A: (unknown, 0 args)
-static int handle_0x4A_UNKNOWN(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x4A_UNKNOWN(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x4B: (unknown, 1 arg)
-static int handle_0x4B_UNKNOWN(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x4B_UNKNOWN(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)insn; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     return VM_OK;
 }
 
 // 0x4C: PICTURE 2 <pictureID> <variant>
-// Extended picture display with variant parameter.
-static int handle_0x4C_PICTURE2(EclVM &vm, ECL::AddressSpace &mem, const ECL::EclInstruction &insn,
+static int handle_0x4C_PICTURE2(EclVM &vm, ECL::AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, ECL::SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack;
-    if (insn.operands.size() < 2 || !syscalls)
+    if (!syscalls)
         return VM_ERROR;
     vm.getOperand(2);
     uint8 picId = (uint8)vm.readVar(1);

@@ -35,8 +35,8 @@ namespace ECL {
  *   0x80: Compressed 6-bit string (length + packed data)
  *   0x81: String from memory address (pointer to null-terminated string)
  *
- * Current decoder uses opcode table to determine operand types statically.
- * Runtime operand type detection would require bytecode pattern matching.
+ * The decoder only needs to skip operand bytes to find instruction boundaries.
+ * All runtime operand access is done by EclVM::getOperand() reading from flat memory.
  */
 
 static bool read8(Common::Span<const uint8> program, uint32 offset, uint8 &val) {
@@ -47,32 +47,8 @@ static bool read8(Common::Span<const uint8> program, uint32 offset, uint8 &val) 
     return true;
 }
 
-static bool read16(Common::Span<const uint8> program, uint32 offset, uint16 &val) {
-    if (offset + 1 >= program.size()) {
-        return false;
-    }
-    val = program[offset] | (program[offset + 1] << 8);
-    return true;
-}
-
 static uint32 getPackedStringSize(uint8 decodedLength) {
-    // 4 decoded chars are packed into 3 bytes.
     return (decodedLength * 3 + 3) / 4;
-}
-
-static uint16 operandAsU16(const EclOperand &op) {
-    switch (op.type) {
-    case OperandType::VAL8:
-        return op.u8;
-    case OperandType::VAL16:
-    case OperandType::ADDR16:
-    case OperandType::STRING:
-        return op.u16;
-    case OperandType::VARARGS:
-    case OperandType::NONE:
-    default:
-        return 0;
-    }
 }
 
 enum OperandCountMode {
@@ -175,73 +151,63 @@ static bool getOperandCountPolicy(uint8 opcode, int &baseCount,
     return false;
 }
 
-static DecodeStatus decodeTaggedOperand(Common::Span<const uint8> program,
-        uint32 &pc, EclOperand &outOperand) {
+/**
+ * Skip one tagged operand in the bytecode stream, advancing pc.
+ * Also reads the immediate value for varargs count detection.
+ * @param program Raw bytecode
+ * @param pc Current position (updated on success)
+ * @param outValue The decoded u16 value of this operand (for varargs count)
+ * @return DECODE_OK on success
+ */
+static DecodeStatus skipTaggedOperand(Common::Span<const uint8> program,
+        uint32 &pc, uint16 &outValue) {
     uint8 typeTag = 0;
     uint8 low = 0;
     if (!read8(program, pc, typeTag) || !read8(program, pc + 1, low)) {
         return DECODE_OUT_OF_BOUNDS;
     }
 
-    outOperand.type = OperandType::NONE;
-    outOperand.u8 = 0;
-    outOperand.u16 = 0;
-    outOperand.str.clear();
-    outOperand.bytes.clear();
+    outValue = 0;
 
     switch (typeTag) {
     case 0x00:
-        outOperand.type = OperandType::VAL8;
-        outOperand.u8 = low;
-        outOperand.u16 = low;
+        outValue = low;
         pc += 2;
         return DECODE_OK;
 
     case 0x01:
     case 0x03: {
         uint8 high = 0;
-        if (!read8(program, pc + 2, high)) {
+        if (!read8(program, pc + 2, high))
             return DECODE_OUT_OF_BOUNDS;
-        }
-        outOperand.type = OperandType::ADDR16;
-        outOperand.u16 = (uint16)(low | (high << 8));
+        outValue = (uint16)(low | (high << 8));
         pc += 3;
         return DECODE_OK;
     }
 
     case 0x02: {
         uint8 high = 0;
-        if (!read8(program, pc + 2, high)) {
+        if (!read8(program, pc + 2, high))
             return DECODE_OUT_OF_BOUNDS;
-        }
-        outOperand.type = OperandType::VAL16;
-        outOperand.u16 = (uint16)(low | (high << 8));
+        outValue = (uint16)(low | (high << 8));
         pc += 3;
         return DECODE_OK;
     }
 
     case 0x80: {
-        uint8 decodedLength = low;
-        uint32 packedSize = getPackedStringSize(decodedLength);
-        if (pc + 2 + packedSize > program.size()) {
+        uint32 packedSize = getPackedStringSize(low);
+        if (pc + 2 + packedSize > program.size())
             return DECODE_OUT_OF_BOUNDS;
-        }
-        outOperand.type = OperandType::STRING;
-        outOperand.u8 = decodedLength;
-        outOperand.u16 = decodedLength;
-        outOperand.str = decompress6BitString(&program[pc + 2], decodedLength);
+        outValue = low;
         pc += 2 + packedSize;
         return DECODE_OK;
     }
 
     case 0x81: {
         uint8 high = 0;
-        if (!read8(program, pc + 2, high)) {
+        if (!read8(program, pc + 2, high))
             return DECODE_OUT_OF_BOUNDS;
-        }
-        outOperand.type = OperandType::STRING;
-        outOperand.u16 = (uint16)(low | (high << 8));
-        outOperand.str.clear();
+        outValue = (uint16)(low | (high << 8));
         pc += 3;
         return DECODE_OK;
     }
@@ -281,24 +247,27 @@ DecodeStatus decodeProgram(Common::Span<const uint8> program, uint16 startPc,
             return DECODE_UNKNOWN_OPCODE;
         }
 
-        while ((int)insn.operands.size() < targetOperandCount) {
-            EclOperand operand;
-            DecodeStatus opStatus = decodeTaggedOperand(program, pc, operand);
+        // Skip operands to find next instruction boundary.
+        // For varargs opcodes, read the count operand to determine total.
+        int operandsSkipped = 0;
+        while (operandsSkipped < targetOperandCount) {
+            uint16 opValue = 0;
+            DecodeStatus opStatus = skipTaggedOperand(program, pc, opValue);
             if (opStatus != DECODE_OK) {
                 return opStatus;
             }
-            insn.operands.push_back(operand);
+            operandsSkipped++;
 
-            // Vararg-style decode completion rules.
+            // Vararg-style: use the count operand to extend target count.
             if (countMode == kOperandCountVerticalMenu &&
-                    (int)insn.operands.size() == 3) {
-                targetOperandCount = 3 + operandAsU16(insn.operands[2]);
+                    operandsSkipped == 3) {
+                targetOperandCount = 3 + opValue;
             } else if (countMode == kOperandCountOnJump &&
-                    (int)insn.operands.size() == 2) {
-                targetOperandCount = 2 + operandAsU16(insn.operands[1]);
+                    operandsSkipped == 2) {
+                targetOperandCount = 2 + opValue;
             } else if (countMode == kOperandCountHorizontalMenu &&
-                    (int)insn.operands.size() == 2) {
-                targetOperandCount = 2 + operandAsU16(insn.operands[1]);
+                    operandsSkipped == 2) {
+                targetOperandCount = 2 + opValue;
             }
         }
 
@@ -331,20 +300,16 @@ Common::String decompress6BitString(const uint8 *compressedData, uint8 length) {
 
         switch (state) {
         case 1:
-            // State 1: extract bits [7:2]
             curr = (thisByte >> 2) & 0x3F;
             break;
         case 2:
-            // State 2: combine lastByte[1:0] << 4 | thisByte[7:4]
             curr = ((lastByte << 4) | (thisByte >> 4)) & 0x3F;
             break;
         case 3:
-            // State 3: combine lastByte[3:0] << 2 | thisByte[7:6]
             curr = ((lastByte << 2) | (thisByte >> 6)) & 0x3F;
             break;
         }
 
-        // Inflate to ASCII range
         if (curr <= 0x1F) {
             curr += 0x40;
         }
@@ -352,11 +317,9 @@ Common::String decompress6BitString(const uint8 *compressedData, uint8 length) {
         result += (char)curr;
         outputCount++;
 
-        // Advance state
         lastByte = thisByte;
         state = (state % 3) + 1;
 
-        // State 3 processes 2 chars from same byte
         if (state == 1 && outputCount < length) {
             curr = thisByte & 0x3F;
             if (curr <= 0x1F) {

@@ -24,11 +24,17 @@
 
 #include "common/scummsys.h"
 #include "common/str.h"
+#include "common/array.h"
 #include "goldbox/core/vm_layout.h"
 #include "goldbox/ecl/runtime_layout.h"
 
 namespace Goldbox {
 namespace ECL {
+
+struct MemoryRegionRange {
+    uint16 _startAddr;
+    uint16 _endAddr;
+};
 
 /**
  * Legacy ECL constants retained for configuration compatibility.
@@ -122,6 +128,23 @@ public:
 
     // Scene/map state
     virtual uint16 getSceneStateBase() const { return 0xC04B; }
+
+    /**
+     * Memory-region table used by opcode handler write routing.
+     *
+     * Regions are checked in-order. The first matching inclusive range
+     * [start, end] determines the region ID (its index in the array).
+     * Addresses not matching any range map to fallback region ID
+     * `ranges.size()`.
+     */
+    virtual Common::Array<MemoryRegionRange> getMemoryRegions() const {
+        Common::Array<MemoryRegionRange> ranges;
+        ranges.push_back({0x4900, 0x4CFF}); // GEO
+        ranges.push_back({0x6B00, 0x6EFF}); // DAT
+        ranges.push_back({0x9700, 0x98FF}); // HEAP
+        ranges.push_back({0x9900, 0xB6FF}); // ECL
+        return ranges;
+    }
 
     // Specific character attribute offsets (relative to character base)
     virtual uint16 getCharNameOffset() const { return ECLMemoryLayout::CHAR_OFFSET_NAME; }
