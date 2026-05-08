@@ -50,7 +50,6 @@
 #include "goldbox/ecl/opcode_handlers.h"
 #include "goldbox/ecl/game_config.h"
 #include "goldbox/ecl/runtime_layout.h"
-#include "common/memstream.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -59,7 +58,7 @@ EclVM::EclVM(GameConfig *config, SyscallHandler *syscalls)
         : _config(config), _syscalls(syscalls),
             _pc(config ? config->getScriptVmStart()
                     : ECLMemoryLayout::MEM_START_DEFAULT),
-            _scriptId(0xFF), _opStartPc(0) {
+            _scriptId(0xFF), _opStartPc(0), _nextInsnPc(0) {
     memset(_opValues, 0, sizeof(_opValues));
     memset(_opTypes, 0, sizeof(_opTypes));
     if (_config) {
@@ -77,7 +76,6 @@ DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptI
     _scriptId = scriptId;
     _pc = scriptVmStart;
     _callStack.clear();
-    _program.clear();
     _entryPoints.clear();
 
     // Mirror original ECL_LoadHeader order: reset runtime state first,
@@ -93,20 +91,6 @@ DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptI
     // Parse entry points from header.
     if (!parseECLHeader(program)) {
         return DECODE_OUT_OF_BOUNDS;
-    }
-
-    // Decode script body (after 10-byte header) and normalize decoded PCs
-    // to VM address space, matching original WORD_ECL_PC addressing.
-    Common::Span<const uint8> programBody = program.subspan(kEclHeaderSize);
-    DecodeStatus status = decodeProgram(programBody, 0, _program, _config);
-    if (status != DECODE_OK) {
-        return status;
-    }
-
-    const uint16 vmPcBase = static_cast<uint16>(
-        scriptVmStart + kEclHeaderSize);
-    for (uint i = 0; i < _program.size(); ++i) {
-        _program[i].pc = static_cast<uint16>(vmPcBase + _program[i].pc);
     }
 
     return DECODE_OK;
@@ -226,10 +210,6 @@ VmResult EclVM::runAtEntryPoint(ECLEntryPoint entry, uint32 maxSteps) {
 }
 
 VmResult EclVM::runAtScriptAddress(uint16 scriptPc, uint32 maxSteps) {
-    if (findInstructionIndexByPc(scriptPc) < 0) {
-        return VM_ERROR;
-    }
-
     setPC(scriptPc);
     for (uint32 i = 0; i < maxSteps; ++i) {
         VmResult r = step();
@@ -241,32 +221,28 @@ VmResult EclVM::runAtScriptAddress(uint16 scriptPc, uint32 maxSteps) {
 }
 
 VmResult EclVM::step() {
-    int insnIndex = findInstructionIndexByPc(_pc);
-    if (insnIndex < 0) {
-        return VM_HALTED;
-    }
-
-    const EclInstruction &insn = _program[insnIndex];
-    uint16 defaultNextPc = (insnIndex + 1 < (int)_program.size())
-            ? _program[insnIndex + 1].pc
-            : static_cast<uint16>(insn.pc + 1);
-
-    return executeInstruction(insn.opcode, defaultNextPc);
+    const uint8 opcode = _memory.read8(_pc);
+    return executeInstruction(opcode, _pc);
 }
 
-VmResult EclVM::executeInstruction(uint8 opcode, uint16 defaultNextPc) {
+VmResult EclVM::executeInstruction(uint8 opcode, uint16 currentPc) {
     OpcodeHandler handler = getOpcodeHandler(opcode);
     if (!handler) {
         warning("EclVM: no handler registered for opcode 0x%02X at PC 0x%04X",
-                opcode, _pc);
-        setPC(defaultNextPc);
-        return VM_OK;
+                opcode, currentPc);
+        return VM_ERROR;
     }
 
-    uint16 nextPc = defaultNextPc;
+    // _nextInsnPc is set by the handler's getOperand() call.
+    // For zero-operand opcodes that don't call getOperand(), default to pc+1.
+    _nextInsnPc = static_cast<uint16>(currentPc + 1);
+    uint16 nextPc = _nextInsnPc;
     VmResult result = static_cast<VmResult>(handler(*this, _memory, nextPc, _callStack, _syscalls));
 
     if (result == VM_OK) {
+        // If handler didn't override nextPc, advance past operands.
+        if (nextPc == static_cast<uint16>(currentPc + 1))
+            nextPc = _nextInsnPc;
         setPC(nextPc);
     }
 
@@ -277,39 +253,36 @@ void EclVM::getOperand(uint8 opCount) {
     _opStartPc = _pc;
     _opValues[0] = opCount;
 
-    if (opCount == 0)
+    // Read directly from flat memory — no heap allocation.
+    uint16 pos = static_cast<uint16>(_pc + 1);
+
+    if (opCount == 0) {
+        _nextInsnPc = pos;
         return;
+    }
 
     assert(opCount <= kMaxOperands);
 
-    Common::MemorySeekableReadWriteStream *stream = _memory.openReadWriteStream();
-    // Operand bytes start one past the opcode byte.
-    stream->seek(static_cast<int64>(_pc + 1), SEEK_SET);
-
     for (uint8 i = 1; i <= opCount; i++) {
-        const uint8 typeTag = stream->readByte();
-        const uint8 lo      = stream->readByte();
+        const uint8 typeTag = _memory.read8(pos++);
+        const uint8 lo      = _memory.read8(pos++);
         _opTypes[i] = typeTag;
 
         switch (typeTag) {
         case 0x00:
-            // VAL8: immediate byte value.
             _opValues[i] = static_cast<uint16>(lo);
             break;
         case 0x01:
         case 0x02:
         case 0x03:
         case 0x81: {
-            // ADDR16 / VAL16 / STRING_PTR: type + lo + hi (LE word).
-            const uint8 hi = stream->readByte();
+            const uint8 hi = _memory.read8(pos++);
             _opValues[i] = static_cast<uint16>(lo | (hi << 8));
             break;
         }
         case 0x80: {
-            // STRING_INLINE: type + length + packed bytes.
-            // Store length in _opValues; skip packed data.
             const uint32 packedSize = (static_cast<uint32>(lo) * 3 + 3) / 4;
-            stream->seek(static_cast<int64>(packedSize), SEEK_CUR);
+            pos += packedSize;
             _opValues[i] = static_cast<uint16>(lo);
             break;
         }
@@ -319,7 +292,7 @@ void EclVM::getOperand(uint8 opCount) {
         }
     }
 
-    delete stream;
+    _nextInsnPc = pos;
 }
 
 uint16 EclVM::getOpWord(uint8 index) const {
@@ -347,12 +320,12 @@ uint16 EclVM::readVar(uint8 index) const {
 
 Common::String EclVM::readString(uint8 index) const {
     // Re-scan from instruction start to reach operand at 1-based index.
-    Common::MemoryReadStream *stream = _memory.openReadStream();
-    stream->seek(static_cast<int64>(_opStartPc + 1), SEEK_SET);
+    // Direct memory access — no heap allocation.
+    uint16 pos = static_cast<uint16>(_opStartPc + 1);
 
     for (uint8 i = 1; i <= index; i++) {
-        const uint8 typeTag = stream->readByte();
-        const uint8 lo      = stream->readByte();
+        const uint8 typeTag = _memory.read8(pos++);
+        const uint8 lo      = _memory.read8(pos++);
 
         if (i == index) {
             switch (typeTag) {
@@ -361,16 +334,15 @@ Common::String EclVM::readString(uint8 index) const {
                 const uint32 packedSize = (static_cast<uint32>(len) * 3 + 3) / 4;
                 Common::Array<uint8> packed;
                 packed.resize(packedSize);
-                stream->read(packed.data(), packedSize);
-                delete stream;
+                for (uint32 b = 0; b < packedSize; ++b)
+                    packed[b] = _memory.read8(pos++);
                 return decompress6BitString(packed.data(), len);
             }
             case 0x81:
             case 0x01:
             case 0x03: {
-                const uint8 hi = stream->readByte();
+                const uint8 hi = _memory.read8(pos);
                 const uint16 addr = static_cast<uint16>(lo | (hi << 8));
-                delete stream;
                 Common::String text;
                 uint16 a = addr;
                 for (;;) {
@@ -381,7 +353,6 @@ Common::String EclVM::readString(uint8 index) const {
                 return text;
             }
             default:
-                delete stream;
                 return Common::String();
             }
         }
@@ -392,11 +363,11 @@ Common::String EclVM::readString(uint8 index) const {
         case 0x02:
         case 0x03:
         case 0x81:
-            stream->seek(1, SEEK_CUR); // skip hi byte
+            pos++; // skip hi byte
             break;
         case 0x80: {
             const uint32 packedSize = (static_cast<uint32>(lo) * 3 + 3) / 4;
-            stream->seek(static_cast<int64>(packedSize), SEEK_CUR);
+            pos += packedSize;
             break;
         }
         default:
@@ -404,7 +375,6 @@ Common::String EclVM::readString(uint8 index) const {
         }
     }
 
-    delete stream;
     return Common::String();
 }
 
@@ -484,15 +454,7 @@ Common::String EclVM::dumpMemory(uint16 startAddr, uint16 length) const {
     return _memory.dumpRegion(startAddr, length);
 }
 
-int EclVM::findInstructionIndexByPc(uint16 scriptPc) const {
-    for (uint i = 0; i < _program.size(); ++i) {
-        if (_program[i].pc == scriptPc) {
-            return static_cast<int>(i);
-        }
-    }
 
-    return -1;
-}
 
 } // namespace ECL
 } // namespace Goldbox
