@@ -96,10 +96,6 @@ public:
      */
     AddressSpace &getMemory() { return _memory; }
 
-    /**
-     * Get decoded program (for inspection).
-     */
-    const Common::Array<EclInstruction> &getProgram() const { return _program; }
 
     /**
      * Get current script ID.
@@ -175,7 +171,6 @@ private:
     GameConfig *_config;
     SyscallHandler *_syscalls;
     AddressSpace _memory;
-    Common::Array<EclInstruction> _program;
     uint16 _pc;
     uint8 _scriptId;
     Common::Array<uint16> _callStack;
@@ -189,13 +184,7 @@ private:
     uint16 _opValues[kMaxOperands + 1];
     uint8  _opTypes[kMaxOperands + 1];
     uint16 _opStartPc;
-
-    /**
-     * Find decoded instruction index by bytecode PC.
-     * @param scriptPc Bytecode PC in VM address space
-     * @return instruction index or -1 if not found
-     */
-    int findInstructionIndexByPc(uint16 scriptPc) const;
+    uint16 _nextInsnPc; // PC past last operand = next instruction start
 
     /**
      * Parse ECL header (first 10 bytes) to extract entry point offsets.
