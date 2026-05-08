@@ -31,18 +31,6 @@ int32 VmAddressMapper::toByteOffset(uint16 vmAddr, uint16 firstVmAddr) {
 	return static_cast<int32>(vmAddr - firstVmAddr);
 }
 
-uint16 VmAddressMapper::toVmAddr(uint16 firstVmAddr, uint16 wordIndex) {
-	return firstVmAddr + wordIndex * 2;
-}
-
-int32 VmAddressMapper::toLegacyByteOffset(uint16 vmAddr, int32 legacyBias) {
-	return static_cast<int32>(vmAddr) + legacyBias;
-}
-
-uint16 VmAddressMapper::fromLegacyByteOffset(int32 byteOffset, int32 legacyBias) {
-	return static_cast<uint16>(byteOffset - legacyBias);
-}
-
 VmWordBank::VmWordBank(uint16 firstVmAddr, uint16 wordCount)
 	: _firstVmAddr(firstVmAddr),
 	  _wordCount(wordCount),
@@ -125,61 +113,6 @@ void VmWordBank::sync(Common::Serializer &s) {
 Common::MemorySeekableReadWriteStream *VmWordBank::openReadWriteStream() {
 	return new Common::MemorySeekableReadWriteStream(
 		_data, byteSize(), DisposeAfterUse::NO);
-}
-
-VmBankRouter::VmBankRouter() {
-	for (int i = 0; i < kVmBankCount; ++i) {
-		_banks[i] = nullptr;
-	}
-}
-
-void VmBankRouter::setBank(VmBankId bankId, VmWordBank *bank) {
-	if (bankId < 0 || bankId >= kVmBankCount) {
-		warning("VmBankRouter::setBank invalid bank id=%d", static_cast<int>(bankId));
-		return;
-	}
-
-	_banks[bankId] = bank;
-}
-
-VmWordBank *VmBankRouter::getBank(VmBankId bankId) {
-	if (bankId < 0 || bankId >= kVmBankCount) {
-		return nullptr;
-	}
-
-	return _banks[bankId];
-}
-
-const VmWordBank *VmBankRouter::getBank(VmBankId bankId) const {
-	if (bankId < 0 || bankId >= kVmBankCount) {
-		return nullptr;
-	}
-
-	return _banks[bankId];
-}
-
-bool VmBankRouter::hasBank(VmBankId bankId) const {
-	return getBank(bankId) != nullptr;
-}
-
-uint16 VmBankRouter::readWord(VmBankId bankId, uint16 vmAddr) const {
-	const VmWordBank *bank = getBank(bankId);
-	if (!bank) {
-		warning("VmBankRouter::readWord missing bank id=%d", static_cast<int>(bankId));
-		return 0;
-	}
-
-	return bank->readWord(vmAddr);
-}
-
-void VmBankRouter::writeWord(VmBankId bankId, uint16 vmAddr, uint16 value) {
-	VmWordBank *bank = getBank(bankId);
-	if (!bank) {
-		warning("VmBankRouter::writeWord missing bank id=%d", static_cast<int>(bankId));
-		return;
-	}
-
-	bank->writeWord(vmAddr, value);
 }
 
 VmFlatMemory::VmFlatMemory() : _data(new byte[kMemorySize]()) {

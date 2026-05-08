@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/ecl/ecl_memory.h"
+#include "goldbox/ecl/game_config.h"
 #include "common/str.h"
 #include "common/util.h"
 
@@ -40,6 +41,19 @@ static const uint16 kHeapLastVmAddr = 0x98FF;
 static const uint16 kEclFirstVmAddr = 0x9900;
 static const uint16 kEclLastVmAddr = 0xB6FF;
 
+struct DefaultBankRange {
+    VmBankId _bankId;
+    uint16 _firstAddr;
+    uint16 _lastAddr;
+};
+
+static const DefaultBankRange kDefaultBankRanges[] = {
+    {kVmBankGeo, kGeoFirstVmAddr, kGeoLastVmAddr},
+    {kVmBankDat, kDatFirstVmAddr, kDatLastVmAddr},
+    {kVmBankHeap, kHeapFirstVmAddr, kHeapLastVmAddr},
+    {kVmBankEcl, kEclFirstVmAddr, kEclLastVmAddr}
+};
+
 static const char *vmBankName(VmBankId bankId) {
     switch (bankId) {
     case kVmBankGeo:
@@ -59,12 +73,34 @@ static const char *vmBankName(VmBankId bankId) {
 
 } // namespace
 
-AddressSpace::AddressSpace() {
-    _memory.setDebugRange(kVmBankGeo, kGeoFirstVmAddr, kGeoLastVmAddr);
-    _memory.setDebugRange(kVmBankDat, kDatFirstVmAddr, kDatLastVmAddr);
-    _memory.setDebugRange(kVmBankHeap, kHeapFirstVmAddr, kHeapLastVmAddr);
-    _memory.setDebugRange(kVmBankEcl, kEclFirstVmAddr, kEclLastVmAddr);
-    // System bank is the fallback for addresses outside other ranges
+AddressSpace::AddressSpace(const GameConfig *config) {
+    if (!config) {
+        for (uint i = 0; i < ARRAYSIZE(kDefaultBankRanges); ++i) {
+            const DefaultBankRange &range = kDefaultBankRanges[i];
+            _memory.setDebugRange(range._bankId, range._firstAddr,
+                range._lastAddr);
+        }
+        // System bank is the fallback for addresses outside other ranges.
+        return;
+    }
+
+    for (int i = 0; i < kVmBankCount; ++i) {
+        const VmBankId bankId = static_cast<VmBankId>(i);
+        if (bankId == kVmBankSystem) {
+            continue;
+        }
+
+        uint16 firstAddr = 0;
+        uint16 lastAddr = 0;
+        if (!config->getVmBankRange(bankId, firstAddr, lastAddr)) {
+            continue;
+        }
+        if (firstAddr > lastAddr) {
+            continue;
+        }
+
+        _memory.setDebugRange(bankId, firstAddr, lastAddr);
+    }
 }
 
 uint8 AddressSpace::read8(uint16 addr) const {

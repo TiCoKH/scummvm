@@ -23,10 +23,6 @@
 
 namespace Goldbox {
 
-bool VmLayout::hasField(VmFieldId fieldId) const {
-	return isValid(field(fieldId));
-}
-
 VmFieldLocation VmLayout::invalidLocation() {
 	VmFieldLocation location = {kVmBankCount, kInvalidVmAddr};
 	return location;
@@ -36,10 +32,6 @@ bool VmLayout::isValid(const VmFieldLocation &location) {
 	return location.bankId >= kVmBankGeo &&
 		location.bankId < kVmBankCount &&
 		location.vmAddr != kInvalidVmAddr;
-}
-
-bool VmGlobalLayout::hasField(VmGlobalFieldId fieldId) const {
-	return VmLayout::isValid(field(fieldId));
 }
 
 } // namespace Goldbox

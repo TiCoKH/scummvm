@@ -98,16 +98,6 @@ public:
 
 
     /**
-     * Get current script ID.
-     */
-    uint8 getScriptId() const { return _scriptId; }
-
-    /**
-     * Dump memory region for debugging.
-     */
-    Common::String dumpMemory(uint16 startAddr, uint16 length) const;
-
-    /**
      * Set syscall handler (for I/O, menus, combat).
      */
     void setSyscallHandler(SyscallHandler *handler) { _syscalls = handler; }
@@ -164,7 +154,7 @@ public:
     /**
      * VM write path with region-aware behavior and legacy side effects.
      */
-    void writeVmMemory(uint16 vmAddr, uint16 value,
+    virtual void writeVmMemory(uint16 vmAddr, uint16 value,
         SyscallHandler *syscalls = nullptr);
 
 private:
@@ -205,6 +195,7 @@ private:
     void syncRuntimePc(uint16 pc);
 
     uint8 getMemoryRegion(uint16 vmAddr) const;
+    uint16 readVmMemory(uint16 vmAddr) const;
     void writeVmCharacterValue(uint16 vmAddr, uint16 value,
         SyscallHandler *syscalls);
 

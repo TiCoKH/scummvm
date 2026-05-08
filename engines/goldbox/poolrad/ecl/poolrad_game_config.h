@@ -53,37 +53,28 @@ public:
         return kPoolradScriptVmStart;
     }
 
-    bool getVmBankRange(ECL::VmBankId bankId, uint16 &firstAddr,
+    bool getVmBankRange(Goldbox::VmBankId bankId, uint16 &firstAddr,
             uint16 &lastAddr) const override {
         switch (bankId) {
-        case ECL::kVmBankGeo:
+        case Goldbox::kVmBankGeo:
             firstAddr = 0x4900;
             lastAddr = 0x4CFF;
             return true;
-        case ECL::kVmBankDat:
+        case Goldbox::kVmBankDat:
             firstAddr = 0x6B00;
             lastAddr = 0x6EFF;
             return true;
-        case ECL::kVmBankHeap:
+        case Goldbox::kVmBankHeap:
             firstAddr = 0x9700;
             lastAddr = 0x98FF;
             return true;
-        case ECL::kVmBankEcl:
+        case Goldbox::kVmBankEcl:
             firstAddr = kPoolradScriptVmStart;
             lastAddr = 0xB6FF;
             return true;
         default:
             return false;
         }
-    }
-
-    Common::Array<ECL::MemoryRegionRange> getMemoryRegions() const override {
-        Common::Array<ECL::MemoryRegionRange> ranges;
-        ranges.push_back({0x4900, 0x4CFF});
-        ranges.push_back({0x6B00, 0x6EFF});
-        ranges.push_back({0x9700, 0x98FF});
-        ranges.push_back({kPoolradScriptVmStart, 0xB6FF});
-        return ranges;
     }
 
     Common::String getGameName() const override { return "Pool of Radiance"; }
