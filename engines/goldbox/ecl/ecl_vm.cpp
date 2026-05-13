@@ -42,7 +42,7 @@
  *   Inflate: if (curr <= 0x1F) curr += 0x40
  *
  * Command Table: 60+ opcodes for game logic
- * Key Opcodes: 0x21 (LOAD FILES), 0x37 (LOAD PIECES), 0x25/0x26 (ON GOTO/GOSUB),
+ * Key Opcodes: 0x21 (LOAD_AREA_GEO), 0x37 (LOAD_AREA_WALLDEF), 0x25/0x26 (ON GOTO/GOSUB),
  *              0x0E (PICTURE), 0x24 (COMBAT)
  */
 
@@ -53,6 +53,39 @@
 
 namespace Goldbox {
 namespace ECL {
+
+namespace {
+
+static uint16 skipEncodedOperandsFromMemory(const AddressSpace &memory,
+        uint16 pc, uint8 operandCount) {
+    uint16 pos = static_cast<uint16>(pc + 1);
+
+    for (uint8 i = 0; i < operandCount; ++i) {
+        const uint8 typeTag = memory.read8(pos++);
+        const uint8 lo = memory.read8(pos++);
+
+        switch (typeTag) {
+        case 0x01:
+        case 0x02:
+        case 0x03:
+        case 0x81:
+            pos++;
+            break;
+        case 0x80: {
+            const uint32 packedSize =
+                (static_cast<uint32>(lo) * 3 + 3) / 4;
+            pos = static_cast<uint16>(pos + packedSize);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    return pos;
+}
+
+} // namespace
 
 EclVM::EclVM(GameConfig *config, SyscallHandler *syscalls)
     : _config(config), _syscalls(syscalls), _memory(config),
@@ -178,6 +211,14 @@ void EclVM::initializeECLState() {
         0);
     _memory.write8(
         layout.vmGlobalField(kVmGlobalFieldRestInterruptChance).vmAddr, 0);
+
+    // Mirror GB_EngineMain initial flag state.
+    screenRefresh   = true;  // BOOL_SCREEN_REFRESH = true
+    geoReady        = false; // BOOL_GEO_READY      = false
+    wallsetReady    = false; // BOOL_WALLSET_READY   = false
+    eclReady        = false; // BOOL_ECL_READY       = false
+    mapdataInload   = false; // BOOL_MAPDATA_INLOAD  = false
+    characterInload = false; // BOOL_CHARACTER_INLOAD= false
 
     syncRuntimePc(_config->getScriptVmStart());
 }
@@ -395,6 +436,45 @@ int8 EclVM::getCmpResult() const {
     return (int8)_memory.read8(layout.runtimeField(kEclRuntimeBreakFlag));
 }
 
+uint16 EclVM::skipLegacyInstructionOperands(uint16 instructionPc) const {
+    const uint8 opcode = _memory.read8(instructionPc);
+
+    // Poolrad legacy mapping from ECL_SkipInstructionOperands.
+    if (opcode == 0x01 || opcode == 0x02 || opcode == 0x0A
+            || opcode == 0x0E || opcode == 0x11 || opcode == 0x12
+            || opcode == 0x1D || opcode == 0x20 || opcode == 0x2D
+            || opcode == 0x32 || opcode == 0x34 || opcode == 0x36
+            || opcode == 0x38 || opcode == 0x39 || opcode == 0x3C) {
+        return skipEncodedOperandsFromMemory(_memory, instructionPc, 1);
+    }
+
+    if (opcode == 0x03 || opcode == 0x08 || opcode == 0x09
+            || opcode == 0x0C || opcode == 0x0F || opcode == 0x10
+            || opcode == 0x1F || opcode == 0x22) {
+        return skipEncodedOperandsFromMemory(_memory, instructionPc, 2);
+    }
+
+    if ((opcode >= 0x04 && opcode <= 0x07)
+            || opcode == 0x0B || opcode == 0x21 || opcode == 0x28
+            || opcode == 0x2A || opcode == 0x2F || opcode == 0x30
+            || opcode == 0x35 || opcode == 0x37 || opcode == 0x3B) {
+        return skipEncodedOperandsFromMemory(_memory, instructionPc, 3);
+    }
+
+    if (opcode == 0x14 || opcode == 0x23)
+        return skipEncodedOperandsFromMemory(_memory, instructionPc, 4);
+    if (opcode == 0x2E)
+        return skipEncodedOperandsFromMemory(_memory, instructionPc, 5);
+    if (opcode == 0x1E || opcode == 0x2C)
+        return skipEncodedOperandsFromMemory(_memory, instructionPc, 6);
+    if (opcode == 0x27)
+        return skipEncodedOperandsFromMemory(_memory, instructionPc, 8);
+    if (opcode == 0x29)
+        return skipEncodedOperandsFromMemory(_memory, instructionPc, 0x0E);
+
+    return static_cast<uint16>(instructionPc + 1);
+}
+
 uint8 EclVM::getMemoryRegion(uint16 vmAddr) const {
     if (!_config)
         return 0;
@@ -420,23 +500,89 @@ uint16 EclVM::readVmMemory(uint16 vmAddr) const {
     return _memory.read16LE(vmAddr);
 }
 
-void EclVM::writeVmCharacterValue(uint16 vmAddr, uint16 value,
+void EclVM::onDatBankWrite(uint16 vmAddr, uint16 value,
         SyscallHandler *syscalls) {
-    const uint16 local = (uint16)(vmAddr + 0x9500);
-
-    if (value <= 0x80)
+    if (!_config)
         return;
 
-    SyscallHandler *activeSyscalls = syscalls ? syscalls : _syscalls;
-    if (!activeSyscalls)
+    EclLayoutAccess layout = _config->getLayoutAccess();
+    const uint16 charBase = _config->getCharacterBase();
+    const uint16 localOffset = (uint16)(vmAddr - charBase);
+
+    // Offset 0x0000: character selection changed
+    if (localOffset == 0x0000) {
+        if (value == 0) {
+            uint16 flagAddr = layout.runtimeField(
+                kEclRuntimeCharacterRedrawFlag);
+            if (EclRuntimeLayout::isValidVmAddr(flagAddr))
+                _memory.write8(flagAddr, 1);
+        }
+        return;
+    }
+
+    // Spell memorization range: offsets 0x20..0x70
+    if (localOffset >= 0x20 && localOffset <= 0x70) {
+        // Written directly to VM memory by caller; no extra side-effect.
+        return;
+    }
+
+    Data::PlayerCharacter *pc = VmInterface::getSelectedCharacter();
+    if (!pc)
         return;
 
-    if (local == 0x322) {
-        activeSyscalls->loadWallSet((uint8)(value & 0x7F), 1);
-    } else if (local == 0x324) {
-        activeSyscalls->loadWallSet((uint8)(value & 0x7F), 2);
-    } else if (local == 0x326) {
-        activeSyscalls->loadWallSet((uint8)(value & 0x7F), 3);
+    switch (localOffset) {
+    case 0xB8: {
+        // NPC index with wrap
+        uint16 npcVal = value;
+        if (npcVal > 0xB2)
+            npcVal -= 0x32;
+        // Store low byte into character NPC field via VM memory.
+        break;
+    }
+    case 0x100: {
+        // Status field
+        if (value > 0x7F) {
+            pc->enabled = false;
+            if (value == 0x87)
+                pc->healthStatus = 7; // S_STONED
+        }
+        if (value == 0) {
+            uint16 flagAddr = layout.runtimeField(
+                kEclRuntimeStatusRedrawFlag);
+            if (EclRuntimeLayout::isValidVmAddr(flagAddr))
+                _memory.write8(flagAddr, 1);
+        }
+        break;
+    }
+    case 0x10C: {
+        // Combat mode: hostile/quickfight
+        if (value == 0) {
+            pc->hostile = false;
+            pc->quickfight = false;
+        } else if (value == 0x80) {
+            pc->hostile = false;
+            pc->quickfight = true;
+        } else if (value == 0x81) {
+            pc->hostile = true;
+            pc->quickfight = true;
+        }
+        break;
+    }
+    case 0x322:
+    case 0x324:
+    case 0x326: {
+        // Wallset loading (slots 1-3)
+        if (value <= 0x80)
+            break;
+        SyscallHandler *active = syscalls ? syscalls : _syscalls;
+        if (!active)
+            break;
+        uint8 slot = (uint8)((localOffset - 0x322) / 2 + 1);
+        active->loadWallSet((uint8)(value & 0x7F), slot);
+        break;
+    }
+    default:
+        break;
     }
 }
 
@@ -456,14 +602,58 @@ void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
         return;
     }
 
-    if (region == 4 && vmAddr == 0xC04D) {
-        writeValue = (uint16)(writeValue & 0x3);
+    if (region == 4 && _config) {
+        EclLayoutAccess layout = _config->getLayoutAccess();
+        uint16 dirAddr = layout.vmGlobalField(
+            kVmGlobalFieldDungeonDir).vmAddr;
+        if (vmAddr == dirAddr)
+            writeValue = (uint16)(writeValue & 0x3);
     }
 
     _memory.write16LE(vmAddr, writeValue);
 
+    if (region == 0 && _config) {
+        EclLayoutAccess layout = _config->getLayoutAccess();
+        uint16 skyAddr = layout.vmField(kVmFieldSkyColor).vmAddr;
+        uint16 ceilAddr = layout.vmField(kVmFieldCeilingColor).vmAddr;
+        if (vmAddr == skyAddr || vmAddr == ceilAddr) {
+            uint16 flagAddr = layout.runtimeField(
+                kEclRuntimeSkyboxRedrawFlag);
+            if (EclRuntimeLayout::isValidVmAddr(flagAddr))
+                _memory.write8(flagAddr, 1);
+        }
+    }
+
+    if (region == 4 && _config) {
+        EclLayoutAccess layout = _config->getLayoutAccess();
+        uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
+        uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+        uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
+        if (vmAddr == xAddr || vmAddr == yAddr || vmAddr == dirAddr) {
+            uint16 flagAddr = layout.runtimeField(
+                kEclRuntimePositionDirtyFlag);
+            if (EclRuntimeLayout::isValidVmAddr(flagAddr))
+                _memory.write8(flagAddr, 1);
+        }
+    }
+
     if (region == 1)
-        writeVmCharacterValue(vmAddr, writeValue, activeSyscalls);
+        onDatBankWrite(vmAddr, writeValue, activeSyscalls);
+}
+
+VmResult EclVM::checkMapDataReady() {
+    if (screenRefresh && wallsetReady && geoReady) {
+        VmResult result = onMapDataReady();
+        screenRefresh = false;
+        return result;
+    }
+    return VM_OK;
+}
+
+VmResult EclVM::onMapDataReady() {
+    if (_syscalls)
+        return _syscalls->onMapDataReady();
+    return VM_OK;
 }
 
 } // namespace ECL

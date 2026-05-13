@@ -83,6 +83,9 @@ public:
         ECL::setOpcodeLayout(getVmLayout(), getVmGlobalLayout(),
             getEclRuntimeLayout(), getCharacterBase(), getCharacterSize());
         Goldbox::ECL::registerBaselineOpcodeTable(*this);
+        // Core/common opcode handlers own opcode semantics.
+        // Poolrad-specific behavior is injected via EclEngineHost callbacks
+        // (loadGeoBlock/loadWallSet/loadMonster/etc.) in PoolradEngineHostImpl.
         ECL::registerBaselineOpcodeHandlers();
     }
 

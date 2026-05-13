@@ -155,7 +155,7 @@ public:
     virtual VmResult loadScript(uint8 scriptID) = 0;
 
     /**
-     * Load a GEO dungeon map block by block ID (0x21 LOAD FILES, indoor branch).
+        * Load a GEO dungeon map block by block ID (0x21 LOAD_AREA_GEO, indoor branch).
      * @param blockId DAX GEO block ID
      * @return VmResult
      */
@@ -163,7 +163,7 @@ public:
 
     /**
      * Load a wallset definition and its 8x8 tile graphics into a cache slot
-     * (0x37 LOAD PIECES).
+        * (0x37 LOAD_AREA_WALLDEF).
      * Slots 1-3 are dynamic (set per area); slots 0 and 4 are fixed at init.
      * blockId 0xFF = clear/invalidate the slot.
      * @param blockId DAX WALLDEF block ID (0xFF = clear)
@@ -173,7 +173,7 @@ public:
     virtual VmResult loadWallSet(uint8 blockId, uint8 setSlot) { return VM_OK; }
 
     /**
-     * Load the outdoor/city icon strip (0x21 LOAD FILES, outdoor branch).
+        * Load the outdoor/city icon strip (0x21 LOAD_AREA_GEO, outdoor branch).
      * @return VmResult
      */
     virtual VmResult loadIconBlock() { return VM_OK; }

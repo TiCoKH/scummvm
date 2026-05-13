@@ -30,27 +30,16 @@ namespace Items {
 
 using Goldbox::Data::PascalStringBuffer;
 
-bool CharacterInventory::load(const Common::String &filename) {
+void CharacterInventory::loadFromStream(Common::SeekableReadStream &s) {
     clear();
 
-    Common::File file;
-    if (!file.open(filename.c_str())) {
-        debug("CharacterInventory::load: missing .ITM file '%s'", filename.c_str());
-        return false;  // no .ITM → empty inventory
-    }
-
-    auto &s = file;  // File implements SeekableReadStream
-
     const int recSize = 63;
-    int    total   = s.size();
+    const int total = s.size();
 
     if ((total % recSize) != 0) {
-        debug("CharacterInventory::load: file '%s' size=%d not multiple of recSize=%d",
-              filename.c_str(), total, recSize);
+        debug("CharacterInventory::loadFromStream: size=%d not multiple of recSize=%d",
+              total, recSize);
     }
-
-    debug("CharacterInventory::load: file '%s' size=%d recSize=%d",
-          filename.c_str(), total, recSize);
 
     int index = 0;
     while (s.pos() + recSize <= total) {
@@ -78,20 +67,27 @@ bool CharacterInventory::load(const Common::String &filename) {
         it.effect3     = s.readByte();
 
         _items.push_back(it);
-
-        if (it.readied != 0) {
-            Common::String displayName = it.getDisplayName();
-            debug("CharacterInventory::load: item[%d] equipped displayName='%s' type=%u readied=%u next=0x%08x nameCode=[%u,%u,%u] cachedBuffer='%s'",
-                  index, displayName.c_str(), (unsigned)it.typeIndex, (unsigned)it.readied,
-                  (unsigned)it.nextAddress, (unsigned)it.nameCode1, (unsigned)it.nameCode2, (unsigned)it.nameCode3,
-                  it.name.c_str());
-        }
         ++index;
     }
 
+    debug("CharacterInventory::loadFromStream: loaded %u items",
+          (unsigned)_items.size());
+}
+
+bool CharacterInventory::load(const Common::String &filename) {
+    clear();
+
+    Common::File file;
+    if (!file.open(filename.c_str())) {
+        debug("CharacterInventory::load: missing .ITM file '%s'", filename.c_str());
+        return false;  // no .ITM → empty inventory
+    }
+
+    debug("CharacterInventory::load: file '%s' size=%d",
+          filename.c_str(), (int)file.size());
+
+    loadFromStream(file);
     file.close();
-    debug("CharacterInventory::load: loaded %u items from '%s'",
-          (unsigned)_items.size(), filename.c_str());
     return true;
 }
 

@@ -193,6 +193,26 @@ For variable-argument opcodes:
 ### Operand Count Source of Truth
 The handler's `vm.getOperand(N)` call determines the actual operand count consumed. The `opcode_table.cpp` entry is metadata for the decoder/disassembler and must match.
 
+### Rule of Thumb for Future Work (Core vs Dialect)
+- Keep **VM interpreter mechanics** in common/core (`ecl_vm`):
+    `GOTO/GOSUB/RETURN`, compare+branch flow, read/write memory semantics,
+    math operators, operand decode path.
+- Keep **default opcode semantics** in core/common opcode handlers.
+- Keep **game-specific resource/UI behavior** in host callbacks
+    (`SyscallHandler` / `EclEngineHost`) implemented per game
+    (DAX loading, character/monster struct adaptation, dialogs/input).
+- If only resource integration differs, do **not** fork the opcode handler;
+    reuse core opcode logic and call game-specific host methods.
+- If an opcode byte is truly redefined in a game (different name, operands,
+    or behavior), override **only that opcode** in the game dialect:
+    - override opcode metadata (name + operand schema/count), and/or
+    - override handler implementation.
+- Prefer **dialect delta overlays** (few opcode overrides) over copying full
+    tables/handlers.
+- Decode and execution precedence should be:
+    - opcode metadata: dialect override → core fallback
+    - opcode handler: dialect override → core fallback
+
 ## MenuResult Event System
 
 Child dialogs communicate results to parent views/dialogs via event-based messaging:

@@ -46,7 +46,7 @@ namespace ECL {
  *   [8-9]:  ON_INIT           - Initial startup entry
  *
  * Event System Integration:
- *   - Maps reference ECL blocks via 0x21 (LOAD FILES) with geoID and block number
+ *   - Maps reference ECL blocks via 0x21 (LOAD_AREA_GEO) with geoID and block number
  *   - Event numbers (0-127) stored in map cells trigger ECL execution
  *   - ON GOTO/GOSUB (0x25/0x26) dispatch to event subroutines
  */

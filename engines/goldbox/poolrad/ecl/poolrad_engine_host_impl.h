@@ -22,6 +22,7 @@
 #ifndef GOLDBOX_POOLRAD_ECL_POOLRAD_ENGINE_HOST_IMPL_H
 #define GOLDBOX_POOLRAD_ECL_POOLRAD_ENGINE_HOST_IMPL_H
 
+#include "common/array.h"
 #include "common/scummsys.h"
 #include "common/ptr.h"
 #include "goldbox/ecl/ecl_syscall_impl.h"
@@ -37,6 +38,10 @@ class DaxTile;
 }
 
 namespace Poolrad {
+
+namespace Data {
+class PoolradCharacter;
+}
 
 /**
  * Pool of Radiance implementation of the ECL engine host interface.
@@ -61,13 +66,25 @@ public:
      * @param memory Reference to ECL virtual memory for reading/writing results
      */
     PoolradEngineHostImpl(::Goldbox::Engine *engine, ECL::AddressSpace *memory);
-    ~PoolradEngineHostImpl() override = default;
+    ~PoolradEngineHostImpl() override;
 
+    VmResult loadMonster(uint8 monsterId, uint8 count,
+        uint8 graphicId) override;
+    VmResult clearMonsters() override;
+    VmResult displayPicture(uint8 picID) override;
+    VmResult loadGeoBlock(uint8 blockId) override;
+    VmResult loadIconBlock() override;
     VmResult loadWallSet(uint8 blockId, uint8 setSlot) override;
+    VmResult onMapDataReady() override;
 
 private:
+    uint8 allocateMonsterIconSlot() const;
+
     // Owned DaxTile instances for walldef tile atlases (slots 1-3, 0-based idx)
     Common::ScopedPtr<Gfx::DaxTile> _walldefTiles[3];
+    Common::Array<Data::PoolradCharacter *> _loadedMonsters;
+    Common::Array<uint8> _monsterIconSlots;
+    uint8 _nextMonsterIconSlot = 26;
 };
 
 } // namespace Poolrad

@@ -138,6 +138,16 @@ public:
      * @return VmResult
      */
     virtual VmResult loadIconBlock() { return VM_OK; }
+
+    /**
+     * Called by EclVM when both geo (BOOL_GEO_READY) and wallset
+     * (BOOL_WALLSET_READY) data have been loaded for the current area.
+     * Mirrors the final redraw check at the end of INSTR_LoadAreaDeco:
+     *   GAME_ScreenByState() + DIALOG_ShowParty() in the original binary.
+     * Default is a no-op; override in the game-specific handler.
+     * @return VmResult
+     */
+    virtual VmResult onMapDataReady() { return VM_OK; }
 };
 
 } // namespace ECL

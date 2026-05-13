@@ -26,11 +26,14 @@ namespace Goldbox {
 namespace Poolrad {
 
 /**
- * Legacy extension-opcode registration scaffold.
+ * Pool of Radiance opcode registration compatibility hook.
  *
- * Pool of Radiance currently stops at opcode 0x3D, so this hook is not wired
- * into PoolradGameConfig. Keep it only as a staging point for future game
- * dialects until those opcodes are moved into their own game-specific folder.
+ * Current architecture keeps opcode semantics in core ECL handlers.
+ * Game-specific resource behavior is provided through SyscallHandler /
+ * EclEngineHost virtual callbacks implemented by PoolradEngineHostImpl.
+ *
+ * This function is intentionally available as an extension point for future
+ * Poolrad-only opcode exceptions.
  */
 void registerPoolradOpcodeHandlers();
 
