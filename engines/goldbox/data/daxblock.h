@@ -126,6 +126,14 @@ protected:
 
 };
 
+class DaxBlockRaw : public DaxBlock {
+public:
+    DaxBlockRaw() {}
+
+private:
+    void adjust() override {}
+};
+
 
 class DaxBlockPic : public DaxBlock {
 public:

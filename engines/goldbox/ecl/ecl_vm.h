@@ -152,10 +152,57 @@ public:
     int8 getCmpResult() const;
 
     /**
+     * Legacy IF helper: skip the next instruction (opcode + encoded operands)
+     * starting at instructionPc, and return the resulting PC.
+     *
+     * Mirrors ECL_SkipInstructionOperands behavior used by IF opcodes in
+     * original interpreters.
+     */
+    uint16 skipLegacyInstructionOperands(uint16 instructionPc) const;
+
+    /**
      * VM write path with region-aware behavior and legacy side effects.
      */
     virtual void writeVmMemory(uint16 vmAddr, uint16 value,
         SyscallHandler *syscalls = nullptr);
+
+    /**
+     * Check whether both geo and wallset data are ready and a screen refresh
+     * is pending. If so, calls onMapDataReady() and clears screenRefresh.
+     * Called by opcode handlers 0x21 and 0x37 after setting their flag.
+     * Mirrors the end-of-INSTR_LoadAreaDeco check in the original binary:
+     *   if (BOOL_SCREEN_REFRESH && BOOL_WALLSET_READY && BOOL_GEO_READY) { ... }
+     * @return onMapDataReady() result when all conditions are met, VM_OK otherwise.
+     */
+    VmResult checkMapDataReady();
+
+    // -----------------------------------------------------------------------
+    // Engine-visible state flags (mirrors original globals in the binary)
+    // Set/cleared by opcode handlers and the engine main loop.
+    // -----------------------------------------------------------------------
+
+    // BOOL_SCREEN_REFRESH: set true at start of each map load (GB_EngineMain),
+    // cleared after the full redraw fires.
+    bool screenRefresh     = false;
+    // BOOL_GEO_READY: set true by opcode 0x21 (LOAD_AREA_GEO) after loading geo.
+    bool geoReady          = false;
+    // BOOL_WALLSET_READY: set true by opcode 0x37 (LOAD_AREA_WALLDEF) after wallsets.
+    bool wallsetReady      = false;
+    // BOOL_ECL_READY: set by ECL_READY opcode; checked by the engine main loop.
+    bool eclReady          = false;
+    // BOOL_MAPDATA_INLOAD: set true at start of 0x21/0x37 load sequences.
+    bool mapdataInload     = false;
+    // BOOL_CHARACTER_INLOAD: set true during character load sequences.
+    bool characterInload   = false;
+
+protected:
+    /**
+     * Called by checkMapDataReady() when screenRefresh, geoReady, and
+     * wallsetReady are all true. Mirrors GAME_ScreenByState + DIALOG_ShowParty
+     * in the original. Default calls _syscalls->onMapDataReady().
+     * Override in a game-specific VM subclass for custom redraw logic.
+     */
+    virtual VmResult onMapDataReady();
 
 private:
     GameConfig *_config;
@@ -196,7 +243,7 @@ private:
 
     uint8 getMemoryRegion(uint16 vmAddr) const;
     uint16 readVmMemory(uint16 vmAddr) const;
-    void writeVmCharacterValue(uint16 vmAddr, uint16 value,
+    void onDatBankWrite(uint16 vmAddr, uint16 value,
         SyscallHandler *syscalls);
 
     VmResult executeInstruction(uint8 opcode, uint16 defaultNextPc);

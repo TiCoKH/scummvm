@@ -40,6 +40,10 @@ namespace Data {
 			// CTILE uses the same binary layout as PIC but allows callers to
 			// opt into mask-aware handling.
 			return new DaxBlockPic();
+		} else if (contentType == ContentType::CHARACTER
+				|| contentType == ContentType::ITEM
+				|| contentType == ContentType::SPELL) {
+			return new DaxBlockRaw();
 //       } else if (contentType == ContentType::SPRIT) {
 //           return new DaxBlockPic();
 		} else if (contentType == ContentType::WALLDEF) {

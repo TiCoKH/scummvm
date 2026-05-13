@@ -48,6 +48,10 @@ public:
     /// Reads every 63‐byte record from `filename`; leaves `_items` empty if the file is missing.
     bool load(const Common::String &filename);
 
+    /// Loads inventory items from a stream (e.g., DAX block data).
+    /// Parses consecutive 63-byte records until stream end.
+    void loadFromStream(Common::SeekableReadStream &stream);
+
     /// Writes back in the same layout (optional).
     bool save(const Common::String &filename) const;
 

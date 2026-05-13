@@ -262,6 +262,10 @@ public:
 		case Goldbox::ECL::kEclRuntimeMonsterCount:      return 0x0580;
 		case Goldbox::ECL::kEclRuntimeMonsterData:       return 0x0582;
 		case Goldbox::ECL::kEclRuntimeEncounterFlags:    return 0x0594;
+		case Goldbox::ECL::kEclRuntimeSkyboxRedrawFlag:  return 0x84E5;
+		case Goldbox::ECL::kEclRuntimePositionDirtyFlag: return 0x84E6;
+		case Goldbox::ECL::kEclRuntimeCharacterRedrawFlag: return 0x84E7;
+		case Goldbox::ECL::kEclRuntimeStatusRedrawFlag:  return 0x84E8;
 		case Goldbox::ECL::kEclRuntimePc:               return 0x4426;
 		case Goldbox::ECL::kEclRuntimeOnMoveEntry:      return 0x4433;
 		case Goldbox::ECL::kEclRuntimeOnSearchEntry:    return 0x4435;

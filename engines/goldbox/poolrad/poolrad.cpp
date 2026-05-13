@@ -92,6 +92,20 @@ void PoolradEngine::setup() {
 	getDaxManager().loadFile(Common::Path("sqrpaci.dax"));
 	getDaxManager().loadFile(Common::Path("wildcom.dax"));
 
+	// Load geo and monster resource DAX files
+	getDaxManager().loadFile(Common::Path("geo1.dax"));
+	getDaxManager().loadFile(Common::Path("geo2.dax"));
+	getDaxManager().loadFile(Common::Path("geo3.dax"));
+	getDaxManager().loadFile(Common::Path("geo4.dax"));
+	getDaxManager().loadFile(Common::Path("geo5.dax"));
+	getDaxManager().loadFile(Common::Path("geo6.dax"));
+	getDaxManager().loadFile(Common::Path("geo7.dax"));
+	getDaxManager().loadFile(Common::Path("geo8.dax"));
+	getDaxManager().loadFile(Common::Path("cpic.dax"));
+	getDaxManager().loadFile(Common::Path("moncha.dax"));
+	getDaxManager().loadFile(Common::Path("monitm.dax"));
+	getDaxManager().loadFile(Common::Path("monspc.dax"));
+
 
 	// Load DAX Pic files
 	getDaxManager().loadFile(Common::Path("body1.dax"));

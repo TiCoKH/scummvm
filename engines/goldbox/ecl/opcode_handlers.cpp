@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/ecl/opcode_handlers.h"
+#include "goldbox/ecl/ecl_engine_host.h"
 #include "goldbox/ecl/ecl_vm.h"
 #include "common/hashmap.h"
 #include "common/random.h"
@@ -73,6 +74,32 @@ static uint16 g_forLoopBodyStart = 0;
 static uint16 g_forLoopCount = 0;
 static uint16 g_forLoopMax = 0;
 
+// Legacy RANDOM semantics from original engine:
+// - source max is treated as a byte
+// - for max < 0xFF, range is [0, max]
+// - for max == 0xFF, range is [0, 0xFE] (avoids byte overflow on max+1)
+static uint8 getLegacyRandomByte(uint16 maxRaw) {
+    const uint8 maxByte = static_cast<uint8>(maxRaw & 0xFF);
+    const uint16 inclusiveUpper = (maxByte == 0xFF) ? 0xFE : maxByte;
+    return static_cast<uint8>(getOpcodeRandom().getRandomNumber(inclusiveUpper));
+}
+
+static bool useM68kWriteMemSemantics() {
+    if (!Goldbox::g_engine)
+        return false;
+    return Goldbox::g_engine->getPlatform() == Common::kPlatformAmiga;
+}
+
+static void writeLegacyStringVar(AddressSpace &mem, uint16 destAddr,
+        const Common::String &text) {
+    // x86 VM_WriteStringVar behavior: copy bytes and append null terminator.
+    const uint maxLen = MIN<uint>(text.size(), 0xFF);
+    for (uint i = 0; i < maxLen; ++i)
+        mem.write8(static_cast<uint16>(destAddr + i),
+            static_cast<uint8>(text[i]));
+    mem.write8(static_cast<uint16>(destAddr + maxLen), 0);
+}
+
 // Opcode handlers
 
 static int handle_0x00_EXIT(EclVM &vm, AddressSpace &mem,
@@ -125,6 +152,10 @@ static int handle_0x03_COMPARE(EclVM &vm, AddressSpace &mem,
     return VM_OK;
 }
 
+// TODO: Math opcodes (0x04-0x07) may have different operand order on
+// Amiga and PC-98 platforms. Current implementation follows x86 (DOS)
+// behavior. When adding Common::Platform support, verify SUB/DIV operand
+// order per platform and dispatch accordingly.
 static int handle_0x04_ADD(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack; (void)syscalls;
@@ -177,11 +208,25 @@ static int handle_0x07_MULTIPLY(EclVM &vm, AddressSpace &mem,
 
 static int handle_0x09_SAVE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack;
     vm.getOperand(2);
-    const uint16 val  = vm.readVar(1);
     const uint16 addr = vm.getOpWord(2);
-    vm.writeVmMemory(addr, val, syscalls);
+
+    if (useM68kWriteMemSemantics()) {
+        // m68k INSTR_WriteMem: always numeric, no string branch.
+        vm.writeVmMemory(addr, vm.readVar(1), syscalls);
+        return VM_OK;
+    }
+
+    // x86 Inst_WRITE_MEM:
+    // - type < 0x80: numeric write using low byte of operand value
+    // - type >= 0x80: write decoded string operand to destination
+    if (vm.getOpType(1) < 0x80) {
+        const uint16 val = static_cast<uint16>(vm.readVar(1) & 0xFF);
+        vm.writeVmMemory(addr, val, syscalls);
+    } else {
+        writeLegacyStringVar(mem, addr, vm.readString(1));
+    }
     return VM_OK;
 }
 
@@ -208,8 +253,10 @@ static int handle_0x12_PRINTCLEAR(EclVM &vm, AddressSpace &mem,
 static int handle_0x13_RETURN(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)vm; (void)mem; (void)syscalls;
+    // Original x86/m68k behavior: RETURN is a no-op when call stack is empty.
+    // Keep nextPc at default (currentPc + 1) and continue execution.
     if (callStack.empty())
-        return VM_ERROR;
+        return VM_OK;
     nextPc = callStack.back();
     callStack.pop_back();
     return VM_OK;
@@ -241,11 +288,9 @@ static int handle_0x08_RANDOM(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(2);
-    const uint16 maxVal  = vm.readVar(1);
+    const uint16 maxVal   = vm.readVar(1);
     const uint16 destAddr = vm.getOpWord(2);
-    vm.writeVmMemory(destAddr,
-        static_cast<uint16>(getOpcodeRandom().getRandomNumber(maxVal)),
-        syscalls);
+    vm.writeVmMemory(destAddr, getLegacyRandomByte(maxVal), syscalls);
     return VM_OK;
 }
 
@@ -283,23 +328,56 @@ static int handle_0x0A_LOAD_CHARACTER(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(1);
-    const uint8 sel = static_cast<uint8>(vm.getOpWord(1));
-    const uint8 partySize = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldPartyCount).vmAddr);
-    mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldSelectedPcIndex).vmAddr, sel);
-    if (sel < 128) {
-        if (sel < partySize) {
-            mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeSelectedCharPtr),
-                getCharacterBlockBase(sel));
-        } else {
-            const uint16 monsterIndex = sel - partySize;
-            (void)monsterIndex;
-            mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeSelectedCharPtr),
-                getOpcodeLayout().runtimeField(kEclRuntimeMonsterData));
-        }
-    } else {
-        mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeSelectedCharPtr),
-            getOpcodeLayout().runtimeField(kEclRuntimeMonsterData));
-        mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeMenuCombatState), 1);
+    const uint8 rawSel = static_cast<uint8>(vm.readVar(1));
+    const uint8 selectCount = static_cast<uint8>(rawSel & 0x7F);
+    const bool npcFlag = ((rawSel & 0x80) != 0);
+    const uint8 partySize = mem.read8(
+        getOpcodeLayout().vmGlobalField(kVmGlobalFieldPartyCount).vmAddr);
+
+    // Legacy behavior uses PTR_NEXT_CHARACTER as the traversal start.
+    // In the flat VM model, use runtime next-char pointer when valid;
+    // otherwise default to party head (index 0).
+    uint8 startIndex = 0;
+    const uint16 nextCharAddr = mem.read16LE(
+        getOpcodeLayout().runtimeField(kEclRuntimeNextCharPtr));
+    if (nextCharAddr >= g_characterBase && g_characterSize != 0) {
+        const uint16 rel = static_cast<uint16>(nextCharAddr - g_characterBase);
+        const uint8 idx = static_cast<uint8>(rel / g_characterSize);
+        if (idx < partySize && getCharacterBlockBase(idx) == nextCharAddr)
+            startIndex = idx;
+    }
+
+    // Walk selectCount entries from startIndex; if out of bounds, leave current
+    // selection unchanged (matching original null-pointer guard).
+    const uint16 resolvedIndex = static_cast<uint16>(startIndex + selectCount);
+    if (resolvedIndex < partySize) {
+        const uint8 selectedIndex = static_cast<uint8>(resolvedIndex);
+        const uint8 selectedIndexWithFlags = static_cast<uint8>(selectedIndex |
+            (npcFlag ? 0x80 : 0x00));
+        mem.write8(getOpcodeLayout().vmGlobalField(
+            kVmGlobalFieldSelectedPcIndex).vmAddr, selectedIndexWithFlags);
+        mem.write16LE(getOpcodeLayout().runtimeField(
+            kEclRuntimeSelectedCharPtr), getCharacterBlockBase(selectedIndex));
+
+        Common::Array<Data::PlayerCharacter *> *party =
+            VmInterface::getParty();
+        if (party && selectedIndex < party->size())
+            VmInterface::setSelectedCharacter((*party)[selectedIndex]);
+    }
+
+    // Poolrad originals (x86/m68k): when bit 7 is set and both redraw flags
+    // are true, perform party UI/update flow and then clear redraw flags.
+    // We mirror the observable VM side effect (flag clear) here.
+    const uint16 statusRedrawAddr = getOpcodeLayout().runtimeField(
+        kEclRuntimeStatusRedrawFlag);
+    const uint16 charRedrawAddr = getOpcodeLayout().runtimeField(
+        kEclRuntimeCharacterRedrawFlag);
+    if (npcFlag && EclRuntimeLayout::isValidVmAddr(statusRedrawAddr)
+            && EclRuntimeLayout::isValidVmAddr(charRedrawAddr)
+            && mem.read8(statusRedrawAddr) != 0
+            && mem.read8(charRedrawAddr) != 0) {
+        mem.write8(statusRedrawAddr, 0);
+        mem.write8(charRedrawAddr, 0);
     }
     return VM_OK;
 }
@@ -309,12 +387,25 @@ static int handle_0x0B_LOAD_MONSTER(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
-    const uint16 monsterId = vm.readVar(1);
-    const uint16 count     = vm.readVar(2);
+    const uint8 monsterId = static_cast<uint8>(vm.readVar(1));
+    uint8 count           = static_cast<uint8>(vm.readVar(2));
+    const uint8 graphicId = static_cast<uint8>(vm.readVar(3));
+    if (count == 0)
+        count = 1;
+
+    if (syscalls) {
+        EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+        if (host) {
+            VmResult result = host->loadMonster(monsterId, count, graphicId);
+            if (result != VM_OK)
+                return result;
+        }
+    }
+
     const uint16 currentCount = mem.read16LE(getOpcodeLayout().runtimeField(kEclRuntimeMonsterCount));
     mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeMonsterCount),
-        static_cast<uint16>((currentCount + (count & 0xFF)) & 0xFFFF));
-    mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeEncounterFlags), monsterId & 0xFF);
+        static_cast<uint16>((currentCount + count) & 0xFFFF));
+    mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeEncounterFlags), monsterId);
     return VM_OK;
 }
 
@@ -443,7 +534,7 @@ static int handle_0x15_VERTICAL_MENU(EclVM &vm, AddressSpace &mem,
 // 0x16-0x1B: IF commands
 static int handleIF(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, uint8 opcode) {
-    (void)vm; (void)callStack;
+    (void)mem; (void)callStack;
     const int8 cmp = vm.getCmpResult();
     bool cond = false;
     switch (opcode) {
@@ -455,7 +546,7 @@ static int handleIF(EclVM &vm, AddressSpace &mem,
     case 0x1B: cond = (cmp >= 0); break;
     }
     if (!cond)
-        nextPc += 1;
+        nextPc = vm.skipLegacyInstructionOperands(nextPc);
     return VM_OK;
 }
 
@@ -498,7 +589,15 @@ static int handle_0x1B_IF_GREATER_EQUAL(EclVM &vm, AddressSpace &mem,
 // 0x1C: CLEARMONSTERS
 static int handle_0x1C_CLEARMONSTERS(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)nextPc; (void)callStack;
+    if (syscalls) {
+        EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+        if (host) {
+            VmResult result = host->clearMonsters();
+            if (result != VM_OK)
+                return result;
+        }
+    }
     mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeMonsterCount), 0);
     return VM_OK;
 }
@@ -549,8 +648,8 @@ static int handle_0x20_NEWECL(EclVM &vm, AddressSpace &mem,
     return syscalls->loadScript(static_cast<uint8>(vm.getOpWord(1)));
 }
 
-// 0x21: LOAD FILES <geoBlockId> <unused> <iconTrigger>
-static int handle_0x21_LOAD_FILES(EclVM &vm, AddressSpace &mem,
+// 0x21: LOAD_AREA_GEO <geoBlockId> <unused> <iconTrigger>
+static int handle_0x21_LOAD_AREA_GEO(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack;
     if (!syscalls)
@@ -563,12 +662,18 @@ static int handle_0x21_LOAD_FILES(EclVM &vm, AddressSpace &mem,
 
     if (geoBlockId != 0xFF && geoBlockId != 0x7F && indoorMode) {
         mem.write8(getOpcodeLayout().vmField(kVmFieldGeoBlockId).vmAddr, geoBlockId);
-        syscalls->loadGeoBlock(geoBlockId);
+        VmResult geoResult = syscalls->loadGeoBlock(geoBlockId);
+        if (geoResult != VM_OK)
+            return geoResult;
         mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldMovementBlock).vmAddr, 0);
     }
-    if (iconTrigger != 0xFF && !indoorMode)
-        syscalls->loadIconBlock();
-    return VM_OK;
+    if (iconTrigger != 0xFF && !indoorMode) {
+        VmResult iconResult = syscalls->loadIconBlock();
+        if (iconResult != VM_OK)
+            return iconResult;
+    }
+    vm.geoReady = true;
+    return vm.checkMapDataReady();
 }
 
 // 0x22: PARTY SURPRISE <address1> <address2>
@@ -767,15 +872,16 @@ static int handle_0x36_ADD_NPC(EclVM &vm, AddressSpace &mem,
     return VM_OK;
 }
 
-// 0x37: LOAD PIECES <primaryBlockId> <middleBlockId> <secondaryBlockId>
+// 0x37: LOAD_AREA_WALLDEF <primaryBlockId> <middleBlockId> <secondaryBlockId>
 // Loads walldef geometry and 8x8 tile graphics into dynamic cache slots 1-3.
 // Mirrors the walldef branch of INSTR_LoadAreaDeco from the original.
 // Slots 0 and 4 are fixed (loaded at game init) and never touched here.
-static int handle_0x37_LOAD_PIECES(EclVM &vm, AddressSpace &mem,
+static int handle_0x37_LOAD_AREA_WALLDEF(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
+
     vm.getOperand(3);
     const uint8 primaryBlockId   = static_cast<uint8>(vm.readVar(1));
     const uint8 middleBlockId    = static_cast<uint8>(vm.readVar(2));
@@ -790,26 +896,34 @@ static int handle_0x37_LOAD_PIECES(EclVM &vm, AddressSpace &mem,
 
     if (primaryBlockId == 0x7F) {
         // Special default: load empty/default wallset block 0 into slot 1
-        syscalls->loadWallSet(0, 1);
+        VmResult result = syscalls->loadWallSet(0, 1);
+        if (result != VM_OK)
+            return result;
     } else if (!hasPrimary || !hasSecondary) {
         // Independent mode: each param drives its own slot directly.
-        // Slot 2 may be explicitly filled here (param2 != 0xFF).
+        // 0xFF values mean "invalidate slot" in the original flow.
         for (uint8 slot = 1; slot <= 3; ++slot) {
             uint8 blockId = (slot == 1) ? primaryBlockId
                           : (slot == 2) ? middleBlockId
                                         : secondaryBlockId;
-            // 0xFF = invalidate/clear this slot
-            syscalls->loadWallSet(blockId, slot);
+            VmResult result = syscalls->loadWallSet(blockId, slot);
+            if (result != VM_OK)
+                return result;
         }
     } else {
         // Paired-wallset mode: primary block fills slot 1 (and implicitly
         // slot 2 if the walldef has multiple 780-byte chunks); secondary
         // fills slot 3.  Middle param is unused in this mode.
-        syscalls->loadWallSet(primaryBlockId, 1);
-        syscalls->loadWallSet(secondaryBlockId, 3);
+        VmResult result = syscalls->loadWallSet(primaryBlockId, 1);
+        if (result != VM_OK)
+            return result;
+        result = syscalls->loadWallSet(secondaryBlockId, 3);
+        if (result != VM_OK)
+            return result;
     }
 
-    return VM_OK;
+    vm.wallsetReady = true;
+    return vm.checkMapDataReady();
 }
 
 // 0x39: WHO <message>
@@ -890,9 +1004,7 @@ static int handle_0x45_RANDOM0(EclVM &vm, AddressSpace &mem,
     vm.getOperand(2);
     const uint16 destAddr = vm.getOpWord(1);
     const uint16 maxVal   = vm.readVar(2);
-    const uint16 result   = (maxVal > 0) ?
-        static_cast<uint16>(getOpcodeRandom().getRandomNumber(maxVal)) : 0;
-    vm.writeVmMemory(destAddr, result, syscalls);
+    vm.writeVmMemory(destAddr, getLegacyRandomByte(maxVal), syscalls);
     return VM_OK;
 }
 
@@ -1003,7 +1115,7 @@ void registerBaselineOpcodeHandlers() {
     registerOpcodeHandler(0x1E, handle_0x1E_CHECKPARTY);
     registerOpcodeHandler(0x1F, handle_0x1F_UNDEFINED);
     registerOpcodeHandler(0x20, handle_0x20_NEWECL);
-    registerOpcodeHandler(0x21, handle_0x21_LOAD_FILES);
+    registerOpcodeHandler(0x21, handle_0x21_LOAD_AREA_GEO);
     registerOpcodeHandler(0x22, handle_0x22_PARTY_SURPRISE);
     registerOpcodeHandler(0x23, handle_0x23_SURPRISE);
     registerOpcodeHandler(0x24, handle_0x24_COMBAT);
@@ -1025,7 +1137,7 @@ void registerBaselineOpcodeHandlers() {
     registerOpcodeHandler(0x34, handle_0x34_ECL_CLOCK);
     registerOpcodeHandler(0x35, handle_0x35_SAVE_TABLE);
     registerOpcodeHandler(0x36, handle_0x36_ADD_NPC);
-    registerOpcodeHandler(0x37, handle_0x37_LOAD_PIECES);
+    registerOpcodeHandler(0x37, handle_0x37_LOAD_AREA_WALLDEF);
     registerOpcodeHandler(0x38, handle_0x38_PROGRAM);
     registerOpcodeHandler(0x39, handle_0x39_WHO);
     registerOpcodeHandler(0x3A, handle_0x3A_DELAY);
