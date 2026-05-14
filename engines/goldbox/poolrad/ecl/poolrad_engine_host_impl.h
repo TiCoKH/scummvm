@@ -32,12 +32,19 @@ namespace Goldbox {
 
 class Engine;
 class View;
+struct MenuItemList;
+class UIElement;
 
 namespace Gfx {
 class DaxTile;
 }
 
 namespace Poolrad {
+namespace Views {
+namespace Dialogs {
+class HorizontalMenu;
+}
+}
 
 namespace Data {
 class PoolradCharacter;
@@ -72,6 +79,16 @@ public:
         uint8 graphicId) override;
     VmResult clearMonsters() override;
     VmResult displayPicture(uint8 picID) override;
+    VmResult spriteOff() override;
+    int16 horizontalMenu(const Common::Array<Common::String> &options) override;
+    VmResult handleCallOpcode(uint16 callId) override;
+    VmResult beginPrintAsync(const Common::String &text,
+        bool clearBox) override;
+    VmResult beginHorizontalMenuAsync(uint16 resultAddr,
+        const Common::Array<Common::String> &options) override;
+    bool hasPendingAsync() const override;
+    bool isPendingAsyncReady() const override;
+    VmResult finalizePendingAsync() override;
     VmResult loadGeoBlock(uint8 blockId) override;
     VmResult loadIconBlock() override;
     VmResult loadWallSet(uint8 blockId, uint8 setSlot) override;
@@ -81,10 +98,21 @@ private:
     uint8 allocateMonsterIconSlot() const;
 
     // Owned DaxTile instances for walldef tile atlases (slots 1-3, 0-based idx)
-    Common::ScopedPtr<Gfx::DaxTile> _walldefTiles[3];
+    Common::ScopedPtr<Goldbox::Gfx::DaxTile> _walldefTiles[3];
     Common::Array<Data::PoolradCharacter *> _loadedMonsters;
     Common::Array<uint8> _monsterIconSlots;
     uint8 _nextMonsterIconSlot = 26;
+
+    // Async VM_YIELD state for horizontal menu.
+    bool _asyncMenuPending = false;
+    uint16 _asyncMenuResultAddr = 0;
+    Common::ScopedPtr<Goldbox::MenuItemList> _asyncMenuModel;
+    Goldbox::UIElement *_asyncMenuSink = nullptr;
+    Views::Dialogs::HorizontalMenu *_asyncHorizontalMenu = nullptr;
+
+    // Async VM_YIELD state for PRINT/PRINTCLEAR letter-pacing.
+    bool _asyncPrintPending = false;
+    Goldbox::UIElement *_asyncPrintSink = nullptr;
 };
 
 } // namespace Poolrad

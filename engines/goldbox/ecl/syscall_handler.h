@@ -69,6 +69,64 @@ public:
     virtual VmResult displayPicture(uint8 picID) = 0;
 
     /**
+     * Draw encounter stage with sprite and portrait (0x0C SPRITE START).
+     * Calculates monster distance from party position and draws the 3D encounter view.
+     * @param resourceId Sprite resource ID (DAX sprite sheet)
+     * @param distanceCap Maximum distance cap (clamps calculated distance)
+     * @param variantId Picture/portrait variant ID
+     * @return VmResult
+     */
+    virtual VmResult drawEncounterStage(uint8 resourceId, uint8 distanceCap,
+            uint8 variantId) { return VM_OK; }
+
+    /**
+     * Redraw encounter stage with new distance (0x0D SPRITE ADVANCE).
+     * Host maintains sprite and variant state from last drawEncounterStage call.
+     * @param newDistance New monster distance to display
+     * @return VmResult
+     */
+    virtual VmResult redrawEncounterStage(uint8 newDistance) { return VM_OK; }
+
+    /**
+     * Disable active encounter sprite overlay and refresh 3D area (0x31 SPRITE OFF).
+     * Called only when runtime sprite-load flag is set.
+     */
+    virtual VmResult spriteOff() { return VM_OK; }
+
+    /**
+     * Start an async delay operation (0x3A DELAY).
+     * Host reads its own CFG_GAME_SPEED configuration.
+     * Delay time = gameSpeed * 5 milliseconds.
+     * @return VM_YIELD to suspend VM, VM_OK if delay not supported
+     */
+    virtual VmResult beginDelay() {
+        return VM_OK;
+    }
+
+    /**
+     * Enable or disable legacy text draw delay pacing.
+     * PRINT/PRINTCLEAR set this true for the duration of one text draw.
+     */
+    virtual void setTextDelayEnabled(bool enabled) {
+        (void)enabled;
+    }
+
+    /**
+     * Start asynchronous PRINT/PRINTCLEAR rendering.
+     *
+     * Return values:
+     * - VM_YIELD: async print started; VM should suspend.
+     * - VM_OK: async path not used; caller should fallback to printText().
+     * - VM_ERROR: failed to start async operation.
+     */
+    virtual VmResult beginPrintAsync(const Common::String &text,
+            bool clearBox) {
+        (void)text;
+        (void)clearBox;
+        return VM_OK;
+    }
+
+    /**
      * Display a vertical (list) menu and wait for selection. Blocks until the
      * player selects an entry.
      * @param message Prompt message shown above the list

@@ -97,6 +97,38 @@ public:
      */
     virtual int16 horizontalMenu(const Common::Array<Common::String> &options) = 0;
 
+        /**
+         * Start horizontal menu asynchronously for VM_YIELD flow.
+         *
+         * Return values:
+         * - VM_YIELD: async operation started; VM should suspend.
+         * - VM_OK: async path not used; caller should fallback to synchronous
+         *          horizontalMenu().
+         * - VM_ERROR: failed to start operation.
+         */
+        virtual VmResult beginHorizontalMenuAsync(uint16 resultAddr,
+                        const Common::Array<Common::String> &options) {
+                (void)resultAddr;
+                (void)options;
+                return VM_OK;
+        }
+
+        /**
+         * True when a host-managed async syscall is active.
+         */
+        virtual bool hasPendingAsync() const { return false; }
+
+        /**
+         * True when the pending async syscall has completed and can be finalized.
+         */
+        virtual bool isPendingAsyncReady() const { return false; }
+
+        /**
+         * Finalize pending async syscall side effects (write results to VM memory,
+         * cleanup UI objects). Returns VM_OK when finalized.
+         */
+        virtual VmResult finalizePendingAsync() { return VM_OK; }
+
     /**
      * Display the parlay attitude menu (0x2C PARLAY).
      * Presents five attitudes: haughty, sly, nice, meek, abusive.
@@ -202,6 +234,41 @@ public:
      */
     virtual VmResult setupMonsterEncounter(uint8 monsterId, uint8 distance,
             uint8 graphicId) { return VM_OK; }
+
+    /**
+     * Draw encounter stage with sprite and portrait (0x0C SPRITE START).
+     * Calculates monster distance from party position and draws the 3D encounter view.
+     * @param resourceId Sprite resource ID (DAX sprite sheet)
+     * @param distanceCap Maximum distance cap (clamps calculated distance)
+     * @param variantId Picture/portrait variant ID
+     * @return VmResult
+     */
+    virtual VmResult drawEncounterStage(uint8 resourceId, uint8 distanceCap,
+            uint8 variantId) { return VM_OK; }
+
+    /**
+     * Redraw encounter stage with new distance (0x0D SPRITE ADVANCE).
+     * Host maintains sprite and variant state from last drawEncounterStage call.
+     * @param newDistance New monster distance to display
+     * @return VmResult
+     */
+    virtual VmResult redrawEncounterStage(uint8 newDistance) { return VM_OK; }
+
+        /**
+         * Disable active encounter sprite overlay and refresh 3D area (0x31 SPRITE OFF).
+         * Called only when runtime sprite-load flag is set.
+         */
+        virtual VmResult spriteOff() { return VM_OK; }
+
+    /**
+     * Start an async delay operation (0x3A DELAY).
+     * Host reads its own CFG_GAME_SPEED configuration.
+     * Delay time = gameSpeed * 5 milliseconds.
+     * @return VM_YIELD to suspend VM, VM_OK if delay not supported
+     */
+    virtual VmResult beginDelay() {
+        return VM_OK;
+    }
 
     /**
      * Clear all monsters from the encounter list (0x1C CLEARMONSTERS).
@@ -388,6 +455,16 @@ public:
      * @return VmResult
      */
     virtual VmResult playSoundEvent(uint8 soundId) { return VM_OK; }
+
+    /**
+     * Execute legacy CALL opcode target (0x2D CALL <address>). The target is a
+     * fixed engine routine ID used by original binaries. Hosts may implement
+     * platform-specific behavior for known IDs and return VM_OK for unknowns.
+     */
+    virtual VmResult handleCallOpcode(uint16 callId) {
+        (void)callId;
+        return VM_OK;
+    }
 
     /**
      * Stop movement and redraw the screen (0x42 STOP MOVE).

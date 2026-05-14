@@ -72,6 +72,7 @@ public:
     VmResult startCombat() override;
     VmResult executeProgram(uint8 programID) override;
     void clearTextBox() override;
+    void setTextDelayEnabled(bool enabled) override;
 
     VmResult loadScript(uint8 scriptID) override;
     VmResult loadWallSet(uint8 blockId, uint8 setSlot) override;
@@ -80,6 +81,8 @@ public:
 protected:
     ::Goldbox::Engine *_engine;         // Reference to main engine
     AddressSpace *_memory;              // Reference to ECL virtual memory
+    uint _baseTextDelay;                // Host-configured text delay value
+    bool _textDelayEnabled;             // Legacy CFG_TEXT_DELAY equivalent
 
     // Helper methods for dialog/view integration
     void _showMessageBox(const Common::String &text, bool clear);

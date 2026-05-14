@@ -79,6 +79,7 @@ protected:
 	void setup() override;
 	GUI::Debugger *getConsole() override;
 	void onGameStateEnter(GameState prev, GameState next) override;
+	bool tick() override;
 
 public:
 
@@ -101,6 +102,13 @@ public:
 	EffectHandler &effectsRuntime() { return _effectsRuntime; }
 	Gfx::WalldefSlotCache &getWalldefSlotCache() { return _walldefSlotCache; }
 	Gfx::Tile8x8Cache &getTileCache() { return _tileCache; }
+
+	/**
+	 * Execute ECL bytecode from an absolute script VM address.
+	 * Returns VM_YIELD when an async syscall suspends the VM.
+	 */
+	VmResult executeEclAtScriptAddress(uint16 scriptPc,
+			uint32 maxSteps = 1000000);
 };
 
 extern PoolradEngine *g_engine;

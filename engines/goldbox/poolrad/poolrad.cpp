@@ -257,5 +257,38 @@ GUI::Debugger *PoolradEngine::getConsole() {
 	return new Console();
 }
 
+bool PoolradEngine::tick() {
+	bool handled = Goldbox::Events::tick();
+
+	if (_eclFlags.suspended && _eclHost && _eclVm) {
+		if (!_eclHost->hasPendingAsync()) {
+			_eclFlags.suspended = false;
+		} else if (_eclHost->isPendingAsyncReady()) {
+			const VmResult finalizeResult = _eclHost->finalizePendingAsync();
+			if (finalizeResult == VM_OK) {
+				_eclFlags.suspended = false;
+				const VmResult resume =
+					executeEclAtScriptAddress(_eclVm->getPC());
+				if (resume == VM_YIELD)
+					_eclFlags.suspended = true;
+			} else if (finalizeResult == VM_ERROR || finalizeResult == VM_HALTED) {
+				_eclFlags.suspended = false;
+			}
+		}
+	}
+
+	return handled;
+}
+
+VmResult PoolradEngine::executeEclAtScriptAddress(uint16 scriptPc,
+		uint32 maxSteps) {
+	if (!_eclVm)
+		return VM_ERROR;
+
+	const VmResult r = _eclVm->runAtScriptAddress(scriptPc, maxSteps);
+	_eclFlags.suspended = (r == VM_YIELD);
+	return r;
+}
+
 } // namespace Poolrad
 } // namespace Goldbox

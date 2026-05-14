@@ -135,6 +135,12 @@ public:
     uint16 readVar(uint8 index) const;
 
     /**
+     * Read a value from VM address space using legacy region rules.
+     * Region-3 (ECL script) reads are byte-wide; other regions are word-wide.
+     */
+    uint16 readMemory(uint16 vmAddr) const;
+
+    /**
      * Read operand N as a string.
      * 0x80 (compressed inline): decompresses 6-bit packed data from VM bytes.
      * 0x81/0x03/0x01 (pointer): reads null-terminated string from VM flat memory.
