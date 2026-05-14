@@ -29,7 +29,10 @@ namespace Goldbox {
 namespace ECL {
 
 EclSyscallImpl::EclSyscallImpl(::Goldbox::Engine *engine, AddressSpace *memory)
-    : _engine(engine), _memory(memory) {
+        : _engine(engine), _memory(memory), _baseTextDelay(0),
+            _textDelayEnabled(false) {
+        if (_engine)
+                _baseTextDelay = VmInterface::getTextDelay();
 }
 
 void EclSyscallImpl::printText(const Common::String &text, bool clearBox) {
@@ -118,6 +121,23 @@ VmResult EclSyscallImpl::executeProgram(uint8 programID) {
 void EclSyscallImpl::clearTextBox() {
     if (!_engine) return;
     _showMessageBox(Common::String(""), true);
+}
+
+void EclSyscallImpl::setTextDelayEnabled(bool enabled) {
+    if (!_engine)
+        return;
+
+    // Legacy behavior toggles CFG_TEXT_DELAY only around PRINT/PRINTCLEAR.
+    // Map that flag to active text pacing while preserving host configuration.
+    if (enabled) {
+        _baseTextDelay = VmInterface::getTextDelay();
+        const uint effective = (_baseTextDelay == 0) ? 1 : _baseTextDelay;
+        VmInterface::setTextDelay(effective);
+    } else {
+        VmInterface::setTextDelay(0);
+    }
+
+    _textDelayEnabled = enabled;
 }
 
 VmResult EclSyscallImpl::loadScript(uint8 scriptID) {

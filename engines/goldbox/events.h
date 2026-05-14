@@ -475,6 +475,13 @@ public:
 			bool hasStringValue = false);
 
 	/**
+	 * Pumps one modal UI frame (events + pending menu results + draw/update)
+	 * without executing game tick logic. This is used by synchronous syscall
+	 * bridges waiting on dialog input.
+	 */
+	bool pumpModalInputFrame();
+
+	/**
 	 * Events manager doesn't have any intrinsic drawing
 	 */
 	void draw() override {}

@@ -32,11 +32,13 @@
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
+#include "goldbox/core/menu_item.h"
 #include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
 
@@ -51,6 +53,84 @@ static const int kPicture3DAreaCharX = 3;
 static const int kPicture3DAreaCharY = 3;
 static const int kPicture3DAreaPixelX = kPicture3DAreaCharX * 8;
 static const int kPicture3DAreaPixelY = kPicture3DAreaCharY * 8;
+static uint32 kModalMenuSinkCounter = 0;
+
+static bool isAsciiAlphaNum(char c) {
+    return (c >= 'A' && c <= 'Z')
+        || (c >= 'a' && c <= 'z')
+        || (c >= '0' && c <= '9');
+}
+
+static char toUpperAscii(char c) {
+    if (c >= 'a' && c <= 'z')
+        return static_cast<char>(c - ('a' - 'A'));
+    return c;
+}
+
+static char toLowerAscii(char c) {
+    if (c >= 'A' && c <= 'Z')
+        return static_cast<char>(c + ('a' - 'A'));
+    return c;
+}
+
+// Build a menu model equivalent to MENU_processShortcuts behavior:
+// - '~X' marks X as shortcut
+// - letters are normalized to lowercase in body text
+// - shortcut is stored as uppercase
+static Goldbox::MenuItemList buildLegacyHorizontalMenuModel(
+        const Common::Array<Common::String> &options) {
+    Goldbox::MenuItemList model;
+
+    for (uint i = 0; i < options.size(); ++i) {
+        const Common::String &src = options[i];
+        Goldbox::MenuItem item;
+        item.active = true;
+        item.shortcutFirst = true;
+        item.shortcut = '\0';
+
+        int markerPos = -1;
+        for (uint p = 0; p + 1 < src.size(); ++p) {
+            if (src[p] == '~') {
+                markerPos = static_cast<int>(p);
+                break;
+            }
+        }
+
+        if (markerPos >= 0 && markerPos + 1 < static_cast<int>(src.size())) {
+            item.shortcut = toUpperAscii(src[markerPos + 1]);
+            item.shortcutFirst = (markerPos == 0);
+
+            Common::String left = src.substr(0, markerPos);
+            Common::String right = src.substr(markerPos + 2);
+            item.text = left + right;
+        } else {
+            item.text = src;
+            for (uint p = 0; p < item.text.size(); ++p) {
+                if (isAsciiAlphaNum(item.text[p])) {
+                    item.shortcut = toUpperAscii(item.text[p]);
+                    item.shortcutFirst = (p == 0);
+                    Common::String left = item.text.substr(0, p);
+                    Common::String right = item.text.substr(p + 1);
+                    item.text = left + right;
+                    break;
+                }
+            }
+        }
+
+        for (uint p = 0; p < item.text.size(); ++p) {
+            if (item.text[p] != (char)0xFF)
+                item.text.setChar(toLowerAscii(item.text[p]), p);
+        }
+
+        if (item.shortcut == '\0')
+            item.shortcut = ' ';
+
+        model.items.push_back(item);
+    }
+
+    model.currentSelection = 0;
+    return model;
+}
 
 static uint8 rollD6() {
     return static_cast<uint8>(Goldbox::VmInterface::rollDice(1, 6));
@@ -145,12 +225,55 @@ static void loadMonsterEffects(Goldbox::Engine *engine, uint8 monsterId,
 namespace Goldbox {
 namespace Poolrad {
 
+class AsyncMenuResultSink : public Goldbox::UIElement {
+public:
+    bool done;
+    bool success;
+    int value;
+
+    AsyncMenuResultSink(const Common::String &name, Goldbox::UIElement *parent)
+        : Goldbox::UIElement(name, parent), done(false), success(false), value(-1) {
+    }
+
+    void handleMenuResult(const Goldbox::MenuResultMessage &result) override {
+        done = true;
+        success = result._success;
+        value = result._hasIntValue ? result._intValue : -1;
+    }
+};
+
+class AsyncDelaySink : public Goldbox::UIElement {
+public:
+    bool done;
+
+    AsyncDelaySink(const Common::String &name, Goldbox::UIElement *parent,
+            uint frames)
+        : Goldbox::UIElement(name, parent), done(false) {
+        delayFrames(frames);
+    }
+
+    void timeout() override {
+        done = true;
+    }
+};
+
 PoolradEngineHostImpl::PoolradEngineHostImpl(::Goldbox::Engine *engine,
         ECL::AddressSpace *memory)
     : EclSyscallImpl(engine, memory) {
 }
 
 PoolradEngineHostImpl::~PoolradEngineHostImpl() {
+    if (_asyncMenuSink)
+        delete _asyncMenuSink;
+    _asyncMenuSink = nullptr;
+    _asyncHorizontalMenu = nullptr;
+    _asyncMenuModel.reset();
+    _asyncMenuPending = false;
+
+    if (_asyncPrintSink)
+        delete _asyncPrintSink;
+    _asyncPrintSink = nullptr;
+    _asyncPrintPending = false;
     clearMonsters();
 }
 
@@ -285,6 +408,235 @@ VmResult PoolradEngineHostImpl::displayPicture(uint8 picID) {
     // Pic::read() allocates a right-sized ManagedSurface (block width/height).
     pic->draw(screen, kPicture3DAreaPixelX, kPicture3DAreaPixelY);
     return VmResult::VM_OK;
+}
+
+int16 PoolradEngineHostImpl::horizontalMenu(
+        const Common::Array<Common::String> &options) {
+    if (options.empty())
+        return -1;
+    if (!_engine || !g_events)
+        return -1;
+
+    UIElement *focused = g_events->focusedView();
+    if (!focused)
+        return -1;
+
+    // Build legacy-compatible menu metadata so the UI layer can consume
+    // shortcut/text splits identical to MENU_processShortcuts semantics.
+    Goldbox::MenuItemList parsed =
+        buildLegacyHorizontalMenuModel(options);
+
+    Views::Dialogs::HorizontalMenuConfig cfg;
+    cfg.promptTxt = "";
+    cfg.menuItemList = &parsed;
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.promptColor = 15;
+    cfg.allowNumPad = true;
+    cfg.backgroundColor = 0;
+
+    Common::String sinkName = Common::String::format("EclMenuSink_%u",
+        ++kModalMenuSinkCounter);
+    AsyncMenuResultSink *sink = new AsyncMenuResultSink(sinkName, focused);
+
+    Views::Dialogs::HorizontalMenu *menu =
+        new Views::Dialogs::HorizontalMenu("EclHorizontalMenu", cfg);
+    sink->subView(menu);
+    menu->activate();
+    menu->redraw();
+
+    while (menu->isActive() && !sink->done) {
+        if (!g_events->pumpModalInputFrame())
+            break;
+    }
+
+    const int16 result = (sink->done && sink->success && sink->value >= 0)
+        ? static_cast<int16>(sink->value)
+        : static_cast<int16>(-1);
+
+    delete sink;
+    return result;
+}
+
+VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
+    // 0x2D CALL target dispatcher (x86/m68k compatible IDs).
+    switch (callId) {
+    case 0x2C90:
+        // CALL_MAP_3D_COLOR_UPDATE + DIALOG_StateArea in originals.
+        // Current engine fallback: refresh active view; full MAP_3DColorUpdate
+        // parity (color recompute + wilderness mini-map block) needs dedicated
+        // map-render/state-area integration hooks.
+        _updateViewState();
+        return VM_OK;
+
+    case 0x8000:
+    case 0x8001: {
+        // SPECIAL_COMBAT_MODE on/off. Original behavior modifies a linked
+        // encounter list and may synthesize an extra hostile NPC entry.
+        // Current safe subset: toggle selected character quickfight/hostile.
+        Poolrad::Data::PoolradCharacter *selected =
+            dynamic_cast<Poolrad::Data::PoolradCharacter *>(
+                VmInterface::getSelectedCharacter());
+        if (selected) {
+            if (callId == 0x8000) {
+                selected->quickfight = true;
+                selected->hostile = false;
+            } else {
+                selected->quickfight = false;
+                selected->hostile = false;
+            }
+        }
+        return VM_OK;
+    }
+
+    case 0xBA03:
+        // Original: sound indirection through WORD_SOUND_FLAG -> sound 11/12.
+        // TODO: wire mapped sound bank/state once sound flag field mapping is
+        // available in VmGlobalLayout/RuntimeLayout.
+        return VM_OK;
+
+    case 0xC01E:
+        // Original: Map_StepForwardWrap / MAP_moveOnMap.
+        // TODO: route through in-game movement service with wrap semantics.
+        return VM_OK;
+
+    case 0xC018:
+        // Original (only when map type == 1): update position map_nibble.
+        // TODO: implement nibble sampling from active GEO map model.
+        return VM_OK;
+
+    default:
+        return VM_OK;
+    }
+}
+
+VmResult PoolradEngineHostImpl::spriteOff() {
+    // Legacy SPRITE_OFF calls MAP_3DColorUpdate when a sprite overlay is active.
+    // Current engine fallback: refresh active view.
+    _updateViewState();
+    return VM_OK;
+}
+
+VmResult PoolradEngineHostImpl::beginHorizontalMenuAsync(uint16 resultAddr,
+        const Common::Array<Common::String> &options) {
+    if (!_engine || !g_events || options.empty())
+        return VM_ERROR;
+    if (_asyncMenuPending)
+        return VM_ERROR;
+
+    UIElement *focused = g_events->focusedView();
+    if (!focused)
+        return VM_ERROR;
+
+    _asyncMenuModel.reset(new Goldbox::MenuItemList(
+        buildLegacyHorizontalMenuModel(options)));
+
+    Views::Dialogs::HorizontalMenuConfig cfg;
+    cfg.promptTxt = "";
+    cfg.menuItemList = _asyncMenuModel.get();
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.promptColor = 15;
+    cfg.allowNumPad = true;
+    cfg.backgroundColor = 0;
+
+    Common::String sinkName = Common::String::format("EclAsyncMenuSink_%u",
+        ++kModalMenuSinkCounter);
+    _asyncMenuSink = new AsyncMenuResultSink(sinkName, focused);
+    _asyncHorizontalMenu = new Views::Dialogs::HorizontalMenu(
+        "EclAsyncHorizontalMenu", cfg);
+    _asyncMenuSink->subView(_asyncHorizontalMenu);
+    _asyncHorizontalMenu->activate();
+    _asyncHorizontalMenu->redraw();
+
+    _asyncMenuResultAddr = resultAddr;
+    _asyncMenuPending = true;
+    return VM_YIELD;
+}
+
+VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
+        bool clearBox) {
+    if (!_engine || !g_events)
+        return VM_OK;
+    if (_asyncMenuPending || _asyncPrintPending)
+        return VM_ERROR;
+
+    UIElement *focused = g_events->focusedView();
+    if (!focused)
+        return VM_OK;
+
+    // Start visual print immediately, then yield for pacing frames.
+    printText(text, clearBox);
+
+    const uint textDelay = VmInterface::getTextDelay();
+    const uint frames = textDelay * FRAME_RATE / 2;
+    if (frames == 0)
+        return VM_OK;
+
+    Common::String sinkName = Common::String::format("EclAsyncPrintSink_%u",
+        ++kModalMenuSinkCounter);
+    _asyncPrintSink = new AsyncDelaySink(sinkName, focused, frames);
+    _asyncPrintPending = true;
+    return VM_YIELD;
+}
+
+bool PoolradEngineHostImpl::hasPendingAsync() const {
+    return _asyncMenuPending || _asyncPrintPending;
+}
+
+bool PoolradEngineHostImpl::isPendingAsyncReady() const {
+    if (_asyncMenuPending) {
+        if (!_asyncMenuSink)
+            return false;
+        const AsyncMenuResultSink *sink =
+            dynamic_cast<const AsyncMenuResultSink *>(_asyncMenuSink);
+        return sink && sink->done;
+    }
+
+    if (_asyncPrintPending) {
+        if (!_asyncPrintSink)
+            return false;
+        const AsyncDelaySink *sink =
+            dynamic_cast<const AsyncDelaySink *>(_asyncPrintSink);
+        return sink && sink->done;
+    }
+
+    return false;
+}
+
+VmResult PoolradEngineHostImpl::finalizePendingAsync() {
+    if (_asyncMenuPending) {
+        AsyncMenuResultSink *sink =
+            dynamic_cast<AsyncMenuResultSink *>(_asyncMenuSink);
+        if (!sink || !sink->done)
+            return VM_YIELD;
+
+        if (_memory && sink->success && sink->value >= 0)
+            _memory->write16LE(_asyncMenuResultAddr,
+                static_cast<uint16>(sink->value));
+
+        delete _asyncMenuSink;
+        _asyncMenuSink = nullptr;
+        _asyncHorizontalMenu = nullptr;
+        _asyncMenuModel.reset();
+        _asyncMenuResultAddr = 0;
+        _asyncMenuPending = false;
+        return VM_OK;
+    }
+
+    if (_asyncPrintPending) {
+        AsyncDelaySink *sink =
+            dynamic_cast<AsyncDelaySink *>(_asyncPrintSink);
+        if (!sink || !sink->done)
+            return VM_YIELD;
+
+        delete _asyncPrintSink;
+        _asyncPrintSink = nullptr;
+        _asyncPrintPending = false;
+        return VM_OK;
+    }
+
+    return VM_OK;
 }
 
 VmResult PoolradEngineHostImpl::loadGeoBlock(uint8 blockId) {

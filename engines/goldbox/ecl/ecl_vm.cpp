@@ -280,7 +280,7 @@ VmResult EclVM::executeInstruction(uint8 opcode, uint16 currentPc) {
     uint16 nextPc = _nextInsnPc;
     VmResult result = static_cast<VmResult>(handler(*this, _memory, nextPc, _callStack, _syscalls));
 
-    if (result == VM_OK) {
+    if (result == VM_OK || result == VM_YIELD) {
         // If handler didn't override nextPc, advance past operands.
         if (nextPc == static_cast<uint16>(currentPc + 1))
             nextPc = _nextInsnPc;
@@ -497,7 +497,16 @@ uint16 EclVM::readVmMemory(uint16 vmAddr) const {
         return value;
     }
 
+    // Legacy rule: script region reads are byte-wide.
+    // This mirrors x86/m68k VM_ReadVar/VM_ReadMemory behavior for bank 3.
+    if (getMemoryRegion(vmAddr) == 3)
+        return static_cast<uint16>(_memory.read8(vmAddr));
+
     return _memory.read16LE(vmAddr);
+}
+
+uint16 EclVM::readMemory(uint16 vmAddr) const {
+    return readVmMemory(vmAddr);
 }
 
 void EclVM::onDatBankWrite(uint16 vmAddr, uint16 value,

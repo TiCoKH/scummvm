@@ -100,6 +100,39 @@ static void writeLegacyStringVar(AddressSpace &mem, uint16 destAddr,
     mem.write8(static_cast<uint16>(destAddr + maxLen), 0);
 }
 
+static Common::String getLegacyPrintText(EclVM &vm) {
+    // x86 Inst_PRINT_PRCLEAR behavior:
+    // - type < 0x80: print numeric operand value converted to decimal string
+    // - type >= 0x80: print decoded string operand
+    if (vm.getOpType(1) < 0x80)
+        return Common::String::format("%u", static_cast<uint>(vm.readVar(1)));
+    return vm.readString(1);
+}
+
+static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
+        bool clearBox) {
+    if (!syscalls)
+        return VM_ERROR;
+
+    vm.getOperand(1);
+    const Common::String text = getLegacyPrintText(vm);
+    syscalls->setTextDelayEnabled(true);
+
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+        const VmResult asyncStart = host->beginPrintAsync(text, clearBox);
+        if (asyncStart == VM_YIELD || asyncStart == VM_ERROR) {
+            // Host should capture any needed delay state when async starts.
+            syscalls->setTextDelayEnabled(false);
+            return asyncStart;
+        }
+    }
+
+    // Fallback: synchronous print.
+    syscalls->printText(text, clearBox);
+    syscalls->setTextDelayEnabled(false);
+    return VM_OK;
+}
+
 // Opcode handlers
 
 static int handle_0x00_EXIT(EclVM &vm, AddressSpace &mem,
@@ -232,22 +265,14 @@ static int handle_0x09_SAVE(EclVM &vm, AddressSpace &mem,
 
 static int handle_0x11_PRINT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack;
-    if (!syscalls)
-        return VM_ERROR;
-    vm.getOperand(1);
-    syscalls->printText(vm.readString(1), false);
-    return VM_OK;
+    (void)mem; (void)nextPc; (void)callStack;
+    return runLegacyPrint(vm, syscalls, false);
 }
 
 static int handle_0x12_PRINTCLEAR(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack;
-    if (!syscalls)
-        return VM_ERROR;
-    vm.getOperand(1);
-    syscalls->printText(vm.readString(1), true);
-    return VM_OK;
+    (void)mem; (void)nextPc; (void)callStack;
+    return runLegacyPrint(vm, syscalls, true);
 }
 
 static int handle_0x13_RETURN(EclVM &vm, AddressSpace &mem,
@@ -410,28 +435,35 @@ static int handle_0x0B_LOAD_MONSTER(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x0C: SETUP MONSTER <monsterID> <distance> <graphicID>
-static int handle_0x0C_SETUP_MONSTER(EclVM &vm, AddressSpace &mem,
+// 0x0C: SPRITE START
+// Load sprite resource and variant, draw encounter stage with calculated distance
+static int handle_0x0C_SPRITE_START(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack;
+    (void)mem; (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(3);
-    const uint16 monsterId = vm.readVar(1);
-    const uint16 distance  = vm.readVar(2);
-    const uint8  dist      = (distance > 2) ? 2 : static_cast<uint8>(distance);
-    mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr, dist);
-    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeGameState), static_cast<uint8>(GS_COMBAT));
-    mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeEncounterFlags), monsterId & 0xFF);
-    return syscalls->startCombat();
+    const uint8 resourceId = static_cast<uint8>(vm.getOpWord(1));
+    const uint8 distanceCap = static_cast<uint8>(vm.getOpWord(2));
+    const uint8 variantId = static_cast<uint8>(vm.getOpWord(3));
+    return syscalls->drawEncounterStage(resourceId, distanceCap, variantId);
 }
 
 // 0x0D: APPROACH
-static int handle_0x0D_APPROACH(EclVM &vm, AddressSpace &mem,
+// 0x0D: SPRITE ADVANCE
+// Decrement monster distance and redraw encounter stage
+static int handle_0x0D_SPRITE_ADVANCE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)nextPc; (void)callStack; (void)syscalls;
-    uint8 dist = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr);
-    if (dist > 0)
-        mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr, dist - 1);
+    (void)vm; (void)nextPc; (void)callStack;
+    if (!syscalls)
+        return VM_ERROR;
+    uint16 distAddr = getOpcodeLayout().vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr;
+    uint8 dist = mem.read8(distAddr);
+    if (dist > 0) {
+        dist--;
+        mem.write8(distAddr, dist);
+        return syscalls->redrawEncounterStage(dist);
+    }
     return VM_OK;
 }
 
@@ -456,10 +488,15 @@ static int handle_0x33_PRINT_RETURN(EclVM &vm, AddressSpace &mem,
     return VM_OK;
 }
 
+// 0x3A: DELAY
+// Async delay scaled by host game speed setting (speed * 5 milliseconds)
 static int handle_0x3A_DELAY(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
-    return VM_OK;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack;
+    if (!syscalls)
+        return VM_ERROR;
+    // Host accesses its own CFG_GAME_SPEED configuration
+    return syscalls->beginDelay();
 }
 
 static int handle_0x38_PROGRAM(EclVM &vm, AddressSpace &mem,
@@ -720,12 +757,12 @@ static int handle_0x25_ON_GOTO(EclVM &vm, AddressSpace &mem,
     (void)mem; (void)callStack; (void)syscalls;
     // First pass: read var and count.
     vm.getOperand(2);
-    const uint16 var   = vm.readVar(1);
-    const uint8  count = static_cast<uint8>(vm.getOpWord(2));
+    const uint8 selector = static_cast<uint8>(vm.readVar(1));
+    const uint8 count = static_cast<uint8>(vm.readVar(2));
     // Re-decode all operands including varargs jump targets.
     vm.getOperand(static_cast<uint8>(2 + count));
-    if (var < count)
-        nextPc = vm.getOpWord(static_cast<uint8>(3 + var));
+    if (selector < count)
+        nextPc = vm.getOpWord(static_cast<uint8>(3 + selector));
     return VM_OK;
 }
 
@@ -735,13 +772,13 @@ static int handle_0x26_ON_GOSUB(EclVM &vm, AddressSpace &mem,
     (void)mem; (void)syscalls;
     // First pass: read var and count.
     vm.getOperand(2);
-    const uint16 var   = vm.readVar(1);
-    const uint8  count = static_cast<uint8>(vm.getOpWord(2));
+    const uint8 selector = static_cast<uint8>(vm.readVar(1));
+    const uint8 count = static_cast<uint8>(vm.readVar(2));
     // Re-decode all operands including varargs jump targets.
     vm.getOperand(static_cast<uint8>(2 + count));
-    if (var < count) {
+    if (selector < count) {
         callStack.push_back(nextPc);
-        nextPc = vm.getOpWord(static_cast<uint8>(3 + var));
+        nextPc = vm.getOpWord(static_cast<uint8>(3 + selector));
     }
     return VM_OK;
 }
@@ -767,17 +804,17 @@ static int handle_0x29_ENCOUNTER_MENU(EclVM &vm, AddressSpace &mem,
     return VM_OK;
 }
 
-// 0x2A: GETTABLE <address1> <var> <address2>
-static int handle_0x2A_GETTABLE(EclVM &vm, AddressSpace &mem,
+// 0x2A: COPY MEM <baseAddr> <offsetVar> <destAddr>
+static int handle_0x2A_COPY_MEM(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
     vm.getOperand(3);
-    const uint16 baseAddr = vm.getOpWord(1);
-    const uint16 index    = vm.readVar(2);
-    const uint16 destAddr = vm.getOpWord(3);
-    const uint16 value    = mem.read16LE(static_cast<uint16>(baseAddr + index));
+    const uint16 baseAddr  = vm.getOpWord(1);
+    const uint8 offset     = static_cast<uint8>(vm.readVar(2));
+    const uint16 srcAddr   = static_cast<uint16>(baseAddr + offset);
+    const uint16 destAddr  = vm.getOpWord(3);
+    const uint16 value     = vm.readMemory(srcAddr);
     vm.writeVmMemory(destAddr, value, syscalls);
-    vm.setCmpResult(value == 0 ? 0 : 1);
     return VM_OK;
 }
 
@@ -796,6 +833,14 @@ static int handle_0x2B_HORIZONTAL_MENU(EclVM &vm, AddressSpace &mem,
     for (uint8 i = 0; i < count; ++i)
         options.push_back(vm.readString(static_cast<uint8>(3 + i)));
 
+    // Preferred path: host starts menu asynchronously and VM yields.
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+        const VmResult asyncStart =
+            host->beginHorizontalMenuAsync(resultAddr, options);
+        if (asyncStart == VM_YIELD || asyncStart == VM_ERROR)
+            return asyncStart;
+    }
+
     const int16 selection = syscalls->horizontalMenu(options);
     if (selection >= 0)
         vm.writeVmMemory(resultAddr, static_cast<uint16>(selection),
@@ -813,9 +858,58 @@ static int handle_0x2C_PARLAY(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x2D: CALL <address>
+// Platform note:
+// - x86 compares raw call IDs directly (0x2C90, 0x8000, 0x8001, 0xBA03, 0xC01E, 0xC018)
+// - m68k compares (int16(callId) - 0x7FFF), which maps to the same raw IDs.
 static int handle_0x2D_CALL(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack;
+    vm.getOperand(1);
+    const uint16 callId = vm.getOpWord(1);
+
+    EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+
+    // Special x86/m68k 0x2C90 flow: mapdata-load redraw/state refresh gate.
+    if (callId == 0x2C90 && vm.mapdataInload) {
+        const EclLayoutAccess layout = getOpcodeLayout();
+        const uint16 spriteLoadAddr = layout.runtimeField(kEclRuntimeSpriteState);
+        const uint16 skyboxRedrawAddr = layout.runtimeField(kEclRuntimeSkyboxRedrawFlag);
+        const uint16 positionDirtyAddr = layout.runtimeField(kEclRuntimePositionDirtyFlag);
+        const uint16 charRedrawAddr = layout.runtimeField(kEclRuntimeCharacterRedrawFlag);
+        const uint16 statusRedrawAddr = layout.runtimeField(kEclRuntimeStatusRedrawFlag);
+
+        const bool needsRefresh =
+            (EclRuntimeLayout::isValidVmAddr(statusRedrawAddr) && mem.read8(statusRedrawAddr) != 0) ||
+            (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr) && mem.read8(spriteLoadAddr) != 0) ||
+            (EclRuntimeLayout::isValidVmAddr(charRedrawAddr) && mem.read8(charRedrawAddr) != 0) ||
+            (EclRuntimeLayout::isValidVmAddr(positionDirtyAddr) && mem.read8(positionDirtyAddr) != 0) ||
+            (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr) && mem.read8(skyboxRedrawAddr) != 0);
+
+        if (needsRefresh) {
+            if (host) {
+                VmResult r = host->handleCallOpcode(callId);
+                if (r != VM_OK)
+                    return r;
+            }
+
+            if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
+                mem.write8(skyboxRedrawAddr, 0);
+            if (EclRuntimeLayout::isValidVmAddr(positionDirtyAddr))
+                mem.write8(positionDirtyAddr, 0);
+            if (EclRuntimeLayout::isValidVmAddr(charRedrawAddr))
+                mem.write8(charRedrawAddr, 0);
+            if (EclRuntimeLayout::isValidVmAddr(statusRedrawAddr))
+                mem.write8(statusRedrawAddr, 0);
+            if (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr))
+                mem.write8(spriteLoadAddr, 0);
+        }
+
+        return VM_OK;
+    }
+
+    if (host)
+        return host->handleCallOpcode(callId);
+
     return VM_OK;
 }
 
@@ -830,8 +924,24 @@ static int handle_0x2E_DAMAGE(EclVM &vm, AddressSpace &mem,
 // 0x31: SPRITE OFF
 static int handle_0x31_SPRITE_OFF(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)nextPc; (void)callStack; (void)syscalls;
-    mem.write8(getOpcodeLayout().runtimeField(kEclRuntimeSpriteState), 0);
+    (void)vm; (void)nextPc; (void)callStack;
+    const EclLayoutAccess layout = getOpcodeLayout();
+    const uint16 spriteLoadAddr = layout.runtimeField(kEclRuntimeSpriteState);
+    const uint16 skyboxRedrawAddr = layout.runtimeField(kEclRuntimeSkyboxRedrawFlag);
+
+    if (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr)
+            && mem.read8(spriteLoadAddr) != 0) {
+        if (syscalls) {
+            VmResult r = syscalls->spriteOff();
+            if (r != VM_OK)
+                return r;
+        }
+
+        mem.write8(spriteLoadAddr, 0);
+        if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
+            mem.write8(skyboxRedrawAddr, 0);
+    }
+
     return VM_OK;
 }
 
@@ -1094,8 +1204,8 @@ void registerBaselineOpcodeHandlers() {
     registerOpcodeHandler(0x09, handle_0x09_SAVE);
     registerOpcodeHandler(0x0A, handle_0x0A_LOAD_CHARACTER);
     registerOpcodeHandler(0x0B, handle_0x0B_LOAD_MONSTER);
-    registerOpcodeHandler(0x0C, handle_0x0C_SETUP_MONSTER);
-    registerOpcodeHandler(0x0D, handle_0x0D_APPROACH);
+    registerOpcodeHandler(0x0C, handle_0x0C_SPRITE_START);
+    registerOpcodeHandler(0x0D, handle_0x0D_SPRITE_ADVANCE);
     registerOpcodeHandler(0x0E, handle_0x0E_PICTURE);
     registerOpcodeHandler(0x0F, handle_0x0F_INPUT_NUMBER);
     registerOpcodeHandler(0x10, handle_0x10_INPUT_STRING);
@@ -1124,7 +1234,7 @@ void registerBaselineOpcodeHandlers() {
     registerOpcodeHandler(0x27, handle_0x27_TREASURE);
     registerOpcodeHandler(0x28, handle_0x28_ROB);
     registerOpcodeHandler(0x29, handle_0x29_ENCOUNTER_MENU);
-    registerOpcodeHandler(0x2A, handle_0x2A_GETTABLE);
+    registerOpcodeHandler(0x2A, handle_0x2A_COPY_MEM);
     registerOpcodeHandler(0x2B, handle_0x2B_HORIZONTAL_MENU);
     registerOpcodeHandler(0x2C, handle_0x2C_PARLAY);
     registerOpcodeHandler(0x2D, handle_0x2D_CALL);

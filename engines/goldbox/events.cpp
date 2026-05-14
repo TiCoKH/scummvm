@@ -249,6 +249,31 @@ void Events::postMenuResult(const Common::String &targetViewName,
 	postMenuResult(msg);
 }
 
+bool Events::pumpModalInputFrame() {
+	Common::Event e;
+	while (g_system->getEventManager()->pollEvent(e)) {
+		if (e.type == Common::EVENT_QUIT ||
+				e.type == Common::EVENT_RETURN_TO_LAUNCHER) {
+			_views.clear();
+			return false;
+		}
+
+		processEvent(e);
+	}
+
+	dispatchPendingMenuResults();
+
+	if (_views.empty() || shouldQuit())
+		return false;
+
+	drawElements();
+	if (_screen)
+		_screen->update();
+
+	g_system->delayMillis(10);
+	return true;
+}
+
 void Events::setCursor(int cursorNum) {
 	_cursorNum = cursorNum;
 	const Cursor &curs = _cursors[cursorNum];
