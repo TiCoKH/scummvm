@@ -37,6 +37,7 @@
 #include "goldbox/data/strings_data.h"
 #include "goldbox/data/items/base_items.h"
 #include "goldbox/data/daxfilemanager.h"
+#include "goldbox/gfx/walldef_surface_builder.h"
 
 namespace Goldbox {
 
@@ -63,6 +64,9 @@ protected:
 public:
 	Graphics::Font * _font = nullptr;
 	Graphics::Font * _symbols = nullptr;
+	Gfx::WalldefSlotCache _walldefSlotCache;
+	Gfx::Tile8x8Cache _tileCache;
+	Gfx::DaxTile *_fixedTileCacheSlot0 = nullptr;
 	Data::StringsData _strings;
 	Common::Array<Data::PlayerCharacter *> _party;
 	Data::PlayerCharacter * _selectedCharacter = nullptr;
@@ -241,6 +245,24 @@ public:
 	 */
 	Data::DaxFileManager &getDaxManager() { return _daxManager; }
 	const Data::DaxFileManager &getDaxManager() const { return _daxManager; }
+
+	Gfx::WalldefSlotCache &getWalldefSlotCache() { return _walldefSlotCache; }
+	const Gfx::WalldefSlotCache &getWalldefSlotCache() const {
+		return _walldefSlotCache;
+	}
+
+	Gfx::Tile8x8Cache &getTileCache() { return _tileCache; }
+	const Gfx::Tile8x8Cache &getTileCache() const { return _tileCache; }
+
+	/**
+	 * Load and bind the fixed 8x8 tile cache slots used by original Goldbox
+	 * runtimes:
+	 *   - symbolsBlockId -> slot 4
+	 *   - slot0BlockId   -> slot 0
+	 * The symbols block is also assigned to _symbols for frame/symbol drawing.
+	 */
+	void initFixedTileCacheSlots(uint8 symbolsBlockId = 202,
+			uint8 slot0BlockId = 203);
 
 	/**
 	 * Uses a serializer to allow implementing savegame

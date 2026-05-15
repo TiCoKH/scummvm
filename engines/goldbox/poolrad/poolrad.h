@@ -69,13 +69,6 @@ private:
 	uint16 _mapX = 0, _mapY = 0;
 	EffectHandler _effectsRuntime;
 
-	/** Runtime 3D wall graphics cache (loaded by ECL LOAD_PIECES opcode). */
-	Gfx::WalldefSlotCache _walldefSlotCache;
-	/** 5-slot tile atlas cache (slots 0-4 for universal + walldef tiles). */
-	Gfx::Tile8x8Cache _tileCache;
-	/** Fixed tile atlas bound to cache slot 0 (original startup preload). */
-	Gfx::DaxTile *_fixedTileCacheSlot0 = nullptr;
-
 	// -------------------------------------------------------------------
 	// ECL VM runtime
 	// -------------------------------------------------------------------
@@ -149,8 +142,6 @@ public:
 	 */
 	Gfx::IconManager *getIconManager() const { return _iconManager; }
 	EffectHandler &effectsRuntime() { return _effectsRuntime; }
-	Gfx::WalldefSlotCache &getWalldefSlotCache() { return _walldefSlotCache; }
-	Gfx::Tile8x8Cache &getTileCache() { return _tileCache; }
 	ECL::AddressSpace *getEclMemory();
 	const ECL::AddressSpace *getEclMemory() const;
 	Data::DaxBlockGeo *getGeoBlockById(uint8 mapId);

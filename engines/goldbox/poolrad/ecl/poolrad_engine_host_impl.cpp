@@ -684,11 +684,9 @@ VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
     if (!_engine) return VmResult::VM_ERROR;
     if (setSlot < 1 || setSlot > 3) return VmResult::VM_ERROR;
 
-    PoolradEngine *poolrad = dynamic_cast<PoolradEngine *>(_engine);
-    if (!poolrad) return VmResult::VM_ERROR;
-
-    Goldbox::Gfx::WalldefSlotCache &walldefCache = poolrad->getWalldefSlotCache();
-    Goldbox::Gfx::Tile8x8Cache &tileCache = poolrad->getTileCache();
+    Goldbox::Gfx::WalldefSlotCache &walldefCache =
+        _engine->getWalldefSlotCache();
+    Goldbox::Gfx::Tile8x8Cache &tileCache = _engine->getTileCache();
 
     // Original DECO flow uses 0xFF to invalidate/clear a slot.
     if (blockId == 0xFF) {

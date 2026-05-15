@@ -55,7 +55,6 @@ PoolradEngine::PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDe
 
 PoolradEngine::~PoolradEngine() {
 	g_engine = nullptr;
-	delete _fixedTileCacheSlot0;
 	delete _views;
 	delete _iconManager;
 }
@@ -204,34 +203,9 @@ void PoolradEngine::setup() {
 	auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(pc_font));
 	_font = daxFont;
 
-	// Original startup preload order (m68k/x86 parity):
-	//   DAX_Load8x8TilesetToCache(202, 4)
-	//   DAX_Load8x8TilesetToCache(203, 0)
-	// Keep both fixed slots (0 and 4) resident.
-	Goldbox::Data::DaxBlock *symbols = getDax8x8d().getBlockById(202);
-	if (!symbols) {
-		error("Failed to load symbols block 202 from 8x8d container");
-	}
-	Goldbox::Data::DaxBlock8x8D *symbols8x8 =
-		dynamic_cast<Goldbox::Data::DaxBlock8x8D *>(symbols);
-	if (!symbols8x8)
-		error("8x8d block 202 has unexpected type");
-	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(symbols8x8);
-	_symbols = daxScreenTiles;
-	_tileCache.setSlot(4, daxScreenTiles);
-
-	Goldbox::Data::DaxBlock *slot0TilesBlock = getDax8x8d().getBlockById(203);
-	if (!slot0TilesBlock) {
-		error("Failed to load fixed tile cache block 203 from 8x8d container");
-	}
-	Goldbox::Data::DaxBlock8x8D *slot0Tiles8x8 =
-		dynamic_cast<Goldbox::Data::DaxBlock8x8D *>(slot0TilesBlock);
-	if (!slot0Tiles8x8)
-		error("8x8d block 203 has unexpected type");
-	_fixedTileCacheSlot0 = new Goldbox::Gfx::DaxTile(slot0Tiles8x8);
-
-	// Populate universal tile cache slot 0 (global IDs 1..45).
-	_tileCache.setSlot(0, _fixedTileCacheSlot0);
+	// Engine-wide fixed tile cache preload (original Goldbox behavior):
+	// slot 4 <- symbols block 202, slot 0 <- block 203.
+	initFixedTileCacheSlots(202, 203);
 
 
 	if (!_strings.load("global_strings.yml")){
