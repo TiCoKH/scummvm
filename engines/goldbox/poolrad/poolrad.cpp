@@ -27,6 +27,7 @@
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/strings_data.h"
+#include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
 
@@ -54,6 +55,7 @@ PoolradEngine::PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDe
 
 PoolradEngine::~PoolradEngine() {
 	g_engine = nullptr;
+	delete _fixedTileCacheSlot0;
 	delete _views;
 	delete _iconManager;
 }
@@ -139,7 +141,31 @@ void PoolradEngine::setup() {
 	getDaxManager().loadFile(Common::Path("mon6spc.dax"));
 	getDaxManager().loadFile(Common::Path("mon7spc.dax"));
 	getDaxManager().loadFile(Common::Path("mon8spc.dax"));
+	getDaxManager().loadFile(Common::Path("item1.dax"));
+	getDaxManager().loadFile(Common::Path("item2.dax"));
+	getDaxManager().loadFile(Common::Path("item3.dax"));
+	getDaxManager().loadFile(Common::Path("item4.dax"));
+	getDaxManager().loadFile(Common::Path("item5.dax"));
+	getDaxManager().loadFile(Common::Path("item6.dax"));
+	getDaxManager().loadFile(Common::Path("item7.dax"));
+	getDaxManager().loadFile(Common::Path("item8.dax"));
+	getDaxManager().loadFile(Common::Path("sprit1.dax"));
+	getDaxManager().loadFile(Common::Path("sprit2.dax"));
+	getDaxManager().loadFile(Common::Path("sprit3.dax"));
+	getDaxManager().loadFile(Common::Path("sprit4.dax"));
+	getDaxManager().loadFile(Common::Path("sprit5.dax"));
+	getDaxManager().loadFile(Common::Path("sprit6.dax"));
+	getDaxManager().loadFile(Common::Path("sprit7.dax"));
+	getDaxManager().loadFile(Common::Path("sprit8.dax"));
 
+	getDaxManager().loadFile(Common::Path("walldef1.dax"));
+	getDaxManager().loadFile(Common::Path("walldef2.dax"));
+	getDaxManager().loadFile(Common::Path("walldef3.dax"));
+	getDaxManager().loadFile(Common::Path("walldef4.dax"));
+	getDaxManager().loadFile(Common::Path("walldef5.dax"));
+	getDaxManager().loadFile(Common::Path("walldef6.dax"));
+	getDaxManager().loadFile(Common::Path("walldef7.dax"));
+	getDaxManager().loadFile(Common::Path("walldef8.dax"));
 
 	// Load DAX Pic files
 	getDaxManager().loadFile(Common::Path("body1.dax"));
@@ -178,16 +204,34 @@ void PoolradEngine::setup() {
 	auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(pc_font));
 	_font = daxFont;
 
-	// Populate daxScreenTiles from container
+	// Original startup preload order (m68k/x86 parity):
+	//   DAX_Load8x8TilesetToCache(202, 4)
+	//   DAX_Load8x8TilesetToCache(203, 0)
+	// Keep both fixed slots (0 and 4) resident.
 	Goldbox::Data::DaxBlock *symbols = getDax8x8d().getBlockById(202);
 	if (!symbols) {
 		error("Failed to load symbols block 202 from 8x8d container");
 	}
-	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(symbols));
+	Goldbox::Data::DaxBlock8x8D *symbols8x8 =
+		dynamic_cast<Goldbox::Data::DaxBlock8x8D *>(symbols);
+	if (!symbols8x8)
+		error("8x8d block 202 has unexpected type");
+	auto daxScreenTiles = new Goldbox::Gfx::DaxTile(symbols8x8);
 	_symbols = daxScreenTiles;
+	_tileCache.setSlot(4, daxScreenTiles);
 
-	// Populate universal tile cache slot 0 (8x8D block 202, IDs 1–45)
-	_tileCache.setSlot(0, daxScreenTiles);
+	Goldbox::Data::DaxBlock *slot0TilesBlock = getDax8x8d().getBlockById(203);
+	if (!slot0TilesBlock) {
+		error("Failed to load fixed tile cache block 203 from 8x8d container");
+	}
+	Goldbox::Data::DaxBlock8x8D *slot0Tiles8x8 =
+		dynamic_cast<Goldbox::Data::DaxBlock8x8D *>(slot0TilesBlock);
+	if (!slot0Tiles8x8)
+		error("8x8d block 203 has unexpected type");
+	_fixedTileCacheSlot0 = new Goldbox::Gfx::DaxTile(slot0Tiles8x8);
+
+	// Populate universal tile cache slot 0 (global IDs 1..45).
+	_tileCache.setSlot(0, _fixedTileCacheSlot0);
 
 
 	if (!_strings.load("global_strings.yml")){
@@ -289,6 +333,58 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 
 GUI::Debugger *PoolradEngine::getConsole() {
 	return new Console();
+}
+
+ECL::AddressSpace *PoolradEngine::getEclMemory() {
+	if (!_eclVm)
+		return nullptr;
+	return &_eclVm->getMemory();
+}
+
+const ECL::AddressSpace *PoolradEngine::getEclMemory() const {
+	if (!_eclVm)
+		return nullptr;
+	return &_eclVm->getMemory();
+}
+
+Data::DaxBlockGeo *PoolradEngine::getGeoBlockById(uint8 mapId) {
+	return dynamic_cast<Data::DaxBlockGeo *>(
+		getDaxGeo().getBlockById(mapId));
+}
+
+Data::DaxBlockGeo *PoolradEngine::getActiveGeoBlock() {
+	return getGeoBlockById(_legacySharedState.byteMapId);
+}
+
+bool PoolradEngine::getActiveMapPosition(uint16 &x, uint16 &y,
+		uint8 &dir) const {
+	if (!_eclVm)
+		return false;
+
+	const ECL::AddressSpace &mem = _eclVm->getMemory();
+	const VmGlobalLayout &layout = Data::getPoolradGlobalVmLayout();
+	const uint16 xAddr = layout.field(kVmGlobalFieldDungeonX).vmAddr;
+	const uint16 yAddr = layout.field(kVmGlobalFieldDungeonY).vmAddr;
+	const uint16 dirAddr = layout.field(kVmGlobalFieldDungeonDir).vmAddr;
+
+	x = mem.read16LE(xAddr);
+	y = mem.read16LE(yAddr);
+	dir = static_cast<uint8>((mem.read16LE(dirAddr) & 0x03) * 2);
+	return true;
+}
+
+bool PoolradEngine::getDebugWallSetState(int slot,
+		DebugWallSetState &state) const {
+	if (!_eclHost || slot < 1 || slot > 3)
+		return false;
+
+	const PoolradEngineHostImpl::WallSetRuntimeState &hostState =
+		_eclHost->wallSetState(slot);
+	state.loaded = hostState.loaded;
+	state.walldefBlockId = hostState.walldefBlockId;
+	state.tileBlockId = hostState.tileBlockId;
+	state.chunkIndex = hostState.chunkIndex;
+	return true;
 }
 
 bool PoolradEngine::tick() {
