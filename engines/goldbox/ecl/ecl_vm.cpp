@@ -24,8 +24,14 @@
  *
  * DaxEcl File Structure:
  * ----------------------
- * [Offset 0-9]:    10-byte header with 5 entry point addresses (word each, little-endian)
- * [Offset 10+]:    Bytecode stream with opcodes and operands
+ * [Offset 0+]:    5 GOTO instructions (opcode 0x01 + ADDR16 operand = 4 bytes each)
+ *                 Total header: 20 bytes. These are the entry point addresses
+ *                 read by ECL_LoadHeader via VM_GetOprand(1) called five times.
+ *                 Format per entry: [01] [01] [lo] [hi]
+ *                   - First 01 = GOTO opcode
+ *                   - Second 01 = type tag (ADDR16)
+ *                   - lo/hi = 16-bit LE target address
+ * [After header]: Bytecode stream with opcodes and operands
  *
  * Memory Layout (Pool of Radiance):
  * ---------------------------------
@@ -130,13 +136,15 @@ DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptI
 }
 
 bool EclVM::parseECLHeader(Common::Span<const uint8> program) {
-    if (program.size() < kEclHeaderSize) {
+    if (!_config)
         return false;
-    }
 
-    const uint16 scriptVmStart = _config ? _config->getScriptVmStart()
-            : ECLMemoryLayout::MEM_START_DEFAULT;
-        EclLayoutAccess layout = _config->getLayoutAccess();
+    // Minimum size: 5 encoded operands, each at least 2 bytes (type + lo).
+    if (program.size() < kEclHeaderWordCount * 2)
+        return false;
+
+    const uint16 scriptVmStart = _config->getScriptVmStart();
+    EclLayoutAccess layout = _config->getLayoutAccess();
     static const EclRuntimeFieldId kEntryRuntimeFields[kEclHeaderWordCount] = {
         kEclRuntimeOnMoveEntry,
         kEclRuntimeOnSearchEntry,
@@ -145,22 +153,24 @@ bool EclVM::parseECLHeader(Common::Span<const uint8> program) {
         kEclRuntimeOnInitEntry
     };
 
-    uint16 rawPc = scriptVmStart;
-    syncRuntimePc(rawPc);
+    // Original ECL_LoadHeader reads 5 entry points by calling
+    // VM_GetOprand(1) five times. Each entry is a full GOTO instruction:
+    // [opcode:0x01] [type:0x01] [lo] [hi] = 4 bytes.
+    // getOperand() reads from _pc+1 (skipping opcode) and sets _nextInsnPc
+    // to the next opcode position.
+    _pc = scriptVmStart;
+    syncRuntimePc(_pc);
 
-    // Original loader consumes the header via repeated word fetches from
-    // WORD_ECL_PC starting at the script base address.
     for (uint i = 0; i < kEclHeaderWordCount; ++i) {
-        const uint16 offset = static_cast<uint16>(i * 2);
-        const uint16 entryPc = static_cast<uint16>(program[offset] |
-            (program[offset + 1] << 8));
+        getOperand(1);
+        const uint16 entryPc = getOpWord(1);
         _entryPoints.push_back(entryPc);
-        _memory.write16LE(layout.runtimeField(kEntryRuntimeFields[i]), entryPc);
-        rawPc = static_cast<uint16>(rawPc + 2);
-        syncRuntimePc(rawPc);
+        _memory.write16LE(layout.runtimeField(kEntryRuntimeFields[i]),
+            entryPc);
+        // _nextInsnPc points at the next instruction's opcode.
+        _pc = _nextInsnPc;
+        syncRuntimePc(_pc);
     }
-
-    _pc = rawPc;
 
     return true;
 }
@@ -169,13 +179,6 @@ void EclVM::initializeECLState() {
     if (!_config) return;
 
     EclLayoutAccess layout = _config->getLayoutAccess();
-
-    // Clear transient flags (script-local variables)
-    uint16 flagBase = _config->getFlagBase();
-    uint16 transientCount = _config->getTransientFlagCount();
-    for (uint16 i = 0; i < transientCount; ++i) {
-        _memory.write8(flagBase + i, 0);
-    }
 
     // Clear execution control flags
     _memory.write8(layout.runtimeField(kEclRuntimeHaltFlag), 0);
@@ -211,6 +214,23 @@ void EclVM::initializeECLState() {
         0);
     _memory.write8(
         layout.vmGlobalField(kVmGlobalFieldRestInterruptChance).vmAddr, 0);
+
+    // Original ECL_LoadHeader: clear scenario flags (32 bytes) and party
+    // flags (10 bytes) only when NOT restoring a saved game.
+    if (!stateLoaded) {
+        uint16 flagBase = _config->getFlagBase();
+        uint16 transientCount = _config->getTransientFlagCount();
+        for (uint16 i = 0; i < transientCount; ++i)
+            _memory.write8(flagBase + i, 0);
+
+        // Clear party flags (D_PartyFlags[0..9] in original)
+        uint16 persistBase = static_cast<uint16>(
+            flagBase + transientCount);
+        for (uint16 i = 0; i < 10; ++i)
+            _memory.write8(persistBase + i, 0);
+    } else {
+        stateLoaded = false;
+    }
 
     // Mirror GB_EngineMain initial flag state.
     screenRefresh   = true;  // BOOL_SCREEN_REFRESH = true
@@ -294,7 +314,11 @@ void EclVM::getOperand(uint8 opCount) {
     _opStartPc = _pc;
     _opValues[0] = opCount;
 
-    // Read directly from flat memory — no heap allocation.
+    // Original VM_GetOprand reads operands starting at WORD_ECL_PC + 1
+    // (skipping the opcode byte at the current PC). After the loop it
+    // does WORD_ECL_PC += 1. The net effect is that WORD_ECL_PC ends up
+    // pointing at the next instruction's opcode. Our sequential pos++
+    // through type/lo/hi bytes achieves the same final position.
     uint16 pos = static_cast<uint16>(_pc + 1);
 
     if (opCount == 0) {
