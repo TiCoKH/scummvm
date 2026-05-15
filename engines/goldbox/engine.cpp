@@ -26,6 +26,8 @@
 #include "common/events.h"
 #include "engines/util.h"
 #include "graphics/palette.h"
+#include "goldbox/gfx/dax_tile.h"
+#include "goldbox/data/daxblock.h"
 
 namespace Goldbox {
 
@@ -39,6 +41,7 @@ Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine
 }
 
 Engine::~Engine() {
+	delete _fixedTileCacheSlot0;
 	delete _font;
 	delete _symbols;
 	_daxManager.clear();
@@ -46,6 +49,39 @@ Engine::~Engine() {
         delete _party[i];
     }
     _party.clear();
+}
+
+void Engine::initFixedTileCacheSlots(uint8 symbolsBlockId,
+		uint8 slot0BlockId) {
+	Data::DaxBlock *symbolsBlock = getDax8x8d().getBlockById(symbolsBlockId);
+	if (!symbolsBlock)
+		error("Failed to load symbols block %u from 8x8d container",
+			(unsigned)symbolsBlockId);
+
+	Data::DaxBlock8x8D *symbols8x8 =
+		dynamic_cast<Data::DaxBlock8x8D *>(symbolsBlock);
+	if (!symbols8x8)
+		error("8x8d block %u has unexpected type",
+			(unsigned)symbolsBlockId);
+
+	delete _symbols;
+	_symbols = new Gfx::DaxTile(symbols8x8);
+	_tileCache.setSlot(4, dynamic_cast<Gfx::DaxTile *>(_symbols));
+
+	Data::DaxBlock *slot0Block = getDax8x8d().getBlockById(slot0BlockId);
+	if (!slot0Block)
+		error("Failed to load fixed tile cache block %u from 8x8d container",
+			(unsigned)slot0BlockId);
+
+	Data::DaxBlock8x8D *slot08x8 =
+		dynamic_cast<Data::DaxBlock8x8D *>(slot0Block);
+	if (!slot08x8)
+		error("8x8d block %u has unexpected type",
+			(unsigned)slot0BlockId);
+
+	delete _fixedTileCacheSlot0;
+	_fixedTileCacheSlot0 = new Gfx::DaxTile(slot08x8);
+	_tileCache.setSlot(0, _fixedTileCacheSlot0);
 }
 
 uint32 Engine::getFeatures() const {
