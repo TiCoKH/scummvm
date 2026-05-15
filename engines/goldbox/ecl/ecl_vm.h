@@ -46,7 +46,6 @@ public:
     ~EclVM();
 
     static const uint16 kEclHeaderWordCount = 5;
-    static const uint16 kEclHeaderSize = kEclHeaderWordCount * 2;
 
     /**
      * Load and parse an ECL program.
@@ -200,6 +199,9 @@ public:
     bool mapdataInload     = false;
     // BOOL_CHARACTER_INLOAD: set true during character load sequences.
     bool characterInload   = false;
+    // BOOL_STATE_LOADED: set true when restoring a saved game; prevents
+    // clearing scenario/party flags during ECL header load.
+    bool stateLoaded       = false;
 
 protected:
     /**
@@ -230,7 +232,9 @@ private:
     uint16 _nextInsnPc; // PC past last operand = next instruction start
 
     /**
-     * Parse ECL header (first 10 bytes) to extract entry point offsets.
+     * Parse ECL header (5 GOTO instructions, 20 bytes) to extract entry
+     * point addresses. Uses getOperand() to decode each instruction's
+     * operand, matching original VM_GetOprand(1) behavior.
      * @param program Raw bytecode starting with header
      * @return True if header parsed successfully
      */

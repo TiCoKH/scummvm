@@ -101,10 +101,36 @@ void PoolradEngine::setup() {
 	getDaxManager().loadFile(Common::Path("geo6.dax"));
 	getDaxManager().loadFile(Common::Path("geo7.dax"));
 	getDaxManager().loadFile(Common::Path("geo8.dax"));
-	getDaxManager().loadFile(Common::Path("cpic.dax"));
-	getDaxManager().loadFile(Common::Path("moncha.dax"));
-	getDaxManager().loadFile(Common::Path("monitm.dax"));
-	getDaxManager().loadFile(Common::Path("monspc.dax"));
+	getDaxManager().loadFile(Common::Path("cpic1.dax"));
+	getDaxManager().loadFile(Common::Path("cpic2.dax"));
+	getDaxManager().loadFile(Common::Path("cpic3.dax"));
+	getDaxManager().loadFile(Common::Path("cpic4.dax"));
+	getDaxManager().loadFile(Common::Path("cpic5.dax"));
+	getDaxManager().loadFile(Common::Path("cpic6.dax"));
+	getDaxManager().loadFile(Common::Path("cpic7.dax"));
+	getDaxManager().loadFile(Common::Path("cpic8.dax"));
+	getDaxManager().loadFile(Common::Path("mon1cha.dax"));
+	getDaxManager().loadFile(Common::Path("mon2cha.dax"));
+	getDaxManager().loadFile(Common::Path("mon3cha.dax"));
+	getDaxManager().loadFile(Common::Path("mon4cha.dax"));
+	getDaxManager().loadFile(Common::Path("mon5cha.dax"));
+	getDaxManager().loadFile(Common::Path("mon6cha.dax"));
+	getDaxManager().loadFile(Common::Path("mon7cha.dax"));
+	getDaxManager().loadFile(Common::Path("mon8cha.dax"));
+	getDaxManager().loadFile(Common::Path("mon1itm.dax"));
+	getDaxManager().loadFile(Common::Path("mon2itm.dax"));
+	getDaxManager().loadFile(Common::Path("mon3itm.dax"));
+	getDaxManager().loadFile(Common::Path("mon4itm.dax"));
+	getDaxManager().loadFile(Common::Path("mon5itm.dax"));
+	getDaxManager().loadFile(Common::Path("mon6itm.dax"));
+	getDaxManager().loadFile(Common::Path("mon7itm.dax"));
+	getDaxManager().loadFile(Common::Path("mon8itm.dax"));
+	getDaxManager().loadFile(Common::Path("mon2spc.dax"));
+	getDaxManager().loadFile(Common::Path("mon4spc.dax"));
+	getDaxManager().loadFile(Common::Path("mon5spc.dax"));
+	getDaxManager().loadFile(Common::Path("mon6spc.dax"));
+	getDaxManager().loadFile(Common::Path("mon7spc.dax"));
+	getDaxManager().loadFile(Common::Path("mon8spc.dax"));
 
 
 	// Load DAX Pic files
