@@ -57,6 +57,14 @@ namespace Views {
  */
 class InGameView : public View {
 public:
+	/** Commands consumed by PoolradEngine legacy map-loop orchestrator. */
+	enum InGameCommand {
+		kCmdNone = 0,
+		kCmdMove,
+		kCmdSearch,
+		kCmdEncamp
+	};
+
 	/** Internal mode, parallel to GameState but view-scoped. */
 	enum InGameMode {
 		kModeNone,
@@ -80,6 +88,8 @@ private:
 	uint8 _mapDir = 0;
 	/** Search mode active flag. */
 	bool _searchMode = false;
+	/** Next command for engine-side map-loop. */
+	InGameCommand _pendingCommand = kCmdNone;
 
 	// --- Mode-specific drawing ---
 	void drawDungeonMode();
@@ -115,6 +125,15 @@ public:
 	bool msgKeypress(const KeypressMessage &msg) override;
 	void draw() override;
 	void onEnter(GameState state) override;
+
+	/** Queue a command for the engine runtime loop. */
+	void queueCommand(InGameCommand cmd) { _pendingCommand = cmd; }
+
+	/** Returns true if a command is waiting for the engine runtime loop. */
+	bool hasPendingCommand() const { return _pendingCommand != kCmdNone; }
+
+	/** Pop and clear pending command (DIALOG_InGame equivalent handoff). */
+	InGameCommand consumePendingCommand();
 };
 
 } // namespace Views

@@ -35,6 +35,14 @@
 namespace Goldbox {
 namespace Poolrad {
 
+namespace {
+
+static bool isWildernessMapId(uint8 mapId) {
+	return mapId == 0x19 || mapId == 0x1A || mapId == 0x1B;
+}
+
+} // namespace
+
 PoolradEngine *g_engine;
 
 //Data::Character PoolradEngine::_party[MAX_CHARACTERS];
@@ -211,16 +219,16 @@ void PoolradEngine::setup() {
 }
 
 void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
-	// Mirror Amiga SCREEN_DrawMainWindows(param) usage from original code:
-	// param = 1 for: SHOP, CAMPING, DUNGEON_MAP, AFTER_COMBAT
-	// param = 0 for: WILDERNESS_MAP
-	// START_MENU draws its own window and does not use main windows layout.
-
 	Views::View *view = nullptr;
+
+	if (isMapRuntimeState(next) && (!isMapRuntimeState(prev) || prev != next)) {
+		// VM runtime bootstrap is orchestrator-owned and happens in tick().
+		_mapRuntimeNeedsInit = true;
+	}
 
 	switch (next) {
 	case GS_START_MENU:
-		addView("Title");
+		replaceView("Title", true);
 		view = dynamic_cast<Views::View *>(findView("Title"));
 		if (view) {
 			view->onEnter(next);
@@ -228,49 +236,49 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 		break;
 	case GS_SHOP:
 		// InGameView kModeShop: drawMainScreenWindows(true) + NPC portrait at (3,3).
-		addView("InGame");
+		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
 		if (view)
 			view->onEnter(next);
 		break;
 	case GS_CAMPING:
 		// InGameView kModeCamping: drawMainScreenWindows(true) + camp state area.
-		addView("InGame");
+		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
 		if (view)
 			view->onEnter(next);
 		break;
 	case GS_DUNGEON_MAP:
 		// InGameView kModeDungeon: drawMainScreenWindows(true) + 3D view + party panel.
-		addView("InGame");
+		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
 		if (view)
 			view->onEnter(next);
 		break;
 	case GS_WILDERNESS_MAP:
 		// InGameView kModeWilderness: drawMainScreenWindows(false) + area-map block.
-		addView("InGame");
+		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
 		if (view)
 			view->onEnter(next);
 		break;
 	case GS_AFTER_COMBAT:
 		// InGameView kModeAfterCombat: drawMainScreenWindows(true) + loot panel.
-		addView("InGame");
+		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
 		if (view)
 			view->onEnter(next);
 		break;
 	case GS_COMBAT:
 		// InGameView kModeCombat: layout to be defined.
-		addView("InGame");
+		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
 		if (view)
 			view->onEnter(next);
 		break;
 	case GS_END_GAME:
 		// Placeholder: go back to title; layout irrelevant.
-		addView("Title");
+		replaceView("Title", true);
 		view = dynamic_cast<Views::View *>(findView("Title"));
 		if (view) {
 			view->onEnter(next);
@@ -285,6 +293,11 @@ GUI::Debugger *PoolradEngine::getConsole() {
 
 bool PoolradEngine::tick() {
 	bool handled = Goldbox::Events::tick();
+
+	if (_mapRuntimeNeedsInit && !_eclFlags.suspended &&
+			isMapRuntimeState(getGameState())) {
+		initializeMapRuntimeForState(getGameState());
+	}
 
 	if (_eclFlags.suspended && _eclHost && _eclVm) {
 		if (!_eclHost->hasPendingAsync()) {
@@ -303,6 +316,11 @@ bool PoolradEngine::tick() {
 		}
 	}
 
+	if (isMapRuntimeState(getGameState())) {
+		processLegacyInGameLoopStep();
+		refreshLegacySharedRuntimeState();
+	}
+
 	return handled;
 }
 
@@ -314,6 +332,184 @@ VmResult PoolradEngine::executeEclAtScriptAddress(uint16 scriptPc,
 	const VmResult r = _eclVm->runAtScriptAddress(scriptPc, maxSteps);
 	_eclFlags.suspended = (r == VM_YIELD);
 	return r;
+}
+
+bool PoolradEngine::isMapRuntimeState(GameState state) const {
+	return state == GS_DUNGEON_MAP || state == GS_WILDERNESS_MAP
+		|| state == GS_SHOP || state == GS_CAMPING
+		|| state == GS_AFTER_COMBAT || state == GS_COMBAT;
+}
+
+Views::InGameView *PoolradEngine::getInGameView() {
+	UIElement *view = findView("InGame");
+	if (!view)
+		return nullptr;
+	return dynamic_cast<Views::InGameView *>(view);
+}
+
+void PoolradEngine::initializeMapRuntimeForState(GameState state) {
+	_mapRuntimeNeedsInit = false;
+
+	_eclFlags.wallsetReady = false;
+	_eclFlags.geoReady = false;
+	_eclFlags.mapDataReady = false;
+	_eclFlags.screenRefresh = true;
+	_eclFlags.eclReady = false;
+	_eclFlags.suspended = false;
+
+	if (!_eclVm)
+		return;
+
+	_eclVm->wallsetReady = false;
+	_eclVm->geoReady = false;
+	_eclVm->mapdataInload = false;
+	_eclVm->characterInload = false;
+	_eclVm->eclReady = false;
+	_eclVm->screenRefresh = true;
+
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+	ECL::AddressSpace &mem = _eclVm->getMemory();
+	const uint16 mapAddr = layout.vmField(kVmFieldSavedMapId).vmAddr;
+	const uint16 indoorAddr = layout.vmField(kVmFieldIndoorModeFlag).vmAddr;
+ const uint16 rtGameStateAddr = layout.runtimeField(ECL::kEclRuntimeGameState);
+
+	const uint8 mapId = mem.read8(mapAddr);
+	_legacySharedState.byteMapId = mapId;
+	if (isWildernessMapId(mapId) && mem.read8(indoorAddr) == 0)
+		_legacySharedState.byteGameState = GS_WILDERNESS_MAP;
+	else
+		_legacySharedState.byteGameState = state;
+
+	if (ECL::EclRuntimeLayout::isValidVmAddr(rtGameStateAddr)) {
+		mem.write8(rtGameStateAddr,
+			static_cast<uint8>(_legacySharedState.byteGameState));
+	}
+
+	// Dispatch ON_INIT at runtime bootstrap point (ENGINE_Execute(ECL_ONINIT)).
+	(void)runEclEntryPoint(ECL::kEclRuntimeOnInitEntry);
+}
+
+void PoolradEngine::refreshLegacySharedRuntimeState() {
+	_legacySharedState.byteGameState = getGameState();
+	_legacySharedState.ptrCharacter = getSelectedCharacter();
+	_legacySharedState.boolSuspendFlag = _eclFlags.suspended;
+
+	if (!_eclVm)
+		return;
+
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+	ECL::AddressSpace &mem = _eclVm->getMemory();
+
+	_legacySharedState.boolStateLoaded = _eclVm->stateLoaded;
+
+	const uint16 mapAddr = layout.vmField(kVmFieldSavedMapId).vmAddr;
+	_legacySharedState.byteMapId = mem.read8(mapAddr);
+
+	const uint16 skyboxRedrawAddr =
+		layout.runtimeField(ECL::kEclRuntimeSkyboxRedrawFlag);
+	if (ECL::EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr)) {
+		_legacySharedState.bool3dRedraw =
+			(mem.read8(skyboxRedrawAddr) != 0);
+	}
+
+	const uint16 picHeadAddr =
+		layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr;
+	_legacySharedState.boolPictureReady = (mem.read8(picHeadAddr) != 0xFF);
+
+	_eclFlags.eclReady = _eclVm->eclReady;
+	_eclFlags.geoReady = _eclVm->geoReady;
+	_eclFlags.wallsetReady = _eclVm->wallsetReady;
+	_eclFlags.screenRefresh = _eclVm->screenRefresh;
+	_eclFlags.mapDataReady = _eclVm->geoReady && _eclVm->wallsetReady;
+}
+
+VmResult PoolradEngine::runEclEntryPoint(ECL::EclRuntimeFieldId entryField,
+		uint32 maxSteps) {
+	if (!_eclVm)
+		return VM_ERROR;
+
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+	ECL::AddressSpace &mem = _eclVm->getMemory();
+	const uint16 entryAddr = layout.runtimeField(entryField);
+	if (!ECL::EclRuntimeLayout::isValidVmAddr(entryAddr))
+		return VM_ERROR;
+
+	const uint16 entryPc = mem.read16LE(entryAddr);
+	if (entryPc == 0)
+		return VM_OK;
+
+	const VmResult result = executeEclAtScriptAddress(entryPc, maxSteps);
+	_eclFlags.eclReady = _eclVm->eclReady;
+	return result;
+}
+
+void PoolradEngine::processLegacyInGameLoopStep() {
+	if (!_eclVm || _eclFlags.suspended)
+		return;
+
+	Views::InGameView *inGameView = getInGameView();
+	if (!inGameView || !inGameView->hasPendingCommand())
+		return;
+
+	const Views::InGameView::InGameCommand cmd =
+		inGameView->consumePendingCommand();
+	if (cmd == Views::InGameView::kCmdNone)
+		return;
+
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+	ECL::AddressSpace &mem = _eclVm->getMemory();
+
+	if (cmd == Views::InGameView::kCmdEncamp) {
+		const VmResult r = runEclEntryPoint(ECL::kEclRuntimeOnRestEntry);
+		if (r == VM_YIELD)
+			_eclFlags.suspended = true;
+		return;
+	}
+
+	if (cmd == Views::InGameView::kCmdSearch) {
+		const uint16 searchAddr =
+			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
+		const uint8 savedSearchFlag = static_cast<uint8>(mem.read8(searchAddr) & 1);
+		mem.write8(searchAddr, 1);
+
+		const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
+		mem.write8(searchAddr, savedSearchFlag);
+		if (onSearch == VM_YIELD) {
+			_eclFlags.suspended = true;
+			return;
+		}
+
+		if (_eclVm->eclReady) {
+			const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
+			if (resume == VM_YIELD)
+				_eclFlags.suspended = true;
+		}
+		return;
+	}
+
+	if (cmd != Views::InGameView::kCmdMove)
+		return;
+
+	const VmResult onMove = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
+	if (onMove == VM_YIELD) {
+		_eclFlags.suspended = true;
+		return;
+	}
+
+	if (!_eclVm->eclReady) {
+		// Legacy post-ONMOVE branch when ECL has not entered ready state yet:
+		// force redraw bookkeeping and run ON_SEARCH once.
+		_legacySharedState.bool3dRedraw = false;
+		_legacySharedState.boolPictureReady = true;
+		const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
+		if (onSearch == VM_YIELD)
+			_eclFlags.suspended = true;
+		return;
+	}
+
+	const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
+	if (resume == VM_YIELD)
+		_eclFlags.suspended = true;
 }
 
 } // namespace Poolrad
