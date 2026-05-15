@@ -31,11 +31,17 @@
 #include "goldbox/ecl/ecl_vm.h"
 #include "goldbox/poolrad/ecl/poolrad_game_config.h"
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
+#include "goldbox/ecl/runtime_layout.h"
 #include "common/ptr.h"
 //#include "goldbox/poolrad/data/character.h"
 //#include "goldbox/poolrad/files/game_archive.h"
 //#include "goldbox/poolrad/data/saved.h"
 //#include "goldbox/poolrad/gfx/pics.h"
+
+namespace Goldbox {
+namespace Data {
+}
+}
 
 namespace Goldbox {
 namespace Poolrad {
@@ -74,6 +80,35 @@ private:
 	Common::ScopedPtr<ECL::EclVM>              _eclVm;
 	Common::ScopedPtr<PoolradEngineHostImpl>   _eclHost;
 	EclRuntimeFlags                            _eclFlags;
+	bool                                       _mapRuntimeNeedsInit = false;
+
+	/**
+	 * Shared engine/VM runtime state (legacy globals mirror).
+	 *
+	 * This intentionally centralizes variables used by both the ECL VM and
+	 * host UI loop, mirroring original GB_EngineMain globals:
+	 * BYTE_GAME_STATE, BOOL_STATE_LOADED, BYTE_MAP_ID, PTR_CHARACTER,
+	 * BOOL_SUSPEND_FLAG, BOOL_3D_REDRAW, BOOL_PICTURE_READY.
+	 */
+	struct LegacySharedRuntimeState {
+		GameState byteGameState = GS_START_MENU;
+		bool boolStateLoaded = false;
+		uint8 byteMapId = 0;
+		void *ptrCharacter = nullptr;
+		bool boolSuspendFlag = false;
+		bool bool3dRedraw = true;
+		bool boolPictureReady = false;
+	};
+
+	LegacySharedRuntimeState _legacySharedState;
+
+	bool isMapRuntimeState(GameState state) const;
+	Views::InGameView *getInGameView();
+	void initializeMapRuntimeForState(GameState state);
+	void refreshLegacySharedRuntimeState();
+	VmResult runEclEntryPoint(ECL::EclRuntimeFieldId entryField,
+			uint32 maxSteps = 1000000);
+	void processLegacyInGameLoopStep();
 
 protected:
 	void setup() override;
@@ -109,6 +144,9 @@ public:
 	 */
 	VmResult executeEclAtScriptAddress(uint16 scriptPc,
 			uint32 maxSteps = 1000000);
+	const LegacySharedRuntimeState &getLegacySharedRuntimeState() const {
+		return _legacySharedState;
+	}
 };
 
 extern PoolradEngine *g_engine;

@@ -58,6 +58,12 @@ void InGameView::onEnter(GameState state) {
 	applyScreenByState(state);
 }
 
+InGameView::InGameCommand InGameView::consumePendingCommand() {
+	InGameCommand cmd = _pendingCommand;
+	_pendingCommand = kCmdNone;
+	return cmd;
+}
+
 void InGameView::applyScreenByState(GameState state) {
 	switch (state) {
 	case GS_DUNGEON_MAP:
@@ -226,15 +232,19 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 	// --- Movement (arrow keys) ---
 	case Common::KEYCODE_UP:
 		stepForward();
+		queueCommand(kCmdMove);
 		break;
 	case Common::KEYCODE_LEFT:
 		_mapDir = (_mapDir + 6) % 8;
+		queueCommand(kCmdMove);
 		break;
 	case Common::KEYCODE_RIGHT:
 		_mapDir = (_mapDir + 2) % 8;
+		queueCommand(kCmdMove);
 		break;
 	case Common::KEYCODE_DOWN:
 		_mapDir = (_mapDir + 4) % 8;
+		queueCommand(kCmdMove);
 		break;
 
 	// --- Menu keys ---
@@ -243,9 +253,10 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 		break;
 	case Common::KEYCODE_s:
 		_searchMode = !_searchMode;
+		queueCommand(kCmdSearch);
 		break;
 	case Common::KEYCODE_e:
-		// TODO: Trigger encamp — orchestrator should dispatch ECL_ONREST.
+		queueCommand(kCmdEncamp);
 		break;
 	case Common::KEYCODE_v:
 		// View character sheet.
@@ -257,6 +268,7 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 	case Common::KEYCODE_l:
 		// Look / search location — set flag; orchestrator dispatches ECL_ONSEARCH.
 		_searchMode = true;
+		queueCommand(kCmdSearch);
 		break;
 
 	default:
