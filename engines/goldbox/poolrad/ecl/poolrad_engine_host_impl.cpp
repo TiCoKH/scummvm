@@ -696,6 +696,10 @@ VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
         walldefCache.clearSlot(setSlot);
         _walldefTiles[slotIdx].reset();
         tileCache.setSlot(setSlot, nullptr);
+        _wallSetStates[slotIdx].loaded = false;
+        _wallSetStates[slotIdx].walldefBlockId = 0xFF;
+        _wallSetStates[slotIdx].tileBlockId = 0xFF;
+        _wallSetStates[slotIdx].chunkIndex = 0;
         return VmResult::VM_OK;
     }
 
@@ -716,9 +720,11 @@ VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
         if (curSlot < 1 || curSlot > 3)
             break;
 
-        walldefCache.loadSlot(curSlot, walldef, i, tileCache);
-
         const int slotIdx = curSlot - 1;
+
+        // Reset any previous runtime tile/surface state for this slot before
+        // rebuilding it from the newly loaded walldef chunk.
+        walldefCache.clearSlot(curSlot);
         _walldefTiles[slotIdx].reset();
         tileCache.setSlot(curSlot, nullptr);
 
@@ -748,9 +754,27 @@ VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
             warning("PoolradEngineHostImpl::loadWallSet: 8x8d block %u not found for wall slot %d",
                 (unsigned)tileBlockId, curSlot);
         }
+
+        // Build the runtime wall-region surfaces only after the slot-specific
+        // 8x8 tile atlas is attached to the tile cache.  The debugger commands
+        // (`walldef`, `fpview`) inspect this runtime-built cache directly.
+        walldefCache.loadSlot(curSlot, walldef, i, tileCache);
+
+        _wallSetStates[slotIdx].loaded = true;
+        _wallSetStates[slotIdx].walldefBlockId = blockId;
+        _wallSetStates[slotIdx].tileBlockId = static_cast<uint8>(tileBlockId);
+        _wallSetStates[slotIdx].chunkIndex = static_cast<uint8>(i);
     }
 
     return VmResult::VM_OK;
+}
+
+const PoolradEngineHostImpl::WallSetRuntimeState &
+PoolradEngineHostImpl::wallSetState(int slot) const {
+    static WallSetRuntimeState kEmptyState;
+    if (slot < 1 || slot > 3)
+        return kEmptyState;
+    return _wallSetStates[slot - 1];
 }
 
 VmResult PoolradEngineHostImpl::onMapDataReady() {

@@ -68,6 +68,13 @@ class PoolradCharacter;
  */
 class PoolradEngineHostImpl : public ECL::EclSyscallImpl {
 public:
+    struct WallSetRuntimeState {
+        bool loaded = false;
+        uint8 walldefBlockId = 0xFF;
+        uint8 tileBlockId = 0xFF;
+        uint8 chunkIndex = 0;
+    };
+
     /**
      * @param engine Reference to main GoldBox engine (must be PoolradEngine)
      * @param memory Reference to ECL virtual memory for reading/writing results
@@ -93,12 +100,14 @@ public:
     VmResult loadIconBlock() override;
     VmResult loadWallSet(uint8 blockId, uint8 setSlot) override;
     VmResult onMapDataReady() override;
+    const WallSetRuntimeState &wallSetState(int slot) const;
 
 private:
     uint8 allocateMonsterIconSlot() const;
 
     // Owned DaxTile instances for walldef tile atlases (slots 1-3, 0-based idx)
     Common::ScopedPtr<Goldbox::Gfx::DaxTile> _walldefTiles[3];
+    WallSetRuntimeState _wallSetStates[3];
     Common::Array<Data::PoolradCharacter *> _loadedMonsters;
     Common::Array<uint8> _monsterIconSlots;
     uint8 _nextMonsterIconSlot = 26;

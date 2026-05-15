@@ -32,6 +32,7 @@
 #include "goldbox/poolrad/ecl/poolrad_game_config.h"
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/ecl/runtime_layout.h"
+#include "goldbox/data/daxblock.h"
 #include "common/ptr.h"
 //#include "goldbox/poolrad/data/character.h"
 //#include "goldbox/poolrad/files/game_archive.h"
@@ -45,6 +46,17 @@ namespace Data {
 
 namespace Goldbox {
 namespace Poolrad {
+
+namespace Data {
+typedef ::Goldbox::Data::DaxBlockGeo DaxBlockGeo;
+}
+
+struct DebugWallSetState {
+	bool loaded = false;
+	uint8 walldefBlockId = 0xFF;
+	uint8 tileBlockId = 0xFF;
+	uint8 chunkIndex = 0;
+};
 
 const int MAX_CHARACTERS = 8;
 const int MAX_PC_IN_PARTY = 6;
@@ -61,6 +73,8 @@ private:
 	Gfx::WalldefSlotCache _walldefSlotCache;
 	/** 5-slot tile atlas cache (slots 0-4 for universal + walldef tiles). */
 	Gfx::Tile8x8Cache _tileCache;
+	/** Fixed tile atlas bound to cache slot 0 (original startup preload). */
+	Gfx::DaxTile *_fixedTileCacheSlot0 = nullptr;
 
 	// -------------------------------------------------------------------
 	// ECL VM runtime
@@ -137,6 +151,12 @@ public:
 	EffectHandler &effectsRuntime() { return _effectsRuntime; }
 	Gfx::WalldefSlotCache &getWalldefSlotCache() { return _walldefSlotCache; }
 	Gfx::Tile8x8Cache &getTileCache() { return _tileCache; }
+	ECL::AddressSpace *getEclMemory();
+	const ECL::AddressSpace *getEclMemory() const;
+	Data::DaxBlockGeo *getGeoBlockById(uint8 mapId);
+	Data::DaxBlockGeo *getActiveGeoBlock();
+	bool getActiveMapPosition(uint16 &x, uint16 &y, uint8 &dir) const;
+	bool getDebugWallSetState(int slot, DebugWallSetState &state) const;
 
 	/**
 	 * Execute ECL bytecode from an absolute script VM address.
