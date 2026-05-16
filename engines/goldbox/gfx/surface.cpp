@@ -223,6 +223,83 @@ void Surface::clearBox(int start_x, int start_y, int end_x, int end_y, uint32 co
 	fillRect(rect, color);
 }
 
+void Surface::writeTile(int charX, int charY, uint16 globalTileId,
+		uint32 bgColor, uint32 tpColorIndex) {
+	// Mirrors x86 GFX_DrawTile8x8 (to_window=false, with_tr=false).
+	// Resolves globalTileId through the engine tile cache and blits the
+	// 8×8 tile at (charX*8, charY*8).
+	// blitFrom is used so dirty-rect tracking matches every other draw path.
+	const Graphics::ManagedSurface *tile =
+		g_engine->getTileCache().tileSurface(globalTileId);
+	if (!tile)
+		return;
+
+	const int dstX = charX * FONT_W;
+	const int dstY = charY * FONT_H;
+
+	if (bgColor == 0 && tpColorIndex == 0) {
+		blitFrom(*tile, Common::Point(dstX, dstY));
+		return;
+	}
+
+	for (int py = 0; py < FONT_H; ++py) {
+		for (int px = 0; px < FONT_W; ++px) {
+			const uint32 srcPixel = tile->getPixel(px, py);
+			const uint32 outPixel = (srcPixel == tpColorIndex) ? bgColor : srcPixel;
+			setPixel(dstX + px, dstY + py, outPixel);
+		}
+	}
+
+	addDirtyRect(Common::Rect(dstX, dstY, dstX + FONT_W, dstY + FONT_H));
+}
+
+void Surface::drawFrame(int startX, int startY, int endX, int endY,
+		uint32 bgColor, uint32 tpColorIndex) {
+	// Port of x86 SCREEN_drawSymbolFrame (t_offs=0 for Poolrad).
+	// startX/startY/endX/endY are the INTERIOR bounds; the frame is drawn
+	// one character cell outside in every direction, matching the x86 source:
+	//   x_pos    = start_x - 1
+	//   y_pos    = start_y - 1
+	//   x_pos_00 = end_x   + 1
+	//   y_pos_00 = end_y   + 1
+	//
+	// Tile IDs (slot 4, base 0x100; t_offs always 0 in Poolrad):
+	//   0x114 = corner  (local index 20)
+	//   0x115 = vertical side (local 21)
+	//   0x116 = horizontal edge (local 22)
+	static const uint16 kCornerTile = 0x114;
+	static const uint16 kSideTile   = 0x115;
+	static const uint16 kEdgeTile   = 0x116;
+
+	const int x0 = startX - 1;  // x_pos
+	const int y0 = startY - 1;  // y_pos
+	const int x1 = endX   + 1;  // x_pos_00
+	const int y1 = endY   + 1;  // y_pos_00
+
+	// Four corners
+	writeTile(x0, y0, kCornerTile, bgColor, tpColorIndex);
+	writeTile(x1, y0, kCornerTile, bgColor, tpColorIndex);
+	writeTile(x0, y1, kCornerTile, bgColor, tpColorIndex);
+	writeTile(x1, y1, kCornerTile, bgColor, tpColorIndex);
+
+	// Top and bottom horizontal edges (start_x..end_x)
+	for (int x = startX; x <= endX; ++x) {
+		writeTile(x, y0, kEdgeTile, bgColor, tpColorIndex);
+		writeTile(x, y1, kEdgeTile, bgColor, tpColorIndex);
+	}
+
+	// Left and right vertical edges (start_y..end_y)
+	for (int y = startY; y <= endY; ++y) {
+		writeTile(x0, y, kSideTile, bgColor, tpColorIndex);
+		writeTile(x1, y, kSideTile, bgColor, tpColorIndex);
+	}
+}
+
+void Surface::drawWindow(int startX, int startY, int endX, int endY, uint32 color) {
+	drawFrame(startX, startY, endX, endY);
+	clearBox(startX, startY, endX, endY, color);
+}
+
 } // namespace Gfx
 } // namespace Shared
 } // namespace Goldbox

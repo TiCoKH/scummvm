@@ -96,6 +96,19 @@ public:
 	void writeSymbol(int x, int y, unsigned char s_id);
 	void writeSymbolC(unsigned char s_id, uint32 bgColor, uint32 tpColorIndex = 0);
 	void writeSymbol(int x, int y, unsigned char s_id, uint32 bgColor, uint32 tpColorIndex = 0);
+
+	/**
+	 * Draws an 8x8 tile from the tile cache at the given character cell position.
+	 * Mirrors x86 GFX_DrawTile8x8 (without-transparency path).
+	 * @param charX Character column (pixel x = charX * 8)
+	 * @param charY Character row    (pixel y = charY * 8)
+	 * @param globalTileId Global tile ID as used by the x86 GFX_DrawTile8x8
+	 * @param bgColor Optional replacement color for tpColorIndex
+	 * @param tpColorIndex Optional color index to replace with bgColor
+	 */
+	void writeTile(int charX, int charY, uint16 globalTileId,
+			uint32 bgColor = 0, uint32 tpColorIndex = 0);
+
 	void writeCharC(unsigned char c, int color);
 	void writeCharC(int x, int y, int color, unsigned char c);
 	void writeGlyphC(int x, int y, int color, unsigned char g_id);
@@ -109,8 +122,12 @@ public:
 
 	/**
 	 * Draws a frame on the surface around the given area from (start_x, start_y) to (end_x, end_y)
+	 *
+	 * @param bgColor Optional replacement color for tpColorIndex in frame tiles
+	 * @param tpColorIndex Optional tile color index to replace
 	 */
-	void drawFrame(int start_x, int start_y, int end_x, int end_y);
+	void drawFrame(int start_x, int start_y, int end_x, int end_y,
+			uint32 bgColor = 0, uint32 tpColorIndex = 0);
 
 	/**
 	 * Clears an area with the given color and draws a frame around it
