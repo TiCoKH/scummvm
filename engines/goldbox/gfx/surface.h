@@ -25,7 +25,6 @@
 #include "common/rect.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
-#include "goldbox/gfx/dax_tile.h"
 
 namespace Goldbox {
 namespace Shared {
@@ -94,8 +93,6 @@ public:
 	void writeGlyph(unsigned char c);
 	void writeSymbol(unsigned char s_id);
 	void writeSymbol(int x, int y, unsigned char s_id);
-	void writeSymbolC(unsigned char s_id, uint32 bgColor, uint32 tpColorIndex = 0);
-	void writeSymbol(int x, int y, unsigned char s_id, uint32 bgColor, uint32 tpColorIndex = 0);
 
 	/**
 	 * Draws an 8x8 tile from the tile cache at the given character cell position.
@@ -121,7 +118,22 @@ public:
 	void clearBox(int start_x, int start_y, int end_x, int end_y, uint32 color);
 
 	/**
-	 * Draws a frame on the surface around the given area from (start_x, start_y) to (end_x, end_y)
+	 * Draws a frame on the surface around the given area from (start_x, start_y)
+	 * to (end_x, end_y) using explicit tile IDs.
+	 *
+	 * This is the generic helper that game-specific views should prefer when
+	 * their border style differs.
+	 */
+	void drawFrameTiles(int start_x, int start_y, int end_x, int end_y,
+			uint16 cornerTileId, uint16 sideTileId, uint16 edgeTileId,
+			uint32 bgColor = 0, uint32 tpColorIndex = 0);
+
+	/**
+	 * Draws a frame on the surface around the given area from (start_x, start_y)
+	 * to (end_x, end_y).
+	 *
+	 * Default style is Poolrad-compatible; game-specific code should call
+	 * drawFrameTiles() with its own tile IDs when needed.
 	 *
 	 * @param bgColor Optional replacement color for tpColorIndex in frame tiles
 	 * @param tpColorIndex Optional tile color index to replace

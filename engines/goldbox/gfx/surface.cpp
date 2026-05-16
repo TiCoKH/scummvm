@@ -23,7 +23,6 @@
 #include "graphics/palette.h"
 #include "graphics/paletteman.h"
 #include "goldbox/gfx/surface.h"
-#include "goldbox/gfx/dax_tile.h"
 #include "goldbox/engine.h"
 
 namespace Goldbox {
@@ -179,33 +178,6 @@ void Surface::writeSymbol(int x, int y, unsigned char c) {
 	writeSymbol(c);
 }
 
-void Surface::writeSymbolC(unsigned char c, uint32 bgColor, uint32 tpColorIndex) {
-	setToSymbols();
-
-	if (bgColor == 0 && tpColorIndex == 0) {
-		// No background color - use standard rendering (color 0 stays transparent/black)
-		_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, _textColor);
-	} else {
-		// Use DaxTile's drawCharWithBg to replace tpColorIndex with bgColor
-		Goldbox::Gfx::DaxTile *daxTile = dynamic_cast<Goldbox::Gfx::DaxTile *>(_currentFont);
-		if (daxTile) {
-			daxTile->drawCharWithBg(surfacePtr(), c, _textX * FONT_W, _textY * FONT_H, _textColor, bgColor, tpColorIndex);
-		} else {
-			// Fallback for non-DaxTile fonts
-			Common::Rect bgRect(_textX * FONT_W, _textY * FONT_H,
-								(_textX + 1) * FONT_W, (_textY + 1) * FONT_H);
-			fillRect(bgRect, bgColor);
-			_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, _textColor);
-		}
-	}
-	++_textX;
-}
-
-void Surface::writeSymbol(int x, int y, unsigned char c, uint32 bgColor, uint32 tpColorIndex) {
-	setTextPos(x, y);
-	writeSymbolC(c, bgColor, tpColorIndex);
-}
-
 void Surface::setTextPos(int x, int y) {
 	_textX = x;
 	_textY = y;
@@ -225,7 +197,6 @@ void Surface::clearBox(int start_x, int start_y, int end_x, int end_y, uint32 co
 
 void Surface::writeTile(int charX, int charY, uint16 globalTileId,
 		uint32 bgColor, uint32 tpColorIndex) {
-	// Mirrors x86 GFX_DrawTile8x8 (to_window=false, with_tr=false).
 	// Resolves globalTileId through the engine tile cache and blits the
 	// 8×8 tile at (charX*8, charY*8).
 	// blitFrom is used so dirty-rect tracking matches every other draw path.
@@ -253,23 +224,16 @@ void Surface::writeTile(int charX, int charY, uint16 globalTileId,
 	addDirtyRect(Common::Rect(dstX, dstY, dstX + FONT_W, dstY + FONT_H));
 }
 
-void Surface::drawFrame(int startX, int startY, int endX, int endY,
+void Surface::drawFrameTiles(int startX, int startY, int endX, int endY,
+		uint16 cornerTileId, uint16 sideTileId, uint16 edgeTileId,
 		uint32 bgColor, uint32 tpColorIndex) {
-	// Port of x86 SCREEN_drawSymbolFrame (t_offs=0 for Poolrad).
+	// Generic tile-frame renderer.
 	// startX/startY/endX/endY are the INTERIOR bounds; the frame is drawn
 	// one character cell outside in every direction, matching the x86 source:
 	//   x_pos    = start_x - 1
 	//   y_pos    = start_y - 1
 	//   x_pos_00 = end_x   + 1
 	//   y_pos_00 = end_y   + 1
-	//
-	// Tile IDs (slot 4, base 0x100; t_offs always 0 in Poolrad):
-	//   0x114 = corner  (local index 20)
-	//   0x115 = vertical side (local 21)
-	//   0x116 = horizontal edge (local 22)
-	static const uint16 kCornerTile = 0x114;
-	static const uint16 kSideTile   = 0x115;
-	static const uint16 kEdgeTile   = 0x116;
 
 	const int x0 = startX - 1;  // x_pos
 	const int y0 = startY - 1;  // y_pos
@@ -277,22 +241,34 @@ void Surface::drawFrame(int startX, int startY, int endX, int endY,
 	const int y1 = endY   + 1;  // y_pos_00
 
 	// Four corners
-	writeTile(x0, y0, kCornerTile, bgColor, tpColorIndex);
-	writeTile(x1, y0, kCornerTile, bgColor, tpColorIndex);
-	writeTile(x0, y1, kCornerTile, bgColor, tpColorIndex);
-	writeTile(x1, y1, kCornerTile, bgColor, tpColorIndex);
+	writeTile(x0, y0, cornerTileId, bgColor, tpColorIndex);
+	writeTile(x1, y0, cornerTileId, bgColor, tpColorIndex);
+	writeTile(x0, y1, cornerTileId, bgColor, tpColorIndex);
+	writeTile(x1, y1, cornerTileId, bgColor, tpColorIndex);
 
 	// Top and bottom horizontal edges (start_x..end_x)
 	for (int x = startX; x <= endX; ++x) {
-		writeTile(x, y0, kEdgeTile, bgColor, tpColorIndex);
-		writeTile(x, y1, kEdgeTile, bgColor, tpColorIndex);
+		writeTile(x, y0, edgeTileId, bgColor, tpColorIndex);
+		writeTile(x, y1, edgeTileId, bgColor, tpColorIndex);
 	}
 
 	// Left and right vertical edges (start_y..end_y)
 	for (int y = startY; y <= endY; ++y) {
-		writeTile(x0, y, kSideTile, bgColor, tpColorIndex);
-		writeTile(x1, y, kSideTile, bgColor, tpColorIndex);
+		writeTile(x0, y, sideTileId, bgColor, tpColorIndex);
+		writeTile(x1, y, sideTileId, bgColor, tpColorIndex);
 	}
+}
+
+void Surface::drawFrame(int startX, int startY, int endX, int endY,
+		uint32 bgColor, uint32 tpColorIndex) {
+	// Poolrad-compatible default style (slot 4, base 0x100; t_offs = 0):
+	//   0x114 = corner, 0x115 = vertical side, 0x116 = horizontal edge
+	static const uint16 kCornerTile = 0x114;
+	static const uint16 kSideTile   = 0x115;
+	static const uint16 kEdgeTile   = 0x116;
+
+	drawFrameTiles(startX, startY, endX, endY,
+		kCornerTile, kSideTile, kEdgeTile, bgColor, tpColorIndex);
 }
 
 void Surface::drawWindow(int startX, int startY, int endX, int endY, uint32 color) {
