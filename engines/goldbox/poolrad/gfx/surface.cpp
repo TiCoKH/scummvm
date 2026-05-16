@@ -26,25 +26,14 @@ namespace Poolrad {
 namespace Gfx {
 
 void Surface::drawFrame(const Common::Rect &r) {
-    writeSymbol(20, r.left, r.top);
-    for (int x = r.left + 1; x <= r.right - 1; x++) {
-        writeSymbol(22);
-    }
-    writeSymbol(20);
-    for (int y = r.top + 1; y <= r.bottom - 1; y++) {
-        writeSymbol(21, r.left, y);
-        writeSymbol(21, r.right, y);
-    }
-    writeSymbol(20, r.left, r.bottom);
-    for (int x = r.left + 1; x <= r.right - 1; x++) {
-        writeSymbol(22);
-    }
-    writeSymbol(20);
+	// r is the outer rect (corners at r.left/r.top/r.right/r.bottom).
+	// The base drawFrame takes interior bounds, so shift inward by 1.
+	Shared::Gfx::Surface::drawFrame(r.left + 1, r.top + 1, r.right - 1, r.bottom - 1);
 }
 
 void Surface::drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom) {
-    drawFrame(Common::Rect(left - 1, top - 1, right + 1, bottom + 1));
-    clearBox(left, top, right, bottom, 0);
+	// Delegates to the base implementation: drawFrame + clearBox.
+	Shared::Gfx::Surface::drawWindow(left, top, right, bottom, 0);
 }
 
 } // namespace Gfx

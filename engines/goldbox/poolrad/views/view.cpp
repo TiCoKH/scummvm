@@ -56,28 +56,12 @@ UIElement *View::getElementAtPos(const Common::Point &pos) const {
 }
 
 void View::drawFrame(const Common::Rect &r, uint32 bgColor, uint32 tpColorIndex) {
+	// r is the outer rect (corners at r.left/r.top/r.right/r.bottom).
+	// Delegate to Surface::drawFrame which mirrors x86 SCREEN_drawSymbolFrame:
+	// pass interior bounds (one cell inside the outer rect on every side).
 	Surface s = getSurface();
-
-	// Top-left corner
-	s.writeSymbol(r.left, r.top, 20, bgColor, tpColorIndex);
-	// Top edge
-	for (int x = r.left + 1; x <= r.right - 1; x++) {
-		s.writeSymbol(x, r.top, 22, bgColor, tpColorIndex);
-	}
-	// Top-right corner
-	s.writeSymbol(r.right, r.top, 20, bgColor, tpColorIndex);
-	// Left and right edges
-	for (int y = r.top + 1; y <= r.bottom - 1; y++) {
-		s.writeSymbol(r.left, y, 21, bgColor, tpColorIndex);
-		s.writeSymbol(r.right, y, 21, bgColor, tpColorIndex);
-	}
-	// Bottom-left corner
-	s.writeSymbol(r.left, r.bottom, 20, bgColor, tpColorIndex);
-	// Bottom edge
-	for (int x = r.left + 1; x <= r.right - 1; x++)
-		s.writeSymbol(x, r.bottom, 22, bgColor, tpColorIndex);
-	// Bottom-right corner
-	s.writeSymbol(r.right, r.bottom, 20, bgColor, tpColorIndex);
+	s.drawFrame(r.left + 1, r.top + 1, r.right - 1, r.bottom - 1,
+		bgColor, tpColorIndex);
 }
 
 void View::drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom) {
