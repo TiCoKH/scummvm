@@ -66,10 +66,6 @@ void Surface::setToText() {
 	_currentFont = g_engine->_font;
 }
 
-void Surface::setToSymbols() {
-	_currentFont = g_engine->_symbols;
-}
-
 void Surface::writeString(const Common::String &str) {
 	// TODO: Handle multiple lines
 	Common::String idString;
@@ -165,17 +161,6 @@ void Surface::writeGlyphC(int x, int y, int color, unsigned char c) {
 	setTextPos(x, y);
 	setTextColor(color);
 	writeGlyph(c);
-}
-
-void Surface::writeSymbol(unsigned char c) {
-	setToSymbols();
-	_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, _textColor);
-	++_textX;
-}
-
-void Surface::writeSymbol(int x, int y, unsigned char c) {
-	setTextPos(x, y);
-	writeSymbol(c);
 }
 
 void Surface::setTextPos(int x, int y) {

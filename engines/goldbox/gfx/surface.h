@@ -91,15 +91,12 @@ public:
 	void writeChar(unsigned char c);
 	void writeChar(int x, int y, unsigned char c);
 	void writeGlyph(unsigned char c);
-	void writeSymbol(unsigned char s_id);
-	void writeSymbol(int x, int y, unsigned char s_id);
 
 	/**
 	 * Draws an 8x8 tile from the tile cache at the given character cell position.
-	 * Mirrors x86 GFX_DrawTile8x8 (without-transparency path).
 	 * @param charX Character column (pixel x = charX * 8)
 	 * @param charY Character row    (pixel y = charY * 8)
-	 * @param globalTileId Global tile ID as used by the x86 GFX_DrawTile8x8
+	 * @param globalTileId Global tile ID from cache.
 	 * @param bgColor Optional replacement color for tpColorIndex
 	 * @param tpColorIndex Optional color index to replace with bgColor
 	 */
