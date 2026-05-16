@@ -236,7 +236,6 @@ namespace Poolrad {
 
 Console::Console() : Goldbox::Console() {
 	registerCmd("font", WRAP_METHOD(Console, cmdFont));
-	registerCmd("symbols", WRAP_METHOD(Console, cmdSymbols));
 	registerCmd("geo", WRAP_METHOD(Console, cmdGeo));
 	registerCmd("walldef", WRAP_METHOD(Console, cmdWalldef));
 	registerCmd("fpview", WRAP_METHOD(Console, cmdFpview));
@@ -250,19 +249,6 @@ bool Console::cmdFont(int argc, const char **argv) {
 	screen->clear();
 	for (uint i = 0; i < 177; ++i) {
 		font->drawChar(screen, i, (i % 16) * 16, (i / 16) * 16, 255);
-	}
-
-	screen->update();
-	return false;
-}
-
-bool Console::cmdSymbols(int argc, const char **argv) {
-	auto *symbols = g_engine->_symbols;
-	Graphics::Screen *screen = g_engine->getScreen();
-
-	screen->clear();
-	for (uint i = 0; i < 31; ++i) {
-		symbols->drawChar(screen, i, (i % 16) * 16, (i / 16) * 16, 255);
 	}
 
 	screen->update();

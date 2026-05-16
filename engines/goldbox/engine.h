@@ -63,7 +63,6 @@ protected:
 
 public:
 	Graphics::Font * _font = nullptr;
-	Graphics::Font * _symbols = nullptr;
 	Gfx::WalldefSlotCache _walldefSlotCache;
 	Gfx::Tile8x8Cache _tileCache;
 	Gfx::DaxTile *_fixedTileCacheSlot0 = nullptr;
@@ -259,7 +258,6 @@ public:
 	 * runtimes:
 	 *   - symbolsBlockId -> slot 4
 	 *   - slot0BlockId   -> slot 0
-	 * The symbols block is also assigned to _symbols for frame/symbol drawing.
 	 */
 	void initFixedTileCacheSlots(uint8 symbolsBlockId = 202,
 			uint8 slot0BlockId = 203);

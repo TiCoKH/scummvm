@@ -43,7 +43,6 @@ Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine
 Engine::~Engine() {
 	delete _fixedTileCacheSlot0;
 	delete _font;
-	delete _symbols;
 	_daxManager.clear();
 	for (uint i = 0; i < _party.size(); ++i) {
         delete _party[i];
@@ -64,9 +63,7 @@ void Engine::initFixedTileCacheSlots(uint8 symbolsBlockId,
 		error("8x8d block %u has unexpected type",
 			(unsigned)symbolsBlockId);
 
-	delete _symbols;
-	_symbols = new Gfx::DaxTile(symbols8x8);
-	_tileCache.setSlot(4, dynamic_cast<Gfx::DaxTile *>(_symbols));
+	_tileCache.setSlot(4, new Gfx::DaxTile(symbols8x8));
 
 	Data::DaxBlock *slot0Block = getDax8x8d().getBlockById(slot0BlockId);
 	if (!slot0Block)
