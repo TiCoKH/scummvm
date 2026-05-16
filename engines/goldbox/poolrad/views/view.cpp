@@ -57,11 +57,15 @@ UIElement *View::getElementAtPos(const Common::Point &pos) const {
 
 void View::drawFrame(const Common::Rect &r, uint32 bgColor, uint32 tpColorIndex) {
 	// r is the outer rect (corners at r.left/r.top/r.right/r.bottom).
-	// Delegate to Surface::drawFrame which mirrors x86 SCREEN_drawSymbolFrame:
-	// pass interior bounds (one cell inside the outer rect on every side).
+	// Poolrad frame style: tile-cache IDs from the symbols block with t_offs=0.
+	// Pass interior bounds (one cell inside the outer rect on every side).
+	static const uint16 kCornerTile = 0x114;
+	static const uint16 kSideTile = 0x115;
+	static const uint16 kEdgeTile = 0x116;
+
 	Surface s = getSurface();
-	s.drawFrame(r.left + 1, r.top + 1, r.right - 1, r.bottom - 1,
-		bgColor, tpColorIndex);
+	s.drawFrameTiles(r.left + 1, r.top + 1, r.right - 1, r.bottom - 1,
+		kCornerTile, kSideTile, kEdgeTile, bgColor, tpColorIndex);
 }
 
 void View::drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom) {
