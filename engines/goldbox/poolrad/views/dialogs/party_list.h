@@ -36,7 +36,8 @@ public:
     PartyList(const Common::String &name = "PartyList")
         : Dialog(name), _xName(1), _xAC(33), _yStart(2),
           _selectedCharIndex(1), _party(nullptr),
-          _syncVmSelection(true), _excludedCharacter(nullptr) {}
+                    _syncVmSelection(true), _excludedCharacter(nullptr),
+                    _hasCustomLayout(false) {}
     virtual ~PartyList() {}
 
     void activate() override;
@@ -44,6 +45,7 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     void setLayout(uint xName, uint xAC, uint yStart) {
         _xName = xName; _xAC = xAC; _yStart = yStart;
+        _hasCustomLayout = true;
     }
     void setSyncVmSelection(bool syncVmSelection) { _syncVmSelection = syncVmSelection; }
     void setExcludedCharacter(Goldbox::Data::PlayerCharacter *excludedCharacter) { _excludedCharacter = excludedCharacter; }
@@ -58,7 +60,9 @@ private:
     Common::Array<Goldbox::Data::PlayerCharacter *> *_party;
     bool _syncVmSelection;
     Goldbox::Data::PlayerCharacter *_excludedCharacter;
+    bool _hasCustomLayout;
 
+    void syncLayoutForGameState();
     void updateSelectedCharacter();
     bool isSelectableIndex(uint index) const;
     bool findNextSelectableFrom(uint startIndex, int direction, uint &outIndex) const;

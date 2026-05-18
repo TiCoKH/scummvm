@@ -29,6 +29,14 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
+namespace Dialogs {
+class PartyList;
+class Dialog;
+class InGameMainScreenDialog;
+class InGameStateAreaDialog;
+class InGamePanelDialog;
+}
+
 /**
  * Persistent aggregated in-game view covering all map-runtime states:
  * dungeon, wilderness, shop, camping, after-combat, and combat.
@@ -65,19 +73,20 @@ public:
 		kCmdEncamp
 	};
 
-	/** Internal mode, parallel to GameState but view-scoped. */
-	enum InGameMode {
-		kModeNone,
-		kModeDungeon,
-		kModeWilderness,
-		kModeShop,
-		kModeCamping,
-		kModeAfterCombat,
-		kModeCombat
-	};
-
 private:
-	InGameMode _mode = kModeNone;
+	GameState _state = GS_START_MENU;
+	bool _showPartyPanel = false;
+	bool _showStateArea = false;
+
+	Dialogs::InGameMainScreenDialog *_mainScreenDialog = nullptr;
+	Dialogs::PartyList *_partyList = nullptr;
+	Dialogs::InGameStateAreaDialog *_stateAreaDialog = nullptr;
+	Dialogs::InGamePanelDialog *_shopPanelDialog = nullptr;
+	Dialogs::InGamePanelDialog *_campingPanelDialog = nullptr;
+	Dialogs::InGamePanelDialog *_afterCombatPanelDialog = nullptr;
+
+	Dialogs::Dialog *_activeLeftPanelDialog = nullptr;
+	Dialogs::Dialog *_activeStateAreaDialog = nullptr;
 
 	// --- Dungeon navigation state ---
 	/** Party map X position (column, 0-15). */
@@ -91,27 +100,27 @@ private:
 	/** Next command for engine-side map-loop. */
 	InGameCommand _pendingCommand = kCmdNone;
 
-	// --- Mode-specific drawing ---
-	void drawDungeonMode();
-	void drawWildernessMode();
-	void drawShopMode();
-	void drawCampingMode();
-	void drawAfterCombatMode();
-
-	// --- Dungeon / party-panel helpers ---
-	/** Draw party names, AC, and HP into the right panel. */
-	void drawPartySummary(Surface &s);
-	/** Draw position / direction string at the status row. */
-	void drawPositionTime(Surface &s);
+	// --- Orchestration helpers ---
+	void syncMainScreenDialog();
 	/** Attempt to step one tile forward in the current facing direction. */
 	void stepForward();
+	/** Configure mode/layout flags from authoritative GameState. */
+	void configureByState(GameState state);
+	/** Activate/deactivate PartyList dialog according to current state flags. */
+	void syncPartyDialog();
+	/** Select active left inner-panel dialog based on GameState. */
+	void syncLeftPanelDialog();
+	/** Select active state-area dialog based on GameState. */
+	void syncStateAreaDialog();
+	/** Apply all dialog switching for current state flags. */
+	void syncDialogs();
 
 	// --- Mode-specific input ---
 	bool handleDungeonKeypress(const KeypressMessage &msg);
 
 public:
 	InGameView();
-	~InGameView() override = default;
+	~InGameView() override;
 
 	/**
 	 * Apply screen layout and internal mode for the given GameState.
@@ -119,6 +128,7 @@ public:
 	 * Safe to call when already in the matching mode (idempotent).
 	 */
 	void applyScreenByState(GameState state);
+	void onUpdate() override;
 
 	bool msgFocus(const FocusMessage &msg) override;
 	bool msgUnfocus(const UnfocusMessage &msg) override;

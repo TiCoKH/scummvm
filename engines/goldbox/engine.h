@@ -42,6 +42,7 @@
 namespace Goldbox {
 
 struct GoldboxGameDescription;
+class RuntimeExchange;
 
 class Engine : public ::Engine, public Events {
 private:
@@ -275,6 +276,19 @@ public:
 	Common::Error loadGameStream(Common::SeekableReadStream *stream) override {
 		Common::Serializer s(stream, nullptr);
 		return syncGame(s);
+	}
+
+	/**
+	 * Runtime data exchange bridge used by game-specific engines.
+	 * Base engine exposes a nullable hook so callers can use a generic
+	 * contract without depending on a specific game implementation.
+	 */
+	virtual RuntimeExchange *getRuntimeExchange() {
+		return nullptr;
+	}
+
+	virtual const RuntimeExchange *getRuntimeExchange() const {
+		return nullptr;
 	}
 };
 

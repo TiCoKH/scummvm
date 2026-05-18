@@ -27,8 +27,58 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+namespace {
+
+static int acColumnOffset(int acCurrent) {
+    // Legacy DIALOG_ShowParty alignment logic (x86/m68k parity).
+    if (acCurrent < 0x33)
+        return 1;
+    if (acCurrent <= 0x3C)
+        return 2;
+    if (acCurrent >= 0x3D && acCurrent <= 0x45)
+        return 1;
+    return 0;
+}
+
+static int hpColumnOffset(int hpCurrent) {
+    // Right-align HP values to 3 chars at columns 36..38.
+    if (hpCurrent < 10)
+        return 2;
+    if (hpCurrent <= 99)
+        return 1;
+    return 0;
+}
+
+} // namespace
+
+void PartyList::syncLayoutForGameState() {
+    if (_hasCustomLayout)
+        return;
+
+    const GameState state = Goldbox::VmInterface::getGameStatus();
+    if (state == GS_START_MENU)
+        _xName = 1;
+    else
+        _xName = 0x11;
+
+    // Original DIALOG_ShowParty constants.
+    _xAC = 0x21;
+    _yStart = 2;
+}
+
 void PartyList::activate() {
     _party = Goldbox::VmInterface::getParty();
+    if (_syncVmSelection && _party && !_party->empty()) {
+        Goldbox::Data::PlayerCharacter *vmSelected = Goldbox::VmInterface::getSelectedCharacter();
+        if (vmSelected) {
+            for (uint i = 0; i < _party->size(); ++i) {
+                if ((*_party)[i] == vmSelected) {
+                    _selectedCharIndex = i + 1;
+                    break;
+                }
+            }
+        }
+    }
     Dialog::activate();
 }
 
@@ -72,6 +122,8 @@ void PartyList::updateSelectedCharacter() {
     if (!_party || _party->empty())
         return;
 
+    // No VM sync here; only update _selectedCharIndex based on navigation
+
     const uint partySize = (uint)_party->size();
     if (_selectedCharIndex < 1)
         _selectedCharIndex = 1;
@@ -91,25 +143,45 @@ void PartyList::draw() {
     if (!_party || _party->size() == 0)
         return;
 
+    syncLayoutForGameState();
     updateSelectedCharacter();
 
     Surface s = getSurface();
-    s.clearBox(1, 1, 28, 11, 0);
+    // Legacy dialog occupies the right panel up to column 0x26 (38).
+    // Keep clear bounds data-driven by layout start row and current party size.
+    const int maxY = _yStart + 2 + (int)_party->size();
+    s.clearBox(_xName, _yStart, 0x26, maxY, 0);
+
     int y = _yStart;
 	s.writeStringC(_xName, y, 15, "Name");
 	s.writeStringC(_xAC,   y, 15, "AC  HP");
     y += 2;
+
     for (uint _partyIndex = 0; _partyIndex < _party->size(); _partyIndex++) {
         Data::PlayerCharacter *pc = (*_party)[_partyIndex];
         if (pc) {
-            int color = (_partyIndex == _selectedCharIndex-1) ? 15 : 11;
+            // Clear row before redrawing to avoid stale wider values.
+            s.clearBox(_xName, y, 0x26, y, 0);
+
+            const bool isSelected = (_partyIndex == _selectedCharIndex - 1);
+            int color = isSelected ? 15 : 11;
 			s.writeStringC(_xName, y, color, pc->name);
+
+            // AC/HP column alignment matches original routine behavior.
+            const int ac = pc->armorClass.getCurrent();
+            const int hp = (int)pc->hitPoints.current;
+            const int acCol = 0x20 + acColumnOffset(ac);
+            const int hpCol = 0x24 + hpColumnOffset(hp);
+
             color = (pc->hitPoints.max > 0) ? 10 : 12;
-            s.writeStringC(_xAC, y, color, Common::String::format("%d", pc->armorClass.getCurrent()));
-			s.writeStringC(_xAC + 4, y, color, Common::String::format("%d", pc->hitPoints.max));
+            s.writeStringC(acCol, y, color, Common::String::format("%d", ac));
+            s.writeStringC(hpCol, y, color, Common::String::format("%d", hp));
             y ++;
         }
     }
+
+    // Clear one extra line after the list, matching original trailing clear.
+    s.clearBox(_xName, y, 0x26, y, 0);
 }
 
 void PartyList::nextChar() {

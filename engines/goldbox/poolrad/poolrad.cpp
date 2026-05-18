@@ -29,6 +29,7 @@
 #include "goldbox/data/strings_data.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
+#include "goldbox/poolrad/poolrad_runtime_exchange.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
 
 #include "goldbox/poolrad/console.h"
@@ -234,6 +235,8 @@ void PoolradEngine::setup() {
 	_eclHost.reset(new PoolradEngineHostImpl(this, &_eclVm->getMemory()));
 	// 3. Wire host as the VM's syscall dispatch target.
 	_eclVm->setSyscallHandler(_eclHost.get());
+	// 4. Runtime exchange bridge (generic contract + Poolrad mapping).
+	_runtimeExchange.reset(new PoolradRuntimeExchange(this));
 }
 
 void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
@@ -330,20 +333,24 @@ Data::DaxBlockGeo *PoolradEngine::getActiveGeoBlock() {
 	return getGeoBlockById(_legacySharedState.byteMapId);
 }
 
-bool PoolradEngine::getActiveMapPosition(uint16 &x, uint16 &y,
-		uint8 &dir) const {
-	if (!_eclVm)
+bool PoolradEngine::captureRuntimeMapSnapshot(
+		::Goldbox::RuntimeMapSnapshot &snapshot) const {
+	const RuntimeExchange *exchange = getRuntimeExchange();
+	if (!exchange)
 		return false;
 
-	const ECL::AddressSpace &mem = _eclVm->getMemory();
-	const VmGlobalLayout &layout = Data::getPoolradGlobalVmLayout();
-	const uint16 xAddr = layout.field(kVmGlobalFieldDungeonX).vmAddr;
-	const uint16 yAddr = layout.field(kVmGlobalFieldDungeonY).vmAddr;
-	const uint16 dirAddr = layout.field(kVmGlobalFieldDungeonDir).vmAddr;
+	return exchange->captureMapSnapshot(snapshot) && snapshot.valid;
+}
 
-	x = mem.read16LE(xAddr);
-	y = mem.read16LE(yAddr);
-	dir = static_cast<uint8>((mem.read16LE(dirAddr) & 0x03) * 2);
+bool PoolradEngine::getActiveMapPosition(uint16 &x, uint16 &y,
+		uint8 &dir) const {
+	::Goldbox::RuntimeMapSnapshot snapshot;
+	if (!captureRuntimeMapSnapshot(snapshot))
+		return false;
+
+	x = snapshot.dungeonX;
+	y = snapshot.dungeonY;
+	dir = snapshot.dungeonDir;
 	return true;
 }
 
@@ -358,6 +365,15 @@ bool PoolradEngine::getDebugWallSetState(int slot,
 	state.walldefBlockId = hostState.walldefBlockId;
 	state.tileBlockId = hostState.tileBlockId;
 	state.chunkIndex = hostState.chunkIndex;
+	return true;
+}
+
+bool PoolradEngine::queueInGameCommand(Views::InGameView::InGameCommand cmd) {
+	Views::InGameView *inGameView = getInGameView();
+	if (!inGameView)
+		return false;
+
+	inGameView->queueCommand(cmd);
 	return true;
 }
 
@@ -439,13 +455,15 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 
 	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
 	ECL::AddressSpace &mem = _eclVm->getMemory();
-	const uint16 mapAddr = layout.vmField(kVmFieldSavedMapId).vmAddr;
-	const uint16 indoorAddr = layout.vmField(kVmFieldIndoorModeFlag).vmAddr;
- const uint16 rtGameStateAddr = layout.runtimeField(ECL::kEclRuntimeGameState);
+	const uint16 rtGameStateAddr = layout.runtimeField(ECL::kEclRuntimeGameState);
 
-	const uint8 mapId = mem.read8(mapAddr);
+	::Goldbox::RuntimeMapSnapshot snapshot;
+	if (!captureRuntimeMapSnapshot(snapshot))
+		return;
+
+	const uint8 mapId = snapshot.mapId;
 	_legacySharedState.byteMapId = mapId;
-	if (isWildernessMapId(mapId) && mem.read8(indoorAddr) == 0)
+	if (isWildernessMapId(mapId) && !snapshot.indoorMode)
 		_legacySharedState.byteGameState = GS_WILDERNESS_MAP;
 	else
 		_legacySharedState.byteGameState = state;
@@ -472,19 +490,13 @@ void PoolradEngine::refreshLegacySharedRuntimeState() {
 
 	_legacySharedState.boolStateLoaded = _eclVm->stateLoaded;
 
-	const uint16 mapAddr = layout.vmField(kVmFieldSavedMapId).vmAddr;
-	_legacySharedState.byteMapId = mem.read8(mapAddr);
+	::Goldbox::RuntimeMapSnapshot snapshot;
+	if (!captureRuntimeMapSnapshot(snapshot))
+		return;
 
-	const uint16 skyboxRedrawAddr =
-		layout.runtimeField(ECL::kEclRuntimeSkyboxRedrawFlag);
-	if (ECL::EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr)) {
-		_legacySharedState.bool3dRedraw =
-			(mem.read8(skyboxRedrawAddr) != 0);
-	}
-
-	const uint16 picHeadAddr =
-		layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr;
-	_legacySharedState.boolPictureReady = (mem.read8(picHeadAddr) != 0xFF);
+	_legacySharedState.byteMapId = snapshot.mapId;
+	_legacySharedState.bool3dRedraw = snapshot.skyboxRedraw;
+	_legacySharedState.boolPictureReady = (snapshot.pictureHeadId != 0xFF);
 
 	_eclFlags.eclReady = _eclVm->eclReady;
 	_eclFlags.geoReady = _eclVm->geoReady;
@@ -580,6 +592,14 @@ void PoolradEngine::processLegacyInGameLoopStep() {
 	const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
 	if (resume == VM_YIELD)
 		_eclFlags.suspended = true;
+}
+
+RuntimeExchange *PoolradEngine::getRuntimeExchange() {
+	return _runtimeExchange.get();
+}
+
+const RuntimeExchange *PoolradEngine::getRuntimeExchange() const {
+	return _runtimeExchange.get();
 }
 
 } // namespace Poolrad

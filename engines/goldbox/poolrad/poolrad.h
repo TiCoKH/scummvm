@@ -29,6 +29,7 @@
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/ecl/ecl_vm.h"
+#include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/poolrad/ecl/poolrad_game_config.h"
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/ecl/runtime_layout.h"
@@ -46,6 +47,8 @@ namespace Data {
 
 namespace Goldbox {
 namespace Poolrad {
+
+class PoolradRuntimeExchange;
 
 namespace Data {
 typedef ::Goldbox::Data::DaxBlockGeo DaxBlockGeo;
@@ -86,6 +89,7 @@ private:
 	PoolradGameConfig                           _eclConfig;
 	Common::ScopedPtr<ECL::EclVM>              _eclVm;
 	Common::ScopedPtr<PoolradEngineHostImpl>   _eclHost;
+	Common::ScopedPtr<PoolradRuntimeExchange>  _runtimeExchange;
 	EclRuntimeFlags                            _eclFlags;
 	bool                                       _mapRuntimeNeedsInit = false;
 
@@ -144,10 +148,12 @@ public:
 	EffectHandler &effectsRuntime() { return _effectsRuntime; }
 	ECL::AddressSpace *getEclMemory();
 	const ECL::AddressSpace *getEclMemory() const;
+	bool captureRuntimeMapSnapshot(::Goldbox::RuntimeMapSnapshot &snapshot) const;
 	Data::DaxBlockGeo *getGeoBlockById(uint8 mapId);
 	Data::DaxBlockGeo *getActiveGeoBlock();
 	bool getActiveMapPosition(uint16 &x, uint16 &y, uint8 &dir) const;
 	bool getDebugWallSetState(int slot, DebugWallSetState &state) const;
+	bool queueInGameCommand(Views::InGameView::InGameCommand cmd);
 
 	/**
 	 * Execute ECL bytecode from an absolute script VM address.
@@ -155,6 +161,8 @@ public:
 	 */
 	VmResult executeEclAtScriptAddress(uint16 scriptPc,
 			uint32 maxSteps = 1000000);
+	RuntimeExchange *getRuntimeExchange() override;
+	const RuntimeExchange *getRuntimeExchange() const override;
 	const LegacySharedRuntimeState &getLegacySharedRuntimeState() const {
 		return _legacySharedState;
 	}

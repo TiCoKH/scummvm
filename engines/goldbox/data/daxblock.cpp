@@ -101,12 +101,14 @@ namespace Data {
 	DaxBlockPic::DaxBlockPic() {
 		height = 0;
 		width = 0;
+		frameCount = 0;
 	}
 
 	void DaxBlockPic::adjust() {
 		GfxDataHeader gfx_header = popGfxHeader();
 		height = gfx_header.height;
 		width = gfx_header.cwidth * 8;
+		frameCount = gfx_header.frameNum;
 	}
 
 DaxBlockWalldef::DaxBlockWalldef() {}

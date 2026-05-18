@@ -78,7 +78,6 @@ public:
 
 	static void setupPalette();
 	void setToText();
-	void setToSymbols();
 	void writeString(const Common::String &str);
 	void writeString(const unsigned char *str);
 	void writeString(int x, int y, const Common::String &str);
