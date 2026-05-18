@@ -139,6 +139,7 @@ class DaxBlockPic : public DaxBlock {
 public:
     int height;
     int width;
+    int frameCount;
 
     DaxBlockPic();
 

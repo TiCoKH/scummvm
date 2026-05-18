@@ -38,6 +38,7 @@
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
@@ -47,7 +48,6 @@ namespace {
 static const uint8 kMonsterSlotStart = Goldbox::Gfx::SLOT_DYNAMIC_START;
 static const uint16 kGeoVmBaseAddr = 0x4900;
 static const uint16 kGeoVmSize = 0x0400;
-static const uint16 kPoolradIndoorModeFlagVmAddr = 0x49E6;
 
 static const int kPicture3DAreaCharX = 3;
 static const int kPicture3DAreaCharY = 3;
@@ -382,7 +382,10 @@ VmResult PoolradEngineHostImpl::displayPicture(uint8 picID) {
         return VmResult::VM_ERROR;
 
     // Outdoor mode draws the inner 3D picture window frame before blitting.
-    if (_memory && _memory->read8(kPoolradIndoorModeFlagVmAddr) == 0) {
+    const Goldbox::RuntimeExchange *exchange = _engine->getRuntimeExchange();
+    Goldbox::RuntimeMapSnapshot snapshot;
+    if (exchange && exchange->captureMapSnapshot(snapshot) && snapshot.valid
+            && !snapshot.indoorMode) {
         Goldbox::Poolrad::Gfx::Surface screenSurface(*screen,
             Common::Rect(0, 0, screen->w, screen->h));
         screenSurface.drawWindow(3, 3, 13, 13);
@@ -463,9 +466,8 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
     switch (callId) {
     case 0x2C90:
         // CALL_MAP_3D_COLOR_UPDATE + DIALOG_StateArea in originals.
-        // Current engine fallback: refresh active view; full MAP_3DColorUpdate
-        // parity (color recompute + wilderness mini-map block) needs dedicated
-        // map-render/state-area integration hooks.
+        // ScummVM route: refresh active InGameView, which applies
+        // MAP_3DColorUpdate-style branching (indoor 3D vs wilderness area).
         _updateViewState();
         return VM_OK;
 
@@ -512,7 +514,7 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
 
 VmResult PoolradEngineHostImpl::spriteOff() {
     // Legacy SPRITE_OFF calls MAP_3DColorUpdate when a sprite overlay is active.
-    // Current engine fallback: refresh active view.
+    // ScummVM route: refresh active InGameView to re-run map-state drawing.
     _updateViewState();
     return VM_OK;
 }

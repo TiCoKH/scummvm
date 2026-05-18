@@ -7,6 +7,7 @@ MODULE_OBJS = \
 	keymapping.o \
 	messages.o \
 	metaengine.o \
+	runtime/runtime_exchange.o \
 	vm_interface.o \
 	ecl/ecl_decoder.o \
 	ecl/ecl_memory.o \
@@ -46,6 +47,7 @@ MODULE_OBJS = \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/dax_renderer.o \
+	gfx/dax_anim_decoder.o \
 	gfx/first_person_renderer.o \
 	gfx/pic.o \
 	gfx/walldef_surface_builder.o \
@@ -54,6 +56,7 @@ MODULE_OBJS = \
 	gfx/combat_renderer.o \
 	gfx/surface.o \
 	poolrad/poolrad.o \
+	poolrad/poolrad_runtime_exchange.o \
 	poolrad/effect_handler.o \
 	poolrad/console.o \
 	poolrad/ecl/poolrad_engine_host_impl.o \
@@ -83,6 +86,9 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/spells_menu.o \
 	poolrad/views/dialogs/character_profile.o \
 	poolrad/views/dialogs/portrait_display.o \
+	poolrad/views/dialogs/in_game_main_screen_dialog.o \
+	poolrad/views/dialogs/in_game_state_area_dialog.o \
+	poolrad/views/dialogs/in_game_panel_dialog.o \
 	poolrad/views/dialogs/set_portrait.o \
 	poolrad/views/dialogs/set_icon.o
 

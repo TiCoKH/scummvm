@@ -19,36 +19,78 @@
  *
  */
 
-#include "common/str.h"
-#include "goldbox/engine.h"
-#include "goldbox/data/player_character.h"
+#include "goldbox/poolrad/views/dialogs/in_game_main_screen_dialog.h"
+#include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/poolrad/views/dialogs/in_game_panel_dialog.h"
+#include "goldbox/poolrad/views/dialogs/in_game_state_area_dialog.h"
+#include "goldbox/poolrad/views/dialogs/party_list.h"
 #include "goldbox/poolrad/views/in_game_view.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-// Direction names indexed by 8-direction value (0-7).
-static const char *const kDirNames[8] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
-
 // Movement delta tables indexed by 4-direction (0=N, 1=E, 2=S, 3=W).
 static const int kDx[4] = {0, 1, 0, -1};
 static const int kDy[4] = {-1, 0, 1, 0};
 
-// Party-summary column positions (right panel, 40-col grid).
-static const int kPartyColName  = 17;
-static const int kPartyColAC    = 33;
-static const int kPartyColHP    = 36;
-static const int kPartyRowHdr   =  2;
-static const int kPartyRowStart =  4;
-
-// Position / status row.
-static const int kStatusRow = 15;
-static const int kStatusCol = 17;
-
 // -----------------------------------------------------------------------
 
 InGameView::InGameView() : View("InGame") {
+	_mainScreenDialog =
+		new Dialogs::InGameMainScreenDialog("InGameMainScreenDialog");
+	attachDialog(_mainScreenDialog);
+
+	_partyList = new Dialogs::PartyList("InGamePartyList");
+	attachDialog(_partyList);
+
+	_stateAreaDialog = new Dialogs::InGameStateAreaDialog("InGameStateArea");
+	attachDialog(_stateAreaDialog);
+
+	_shopPanelDialog = new Dialogs::InGamePanelDialog("InGameShopPanel", "Shop");
+	_shopPanelDialog->setRuntimeMode(Dialogs::InGamePanelDialog::kRuntimeShop);
+	attachDialog(_shopPanelDialog);
+
+	_campingPanelDialog = new Dialogs::InGamePanelDialog("InGameCampPanel", "Camp");
+	_campingPanelDialog->setRuntimeMode(Dialogs::InGamePanelDialog::kRuntimeCamping);
+	attachDialog(_campingPanelDialog);
+
+	_afterCombatPanelDialog = new Dialogs::InGamePanelDialog("InGameAfterCombatPanel", "AfterFight");
+	_afterCombatPanelDialog->setRuntimeMode(Dialogs::InGamePanelDialog::kRuntimeAfterCombat);
+	attachDialog(_afterCombatPanelDialog);
+}
+
+InGameView::~InGameView() {
+	if (_mainScreenDialog) {
+		delete _mainScreenDialog;
+		_mainScreenDialog = nullptr;
+	}
+
+	if (_afterCombatPanelDialog) {
+		delete _afterCombatPanelDialog;
+		_afterCombatPanelDialog = nullptr;
+	}
+
+	if (_campingPanelDialog) {
+		delete _campingPanelDialog;
+		_campingPanelDialog = nullptr;
+	}
+
+	if (_shopPanelDialog) {
+		delete _shopPanelDialog;
+		_shopPanelDialog = nullptr;
+	}
+
+	if (_stateAreaDialog) {
+		delete _stateAreaDialog;
+		_stateAreaDialog = nullptr;
+	}
+
+	if (_partyList) {
+		delete _partyList;
+		_partyList = nullptr;
+	}
 }
 
 // -----------------------------------------------------------------------
@@ -65,30 +107,138 @@ InGameView::InGameCommand InGameView::consumePendingCommand() {
 }
 
 void InGameView::applyScreenByState(GameState state) {
+	_state = state;
+	configureByState(state);
+	syncMainScreenDialog();
+	syncDialogs();
+	if (_stateAreaDialog)
+		_stateAreaDialog->setState(_state);
+	redraw();
+}
+
+void InGameView::onUpdate() {
+	const GameState runtimeState = VmInterface::getGameStatus();
+	if (runtimeState != _state)
+		applyScreenByState(runtimeState);
+}
+
+void InGameView::configureByState(GameState state) {
+	// Original GAME_screenByState mappings (DOS + m68k variants):
+	//  - SHOP         -> main windows with inner frame, portrait area, no state area
+	//  - CAMPING      -> main windows with inner frame + show party + state area
+	//  - DUNGEON_MAP  -> main windows with inner frame + MAP_3DColorUpdate +
+	//                    show party + state area
+	//  - WILDERNESS   -> main windows without inner frame + MAP_3DColorUpdate +
+	//                    show party + state area
+	//  - AFTER_COMBAT -> main windows with inner frame + show party
+	// Dialog orchestration (legacy intent):
+	//  - DIALOG_ShowParty in CAMPING/DUNGEON/WILDERNESS/AFTER_COMBAT
+	//  - DIALOG_StateArea in CAMPING/DUNGEON/WILDERNESS
+	_showPartyPanel = false;
+	_showStateArea = false;
+
 	switch (state) {
-	case GS_DUNGEON_MAP:
-		_mode = kModeDungeon;
-		break;
-	case GS_WILDERNESS_MAP:
-		_mode = kModeWilderness;
-		break;
 	case GS_SHOP:
-		_mode = kModeShop;
 		break;
 	case GS_CAMPING:
-		_mode = kModeCamping;
+		_showPartyPanel = true;
+		_showStateArea = true;
+		break;
+	case GS_DUNGEON_MAP:
+		_showPartyPanel = true;
+		_showStateArea = true;
+		break;
+	case GS_WILDERNESS_MAP:
+		_showPartyPanel = true;
+		_showStateArea = true;
 		break;
 	case GS_AFTER_COMBAT:
-		_mode = kModeAfterCombat;
+		_showPartyPanel = true;
 		break;
 	case GS_COMBAT:
-		_mode = kModeCombat;
+		_showPartyPanel = true;
 		break;
 	default:
-		_mode = kModeNone;
 		break;
 	}
-	redraw();
+}
+
+void InGameView::syncMainScreenDialog() {
+	if (!_mainScreenDialog)
+		return;
+
+	Dialogs::InGameMainScreenDialog::DrawMode mode =
+		Dialogs::InGameMainScreenDialog::kModeNone;
+
+	switch (_state) {
+	case GS_SHOP:
+		mode = Dialogs::InGameMainScreenDialog::kModeShop;
+		break;
+	case GS_CAMPING:
+		mode = Dialogs::InGameMainScreenDialog::kModeCamping;
+		break;
+	case GS_DUNGEON_MAP:
+		mode = Dialogs::InGameMainScreenDialog::kModeDungeon;
+		break;
+	case GS_WILDERNESS_MAP:
+		mode = Dialogs::InGameMainScreenDialog::kModeWilderness;
+		break;
+	case GS_AFTER_COMBAT:
+		mode = Dialogs::InGameMainScreenDialog::kModeAfterCombat;
+		break;
+	case GS_COMBAT:
+		mode = Dialogs::InGameMainScreenDialog::kModeCombat;
+		break;
+	default:
+		break;
+	}
+
+	_mainScreenDialog->setDrawMode(mode);
+	if (!_mainScreenDialog->isActive())
+		_mainScreenDialog->activate();
+}
+
+void InGameView::syncPartyDialog() {
+	if (!_partyList)
+		return;
+
+	if (_showPartyPanel) {
+		if (!_partyList->isActive())
+			_partyList->activate();
+	} else if (_partyList->isActive()) {
+		_partyList->deactivate();
+	}
+}
+
+void InGameView::syncLeftPanelDialog() {
+	Dialogs::Dialog *nextDialog = nullptr;
+
+	switch (_state) {
+	case GS_SHOP:
+		nextDialog = _shopPanelDialog;
+		break;
+	case GS_CAMPING:
+		nextDialog = _campingPanelDialog;
+		break;
+	case GS_AFTER_COMBAT:
+		nextDialog = _afterCombatPanelDialog;
+		break;
+	default:
+		break;
+	}
+
+	switchActiveDialog(_activeLeftPanelDialog, nextDialog);
+}
+
+void InGameView::syncStateAreaDialog() {
+	Dialogs::Dialog *nextDialog = _showStateArea ? static_cast<Dialogs::Dialog *>(_stateAreaDialog) : nullptr;
+	switchActiveDialog(_activeStateAreaDialog, nextDialog);
+}
+
+void InGameView::syncDialogs() {
+	syncPartyDialog();
+	syncLeftPanelDialog();
+	syncStateAreaDialog();
 }
 
 // -----------------------------------------------------------------------
@@ -96,11 +246,17 @@ void InGameView::applyScreenByState(GameState state) {
 
 bool InGameView::msgFocus(const FocusMessage &msg) {
 	View::msgFocus(msg);
-	redraw();
+	applyScreenByState(_state);
 	return true;
 }
 
 bool InGameView::msgUnfocus(const UnfocusMessage &msg) {
+	if (_activeLeftPanelDialog)
+		_activeLeftPanelDialog->deactivate();
+	if (_activeStateAreaDialog)
+		_activeStateAreaDialog->deactivate();
+	if (_partyList && _partyList->isActive())
+		_partyList->deactivate();
 	return true;
 }
 
@@ -108,121 +264,51 @@ bool InGameView::msgUnfocus(const UnfocusMessage &msg) {
 // Drawing
 
 void InGameView::draw() {
-	switch (_mode) {
-	case kModeDungeon:
-		drawDungeonMode();
-		break;
-	case kModeWilderness:
-		drawWildernessMode();
-		break;
-	case kModeShop:
-		drawShopMode();
-		break;
-	case kModeCamping:
-		drawCampingMode();
-		break;
-	case kModeAfterCombat:
-		drawAfterCombatMode();
-		break;
-	default:
-		break;
+	// Keep long-lived InGameView presentation synchronized with authoritative
+	// engine game state even when the view is not recreated.
+	const GameState runtimeState = VmInterface::getGameStatus();
+	if (runtimeState != _state)
+		applyScreenByState(runtimeState);
+
+	if (_mainScreenDialog)
+		_mainScreenDialog->draw();
+
+	if (_activeLeftPanelDialog && _activeLeftPanelDialog->isActive())
+		_activeLeftPanelDialog->draw();
+
+	if (_showPartyPanel && _partyList && _partyList->isActive())
+		_partyList->draw();
+
+	if (_showStateArea && _stateAreaDialog && _stateAreaDialog->isActive()) {
+		_stateAreaDialog->setState(_state);
+		_stateAreaDialog->draw();
 	}
-}
-
-void InGameView::drawDungeonMode() {
-	// w_inner_frame = true for dungeon (GS_DUNGEON_MAP).
-	drawMainScreenWindows(true);
-	Surface s = getSurface();
-	drawPartySummary(s);
-	drawPositionTime(s);
-	// TODO: Render 3D forward view via GFX_renderWallRun once geo/colors ready.
-}
-
-void InGameView::drawWildernessMode() {
-	// w_inner_frame = false for wilderness (GS_WILDERNESS_MAP).
-	drawMainScreenWindows(false);
-	Surface s = getSurface();
-	drawPartySummary(s);
-	drawPositionTime(s);
-	// TODO: Draw area-map block and wilderness position tile.
-}
-
-void InGameView::drawShopMode() {
-	// w_inner_frame = true for shop (GS_SHOP).
-	drawMainScreenWindows(true);
-	// TODO: Blit NPC portrait at (3,3) and shop dialog content.
-}
-
-void InGameView::drawCampingMode() {
-	// w_inner_frame = true for camping (GS_CAMPING).
-	drawMainScreenWindows(true);
-	// TODO: Draw camp/rest menu state area.
-}
-
-void InGameView::drawAfterCombatMode() {
-	// w_inner_frame = true for after-combat (GS_AFTER_COMBAT).
-	drawMainScreenWindows(true);
-	// TODO: Draw loot and post-combat summary panel.
-}
-
-void InGameView::drawPartySummary(Surface &s) {
-	// Header row.
-	s.writeStringC(kPartyColName, kPartyRowHdr, 15, "Name");
-	s.writeStringC(kPartyColAC,   kPartyRowHdr, 15, "AC  HP");
-
-	int row = kPartyRowStart;
-	const Common::Array<Data::PlayerCharacter *> &party = g_engine->getParty();
-	for (uint i = 0; i < party.size() && row < 14; ++i) {
-		const Data::PlayerCharacter *pc = party[i];
-		if (!pc)
-			continue;
-
-		// Name (truncated to 15 chars to stay inside the right panel).
-		Common::String nameStr = pc->name;
-		if (nameStr.size() > 15)
-			nameStr = nameStr.substr(0, 15);
-		s.writeStringC(kPartyColName, row, 10, nameStr);
-
-		// AC (3 chars left-justified).
-		int ac = pc->armorClass.getCurrent();
-		Common::String acStr = Common::String::format("%-3d", ac);
-		s.writeStringC(kPartyColAC, row, 10, acStr);
-
-		// HP (right-aligned up to 3 digits).
-		Common::String hpStr = Common::String::format("%d", (int)pc->hitPoints.current);
-		int hpCol = kPartyColHP + (3 - (int)hpStr.size());
-		s.writeStringC(hpCol, row, 10, hpStr);
-
-		++row;
-	}
-
-	// Clear any leftover lines from a previously longer party list.
-	for (; row < 14; ++row)
-		s.clearBox(kPartyColName, row, 38, row, 0);
-}
-
-void InGameView::drawPositionTime(Surface &s) {
-	// Format: "X,Y DIRECTION [search]"
-	Common::String posStr = Common::String::format("%d,%d %s",
-		(int)_mapX, (int)_mapY, kDirNames[_mapDir]);
-
-	if (_searchMode)
-		posStr += " search";
-
-	s.clearBox(kStatusCol, kStatusRow, 38, kStatusRow, 0);
-	s.writeStringC(kStatusCol, kStatusRow, 10, posStr);
 }
 
 // -----------------------------------------------------------------------
 // Input
 
 bool InGameView::msgKeypress(const KeypressMessage &msg) {
-	switch (_mode) {
-	case kModeDungeon:
-		return handleDungeonKeypress(msg);
-	default:
-		return false;
+	// Legacy DIALOG_ShowParty navigation stays active in states that show it.
+	if (_showPartyPanel && _partyList && _partyList->isActive()) {
+		if (_partyList->msgKeypress(msg)) {
+			redraw();
+			return true;
+		}
 	}
+
+	if (_activeLeftPanelDialog && _activeLeftPanelDialog->send(msg))
+		return true;
+
+	if (_activeStateAreaDialog && _activeStateAreaDialog->send(msg))
+		return true;
+
+	if (_state == GS_DUNGEON_MAP || _state == GS_WILDERNESS_MAP
+			|| _state == GS_CAMPING || _state == GS_AFTER_COMBAT
+			|| _state == GS_COMBAT)
+		return handleDungeonKeypress(msg);
+
+	return false;
 }
 
 bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {

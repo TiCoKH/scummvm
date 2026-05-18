@@ -131,6 +131,7 @@ static void validatePoolradLayoutMappings() {
 
 	assert(globalLayout.field(kVmGlobalFieldPartyCount).vmAddr == 0x6E3E);
 	assert(globalLayout.field(kVmGlobalFieldMonsterDistance).vmAddr == 0x6DC1);
+	assert(globalLayout.field(kVmGlobalFieldPictureHeadId).vmAddr == 0x6DE1);
 	assert(globalLayout.field(kVmGlobalFieldShopFlag).vmAddr == 0x6E6C);
 
 	validated = true;
@@ -455,6 +456,17 @@ void debugDumpPoolradGlobalVmLayout() {
 				location.vmAddr);
 		}
 	}
+}
+
+uint16 poolradPortraitHeadIdVmAddr() {
+	const Goldbox::VmGlobalLayout &layout = getPoolradGlobalVmLayout();
+	return layout.field(kVmGlobalFieldPictureHeadId).vmAddr;
+}
+
+uint16 poolradPortraitBodyIdVmAddr() {
+	// Current Poolrad runtime convention keeps body ID adjacent to head ID.
+	// Preserve this until a dedicated VmGlobal field is confirmed.
+	return static_cast<uint16>(poolradPortraitHeadIdVmAddr() + 1);
 }
 
 } // namespace Data

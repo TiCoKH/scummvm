@@ -76,6 +76,12 @@ bool poolradVmGlobalFieldOffset(Goldbox::VmGlobalFieldId fieldId,
 	uint16 &byteOffset);
 void debugDumpPoolradGlobalVmLayout();
 
+// Portrait ID helpers used by state-driven UI renderers (InGameView/Dialogs).
+// Head ID is the canonical VM global field. Body ID currently follows head ID
+// in runtime memory for Poolrad data files.
+uint16 poolradPortraitHeadIdVmAddr();
+uint16 poolradPortraitBodyIdVmAddr();
+
 } // namespace Data
 } // namespace Poolrad
 } // namespace Goldbox

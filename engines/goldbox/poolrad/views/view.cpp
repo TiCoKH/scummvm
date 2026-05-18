@@ -75,6 +75,9 @@ void View::drawWindow(uint8 left, uint8 top, uint8 right, uint8 bottom) {
 }
 
 void View::drawMainScreenWindows(bool showMiniWindow) {
+	// x86 + m68k parity:
+	//   SCREEN_DrawMainWindows(bool w_inner_frame)
+	//   w_inner_frame == true => draw inner frame at (3,3)-(13,13)
 	// Decomp mapping (M68K version - cleaner parameter order):
 	// SCREEN_DrawWindow(1,1,38,22,0,15,s__00240c2c);   → Main frame
 	// SCREEN_DrawWindow(1,17,38,22,0,15,s__00240c2e);  → Bottom status
