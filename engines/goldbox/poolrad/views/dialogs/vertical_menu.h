@@ -86,6 +86,7 @@ public:
 
     VerticalMenu(const Common::String &name, const VerticalMenuConfig &config);
     ~VerticalMenu();
+	bool dispatchKeypress(const KeypressMessage &msg) { return msgKeypress(msg); }
 
     void activate() override;
     void deactivate() override;

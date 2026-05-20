@@ -22,6 +22,7 @@
 #include "common/file.h"
 #include "common/tokenizer.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/views/mainmenu_view.h"
 #include "goldbox/poolrad/views/dialogs/party_list.h"
 
@@ -45,7 +46,7 @@ using Common::String;
 using Common::Array;
 using Common::StringTokenizer;
 
-MainmenuView::MainmenuView() : View("Mainmenu"), _partyList(nullptr), _party(nullptr) {
+MainmenuView::MainmenuView() : View("Mainmenu"), _partyList(nullptr), _loadSaveDialog(nullptr), _party(nullptr) {
     Array<String> menuOptions;
 
     const String shortcuts = VmInterface::getString("mainmenu.0");
@@ -59,12 +60,18 @@ MainmenuView::MainmenuView() : View("Mainmenu"), _partyList(nullptr), _party(nul
     _menuItemList.generateMenuItems(menuOptions, true);
     _menuItemList.activate(CREATE);
     _menuItemList.activate(EXIT);
+
+	_loadSaveDialog = new Dialogs::LoadSaveDialog("LoadSaveDialog");
 }
 
 MainmenuView::~MainmenuView() {
     if (_partyList) {
         delete _partyList;
         _partyList = nullptr;
+    }
+    if (_loadSaveDialog) {
+        delete _loadSaveDialog;
+        _loadSaveDialog = nullptr;
     }
 }
 
@@ -74,8 +81,7 @@ void MainmenuView::draw() {
     _party = Goldbox::VmInterface::getParty();
 
     if (!_partyList && _party && _party->size() > 0) {
-        _partyList = new Views::Dialogs::PartyList();
-        subView(_partyList);
+        _partyList = new Dialogs::PartyList();
         _partyList->activate();
     }
 
@@ -93,18 +99,17 @@ void MainmenuView::draw() {
     if (_party && _party->size() > 0 && _partyList) {
         _partyList->draw();
     }
+    if (_loadSaveDialog && _loadSaveDialog->isActive())
+        _loadSaveDialog->draw();
     drawMenu();
     drawPrompt();
 }
 
 bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
-    // Forward keypresses to active PartyList dialog first
-    if (_partyList && _partyList->isActive()) {
-        if (_partyList->msgKeypress(msg)) {
-            redraw();
-            return true;
-        }
-    }
+    if (_activeDialog && _activeDialog->send(msg))
+        return true;
+    if (_partyList && _partyList->isActive() && _partyList->send(msg))
+        return true;
 
     switch (msg.keycode) {
         case Common::KEYCODE_c:
@@ -138,11 +143,22 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
             break;
         case Common::KEYCODE_l:
             if (_menuItemList.isActive(LOAD))
-                replaceView("Mainmenu");
+                if (_loadSaveDialog) {
+                    _loadSaveDialog->setMode(Dialogs::LoadSaveDialog::kModeLoad);
+                    _loadSaveDialog->activate();
+                    _activeDialog = _loadSaveDialog;
+                    redraw();
+                }
             break;
         case Common::KEYCODE_s:
-            if (_menuItemList.isActive(SAVE))
-                replaceView("Mainmenu");
+            if (_menuItemList.isActive(SAVE)) {
+                if (_loadSaveDialog) {
+                    _loadSaveDialog->setMode(Dialogs::LoadSaveDialog::kModeSave);
+                    _loadSaveDialog->activate();
+                    _activeDialog = _loadSaveDialog;
+                    redraw();
+                }
+			}
             break;
         case Common::KEYCODE_b:
             if (_menuItemList.isActive(BEGIN))
@@ -157,14 +173,40 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
     return true;
 }
 
+void MainmenuView::handleMenuResult(const MenuResultMessage &result) {
+    if (!_loadSaveDialog || !result._success || !result._hasIntValue)
+        return;
+
+    const int slotIndex = result._intValue;
+    if (slotIndex < 0 || slotIndex > 9)
+        return;
+
+    const char slotLetter = static_cast<char>('A' + slotIndex);
+    Poolrad::PoolradEngine *engine = Poolrad::g_engine;
+    if (!engine)
+        return;
+
+    if (_loadSaveDialog->getMode() == Dialogs::LoadSaveDialog::kModeSave) {
+        Common::String errorMessage;
+        if (!engine->saveGameSlotX86(slotLetter, errorMessage)) {
+            warning("Save failed for slot %c: %s", slotLetter, errorMessage.c_str());
+        }
+        _loadSaveDialog->setStatusText(Common::String::format("Saved game %c", slotLetter));
+    } else {
+        _loadSaveDialog->setStatusText(Common::String::format(
+            "Load slot %c selected (loader wiring next)", slotLetter));
+    }
+    _loadSaveDialog->deactivate();
+    _activeDialog = nullptr;
+}
+
 bool MainmenuView::msgFocus(const FocusMessage &msg) {
     View::msgFocus(msg);
 
     // Setup when view gets focus (called by replaceView/addView)
     _party = Goldbox::VmInterface::getParty();
     if (!_partyList) {
-        _partyList = new Views::Dialogs::PartyList();
-        subView(_partyList);
+        _partyList = new Dialogs::PartyList();
     }
     if (_partyList) {
         if (_party && _party->size() > 0) {
