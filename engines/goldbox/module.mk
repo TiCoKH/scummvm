@@ -82,6 +82,7 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/party_selector.o \
 	poolrad/views/dialogs/vertical_menu.o \
 	poolrad/views/dialogs/prompt_message.o \
+	poolrad/views/dialogs/load_save_dialog.o \
 	poolrad/views/dialogs/items_menu.o \
 	poolrad/views/dialogs/spells_menu.o \
 	poolrad/views/dialogs/character_profile.o \

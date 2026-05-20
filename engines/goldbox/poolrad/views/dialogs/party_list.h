@@ -43,6 +43,8 @@ public:
     void activate() override;
     void draw() override;
     bool msgKeypress(const KeypressMessage &msg) override;
+    bool handleKeypressDirect(const KeypressMessage &msg);
+    bool dispatchKeypress(const KeypressMessage &msg) { return handleKeypressDirect(msg); }
     void setLayout(uint xName, uint xAC, uint yStart) {
         _xName = xName; _xAC = xAC; _yStart = yStart;
         _hasCustomLayout = true;

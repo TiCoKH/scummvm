@@ -210,29 +210,32 @@ void PartyList::prevChar() {
     }
 }
 
-bool PartyList::msgKeypress(const KeypressMessage &msg) {
-    // Only handle navigation if there's more than one party member
-    if (!_party || _party->size() <= 1)
+bool PartyList::handleKeypressDirect(const KeypressMessage &msg) {
+    if (!_party || _party->empty())
         return false;
 
     switch (msg.keycode) {
         case Common::KEYCODE_END:
         case Common::KEYCODE_KP1:
             nextChar();
-            redraw();
+            draw();
             return true;
 
         case Common::KEYCODE_HOME:
         case Common::KEYCODE_KP7:
             prevChar();
-            redraw();
+            draw();
             return true;
 
         default:
             break;
     }
 
-    return Dialog::msgKeypress(msg);
+    return false;
+}
+
+bool PartyList::msgKeypress(const KeypressMessage &msg) {
+    return handleKeypressDirect(msg);
 }
 
 } // namespace Dialogs

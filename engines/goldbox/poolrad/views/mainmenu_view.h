@@ -28,6 +28,7 @@
 #include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/view.h"
 #include "goldbox/poolrad/views/dialogs/party_list.h"
+#include "goldbox/poolrad/views/dialogs/load_save_dialog.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -46,6 +47,9 @@ private:
     Common::Array<Common::String> charList;
     Common::Array<Goldbox::Data::PlayerCharacter *> *_party;
     Dialogs::PartyList *_partyList = nullptr;
+    Dialogs::LoadSaveDialog *_loadSaveDialog = nullptr;
+    Dialogs::Dialog *_activeDialog = nullptr;
+
     void drawPrompt();
 
 public:
@@ -55,6 +59,7 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     bool msgFocus(const FocusMessage &msg) override;
     bool msgUnfocus(const UnfocusMessage &msg) override;
+    void handleMenuResult(const MenuResultMessage &result) override;
     void draw() override;
     void timeout() override;
     void updateMenuState();

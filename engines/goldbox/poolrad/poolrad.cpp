@@ -22,11 +22,14 @@
 #include "common/config-manager.h"
 #include "common/engine_data.h"
 #include "common/fs.h"
+#include "common/file.h"
+#include "common/str.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/strings_data.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
@@ -41,6 +44,12 @@ namespace {
 
 static bool isWildernessMapId(uint8 mapId) {
 	return mapId == 0x19 || mapId == 0x1A || mapId == 0x1B;
+}
+
+static char toUpperAscii(char c) {
+	if (c >= 'a' && c <= 'z')
+		return static_cast<char>(c - ('a' - 'A'));
+	return c;
 }
 
 } // namespace
@@ -351,6 +360,126 @@ bool PoolradEngine::getActiveMapPosition(uint16 &x, uint16 &y,
 	x = snapshot.dungeonX;
 	y = snapshot.dungeonY;
 	dir = snapshot.dungeonDir;
+	return true;
+}
+
+bool PoolradEngine::saveGameSlotX86(char slotLetter,
+		Common::String &errorMessage) {
+	errorMessage.clear();
+
+	const char slot = toUpperAscii(slotLetter);
+	if (slot < 'A' || slot > 'J') {
+		errorMessage = "Invalid save slot";
+		return false;
+	}
+
+	ECL::AddressSpace *mem = getEclMemory();
+	if (!mem) {
+		errorMessage = "ECL memory is not ready";
+		return false;
+	}
+
+	Common::Path savePath = ConfMan.getPath("savepath");
+	if (savePath.empty())
+		savePath = ConfMan.getPath("currentpath");
+
+	Common::FSNode saveNode(savePath);
+	if (!saveNode.isDirectory()) {
+		if (!saveNode.createDirectory()) {
+			errorMessage = "Failed to create save directory";
+			return false;
+		}
+	}
+
+	const Common::Path gameSavePath =
+		savePath / Common::String::format("SAVGAM%c.DAT", slot);
+
+	Common::DumpFile out;
+	if (!out.open(gameSavePath)) {
+		errorMessage = Common::String::format("Failed to create %s",
+			gameSavePath.toString().c_str());
+		return false;
+	}
+
+	auto writeVmBlock = [&](uint16 startAddr, uint32 size) {
+		for (uint32 i = 0; i < size; ++i)
+			out.writeByte(mem->read8(static_cast<uint16>(startAddr + i)));
+	};
+
+	// Keep x86 binary layout compatibility: one leading legacy placeholder byte.
+	// No save-disk/path prompt behavior is used in ScummVM; saves always go to savepath.
+	out.writeByte(0);
+
+	writeVmBlock(0x4900, 0x0800); // VMBANK0_WORLD_STATE
+	writeVmBlock(0x6B00, 0x0800); // VMBANK1_PARTY_STATE
+	writeVmBlock(0x9700, 0x0400); // VMBANK2_COMBAT_STATE
+	writeVmBlock(0x9900, 0x1E00); // VMBANK3_ECL_SCRIPT
+
+	::Goldbox::RuntimeMapSnapshot snapshot;
+	if (!captureRuntimeMapSnapshot(snapshot)) {
+		errorMessage = "Failed to capture runtime snapshot";
+		out.close();
+		return false;
+	}
+
+	const uint16 posX = snapshot.dungeonX;
+	const uint16 posY = snapshot.dungeonY;
+	const uint16 posDir = static_cast<uint16>((snapshot.dungeonDir / 2) & 0x03);
+	const uint16 mapWallType = snapshot.mapType;
+	const uint16 mapSquareInfo = 0;
+
+	out.writeUint16LE(posX);
+	out.writeUint16LE(posY);
+	out.writeUint16LE(posDir);
+	out.writeUint16LE(mapWallType);
+	out.writeUint16LE(mapSquareInfo);
+	out.writeByte(static_cast<uint8>(mapWallType & 0xFF));
+	out.writeByte(static_cast<uint8>(getGameState()));
+
+	uint8 characterCount = 0;
+	byte characterTable[0x148];
+	memset(characterTable, 0, sizeof(characterTable));
+
+	for (uint i = 0; i < _party.size(); ++i) {
+		if (characterCount >= 8)
+			break;
+
+		Data::PoolradCharacter *pc =
+			dynamic_cast<Data::PoolradCharacter *>(_party[i]);
+		if (!pc)
+			continue;
+
+		++characterCount;
+		const Common::String base =
+			Common::String::format("CHRDAT%c%d", slot,
+				static_cast<int>(characterCount));
+
+		const uint32 tableOffset = (characterCount - 1) * 0x29;
+		Common::strlcpy(reinterpret_cast<char *>(&characterTable[tableOffset]),
+			base.c_str(), 0x29);
+
+		const Common::Path savPath = savePath / (base + ".SAV");
+		Common::DumpFile charOut;
+		if (!charOut.open(savPath)) {
+			errorMessage = Common::String::format("Failed to save %s",
+				savPath.toString().c_str());
+			out.close();
+			return false;
+		}
+		pc->save(charOut);
+		charOut.close();
+
+		const Common::Path itmPath = savePath / (base + ".ITM");
+		const Common::Path spcPath = savePath / (base + ".SPC");
+		pc->inventory.save(itmPath.toString());
+		pc->effects.save(spcPath.toString());
+	}
+
+	out.writeByte(characterCount);
+	out.write(characterTable, sizeof(characterTable));
+	out.flush();
+	out.close();
+
 	return true;
 }
 

@@ -42,6 +42,7 @@ public:
 	virtual void deactivate() { _isActive = false; _isVisible = false; }
     bool isActive() const { return _isActive; }
     bool isVisible() const { return _isVisible; }
+	bool handleKeypress(const KeypressMessage &msg) { return msgKeypress(msg); }
 
 	void show() { _isVisible = true; }
     void hide() { _isVisible = false; }
