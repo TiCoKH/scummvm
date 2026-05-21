@@ -9,7 +9,7 @@
 #include "common/str.h"
 #include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
-#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -27,11 +27,11 @@ private:
 	Mode _mode;
 	Common::String _statusText;
 	Common::String _titleText;
-	Common::Array<Common::String> _slotLabels;
 	Goldbox::MenuItemList _slotItems;
-	VerticalMenu *_slotMenu;
+	Common::Array<uint8> _slotSelectionToIndex;
+	HorizontalMenu *_slotMenu;
 
-	void rebuildSlotList();
+	void rebuildSlotMenu();
 	bool slotExists(char slotLetter) const;
 	static char toUpperAscii(char c);
 	static Common::String slotName(char slotLetter);
@@ -43,7 +43,7 @@ public:
 	void setMode(Mode mode);
 	Mode getMode() const { return _mode; }
 	void setStatusText(const Common::String &text);
-	bool handleKeypressDirect(const KeypressMessage &msg);
+	bool msgKeypress(const KeypressMessage &msg) override;
 
 	void activate() override;
 	void deactivate() override;

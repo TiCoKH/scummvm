@@ -37,6 +37,7 @@ struct HorizontalMenuConfig {
     int selectColor;
     int promptColor;
     bool allowNumPad;
+    bool suppressUnhandledKeys = true;
     int backgroundColor = 0;
 };
 
@@ -49,6 +50,7 @@ private:
     int _backgroundColor;
     Common::String _promptTxt;
     bool _allowNumPad;
+    bool _suppressUnhandledKeys;
     bool _redraw = true;
 
     void drawText();

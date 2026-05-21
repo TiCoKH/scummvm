@@ -38,6 +38,7 @@ HorizontalMenu::HorizontalMenu(const String &name, const HorizontalMenuConfig &c
       _promptColor(config.promptColor),
       _backgroundColor(config.backgroundColor),
       _allowNumPad(config.allowNumPad),
+      _suppressUnhandledKeys(config.suppressUnhandledKeys),
       _promptTxt(config.promptTxt) {
     assert(_menuItems != nullptr);
 
@@ -87,21 +88,25 @@ void HorizontalMenu::drawText() {
 bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
     KeyCode keyCode = msg.keycode;
     char asciiValue = (msg.ascii >= 'a' && msg.ascii <= 'z') ? msg.ascii - 32 : msg.ascii;
+    bool handled = false;
 
     switch (keyCode) {
         case Common::KEYCODE_COMMA: {
 			_menuItems->prevActive();
             _redraw = true;
+            handled = true;
             break;
         }
         case Common::KEYCODE_PERIOD: {
 			_menuItems->nextActive();
             _redraw = true;
+            handled = true;
             break;
         }
         case Common::KEYCODE_SPACE: {
             _menuItems->currentSelection = 0;
             _redraw = true;
+            handled = true;
             break;
         }
 		case Common::KEYCODE_RETURN: {
@@ -211,7 +216,7 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
     }
 
     if (_redraw) drawText();
-    return true;
+    return handled || _suppressUnhandledKeys;
 }
 
 } // namespace Dialogs
