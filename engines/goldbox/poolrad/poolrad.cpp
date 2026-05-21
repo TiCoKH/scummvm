@@ -363,6 +363,19 @@ bool PoolradEngine::getActiveMapPosition(uint16 &x, uint16 &y,
 	return true;
 }
 
+void PoolradEngine::setLegacyMenuStatus(uint8 status) {
+	_legacySharedState.byteMenuStatus = status;
+
+	if (!_eclVm)
+		return;
+
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+	ECL::AddressSpace &mem = _eclVm->getMemory();
+	const uint16 menuStatusAddr = layout.runtimeField(ECL::kEclRuntimeMenuStatus);
+	if (ECL::EclRuntimeLayout::isValidVmAddr(menuStatusAddr))
+		mem.write8(menuStatusAddr, status);
+}
+
 bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		Common::String &errorMessage) {
 	errorMessage.clear();
@@ -624,6 +637,9 @@ void PoolradEngine::refreshLegacySharedRuntimeState() {
 		return;
 
 	_legacySharedState.byteMapId = snapshot.mapId;
+	const uint16 menuStatusAddr = layout.runtimeField(ECL::kEclRuntimeMenuStatus);
+	if (ECL::EclRuntimeLayout::isValidVmAddr(menuStatusAddr))
+		_legacySharedState.byteMenuStatus = mem.read8(menuStatusAddr);
 	_legacySharedState.bool3dRedraw = snapshot.skyboxRedraw;
 	_legacySharedState.boolPictureReady = (snapshot.pictureHeadId != 0xFF);
 

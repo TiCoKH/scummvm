@@ -174,7 +174,16 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
 }
 
 void MainmenuView::handleMenuResult(const MenuResultMessage &result) {
-    if (!_loadSaveDialog || !result._success || !result._hasIntValue)
+    if (!_loadSaveDialog)
+        return;
+
+    if (!result._success) {
+        _loadSaveDialog->deactivate();
+        _activeDialog = nullptr;
+        return;
+    }
+
+    if (!result._hasIntValue)
         return;
 
     const int slotIndex = result._intValue;
