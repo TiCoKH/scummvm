@@ -24,6 +24,7 @@
 #include "common/config-manager.h"
 #include "common/debug-channels.h"
 #include "common/events.h"
+#include "common/path.h"
 #include "engines/util.h"
 #include "graphics/palette.h"
 #include "goldbox/gfx/dax_tile.h"
@@ -48,6 +49,17 @@ Engine::~Engine() {
         delete _party[i];
     }
     _party.clear();
+}
+
+void Engine::setup() {
+	if (!initializeGameData())
+		return;
+
+	if (!loadGameAssets())
+		return;
+
+	if (!initializeRuntimeSystems())
+		return;
 }
 
 void Engine::initFixedTileCacheSlots(uint8 symbolsBlockId,
@@ -95,6 +107,25 @@ Common::Platform Engine::getPlatform() const {
 
 Common::String Engine::getString(const Common::String &key) const {
     return _strings.getVal(key);
+}
+
+Common::Path Engine::resolveGameDataPath() const {
+	Common::Path gamePath = ConfMan.getPath("path");
+	if (gamePath.empty())
+		gamePath = ConfMan.getPath("currentpath");
+
+	return gamePath;
+}
+
+Common::Path Engine::resolveSavePath() const {
+	Common::Path gamePath = resolveGameDataPath();
+	if (!gamePath.empty())
+		gamePath.joinInPlace("save");
+	if (!gamePath.empty())
+		return gamePath;
+
+	// Fallback only when currentpath is unavailable.
+	return ConfMan.getPath("savepath");
 }
 
 void Engine::setGameState(GameState state) {

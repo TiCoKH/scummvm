@@ -3,9 +3,7 @@
  * Reusable Poolrad load/save dialog.
  */
 
-#include "common/config-manager.h"
 #include "common/file.h"
-#include "common/fs.h"
 #include "common/path.h"
 #include "goldbox/events.h"
 #include "goldbox/poolrad/poolrad.h"
@@ -19,10 +17,11 @@ namespace Dialogs {
 namespace {
 
 static Common::Path getSavePath() {
-	Common::Path savePath = ConfMan.getPath("savepath");
-	if (savePath.empty())
-		savePath = ConfMan.getPath("currentpath");
-	return savePath;
+	if (Poolrad::g_engine)
+		return Poolrad::g_engine->resolveSavePath();
+
+	warning("Poolrad engine unavailable while resolving legacy save path");
+	return Common::Path();
 }
 
 } // namespace

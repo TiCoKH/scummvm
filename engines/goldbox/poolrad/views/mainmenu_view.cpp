@@ -99,10 +99,10 @@ void MainmenuView::draw() {
     if (_party && _party->size() > 0 && _partyList) {
         _partyList->draw();
     }
-    if (_loadSaveDialog && _loadSaveDialog->isActive())
-        _loadSaveDialog->draw();
     drawMenu();
     drawPrompt();
+    if (_loadSaveDialog && _loadSaveDialog->isActive())
+        _loadSaveDialog->draw();
 }
 
 bool MainmenuView::msgKeypress(const KeypressMessage &msg) {

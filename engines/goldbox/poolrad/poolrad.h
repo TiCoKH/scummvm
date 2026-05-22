@@ -124,19 +124,14 @@ private:
 
 protected:
 	void setup() override;
+	bool initializeGameData() override;
+	bool loadGameAssets() override;
+	bool initializeRuntimeSystems() override;
 	GUI::Debugger *getConsole() override;
 	void onGameStateEnter(GameState prev, GameState next) override;
 	bool tick() override;
 
 public:
-
-	//GameArchive *_gameArchive = nullptr;
-	//Data::Saved _saved;
-	//Gfx::PicsDecoder _pics;
-
-public:
-	//static Data::Character _party[MAX_CHARACTERS];
-
 	PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~PoolradEngine() override;
 	void initializePath(const Common::FSNode &gamePath) override;
@@ -152,6 +147,7 @@ public:
 	bool captureRuntimeMapSnapshot(::Goldbox::RuntimeMapSnapshot &snapshot) const;
 	Data::DaxBlockGeo *getGeoBlockById(uint8 mapId);
 	Data::DaxBlockGeo *getActiveGeoBlock();
+	void initGameDefaults();
 	bool getActiveMapPosition(uint16 &x, uint16 &y, uint8 &dir) const;
 	bool saveGameSlotX86(char slotLetter, Common::String &errorMessage);
 	bool loadGameSlotX86(char slotLetter, Common::String &errorMessage);

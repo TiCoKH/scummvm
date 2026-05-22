@@ -22,6 +22,7 @@
 #ifndef GOLDBOX_POOLRAD_VIEWS_ADD_CHARACTER_VIEW_H
 #define GOLDBOX_POOLRAD_VIEWS_ADD_CHARACTER_VIEW_H
 
+#include "common/path.h"
 #include "goldbox/poolrad/views/view.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 
@@ -34,6 +35,7 @@ private:
 	Goldbox::MenuItemList *_rosterList;
 	Dialogs::VerticalMenu *_rosterMenu;
 	Common::Array<Common::String> _promptOptions;
+	Common::Path _characterDataPath;
 	Common::String formatFilename(const Common::String &name);
 	void loadCharacter(int index);
 

@@ -19,7 +19,6 @@
  *
  */
 
-#include "common/config-manager.h"
 #include "common/engine_data.h"
 #include "common/fs.h"
 #include "common/file.h"
@@ -75,8 +74,63 @@ void PoolradEngine::initializePath(const Common::FSNode &gamePath) {
 }
 
 void PoolradEngine::setup() {
+	// Keep the framework entrypoint explicit in Poolrad while reusing
+	// the generic phased setup pipeline from Goldbox::Engine.
+	Engine::setup();
+}
 
-// Initialise engine data for the game
+void PoolradEngine::initGameDefaults() {
+    if (!_eclVm)
+        return;
+
+    ECL::AddressSpace &mem = _eclVm->getMemory();
+    ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+
+    // Mirror GAME_Init: zero all 4 VM banks.
+    // VM constructor already zeroes flat memory, but be explicit for clarity.
+    // Bank ranges: GEO 0x4900-0x4CFF, DAT 0x6B00-0x6EFF,
+    //              HEAP 0x9700-0x98FF, ECL 0x9900-0xB6FF.
+
+    // Default position: x=15, y=1, dir=WEST(2)
+    mem.write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr, 15);
+    mem.write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr, 1);
+    mem.write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr, 2); // WEST
+
+    // Map type defaults
+    mem.write8(layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr, 1);
+
+    // Party count = 0
+    mem.write8(layout.vmGlobalField(kVmGlobalFieldPartyCount).vmAddr, 0);
+
+    // Picture head ID sentinel (0xFF = no picture loaded)
+    mem.write8(layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr, 0xFF);
+
+    // Game speed default = 1
+    mem.write16LE(layout.vmField(kVmFieldGameSpeed).vmAddr, 1);
+
+    // Indoor mode = 1 (dungeon), map type = 1
+    mem.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
+
+    // Runtime game state = GS_START_MENU (0) while at main menu
+    mem.write8(layout.runtimeField(ECL::kEclRuntimeGameState),
+        static_cast<uint8>(GS_START_MENU));
+
+    // WORD_ECL_PC = 0x9900 (script start, matches original)
+    mem.write16LE(layout.runtimeField(ECL::kEclRuntimePc), 0x9900);
+
+    // Legacy shared state mirrors
+    _legacySharedState.byteGameState = GS_START_MENU;
+    _legacySharedState.boolStateLoaded = false;
+    _legacySharedState.byteMapId = 0;
+    _legacySharedState.byteMenuStatus = 0;
+    _legacySharedState.ptrCharacter = nullptr;
+    _legacySharedState.boolSuspendFlag = false;
+    _legacySharedState.bool3dRedraw = false;
+    _legacySharedState.boolPictureReady = false;
+}
+
+bool PoolradEngine::initializeGameData() {
+	// Initialise engine data for the game
 //	Common::U32String errMsg;
 //	if (!Common::load_engine_data("poolrad.dat", "poolrad", 1, 0, errMsg)) {
 //		Common::String msg(errMsg);
@@ -85,13 +139,21 @@ void PoolradEngine::setup() {
 	Common::File items;
 	if (!items.open("ITEMS")) {
 		warning("Cannot open ITEMS file");
-		return;
+		return false;
 	}
 	Common::SeekableReadStream &in = items;
 	Engine::gItemProps.load(in);
 //	Engine::gItemProps.debugStorage(); //TODO: Remove this line later
 	items.close();
 
+	if (!_strings.load("global_strings.yml")) {
+		error("Failed to open global_strings.yml");
+	}
+
+	return true;
+}
+
+bool PoolradEngine::loadGameAssets() {
 	Surface::setupPalette();
 
 	// Load all 8x8d files via DaxFileManager (auto-sorts to correct container)
@@ -218,21 +280,11 @@ void PoolradEngine::setup() {
 	initFixedTileCacheSlots(202, 203);
 
 
-	if (!_strings.load("global_strings.yml")){
-		error("Failed to open global_strings.yml");
-	}
+	return true;
+}
 
 
-
-/*
-	// Load save data
-	int saveSlot = ConfMan.getInt("save_slot");
-	_saved.load();
-	if (saveSlot != -1)
-		(void)loadGameState(saveSlot);
-*/
-	//_pics.load("allpics1");
-
+bool PoolradEngine::initializeRuntimeSystems() {
 	// Setup game views
 	_views = new Views::Views();
 	addView("Title");
@@ -246,6 +298,12 @@ void PoolradEngine::setup() {
 	_eclVm->setSyscallHandler(_eclHost.get());
 	// 4. Runtime exchange bridge (generic contract + Poolrad mapping).
 	_runtimeExchange.reset(new PoolradRuntimeExchange(this));
+
+	// Phase 2: write GAME_Init defaults so VM memory is valid for
+	// save/load even from the main menu (matches original behavior).
+	initGameDefaults();
+
+	return true;
 }
 
 void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
@@ -392,9 +450,7 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		return false;
 	}
 
-	Common::Path savePath = ConfMan.getPath("savepath");
-	if (savePath.empty())
-		savePath = ConfMan.getPath("currentpath");
+	Common::Path savePath = resolveSavePath();
 
 	Common::FSNode saveNode(savePath);
 	if (!saveNode.isDirectory()) {
@@ -512,9 +568,7 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		return false;
 	}
 
-	Common::Path savePath = ConfMan.getPath("savepath");
-	if (savePath.empty())
-		savePath = ConfMan.getPath("currentpath");
+	Common::Path savePath = resolveSavePath();
 
 	const Common::Path gameSavePath =
 		savePath / Common::String::format("SAVGAM%c.DAT", slot);

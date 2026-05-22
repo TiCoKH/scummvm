@@ -22,10 +22,10 @@
 #include "common/system.h"
 #include "common/file.h"
 #include "common/savefile.h"
-#include "common/config-manager.h"
 #include "common/fs.h"
 #include "graphics/palette.h"
 //#include "goldbox/keymapping.h"
+#include "goldbox/engine.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/core/menu_item.h"
 #include "goldbox/data/rules/rules.h"
@@ -91,6 +91,14 @@ static void logCombatDice(const Goldbox::Poolrad::Data::PoolradCharacter *pc, co
 	      (unsigned)cs.action.roll.diceNum,
 	      (unsigned)cs.action.roll.diceSides,
 	      (int)cs.action.modifier);
+}
+
+static Common::Path getLegacySavePath() {
+	if (Goldbox::g_engine)
+		return Goldbox::g_engine->resolveSavePath();
+
+	warning("Goldbox engine unavailable while resolving legacy save path");
+	return Common::Path();
 }
 } // anonymous namespace
 
@@ -804,9 +812,12 @@ Common::String CreateCharacterView::formatBaseFilename(const Common::String &nam
 
 void CreateCharacterView::appendLineToTextFile(const Common::String &fileName, const Common::String &line) {
 	// Get the save directory path
-	Common::Path savePath = ConfMan.getPath("savepath");
-	if (savePath.empty())
-		savePath = ConfMan.getPath("currentpath");
+	Common::Path savePath = getLegacySavePath();
+	if (savePath.empty()) {
+		warning("Failed to resolve legacy save directory for %s",
+			fileName.c_str());
+		return;
+	}
 
 	// Create the save directory if it doesn't exist
 	Common::FSNode saveNode(savePath);
@@ -859,9 +870,11 @@ void CreateCharacterView::saveCharacter() {
 	debug("saveCharacter: starting save for character '%s'", _newCharacter->name.c_str());
 
 	// Get the save directory path
-	Common::Path savePath = ConfMan.getPath("savepath");
-	if (savePath.empty())
-		savePath = ConfMan.getPath("currentpath");
+	Common::Path savePath = getLegacySavePath();
+	if (savePath.empty()) {
+		warning("Failed to resolve legacy save directory for character save");
+		return;
+	}
 
 	// Create the save directory if it doesn't exist
 	Common::FSNode saveNode(savePath);
