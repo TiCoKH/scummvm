@@ -154,6 +154,7 @@ public:
 	Data::DaxBlockGeo *getActiveGeoBlock();
 	bool getActiveMapPosition(uint16 &x, uint16 &y, uint8 &dir) const;
 	bool saveGameSlotX86(char slotLetter, Common::String &errorMessage);
+	bool loadGameSlotX86(char slotLetter, Common::String &errorMessage);
 	void setLegacyMenuStatus(uint8 status);
 	bool getDebugWallSetState(int slot, DebugWallSetState &state) const;
 	bool queueInGameCommand(Views::InGameView::InGameCommand cmd);

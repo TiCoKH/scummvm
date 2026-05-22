@@ -314,6 +314,7 @@ void SetIcon::buildAndShowMenu(const Common::String &prompt) {
         kSelectColor,
         kPromptColor,
         false,
+		true,
         kBackgroundColor
     };
 
@@ -362,6 +363,7 @@ void SetIcon::setMenuStage(IconMenuState stage) {
             kSelectColor,
             kPromptColor,
             false,
+			true,
             kBackgroundColor
         };
 
