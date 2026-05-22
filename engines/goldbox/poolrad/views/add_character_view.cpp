@@ -21,7 +21,10 @@
 
 #include "common/system.h"
 #include "common/file.h"
+#include "common/fs.h"
+#include "common/path.h"
 #include "graphics/palette.h"
+#include "goldbox/engine.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/views/add_character_view.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
@@ -31,7 +34,21 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-AddCharacterView::AddCharacterView() : View("AddCharacter") {
+namespace {
+
+static Common::Path getCharacterSavePath() {
+    if (Goldbox::g_engine)
+        return Goldbox::g_engine->resolveSavePath();
+
+    return Common::Path();
+}
+
+} // namespace
+
+AddCharacterView::AddCharacterView()
+        : View("AddCharacter"),
+            _rosterList(new Goldbox::MenuItemList()),
+            _rosterMenu(nullptr) {
 
     loadRosterList();
     _promptOptions.push_back("Add");
@@ -54,6 +71,7 @@ AddCharacterView::AddCharacterView() : View("AddCharacter") {
 
 AddCharacterView::~AddCharacterView() {
     delete _rosterMenu;
+    delete _rosterList;
 }
 
 void AddCharacterView::draw() {
@@ -70,7 +88,9 @@ void AddCharacterView::draw() {
 }
 
 bool AddCharacterView::msgFocus(const FocusMessage &msg) {
+    loadRosterList();
     if (_rosterMenu) {
+		_rosterMenu->rebuild(_rosterList, "");
         _rosterMenu->activate();
     }
 	return true;
@@ -119,6 +139,12 @@ Common::String AddCharacterView::formatFilename(const Common::String &name) {
 }
 
 void AddCharacterView::loadCharacter(int selectedIndex) {
+    if (!_rosterList || selectedIndex < 0 ||
+            selectedIndex >= (int)_rosterList->items.size()) {
+        warning("Invalid roster selection index: %d", selectedIndex);
+        return;
+    }
+
     Common::String characterName = _rosterList->items[selectedIndex].text;
     if (characterName.hasPrefix("*")) {
         debug("Character already added: %s", characterName.c_str());
@@ -126,12 +152,18 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
     }
 
     Common::String baseFilename = formatFilename(characterName);
+    Common::Path savePath = _characterDataPath;
+    if (savePath.empty())
+        savePath = getCharacterSavePath();
 
     // Load .CHR
     Common::String chrFilename = baseFilename + ".CHA";
     Common::File characterFile;
-    if (!characterFile.open(chrFilename.c_str())) {
-        warning("Failed to open character file: %s", chrFilename.c_str());
+    const Common::Path chrPath = savePath / chrFilename;
+    Common::FSNode chrNode(chrPath);
+    if (!characterFile.open(chrNode)) {
+        warning("Failed to open character file: %s",
+            chrPath.toString().c_str());
         return;
     }
 
@@ -140,7 +172,8 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
     characterFile.close();
 
     Common::String itmFilename = baseFilename + ".ITM";
-    if (character->inventory.load(itmFilename)) {
+    const Common::Path itmPath = savePath / itmFilename;
+    if (character->inventory.load(itmPath.toString())) {
         debug("Loaded items file: %s", itmFilename.c_str());
         for (const auto &item : character->inventory.items()) {
             debug("Item: %s", item.name.c_str());
@@ -151,7 +184,8 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
     }
 
     Common::String spcFilename = baseFilename + ".SPC";
-    if (character->effects.load(spcFilename)) {
+    const Common::Path spcPath = savePath / spcFilename;
+    if (character->effects.load(spcPath.toString())) {
         debug("Loaded spells file: %s", spcFilename.c_str());
     } else {
         debug("Spells file not found or failed to load: %s", spcFilename.c_str());
@@ -169,27 +203,48 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
     }
 }
 void AddCharacterView::loadRosterList() {
-    Common::File charListFile;
-    if (!charListFile.open("CHARLIST.TXT")) {
-        warning("Failed to open CHARLIST.TXT");
+    _rosterList->items.clear();
+
+    _characterDataPath = getCharacterSavePath();
+    if (_characterDataPath.empty()) {
+        warning("Failed to resolve legacy save directory for CHARLIST.TXT");
         return;
     }
 
-    if (_rosterList) {
-        delete _rosterList;
+    Common::FSNode saveNode(_characterDataPath);
+    if (!saveNode.exists() || !saveNode.isDirectory()) {
+        warning("Legacy save directory missing: %s",
+            _characterDataPath.toString().c_str());
+        return;
     }
-    _rosterList = new Goldbox::MenuItemList();
+
+    Common::Path charListPath = _characterDataPath / "CHARLIST.TXT";
+    Common::File charListFile;
+    if (!charListFile.open(Common::FSNode(charListPath))) {
+        charListPath = _characterDataPath / "charlist.txt";
+        if (!charListFile.open(Common::FSNode(charListPath))) {
+            warning("Failed to open CHARLIST.TXT in legacy save directory: %s",
+                _characterDataPath.toString().c_str());
+            return;
+        }
+    }
 
     while (!charListFile.eos()) {
         Common::String line = charListFile.readLine();
-        if (!line.empty()) {
-            Goldbox::MenuItem item;
-            item.text = line;
-            item.active = true;
-            _rosterList->items.push_back(item);
-        }
+        line.trim();
+        if (line.empty())
+            continue;
+
+        Goldbox::MenuItem item;
+        item.text = line;
+        item.active = true;
+        _rosterList->items.push_back(item);
     }
     charListFile.close();
+
+    debug("Loaded CHARLIST.TXT from %s (%d entries)",
+        charListPath.toString().c_str(),
+        (int)_rosterList->items.size());
 }
 
 } // namespace Views

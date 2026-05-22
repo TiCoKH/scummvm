@@ -53,7 +53,22 @@ protected:
 	Data::DaxFileManager _daxManager;
 	// Engine APIs
 	Common::Error run() override;
+	void setup() override;
 	virtual GUI::Debugger *getConsole() = 0;
+
+	/**
+	 * Initialization template hooks called by Engine::setup().
+	 * Derived engines override these to organize startup logic by purpose.
+	 */
+	virtual bool initializeGameData() {
+		return true;
+	}
+	virtual bool loadGameAssets() {
+		return true;
+	}
+	virtual bool initializeRuntimeSystems() {
+		return true;
+	}
 
 	/**
 	 * Returns true if the game should quit
@@ -173,6 +188,23 @@ public:
 	 * @return The string associated with the key, or the default value if not found.
 	 */
 	Common::String getString(const Common::String &key) const;
+
+	/**
+	 * Resolves the active game data root folder for Goldbox content.
+	 *
+	 * Priority:
+	 *   1) target path
+	 *   2) currentpath
+	 */
+	Common::Path resolveGameDataPath() const;
+
+	/**
+	 * Resolves the legacy Goldbox save directory.
+	 *
+	 * Legacy game artifacts (.SAV/.CHA/.ITM/.SPC/.DAT/CHARLIST.TXT) are
+	 * intentionally stored in the game data folder under "save".
+	 */
+	Common::Path resolveSavePath() const;
 
 	bool hasFeature(EngineFeature f) const override {
 		return
