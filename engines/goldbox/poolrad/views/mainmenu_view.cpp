@@ -202,8 +202,13 @@ void MainmenuView::handleMenuResult(const MenuResultMessage &result) {
         }
         _loadSaveDialog->setStatusText(Common::String::format("Saved game %c", slotLetter));
     } else {
-        _loadSaveDialog->setStatusText(Common::String::format(
-            "Load slot %c selected (loader wiring next)", slotLetter));
+        Common::String errorMessage;
+        if (!engine->loadGameSlotX86(slotLetter, errorMessage)) {
+            warning("Load failed for slot %c: %s", slotLetter, errorMessage.c_str());
+            _loadSaveDialog->setStatusText(Common::String::format(
+                "Load failed: %s", errorMessage.c_str()));
+        }
+        // On success setGameState() transitions away from the main menu.
     }
     _loadSaveDialog->deactivate();
     _activeDialog = nullptr;

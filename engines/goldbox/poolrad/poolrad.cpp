@@ -496,6 +496,177 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 	return true;
 }
 
+bool PoolradEngine::loadGameSlotX86(char slotLetter,
+		Common::String &errorMessage) {
+	errorMessage.clear();
+
+	const char slot = toUpperAscii(slotLetter);
+	if (slot < 'A' || slot > 'J') {
+		errorMessage = "Invalid save slot";
+		return false;
+	}
+
+	ECL::AddressSpace *mem = getEclMemory();
+	if (!mem) {
+		errorMessage = "ECL memory is not ready";
+		return false;
+	}
+
+	Common::Path savePath = ConfMan.getPath("savepath");
+	if (savePath.empty())
+		savePath = ConfMan.getPath("currentpath");
+
+	const Common::Path gameSavePath =
+		savePath / Common::String::format("SAVGAM%c.DAT", slot);
+
+	Common::FSNode saveNode(gameSavePath);
+	Common::SeekableReadStream *in = saveNode.createReadStream();
+	if (!in) {
+		errorMessage = Common::String::format("Failed to open %s",
+			gameSavePath.toString().c_str());
+		return false;
+	}
+
+	// Skip legacy placeholder byte (written as 0x00 by saveGameSlotX86).
+	in->readByte();
+
+	// Load the 4 VM banks directly into ECL flat memory.
+	auto readVmBlock = [&](uint16 startAddr, uint32 size) {
+		byte *buf = new byte[size];
+		in->read(buf, size);
+		mem->loadBytes(startAddr, Common::Span<const uint8>(buf, size));
+		delete[] buf;
+	};
+
+	readVmBlock(0x4900, 0x0800); // VMBANK0_WORLD_STATE (GEO bank)
+	readVmBlock(0x6B00, 0x0800); // VMBANK1_PARTY_STATE (DAT bank)
+	readVmBlock(0x9700, 0x0400); // VMBANK2_COMBAT_STATE (HEAP bank)
+	readVmBlock(0x9900, 0x1E00); // VMBANK3_ECL_SCRIPT  (ECL bank)
+
+	// Read STRUCT_POSITION: 5 × uint16LE (x, y, dir, mapWallType, mapSquareInfo).
+	// The system bank (not dumped above) holds the live position; restore below.
+	const uint16 posX        = in->readUint16LE();
+	const uint16 posY        = in->readUint16LE();
+	const uint16 posDir      = in->readUint16LE();
+	const uint16 mapWallType = in->readUint16LE();
+	/* mapSquareInfo */ in->readUint16LE(); // unused on load
+
+	// BYTE_VM_MAP_TYPE: dungeon/town (< 2) vs wilderness/combat (>= 2).
+	const uint8 vmMapType = in->readByte();
+
+	// BYTE_GAME_STATE: the saved GameState enum value.
+	const uint8 byteGameState = in->readByte();
+
+	// Character table: count byte + 8 × 0x29-byte null-padded base filenames.
+	const uint8 characterCount = in->readByte();
+	byte characterTable[0x148];
+	in->read(characterTable, sizeof(characterTable));
+
+	delete in;
+	in = nullptr;
+
+	// -------------------------------------------------------------------------
+	// Post-load: restore system bank position (not included in VM bank dumps).
+	// -------------------------------------------------------------------------
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+
+	mem->write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr,   posX);
+	mem->write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr,   posY);
+	mem->write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr, posDir);
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr,
+		static_cast<uint8>(mapWallType));
+
+	// Reset party count in VM memory before rebuilding the party list.
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldPartyCount).vmAddr, 0);
+
+	// -------------------------------------------------------------------------
+	// Clear existing party and reload characters from individual save files.
+	// -------------------------------------------------------------------------
+	for (uint i = 0; i < _party.size(); ++i)
+		delete _party[i];
+	_party.clear();
+
+	const uint8 count = MIN<uint8>(characterCount, 8);
+	for (uint8 i = 0; i < count; ++i) {
+		const char *entryStart =
+			reinterpret_cast<const char *>(&characterTable[i * 0x29]);
+		// Build base filename from null-terminated, fixed-width table entry.
+		Common::String base;
+		for (uint j = 0; j < 0x29 && entryStart[j] != '\0'; ++j)
+			base += entryStart[j];
+		if (base.empty())
+			continue;
+
+		const Common::Path charSavPath = savePath / (base + ".SAV");
+		Common::FSNode charNode(charSavPath);
+		Common::SeekableReadStream *charStream = charNode.createReadStream();
+		if (!charStream)
+			continue;
+
+		Data::PoolradCharacter *pc = new Data::PoolradCharacter();
+		pc->load(*charStream);
+		delete charStream;
+
+		pc->inventory.load((savePath / (base + ".ITM")).toString());
+		pc->effects.load((savePath / (base + ".SPC")).toString());
+
+		_party.push_back(pc);
+	}
+
+	// Update VM party count to match how many characters were successfully loaded.
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldPartyCount).vmAddr,
+		static_cast<uint8>(_party.size()));
+
+	// -------------------------------------------------------------------------
+	// Reload world graphics based on map type.
+	// vmMapType < 2 → dungeon / town (geo block + wall sets need reload).
+	// vmMapType >= 2 → wilderness / combat (icon block reload only).
+	// -------------------------------------------------------------------------
+	if (vmMapType < 2 && _eclHost) {
+		const uint8 geoBlockId =
+			mem->read8(layout.vmField(kVmFieldGeoBlockId).vmAddr);
+		_eclHost->loadGeoBlock(geoBlockId);
+
+		// Restore saved wall set block IDs and slot IDs from VMBANK0.
+		// G_SavedWallBlockIds (field474_0x3f2): vmAddr base = GEO_BASE + 0x3f2/2 = 0x4AF9
+		//   [slot] → vmAddr 0x4AF9 + slot  (slots 1-3: 0x4AFA, 0x4AFB, 0x4AFC)
+		// G_SavedWallSlotIds  (field477_0x3f8): vmAddr base = GEO_BASE + 0x3f8/2 = 0x4AFC
+		//   [slot] → vmAddr 0x4AFC + slot  (slots 1-3: 0x4AFD, 0x4AFE, 0x4AFF)
+		// 0xFFFF is the sentinel for "not loaded" / unset wall slot.
+		static const uint16 kGeoSavedWallBlockBase = 0x4AF9;
+		static const uint16 kGeoSavedWallSlotBase  = 0x4AFC;
+		for (uint8 wallSlot = 1; wallSlot <= 3; ++wallSlot) {
+			const uint16 blockId =
+				mem->read16LE(static_cast<uint16>(kGeoSavedWallBlockBase + wallSlot));
+			if (blockId != 0xFFFF)
+				_eclHost->loadWallSet(static_cast<uint8>(blockId & 0xFF), wallSlot);
+		}
+	} else if (_eclHost) {
+		_eclHost->loadIconBlock();
+	}
+
+	// -------------------------------------------------------------------------
+	// If 3D terrain mode was active, signal that 3D rendering needs to restart.
+	// G_TerrainFlags (field387_0x344 = kVmFieldScriptFlagAA2): non-zero → 3D dungeon.
+	// The _mapRuntimeNeedsInit flag (set by setGameState below) already covers
+	// this via initializeMapRuntimeForState; note it here for Amiga diff tracing.
+	// m68k-only: would call GFX_3DRender(false) explicitly here if != 0.
+	// -------------------------------------------------------------------------
+
+	// -------------------------------------------------------------------------
+	// Update legacy shared state and transition to the saved game state.
+	// -------------------------------------------------------------------------
+	_legacySharedState.byteGameState =
+		static_cast<GameState>(byteGameState);
+	_legacySharedState.byteMapId =
+		mem->read8(layout.vmField(kVmFieldGeoBlockId).vmAddr);
+	_legacySharedState.boolStateLoaded = true;
+
+	setGameState(static_cast<GameState>(byteGameState));
+
+	return true;
+}
+
 bool PoolradEngine::getDebugWallSetState(int slot,
 		DebugWallSetState &state) const {
 	if (!_eclHost || slot < 1 || slot > 3)
