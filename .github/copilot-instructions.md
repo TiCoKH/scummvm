@@ -257,3 +257,27 @@ void ParentView::handleMenuResult(const MenuResultMessage &result) {
     }
 }
 ```
+
+## Poolrad Legacy Save Compatibility (Do Not Regress)
+
+When editing `engines/goldbox/poolrad` save/load code, preserve these rules:
+
+- Keep legacy DAT layout exact:
+    - 1-byte lead value (`3`)
+    - VMBANK order/sizes: `0x4900/0x0800`, `0x6B00/0x0800`,
+        `0x9700/0x0400`, `0x9900/0x1E00`
+    - tail size `0x150`: `posX,posY,dir,mapType,gameState,charCount,charTable`
+- Character table entries are Pascal records (len + data, max `0x28`).
+- Companion naming for ScummVM-created legacy saves:
+    - `CHRDAT<slot><n>.SAV/.ITM/.SPC` (example slot F: `CHRDATF1.SAV`)
+- Loader must accept compatibility variants:
+    - base names from table (`CHRDATA<n>` and `CHRDAT<slot><n>`)
+    - extension case variants (`.ITM/.itm`, `.SPC/.spc`)
+- `.SAV` required, `.ITM/.SPC` optional.
+    - If no items/effects, do not create zero-length `.ITM/.SPC`.
+- For transfer-style loads (`gameState == GS_START_MENU`), skip geo/icon/wall
+    preloads in `loadGameSlotX86` to avoid mutating restored banks before re-save.
+- Preserve legacy spell-array semantics for round-trip compatibility:
+    - memorized spells must not auto-set known spells during legacy array load.
+- Pointer-field differences (e.g., `.SPC` next pointers) are acceptable when
+    gameplay and cross-platform load compatibility are preserved.

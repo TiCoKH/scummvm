@@ -37,6 +37,8 @@
 
 #include "goldbox/poolrad/console.h"
 
+#include <stdio.h>
+
 namespace Goldbox {
 namespace Poolrad {
 
@@ -66,27 +68,14 @@ static bool containsBaseName(const Common::Array<Common::String> &usedBases,
 }
 
 static Common::String makeLegacyCharacterBaseName(
-		const Data::PoolradCharacter *pc, uint8 ordinal,
+		const Data::PoolradCharacter *pc, char slotLetter, uint8 ordinal,
 		const Common::Array<Common::String> &usedBases) {
-	Common::String source;
-	if (pc && !pc->name.empty())
-		source = pc->name;
+	(void)pc;
 
-	Common::String base;
-	for (uint i = 0; i < source.size() && base.size() < 0x28; ++i) {
-		char c = toUpperAscii(source[i]);
-		if (c == ' ' || c == '.')
-			continue;
-		if (isAsciiAlphaNum(c) || c == '_')
-			base += c;
-	}
-
-	if (base.empty())
-		base = Common::String::format("CHRDATA%u", (unsigned)ordinal);
-
-	while (base.size() > 0x28)
-		base.deleteLastChar();
-
+	// Match original legacy companion naming convention used by x86 saves:
+	// CHRDAT<slot><n> (example: SAVGAMF.DAT -> CHRDATF1..CHRDATF8).
+	Common::String base = Common::String::format("CHRDAT%c%u",
+		slotLetter, (unsigned)ordinal);
 	if (!containsBaseName(usedBases, base))
 		return base;
 
@@ -102,6 +91,65 @@ static Common::String makeLegacyCharacterBaseName(
 	}
 
 	return base;
+}
+
+static bool hasPrefixNoCase(const Common::String &s,
+		const Common::String &prefix) {
+	if (s.size() < prefix.size())
+		return false;
+
+	for (uint i = 0; i < prefix.size(); ++i) {
+		if (toUpperAscii(s[i]) != toUpperAscii(prefix[i]))
+			return false;
+	}
+
+	return true;
+}
+
+static bool openLegacyCompanionStream(const Common::Path &savePath,
+		const Common::String &base, char slotLetter,
+		const Common::String &extUpper, const Common::String &extLower,
+		Common::Path &resolvedPath, Common::SeekableReadStream *&stream) {
+	stream = nullptr;
+	resolvedPath = Common::Path();
+
+	Common::Array<Common::String> candidateBases;
+	candidateBases.push_back(base);
+
+	if (hasPrefixNoCase(base, "CHRDATA") && base.size() > 7) {
+		const Common::String suffix = base.substr(7);
+		candidateBases.push_back(Common::String::format("CHRDAT%c%s",
+			slotLetter, suffix.c_str()));
+	} else if (hasPrefixNoCase(base, "CHRDAT") && base.size() > 7) {
+		const Common::String suffix = base.substr(7);
+		candidateBases.push_back(Common::String::format("CHRDATA%s",
+			suffix.c_str()));
+	}
+
+	for (uint i = 0; i < candidateBases.size(); ++i) {
+		const Common::String &candidateBase = candidateBases[i];
+		const Common::Path pUpper = savePath / (candidateBase + extUpper);
+		Common::FSNode nUpper(pUpper);
+		if (nUpper.exists() && !nUpper.isDirectory()) {
+			stream = nUpper.createReadStream();
+			if (stream) {
+				resolvedPath = pUpper;
+				return true;
+			}
+		}
+
+		const Common::Path pLower = savePath / (candidateBase + extLower);
+		Common::FSNode nLower(pLower);
+		if (nLower.exists() && !nLower.isDirectory()) {
+			stream = nLower.createReadStream();
+			if (stream) {
+				resolvedPath = pLower;
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 } // namespace
@@ -585,7 +633,7 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 
 		++characterCount;
 		const Common::String base = makeLegacyCharacterBaseName(pc,
-			characterCount, usedBases);
+			slot, characterCount, usedBases);
 		usedBases.push_back(base);
 
 		const uint32 tableOffset = (characterCount - 1) * 0x29;
@@ -605,8 +653,28 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 
 		const Common::Path itmPath = savePath / (base + ".ITM");
 		const Common::Path spcPath = savePath / (base + ".SPC");
-		pc->inventory.save(itmPath.toString());
-		pc->effects.save(spcPath.toString());
+
+		if (!pc->inventory.items().empty()) {
+			if (!pc->inventory.save(itmPath.toString())) {
+				errorMessage = Common::String::format("Failed to save %s",
+					itmPath.toString().c_str());
+				out.close();
+				return false;
+			}
+		} else {
+			(void)::remove(itmPath.toString().c_str());
+		}
+
+		if (!pc->effects.effects().empty()) {
+			if (!pc->effects.save(spcPath.toString())) {
+				errorMessage = Common::String::format("Failed to save %s",
+					spcPath.toString().c_str());
+				out.close();
+				return false;
+			}
+		} else {
+			(void)::remove(spcPath.toString().c_str());
+		}
 	}
 
 	// Legacy save tail layout (0x150 bytes):
@@ -764,8 +832,39 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		pc->load(*charStream);
 		delete charStream;
 
-		pc->inventory.load((savePath / (base + ".ITM")).toString());
-		pc->effects.load((savePath / (base + ".SPC")).toString());
+		Common::Path itmResolvedPath;
+		Common::SeekableReadStream *itmStream = nullptr;
+		const bool itmLoaded = openLegacyCompanionStream(savePath, base, slot,
+			".ITM", ".itm", itmResolvedPath, itmStream);
+		if (itmLoaded && itmStream) {
+			pc->inventory.loadFromStream(*itmStream);
+			delete itmStream;
+			itmStream = nullptr;
+			pc->resolveEquippedItems();
+		}
+
+		Common::Path spcResolvedPath;
+		Common::SeekableReadStream *spcStream = nullptr;
+		const bool spcLoaded = openLegacyCompanionStream(savePath, base, slot,
+			".SPC", ".spc", spcResolvedPath, spcStream);
+		if (spcLoaded && spcStream) {
+			pc->effects.loadFromStream(*spcStream);
+			delete spcStream;
+			spcStream = nullptr;
+		}
+
+		debug("PoolradEngine::loadGameSlotX86 companion files for %s: ITM=%s (%u items) SPC=%s (%u effects)",
+			base.c_str(),
+			itmLoaded ? "loaded" : "missing/failed",
+			(unsigned)pc->inventory.items().size(),
+			spcLoaded ? "loaded" : "missing/failed",
+			(unsigned)pc->effects.effects().size());
+		if (itmLoaded)
+			debug("PoolradEngine::loadGameSlotX86 ITM path=%s",
+				itmResolvedPath.toString().c_str());
+		if (spcLoaded)
+			debug("PoolradEngine::loadGameSlotX86 SPC path=%s",
+				spcResolvedPath.toString().c_str());
 		debug("PoolradEngine::loadGameSlotX86 loaded base=%s (.SAV required, .ITM/.SPC optional)",
 			base.c_str());
 
@@ -783,29 +882,35 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// vmMapType < 2 → dungeon / town (geo block + wall sets need reload).
 	// vmMapType >= 2 → wilderness / combat (icon block reload only).
 	// -------------------------------------------------------------------------
-	if (vmMapType < 2 && _eclHost) {
-		const uint8 geoBlockId =
-			mem->read8(layout.vmField(kVmFieldGeoBlockId).vmAddr);
-		_eclHost->loadGeoBlock(geoBlockId);
+	const bool loadIntoRuntime =
+		(static_cast<GameState>(byteGameState) != GS_START_MENU);
+	if (loadIntoRuntime) {
+		if (vmMapType < 2 && _eclHost) {
+			const uint8 geoBlockId =
+				mem->read8(layout.vmField(kVmFieldGeoBlockId).vmAddr);
+			_eclHost->loadGeoBlock(geoBlockId);
 
-		// Restore saved wall set block IDs and slot IDs from VMBANK0.
-		// G_SavedWallBlockIds (field474_0x3f2): vmAddr base = GEO_BASE + 0x3f2/2 = 0x4AF9
-		//   [slot] → vmAddr 0x4AF9 + slot  (slots 1-3: 0x4AFA, 0x4AFB, 0x4AFC)
-		// G_SavedWallSlotIds  (field477_0x3f8): vmAddr base = GEO_BASE + 0x3f8/2 = 0x4AFC
-		//   [slot] → vmAddr 0x4AFC + slot  (slots 1-3: 0x4AFD, 0x4AFE, 0x4AFF)
-		// Original x86 check is signed (JL): negative int16 means sentinel/invalid.
-		static const uint16 kGeoSavedWallBlockBase = 0x4AF9;
-		static const uint16 kGeoSavedWallSlotBase  = 0x4AFC;
-		for (uint8 wallSlot = 1; wallSlot <= 3; ++wallSlot) {
-			const int16 blockId = static_cast<int16>(mem->read16LE(
-				static_cast<uint16>(kGeoSavedWallBlockBase + wallSlot)));
-			const uint8 setSlot = static_cast<uint8>(mem->read16LE(
-				static_cast<uint16>(kGeoSavedWallSlotBase + wallSlot)) & 0xFF);
-			if (blockId >= 0)
-				_eclHost->loadWallSet(static_cast<uint8>(blockId & 0xFF), setSlot);
+			// Restore saved wall set block IDs and slot IDs from VMBANK0.
+			// G_SavedWallBlockIds (field474_0x3f2): vmAddr base = GEO_BASE + 0x3f2/2 = 0x4AF9
+			//   [slot] → vmAddr 0x4AF9 + slot  (slots 1-3: 0x4AFA, 0x4AFB, 0x4AFC)
+			// G_SavedWallSlotIds  (field477_0x3f8): vmAddr base = GEO_BASE + 0x3f8/2 = 0x4AFC
+			//   [slot] → vmAddr 0x4AFC + slot  (slots 1-3: 0x4AFD, 0x4AFE, 0x4AFF)
+			// Original x86 check is signed (JL): negative int16 means sentinel/invalid.
+			static const uint16 kGeoSavedWallBlockBase = 0x4AF9;
+			static const uint16 kGeoSavedWallSlotBase  = 0x4AFC;
+			for (uint8 wallSlot = 1; wallSlot <= 3; ++wallSlot) {
+				const int16 blockId = static_cast<int16>(mem->read16LE(
+					static_cast<uint16>(kGeoSavedWallBlockBase + wallSlot)));
+				const uint8 setSlot = static_cast<uint8>(mem->read16LE(
+					static_cast<uint16>(kGeoSavedWallSlotBase + wallSlot)) & 0xFF);
+				if (blockId >= 0)
+					_eclHost->loadWallSet(static_cast<uint8>(blockId & 0xFF), setSlot);
+			}
+		} else if (_eclHost) {
+			_eclHost->loadIconBlock();
 		}
-	} else if (_eclHost) {
-		_eclHost->loadIconBlock();
+	} else {
+		debug("PoolradEngine::loadGameSlotX86 skipping geo/icon preload for GS_START_MENU transfer mode");
 	}
 
 	// -------------------------------------------------------------------------
@@ -823,8 +928,7 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		static_cast<GameState>(byteGameState);
 	_legacySharedState.byteMapId =
 		mem->read8(layout.vmField(kVmFieldGeoBlockId).vmAddr);
-	const bool loadedIntoRuntime =
-		(static_cast<GameState>(byteGameState) != GS_START_MENU);
+	const bool loadedIntoRuntime = loadIntoRuntime;
 	_legacySharedState.boolStateLoaded = loadedIntoRuntime;
 	if (_eclVm)
 		_eclVm->stateLoaded = loadedIntoRuntime;

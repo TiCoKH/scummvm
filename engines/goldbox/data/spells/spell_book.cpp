@@ -106,8 +106,6 @@ void SpellBook::loadFromLegacyArrays(const uint8 *memorizedArray, int memorizedS
 		if (memorizedArray[i] != 0) {
 			Spells spell = spellMapping[i];
 			setMemorized(spell, memorizedArray[i]);
-			// Ensure spell is also marked as known
-			setKnown(spell, true);
 			debug("  Memorized spell at index %d: spell ID=%u count=%u", i, (unsigned)spell, (unsigned)memorizedArray[i]);
 			memorizedCount++;
 		}
