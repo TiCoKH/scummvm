@@ -28,24 +28,20 @@ namespace Goldbox {
 namespace Data {
 namespace Effects {
 
-bool CharacterEffects::load(const Common::String &filename) {
-    Common::File f;
-    if (!f.open(filename.c_str()))
-        return false;
-
+void CharacterEffects::loadFromStream(Common::SeekableReadStream &f) {
     _effects.clear();
 
     const int32 fileSize = f.size();
-    if (fileSize <= 0) {
-        f.close();
-        return true; // empty file acceptable
-    }
+    if (fileSize <= 0)
+        return;
 
     // X86 Pool of Radiance effect node size = 9 bytes.
     // Future m68k variant (10 bytes) can be supported by versioning or heuristic.
     if (fileSize % 9 != 0) {
-        warning("CharacterEffects::load: size %d not multiple of 9 (x86 node)", fileSize);
+        warning("CharacterEffects::loadFromStream: size %d not multiple of 9 (x86 node)",
+            fileSize);
     }
+
     const int count = fileSize / 9; // truncate remainder if any
     for (int i = 0; i < count; ++i) {
         Effect e;
@@ -53,6 +49,14 @@ bool CharacterEffects::load(const Common::String &filename) {
         e.nextAddress = 0; // normalize
         _effects.push_back(e);
     }
+}
+
+bool CharacterEffects::load(const Common::String &filename) {
+    Common::File f;
+    if (!f.open(filename.c_str()))
+        return false;
+
+    loadFromStream(f);
 
     f.close();
     return true;

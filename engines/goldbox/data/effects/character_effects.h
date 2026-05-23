@@ -36,6 +36,7 @@ private:
 
 public:
     bool load(const Common::String &filename);
+    void loadFromStream(Common::SeekableReadStream &stream);
     bool save(const Common::String &filename) const;
 
     const Common::Array<Effect> &effects() const { return _effects; }
