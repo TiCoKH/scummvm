@@ -28,34 +28,53 @@
 namespace Goldbox {
 namespace Data {
 
-    template <size_t MaxLen>
-    struct PascalStringBuffer {
-        static Common::String read(Common::SeekableReadStream &s) {
-            uint8 len = s.readByte();
-    
-            // Always read the full buffer
-            char buf[MaxLen] = {};
-            s.read(buf, MaxLen);
-    
-            // Ensure the length is within bounds
-            len = MIN<uint8>(len, MaxLen);
-    
-            // Construct only the valid portion of the string
-            return Common::String(buf, len);
-        }
-    
-        static void write(Common::WriteStream &s, const Common::String &str) {
-            uint8 len = static_cast<uint8>(MIN<size_t>(str.size(), MaxLen));
-            s.writeByte(len);
-    
-            // Write only the valid part
-            s.write(str.c_str(), len);
-    
-            // Pad the rest of the buffer with zeros
-            for (size_t i = len; i < MaxLen; ++i)
-                s.writeByte(0);
-        }
-    };
+template <size_t MaxLen>
+struct PascalStringBuffer {
+    // Parse a fixed-size Pascal-string record from an in-memory buffer.
+    // Layout: [len:1][data:MaxLen], where data is zero-padded.
+    static Common::String readFromBuffer(const byte *record,
+            size_t recordSize = MaxLen + 1) {
+        if (!record || recordSize == 0)
+            return Common::String();
+
+        const uint8 len = record[0];
+        const size_t dataSize = (recordSize > 1) ? (recordSize - 1) : 0;
+        const uint8 clampedLen = MIN<uint8>(len,
+            static_cast<uint8>(MIN<size_t>(MaxLen, dataSize)));
+        return Common::String(reinterpret_cast<const char *>(&record[1]),
+            clampedLen);
+    }
+
+    // Write a fixed-size Pascal-string record into an in-memory buffer.
+    // Layout: [len:1][data:MaxLen], zero-filling all trailing bytes.
+    static void writeToBuffer(byte *record, const Common::String &str,
+            size_t recordSize = MaxLen + 1) {
+        if (!record || recordSize == 0)
+            return;
+
+        for (size_t i = 0; i < recordSize; ++i)
+            record[i] = 0;
+
+        const size_t dataSize = (recordSize > 1) ? (recordSize - 1) : 0;
+        const uint8 len = static_cast<uint8>(MIN<size_t>(str.size(),
+            MIN<size_t>(MaxLen, dataSize)));
+        record[0] = len;
+        if (len > 0)
+            memcpy(&record[1], str.c_str(), len);
+    }
+
+    static Common::String read(Common::SeekableReadStream &s) {
+        byte record[MaxLen + 1] = {};
+        s.read(record, MaxLen + 1);
+        return readFromBuffer(record, MaxLen + 1);
+    }
+
+    static void write(Common::WriteStream &s, const Common::String &str) {
+        byte record[MaxLen + 1] = {};
+        writeToBuffer(record, str, MaxLen + 1);
+        s.write(record, MaxLen + 1);
+    }
+};
     
 
 } // namespace Data

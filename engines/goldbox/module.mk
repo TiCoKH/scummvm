@@ -69,7 +69,6 @@ MODULE_OBJS = \
 	poolrad/views/credits_view.o \
 	poolrad/views/codewheel_view.o \
 	poolrad/views/mainmenu_view.o \
-	poolrad/views/mainscreen_view.o \
 	poolrad/views/create_character_view.o \
 	poolrad/views/add_character_view.o \
 	poolrad/views/view_character_view.o \

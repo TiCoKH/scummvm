@@ -61,8 +61,7 @@ bool PoolradRuntimeExchange::captureMapSnapshot(
 	out.dungeonX = mem->read16LE(globalLayout.field(kVmGlobalFieldDungeonX).vmAddr);
 	out.dungeonY = mem->read16LE(globalLayout.field(kVmGlobalFieldDungeonY).vmAddr);
 	out.dungeonDir = static_cast<uint8>(
-		(mem->read16LE(globalLayout.field(kVmGlobalFieldDungeonDir).vmAddr) & 0x03)
-		* 2);
+		mem->read16LE(globalLayout.field(kVmGlobalFieldDungeonDir).vmAddr) & 0x03);
 
 	out.wildernessX = mem->read8(vmLayout.field(kVmFieldWildernessX).vmAddr);
 	out.wildernessY = mem->read8(vmLayout.field(kVmFieldWildernessY).vmAddr);

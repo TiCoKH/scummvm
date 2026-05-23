@@ -24,7 +24,6 @@
 
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/views/views.h"
-#include "goldbox/poolrad/views/mainscreen_view.h"
 #include "goldbox/gfx/icon_manager.h"
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
