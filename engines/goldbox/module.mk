@@ -62,6 +62,7 @@ MODULE_OBJS = \
 	poolrad/ecl/poolrad_engine_host_impl.o \
 	poolrad/ecl/poolrad_opcode_handlers.o \
 	poolrad/data/poolrad_character.o \
+	poolrad/data/legacy_save_utils.o \
 	poolrad/data/poolrad_vm_layout.o \
 	poolrad/gfx/surface.o \
 	poolrad/views/view.o \

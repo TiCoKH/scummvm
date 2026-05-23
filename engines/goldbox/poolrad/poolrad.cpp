@@ -30,6 +30,7 @@
 #include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/data/strings_data.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/data/legacy_save_utils.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
@@ -52,104 +53,6 @@ static char toUpperAscii(char c) {
 	if (c >= 'a' && c <= 'z')
 		return static_cast<char>(c - ('a' - 'A'));
 	return c;
-}
-
-static bool isAsciiAlphaNum(char c) {
-	return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
-}
-
-static bool containsBaseName(const Common::Array<Common::String> &usedBases,
-		const Common::String &candidate) {
-	for (uint i = 0; i < usedBases.size(); ++i) {
-		if (usedBases[i] == candidate)
-			return true;
-	}
-	return false;
-}
-
-static Common::String makeLegacyCharacterBaseName(
-		const Data::PoolradCharacter *pc, char slotLetter, uint8 ordinal,
-		const Common::Array<Common::String> &usedBases) {
-	(void)pc;
-
-	// Match original legacy companion naming convention used by x86 saves:
-	// CHRDAT<slot><n> (example: SAVGAMF.DAT -> CHRDATF1..CHRDATF8).
-	Common::String base = Common::String::format("CHRDAT%c%u",
-		slotLetter, (unsigned)ordinal);
-	if (!containsBaseName(usedBases, base))
-		return base;
-
-	for (uint suffix = 2; suffix < 1000; ++suffix) {
-		Common::String candidate = base;
-		const Common::String suffixStr = Common::String::format("%u",
-			(unsigned)suffix);
-		while (candidate.size() + suffixStr.size() > 0x28)
-			candidate.deleteLastChar();
-		candidate += suffixStr;
-		if (!containsBaseName(usedBases, candidate))
-			return candidate;
-	}
-
-	return base;
-}
-
-static bool hasPrefixNoCase(const Common::String &s,
-		const Common::String &prefix) {
-	if (s.size() < prefix.size())
-		return false;
-
-	for (uint i = 0; i < prefix.size(); ++i) {
-		if (toUpperAscii(s[i]) != toUpperAscii(prefix[i]))
-			return false;
-	}
-
-	return true;
-}
-
-static bool openLegacyCompanionStream(const Common::Path &savePath,
-		const Common::String &base, char slotLetter,
-		const Common::String &extUpper, const Common::String &extLower,
-		Common::Path &resolvedPath, Common::SeekableReadStream *&stream) {
-	stream = nullptr;
-	resolvedPath = Common::Path();
-
-	Common::Array<Common::String> candidateBases;
-	candidateBases.push_back(base);
-
-	if (hasPrefixNoCase(base, "CHRDATA") && base.size() > 7) {
-		const Common::String suffix = base.substr(7);
-		candidateBases.push_back(Common::String::format("CHRDAT%c%s",
-			slotLetter, suffix.c_str()));
-	} else if (hasPrefixNoCase(base, "CHRDAT") && base.size() > 7) {
-		const Common::String suffix = base.substr(7);
-		candidateBases.push_back(Common::String::format("CHRDATA%s",
-			suffix.c_str()));
-	}
-
-	for (uint i = 0; i < candidateBases.size(); ++i) {
-		const Common::String &candidateBase = candidateBases[i];
-		const Common::Path pUpper = savePath / (candidateBase + extUpper);
-		Common::FSNode nUpper(pUpper);
-		if (nUpper.exists() && !nUpper.isDirectory()) {
-			stream = nUpper.createReadStream();
-			if (stream) {
-				resolvedPath = pUpper;
-				return true;
-			}
-		}
-
-		const Common::Path pLower = savePath / (candidateBase + extLower);
-		Common::FSNode nLower(pLower);
-		if (nLower.exists() && !nLower.isDirectory()) {
-			stream = nLower.createReadStream();
-			if (stream) {
-				resolvedPath = pLower;
-				return true;
-			}
-		}
-	}
-
-	return false;
 }
 
 } // namespace
@@ -632,7 +535,7 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 			continue;
 
 		++characterCount;
-		const Common::String base = makeLegacyCharacterBaseName(pc,
+		const Common::String base = Data::makeLegacyCharacterBaseName(pc,
 			slot, characterCount, usedBases);
 		usedBases.push_back(base);
 
@@ -834,7 +737,7 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 		Common::Path itmResolvedPath;
 		Common::SeekableReadStream *itmStream = nullptr;
-		const bool itmLoaded = openLegacyCompanionStream(savePath, base, slot,
+		const bool itmLoaded = Data::openLegacyCompanionStream(savePath, base, slot,
 			".ITM", ".itm", itmResolvedPath, itmStream);
 		if (itmLoaded && itmStream) {
 			pc->inventory.loadFromStream(*itmStream);
@@ -845,7 +748,7 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 		Common::Path spcResolvedPath;
 		Common::SeekableReadStream *spcStream = nullptr;
-		const bool spcLoaded = openLegacyCompanionStream(savePath, base, slot,
+		const bool spcLoaded = Data::openLegacyCompanionStream(savePath, base, slot,
 			".SPC", ".spc", spcResolvedPath, spcStream);
 		if (spcLoaded && spcStream) {
 			pc->effects.loadFromStream(*spcStream);
