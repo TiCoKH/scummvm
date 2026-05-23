@@ -44,8 +44,8 @@ namespace Data {
 				|| contentType == ContentType::ITEM
 				|| contentType == ContentType::SPELL) {
 			return new DaxBlockRaw();
-//       } else if (contentType == ContentType::SPRIT) {
-//           return new DaxBlockPic();
+		} else if (contentType == ContentType::SPRIT) {
+			return new DaxBlockSprit();
 		} else if (contentType == ContentType::WALLDEF) {
 			return new DaxBlockWalldef();
 		} else if (contentType == ContentType::ECL) {
@@ -102,6 +102,74 @@ namespace Data {
 		height = 0;
 		width = 0;
 		frameCount = 0;
+	}
+
+	DaxBlockSprit::DaxBlockSprit() : _frameCount(0), _validLayout(false) {}
+
+	uint16 DaxBlockSprit::readUint16LE(const Common::Array<uint8> &data,
+			uint pos) {
+		if (pos + 1 >= data.size())
+			return 0;
+		return static_cast<uint16>(data[pos]
+			| (static_cast<uint16>(data[pos + 1]) << 8));
+	}
+
+	void DaxBlockSprit::adjust() {
+		_frameCount = 0;
+		_validLayout = false;
+
+		if (_data.empty())
+			return;
+
+		const uint frames = _data[0];
+		if (frames == 0 || frames > 8)
+			return;
+
+		uint offset = 1;
+		for (uint frame = 0; frame < frames; ++frame) {
+			// 21-byte per-frame header in EGA SPRIT blocks.
+			if (_data.size() < offset + 21)
+				return;
+
+			// delay (4 bytes)
+			offset += 4;
+
+			const uint16 height = readUint16LE(_data, offset);
+			offset += 2;
+
+			const uint16 width = readUint16LE(_data, offset);
+			offset += 2;
+
+			// x/y positions are present in stream but not needed for validation
+			offset += 2; // x_pos
+			offset += 2; // y_pos
+
+			// skip 1 byte + 2-byte field + 8-byte field (matches C# parser)
+			offset += 11;
+
+			const uint32 widthPx = static_cast<uint32>(width) * 8;
+			const uint32 heightPx = static_cast<uint32>(height);
+			if (widthPx < 1 || heightPx < 1 || widthPx > 320 || heightPx > 200)
+				return;
+
+			// EGA packed planes: height * width * 4 bytes.
+			const uint32 egaDataSize = static_cast<uint32>(height)
+				* static_cast<uint32>(width) * 4;
+			if (egaDataSize > 0x7fffffff)
+				return;
+
+			if (_data.size() < offset + egaDataSize)
+				return;
+
+			offset += egaDataSize;
+		}
+
+		// Match strict C# specification: no trailing payload bytes.
+		if (offset != _data.size())
+			return;
+
+		_frameCount = static_cast<int>(frames);
+		_validLayout = true;
 	}
 
 	void DaxBlockPic::adjust() {
