@@ -27,6 +27,7 @@
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
+#include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/data/strings_data.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
@@ -49,6 +50,58 @@ static char toUpperAscii(char c) {
 	if (c >= 'a' && c <= 'z')
 		return static_cast<char>(c - ('a' - 'A'));
 	return c;
+}
+
+static bool isAsciiAlphaNum(char c) {
+	return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+}
+
+static bool containsBaseName(const Common::Array<Common::String> &usedBases,
+		const Common::String &candidate) {
+	for (uint i = 0; i < usedBases.size(); ++i) {
+		if (usedBases[i] == candidate)
+			return true;
+	}
+	return false;
+}
+
+static Common::String makeLegacyCharacterBaseName(
+		const Data::PoolradCharacter *pc, uint8 ordinal,
+		const Common::Array<Common::String> &usedBases) {
+	Common::String source;
+	if (pc && !pc->name.empty())
+		source = pc->name;
+
+	Common::String base;
+	for (uint i = 0; i < source.size() && base.size() < 0x28; ++i) {
+		char c = toUpperAscii(source[i]);
+		if (c == ' ' || c == '.')
+			continue;
+		if (isAsciiAlphaNum(c) || c == '_')
+			base += c;
+	}
+
+	if (base.empty())
+		base = Common::String::format("CHRDATA%u", (unsigned)ordinal);
+
+	while (base.size() > 0x28)
+		base.deleteLastChar();
+
+	if (!containsBaseName(usedBases, base))
+		return base;
+
+	for (uint suffix = 2; suffix < 1000; ++suffix) {
+		Common::String candidate = base;
+		const Common::String suffixStr = Common::String::format("%u",
+			(unsigned)suffix);
+		while (candidate.size() + suffixStr.size() > 0x28)
+			candidate.deleteLastChar();
+		candidate += suffixStr;
+		if (!containsBaseName(usedBases, candidate))
+			return candidate;
+	}
+
+	return base;
 }
 
 } // namespace
@@ -308,14 +361,19 @@ bool PoolradEngine::initializeRuntimeSystems() {
 
 void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 	Views::View *view = nullptr;
+	debug("PoolradEngine::onGameStateEnter prev=%d next=%d", (int)prev,
+		(int)next);
 
 	if (isMapRuntimeState(next) && (!isMapRuntimeState(prev) || prev != next)) {
 		// VM runtime bootstrap is orchestrator-owned and happens in tick().
 		_mapRuntimeNeedsInit = true;
+		debug("PoolradEngine::onGameStateEnter map runtime init requested for state=%d",
+			(int)next);
 	}
 
 	switch (next) {
 	case GS_START_MENU:
+		debug("PoolradEngine::onGameStateEnter -> replaceView(Title, true)");
 		replaceView("Title", true);
 		view = dynamic_cast<Views::View *>(findView("Title"));
 		if (view) {
@@ -323,6 +381,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 		}
 		break;
 	case GS_SHOP:
+		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [SHOP]");
 		// InGameView kModeShop: drawMainScreenWindows(true) + NPC portrait at (3,3).
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -330,6 +389,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_CAMPING:
+		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [CAMPING]");
 		// InGameView kModeCamping: drawMainScreenWindows(true) + camp state area.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -337,6 +397,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_DUNGEON_MAP:
+		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [DUNGEON]");
 		// InGameView kModeDungeon: drawMainScreenWindows(true) + 3D view + party panel.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -344,6 +405,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_WILDERNESS_MAP:
+		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [WILDERNESS]");
 		// InGameView kModeWilderness: drawMainScreenWindows(false) + area-map block.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -351,6 +413,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_AFTER_COMBAT:
+		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [AFTER_COMBAT]");
 		// InGameView kModeAfterCombat: drawMainScreenWindows(true) + loot panel.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -358,6 +421,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_COMBAT:
+		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [COMBAT]");
 		// InGameView kModeCombat: layout to be defined.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -365,12 +429,17 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_END_GAME:
+		debug("PoolradEngine::onGameStateEnter -> replaceView(Title, true) [END_GAME]");
 		// Placeholder: go back to title; layout irrelevant.
 		replaceView("Title", true);
 		view = dynamic_cast<Views::View *>(findView("Title"));
 		if (view) {
 			view->onEnter(next);
 		}
+		break;
+	default:
+		debug("PoolradEngine::onGameStateEnter no explicit view mapping for state=%d",
+			(int)next);
 		break;
 	}
 }
@@ -475,9 +544,13 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 			out.writeByte(mem->read8(static_cast<uint16>(startAddr + i)));
 	};
 
-	// Keep x86 binary layout compatibility: one leading legacy placeholder byte.
-	// No save-disk/path prompt behavior is used in ScummVM; saves always go to savepath.
-	out.writeByte(0);
+	// BYTE_FAVAIL / leading legacy byte:
+	// - x86 loads it back into BYTE_FAVAIL from DAT bank state.
+	// - m68k/Amiga code appears to don't save it at all,
+	//   when creating a legacy save file.
+	// ScummVM does not use it for runtime behavior; we keep the byte for
+	// binary compatibility with the original save format.
+	out.writeByte(3);
 
 	writeVmBlock(0x4900, 0x0800); // VMBANK0_WORLD_STATE
 	writeVmBlock(0x6B00, 0x0800); // VMBANK1_PARTY_STATE
@@ -493,21 +566,13 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 
 	const uint16 posX = snapshot.dungeonX;
 	const uint16 posY = snapshot.dungeonY;
-	const uint16 posDir = static_cast<uint16>((snapshot.dungeonDir / 2) & 0x03);
-	const uint16 mapWallType = snapshot.mapType;
-	const uint16 mapSquareInfo = 0;
-
-	out.writeUint16LE(posX);
-	out.writeUint16LE(posY);
-	out.writeUint16LE(posDir);
-	out.writeUint16LE(mapWallType);
-	out.writeUint16LE(mapSquareInfo);
-	out.writeByte(static_cast<uint8>(mapWallType & 0xFF));
-	out.writeByte(static_cast<uint8>(getGameState()));
+	const uint8 posDir = static_cast<uint8>(snapshot.dungeonDir & 0x03);
+	const uint8 vmMapType = snapshot.mapType;
 
 	uint8 characterCount = 0;
 	byte characterTable[0x148];
 	memset(characterTable, 0, sizeof(characterTable));
+	Common::Array<Common::String> usedBases;
 
 	for (uint i = 0; i < _party.size(); ++i) {
 		if (characterCount >= 8)
@@ -519,13 +584,13 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 			continue;
 
 		++characterCount;
-		const Common::String base =
-			Common::String::format("CHRDAT%c%d", slot,
-				static_cast<int>(characterCount));
+		const Common::String base = makeLegacyCharacterBaseName(pc,
+			characterCount, usedBases);
+		usedBases.push_back(base);
 
 		const uint32 tableOffset = (characterCount - 1) * 0x29;
-		Common::strlcpy(reinterpret_cast<char *>(&characterTable[tableOffset]),
-			base.c_str(), 0x29);
+		Goldbox::Data::PascalStringBuffer<0x28>::writeToBuffer(
+			&characterTable[tableOffset], base, 0x29);
 
 		const Common::Path savPath = savePath / (base + ".SAV");
 		Common::DumpFile charOut;
@@ -544,8 +609,21 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		pc->effects.save(spcPath.toString());
 	}
 
-	out.writeByte(characterCount);
-	out.write(characterTable, sizeof(characterTable));
+	// Legacy save tail layout (0x150 bytes):
+	// +0x00 u16 posX, +0x02 u16 posY, +0x04 u8 dir, +0x05 u8 vmMapType,
+	// +0x06 u8 gameState, +0x07 u8 charCount, +0x08..+0x14f char table.
+	byte tail[0x150];
+	memset(tail, 0, sizeof(tail));
+	tail[0x00] = static_cast<byte>(posX & 0xFF);
+	tail[0x01] = static_cast<byte>((posX >> 8) & 0xFF);
+	tail[0x02] = static_cast<byte>(posY & 0xFF);
+	tail[0x03] = static_cast<byte>((posY >> 8) & 0xFF);
+	tail[0x04] = posDir;
+	tail[0x05] = vmMapType;
+	tail[0x06] = static_cast<byte>(getGameState());
+	tail[0x07] = characterCount;
+	memcpy(&tail[0x08], characterTable, sizeof(characterTable));
+	out.write(tail, sizeof(tail));
 	out.flush();
 	out.close();
 
@@ -555,6 +633,7 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		Common::String &errorMessage) {
 	errorMessage.clear();
+	debug("PoolradEngine::loadGameSlotX86 requested slot=%c", slotLetter);
 
 	const char slot = toUpperAscii(slotLetter);
 	if (slot < 'A' || slot > 'J') {
@@ -572,16 +651,20 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 	const Common::Path gameSavePath =
 		savePath / Common::String::format("SAVGAM%c.DAT", slot);
+	debug("PoolradEngine::loadGameSlotX86 path=%s",
+		gameSavePath.toString().c_str());
 
 	Common::FSNode saveNode(gameSavePath);
 	Common::SeekableReadStream *in = saveNode.createReadStream();
 	if (!in) {
 		errorMessage = Common::String::format("Failed to open %s",
 			gameSavePath.toString().c_str());
+		debug("PoolradEngine::loadGameSlotX86 open failed: %s",
+			errorMessage.c_str());
 		return false;
 	}
 
-	// Skip legacy placeholder byte (written as 0x00 by saveGameSlotX86).
+	// Skip leading BYTE_FAVAIL / legacy placeholder byte.
 	in->readByte();
 
 	// Load the 4 VM banks directly into ECL flat memory.
@@ -597,13 +680,11 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	readVmBlock(0x9700, 0x0400); // VMBANK2_COMBAT_STATE (HEAP bank)
 	readVmBlock(0x9900, 0x1E00); // VMBANK3_ECL_SCRIPT  (ECL bank)
 
-	// Read STRUCT_POSITION: 5 × uint16LE (x, y, dir, mapWallType, mapSquareInfo).
+	// Read STRUCT_POSITION: uint16 x + uint16 y + uint8 dir (5 bytes total).
 	// The system bank (not dumped above) holds the live position; restore below.
 	const uint16 posX        = in->readUint16LE();
 	const uint16 posY        = in->readUint16LE();
-	const uint16 posDir      = in->readUint16LE();
-	const uint16 mapWallType = in->readUint16LE();
-	/* mapSquareInfo */ in->readUint16LE(); // unused on load
+	const uint8 posDir       = in->readByte();
 
 	// BYTE_VM_MAP_TYPE: dungeon/town (< 2) vs wilderness/combat (>= 2).
 	const uint8 vmMapType = in->readByte();
@@ -611,10 +692,19 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// BYTE_GAME_STATE: the saved GameState enum value.
 	const uint8 byteGameState = in->readByte();
 
-	// Character table: count byte + 8 × 0x29-byte null-padded base filenames.
+	// Character table: count byte + 8 × 0x29-byte Pascal-style base filenames
+	// (length byte + up to 0x28 chars).
 	const uint8 characterCount = in->readByte();
 	byte characterTable[0x148];
 	in->read(characterTable, sizeof(characterTable));
+
+	debug("PoolradEngine::loadGameSlotX86 tail posX=%u posY=%u dir=%u mapType=%u gameState=%u charCount=%u",
+		(unsigned)posX, (unsigned)posY, (unsigned)posDir,
+		(unsigned)vmMapType, (unsigned)byteGameState,
+		(unsigned)characterCount);
+	debug("PoolradEngine::loadGameSlotX86 decoded gameState=%u (%s)",
+		(unsigned)byteGameState,
+		(byteGameState == GS_START_MENU) ? "GS_START_MENU" : "runtime/ingame");
 
 	delete in;
 	in = nullptr;
@@ -626,9 +716,10 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 	mem->write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr,   posX);
 	mem->write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr,   posY);
-	mem->write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr, posDir);
+	mem->write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr,
+		static_cast<uint16>(posDir));
 	mem->write8(layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr,
-		static_cast<uint8>(mapWallType));
+		vmMapType);
 
 	// Reset party count in VM memory before rebuilding the party list.
 	mem->write8(layout.vmGlobalField(kVmGlobalFieldPartyCount).vmAddr, 0);
@@ -642,20 +733,32 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 	const uint8 count = MIN<uint8>(characterCount, 8);
 	for (uint8 i = 0; i < count; ++i) {
-		const char *entryStart =
-			reinterpret_cast<const char *>(&characterTable[i * 0x29]);
-		// Build base filename from null-terminated, fixed-width table entry.
+		const byte *entry = &characterTable[i * 0x29];
+		const uint8 entryLen = entry[0];
 		Common::String base;
-		for (uint j = 0; j < 0x29 && entryStart[j] != '\0'; ++j)
-			base += entryStart[j];
+		if (entryLen <= 0x28) {
+			base = Goldbox::Data::PascalStringBuffer<0x28>::readFromBuffer(
+				entry, 0x29);
+		} else {
+			// Compatibility fallback: older ScummVM builds wrote
+			// null-terminated entries without a Pascal length prefix.
+			for (uint j = 0; j < 0x29 && entry[j] != '\0'; ++j)
+				base += static_cast<char>(entry[j]);
+		}
 		if (base.empty())
 			continue;
+
+		debug("PoolradEngine::loadGameSlotX86 char[%u] base=%s",
+			(unsigned)(i + 1), base.c_str());
 
 		const Common::Path charSavPath = savePath / (base + ".SAV");
 		Common::FSNode charNode(charSavPath);
 		Common::SeekableReadStream *charStream = charNode.createReadStream();
-		if (!charStream)
+		if (!charStream) {
+			debug("PoolradEngine::loadGameSlotX86 missing .SAV for base=%s",
+				base.c_str());
 			continue;
+		}
 
 		Data::PoolradCharacter *pc = new Data::PoolradCharacter();
 		pc->load(*charStream);
@@ -663,6 +766,8 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 		pc->inventory.load((savePath / (base + ".ITM")).toString());
 		pc->effects.load((savePath / (base + ".SPC")).toString());
+		debug("PoolradEngine::loadGameSlotX86 loaded base=%s (.SAV required, .ITM/.SPC optional)",
+			base.c_str());
 
 		_party.push_back(pc);
 	}
@@ -670,6 +775,8 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// Update VM party count to match how many characters were successfully loaded.
 	mem->write8(layout.vmGlobalField(kVmGlobalFieldPartyCount).vmAddr,
 		static_cast<uint8>(_party.size()));
+	debug("PoolradEngine::loadGameSlotX86 rebuilt party size=%u",
+		(unsigned)_party.size());
 
 	// -------------------------------------------------------------------------
 	// Reload world graphics based on map type.
@@ -686,14 +793,16 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		//   [slot] → vmAddr 0x4AF9 + slot  (slots 1-3: 0x4AFA, 0x4AFB, 0x4AFC)
 		// G_SavedWallSlotIds  (field477_0x3f8): vmAddr base = GEO_BASE + 0x3f8/2 = 0x4AFC
 		//   [slot] → vmAddr 0x4AFC + slot  (slots 1-3: 0x4AFD, 0x4AFE, 0x4AFF)
-		// 0xFFFF is the sentinel for "not loaded" / unset wall slot.
+		// Original x86 check is signed (JL): negative int16 means sentinel/invalid.
 		static const uint16 kGeoSavedWallBlockBase = 0x4AF9;
 		static const uint16 kGeoSavedWallSlotBase  = 0x4AFC;
 		for (uint8 wallSlot = 1; wallSlot <= 3; ++wallSlot) {
-			const uint16 blockId =
-				mem->read16LE(static_cast<uint16>(kGeoSavedWallBlockBase + wallSlot));
-			if (blockId != 0xFFFF)
-				_eclHost->loadWallSet(static_cast<uint8>(blockId & 0xFF), wallSlot);
+			const int16 blockId = static_cast<int16>(mem->read16LE(
+				static_cast<uint16>(kGeoSavedWallBlockBase + wallSlot)));
+			const uint8 setSlot = static_cast<uint8>(mem->read16LE(
+				static_cast<uint16>(kGeoSavedWallSlotBase + wallSlot)) & 0xFF);
+			if (blockId >= 0)
+				_eclHost->loadWallSet(static_cast<uint8>(blockId & 0xFF), setSlot);
 		}
 	} else if (_eclHost) {
 		_eclHost->loadIconBlock();
@@ -714,9 +823,17 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		static_cast<GameState>(byteGameState);
 	_legacySharedState.byteMapId =
 		mem->read8(layout.vmField(kVmFieldGeoBlockId).vmAddr);
-	_legacySharedState.boolStateLoaded = true;
+	const bool loadedIntoRuntime =
+		(static_cast<GameState>(byteGameState) != GS_START_MENU);
+	_legacySharedState.boolStateLoaded = loadedIntoRuntime;
+	if (_eclVm)
+		_eclVm->stateLoaded = loadedIntoRuntime;
 
+	debug("PoolradEngine::loadGameSlotX86 applying setGameState(%u)",
+		(unsigned)byteGameState);
 	setGameState(static_cast<GameState>(byteGameState));
+	debug("PoolradEngine::loadGameSlotX86 complete: engine gameState now=%d",
+		(int)getGameState());
 
 	return true;
 }

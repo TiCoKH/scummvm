@@ -130,6 +130,7 @@ Common::Path Engine::resolveSavePath() const {
 
 void Engine::setGameState(GameState state) {
 	GameState prev = _gameState;
+	debug("Engine::setGameState prev=%d next=%d", (int)prev, (int)state);
 	_gameState = state;
 	onGameStateEnter(prev, state);
 }

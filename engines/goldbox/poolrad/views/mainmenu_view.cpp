@@ -106,10 +106,20 @@ void MainmenuView::draw() {
 }
 
 bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
-    if (_activeDialog && _activeDialog->send(msg))
-        return true;
+    if (_activeDialog) {
+        const bool handledByDialog = _activeDialog->send(msg);
+        debug("MainmenuView::msgKeypress activeDialog=%s key=%d ascii=%d handled=%d",
+            _activeDialog->getName().c_str(), (int)msg.keycode,
+            (int)msg.ascii, handledByDialog ? 1 : 0);
+        if (handledByDialog)
+            return true;
+    }
     if (_partyList && _partyList->isActive() && _partyList->send(msg))
         return true;
+
+    // Keep command availability in sync with runtime state even between draws.
+    _party = Goldbox::VmInterface::getParty();
+    updateMenuState();
 
     switch (msg.keycode) {
         case Common::KEYCODE_c:
@@ -144,6 +154,7 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
         case Common::KEYCODE_l:
             if (_menuItemList.isActive(LOAD))
                 if (_loadSaveDialog) {
+                    debug("MainmenuView::msgKeypress opening load dialog");
                     _loadSaveDialog->setMode(Dialogs::LoadSaveDialog::kModeLoad);
                     _loadSaveDialog->activate();
                     _activeDialog = _loadSaveDialog;
@@ -177,9 +188,19 @@ void MainmenuView::handleMenuResult(const MenuResultMessage &result) {
     if (!_loadSaveDialog)
         return;
 
+    debug("MainmenuView::handleMenuResult success=%d key=%d hasInt=%d int=%d mode=%d",
+        result._success ? 1 : 0, (int)result._keyCode,
+        result._hasIntValue ? 1 : 0, result._hasIntValue ? result._intValue : -1,
+        (int)_loadSaveDialog->getMode());
+
     if (!result._success) {
-        _loadSaveDialog->deactivate();
-        _activeDialog = nullptr;
+        // ESC/cancel closes the dialog; operation failures keep it open so
+        // the dialog can display status text and allow retry.
+        if (result._keyCode == Common::KEYCODE_ESCAPE) {
+            _loadSaveDialog->deactivate();
+            _activeDialog = nullptr;
+            redraw();
+        }
         return;
     }
 
@@ -191,27 +212,33 @@ void MainmenuView::handleMenuResult(const MenuResultMessage &result) {
         return;
 
     const char slotLetter = static_cast<char>('A' + slotIndex);
-    Poolrad::PoolradEngine *engine = Poolrad::g_engine;
-    if (!engine)
-        return;
+    debug("MainmenuView::handleMenuResult operation succeeded for slot %c", slotLetter);
 
-    if (_loadSaveDialog->getMode() == Dialogs::LoadSaveDialog::kModeSave) {
-        Common::String errorMessage;
-        if (!engine->saveGameSlotX86(slotLetter, errorMessage)) {
-            warning("Save failed for slot %c: %s", slotLetter, errorMessage.c_str());
-        }
-        _loadSaveDialog->setStatusText(Common::String::format("Saved game %c", slotLetter));
-    } else {
-        Common::String errorMessage;
-        if (!engine->loadGameSlotX86(slotLetter, errorMessage)) {
-            warning("Load failed for slot %c: %s", slotLetter, errorMessage.c_str());
-            _loadSaveDialog->setStatusText(Common::String::format(
-                "Load failed: %s", errorMessage.c_str()));
-        }
-        // On success setGameState() transitions away from the main menu.
-    }
     _loadSaveDialog->deactivate();
     _activeDialog = nullptr;
+
+    Poolrad::PoolradEngine *engine = Poolrad::g_engine;
+    if (!engine) {
+        redraw();
+        return;
+    }
+
+    if (_loadSaveDialog->getMode() == Dialogs::LoadSaveDialog::kModeLoad) {
+        debug("MainmenuView::handleMenuResult post-load gameState=%d (staying on main menu)",
+            (int)engine->getGameState());
+    }
+
+    // Save/load succeeded: stay on main menu and refresh visual state.
+    _party = Goldbox::VmInterface::getParty();
+    updateMenuState();
+    if (_partyList) {
+        if (_party && _party->size() > 0) {
+            _partyList->activate();
+        } else {
+            _partyList->deactivate();
+        }
+    }
+    redraw();
 }
 
 bool MainmenuView::msgFocus(const FocusMessage &msg) {

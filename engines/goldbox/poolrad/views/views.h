@@ -22,7 +22,6 @@
 #ifndef GOLDBOX_POOLRAD_VIEWS_VIEWS_H
 #define GOLDBOX_POOLRAD_VIEWS_VIEWS_H
 
-#include "goldbox/poolrad/views/mainscreen_view.h"
 #include "goldbox/poolrad/views/title_view.h"
 #include "goldbox/poolrad/views/credits_view.h"
 #include "goldbox/poolrad/views/codewheel_view.h"
