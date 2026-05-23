@@ -102,6 +102,13 @@ public:
     VmResult onMapDataReady() override;
     const WallSetRuntimeState &wallSetState(int slot) const;
 
+    bool hasStaticMapPayload() const { return _staticMapPayloadLoaded; }
+    uint8 staticMapPayloadBlockId() const { return _staticMapPayloadBlockId; }
+    Common::Span<const uint8> staticMapPayload() const {
+        return Common::Span<const uint8>(_staticMapPayloadBuffer,
+            ARRAYSIZE(_staticMapPayloadBuffer));
+    }
+
 private:
     uint8 allocateMonsterIconSlot() const;
 
@@ -122,6 +129,13 @@ private:
     // Async VM_YIELD state for PRINT/PRINTCLEAR letter-pacing.
     bool _asyncPrintPending = false;
     Goldbox::UIElement *_asyncPrintSink = nullptr;
+
+    // Runtime static-map payload buffer (legacy PTR_GEO_BUFF equivalent).
+    // Stores 4 x 0x100 map planes (NE, SW, events, doors) copied from GEO.
+    // This is intentionally distinct from VM bank0 metadata fields.
+    uint8 _staticMapPayloadBuffer[0x400];
+    bool _staticMapPayloadLoaded = false;
+    uint8 _staticMapPayloadBlockId = 0xFF;
 };
 
 } // namespace Poolrad

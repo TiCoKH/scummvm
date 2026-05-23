@@ -134,6 +134,22 @@ private:
     void adjust() override {}
 };
 
+class DaxBlockSprit : public DaxBlock {
+public:
+    DaxBlockSprit();
+
+    int frameCount() const { return _frameCount; }
+    bool isValidLayout() const { return _validLayout; }
+
+private:
+    void adjust() override;
+
+    static uint16 readUint16LE(const Common::Array<uint8> &data, uint pos);
+
+    int _frameCount;
+    bool _validLayout;
+};
+
 
 class DaxBlockPic : public DaxBlock {
 public:

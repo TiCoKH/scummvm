@@ -46,8 +46,12 @@
 namespace {
 
 static const uint8 kMonsterSlotStart = Goldbox::Gfx::SLOT_DYNAMIC_START;
-static const uint16 kGeoVmBaseAddr = 0x4900;
-static const uint16 kGeoVmSize = 0x0400;
+// Legacy x86/m68k naming parity:
+// - PTR_GEO_BUFF receives static GEO map planes (NE/SW/events/doors).
+// - VM bank0 (0x4900 base) stores GEO-related metadata/state fields.
+// These are related concepts but not guaranteed to be byte-identical streams.
+static const uint16 kStaticMapPayloadSize = 0x0400;
+static const uint16 kVmBank0GeoMetadataOffset = 0x4900;
 
 static const int kPicture3DAreaCharX = 3;
 static const int kPicture3DAreaCharY = 3;
@@ -260,6 +264,7 @@ public:
 PoolradEngineHostImpl::PoolradEngineHostImpl(::Goldbox::Engine *engine,
         ECL::AddressSpace *memory)
     : EclSyscallImpl(engine, memory) {
+    memset(_staticMapPayloadBuffer, 0, sizeof(_staticMapPayloadBuffer));
 }
 
 PoolradEngineHostImpl::~PoolradEngineHostImpl() {
@@ -642,7 +647,7 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
 }
 
 VmResult PoolradEngineHostImpl::loadGeoBlock(uint8 blockId) {
-    if (!_engine || !_memory)
+    if (!_engine)
         return VmResult::VM_ERROR;
 
     Goldbox::Data::DaxBlock *rawBlock =
@@ -662,14 +667,18 @@ VmResult PoolradEngineHostImpl::loadGeoBlock(uint8 blockId) {
     }
 
     const Common::Span<const uint8> geoRaw = geoBlock->raw();
-    if (geoRaw.size() < kGeoVmSize) {
+    if (geoRaw.size() < kStaticMapPayloadSize) {
         warning("PoolradEngineHostImpl::loadGeoBlock: GEO block %u too small (%u bytes)",
             (unsigned)blockId, (unsigned)geoRaw.size());
         return VmResult::VM_ERROR;
     }
 
-    _memory->loadBytes(kGeoVmBaseAddr,
-        Common::Span<const uint8>(geoRaw.data(), kGeoVmSize));
+    memcpy(_staticMapPayloadBuffer, geoRaw.data(), kStaticMapPayloadSize);
+    _staticMapPayloadLoaded = true;
+    _staticMapPayloadBlockId = blockId;
+    debug(2, "PoolradEngineHostImpl::loadGeoBlock: loaded %u-byte static map payload (GEO block %u); VM bank0 metadata base remains 0x%04X",
+        (unsigned)kStaticMapPayloadSize, (unsigned)blockId,
+        (unsigned)kVmBank0GeoMetadataOffset);
     return VmResult::VM_OK;
 }
 
