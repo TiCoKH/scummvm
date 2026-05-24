@@ -35,34 +35,7 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-struct Menuitem {
-    char shortcut;
-    const char* text;
-    bool active;
-};
-
 class MainmenuView : public View {
-private:
-    enum MainmenuState {
-        MM_STATE_NORMAL,
-        MM_STATE_EXIT_CONFIRM,
-        MM_STATE_EXIT_SAVE
-    };
-
-    Goldbox::MenuItemList _menuItemList;
-    int _selectedCharIndex = 0;
-    Common::Array<Common::String> charList;
-    Common::Array<Goldbox::Data::PlayerCharacter *> *_party;
-    Dialogs::PartyList *_partyList = nullptr;
-    Dialogs::LoadSaveDialog *_loadSaveDialog = nullptr;
-    Dialogs::HorizontalYesNo *_exitConfirmDialog = nullptr;
-    Dialogs::Dialog *_activeDialog = nullptr;
-    MainmenuState _state = MM_STATE_NORMAL;
-
-    void setActiveDialog(Dialogs::Dialog *dlg);
-    void drawPrompt();
-    void requestQuit();
-
 public:
     MainmenuView();
     virtual ~MainmenuView();
@@ -73,9 +46,28 @@ public:
     void handleMenuResult(const MenuResultMessage &result) override;
     void draw() override;
     void timeout() override;
+
+private:
+    enum MainmenuState {
+        MM_STATE_NORMAL,
+        MM_STATE_EXIT_CONFIRM,
+        MM_STATE_EXIT_SAVE
+    };
+
+    Goldbox::MenuItemList _menuItemList;
+    Common::Array<Goldbox::Data::PlayerCharacter *> *_party = nullptr;
+    Dialogs::PartyList *_partyList = nullptr;
+    Dialogs::LoadSaveDialog *_loadSaveDialog = nullptr;
+    Dialogs::HorizontalYesNo *_exitConfirmDialog = nullptr;
+    Dialogs::Dialog *_activeSubView = nullptr;
+    MainmenuState _state = MM_STATE_NORMAL;
+
+    void setActiveSubView(Dialogs::Dialog *dlg);
+    void refreshPartyState();
     void updateMenuState();
     void drawMenu();
-    void loadCharList();
+    void drawPrompt();
+    void requestQuit();
 };
 
 } // namespace Views
@@ -83,4 +75,3 @@ public:
 } // namespace Goldbox
 
 #endif
-
