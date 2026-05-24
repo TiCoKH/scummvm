@@ -38,6 +38,7 @@
 #include "goldbox/data/items/base_items.h"
 #include "goldbox/data/daxfilemanager.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
+#include "goldbox/runtime/runtime_geo.h"
 
 namespace Goldbox {
 
@@ -51,6 +52,7 @@ private:
 	GameState _gameState = GS_START_MENU;
 protected:
 	Data::DaxFileManager _daxManager;
+	RuntimeGeoBlock _runtimeGeo;
 	// Engine APIs
 	Common::Error run() override;
 	void setup() override;
@@ -282,6 +284,9 @@ public:
 	const Gfx::WalldefSlotCache &getWalldefSlotCache() const {
 		return _walldefSlotCache;
 	}
+
+	RuntimeGeoBlock &getRuntimeGeo() { return _runtimeGeo; }
+	const RuntimeGeoBlock &getRuntimeGeo() const { return _runtimeGeo; }
 
 	Gfx::Tile8x8Cache &getTileCache() { return _tileCache; }
 	const Gfx::Tile8x8Cache &getTileCache() const { return _tileCache; }

@@ -39,6 +39,7 @@
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/runtime/runtime_exchange.h"
+#include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
@@ -673,12 +674,18 @@ VmResult PoolradEngineHostImpl::loadGeoBlock(uint8 blockId) {
         return VmResult::VM_ERROR;
     }
 
+    // Populate legacy static buffer (backward compat).
     memcpy(_staticMapPayloadBuffer, geoRaw.data(), kStaticMapPayloadSize);
     _staticMapPayloadLoaded = true;
     _staticMapPayloadBlockId = blockId;
-    debug(2, "PoolradEngineHostImpl::loadGeoBlock: loaded %u-byte static map payload (GEO block %u); VM bank0 metadata base remains 0x%04X",
-        (unsigned)kStaticMapPayloadSize, (unsigned)blockId,
-        (unsigned)kVmBank0GeoMetadataOffset);
+
+    // Populate the global mutable RuntimeGeoBlock (resets to disk state).
+    RuntimeGeoBlock &rtGeo = _engine->getRuntimeGeo();
+    rtGeo.loadFromGeoBlock(*geoBlock);
+    rtGeo.setMapId(blockId);
+
+    debug(2, "PoolradEngineHostImpl::loadGeoBlock: loaded GEO block %u into RuntimeGeoBlock + static payload",
+        (unsigned)blockId);
     return VmResult::VM_OK;
 }
 
