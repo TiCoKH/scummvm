@@ -74,7 +74,7 @@ protected:
 	 * Returns true if the game should quit
 	 */
 	bool shouldQuit() const override {
-		return false; // TODO
+		return ::Engine::shouldQuit();
 	}
 
 public:
