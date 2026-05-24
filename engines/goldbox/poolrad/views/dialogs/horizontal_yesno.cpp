@@ -48,6 +48,12 @@ HorizontalYesNo::HorizontalYesNo(const String &name, const HorizontalYesNoConfig
 	setBounds(Window(0, 24, 39, 24));
 }
 
+void HorizontalYesNo::activate() {
+    Dialog::activate();
+    _menuItems.currentSelection = 1;
+    _redraw = true;
+}
+
 bool HorizontalYesNo::msgKeypress(const KeypressMessage &msg) {
     char asciiValue = msg.ascii;
     KeyCode keyCode = msg.keycode;

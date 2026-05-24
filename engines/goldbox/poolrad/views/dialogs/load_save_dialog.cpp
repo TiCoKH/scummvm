@@ -148,9 +148,9 @@ bool LoadSaveDialog::msgKeypress(const KeypressMessage &msg) {
 		(_slotMenu && _slotMenu->isActive()) ? 1 : 0);
 
 	if (msg.keycode == Common::KEYCODE_ESCAPE) {
-		if (_slotMenu && _slotMenu->isActive())
-			_slotMenu->deactivate();
-		g_events->postMenuResult(Common::String(), false,
+		deactivate();
+		const Common::String targetViewName = _parent ? _parent->getName() : Common::String();
+		g_events->postMenuResult(targetViewName, false,
 			msg.keycode, 0, Common::String(), true, false);
 		return true;
 	}
@@ -230,19 +230,21 @@ void LoadSaveDialog::draw() {
 }
 
 void LoadSaveDialog::handleMenuResult(const MenuResultMessage &result) {
+	const Common::String targetViewName = _parent ? _parent->getName() : Common::String();
+
 	debug("LoadSaveDialog::handleMenuResult success=%d key=%d hasInt=%d int=%d",
 		result._success ? 1 : 0, (int)result._keyCode,
 		result._hasIntValue ? 1 : 0, result._hasIntValue ? result._intValue : -1);
 
 	if (!result._success) {
-		g_events->postMenuResult(Common::String(), false,
+		g_events->postMenuResult(targetViewName, false,
 			result._keyCode, 0, Common::String(), true, false);
 		return;
 	}
 
 	const int selectionIndex = result._hasIntValue ? result._intValue : -1;
 	if (selectionIndex < 0 || selectionIndex >= (int)_slotSelectionToIndex.size()) {
-		g_events->postMenuResult(Common::String(), false,
+		g_events->postMenuResult(targetViewName, false,
 			result._keyCode, 0, Common::String(), true, false);
 		return;
 	}
@@ -256,7 +258,7 @@ void LoadSaveDialog::handleMenuResult(const MenuResultMessage &result) {
 		setStatusText((_mode == kModeSave) ?
 			"Save failed: engine unavailable" :
 			"Load failed: engine unavailable");
-		g_events->postMenuResult(Common::String(), false, result._keyCode,
+		g_events->postMenuResult(targetViewName, false, result._keyCode,
 			slotIndex, Common::String(), true, false);
 		return;
 	}
@@ -287,7 +289,7 @@ void LoadSaveDialog::handleMenuResult(const MenuResultMessage &result) {
 		if (_slotMenu && !_slotMenu->isActive())
 			_slotMenu->activate();
 		redraw();
-		g_events->postMenuResult(Common::String(), false, result._keyCode,
+		g_events->postMenuResult(targetViewName, false, result._keyCode,
 			slotIndex, Common::String(), true, false);
 		return;
 	}
@@ -296,7 +298,7 @@ void LoadSaveDialog::handleMenuResult(const MenuResultMessage &result) {
 		_slotMenu->deactivate();
 	deactivate();
 
-	g_events->postMenuResult(Common::String(), true, result._keyCode,
+	g_events->postMenuResult(targetViewName, true, result._keyCode,
 		slotIndex, Common::String(), true, false);
 }
 

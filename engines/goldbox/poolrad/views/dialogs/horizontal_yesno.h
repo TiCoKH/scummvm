@@ -57,6 +57,7 @@ protected:
 public:
     HorizontalYesNo(const Common::String &name, const HorizontalYesNoConfig &config);
 
+    void activate() override;
     bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
     void clear();

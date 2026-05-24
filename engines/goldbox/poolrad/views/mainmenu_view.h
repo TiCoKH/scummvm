@@ -29,6 +29,7 @@
 #include "goldbox/poolrad/views/view.h"
 #include "goldbox/poolrad/views/dialogs/party_list.h"
 #include "goldbox/poolrad/views/dialogs/load_save_dialog.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -42,15 +43,25 @@ struct Menuitem {
 
 class MainmenuView : public View {
 private:
+    enum MainmenuState {
+        MM_STATE_NORMAL,
+        MM_STATE_EXIT_CONFIRM,
+        MM_STATE_EXIT_SAVE
+    };
+
     Goldbox::MenuItemList _menuItemList;
     int _selectedCharIndex = 0;
     Common::Array<Common::String> charList;
     Common::Array<Goldbox::Data::PlayerCharacter *> *_party;
     Dialogs::PartyList *_partyList = nullptr;
     Dialogs::LoadSaveDialog *_loadSaveDialog = nullptr;
+    Dialogs::HorizontalYesNo *_exitConfirmDialog = nullptr;
     Dialogs::Dialog *_activeDialog = nullptr;
+    MainmenuState _state = MM_STATE_NORMAL;
 
+    void setActiveDialog(Dialogs::Dialog *dlg);
     void drawPrompt();
+    void requestQuit();
 
 public:
     MainmenuView();
