@@ -23,6 +23,7 @@
 #define GOLDBOX_VM_INTERFACE_H
 
 #include "goldbox/engine.h"
+#include "goldbox/runtime/runtime_geo.h"
 #include "common/array.h"
 #include "common/scummsys.h"
 
@@ -115,6 +116,9 @@ public:
 
     // DAX Manager direct access
     static Data::DaxFileManager &getDaxManager() { return g_engine->getDaxManager(); }
+
+    // Runtime GEO block (mutable map state)
+    static RuntimeGeoBlock &getRuntimeGeo() { return g_engine->getRuntimeGeo(); }
 
     // Icon Manager accessor
     static Gfx::IconManager *getIconManager();
