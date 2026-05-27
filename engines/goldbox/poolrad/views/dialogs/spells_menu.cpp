@@ -41,8 +41,24 @@ SpellsMenu::SpellsMenu(const Common::String &name)
       _verticalMenu(nullptr),
       _lastSelection(0),
       _selectedLegacyIndex(-1),
-      _selectedSpell(Goldbox::Data::Spells::SP_NONE),
-      _windowBottom(22) {
+      _selectedSpell(Goldbox::Data::Spells::SP_NONE) {
+
+    _menuConfig.promptTxt = "Choose Spell:";
+    _menuConfig.promptOptions = &_horizontalMenuLabels;
+    _menuConfig.menuItemList = &_spellMenuList;
+    _menuConfig.headColor = 13;
+    _menuConfig.textColor = 10;
+    _menuConfig.selectColor = 15;
+    _menuConfig.xStart = 1;
+    _menuConfig.yStart = 5;
+    _menuConfig.xEnd = 38;
+    _menuConfig.yEnd = 22;
+    _menuConfig.title = "";
+    _menuConfig.asHeader = true;
+
+    _verticalMenu = new VerticalMenu(name + "_Vertical", _menuConfig);
+    subView(_verticalMenu);
+    _verticalMenu->deactivate();
 }
 
 SpellsMenu::~SpellsMenu() {
@@ -70,9 +86,29 @@ void SpellsMenu::activate() {
 
     buildSpellList();
     buildPromptOptions();
-    rebuildVerticalMenu();
 
     if (_verticalMenu) {
+        _verticalMenu->_hMenuList.items.clear();
+        _verticalMenu->_hMenuList.generateMenuItems(_horizontalMenuLabels, true);
+        _verticalMenu->rebuild(&_spellMenuList, "");
+
+        // Restore cursor to previously chosen entry, skipping separators.
+        int startMenuIdx = 0;
+        if (!_menuIndexToEntry.empty()) {
+            for (int i = 0; i < (int)_menuIndexToEntry.size(); ++i) {
+                if (_menuIndexToEntry[i] == _lastSelection) {
+                    startMenuIdx = i;
+                    break;
+                }
+            }
+        }
+        if (!_spellMenuList.items.empty()) {
+            _spellMenuList.currentSelection = CLIP<int>(
+                startMenuIdx, 0, (int)_spellMenuList.items.size() - 1);
+        } else {
+            _spellMenuList.currentSelection = 0;
+        }
+
         _verticalMenu->activate();
     }
 }
@@ -81,7 +117,6 @@ void SpellsMenu::deactivate() {
     if (_verticalMenu) {
         _verticalMenu->deactivate();
     }
-
     Dialog::deactivate();
 }
 
@@ -89,7 +124,6 @@ bool SpellsMenu::msgKeypress(const KeypressMessage &msg) {
     if (!isActive()) {
         return false;
     }
-
     return View::msgKeypress(msg);
 }
 
@@ -101,6 +135,7 @@ void SpellsMenu::draw() {
     const int bottom = getWindowBottom();
     Surface s = getSurface();
 
+    // Header window: character name + "Spells <suffix>"
     drawWindow(1, 1, 38, 1);
     Goldbox::Poolrad::Data::PoolradCharacter *pc = _character;
     s.writeStringC(1, 1, 11, pc->name);
@@ -112,6 +147,7 @@ void SpellsMenu::draw() {
         : Common::String::format("Spells %s", suffix.c_str());
     s.writeStringC(1 + pc->name.size() + 3, 1, 10, heading);
 
+    // Content window
     drawWindow(1, 3, 38, bottom);
 
     if (_spellEntries.empty()) {
@@ -149,7 +185,6 @@ void SpellsMenu::handleMenuResult(const MenuResultMessage &result) {
     }
     const int entryIdx = _menuIndexToEntry[menuIdx];
     if (entryIdx < 0 || entryIdx >= (int)_spellEntries.size()) {
-        // Separator row was somehow selected; ignore.
         return;
     }
 
@@ -167,53 +202,6 @@ void SpellsMenu::handleMenuResult(const MenuResultMessage &result) {
     }
 }
 
-void SpellsMenu::rebuildVerticalMenu() {
-    _windowBottom = getWindowBottom();
-
-    if (_verticalMenu) {
-        detachDialog(_verticalMenu);
-        delete _verticalMenu;
-        _verticalMenu = nullptr;
-    }
-
-    VerticalMenuConfig menuConfig = {
-        "Choose Spell:",
-        &_horizontalMenuLabels,
-        &_spellMenuList,
-        13,
-        10,
-        15,
-        1,
-        5,
-        38,
-        _windowBottom,
-        "",
-        true
-    };
-
-    _verticalMenu = new VerticalMenu(getName() + "_Vertical", menuConfig);
-    attachDialog(_verticalMenu);
-
-    // Restore the cursor to the previously chosen entry.  _lastSelection is an
-    // _spellEntries index; find the corresponding menu-item index (skip
-    // separator rows which have _menuIndexToEntry value of -1).
-    int startMenuIdx = 0;
-    if (!_menuIndexToEntry.empty()) {
-        for (int i = 0; i < (int)_menuIndexToEntry.size(); ++i) {
-            if (_menuIndexToEntry[i] == _lastSelection) {
-                startMenuIdx = i;
-                break;
-            }
-        }
-    }
-    if (!_spellMenuList.items.empty()) {
-        _spellMenuList.currentSelection = CLIP<int>(
-            startMenuIdx, 0, (int)_spellMenuList.items.size() - 1);
-    } else {
-        _spellMenuList.currentSelection = 0;
-    }
-}
-
 void SpellsMenu::buildSpellList() {
     _spellEntries.clear();
     _spellMenuList.items.clear();
@@ -224,14 +212,48 @@ void SpellsMenu::buildSpellList() {
         return;
     }
 
-    // Phase 1: collect spell entries (no separators yet).
+    // Phase 1: collect spell entries.
+    // memorizedSpells[0..20]: each slot holds a spell ID (1-55). Bit 7 set =
+    // pending (not yet memorized). Value 0 = empty. One list entry per slot.
+    // knownSpells[0..54]: non-zero = spell known. Index i maps to spell enum
+    // via kPoolradSpellMapping[i].
     switch (_location) {
     case SL_IN_MEMORY:
         for (int i = 0; i < Goldbox::Poolrad::Data::POOLRAD_MEMORIZED_SIZE; ++i) {
             const uint8 value = _character->spells.memorizedSpells[i];
+            debug("SpellsMenu::buildSpellList() SL_IN_MEMORY slot[%d] = 0x%02x",
+                i, (unsigned)value);
             if (value != 0 && value < 0x80) {
-                appendSpellEntry(i,
-                    Goldbox::Poolrad::Data::kPoolradSpellMapping[i], value);
+                // value is 1-based spell ID; map to Spells enum
+                const int spellIdx = (value & 0x7f) - 1;
+                if (spellIdx >= 0 && spellIdx < Goldbox::Poolrad::Data::POOLRAD_KNOWN_SIZE) {
+                    debug("  -> spellIdx=%d enum=%d name=%s", spellIdx,
+                        (int)Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx],
+                        Goldbox::Spells::getSpellName(
+                            Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx]).c_str());
+                    appendSpellEntry(spellIdx,
+                        Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx]);
+                }
+            }
+        }
+        break;
+
+    case SL_TO_BE_MEMORIZED:
+        for (int i = 0; i < Goldbox::Poolrad::Data::POOLRAD_MEMORIZED_SIZE; ++i) {
+            const uint8 value = _character->spells.memorizedSpells[i];
+            debug("SpellsMenu::buildSpellList() SL_TO_BE_MEMORIZED slot[%d] = 0x%02x",
+                i, (unsigned)value);
+            if (value > 0x7f) {
+                // Pending memorize: bit 7 set, spell ID = value & 0x7f
+                const int spellIdx = (value & 0x7f) - 1;
+                if (spellIdx >= 0 && spellIdx < Goldbox::Poolrad::Data::POOLRAD_KNOWN_SIZE) {
+                    debug("  -> spellIdx=%d enum=%d name=%s", spellIdx,
+                        (int)Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx],
+                        Goldbox::Spells::getSpellName(
+                            Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx]).c_str());
+                    appendSpellEntry(spellIdx,
+                        Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx]);
+                }
             }
         }
         break;
@@ -267,28 +289,15 @@ void SpellsMenu::buildSpellList() {
         break;
     }
 
-    case SL_TO_BE_MEMORIZED:
-        for (int i = 0; i < Goldbox::Poolrad::Data::POOLRAD_MEMORIZED_SIZE; ++i) {
-            const uint8 value = _character->spells.memorizedSpells[i];
-            if (value > 0x7f) {
-                appendSpellEntry(i,
-                    Goldbox::Poolrad::Data::kPoolradSpellMapping[i],
-                    (uint8)(value & 0x7f));
-            }
-        }
-        break;
-
     case SL_ON_SCROLL:
     case SL_ON_SCROLLS:
     case SL_TO_BE_SCRIBED:
-        // TODO: Build these from item spell payloads once scroll spell mapping
+        // TODO: Build from item spell payloads once scroll spell mapping
         // is wired into the inventory system.
         break;
     }
 
-    // Phase 2: build _spellMenuList with interleaved level-separator rows,
-    // mirroring the original SPELL_addToList level-change logic.
-    // Separators are inactive (non-selectable) and rendered with headColor.
+    // Phase 2: build _spellMenuList with interleaved level-separator rows.
     const Common::Array<Goldbox::Data::Spells::SpellEntry> &spellData =
         Goldbox::Data::Rules::getSpellEntries();
 
@@ -302,7 +311,6 @@ void SpellsMenu::buildSpellList() {
         }
 
         if (currentLevel != lastLevel) {
-            // Insert a level-header separator row (not selectable).
             MenuItem sep;
             sep.text = buildLevelSeparatorLabel(entry.spellId);
             sep.active = false;
@@ -431,34 +439,39 @@ Common::String SpellsMenu::getActionLabel() const {
 Common::String SpellsMenu::formatSpellLine(const SpellListEntry &entry) const {
     Common::String spellName = Goldbox::Spells::getSpellName(entry.spellId);
 
-    if (_location == SL_IN_MEMORY && entry.count > 1) {
-        return Common::String::format("%s x%u", spellName.c_str(),
-            (unsigned)entry.count);
-    }
-
-    // Original SPELL_addToList prefixes pending-memorize spells (high-bit set
-    // in mem_spells[]) with "*" to signal they are queued, not yet memorized.
+    // Original SPELL_addToList prefixes with " " (space) for memorized or
+    // "*" for pending-memorize. All spell names start 2 chars from border.
     if (_location == SL_TO_BE_MEMORIZED) {
-        if (entry.count > 0) {
-            return Common::String::format("*%s (%u)", spellName.c_str(),
-                (unsigned)entry.count);
-        }
-        return Common::String::format("*%s", spellName.c_str());
+        return Common::String::format(" *%s", spellName.c_str());
     }
 
-    return spellName;
+    return Common::String::format("  %s", spellName.c_str());
 }
 
 Common::String SpellsMenu::buildLevelSeparatorLabel(
         Goldbox::Data::Spells::Spells spellId) const {
-    // Mirror original SPELL_addToList which copies the level label string from
-    // SPRITE_ARRAY_5 indexed by sp_level * 41.  We reconstruct an equivalent
-    // human-readable header from the spell metadata.
-    Common::String levelText = Goldbox::Spells::getSpellLevelText(spellId);
-    if (levelText.empty()) {
+    // Original uses SPELL_LEVEL_HEADERS[level] which contains strings like
+    // "1st LEVEL", "2nd LEVEL", etc. These are stored in YML as stats.levels.N.
+    const Goldbox::Data::Spells::SpellEntry *entry = nullptr;
+    const Common::Array<Goldbox::Data::Spells::SpellEntry> &entries =
+        Goldbox::Data::Rules::getSpellEntries();
+    const uint idx = (uint)spellId;
+    if (idx < entries.size()) {
+        entry = &entries[idx];
+    }
+
+    if (!entry || entry->spellLevel == 0) {
         return Common::String();
     }
-    return Common::String::format("- %s -", levelText.c_str());
+
+    Common::String key = Common::String::format("stats.levels.%u",
+        (unsigned)entry->spellLevel);
+    Common::String text = Goldbox::VmInterface::getString(key);
+    if (text.empty()) {
+        // Fallback if YML key not found
+        text = Common::String::format("Level %u", (unsigned)entry->spellLevel);
+    }
+    return text;
 }
 
 } // namespace Dialogs
