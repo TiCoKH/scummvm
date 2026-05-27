@@ -40,11 +40,16 @@ namespace Dialogs {
  * Spell selection dialog modeled after the original DIALOG_Spells /
  * DIALOG_SpellSelector pair.
  *
+ * Follows the ItemsMenu pattern:
+ * - VerticalMenu created once in constructor via subView()
+ * - rebuild() called on activate() to refresh content
+ * - handleMenuResult() processes selection or exit
+ *
  * Legacy naming alignment:
- * - first DIALOG_Spells parameter  -> SpellLocation
- * - second DIALOG_Spells parameter -> SpellAction
- * - spell_dat buffer               -> selection state / legacy index buffer
- * - return value                   -> legacy spell table index (0..54)
+ * - spell_type parameter  -> SpellLocation
+ * - action parameter      -> SpellAction
+ * - spell_dat buffer      -> selection state / legacy index buffer
+ * - return value          -> legacy spell table index (0..55)
  */
 class SpellsMenu : public Dialog {
 public:
@@ -77,7 +82,7 @@ public:
         }
 
         SpellListEntry(int index, Goldbox::Data::Spells::Spells spell,
-                uint8 spellCount)
+                uint8 spellCount = 0)
             : legacyIndex(index), spellId(spell), count(spellCount) {
         }
     };
@@ -104,20 +109,23 @@ private:
     SpellLocation _location;
     SpellAction _action;
     Goldbox::Poolrad::Data::PoolradCharacter *_character;
+
+    // Menu data
     Goldbox::MenuItemList _spellMenuList;
     Common::Array<Common::String> _horizontalMenuLabels;
     Common::Array<SpellListEntry> _spellEntries;
-    // Parallel to _spellMenuList.items: maps menu-item index -> _spellEntries
-    // index, or -1 for separator rows.
     Common::Array<int> _menuIndexToEntry;
+
+    // VerticalMenu child (created once in constructor)
+    VerticalMenuConfig _menuConfig;
     VerticalMenu *_verticalMenu;
+
+    // Selection state
     int _lastSelection;
     int _selectedLegacyIndex;
     Goldbox::Data::Spells::Spells _selectedSpell;
     Common::String _selectedSpellName;
-    int _windowBottom;
 
-    void rebuildVerticalMenu();
     void buildSpellList();
     void buildPromptOptions();
     void appendSpellEntry(int legacyIndex,
