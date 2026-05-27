@@ -303,21 +303,21 @@ void FirstPersonRenderer::drawRegion(Graphics::ManagedSurface *dst,
 
 void FirstPersonRenderer::blitClipped(const Pic &src,
 		Graphics::ManagedSurface *dst, int dstX, int dstY) {
-	// Compute the source sub-rect that falls within dst bounds
 	int srcX0 = 0, srcY0 = 0;
 	int blitW  = src.w;
 	int blitH  = src.h;
 
-	// Clip left/top
 	if (dstX < 0) { srcX0 -= dstX; blitW += dstX; dstX = 0; }
 	if (dstY < 0) { srcY0 -= dstY; blitH += dstY; dstY = 0; }
 
-	// Clip right/bottom
 	if (dstX + blitW > dst->w) blitW = dst->w - dstX;
 	if (dstY + blitH > dst->h) blitH = dst->h - dstY;
 
 	if (blitW <= 0 || blitH <= 0)
 		return;
+
+	const Common::BitArray *mask = src.getTransparencyMask();
+	const int srcW = src.w;
 
 	for (int py = 0; py < blitH; ++py) {
 		const byte *srcRow =
@@ -325,9 +325,9 @@ void FirstPersonRenderer::blitClipped(const Pic &src,
 		byte *dstRow =
 				(byte *)dst->getBasePtr(dstX, dstY + py);
 		for (int px = 0; px < blitW; ++px) {
-			const byte pixel = srcRow[px];
-			if (pixel != 0)
-				dstRow[px] = pixel;
+			if (mask && mask->get((srcY0 + py) * srcW + (srcX0 + px)))
+				continue;
+			dstRow[px] = srcRow[px];
 		}
 	}
 }

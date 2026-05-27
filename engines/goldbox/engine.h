@@ -92,6 +92,11 @@ public:
 	uint _textDelay = 3; // 1-5 range (1=fastest, 5=slowest), maps to original BYTE_DELAY
 	static Goldbox::Data::Items::Storage gItemProps;
 
+	uint8 _skyColor;
+	uint8 _skylineColor;
+	uint8 _horizonColor;
+	uint8 _floorColor;
+
 	/**
 	 * Gets the current game state.
 	 */
@@ -107,6 +112,14 @@ public:
 	 * Default implementation does nothing; engines override to route screens.
 	 */
 	virtual void onGameStateEnter(GameState prev, GameState next) {}
+
+
+	void setColors(uint8 sky, uint8 skyline, uint8 horizon, uint8 floor) {
+		_skyColor = sky;
+		_skylineColor = skyline;
+		_horizonColor = horizon;
+		_floorColor = floor;
+	}
 
 	/**
 	 * Returns the currently selected character.
@@ -330,7 +343,7 @@ public:
 };
 
 extern Engine *g_engine;
-#define SHOULD_QUIT ::Goldbox::g_engine->shouldQuit()
+#define SHOULD_QUIT ::Goldbox::g_engine->shouldQuit();
 
 } // End of namespace Goldbox
 

@@ -39,11 +39,11 @@ static const uint16 kTileCacheLastIds[Tile8x8Cache::kSlotCount] = {
 };
 
 void blitSymbol(const Graphics::ManagedSurface &symbol, Pic &dst, int dstX,
-		int dstY, Common::BitArray *mask) {
+		int dstY, Common::BitArray *mask, uint8 transparentColor) {
 	for (int py = 0; py < symbol.h; ++py) {
 		for (int px = 0; px < symbol.w; ++px) {
 			const uint8 pixel = symbol.getPixel(px, py);
-			if (pixel == 0)
+			if (pixel == transparentColor)
 				continue;
 
 			const int x = dstX + px;
@@ -55,6 +55,8 @@ void blitSymbol(const Graphics::ManagedSurface &symbol, Pic &dst, int dstX,
 	}
 }
 
+static const uint8 kWallTileTransparentColor = 13;
+
 Common::SharedPtr<Pic> buildRegionSurface(
 		const Data::DaxBlockWalldef::Slice &slice,
 		Data::WalldefRegionId regionId,
@@ -62,8 +64,8 @@ Common::SharedPtr<Pic> buildRegionSurface(
 	const int cols = slice.cols(regionId);
 	const int rows = slice.rows(regionId);
 	Common::SharedPtr<Pic> region(new Pic(cols * 8, rows * 8));
-	region->clear(0);
-	region->setTransparentIndex(0);
+	region->clear(kWallTileTransparentColor);
+	region->setTransparentIndex(kWallTileTransparentColor);
 
 	Common::BitArray *mask = region->ensureTransparencyMask();
 	for (uint i = 0; i < mask->size(); ++i)
@@ -80,7 +82,8 @@ Common::SharedPtr<Pic> buildRegionSurface(
 			if (!tile)
 				continue;
 
-			blitSymbol(*tile, *region, col * 8, row * 8, mask);
+			blitSymbol(*tile, *region, col * 8, row * 8, mask,
+					kWallTileTransparentColor);
 		}
 	}
 
