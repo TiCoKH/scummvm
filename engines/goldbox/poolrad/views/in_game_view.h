@@ -70,6 +70,7 @@ public:
 		kCmdNone = 0,
 		kCmdMove,
 		kCmdSearch,
+		kCmdLook,
 		kCmdEncamp
 	};
 

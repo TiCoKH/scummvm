@@ -338,6 +338,8 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 		// TODO: Toggle area-map overlay.
 		break;
 	case Common::KEYCODE_s:
+		// 'S' toggles persistent search-while-walking (D_SearchFlags bit 0 XOR).
+		// Queues to engine for VM memory write; no script runs.
 		_searchMode = !_searchMode;
 		queueCommand(kCmdSearch);
 		break;
@@ -352,9 +354,9 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 		// TODO: Open spell menu for selected player.
 		break;
 	case Common::KEYCODE_l:
-		// Look / search location — set flag; orchestrator dispatches ECL_ONSEARCH.
-		_searchMode = true;
-		queueCommand(kCmdSearch);
+		// 'L' (Look): one-shot search. Sets D_SearchFlags |= 2, advances time,
+		// then exits to engine which runs ECL_ONSEARCH once and clears bit 1.
+		queueCommand(kCmdLook);
 		break;
 
 	default:

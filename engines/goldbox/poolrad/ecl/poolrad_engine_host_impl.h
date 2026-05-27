@@ -102,6 +102,19 @@ public:
     VmResult onMapDataReady() override;
     const WallSetRuntimeState &wallSetState(int slot) const;
 
+    /**
+     * DIALOG_OpenDoor equivalent: attempt to open a door in the party's
+     * current facing direction at the current position using RuntimeGeoBlock.
+     * Returns true if a door was opened (wall flag cleared).
+     */
+    bool tryOpenDoor();
+
+    /**
+     * Play a sound effect by legacy sound index.
+     * Maps to original PlaySound(ARRAY_SOUND_MAP[id]) / WORD_SOUND_ID_N.
+     */
+    void playSound(uint8 soundId);
+
     bool hasStaticMapPayload() const { return _staticMapPayloadLoaded; }
     uint8 staticMapPayloadBlockId() const { return _staticMapPayloadBlockId; }
     Common::Span<const uint8> staticMapPayload() const {

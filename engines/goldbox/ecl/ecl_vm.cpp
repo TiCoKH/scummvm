@@ -111,7 +111,7 @@ EclVM::~EclVM() {
 DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptId) {
     const uint16 scriptVmStart = _config ? _config->getScriptVmStart()
             : ECLMemoryLayout::MEM_START_DEFAULT;
-
+    // if we like replicate original behavior, sholud need 'Loading...Please Wait' promptMessage() display from here
     _scriptId = scriptId;
     _pc = scriptVmStart;
     _callStack.clear();

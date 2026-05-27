@@ -807,5 +807,45 @@ VmResult PoolradEngineHostImpl::onMapDataReady() {
     return VmResult::VM_OK;
 }
 
+bool PoolradEngineHostImpl::tryOpenDoor() {
+    if (!_engine)
+        return false;
+
+    RuntimeGeoBlock &rtGeo = _engine->getRuntimeGeo();
+    if (!rtGeo.isLoaded())
+        return false;
+
+    const RuntimeExchange *exchange = _engine->getRuntimeExchange();
+    if (!exchange)
+        return false;
+
+    RuntimeMapSnapshot snapshot;
+    if (!exchange->captureMapSnapshot(snapshot) || !snapshot.valid)
+        return false;
+
+    const int x = static_cast<int>(snapshot.dungeonX);
+    const int y = static_cast<int>(snapshot.dungeonY);
+    // Wire direction: 0=N, 2=E, 4=S, 6=W
+    const uint8 wireDir = static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2);
+
+    // Check if there's a door flag (non-zero) in the facing direction.
+    const uint8 doorFlag = rtGeo.getWallFlag(x, y, wireDir);
+    if (doorFlag == 0)
+        return false;
+
+    // Clear the door flag (open the door).
+    rtGeo.clearFlag(x, y, wireDir);
+    debug(3, "PoolradEngineHostImpl::tryOpenDoor: opened door at (%d,%d) dir=%u",
+        x, y, (unsigned)wireDir);
+    return true;
+}
+
+void PoolradEngineHostImpl::playSound(uint8 soundId) {
+    // TODO: Wire to ScummVM audio mixer once sound system is implemented.
+    // Original: PlaySound(ARRAY_SOUND_MAP[soundId]) / WORD_SOUND_ID_N.
+    debug(3, "PoolradEngineHostImpl::playSound: sound %u requested",
+        (unsigned)soundId);
+}
+
 } // namespace Poolrad
 } // namespace Goldbox

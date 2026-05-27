@@ -964,6 +964,12 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 			static_cast<uint8>(_legacySharedState.byteGameState));
 	}
 
+	// G_SaveMapId writeback (original writes BYTE_MAP_ID to world state
+	// before ECL_ONINIT and at the top of the main loop).
+	const uint16 saveMapIdAddr = layout.vmField(kVmFieldSavedMapId).vmAddr;
+	if (VmLayout::isValid(layout.vmField(kVmFieldSavedMapId)))
+		mem.write8(saveMapIdAddr, mapId);
+
 	// Dispatch ON_INIT at runtime bootstrap point (ENGINE_Execute(ECL_ONINIT)).
 	(void)runEclEntryPoint(ECL::kEclRuntimeOnInitEntry);
 }
@@ -1035,6 +1041,15 @@ void PoolradEngine::processLegacyInGameLoopStep() {
 	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
 	ECL::AddressSpace &mem = _eclVm->getMemory();
 
+	// PTR_SELECTED_CHAR = PTR_PARTY_ARRAY (reset to first party member)
+	if (!_party.empty())
+		setSelectedCharacter(_party[0]);
+
+	// G_SaveMapId writeback (original does this at loop top)
+	const uint16 saveMapIdAddr = layout.vmField(kVmFieldSavedMapId).vmAddr;
+	if (VmLayout::isValid(layout.vmField(kVmFieldSavedMapId)))
+		mem.write8(saveMapIdAddr, _legacySharedState.byteMapId);
+
 	if (cmd == Views::InGameView::kCmdEncamp) {
 		const VmResult r = runEclEntryPoint(ECL::kEclRuntimeOnRestEntry);
 		if (r == VM_YIELD)
@@ -1043,11 +1058,28 @@ void PoolradEngine::processLegacyInGameLoopStep() {
 	}
 
 	if (cmd == Views::InGameView::kCmdSearch) {
+		// 'S' toggle: XOR bit 0 of D_SearchFlags in VM memory.
+		// No script runs — this is the persistent search-while-walking mode.
+		const uint16 searchAddr =
+			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
+		const uint8 flags = mem.read8(searchAddr);
+		mem.write8(searchAddr, static_cast<uint8>(flags ^ 1));
+		return;
+	}
+
+	if (cmd == Views::InGameView::kCmdLook) {
+		// 'L' (Look): one-shot search.
+		// D_SearchFlags |= 2, advance time, run ECL_ONSEARCH once, restore flags.
 		const uint16 searchAddr =
 			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
 		const uint8 savedSearchFlag = static_cast<uint8>(mem.read8(searchAddr) & 1);
-		mem.write8(searchAddr, 1);
+		mem.write8(searchAddr, static_cast<uint8>(savedSearchFlag | 2));
 
+		// TIME_AddUnits(1, 2) — advance clock by 2 minutes.
+		// TODO: Wire TIME_AddUnits once clock system is implemented.
+
+		// Now enter the search-loop path: set flags=1, run ONSEARCH, restore.
+		mem.write8(searchAddr, 1);
 		const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
 		mem.write8(searchAddr, savedSearchFlag);
 		if (onSearch == VM_YIELD) {
@@ -1073,13 +1105,34 @@ void PoolradEngine::processLegacyInGameLoopStep() {
 	}
 
 	if (!_eclVm->eclReady) {
-		// Legacy post-ONMOVE branch when ECL has not entered ready state yet:
-		// force redraw bookkeeping and run ON_SEARCH once.
+		// Legacy post-ONMOVE branch: save position, try door, check bump.
+		RuntimeMapSnapshot snap;
+		captureRuntimeMapSnapshot(snap);
+		const uint16 savedX = snap.dungeonX;
+		const uint16 savedY = snap.dungeonY;
+
+		// DIALOG_OpenDoor: attempt to open door in facing direction.
+		if (_eclHost)
+			_eclHost->tryOpenDoor();
+
+		// Re-read position after door logic (position may have changed).
+		captureRuntimeMapSnapshot(snap);
+		if (snap.dungeonX != savedX || snap.dungeonY != savedY) {
+			// PlaySound(SOUND_ID_BLOCKED) - sound index 0x0B
+			if (_eclHost)
+				_eclHost->playSound(0x0B);
+		}
+
 		_legacySharedState.bool3dRedraw = false;
 		_legacySharedState.boolPictureReady = true;
 		const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
 		if (onSearch == VM_YIELD)
 			_eclFlags.suspended = true;
+		else if (_eclVm->eclReady) {
+			const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
+			if (resume == VM_YIELD)
+				_eclFlags.suspended = true;
+		}
 		return;
 	}
 
