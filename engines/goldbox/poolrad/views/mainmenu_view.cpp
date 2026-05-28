@@ -222,8 +222,11 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
             }
             break;
         case Common::KEYCODE_b:
-            if (_menuItemList.isActive(BEGIN))
-                replaceView("Mainmenu");
+            if (_menuItemList.isActive(BEGIN)) {
+                // Original: BYTE_GAME_STATE = GS_DUNGEON_MAP; return;
+                // setGameState triggers onGameStateEnter → replaceView("InGame")
+                VmInterface::setGameStatus(GS_DUNGEON_MAP);
+            }
             break;
         case Common::KEYCODE_e:
             if (_menuItemList.isActive(EXIT) && _exitConfirmDialog) {
@@ -316,9 +319,15 @@ void MainmenuView::handleMenuResult(const MenuResultMessage &result) {
         return;
     }
 
-    // Save/load succeeded: refresh visual state.
-    refreshPartyState();
-    redraw();
+    // After successful load, check if engine transitioned away from START_MENU.
+    // loadGameSlotX86 calls setGameState() internally which triggers
+    // onGameStateEnter → replaceView("InGame") for non-menu states.
+    // If loaded state was GS_START_MENU, we stay in mainmenu with loaded party.
+    if (VmInterface::getGameStatus() == GS_START_MENU) {
+        refreshPartyState();
+        redraw();
+    }
+    // Otherwise the engine already replaced this view — nothing to do.
 }
 
 void MainmenuView::setActiveSubView(Dialogs::Dialog *dlg) {

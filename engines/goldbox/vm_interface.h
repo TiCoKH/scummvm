@@ -92,6 +92,11 @@ public:
         return g_engine->getGameState();
     }
 
+    // Set game state (triggers onGameStateEnter and view routing)
+    static void setGameStatus(GameState state) {
+        g_engine->setGameState(state);
+    }
+
     // DAX Container accessors
     static Data::DaxBlockContainer &getDax8x8d() { return g_engine->getDax8x8d(); }
     static Data::DaxBlockContainer &getDaxBacpac() { return g_engine->getDaxBacpac(); }
