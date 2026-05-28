@@ -50,14 +50,17 @@ InGameView::InGameView() : View("InGame") {
 
 	_shopPanelDialog = new Dialogs::InGamePanelDialog("InGameShopPanel", "Shop");
 	_shopPanelDialog->setRuntimeMode(Dialogs::InGamePanelDialog::kRuntimeShop);
+	_shopPanelDialog->deactivate();
 	attachDialog(_shopPanelDialog);
 
 	_campingPanelDialog = new Dialogs::InGamePanelDialog("InGameCampPanel", "Camp");
 	_campingPanelDialog->setRuntimeMode(Dialogs::InGamePanelDialog::kRuntimeCamping);
+	_campingPanelDialog->deactivate();
 	attachDialog(_campingPanelDialog);
 
 	_afterCombatPanelDialog = new Dialogs::InGamePanelDialog("InGameAfterCombatPanel", "AfterFight");
 	_afterCombatPanelDialog->setRuntimeMode(Dialogs::InGamePanelDialog::kRuntimeAfterCombat);
+	_afterCombatPanelDialog->deactivate();
 	attachDialog(_afterCombatPanelDialog);
 }
 

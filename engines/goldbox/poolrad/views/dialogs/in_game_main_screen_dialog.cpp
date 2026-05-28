@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/gfx/first_person_renderer.h"
+#include "goldbox/gfx/viewport_background.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/views/dialogs/in_game_main_screen_dialog.h"
 #include "goldbox/runtime/runtime_exchange.h"
@@ -172,6 +173,19 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 		Data::DaxBlockGeo *geo = ::Goldbox::Poolrad::g_engine->getActiveGeoBlock();
 		if (!geo)
 			return;
+
+		// Blit the cached sky/floor background before drawing walls.
+		const Gfx::ViewportBackground &vpBg =
+			::Goldbox::Poolrad::g_engine->getViewportBackground();
+		s.blitFrom(vpBg.surface(),
+			Common::Rect(
+				Gfx::ViewportBackground::kViewportX,
+				Gfx::ViewportBackground::kViewportY,
+				Gfx::ViewportBackground::kViewportX + Gfx::ViewportBackground::kViewportSize,
+				Gfx::ViewportBackground::kViewportY + Gfx::ViewportBackground::kViewportSize),
+			Common::Point(
+				Gfx::ViewportBackground::kViewportX,
+				Gfx::ViewportBackground::kViewportY));
 
 		Gfx::FirstPersonRenderer::draw3dWorld(&s, mapDir % 8,
 			(int)mapX, (int)mapY, *geo,
