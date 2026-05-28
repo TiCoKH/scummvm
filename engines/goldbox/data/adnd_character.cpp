@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -81,7 +81,7 @@ void ADnDCharacter::resolveEquippedItems() {
 
     int readiedCount = 0;
     int placedCount = 0;
-    debug("ADnDCharacter::resolveEquippedItems: totalItems=%u",
+    debug(4, "ADnDCharacter::resolveEquippedItems: totalItems=%u",
           (unsigned)itemsArr.size());
 
 	// Resolve equipped items using readied flags and slotID from item properties.
@@ -96,11 +96,11 @@ void ADnDCharacter::resolveEquippedItems() {
 		const auto &prop = item.prop();
 		int slot = (int)prop.slotID;
         Common::String displayName = item.getDisplayName();
-        debug("ADnDCharacter::resolveEquippedItems: readied item[%u] displayName='%s' type=%u slot=%d prop.slotID=%u readied=%u nameCode=[%u,%u,%u]",
+        debug(4, "ADnDCharacter::resolveEquippedItems: readied item[%u] displayName='%s' type=%u slot=%d prop.slotID=%u readied=%u nameCode=[%u,%u,%u]",
               (unsigned)i, displayName.c_str(), (unsigned)item.typeIndex, slot, (unsigned)prop.slotID, (unsigned)item.readied,
 		      (unsigned)item.nameCode1, (unsigned)item.nameCode2, (unsigned)item.nameCode3);
 		if (slot < 0 || slot >= EQUIPPED_SLOT_COUNT) {
-			debug("WARNING: Equipped item '%s' has invalid slotID %d (corrupted save data?)",
+			debug(4, "WARNING: Equipped item '%s' has invalid slotID %d (corrupted save data?)",
 				  item.name.c_str(), slot);
 			continue;
 		}
@@ -117,7 +117,7 @@ void ADnDCharacter::resolveEquippedItems() {
 					const_cast<Goldbox::Data::Items::CharacterItem *>(&item);
                 ++placedCount;
             } else {
-                debug("ADnDCharacter::resolveEquippedItems: extra ring equipped, cannot place item[%u] name='%s'",
+                debug(4, "ADnDCharacter::resolveEquippedItems: extra ring equipped, cannot place item[%u] name='%s'",
                       (unsigned)i, item.name.c_str());
 			}
 		} else if (!equippedItems.slots[slot]) {
@@ -125,12 +125,12 @@ void ADnDCharacter::resolveEquippedItems() {
 			equippedItems.slots[slot] = const_cast<Goldbox::Data::Items::CharacterItem *>(&item);
             ++placedCount;
         } else {
-            debug("ADnDCharacter::resolveEquippedItems: slot %d already occupied, item[%u] name='%s' skipped",
+            debug(4, "ADnDCharacter::resolveEquippedItems: slot %d already occupied, item[%u] name='%s' skipped",
                   slot, (unsigned)i, item.name.c_str());
 		}
 	}
 
-    debug("ADnDCharacter::resolveEquippedItems: readied=%d placed=%d",
+    debug(4, "ADnDCharacter::resolveEquippedItems: readied=%d placed=%d",
           readiedCount, placedCount);
 }
 
@@ -195,7 +195,7 @@ void ADnDCharacter::debugValidateEquipped() const {
                 }
             }
             if (!pointerMatches)
-                debug("Equipped mismatch: slot %d has dangling pointer", s);
+                debug(4, "Equipped mismatch: slot %d has dangling pointer", s);
         }
         // Cross-check readied flags: find any item whose prop slotID == s and isEquipped
         bool anyReadiedForSlot = false;
@@ -209,9 +209,9 @@ void ADnDCharacter::debugValidateEquipped() const {
             }
         }
         if (anyReadiedForSlot && !ci)
-            debug("Equipped mismatch: slot %d has readied item but equippedItems pointer is null", s);
+            debug(4, "Equipped mismatch: slot %d has readied item but equippedItems pointer is null", s);
         if (!anyReadiedForSlot && ci)
-            debug("Equipped mismatch: slot %d has pointer set but no readied item", s);
+            debug(4, "Equipped mismatch: slot %d has pointer set but no readied item", s);
     }
 }
 
@@ -377,7 +377,7 @@ int ADnDCharacter::getCapacityModifier() const {
     if (t >= 28 && t <= 30) {
         return 9000 + (t - 28) * 3000;
     }
-    debug("ADnDCharacter::getCapacityModifier: invalid strength tier %d", t);
+    debug(4, "ADnDCharacter::getCapacityModifier: invalid strength tier %d", t);
     return 0;
 }
 

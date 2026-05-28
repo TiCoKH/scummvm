@@ -25,15 +25,12 @@
 #include "goldbox/poolrad/views/dialogs/in_game_state_area_dialog.h"
 #include "goldbox/poolrad/views/dialogs/party_list.h"
 #include "goldbox/poolrad/views/in_game_view.h"
+#include "goldbox/core/direction.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
-
-// Movement delta tables indexed by 4-direction (0=N, 1=E, 2=S, 3=W).
-static const int kDx[4] = {0, 1, 0, -1};
-static const int kDy[4] = {-1, 0, 1, 0};
 
 // -----------------------------------------------------------------------
 
@@ -338,7 +335,7 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 
 	// --- Menu keys ---
 	case Common::KEYCODE_a:
-		// TODO: Toggle area-map overlay.
+		_areaMapMode = !_areaMapMode;
 		break;
 	case Common::KEYCODE_s:
 		// 'S' toggles persistent search-while-walking (D_SearchFlags bit 0 XOR).
@@ -374,10 +371,9 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 }
 
 void InGameView::stepForward() {
-	// Convert 8-direction to 4-direction index (N=0, E=1, S=2, W=3).
-	int dir4 = _mapDir / 2;
-	int newX = (int)_mapX + kDx[dir4];
-	int newY = (int)_mapY + kDy[dir4];
+	// Use 8-direction deltas directly from the shared table.
+	const int newX = (int)_mapX + kDirDeltaX[_mapDir];
+	const int newY = (int)_mapY + kDirDeltaY[_mapDir];
 
 	// Boundary check: GEO maps are 16×16.
 	if (newX < 0 || newX >= 16 || newY < 0 || newY >= 16)

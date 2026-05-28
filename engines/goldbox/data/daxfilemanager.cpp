@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -73,75 +73,75 @@ void DaxFileManager::loadFile(const Common::Path &path) {
         return;
     }
 
-    debug("DaxFileManager: Loading file '%s'", filename.c_str());
+    debug(1, "DaxFileManager: Loading file '%s'", filename.c_str());
 
     // Determine which container to load into based on filename
     if (filename.contains("8X8D")) {
-        debug("  - Detected 8X8D container");
+        debug(1, "  - Detected 8X8D container");
         _container8x8d.loadFromFile(&file);
     } else if (filename.contains("BACPAC")) {
-        debug("  - Detected BACPAC container");
+        debug(1, "  - Detected BACPAC container");
         _containerBacpac.loadFromFile(&file);
     } else if (filename.contains("DUNGCOM")) {
-        debug("  - Detected DUNGCOM container");
+        debug(1, "  - Detected DUNGCOM container");
         _containerDungcom.loadFromFile(&file);
     } else if (filename.contains("RANDCOM")) {
-        debug("  - Detected RANDCOM container");
+        debug(1, "  - Detected RANDCOM container");
         _containerRandcom.loadFromFile(&file);
     } else if (filename.contains("SQRPACI")) {
-        debug("  - Detected SQRPACI container");
+        debug(1, "  - Detected SQRPACI container");
         _containerSqrpaci.loadFromFile(&file);
     } else if (filename.contains("CBODY")) {
-        debug("  - Detected CBODY container");
+        debug(1, "  - Detected CBODY container");
         _containerCBody.loadFromFile(&file);
     } else if (filename.contains("BODY")) {
-        debug("  - Detected BODY container");
+        debug(1, "  - Detected BODY container");
         _containerBody.loadFromFile(&file);
     } else if (filename.contains("CHEAD")) {
-        debug("  - Detected CHEAD container");
+        debug(1, "  - Detected CHEAD container");
         _containerCHead.loadFromFile(&file);
     } else if (filename.contains("COMSPR")) {
-        debug("  - Detected COMSPR container (IMPORTANT!)");
+        debug(1, "  - Detected COMSPR container (IMPORTANT!)");
         _containerComSpr.loadFromFile(&file);
-        debug("  - COMSPR loaded, block count: %zu", _containerComSpr.getBlockCount());
+        debug(1, "  - COMSPR loaded, block count: %zu", _containerComSpr.getBlockCount());
     } else if (filename.contains("CPIC")) {
-        debug("  - Detected CPIC container");
+        debug(1, "  - Detected CPIC container");
         _containerCPic.loadFromFile(&file);
     } else if (filename.contains("ECL")) {
-        debug("  - Detected ECL container");
+        debug(1, "  - Detected ECL container");
         _containerEcl.loadFromFile(&file);
     } else if (filename.contains("GEO")) {
-        debug("  - Detected GEO container");
+        debug(1, "  - Detected GEO container");
         _containerGeo.loadFromFile(&file);
     } else if (filename.contains("HEAD")) {
-        debug("  - Detected HEAD container");
+        debug(1, "  - Detected HEAD container");
         _containerHead.loadFromFile(&file);
     } else if (filename.contains("MON") && filename.contains("CHA")) {
-        debug("  - Detected MONCHA container");
+        debug(1, "  - Detected MONCHA container");
         _containerMonCha.loadFromFile(&file);
     } else if (filename.contains("MON") && filename.contains("ITM")) {
-        debug("  - Detected MONITM container");
+        debug(1, "  - Detected MONITM container");
         _containerMonItm.loadFromFile(&file);
     } else if (filename.contains("MON") && filename.contains("SPC")) {
-        debug("  - Detected MONSPC container");
+        debug(1, "  - Detected MONSPC container");
         _containerMonSpc.loadFromFile(&file);
     } else if (filename.contains("TITLE")) {
-        debug("  - Detected TITLE container");
+        debug(1, "  - Detected TITLE container");
         _containerTitle.loadFromFile(&file);
     } else if (filename.contains("SPRIT")) {
-        debug("  - Detected SPRIT container");
+        debug(1, "  - Detected SPRIT container");
         _containerSprit.loadFromFile(&file);
     } else if (filename.contains("WALLDEF")) {
-        debug("  - Detected WALLDEF container");
+        debug(1, "  - Detected WALLDEF container");
         _containerWalldef.loadFromFile(&file);
     } else if (filename.contains("PIC")) {
-        debug("  - Detected PIC container");
+        debug(1, "  - Detected PIC container");
         _containerPic.loadFromFile(&file);
     } else if (filename.contains("WILDCOM")) {
-        debug("  - Detected WILDCOM container");
+        debug(1, "  - Detected WILDCOM container");
         _containerWildcom.loadFromFile(&file);
     } else {
-        debug("  - No matching container for filename");
+        debug(1, "  - No matching container for filename");
     }
 
     file.close();

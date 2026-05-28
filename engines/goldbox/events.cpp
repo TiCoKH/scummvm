@@ -437,7 +437,7 @@ void UIElement::addView() {
 
 void UIElement::subView(UIElement *child) {
 	if (!child) {
-		debug("subView: Attempted to add a null subview!");
+		debug(7, "subView: Attempted to add a null subview!");
 		return;
 	}
 
@@ -446,7 +446,7 @@ void UIElement::subView(UIElement *child) {
 	child->setParent(this);
 
 	// Debug log to confirm the operation
-	debug("subView: Added child '%s' to parent '%s'",
+	debug(7, "subView: Added child '%s' to parent '%s'",
 		  child->getName().c_str(), this->getName().c_str());
 }
 

@@ -29,6 +29,7 @@
 #include "goldbox/gfx/icon.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/gfx/pic.h"
+#include "goldbox/gfx/area_map_cache.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
@@ -648,6 +649,7 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
 }
 
 VmResult PoolradEngineHostImpl::loadGeoBlock(uint8 blockId) {
+    debug(3, "PoolradEngineHostImpl::loadGeoBlock: requested blockId=%u", (unsigned)blockId);
     if (!_engine)
         return VmResult::VM_ERROR;
 
@@ -686,6 +688,10 @@ VmResult PoolradEngineHostImpl::loadGeoBlock(uint8 blockId) {
 
     debug(2, "PoolradEngineHostImpl::loadGeoBlock: loaded GEO block %u into RuntimeGeoBlock + static payload",
         (unsigned)blockId);
+
+    // Rebuild the 2D area map cache from the freshly loaded GEO data.
+    _engine->getAreaMapCache().rebuild(rtGeo, _engine->getTileCache());
+
     return VmResult::VM_OK;
 }
 
@@ -699,6 +705,8 @@ VmResult PoolradEngineHostImpl::loadIconBlock() {
 }
 
 VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
+    debug(3, "PoolradEngineHostImpl::loadWallSet: blockId=%u setSlot=%u",
+        (unsigned)blockId, (unsigned)setSlot);
     if (!_engine) return VmResult::VM_ERROR;
     if (setSlot < 1 || setSlot > 3) return VmResult::VM_ERROR;
 

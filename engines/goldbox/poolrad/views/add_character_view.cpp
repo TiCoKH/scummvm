@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -147,7 +147,7 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
 
     Common::String characterName = _rosterList->items[selectedIndex].text;
     if (characterName.hasPrefix("*")) {
-        debug("Character already added: %s", characterName.c_str());
+        debug(4, "Character already added: %s", characterName.c_str());
         return;
     }
 
@@ -174,21 +174,21 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
     Common::String itmFilename = baseFilename + ".ITM";
     const Common::Path itmPath = savePath / itmFilename;
     if (character->inventory.load(itmPath.toString())) {
-        debug("Loaded items file: %s", itmFilename.c_str());
+        debug(4, "Loaded items file: %s", itmFilename.c_str());
         for (const auto &item : character->inventory.items()) {
-            debug("Item: %s", item.name.c_str());
+            debug(4, "Item: %s", item.name.c_str());
         }
         character->resolveEquippedItems();
     } else {
-        debug("Items file not found or failed to load: %s", itmFilename.c_str());
+        debug(4, "Items file not found or failed to load: %s", itmFilename.c_str());
     }
 
     Common::String spcFilename = baseFilename + ".SPC";
     const Common::Path spcPath = savePath / spcFilename;
     if (character->effects.load(spcPath.toString())) {
-        debug("Loaded spells file: %s", spcFilename.c_str());
+        debug(4, "Loaded spells file: %s", spcFilename.c_str());
     } else {
-        debug("Spells file not found or failed to load: %s", spcFilename.c_str());
+        debug(4, "Spells file not found or failed to load: %s", spcFilename.c_str());
     }
 
     Goldbox::VmInterface::getParty()->push_back(character);
@@ -242,7 +242,7 @@ void AddCharacterView::loadRosterList() {
     }
     charListFile.close();
 
-    debug("Loaded CHARLIST.TXT from %s (%d entries)",
+    debug(4, "Loaded CHARLIST.TXT from %s (%d entries)",
         charListPath.toString().c_str(),
         (int)_rosterList->items.size());
 }

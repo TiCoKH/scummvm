@@ -39,6 +39,7 @@
 #include "goldbox/data/daxfilemanager.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/gfx/viewport_background.h"
+#include "goldbox/gfx/area_map_cache.h"
 #include "goldbox/runtime/runtime_geo.h"
 
 namespace Goldbox {
@@ -55,6 +56,7 @@ protected:
 	Data::DaxFileManager _daxManager;
 	RuntimeGeoBlock _runtimeGeo;
 	Gfx::ViewportBackground _viewportBg;
+	Gfx::AreaMapCache _areaMapCache;
 	// Engine APIs
 	Common::Error run() override;
 	void setup() override;
@@ -127,6 +129,9 @@ public:
 	const Gfx::ViewportBackground &getViewportBackground() const {
 		return _viewportBg;
 	}
+
+	Gfx::AreaMapCache &getAreaMapCache() { return _areaMapCache; }
+	const Gfx::AreaMapCache &getAreaMapCache() const { return _areaMapCache; }
 
 	/**
 	 * Returns the currently selected character.

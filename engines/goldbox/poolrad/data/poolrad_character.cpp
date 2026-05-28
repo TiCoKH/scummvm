@@ -40,7 +40,7 @@ void callItemReadyEffect(PoolradCharacter *character,
 	}
 
 	// TODO: Hook up original item effect dispatch table.
-	debug("PoolradCharacter::callItemReadyEffect - effect3=%u mode=%u for %s",
+	debug(4, "PoolradCharacter::callItemReadyEffect - effect3=%u mode=%u for %s",
 			  (unsigned)item->effect3,
 			  equipping ? 0u : 1u,
 			  item->getDisplayName().c_str());
@@ -132,7 +132,7 @@ void PoolradCharacter::initializeNewCharacter() {
 
 void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
-	name = Goldbox::Data::PascalStringBuffer<15>::read(stream); // 0x000–0x00F
+	name = Goldbox::Data::PascalStringBuffer<15>::read(stream); // 0x000-0x00F
 	abilities.strength.current     = stream.readByte(); // 0x010
 	abilities.intelligence.current = stream.readByte(); // 0x011
 	abilities.wisdom.current       = stream.readByte(); // 0x012
@@ -141,7 +141,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	abilities.charisma.current     = stream.readByte(); // 0x015
 	abilities.strException.current = stream.readByte(); // 0x016
 
-	// 0x017–0x02B: memorized spells
+	// 0x017-x02B: memorized spells
 	stream.read(spells.memorizedSpells, 21);
 	// 0x02C: unknown
 	stream.seek(0x2D, SEEK_SET);
@@ -149,11 +149,11 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
 	race       = stream.readByte(); // 0x02E
 	classType  = stream.readByte(); // 0x02F
-	age        = stream.readUint16LE(); // 0x030–0x031
+	age        = stream.readUint16LE(); // 0x030-x031
 
 	hitPoints.max = stream.readByte(); // 0x032
 
-	// 0x033–0x069: cleric/mage spell knowledge — 55 bytes
+	// 0x33-0x69: cleric/mage spell knowledge - 55 bytes
 	stream.read(spells.knownSpells, 55);
 
 	// Convert legacy spell arrays to modern SpellBook
@@ -189,32 +189,32 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	thiefSkills.climbWalls       = stream.readByte(); // 0x07D
 	thiefSkills.readLanguages    = stream.readByte(); // 0x07E
 
-	// 0x07F–0x082: effects address (pointer)
+	// 0x07F-0x082: effects address (pointer)
 	stream.seek(0x84, SEEK_SET);
 	npc = stream.readSByte();     // 0x084
 	modified = stream.readByte(); // 0x085
-	// 0x086–0x087: unknown
+	// 0x086-0x087: unknown
 	stream.seek(0x88, SEEK_SET);
-	// 0x088–0x095: coin and item valuables
+	// 0x088-0x095: coin and item valuables
 	for (int i = 0; i < Goldbox::Data::VALUABLE_COUNT; ++i)
 		valuableItems.values[i] = stream.readUint16LE();
 
-	// 0x096–0x09D: class levels
+	// 0x096-0x09D: class levels
 	for (int i = 0; i < 8; ++i)
 		levels.levels[i] = stream.readByte();
 
-	// 0x09E–0x0A0: gender, type, alignment
+	// 0x09E-0x0A0: gender, type, alignment
 	gender    = (Goldbox::Data::Gender)stream.readByte(); // 0x09E
 	monsterType = stream.readByte();                     // 0x09F
 	alignment = stream.readByte();                       // 0x0A0
 
-	// 0x0A1–0x0A2: primary & secondary attacks ×2
+	// 0x0A1-0x0A2: primary & secondary attacks x2
 	Goldbox::Data::CombatRoll basePri;
 	Goldbox::Data::CombatRoll baseSec;
 	basePri.attacks = stream.readByte();
 	baseSec.attacks = stream.readByte();
 
-	// 0x0A3–0x0A8: unarmed combat data
+	// 0x0A3-0x0A8: unarmed combat data
 	basePri.action.roll.diceNum   = stream.readByte();
 	baseSec.action.roll.diceNum   = stream.readByte();
 	basePri.action.roll.diceSides = stream.readByte();
@@ -230,12 +230,12 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	strengthBonusAllowed = stream.readByte();     // 0x0AA
 	combatIcon = stream.readByte();               // 0x0AB
 
-	experiencePoints = stream.readUint32LE();     // 0x0AC–0x0AF
+	experiencePoints = stream.readUint32LE();     // 0x0AC-0x0AF
 
 	itemsLimit = stream.readByte(); // 0x0B0:
 	hitPointsRolled = stream.readByte(); // 0x0B1
 
-	// 0x0B2–0x0B7: spell slot capacities (how many can be memorized)
+	// 0x0B2-0x0B7: spell slot capacities (how many can be memorized)
 	spellSlots.cleric.level1    = stream.readByte(); // cleric 1
 	spellSlots.cleric.level2    = stream.readByte(); // cleric 2
 	spellSlots.cleric.level3    = stream.readByte(); // cleric 3
@@ -243,7 +243,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	spellSlots.magicUser.level2 = stream.readByte(); // magic-user 2
 	spellSlots.magicUser.level3 = stream.readByte(); // magic-user 3
 
-	xpForDefeating = stream.readUint16LE(); // 0x0B8–0x0B9
+	xpForDefeating = stream.readUint16LE(); // 0x0B8-0x0B9
 	bonusXpPerHp = stream.readByte();       // 0x0BA
 
 	portrait.head = stream.readByte(); // 0x0BB
@@ -262,18 +262,18 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	iconData.setWeaponColor(stream.readByte());   // 0x0C6
 
 	numOfItems = stream.readByte();          // 0x0C7
-	itemsAddress = stream.readUint32LE();    // 0x0C8–0x0CB — pointer
+	itemsAddress = stream.readUint32LE();    // 0x0C8-0x0CB - pointer
 
-	// 0x0CC–0x0FF: equipped items (all pointers)
+	// 0x0CC-0x0FF: equipped items (all pointers)
 	for (int i = 0; i < EQUIPMENT_SLOT_COUNT; ++i)
 		equippedOffsets[i] = stream.readUint32LE();
 
 	handsEquipped = stream.readByte();       // 0x100
 	saveBonus     = stream.readByte();       // 0x101
-	encumbrance   = stream.readUint16LE();   // 0x102–0x103
+	encumbrance   = stream.readUint16LE();   // 0x102-0x103
 
-	stream.readUint32LE(); // 0x104–0x107: next character address (pointer)
-	stream.readUint32LE(); // 0x108–0x10B: combat address (pointer)
+	stream.readUint32LE(); // 0x104-0x107: next character address (pointer)
+	stream.readUint32LE(); // 0x108-0x10B: combat address (pointer)
 
 	healthStatus = stream.readByte();        // 0x10C
 	enabled      = (stream.readByte() != 0); // 0x10D
@@ -453,8 +453,8 @@ void PoolradCharacter::recalcCombatStats() {
 				equippedItems.slots[(int)Slot::S_RING2] = ptr;
 				placed = true;
 			} else {
-				// More than two rings with slot id 9 equipped — unexpected
-				debug("PoolradCharacter::recalcCombatStats extra ring (slot id 9) cannot be placed: idx=%u type=%u", (unsigned)i, (unsigned)ci.typeIndex);
+				// More than two rings with slot id 9 equipped - unexpected
+				debug(4, "PoolradCharacter::recalcCombatStats extra ring (slot id 9) cannot be placed: idx=%u type=%u", (unsigned)i, (unsigned)ci.typeIndex);
 			}
 		}
 		// Arrow / Bolt by type index
@@ -554,7 +554,7 @@ void PoolradCharacter::recalcCombatStats() {
 	// Attack level heuristic (legacy used fighter level if race >0)
 	attackLevel = (levels.levels[C_FIGHTER] > 0 && race > 0) ? levels.levels[C_FIGHTER] : 1;
 
-	debug("PoolradCharacter::recalcCombatStats -> handsEquipped=%u enc=%u ac=%d thac0=%d rearAC=%d items=%u",
+	debug(4, "PoolradCharacter::recalcCombatStats -> handsEquipped=%u enc=%u ac=%d thac0=%d rearAC=%d items=%u",
 			(unsigned)handsEquipped,
 			(unsigned)encumbrance,
 			60 - (int)armorClass.current,
@@ -1086,7 +1086,7 @@ void PoolradCharacter::computeSpellSlots() {
 
 	const uint8 wis = abilities.wisdom.current;
 
-	debug("PoolradCharacter::computeSpellSlots - Cleric lvl=%u MagicUser lvl=%u Wisdom=%u",
+	debug(4, "PoolradCharacter::computeSpellSlots - Cleric lvl=%u MagicUser lvl=%u Wisdom=%u",
 	      (unsigned)levels[Goldbox::Data::C_CLERIC],
 	      (unsigned)levels[Goldbox::Data::C_MAGICUSER],
 	      (unsigned)wis);
@@ -1110,7 +1110,7 @@ void PoolradCharacter::computeSpellSlots() {
 			if (wis >= 17) spellSlots.cleric.level3 += 1;
 		}
 
-		debug("  Cleric spell slots: L1=%u L2=%u L3=%u",
+		debug(4, "  Cleric spell slots: L1=%u L2=%u L3=%u",
 		      (unsigned)spellSlots.cleric.level1,
 		      (unsigned)spellSlots.cleric.level2,
 		      (unsigned)spellSlots.cleric.level3);
@@ -1125,8 +1125,8 @@ void PoolradCharacter::computeSpellSlots() {
 				clericSpellsAdded++;
 			}
 		}
-		debug("  Added %d cleric spells to known (all available L1-3)", clericSpellsAdded);
-		debug("  SpellBook now has %u total known cleric spells",
+		debug(4, "  Added %d cleric spells to known (all available L1-3)", clericSpellsAdded);
+		debug(4, "  SpellBook now has %u total known cleric spells",
 		      spellBook.countKnownByClass(SC_CLERIC));
 	}
 
@@ -1136,7 +1136,7 @@ void PoolradCharacter::computeSpellSlots() {
 		spellSlots.magicUser.level2 = 0;
 		spellSlots.magicUser.level3 = 0;
 
-		debug("  Magic-User spell slots: L1=%u L2=%u L3=%u",
+		debug(4, "  Magic-User spell slots: L1=%u L2=%u L3=%u",
 		      (unsigned)spellSlots.magicUser.level1,
 		      (unsigned)spellSlots.magicUser.level2,
 		      (unsigned)spellSlots.magicUser.level3);
@@ -1146,12 +1146,12 @@ void PoolradCharacter::computeSpellSlots() {
 		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_READ_MAGIC);
 		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_SHIELD);
 		setSpellKnown(Goldbox::Data::Spells::SP_MUL1_SLEEP);
-		debug("  Added 4 starting magic-user spells to known");
-		debug("  SpellBook now has %u total known magic-user spells",
+		debug(4, "  Added 4 starting magic-user spells to known");
+		debug(4, "  SpellBook now has %u total known magic-user spells",
 		      spellBook.countKnownByClass(SC_MAGICUSER));
 	}
 
-	debug("PoolradCharacter::computeSpellSlots - Complete. Total spells in book: %u",
+	debug(4, "PoolradCharacter::computeSpellSlots - Complete. Total spells in book: %u",
 	      spellBook.getSpells().size());
 }
 

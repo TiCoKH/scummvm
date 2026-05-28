@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -429,7 +429,7 @@ void SetIcon::syncIconManagerSlots() {
     IconManager *mgr = VmInterface::getIconManager();
     if (!mgr || !_pc)
         return;
-    debug("SetIcon::syncIconManagerSlots: backup size=%u head=%u body=%u | working size=%u head=%u body=%u",
+    debug(8, "SetIcon::syncIconManagerSlots: backup size=%u head=%u body=%u | working size=%u head=%u body=%u",
           (unsigned)_backupIconData.iconSize,
           (unsigned)_backupIconData.iconHead,
           (unsigned)_backupIconData.iconBody,

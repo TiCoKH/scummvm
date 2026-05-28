@@ -129,7 +129,7 @@ bool IconManager::loadIcon(uint8 slotId, IconKind kind, uint16 blockId) {
 		return false;
 	}
 
-	debug("IconManager::loadIcon: Loading slot %d from kind=%d blockId=%d", slotId, kind, blockId);
+	debug(8, "IconManager::loadIcon: Loading slot %d from kind=%d blockId=%d", slotId, kind, blockId);
 
 	// Use Icon constructor that loads both ready and action blocks
 	Icon *icon = new Icon(blockId, kind);
@@ -145,7 +145,7 @@ bool IconManager::loadIcon(uint8 slotId, IconKind kind, uint16 blockId) {
 	_iconBuffer[slotId] = icon;
 	_slotStates[slotId] = SLOT_READY;
 
-	debug("  - Icon loaded into slot %d, state=READY", slotId);
+	debug(8, "  - Icon loaded into slot %d, state=READY", slotId);
 	return true;
 }
 
@@ -177,26 +177,26 @@ bool IconManager::drawAtPos(Graphics::ManagedSurface *dst, int iconX, int iconY,
 		return false;
 	}
 
-	debug("IconManager::drawAtPos: x=%d, y=%d, frame=%d, slot=%d", iconX, iconY, frame, slotId);
+	debug(8, "IconManager::drawAtPos: x=%d, y=%d, frame=%d, slot=%d", iconX, iconY, frame, slotId);
 
 	Icon *icon = _iconBuffer[slotId];
 	if (!icon) {
 		warning("IconManager::drawAtPos: Slot %d is empty (state=%d)", slotId, _slotStates[slotId]);
 		return false;
 	}
-	debug("  - Icon found in slot %d", slotId);
+	debug(8, "  - Icon found in slot %d", slotId);
 
 	// Update slot state to indicate use
 	_slotStates[slotId] = SLOT_IN_USE;
 
 	// Set desired action state
-	debug("  - Setting action state: %s", frame ? "ATTACK" : "READY");
+	debug(8, "  - Setting action state: %s", frame ? "ATTACK" : "READY");
 	icon->setActionState(frame ? ICON_STATE_ATTACK : ICON_STATE_READY);
 
 	// Draw using icon-grid coordinates (Icon expects x, y order)
-	debug("  - Drawing icon at grid position (x=%d, y=%d)", iconX, iconY);
+	debug(8, "  - Drawing icon at grid position (x=%d, y=%d)", iconX, iconY);
 	icon->drawAtIconPos(dst, iconX, iconY);
-	debug("  - Icon drawn successfully");
+	debug(8, "  - Icon drawn successfully");
 
 	// Restore state to ready after rendering
 	_slotStates[slotId] = SLOT_READY;

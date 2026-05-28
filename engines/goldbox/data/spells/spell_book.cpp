@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -82,7 +82,7 @@ void SpellBook::loadFromLegacyArrays(const uint8 *memorizedArray, int memorizedS
                                      const Spells *spellMapping, int mappingSize) {
 	_spells.clear();
 
-	debug("SpellBook::loadFromLegacyArrays - memorizedSize=%d knownSize=%d mappingSize=%d",
+	debug(4, "SpellBook::loadFromLegacyArrays - memorizedSize=%d knownSize=%d mappingSize=%d",
 	      memorizedSize, knownSize, mappingSize);
 
 	// Load known spells from legacy array
@@ -93,7 +93,7 @@ void SpellBook::loadFromLegacyArrays(const uint8 *memorizedArray, int memorizedS
 		if (knownArray[i] != 0) {
 			Spells spell = spellMapping[i];
 			setKnown(spell, true);
-			debug("  Known spell at index %d: spell ID=%u value=%u", i, (unsigned)spell, (unsigned)knownArray[i]);
+			debug(4, "  Known spell at index %d: spell ID=%u value=%u", i, (unsigned)spell, (unsigned)knownArray[i]);
 			knownCount++;
 		}
 	}
@@ -106,19 +106,19 @@ void SpellBook::loadFromLegacyArrays(const uint8 *memorizedArray, int memorizedS
 		if (memorizedArray[i] != 0) {
 			Spells spell = spellMapping[i];
 			setMemorized(spell, memorizedArray[i]);
-			debug("  Memorized spell at index %d: spell ID=%u count=%u", i, (unsigned)spell, (unsigned)memorizedArray[i]);
+			debug(4, "  Memorized spell at index %d: spell ID=%u count=%u", i, (unsigned)spell, (unsigned)memorizedArray[i]);
 			memorizedCount++;
 		}
 	}
 
-	debug("SpellBook::loadFromLegacyArrays - Loaded %d known spells, %d memorized spells, total unique spells=%u",
+	debug(4, "SpellBook::loadFromLegacyArrays - Loaded %d known spells, %d memorized spells, total unique spells=%u",
 	      knownCount, memorizedCount, _spells.size());
 }
 
 void SpellBook::saveToLegacyArrays(uint8 *memorizedArray, int memorizedSize,
                                    uint8 *knownArray, int knownSize,
                                    const Spells *spellMapping, int mappingSize) const {
-	debug("SpellBook::saveToLegacyArrays - memorizedSize=%d knownSize=%d mappingSize=%d totalSpells=%u",
+	debug(4, "SpellBook::saveToLegacyArrays - memorizedSize=%d knownSize=%d mappingSize=%d totalSpells=%u",
 	      memorizedSize, knownSize, mappingSize, _spells.size());
 
 	// Clear output arrays
@@ -142,7 +142,7 @@ void SpellBook::saveToLegacyArrays(uint8 *memorizedArray, int memorizedSize,
 			if (i < knownSize) {
 				knownArray[i] = entry.known ? 1 : 0;
 				if (entry.known) {
-					debug("  Writing known spell at index %d: spell ID=%u", i, (unsigned)spell);
+					debug(4, "  Writing known spell at index %d: spell ID=%u", i, (unsigned)spell);
 					knownWritten++;
 				}
 			}
@@ -151,14 +151,14 @@ void SpellBook::saveToLegacyArrays(uint8 *memorizedArray, int memorizedSize,
 			if (i < memorizedSize) {
 				memorizedArray[i] = entry.memorized;
 				if (entry.memorized > 0) {
-					debug("  Writing memorized spell at index %d: spell ID=%u count=%u", i, (unsigned)spell, (unsigned)entry.memorized);
+					debug(4, "  Writing memorized spell at index %d: spell ID=%u count=%u", i, (unsigned)spell, (unsigned)entry.memorized);
 					memorizedWritten++;
 				}
 			}
 		}
 	}
 
-	debug("SpellBook::saveToLegacyArrays - Wrote %d known spells, %d memorized spells",
+	debug(4, "SpellBook::saveToLegacyArrays - Wrote %d known spells, %d memorized spells",
 	      knownWritten, memorizedWritten);
 }
 

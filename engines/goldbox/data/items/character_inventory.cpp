@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -37,7 +37,7 @@ void CharacterInventory::loadFromStream(Common::SeekableReadStream &s) {
     const int total = s.size();
 
     if ((total % recSize) != 0) {
-        debug("CharacterInventory::loadFromStream: size=%d not multiple of recSize=%d",
+        debug(4, "CharacterInventory::loadFromStream: size=%d not multiple of recSize=%d",
               total, recSize);
     }
 
@@ -46,7 +46,7 @@ void CharacterInventory::loadFromStream(Common::SeekableReadStream &s) {
         CharacterItem it;
 
         it.name = PascalStringBuffer<41>::read(s);
-        // --- dynamic fields at offsets 0x2A–0x3E ---
+        // --- dynamic fields at offsets 0x2A-0x3E ---
         it.nextAddress = s.readUint32LE();
         it.typeIndex   = s.readByte();
         it.nameCode1   = s.readByte();
@@ -70,7 +70,7 @@ void CharacterInventory::loadFromStream(Common::SeekableReadStream &s) {
         ++index;
     }
 
-    debug("CharacterInventory::loadFromStream: loaded %u items",
+    debug(4, "CharacterInventory::loadFromStream: loaded %u items",
           (unsigned)_items.size());
 }
 
@@ -79,11 +79,11 @@ bool CharacterInventory::load(const Common::String &filename) {
 
     Common::File file;
     if (!file.open(filename.c_str())) {
-        debug("CharacterInventory::load: missing .ITM file '%s'", filename.c_str());
-        return false;  // no .ITM → empty inventory
+        debug(4, "CharacterInventory::load: missing .ITM file '%s'", filename.c_str());
+        return false;  // no .ITM -> empty inventory
     }
 
-    debug("CharacterInventory::load: file '%s' size=%d",
+    debug(4, "CharacterInventory::load: file '%s' size=%d",
           filename.c_str(), (int)file.size());
 
     loadFromStream(file);

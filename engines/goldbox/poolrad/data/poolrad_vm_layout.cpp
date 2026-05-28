@@ -351,19 +351,19 @@ bool poolradVmFieldOffset(Goldbox::VmFieldId fieldId, uint16 &byteOffset) {
 }
 
 void debugDumpPoolradVmLayout() {
-	debug("Poolrad VM layout dump (%s)", getPoolradVmLayout().layoutName());
+	debug(4, "Poolrad VM layout dump (%s)", getPoolradVmLayout().layoutName());
 	for (int i = 0; i < Goldbox::kVmFieldCount; ++i) {
 		Goldbox::VmFieldId fieldId = static_cast<Goldbox::VmFieldId>(i);
 		Goldbox::VmFieldLocation location = getPoolradVmLayout().field(fieldId);
 		uint16 offset = 0;
 		if (poolradVmFieldOffset(fieldId, offset)) {
-			debug("  %-28s bank=%d vm=0x%04X off=+0x%03X",
+			debug(4, "  %-28s bank=%d vm=0x%04X off=+0x%03X",
 				poolradVmFieldName(fieldId),
 				static_cast<int>(location.bankId),
 				location.vmAddr,
 				offset);
 		} else {
-			debug("  %-28s bank=%d vm=0x%04X off=<n/a>",
+			debug(4, "  %-28s bank=%d vm=0x%04X off=<n/a>",
 				poolradVmFieldName(fieldId),
 				static_cast<int>(location.bankId),
 				location.vmAddr);
@@ -435,7 +435,7 @@ bool poolradVmGlobalFieldOffset(Goldbox::VmGlobalFieldId fieldId,
 }
 
 void debugDumpPoolradGlobalVmLayout() {
-	debug("Poolrad global VM layout dump (%s)",
+	debug(4, "Poolrad global VM layout dump (%s)",
 		getPoolradGlobalVmLayout().layoutName());
 	for (int i = 0; i < Goldbox::kVmGlobalFieldCount; ++i) {
 		Goldbox::VmGlobalFieldId fieldId =
@@ -444,13 +444,13 @@ void debugDumpPoolradGlobalVmLayout() {
 			getPoolradGlobalVmLayout().field(fieldId);
 		uint16 offset = 0;
 		if (poolradVmGlobalFieldOffset(fieldId, offset)) {
-			debug("  %-28s bank=%d vm=0x%04X off=+0x%03X",
+			debug(4, "  %-28s bank=%d vm=0x%04X off=+0x%03X",
 				poolradVmGlobalFieldName(fieldId),
 				static_cast<int>(location.bankId),
 				location.vmAddr,
 				offset);
 		} else {
-			debug("  %-28s bank=%d vm=0x%04X off=<n/a>",
+			debug(4, "  %-28s bank=%d vm=0x%04X off=<n/a>",
 				poolradVmGlobalFieldName(fieldId),
 				static_cast<int>(location.bankId),
 				location.vmAddr);

@@ -312,19 +312,19 @@ bool PoolradEngine::initializeRuntimeSystems() {
 
 void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 	Views::View *view = nullptr;
-	debug("PoolradEngine::onGameStateEnter prev=%d next=%d", (int)prev,
+	debug(2, "PoolradEngine::onGameStateEnter prev=%d next=%d", (int)prev,
 		(int)next);
 
 	if (isMapRuntimeState(next) && (!isMapRuntimeState(prev) || prev != next)) {
 		// VM runtime bootstrap is orchestrator-owned and happens in tick().
 		_mapRuntimeNeedsInit = true;
-		debug("PoolradEngine::onGameStateEnter map runtime init requested for state=%d",
+		debug(2, "PoolradEngine::onGameStateEnter map runtime init requested for state=%d",
 			(int)next);
 	}
 
 	switch (next) {
 	case GS_START_MENU:
-		debug("PoolradEngine::onGameStateEnter -> replaceView(Title, true)");
+		debug(2, "PoolradEngine::onGameStateEnter -> replaceView(Title, true)");
 		replaceView("Title", true);
 		view = dynamic_cast<Views::View *>(findView("Title"));
 		if (view) {
@@ -332,7 +332,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 		}
 		break;
 	case GS_SHOP:
-		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [SHOP]");
+		debug(2, "PoolradEngine::onGameStateEnter -> replaceView(InGame) [SHOP]");
 		// InGameView kModeShop: drawMainScreenWindows(true) + NPC portrait at (3,3).
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -340,7 +340,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_CAMPING:
-		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [CAMPING]");
+		debug(2, "PoolradEngine::onGameStateEnter -> replaceView(InGame) [CAMPING]");
 		// InGameView kModeCamping: drawMainScreenWindows(true) + camp state area.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -348,7 +348,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_DUNGEON_MAP:
-		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [DUNGEON]");
+		debug(2, "PoolradEngine::onGameStateEnter -> replaceView(InGame) [DUNGEON]");
 		// InGameView kModeDungeon: drawMainScreenWindows(true) + 3D view + party panel.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -356,7 +356,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_WILDERNESS_MAP:
-		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [WILDERNESS]");
+		debug(2, "PoolradEngine::onGameStateEnter -> replaceView(InGame) [WILDERNESS]");
 		// InGameView kModeWilderness: drawMainScreenWindows(false) + area-map block.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -364,7 +364,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_AFTER_COMBAT:
-		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [AFTER_COMBAT]");
+		debug(2, "PoolradEngine::onGameStateEnter -> replaceView(InGame) [AFTER_COMBAT]");
 		// InGameView kModeAfterCombat: drawMainScreenWindows(true) + loot panel.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -372,7 +372,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_COMBAT:
-		debug("PoolradEngine::onGameStateEnter -> replaceView(InGame) [COMBAT]");
+		debug(2, "PoolradEngine::onGameStateEnter -> replaceView(InGame) [COMBAT]");
 		// InGameView kModeCombat: layout to be defined.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -380,7 +380,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_END_GAME:
-		debug("PoolradEngine::onGameStateEnter -> replaceView(Title, true) [END_GAME]");
+		debug(2, "PoolradEngine::onGameStateEnter -> replaceView(Title, true) [END_GAME]");
 		// Placeholder: go back to title; layout irrelevant.
 		replaceView("Title", true);
 		view = dynamic_cast<Views::View *>(findView("Title"));
@@ -389,7 +389,7 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 		}
 		break;
 	default:
-		debug("PoolradEngine::onGameStateEnter no explicit view mapping for state=%d",
+		debug(2, "PoolradEngine::onGameStateEnter no explicit view mapping for state=%d",
 			(int)next);
 		break;
 	}
@@ -604,7 +604,7 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		Common::String &errorMessage) {
 	errorMessage.clear();
-	debug("PoolradEngine::loadGameSlotX86 requested slot=%c", slotLetter);
+	debug(2, "PoolradEngine::loadGameSlotX86 requested slot=%c", slotLetter);
 
 	const char slot = toUpperAscii(slotLetter);
 	if (slot < 'A' || slot > 'J') {
@@ -622,7 +622,7 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 	const Common::Path gameSavePath =
 		savePath / Common::String::format("SAVGAM%c.DAT", slot);
-	debug("PoolradEngine::loadGameSlotX86 path=%s",
+	debug(2, "PoolradEngine::loadGameSlotX86 path=%s",
 		gameSavePath.toString().c_str());
 
 	Common::FSNode saveNode(gameSavePath);
@@ -630,7 +630,7 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	if (!in) {
 		errorMessage = Common::String::format("Failed to open %s",
 			gameSavePath.toString().c_str());
-		debug("PoolradEngine::loadGameSlotX86 open failed: %s",
+		debug(2, "PoolradEngine::loadGameSlotX86 open failed: %s",
 			errorMessage.c_str());
 		return false;
 	}
@@ -663,17 +663,17 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// BYTE_GAME_STATE: the saved GameState enum value.
 	const uint8 byteGameState = in->readByte();
 
-	// Character table: count byte + 8 × 0x29-byte Pascal-style base filenames
+	// Character table: count byte + 8 Ã— 0x29-byte Pascal-style base filenames
 	// (length byte + up to 0x28 chars).
 	const uint8 characterCount = in->readByte();
 	byte characterTable[0x148];
 	in->read(characterTable, sizeof(characterTable));
 
-	debug("PoolradEngine::loadGameSlotX86 tail posX=%u posY=%u dir=%u mapType=%u gameState=%u charCount=%u",
+	debug(2, "PoolradEngine::loadGameSlotX86 tail posX=%u posY=%u dir=%u mapType=%u gameState=%u charCount=%u",
 		(unsigned)posX, (unsigned)posY, (unsigned)posDir,
 		(unsigned)vmMapType, (unsigned)byteGameState,
 		(unsigned)characterCount);
-	debug("PoolradEngine::loadGameSlotX86 decoded gameState=%u (%s)",
+	debug(2, "PoolradEngine::loadGameSlotX86 decoded gameState=%u (%s)",
 		(unsigned)byteGameState,
 		(byteGameState == GS_START_MENU) ? "GS_START_MENU" : "runtime/ingame");
 
@@ -719,14 +719,14 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		if (base.empty())
 			continue;
 
-		debug("PoolradEngine::loadGameSlotX86 char[%u] base=%s",
+		debug(2, "PoolradEngine::loadGameSlotX86 char[%u] base=%s",
 			(unsigned)(i + 1), base.c_str());
 
 		const Common::Path charSavPath = savePath / (base + ".SAV");
 		Common::FSNode charNode(charSavPath);
 		Common::SeekableReadStream *charStream = charNode.createReadStream();
 		if (!charStream) {
-			debug("PoolradEngine::loadGameSlotX86 missing .SAV for base=%s",
+			debug(2, "PoolradEngine::loadGameSlotX86 missing .SAV for base=%s",
 				base.c_str());
 			continue;
 		}
@@ -756,19 +756,19 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 			spcStream = nullptr;
 		}
 
-		debug("PoolradEngine::loadGameSlotX86 companion files for %s: ITM=%s (%u items) SPC=%s (%u effects)",
+		debug(2, "PoolradEngine::loadGameSlotX86 companion files for %s: ITM=%s (%u items) SPC=%s (%u effects)",
 			base.c_str(),
 			itmLoaded ? "loaded" : "missing/failed",
 			(unsigned)pc->inventory.items().size(),
 			spcLoaded ? "loaded" : "missing/failed",
 			(unsigned)pc->effects.effects().size());
 		if (itmLoaded)
-			debug("PoolradEngine::loadGameSlotX86 ITM path=%s",
+			debug(2, "PoolradEngine::loadGameSlotX86 ITM path=%s",
 				itmResolvedPath.toString().c_str());
 		if (spcLoaded)
-			debug("PoolradEngine::loadGameSlotX86 SPC path=%s",
+			debug(2, "PoolradEngine::loadGameSlotX86 SPC path=%s",
 				spcResolvedPath.toString().c_str());
-		debug("PoolradEngine::loadGameSlotX86 loaded base=%s (.SAV required, .ITM/.SPC optional)",
+		debug(2, "PoolradEngine::loadGameSlotX86 loaded base=%s (.SAV required, .ITM/.SPC optional)",
 			base.c_str());
 
 		_party.push_back(pc);
@@ -777,13 +777,13 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// Update VM party count to match how many characters were successfully loaded.
 	mem->write8(layout.vmGlobalField(kVmGlobalFieldPartyCount).vmAddr,
 		static_cast<uint8>(_party.size()));
-	debug("PoolradEngine::loadGameSlotX86 rebuilt party size=%u",
+	debug(2, "PoolradEngine::loadGameSlotX86 rebuilt party size=%u",
 		(unsigned)_party.size());
 
 	// -------------------------------------------------------------------------
 	// Reload world graphics based on map type.
-	// vmMapType < 2 → dungeon / town (geo block + wall sets need reload).
-	// vmMapType >= 2 → wilderness / combat (icon block reload only).
+	// vmMapType < 2 -> dungeon / town (geo block + wall sets need reload).
+	// vmMapType >= 2 -> wilderness / combat (icon block reload only).
 	// -------------------------------------------------------------------------
 	const bool loadIntoRuntime =
 		(static_cast<GameState>(byteGameState) != GS_START_MENU);
@@ -795,9 +795,9 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 			// Restore saved wall set block IDs and slot IDs from VMBANK0.
 			// G_SavedWallBlockIds (field474_0x3f2): vmAddr base = GEO_BASE + 0x3f2/2 = 0x4AF9
-			//   [slot] → vmAddr 0x4AF9 + slot  (slots 1-3: 0x4AFA, 0x4AFB, 0x4AFC)
+			//   [slot] -> vmAddr 0x4AF9 + slot  (slots 1-3: 0x4AFA, 0x4AFB, 0x4AFC)
 			// G_SavedWallSlotIds  (field477_0x3f8): vmAddr base = GEO_BASE + 0x3f8/2 = 0x4AFC
-			//   [slot] → vmAddr 0x4AFC + slot  (slots 1-3: 0x4AFD, 0x4AFE, 0x4AFF)
+			//   [slot] -> vmAddr 0x4AFC + slot  (slots 1-3: 0x4AFD, 0x4AFE, 0x4AFF)
 			// Original x86 check is signed (JL): negative int16 means sentinel/invalid.
 			static const uint16 kGeoSavedWallBlockBase = 0x4AF9;
 			static const uint16 kGeoSavedWallSlotBase  = 0x4AFC;
@@ -813,12 +813,12 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 			_eclHost->loadIconBlock();
 		}
 	} else {
-		debug("PoolradEngine::loadGameSlotX86 skipping geo/icon preload for GS_START_MENU transfer mode");
+		debug(2, "PoolradEngine::loadGameSlotX86 skipping geo/icon preload for GS_START_MENU transfer mode");
 	}
 
 	// -------------------------------------------------------------------------
 	// If 3D terrain mode was active, signal that 3D rendering needs to restart.
-	// G_TerrainFlags (field387_0x344 = kVmFieldScriptFlagAA2): non-zero → 3D dungeon.
+	// G_TerrainFlags (field387_0x344 = kVmFieldScriptFlagAA2): non-zero â†’ 3D dungeon.
 	// The _mapRuntimeNeedsInit flag (set by setGameState below) already covers
 	// this via initializeMapRuntimeForState; note it here for Amiga diff tracing.
 	// m68k-only: would call GFX_3DRender(false) explicitly here if != 0.
@@ -836,10 +836,10 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	if (_eclVm)
 		_eclVm->stateLoaded = loadedIntoRuntime;
 
-	debug("PoolradEngine::loadGameSlotX86 applying setGameState(%u)",
+	debug(2, "PoolradEngine::loadGameSlotX86 applying setGameState(%u)",
 		(unsigned)byteGameState);
 	setGameState(static_cast<GameState>(byteGameState));
-	debug("PoolradEngine::loadGameSlotX86 complete: engine gameState now=%d",
+	debug(2, "PoolradEngine::loadGameSlotX86 complete: engine gameState now=%d",
 		(int)getGameState());
 
 	return true;
@@ -925,6 +925,7 @@ Views::InGameView *PoolradEngine::getInGameView() {
 }
 
 void PoolradEngine::initializeMapRuntimeForState(GameState state) {
+	debug(3, "PoolradEngine::initializeMapRuntimeForState state=%d", (int)state);
 	_mapRuntimeNeedsInit = false;
 
 	_eclFlags.wallsetReady = false;
@@ -971,6 +972,8 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 		mem.write8(saveMapIdAddr, mapId);
 
 	// Dispatch ON_INIT at runtime bootstrap point (ENGINE_Execute(ECL_ONINIT)).
+	debug(3, "PoolradEngine::initializeMapRuntimeForState dispatching ECL ON_INIT mapId=%u",
+		(unsigned)mapId);
 	(void)runEclEntryPoint(ECL::kEclRuntimeOnInitEntry);
 }
 
@@ -1017,10 +1020,16 @@ VmResult PoolradEngine::runEclEntryPoint(ECL::EclRuntimeFieldId entryField,
 		return VM_ERROR;
 
 	const uint16 entryPc = mem.read16LE(entryAddr);
-	if (entryPc == 0)
+	debug(3, "PoolradEngine::runEclEntryPoint field=%d entryAddr=0x%04X entryPc=0x%04X",
+		(int)entryField, entryAddr, entryPc);
+	if (entryPc == 0) {
+		debug(3, "PoolradEngine::runEclEntryPoint entryPc=0, skipping");
 		return VM_OK;
+	}
 
 	const VmResult result = executeEclAtScriptAddress(entryPc, maxSteps);
+	debug(3, "PoolradEngine::runEclEntryPoint result=%d eclReady=%d",
+		(int)result, (int)_eclVm->eclReady);
 	_eclFlags.eclReady = _eclVm->eclReady;
 	return result;
 }
@@ -1059,7 +1068,7 @@ void PoolradEngine::processLegacyInGameLoopStep() {
 
 	if (cmd == Views::InGameView::kCmdSearch) {
 		// 'S' toggle: XOR bit 0 of D_SearchFlags in VM memory.
-		// No script runs — this is the persistent search-while-walking mode.
+		// No script runs - this is the persistent search-while-walking mode.
 		const uint16 searchAddr =
 			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
 		const uint8 flags = mem.read8(searchAddr);
@@ -1075,7 +1084,7 @@ void PoolradEngine::processLegacyInGameLoopStep() {
 		const uint8 savedSearchFlag = static_cast<uint8>(mem.read8(searchAddr) & 1);
 		mem.write8(searchAddr, static_cast<uint8>(savedSearchFlag | 2));
 
-		// TIME_AddUnits(1, 2) — advance clock by 2 minutes.
+		// TIME_AddUnits(1, 2) - advance clock by 2 minutes.
 		// TODO: Wire TIME_AddUnits once clock system is implemented.
 
 		// Now enter the search-loop path: set flags=1, run ONSEARCH, restore.

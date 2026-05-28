@@ -98,6 +98,8 @@ private:
 	uint8 _mapDir = 0;
 	/** Search mode active flag. */
 	bool _searchMode = false;
+	/** Area map overlay active (toggled by 'A' key). */
+	bool _areaMapMode = false;
 	/** Next command for engine-side map-loop. */
 	InGameCommand _pendingCommand = kCmdNone;
 
@@ -145,6 +147,9 @@ public:
 
 	/** Pop and clear pending command (DIALOG_InGame equivalent handoff). */
 	InGameCommand consumePendingCommand();
+
+	/** True if the 2D area map overlay is active instead of 3D view. */
+	bool isAreaMapMode() const { return _areaMapMode; }
 };
 
 } // namespace Views

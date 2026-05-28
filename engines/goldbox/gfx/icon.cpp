@@ -52,7 +52,7 @@ Icon::Icon(const Data::CombatIconData &iconData,
       _readyBodyPic(nullptr),
       _actionHeadPic(nullptr),
       _actionBodyPic(nullptr) {
-				debug("Icon::Icon(CombatIconData): iconSize=%u head(base)=%u body(base)=%u state=%s",
+				debug(8, "Icon::Icon(CombatIconData): iconSize=%u head(base)=%u body(base)=%u state=%s",
 				      (unsigned)iconData.iconSize,
 				      (unsigned)iconData.iconHead,
 				      (unsigned)iconData.iconBody,
@@ -62,7 +62,7 @@ Icon::Icon(const Data::CombatIconData &iconData,
 	uint8 readyBodyId = resolveSpriteId(iconData.iconBody, _size);
 	uint8 actionHeadId = static_cast<uint8>(readyHeadId + ACTION_OFFSET);
 	uint8 actionBodyId = static_cast<uint8>(readyBodyId + ACTION_OFFSET);
-				debug("  - Resolved IDs: readyHead=%u readyBody=%u actionHead=%u actionBody=%u (size=%u)",
+				debug(8, "  - Resolved IDs: readyHead=%u readyBody=%u actionHead=%u actionBody=%u (size=%u)",
 				      (unsigned)readyHeadId, (unsigned)readyBodyId,
 				      (unsigned)actionHeadId, (unsigned)actionBodyId,
 				      (unsigned)_size);
@@ -108,33 +108,33 @@ Icon::Icon(const Pic *readyPic, const Pic *actionPic)
 	      _actionHeadPic(nullptr),
 	      _actionBodyPic(nullptr) {
 
-	debug("Icon::Icon(Pic, Pic) Constructor - Loading from provided Pic pointers");
-	debug("  readyPic=%p actionPic=%p", readyPic, actionPic);
-	debug("Icon::Icon(Pic, Pic) Constructor - Loading from provided Pic pointers");
-	debug("  readyPic=%p actionPic=%p", readyPic, actionPic);
+	debug(8, "Icon::Icon(Pic, Pic) Constructor - Loading from provided Pic pointers");
+	debug(8, "  readyPic=%p actionPic=%p", readyPic, actionPic);
+	debug(8, "Icon::Icon(Pic, Pic) Constructor - Loading from provided Pic pointers");
+	debug(8, "  readyPic=%p actionPic=%p", readyPic, actionPic);
 
 	// Use provided pics as sources; fall back to an empty placeholder if both are missing
 	const Pic *readySource = readyPic ? readyPic : actionPic;
 	Pic *placeholder = nullptr;
 	if (!readySource) {
-		debug("  - Both readyPic and actionPic are NULL, creating placeholder");
+		debug(8, "  - Both readyPic and actionPic are NULL, creating placeholder");
 		placeholder = new Pic(24, 24);
 		placeholder->clear(0);
 		readySource = placeholder;
 	} else {
-		debug("  - Using readyPic (w=%d, h=%d)", readySource->w, readySource->h);
+		debug(8, "  - Using readyPic (w=%d, h=%d)", readySource->w, readySource->h);
 	}
 
 	const Pic *actionSource = actionPic ? actionPic : readySource;
 	if (actionSource != readySource) {
-		debug("  - Using actionPic (w=%d, h=%d)", actionSource->w, actionSource->h);
+		debug(8, "  - Using actionPic (w=%d, h=%d)", actionSource->w, actionSource->h);
 	} else {
-		debug("  - Reusing readyPic as actionPic");
+		debug(8, "  - Reusing readyPic as actionPic");
 	}
 
 	// Size categorization should not rely on hardcoded pixel constants.
 	// Use DAX metadata to classify SMALL vs LARGE by comparing typical body sprite sizes.
-	debug("  - Provided art dimensions: %dx%d", readySource->w, readySource->h);
+	debug(8, "  - Provided art dimensions: %dx%d", readySource->w, readySource->h);
 	{
 		Data::DaxBlockPic *smallBody = static_cast<Data::DaxBlockPic *>(
 			VmInterface::getDaxCBody().getBlockById(0));
@@ -143,32 +143,32 @@ Icon::Icon(const Pic *readyPic, const Pic *actionPic)
 		if (smallBody && largeBody) {
 			if (readySource->w == (int)largeBody->width && readySource->h == (int)largeBody->height) {
 				_size = ICON_SIZE_LARGE;
-				debug("  - Classified as LARGE via DAX body dims (%dx%d)", (int)largeBody->width, (int)largeBody->height);
+				debug(8, "  - Classified as LARGE via DAX body dims (%dx%d)", (int)largeBody->width, (int)largeBody->height);
 			} else {
 				_size = ICON_SIZE_SMALL;
-				debug("  - Classified as SMALL via DAX body dims (%dx%d)", (int)smallBody->width, (int)smallBody->height);
+				debug(8, "  - Classified as SMALL via DAX body dims (%dx%d)", (int)smallBody->width, (int)smallBody->height);
 			}
 		} else {
 			// If DAX metadata is not available, default to SMALL; pixel dims remain authoritative for rendering.
 			_size = ICON_SIZE_SMALL;
-			debug("  - DAX metadata unavailable; defaulting to SMALL category");
+			debug(8, "  - DAX metadata unavailable; defaulting to SMALL category");
 		}
 	}
 
 	_readyIcon = readySource->clone();
-	debug("  - Cloned readyIcon: %p", _readyIcon);
+	debug(8, "  - Cloned readyIcon: %p", _readyIcon);
 
 	_actionIcon = actionSource->clone();
-	debug("  - Cloned actionIcon: %p", _actionIcon);
+	debug(8, "  - Cloned actionIcon: %p", _actionIcon);
 
 	_readyIconFlipped = createFlipped(_readyIcon);
-	debug("  - Created readyIconFlipped: %p", _readyIconFlipped);
+	debug(8, "  - Created readyIconFlipped: %p", _readyIconFlipped);
 
 	_actionIconFlipped = createFlipped(_actionIcon);
-	debug("  - Created actionIconFlipped: %p", _actionIconFlipped);
+	debug(8, "  - Created actionIconFlipped: %p", _actionIconFlipped);
 
 	updateComposite();
-	debug("  - Icon construction complete: composite=%p (state=%d, dir=%d)", _composite, _state, _direction);
+	debug(8, "  - Icon construction complete: composite=%p (state=%d, dir=%d)", _composite, _state, _direction);
 
 	// Debug: Dump hex content of composite icons
 	debugDumpPicHex(_readyIcon, "ReadyIcon (Pic constructor)");
@@ -192,8 +192,8 @@ Icon::Icon(uint16 blockId, IconKind kind)
 	      _actionHeadPic(nullptr),
 	      _actionBodyPic(nullptr) {
 
-	debug("Icon::Icon(blockId, kind) Constructor - Loading from DAX block");
-	debug("  blockId=%u kind=%d", blockId, kind);
+	debug(8, "Icon::Icon(blockId, kind) Constructor - Loading from DAX block");
+	debug(8, "  blockId=%u kind=%d", blockId, kind);
 
 	// Get DAX manager to fetch the blocks
 	Data::DaxFileManager &daxMgr = VmInterface::getDaxManager();
@@ -203,11 +203,11 @@ Icon::Icon(uint16 blockId, IconKind kind)
 	switch (kind) {
 	case ICON_KIND_SPRITE:
 		container = &daxMgr.getComSpr();
-		debug("  - Container: COMSPR");
+		debug(8, "  - Container: COMSPR");
 		break;
 	case ICON_KIND_CPIC:
 		container = &daxMgr.getCPic();
-		debug("  - Container: CPIC");
+		debug(8, "  - Container: CPIC");
 		break;
 	default:
 		warning("Icon::Icon(blockId): Invalid kind %d, only SPRITE and CPIC supported", kind);
@@ -226,7 +226,7 @@ Icon::Icon(uint16 blockId, IconKind kind)
 	// Action state adds 128 offset (same pattern as head/body sprites)
 	uint16 actionBlockId = blockId + 128;
 
-	debug("  - Loading readyBlockId=%u actionBlockId=%u", readyBlockId, actionBlockId);
+	debug(8, "  - Loading readyBlockId=%u actionBlockId=%u", readyBlockId, actionBlockId);
 
 	// Get the blocks
 	Data::DaxBlock *readyBlock = container->getBlockById(readyBlockId);
@@ -260,7 +260,7 @@ Icon::Icon(uint16 blockId, IconKind kind)
 		return;
 	}
 
-	debug("  - readyPicBlock: %dx%d actionPicBlock: %dx%d", readyPicBlock->width, readyPicBlock->height, actionPicBlock->width, actionPicBlock->height);
+	debug(8, "  - readyPicBlock: %dx%d actionPicBlock: %dx%d", readyPicBlock->width, readyPicBlock->height, actionPicBlock->width, actionPicBlock->height);
 
 	// Create Pics from blocks with appropriate remapping for CTILE
 	const bool isCTile = (kind == ICON_KIND_CPIC || container->getContentType() == Data::ContentType::CTILE);
@@ -268,11 +268,11 @@ Icon::Icon(uint16 blockId, IconKind kind)
 	const uint8 remapTarget = 0;  // Drawable black after masking
 
 	if (isCTile) {
-		debug("  - Loading with color remapping (CTILE mode)");
+		debug(8, "  - Loading with color remapping (CTILE mode)");
 		_readyIcon = Pic::readWithRemapping(readyPicBlock, remapSource, remapTarget);
 		_actionIcon = Pic::readWithRemapping(actionPicBlock, remapSource, remapTarget);
 	} else {
-		debug("  - Loading without remapping (PIC mode)");
+		debug(8, "  - Loading without remapping (PIC mode)");
 		_readyIcon = Pic::read(readyPicBlock);
 		_actionIcon = Pic::read(actionPicBlock);
 	}
@@ -293,16 +293,16 @@ Icon::Icon(uint16 blockId, IconKind kind)
 		}
 	}
 
-	debug("  - Created readyIcon=%p actionIcon=%p", _readyIcon, _actionIcon);
+	debug(8, "  - Created readyIcon=%p actionIcon=%p", _readyIcon, _actionIcon);
 
 	// Build flipped versions
 	_readyIconFlipped = createFlipped(_readyIcon);
 	_actionIconFlipped = createFlipped(_actionIcon);
-	debug("  - Created flipped variants: ready=%p action=%p", _readyIconFlipped, _actionIconFlipped);
+	debug(8, "  - Created flipped variants: ready=%p action=%p", _readyIconFlipped, _actionIconFlipped);
 
 	// Set current composite based on action state and orientation
 	updateComposite();
-	debug("  - Icon construction complete: composite=%p (state=%d, dir=%d)", _composite, _state, _direction);
+	debug(8, "  - Icon construction complete: composite=%p (state=%d, dir=%d)", _composite, _state, _direction);
 
 	// Debug: Dump hex content of composite icons
 	debugDumpPicHex(_readyIcon, "ReadyIcon (blockId constructor)");
@@ -367,9 +367,9 @@ Icon::~Icon() {
 
 bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId,
 									uint8 actionHeadId, uint8 actionBodyId) {
-	debug("Icon::loadBaseSprites ids readyHead=%u readyBody=%u actionHead=%u actionBody=%u renderer=%s",
+	debug(8, "Icon::loadBaseSprites ids readyHead=%u readyBody=%u actionHead=%u actionBody=%u renderer=%s",
 			readyHeadId, readyBodyId, actionHeadId, actionBodyId, _renderer ? "yes" : "no");
-			debug("  - Content types: head=%d body=%d",
+			debug(8, "  - Content types: head=%d body=%d",
 			      (int)VmInterface::getDaxCHead().getContentType(),
 			      (int)VmInterface::getDaxCBody().getContentType());
 	if (_renderer) {
@@ -379,7 +379,7 @@ bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId,
 		_actionBodyPic = _renderer->readBody(actionBodyId);
 
 		if (!_readyHeadPic || !_readyBodyPic || !_actionHeadPic || !_actionBodyPic) {
-			debug("Icon::loadBaseSprites renderer load failed headR=%p bodyR=%p headA=%p bodyA=%p",
+			debug(8, "Icon::loadBaseSprites renderer load failed headR=%p bodyR=%p headA=%p bodyA=%p",
 					_readyHeadPic, _readyBodyPic, _actionHeadPic, _actionBodyPic);
 			return false;
 		}
@@ -393,7 +393,7 @@ bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId,
 		VmInterface::getDaxCBody().getBlockById(readyBodyId));
 
 	if (!readyHeadBlock || !readyBodyBlock) {
-		debug("Icon::loadBaseSprites missing ready blocks head=%p body=%p", readyHeadBlock, readyBodyBlock);
+		debug(8, "Icon::loadBaseSprites missing ready blocks head=%p body=%p", readyHeadBlock, readyBodyBlock);
 		return false;
 	}
 
@@ -404,7 +404,7 @@ bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId,
 		VmInterface::getDaxCBody().getBlockById(actionBodyId));
 
 	if (!actionHeadBlock || !actionBodyBlock) {
-		debug("Icon::loadBaseSprites missing action blocks head=%p body=%p", actionHeadBlock, actionBodyBlock);
+		debug(8, "Icon::loadBaseSprites missing action blocks head=%p body=%p", actionHeadBlock, actionBodyBlock);
 		return false;
 	}
 
@@ -426,7 +426,7 @@ Pic *Icon::buildComposite(bool isAction, const Data::CombatIconData &iconData) {
 	// Use cached base sprites (already loaded from DAX)
 	Pic *headPic = isAction ? _actionHeadPic : _readyHeadPic;
 	Pic *bodyPic = isAction ? _actionBodyPic : _readyBodyPic;
-	debug("Icon::buildComposite: isAction=%d headPic=%p bodyPic=%p", (int)isAction, headPic, bodyPic);
+	debug(8, "Icon::buildComposite: isAction=%d headPic=%p bodyPic=%p", (int)isAction, headPic, bodyPic);
 
 	if (!headPic || !bodyPic) {
 		// Create empty placeholder if sprites missing
@@ -469,7 +469,7 @@ Pic *Icon::createFlipped(const Pic *source) const {
 void Icon::remapComposite(Pic *composite, const Data::CombatIconData &iconData) const {
 	if (!composite)
 		return;
-	debug("Icon::remapComposite: size=%u colors BODY(%u,%u) ARM(%u,%u) LEG(%u,%u) SHIELD(%u,%u) WEAP(%u,%u) HAIR=%u FACE=%u",
+	debug(8, "Icon::remapComposite: size=%u colors BODY(%u,%u) ARM(%u,%u) LEG(%u,%u) SHIELD(%u,%u) WEAP(%u,%u) HAIR=%u FACE=%u",
 	      (unsigned)iconData.iconSize,
 	      (unsigned)iconData.iconColorBody1, (unsigned)iconData.iconColorBody2,
 	      (unsigned)iconData.iconColorArm1, (unsigned)iconData.iconColorArm2,
@@ -625,28 +625,28 @@ void Icon::drawAtIconPos(Graphics::ManagedSurface *surface, int iconX, int iconY
 
 void Icon::debugDumpPicHex(const Pic *pic, const char *label) const {
 	if (!pic) {
-		debug("debugDumpPicHex: %s - Pic is NULL", label);
+		debug(8, "debugDumpPicHex: %s - Pic is NULL", label);
 		return;
 	}
 
 	int width = pic->w;
 	int height = pic->h;
-	debug("=== debugDumpPicHex: %s ===", label);
-	debug("Dimensions: %d x %d", width, height);
-	debug("Format: 8-bit indexed color (palette)");
-	debug("---");
+	debug(8, "=== debugDumpPicHex: %s ===", label);
+	debug(8, "Dimensions: %d x %d", width, height);
+	debug(8, "Format: 8-bit indexed color (palette)");
+	debug(8, "---");
 
 	// Get the pixel data
 	byte *pixels = (byte *)pic->getPixels();
 	if (!pixels) {
-		debug("  ERROR: Failed to get pixel data");
+		debug(8, "  ERROR: Failed to get pixel data");
 		return;
 	}
 
 	// Get pitch (bytes per row, may include padding)
 	int pitch = pic->pitch;
-	debug("Pitch: %d bytes", pitch);
-	debug("---");
+	debug(8, "Pitch: %d bytes", pitch);
+	debug(8, "---");
 
 	// Dump pixel data row by row
 	for (int y = 0; y < height; y++) {
@@ -659,14 +659,14 @@ void Icon::debugDumpPicHex(const Pic *pic, const char *label) const {
 			hexLine += Common::String::format("%02X ", pixel);
 		}
 
-		debug("%s", hexLine.c_str());
+		debug(8, "%s", hexLine.c_str());
 	}
 
 	// Also dump transparency mask if available
 	Common::BitArray *mask = pic->getTransparencyMask();
 	if (mask) {
-		debug("---");
-		debug("Transparency Mask (1=transparent, 0=opaque):");
+		debug(8, "---");
+		debug(8, "Transparency Mask (1=transparent, 0=opaque):");
 		for (int y = 0; y < height; y++) {
 			Common::String maskLine;
 			maskLine += Common::String::format("Row %2d: ", y);
@@ -677,12 +677,12 @@ void Icon::debugDumpPicHex(const Pic *pic, const char *label) const {
 				maskLine += Common::String::format("%d ", isTransparent ? 1 : 0);
 			}
 
-			debug("%s", maskLine.c_str());
+			debug(8, "%s", maskLine.c_str());
 		}
 	}
 
-	debug("Transparent index: %u", pic->getTransparentIndex());
-	debug("===\n");
+	debug(8, "Transparent index: %u", pic->getTransparentIndex());
+	debug(8, "===\n");
 }
 
 } // namespace Gfx
