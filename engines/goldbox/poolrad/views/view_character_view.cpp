@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -171,20 +171,20 @@ void ViewCharacterView::draw() {
 		return;
 	}
 
-    debug("ViewCharacterView::draw() - stage=%d", _stage);
+    debug(6, "ViewCharacterView::draw() - stage=%d", _stage);
 
     if (_stage == VC_STATE_ITEMS && _itemsMenu && !_itemsMenu->isActive()) {
-        debug("ViewCharacterView::draw() - ItemsMenu not active, switching to PROFILE");
+        debug(6, "ViewCharacterView::draw() - ItemsMenu not active, switching to PROFILE");
         setStage(VC_STATE_PROFILE);
     }
 
     if (_stage == VC_STATE_SPELLS && _spellsMenu && !_spellsMenu->isActive()) {
-        debug("ViewCharacterView::draw() - SpellsMenu not active, switching to PROFILE");
+        debug(6, "ViewCharacterView::draw() - SpellsMenu not active, switching to PROFILE");
         setStage(VC_STATE_PROFILE);
     }
 
     if (_stage == VC_STATE_ITEMS) {
-        debug("ViewCharacterView::draw() - drawing ItemsMenu");
+        debug(6, "ViewCharacterView::draw() - drawing ItemsMenu");
         if (_itemsMenu) {
             _itemsMenu->draw();
         }
@@ -192,14 +192,14 @@ void ViewCharacterView::draw() {
     }
 
     if (_stage == VC_STATE_SPELLS) {
-        debug("ViewCharacterView::draw() - drawing SpellsMenu");
+        debug(6, "ViewCharacterView::draw() - drawing SpellsMenu");
         if (_spellsMenu) {
             _spellsMenu->draw();
         }
         return;
     }
 
-    debug("ViewCharacterView::draw() - drawing PROFILE stage");
+    debug(6, "ViewCharacterView::draw() - drawing PROFILE stage");
     // Profile stage: rebuild menu and draw both profile and menu
     buildMenu();
     if (_profileDialog) {
@@ -228,14 +228,14 @@ void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
         action = _menuList.items[value].text;
     }
 
-    debug("ViewCharacterView::handleMenuResult() stage=%d success=%d key=%d hasInt=%d int=%d action='%s'",
+    debug(6, "ViewCharacterView::handleMenuResult() stage=%d success=%d key=%d hasInt=%d int=%d action='%s'",
         (int)_stage, (int)success, (int)keyCode, (int)result._hasIntValue,
         (int)(result._hasIntValue ? result._intValue : -1), action.c_str());
 
     // Handle Exit from ItemsMenu locally (one level back to PROFILE)
     if (!success && _stage == VC_STATE_ITEMS &&
         (keyCode == Common::KEYCODE_ESCAPE || keyCode == Common::KEYCODE_e)) {
-        debug("ViewCharacterView::handleMenuResult() consume ITEMS exit locally");
+        debug(6, "ViewCharacterView::handleMenuResult() consume ITEMS exit locally");
         setStage(VC_STATE_PROFILE);
         return;
     }
@@ -245,13 +245,13 @@ void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
         if (!success &&
                 (keyCode == Common::KEYCODE_ESCAPE ||
                  keyCode == Common::KEYCODE_e)) {
-            debug("ViewCharacterView::handleMenuResult() consume SPELLS exit locally");
+            debug(6, "ViewCharacterView::handleMenuResult() consume SPELLS exit locally");
             setStage(VC_STATE_PROFILE);
             return;
         }
 
         if (success && _spellsMenu) {
-            debug("ViewCharacterView::handleMenuResult() spell selected legacy=%d spell=%d name='%s'",
+            debug(6, "ViewCharacterView::handleMenuResult() spell selected legacy=%d spell=%d name='%s'",
                 _spellsMenu->getSelectedLegacyIndex(),
                 (int)_spellsMenu->getSelectedSpell(),
                 _spellsMenu->getSelectedSpellName().c_str());
@@ -264,7 +264,7 @@ void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
     if (!success) {
         if (_stage == VC_STATE_PROFILE &&
             (keyCode == Common::KEYCODE_ESCAPE || keyCode == Common::KEYCODE_e)) {
-            debug("ViewCharacterView::handleMenuResult() consume PROFILE exit locally");
+            debug(6, "ViewCharacterView::handleMenuResult() consume PROFILE exit locally");
             handleExit();
             return;
         }
@@ -326,12 +326,12 @@ void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
 }
 
 void ViewCharacterView::setStage(ViewCharacterState stage) {
-    debug("ViewCharacterView::setStage() - changing from %d to %d", _stage, stage);
+    debug(6, "ViewCharacterView::setStage() - changing from %d to %d", _stage, stage);
     _stage = stage;
 
     switch (_stage) {
     case VC_STATE_PROFILE:
-        debug("ViewCharacterView::setStage() - setting PROFILE stage");
+        debug(6, "ViewCharacterView::setStage() - setting PROFILE stage");
         if (_itemsMenu) {
             detachDialog(_itemsMenu);
         }
@@ -348,7 +348,7 @@ void ViewCharacterView::setStage(ViewCharacterState stage) {
         redraw();
         break;
     case VC_STATE_ITEMS:
-        debug("ViewCharacterView::setStage() - setting ITEMS stage");
+        debug(6, "ViewCharacterView::setStage() - setting ITEMS stage");
         if (_profileDialog)
             _profileDialog->deactivate();
         if (_spellsMenu) {
@@ -361,7 +361,7 @@ void ViewCharacterView::setStage(ViewCharacterState stage) {
         redraw();
         break;
     case VC_STATE_SPELLS:
-        debug("ViewCharacterView::setStage() - setting SPELLS stage");
+        debug(6, "ViewCharacterView::setStage() - setting SPELLS stage");
         if (_profileDialog)
             _profileDialog->deactivate();
         if (_itemsMenu) {

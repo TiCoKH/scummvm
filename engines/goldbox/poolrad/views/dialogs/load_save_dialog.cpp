@@ -106,7 +106,7 @@ void LoadSaveDialog::rebuildSlotMenu() {
 	}
 
 	if (_mode == kModeLoad) {
-		debug("LoadSaveDialog: loadable legacy slots [%s]",
+		debug(6, "LoadSaveDialog: loadable legacy slots [%s]",
 			foundLoadSlots.empty() ? "none" : foundLoadSlots.c_str());
 	}
 
@@ -143,7 +143,7 @@ bool LoadSaveDialog::msgKeypress(const KeypressMessage &msg) {
 	if (!_isActive)
 		return false;
 
-	debug("LoadSaveDialog::msgKeypress key=%d ascii=%d active=%d slotMenuActive=%d",
+	debug(6, "LoadSaveDialog::msgKeypress key=%d ascii=%d active=%d slotMenuActive=%d",
 		(int)msg.keycode, (int)msg.ascii, _isActive ? 1 : 0,
 		(_slotMenu && _slotMenu->isActive()) ? 1 : 0);
 
@@ -167,7 +167,7 @@ bool LoadSaveDialog::msgKeypress(const KeypressMessage &msg) {
 			}
 		}
 
-		debug("LoadSaveDialog::msgKeypress slot hotkey %c -> slotIndex=%d selectionIndex=%d",
+		debug(6, "LoadSaveDialog::msgKeypress slot hotkey %c -> slotIndex=%d selectionIndex=%d",
 			(char)('A' + slotIndex), slotIndex, selectionIndex);
 
 		if (selectionIndex >= 0) {
@@ -232,7 +232,7 @@ void LoadSaveDialog::draw() {
 void LoadSaveDialog::handleMenuResult(const MenuResultMessage &result) {
 	const Common::String targetViewName = _parent ? _parent->getName() : Common::String();
 
-	debug("LoadSaveDialog::handleMenuResult success=%d key=%d hasInt=%d int=%d",
+	debug(6, "LoadSaveDialog::handleMenuResult success=%d key=%d hasInt=%d int=%d",
 		result._success ? 1 : 0, (int)result._keyCode,
 		result._hasIntValue ? 1 : 0, result._hasIntValue ? result._intValue : -1);
 
@@ -250,7 +250,7 @@ void LoadSaveDialog::handleMenuResult(const MenuResultMessage &result) {
 	}
 
 	const int slotIndex = _slotSelectionToIndex[selectionIndex];
-	debug("LoadSaveDialog::handleMenuResult selectionIndex=%d -> slotIndex=%d (%c)",
+	debug(6, "LoadSaveDialog::handleMenuResult selectionIndex=%d -> slotIndex=%d (%c)",
 		selectionIndex, slotIndex, (char)('A' + slotIndex));
 
 	Poolrad::PoolradEngine *engine = Poolrad::g_engine;
@@ -271,11 +271,11 @@ void LoadSaveDialog::handleMenuResult(const MenuResultMessage &result) {
 	bool ok = false;
 
 	if (_mode == kModeSave) {
-		debug("LoadSaveDialog::handleMenuResult calling saveGameSlotX86(%c)",
+		debug(6, "LoadSaveDialog::handleMenuResult calling saveGameSlotX86(%c)",
 			slotLetter);
 		ok = engine->saveGameSlotX86(slotLetter, errorMessage);
 	} else {
-		debug("LoadSaveDialog::handleMenuResult calling loadGameSlotX86(%c)",
+		debug(6, "LoadSaveDialog::handleMenuResult calling loadGameSlotX86(%c)",
 			slotLetter);
 		ok = engine->loadGameSlotX86(slotLetter, errorMessage);
 	}

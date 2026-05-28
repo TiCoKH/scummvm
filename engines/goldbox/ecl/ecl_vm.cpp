@@ -271,18 +271,23 @@ VmResult EclVM::runAtEntryPoint(ECLEntryPoint entry, uint32 maxSteps) {
 }
 
 VmResult EclVM::runAtScriptAddress(uint16 scriptPc, uint32 maxSteps) {
+    debug(5, "EclVM::runAtScriptAddress pc=0x%04X maxSteps=%u", scriptPc, maxSteps);
     setPC(scriptPc);
     for (uint32 i = 0; i < maxSteps; ++i) {
         VmResult r = step();
         if (r != VM_OK) {
+            debug(5, "EclVM::runAtScriptAddress halted at pc=0x%04X result=%d after %u steps",
+                    _pc, (int)r, i + 1);
             return r;
         }
     }
+    debug(5, "EclVM::runAtScriptAddress watchdog hit after %u steps at pc=0x%04X", maxSteps, _pc);
     return VM_OK;
 }
 
 VmResult EclVM::step() {
     const uint8 opcode = _memory.read8(_pc);
+    debug(9, "EclVM::step pc=0x%04X opcode=0x%02X", _pc, opcode);
     return executeInstruction(opcode, _pc);
 }
 

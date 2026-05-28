@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -160,7 +160,7 @@ void SpellsMenu::draw() {
 }
 
 void SpellsMenu::handleMenuResult(const MenuResultMessage &result) {
-    debug("SpellsMenu::handleMenuResult() success=%d key=%d hasInt=%d int=%d",
+    debug(7, "SpellsMenu::handleMenuResult() success=%d key=%d hasInt=%d int=%d",
         (int)result._success, (int)result._keyCode, (int)result._hasIntValue,
         (int)(result._hasIntValue ? result._intValue : -1));
 
@@ -221,13 +221,13 @@ void SpellsMenu::buildSpellList() {
     case SL_IN_MEMORY:
         for (int i = 0; i < Goldbox::Poolrad::Data::POOLRAD_MEMORIZED_SIZE; ++i) {
             const uint8 value = _character->spells.memorizedSpells[i];
-            debug("SpellsMenu::buildSpellList() SL_IN_MEMORY slot[%d] = 0x%02x",
+            debug(7, "SpellsMenu::buildSpellList() SL_IN_MEMORY slot[%d] = 0x%02x",
                 i, (unsigned)value);
             if (value != 0 && value < 0x80) {
                 // value is 1-based spell ID; map to Spells enum
                 const int spellIdx = (value & 0x7f) - 1;
                 if (spellIdx >= 0 && spellIdx < Goldbox::Poolrad::Data::POOLRAD_KNOWN_SIZE) {
-                    debug("  -> spellIdx=%d enum=%d name=%s", spellIdx,
+                    debug(7, "  -> spellIdx=%d enum=%d name=%s", spellIdx,
                         (int)Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx],
                         Goldbox::Spells::getSpellName(
                             Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx]).c_str());
@@ -241,13 +241,13 @@ void SpellsMenu::buildSpellList() {
     case SL_TO_BE_MEMORIZED:
         for (int i = 0; i < Goldbox::Poolrad::Data::POOLRAD_MEMORIZED_SIZE; ++i) {
             const uint8 value = _character->spells.memorizedSpells[i];
-            debug("SpellsMenu::buildSpellList() SL_TO_BE_MEMORIZED slot[%d] = 0x%02x",
+            debug(7, "SpellsMenu::buildSpellList() SL_TO_BE_MEMORIZED slot[%d] = 0x%02x",
                 i, (unsigned)value);
             if (value > 0x7f) {
                 // Pending memorize: bit 7 set, spell ID = value & 0x7f
                 const int spellIdx = (value & 0x7f) - 1;
                 if (spellIdx >= 0 && spellIdx < Goldbox::Poolrad::Data::POOLRAD_KNOWN_SIZE) {
-                    debug("  -> spellIdx=%d enum=%d name=%s", spellIdx,
+                    debug(7, "  -> spellIdx=%d enum=%d name=%s", spellIdx,
                         (int)Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx],
                         Goldbox::Spells::getSpellName(
                             Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx]).c_str());

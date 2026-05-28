@@ -75,7 +75,7 @@ void PromptMessage::activate() {
 	uint displayFrames = _calculateDisplayFrames();
 	delayFrames(displayFrames);
 
-	debug("PromptMessage::activate() - Displaying for %u frames: \"%s\"",
+	debug(6, "PromptMessage::activate() - Displaying for %u frames: \"%s\"",
 		displayFrames, _message.c_str());
 }
 
@@ -92,7 +92,7 @@ void PromptMessage::draw() {
 
 void PromptMessage::timeout() {
 	// Called when display timer expires
-	debug("PromptMessage::timeout() - Auto-closing message");
+	debug(6, "PromptMessage::timeout() - Auto-closing message");
 	Surface s = getSurface();
 	s.clearBox(0, 0, 39, 0, _backgroundColor);
 

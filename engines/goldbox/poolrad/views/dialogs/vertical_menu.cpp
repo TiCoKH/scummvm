@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -106,7 +106,7 @@ VerticalMenu::~VerticalMenu() {
 }
 
 void VerticalMenu::activate() {
-    debug("VerticalMenu::activate() - itemNums=%d, menuHeight=%d", _itemNums, _menuHeight);
+    debug(7, "VerticalMenu::activate() - itemNums=%d, menuHeight=%d", _itemNums, _menuHeight);
     Dialog::activate();
 
     // Sync _currentVisibleIndex with externally pre-set currentSelection and
@@ -137,10 +137,10 @@ void VerticalMenu::deactivate() {
 
 void VerticalMenu::draw() {
     if (!isActive()) {
-        debug("VerticalMenu::draw() - NOT ACTIVE, skipping");
+        debug(7, "VerticalMenu::draw() - NOT ACTIVE, skipping");
         return;
     }
-    debug("VerticalMenu::draw() - drawing %d items", _linesToRender);
+    debug(7, "VerticalMenu::draw() - drawing %d items", _linesToRender);
     drawText();
 
     if (_horizontalMenu) {
@@ -154,7 +154,7 @@ void VerticalMenu::drawText() {
     const int localHeight = _yEnd - _yStart + 1;
     s.clearBox(0, 0, localWidth - 1, localHeight - 1, 0);
 
-    debug("VerticalMenu::drawText() - clearing box (%d,%d) to (%d,%d), rendering %d items",
+    debug(7, "VerticalMenu::drawText() - clearing box (%d,%d) to (%d,%d), rendering %d items",
           _xStart, _yStart, _xEnd, _yEnd, _linesToRender);
 
     // Optional fixed title line (not part of selectable list)

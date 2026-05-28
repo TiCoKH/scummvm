@@ -82,7 +82,7 @@ void TitleView::draw() {
 			replaceView("Mainmenu"); //TODO Option to skip Copy Protection
 			break;
 		default:
-			debug("Unknown state in TitleView");
+			debug(6, "Unknown state in TitleView");
 
 	}
 }

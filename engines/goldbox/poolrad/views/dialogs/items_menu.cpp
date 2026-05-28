@@ -90,7 +90,7 @@ ItemsMenu::~ItemsMenu() {
 }
 
 void ItemsMenu::activate() {
-	debug("ItemsMenu::activate() called");
+	debug(7, "ItemsMenu::activate() called");
 	Dialog::activate();
 
 	_character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
@@ -115,7 +115,7 @@ void ItemsMenu::activate() {
 }
 
 void ItemsMenu::deactivate() {
-	debug("ItemsMenu::deactivate() called");
+	debug(7, "ItemsMenu::deactivate() called");
 	Dialog::deactivate();
 
 	// Deactivate main vertical menu
@@ -134,12 +134,12 @@ void ItemsMenu::deactivate() {
 void ItemsMenu::draw() {
 
 	if (!isActive()) {
-		debug("ItemsMenu::draw() - NOT ACTIVE, skipping draw");
+		debug(7, "ItemsMenu::draw() - NOT ACTIVE, skipping draw");
 		return;
 	}
 
 	if (!_character) {
-		debug("ItemsMenu::draw() - no character set");
+		debug(7, "ItemsMenu::draw() - no character set");
 		return;
 	}
 
@@ -164,7 +164,7 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 		return false;
 	}
 
-	debug("ItemsMenu::msgKeypress() keycode=%d ascii=%d", (int)msg.keycode,
+	debug(7, "ItemsMenu::msgKeypress() keycode=%d ascii=%d", (int)msg.keycode,
 		(int)msg.ascii);
 
 	if (_removeConfirm && _removeConfirm->isActive()) {
@@ -177,7 +177,7 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 }
 
 void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
-	debug("ItemsMenu::handleMenuResult() stage=%d success=%d key=%d hasInt=%d int=%d sel=%d",
+	debug(7, "ItemsMenu::handleMenuResult() stage=%d success=%d key=%d hasInt=%d int=%d sel=%d",
 		(int)_stage, (int)result._success, (int)result._keyCode, (int)result._hasIntValue,
 		(int)(result._hasIntValue ? result._intValue : -1),
 		(int)_itemsMenuList.currentSelection);
@@ -202,12 +202,12 @@ void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
 
 	// NOTE: result._intValue is propagated by VerticalMenu as current ITEM index,
 	// not horizontal ACTION index. Action must be resolved from key.
-	debug("ItemsMenu::handleMenuResult() itemIndex(from int)=%d",
+	debug(7, "ItemsMenu::handleMenuResult() itemIndex(from int)=%d",
 		(int)(result._hasIntValue ? result._intValue : -1));
 
 	if (!success) {
 		if (key == Common::KEYCODE_ESCAPE || key == Common::KEYCODE_e) {
-			debug("ItemsMenu::handleMenuResult() cancel/exit -> handleExit()");
+			debug(7, "ItemsMenu::handleMenuResult() cancel/exit -> handleExit()");
 			handleExit();
 		}
 		return;
@@ -221,44 +221,44 @@ void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
 
 	switch (key) {
 	case Common::KEYCODE_r:
-		debug("ItemsMenu::handleMenuResult() action=Ready");
+		debug(7, "ItemsMenu::handleMenuResult() action=Ready");
 		handleReadyItem(selectedItem);
 		break;
 	case Common::KEYCODE_u:
-		debug("ItemsMenu::handleMenuResult() action=Use");
+		debug(7, "ItemsMenu::handleMenuResult() action=Use");
 		handleUseItem(selectedItem);
 		break;
 	case Common::KEYCODE_t:
-		debug("ItemsMenu::handleMenuResult() action=Trade");
+		debug(7, "ItemsMenu::handleMenuResult() action=Trade");
 		handleTradeItem(selectedItem);
 		break;
 	case Common::KEYCODE_d:
-		debug("ItemsMenu::handleMenuResult() action=Drop");
+		debug(7, "ItemsMenu::handleMenuResult() action=Drop");
 		handleDropItem(selectedItem);
 		break;
 	case Common::KEYCODE_h:
-		debug("ItemsMenu::handleMenuResult() action=Halve");
+		debug(7, "ItemsMenu::handleMenuResult() action=Halve");
 		handleHalveItem(selectedItem);
 		break;
 	case Common::KEYCODE_j:
-		debug("ItemsMenu::handleMenuResult() action=Join");
+		debug(7, "ItemsMenu::handleMenuResult() action=Join");
 		handleJoinItem(selectedItem);
 		break;
 	case Common::KEYCODE_s:
-		debug("ItemsMenu::handleMenuResult() action=Sell");
+		debug(7, "ItemsMenu::handleMenuResult() action=Sell");
 		handleSellItem(selectedItem);
 		break;
 	case Common::KEYCODE_i:
-		debug("ItemsMenu::handleMenuResult() action=Identify");
+		debug(7, "ItemsMenu::handleMenuResult() action=Identify");
 		handleIdentifyItem(selectedItem);
 		break;
 	case Common::KEYCODE_ESCAPE:
 	case Common::KEYCODE_e:
-		debug("ItemsMenu::handleMenuResult() action=Exit");
+		debug(7, "ItemsMenu::handleMenuResult() action=Exit");
 		handleExit();
 		break;
 	default:
-		debug("ItemsMenu::handleMenuResult() unhandled key=%d", (int)key);
+		debug(7, "ItemsMenu::handleMenuResult() unhandled key=%d", (int)key);
 		break;
 	}
 }
@@ -317,7 +317,7 @@ void ItemsMenu::buildItemList() {
 	_itemList.clear();
 
 	if (!_character || !_character->hasItems()) {
-		debug("ItemsMenu::buildItemList - no character or no items");
+		debug(7, "ItemsMenu::buildItemList - no character or no items");
 		return;
 	}
 
@@ -325,7 +325,7 @@ void ItemsMenu::buildItemList() {
 	for (auto &item : _character->inventory.items()) {
 		_itemList.push_back(&item);
 	}
-	debug("ItemsMenu::buildItemList - built list with %u items", (unsigned)_itemList.size());
+	debug(7, "ItemsMenu::buildItemList - built list with %u items", (unsigned)_itemList.size());
 }
 
 void ItemsMenu::buildItemsListMenu() {
@@ -334,11 +334,11 @@ void ItemsMenu::buildItemsListMenu() {
 	_itemsMenuList.currentSelection = 0;
 
 	if (!_character || _itemList.empty()) {
-		debug("ItemsMenu::buildItemsListMenu - no character or empty item list");
+		debug(7, "ItemsMenu::buildItemsListMenu - no character or empty item list");
 		return;
 	}
 
-	debug("ItemsMenu::buildItemsListMenu - building menu for %u items", (unsigned)_itemList.size());
+	debug(7, "ItemsMenu::buildItemsListMenu - building menu for %u items", (unsigned)_itemList.size());
 
 	Common::Array<Common::String> itemLabels;
 	for (auto &item : _itemList) {
@@ -354,7 +354,7 @@ void ItemsMenu::buildItemsListMenu() {
 	// Inventory rows are display text, not command labels; keep text literal.
 	_itemsMenuList.generateMenuItems(itemLabels, false);
 
-	debug("ItemsMenu::buildItemsListMenu - generated %u menu items", (unsigned)_itemsMenuList.items.size());
+	debug(7, "ItemsMenu::buildItemsListMenu - generated %u menu items", (unsigned)_itemsMenuList.items.size());
 
 	if (_itemsMenuList.items.empty()) {
 		_itemsMenuList.currentSelection = 0;
@@ -416,14 +416,14 @@ void ItemsMenu::handleTradeItem(Goldbox::Data::Items::CharacterItem *item) {
 	}
 
 	if (item->readied != 0) {
-		debug("ItemsMenu::handleTradeItem() blocked: readied item");
+		debug(7, "ItemsMenu::handleTradeItem() blocked: readied item");
 		displayMessage("Must be unreadied");
 		return;
 	}
 
 	// Check if item is free to trade (not in combat, or char is player/disabled/animated)
 	if (!canTradeItem(item)) {
-		debug("ItemsMenu::handleTradeItem() blocked: canTradeItem=false");
+		debug(7, "ItemsMenu::handleTradeItem() blocked: canTradeItem=false");
 		displayMessage("Cannot trade this item");
 		return;
 	}
@@ -501,7 +501,7 @@ void ItemsMenu::handleIdentifyItem(Goldbox::Data::Items::CharacterItem *item) {
 
 
 void ItemsMenu::handleExit() {
-	debug("ItemsMenu::handleExit() parent=%s", _parent ? _parent->getName().c_str() : "<null>");
+	debug(7, "ItemsMenu::handleExit() parent=%s", _parent ? _parent->getName().c_str() : "<null>");
 	deactivate();
 	// Notify parent view that we're done
 	if (_parent) {
@@ -772,12 +772,12 @@ void ItemsMenu::prepareTradeSelectionBackdrop() {
 }
 
 void ItemsMenu::setStage(ItemsMenuStage stage) {
-	debug("ItemsMenu::setStage() - changing from %d to %d", (int)_stage, (int)stage);
+	debug(7, "ItemsMenu::setStage() - changing from %d to %d", (int)_stage, (int)stage);
 	_stage = stage;
 
 	switch (_stage) {
 	case STAGE_ITEM_SELECTION: {
-		debug("ItemsMenu::setStage() - ITEM_SELECTION stage");
+		debug(7, "ItemsMenu::setStage() - ITEM_SELECTION stage");
 		// Clean up any active subdialogs
 		if (_removeConfirm) {
 			detachDialog(_removeConfirm);
@@ -795,7 +795,7 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 		break;
 	}
 	case STAGE_CONFIRM_DROP: {
-		debug("ItemsMenu::setStage() - CONFIRM_DROP stage");
+		debug(7, "ItemsMenu::setStage() - CONFIRM_DROP stage");
 		if (_removeConfirm) {
 			detachDialog(_removeConfirm);
 			_removeConfirm->clear();
@@ -816,7 +816,7 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 		break;
 	}
 	case STAGE_SELECT_TRADE_TARGET: {
-		debug("ItemsMenu::setStage() - SELECT_TRADE_TARGET stage");
+		debug(7, "ItemsMenu::setStage() - SELECT_TRADE_TARGET stage");
 		if (_partySelector) {
 			detachDialog(_partySelector);
 			delete _partySelector;

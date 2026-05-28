@@ -73,7 +73,7 @@ static void logCombatDice(const Goldbox::Poolrad::Data::PoolradCharacter *pc, co
 	const Goldbox::Data::CombatRoll &cp = pc->getCurrentPrimaryRoll();
 	const Goldbox::Data::CombatRoll &cs = pc->getCurrentSecondaryRoll();
 
-	debug("CreateChar[%s]: base pri att=%u %ud%u%+d sec att=%u %ud%u%+d | cur pri att=%u %ud%u%+d sec att=%u %ud%u%+d",
+	debug(4, "CreateChar[%s]: base pri att=%u %ud%u%+d sec att=%u %ud%u%+d | cur pri att=%u %ud%u%+d sec att=%u %ud%u%+d",
 	      tag,
 	      (unsigned)bp.attacks,
 	      (unsigned)bp.action.roll.diceNum,
@@ -272,7 +272,7 @@ void CreateCharacterView::setStage(CharacterCreateState stage) {
 		replaceView("Mainmenu");
 		break;
 	default:
-		debug("CreateCharacterView: setStage(%d) unknow stage", (int)stage);
+		debug(4, "CreateCharacterView: setStage(%d) unknow stage", (int)stage);
 	}
 }
 
@@ -287,7 +287,7 @@ void CreateCharacterView::draw() {
 	if (_activeSubView && _activeSubView != static_cast<Dialogs::Dialog *>(_profileDialog)) {
 		_activeSubView->draw();
 	} else {
-		debug("CreateCharacterView::draw() - No active subview to draw");
+		debug(4, "CreateCharacterView::draw() - No active subview to draw");
 	}
 }
 
@@ -767,7 +767,7 @@ void CreateCharacterView::handleMenuResult(const MenuResultMessage &result) {
 		replaceView("Mainmenu");
 		break;
 	default:
-		debug("CreateCharacterView::handleMenuResult - unhandled stage %d", (int)_stage);
+		debug(4, "CreateCharacterView::handleMenuResult - unhandled stage %d", (int)_stage);
 		break;
 	}
 }
@@ -867,7 +867,7 @@ void CreateCharacterView::saveCharacter() {
 	if (!_newCharacter)
 		return;
 
-	debug("saveCharacter: starting save for character '%s'", _newCharacter->name.c_str());
+	debug(4, "saveCharacter: starting save for character '%s'", _newCharacter->name.c_str());
 
 	// Get the save directory path
 	Common::Path savePath = getLegacySavePath();
@@ -894,26 +894,26 @@ void CreateCharacterView::saveCharacter() {
 	Common::Path spcFile = savePath / (base + ".SPC");
 
 	// Save .CHA file
-	debug("saveCharacter: opening '%s' for write", chrFile.toString().c_str());
+	debug(4, "saveCharacter: opening '%s' for write", chrFile.toString().c_str());
 	Common::DumpFile out;
 	if (out.open(chrFile)) {
 		_newCharacter->save(out);
 		out.close();
-		debug("saveCharacter: successfully saved '%s'", chrFile.toString().c_str());
+		debug(4, "saveCharacter: successfully saved '%s'", chrFile.toString().c_str());
 	} else {
 		warning("Failed to create %s", chrFile.toString().c_str());
 		return;
 	}
 
 	// Create empty .ITM and .SPC via inventory/effects save
-	debug("saveCharacter: saving inventory to '%s'", itmFile.toString().c_str());
+	debug(4, "saveCharacter: saving inventory to '%s'", itmFile.toString().c_str());
 	_newCharacter->inventory.save(itmFile.toString());
-	debug("saveCharacter: saving effects to '%s'", spcFile.toString().c_str());
+	debug(4, "saveCharacter: saving effects to '%s'", spcFile.toString().c_str());
 	_newCharacter->effects.save(spcFile.toString());
 
 	// Append character name to CHARLIST.TXT
 	appendLineToTextFile("CHARLIST.TXT", _newCharacter->name);
-	debug("saveCharacter: completed save for character '%s'", _newCharacter->name.c_str());
+	debug(4, "saveCharacter: completed save for character '%s'", _newCharacter->name.c_str());
 }
 
 void CreateCharacterView::rollAndRecompute() {
@@ -975,7 +975,7 @@ void CreateCharacterView::applyStatMinMax() {
 
     // Do not apply for monster race per requirement
 	if (_newCharacter->race == R_MONSTER) {
-		debug("applyStatMinMax: skipped for monster race");
+		debug(4, "applyStatMinMax: skipped for monster race");
 		return;
 	}
 
@@ -1050,7 +1050,7 @@ void CreateCharacterView::applySpells() {
 	// and provides class-specific query methods to distinguish cleric vs magic-user spells
 	_newCharacter->computeSpellSlots();
 
-	debug("CreateCharacterView::applySpells - Character has %u cleric spells, %u magic-user spells known",
+	debug(4, "CreateCharacterView::applySpells - Character has %u cleric spells, %u magic-user spells known",
 	      _newCharacter->spellBook.countKnownByClass(Goldbox::Data::Spells::SC_CLERIC),
 	      _newCharacter->spellBook.countKnownByClass(Goldbox::Data::Spells::SC_MAGICUSER));
 }
@@ -1064,7 +1064,7 @@ void CreateCharacterView::setInitGold() {
 
 	int totalGold = 0;
 	int classCount = 0;
-	debug("setInitGold: classType=%u", (unsigned)_newCharacter->classType);
+	debug(4, "setInitGold: classType=%u", (unsigned)_newCharacter->classType);
 
 	// Iterate all base classes (0..7) and roll per-class starting gold
 	for (uint8 base = 0; base < BASE_CLASS_NUM; ++base) {
@@ -1081,7 +1081,7 @@ void CreateCharacterView::setInitGold() {
 			// debug("setInitGold: base=%u lvl=%u roll=%uD%u+1 -> %d",
 			// 	  (unsigned)base, (unsigned)lvl, (unsigned)dr.diceNum, (unsigned)dr.diceSides, classGold);
 		} else {
-			debug("setInitGold: skipping base=%u (lvl==0)", (unsigned)base);
+			debug(4, "setInitGold: skipping base=%u (lvl==0)", (unsigned)base);
 		}
 	}
 
@@ -1099,11 +1099,11 @@ void CreateCharacterView::setInitHP() {
 		return;
 
 	// Step 1: roll raw HP for levels beyond 1 across all active base classes
-	debug("rollHP: calling with CF_ALL; pre-rolled=%u", (unsigned)_newCharacter->hitPointsRolled);
+	debug(4, "rollHP: calling with CF_ALL; pre-rolled=%u", (unsigned)_newCharacter->hitPointsRolled);
 	_newCharacter->hitPointsRolled = _newCharacter->getRolledHP(Goldbox::Data::CF_ALL);
 	// Align max HP with raw rolled HP first (pre-Con averaging)
 	_newCharacter->hitPoints.max = _newCharacter->hitPointsRolled;
-	debug("rollHP: post-rolled=%u max=%u (pre-Con)", (unsigned)_newCharacter->hitPointsRolled, (unsigned)_newCharacter->hitPoints.max);
+	debug(4, "rollHP: post-rolled=%u max=%u (pre-Con)", (unsigned)_newCharacter->hitPointsRolled, (unsigned)_newCharacter->hitPoints.max);
 
 	// Step 2: determine class count divisor from active base classes
 	int classCount = (int)_newCharacter->countActiveBaseClasses();
@@ -1133,7 +1133,7 @@ void CreateCharacterView::setInitHP() {
 	_newCharacter->hitPoints.current = _newCharacter->hitPoints.max;
 	// Average the raw roll (without Con) separately
 	_newCharacter->hitPointsRolled = (uint8)(_newCharacter->hitPointsRolled / classCount);
-	debug("setInitHP: classes=%d conSum=%d -> max=%u cur=%u rolled(avgRaw)=%u",
+	debug(4, "setInitHP: classes=%d conSum=%d -> max=%u cur=%u rolled(avgRaw)=%u",
 		classCount, conSum,
 		(unsigned)_newCharacter->hitPoints.max,
 		(unsigned)_newCharacter->hitPoints.current,

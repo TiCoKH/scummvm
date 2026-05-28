@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -141,11 +141,11 @@ void SetPortrait::handleMenuResult(const MenuResultMessage &result) {
 			g_events->postMenuResult(_parent->getName(), true,
 				key, 0, Common::String(), true, false);
         } else {
-            debug("SetPortrait::handleMenuResult - ERROR: No parent set!");
+            debug(6, "SetPortrait::handleMenuResult - ERROR: No parent set!");
         }
         break;
     default:
-        debug("SetPortrait::handleMenuResult - unknown key %d", key);
+        debug(6, "SetPortrait::handleMenuResult - unknown key %d", key);
         break;
     }
 }

@@ -21,8 +21,10 @@
 
 #include "goldbox/gfx/first_person_renderer.h"
 #include "goldbox/gfx/viewport_background.h"
+#include "goldbox/gfx/area_map_cache.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/views/dialogs/in_game_main_screen_dialog.h"
+#include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/runtime/runtime_exchange.h"
 
 namespace Goldbox {
@@ -170,6 +172,19 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 	const uint8 effectiveType = effectiveMapTypeFromRuntime();
 
 	if (effectiveType == 1) {
+		// Check if area map mode is active.
+		InGameView *igv = dynamic_cast<InGameView *>(
+			::Goldbox::Poolrad::g_engine->findView("InGame"));
+		if (igv && igv->isAreaMapMode()) {
+			const Gfx::AreaMapCache &areaMap =
+				::Goldbox::Poolrad::g_engine->getAreaMapCache();
+			if (areaMap.isBuilt()) {
+				areaMap.drawViewport(s, (int)mapX, (int)mapY, mapDir,
+					::Goldbox::Poolrad::g_engine->getTileCache());
+				return;
+			}
+		}
+
 		Data::DaxBlockGeo *geo = ::Goldbox::Poolrad::g_engine->getActiveGeoBlock();
 		if (!geo)
 			return;
