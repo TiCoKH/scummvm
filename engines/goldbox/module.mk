@@ -51,6 +51,7 @@ MODULE_OBJS = \
 	gfx/dax_anim_decoder.o \
 	gfx/first_person_renderer.o \
 	gfx/pic.o \
+	gfx/viewport_background.o \
 	gfx/walldef_surface_builder.o \
 	gfx/icon.o \
 	gfx/icon_manager.o \

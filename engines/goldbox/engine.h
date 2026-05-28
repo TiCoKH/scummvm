@@ -38,6 +38,7 @@
 #include "goldbox/data/items/base_items.h"
 #include "goldbox/data/daxfilemanager.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
+#include "goldbox/gfx/viewport_background.h"
 #include "goldbox/runtime/runtime_geo.h"
 
 namespace Goldbox {
@@ -53,6 +54,7 @@ private:
 protected:
 	Data::DaxFileManager _daxManager;
 	RuntimeGeoBlock _runtimeGeo;
+	Gfx::ViewportBackground _viewportBg;
 	// Engine APIs
 	Common::Error run() override;
 	void setup() override;
@@ -92,10 +94,10 @@ public:
 	uint _textDelay = 3; // 1-5 range (1=fastest, 5=slowest), maps to original BYTE_DELAY
 	static Goldbox::Data::Items::Storage gItemProps;
 
-	uint8 _skyColor;
-	uint8 _skylineColor;
-	uint8 _horizonColor;
-	uint8 _floorColor;
+	uint8 _skyColor = 0;
+	uint8 _skylineColor = 0;
+	uint8 _horizonColor = 0;
+	uint8 _floorColor = 0;
 
 	/**
 	 * Gets the current game state.
@@ -119,6 +121,11 @@ public:
 		_skylineColor = skyline;
 		_horizonColor = horizon;
 		_floorColor = floor;
+		_viewportBg.set3DViewportColors(sky, skyline, horizon, floor);
+	}
+
+	const Gfx::ViewportBackground &getViewportBackground() const {
+		return _viewportBg;
 	}
 
 	/**

@@ -223,8 +223,9 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
             break;
         case Common::KEYCODE_b:
             if (_menuItemList.isActive(BEGIN)) {
-                // Original: BYTE_GAME_STATE = GS_DUNGEON_MAP; return;
-                // setGameState triggers onGameStateEnter → replaceView("InGame")
+                // Original: GFX_SetDefaultColors(11,4,14,5); GB_EngineMain();
+                Poolrad::g_engine->setColors(11, 0, 7, 6);
+                // setGameState triggers onGameStateEnter → initializeMapRuntimeForState → replaceView("InGame")
                 VmInterface::setGameStatus(GS_DUNGEON_MAP);
             }
             break;
