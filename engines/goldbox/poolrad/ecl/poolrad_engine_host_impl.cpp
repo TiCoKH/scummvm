@@ -42,6 +42,8 @@
 #include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/in_game_view.h"
+#include "goldbox/core/direction.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/ecl/opcode_handlers.h"
@@ -534,15 +536,57 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
         // available in VmGlobalLayout/RuntimeLayout.
         return VM_OK;
 
-    case 0xC01E:
-        // Original: Map_StepForwardWrap / MAP_moveOnMap.
-        // TODO: route through in-game movement service with wrap semantics.
-        return VM_OK;
+    case 0xC01E: {
+        // MAP_StepForwardWrap: advance party one cell in facing direction
+        // with coordinate wrapping (0-15).
+        const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+        const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
+        const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+        const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
 
-    case 0xC018:
-        // Original (only when map type == 1): update position map_nibble.
-        // TODO: implement nibble sampling from active GEO map model.
+        int x = static_cast<int>(_memory->read16LE(xAddr));
+        int y = static_cast<int>(_memory->read16LE(yAddr));
+        const uint8 dir = static_cast<uint8>(_memory->read16LE(dirAddr) & 0x07);
+
+        x += kDirDeltaX[dir];
+        y += kDirDeltaY[dir];
+
+        // Wrap 0-15.
+        x = (x + 16) & 0x0F;
+        y = (y + 16) & 0x0F;
+
+        _memory->write16LE(xAddr, static_cast<uint16>(x));
+        _memory->write16LE(yAddr, static_cast<uint16>(y));
         return VM_OK;
+    }
+
+    case 0xC018: {
+        // Nibble sampling: read wall type in facing direction at current
+        // position from RuntimeGeoBlock and store in MapSquareInfo.
+        if (!_engine)
+            return VM_OK;
+
+        RuntimeGeoBlock &rtGeo = _engine->getRuntimeGeo();
+        if (!rtGeo.isLoaded())
+            return VM_OK;
+
+        const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+        const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
+        const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+        const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
+
+        const int x = static_cast<int>(_memory->read16LE(xAddr));
+        const int y = static_cast<int>(_memory->read16LE(yAddr));
+        // Direction is stored in wire format (0=N, 2=E, 4=S, 6=W).
+        const uint8 wireDir = static_cast<uint8>(_memory->read16LE(dirAddr) & 0x06);
+
+        const uint8 nibble = rtGeo.getMapNibble(x, y, wireDir);
+
+        const uint16 infoAddr =
+            layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
+        _memory->write16LE(infoAddr, static_cast<uint16>(nibble));
+        return VM_OK;
+    }
 
     default:
         return VM_OK;
@@ -839,9 +883,18 @@ VmResult PoolradEngineHostImpl::onMapDataReady() {
     //       DIALOG_ShowParty(PTR_SEL_CHARACTER);
     //       BOOL_SCREEN_REFRESH = false;
     //   }
-    // TODO: trigger full screen redraw (ScreenByState + ShowParty) once
-    // the view system wires BOOL_SCREEN_REFRESH.
     debug(2, "PoolradEngineHostImpl::onMapDataReady: area map data fully loaded");
+
+    if (!_engine)
+        return VmResult::VM_OK;
+
+    // GAME_ScreenByState + DIALOG_ShowParty: refresh the InGameView layout
+    // and party panel for the current game state.
+    Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
+        g_engine ? g_engine->findView("InGame") : nullptr);
+    if (igv)
+        igv->applyScreenByState(_engine->getGameState());
+
     return VmResult::VM_OK;
 }
 

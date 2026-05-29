@@ -31,6 +31,10 @@ class Console : public GUI::Debugger {
 private:
 	bool cmdView(int argc, const char **argv);
 	bool cmdShowTile(int argc, const char **argv);
+	bool cmdDumpTileCache(int argc, const char **argv);
+	bool cmdDumpWalldef(int argc, const char **argv);
+	bool cmdDumpWalldefRegion(int argc, const char **argv);
+	bool cmdDumpWalldefAll(int argc, const char **argv);
 public:
 	Console();
 	~Console() override;

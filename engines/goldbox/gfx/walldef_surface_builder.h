@@ -40,6 +40,9 @@ class Tile8x8Cache {
 public:
 	static const int kSlotCount = 5;
 
+	/** First raw walldef index that is slot-specific (not universal). */
+	static const int kSlotSpecificBase = 46;
+
 	Tile8x8Cache();
 
 	void setSlot(int slot, const DaxTile *tiles);
@@ -48,6 +51,16 @@ public:
 	int slotForGlobalTileId(uint16 globalTileId) const;
 	int localTileIndex(uint16 globalTileId) const;
 	const Graphics::ManagedSurface *tileSurface(uint16 globalTileId) const;
+
+	/**
+	 * Resolve a raw walldef tile byte for a given target slot.
+	 * - Raw 0: returns nullptr (transparent)
+	 * - Raw 1-45: universal tile from slot 0
+	 * - Raw 46+: slot-specific tile from the target slot (local = raw - 46)
+	 * This bypasses global ID mapping and offset patching entirely.
+	 */
+	const Graphics::ManagedSurface *walldefTileSurface(uint8 rawIndex,
+			int targetSlot) const;
 
 	static uint16 firstGlobalTileIdForSlot(int slot);
 	static uint16 lastGlobalTileIdForSlot(int slot);
@@ -72,15 +85,15 @@ private:
 class WalldefSurfaceBuilder {
 public:
 	static WallSurfaceSet buildSlice(const Data::DaxBlockWalldef::Slice &slice,
-			const Tile8x8Cache &tileCache);
+			int targetSlot, const Tile8x8Cache &tileCache);
 
 	static Common::Array<WallSurfaceSet> buildChunk(
 			const Data::DaxBlockWalldef::Chunk &chunk,
-			const Tile8x8Cache &tileCache);
+			int targetSlot, const Tile8x8Cache &tileCache);
 
 	static Common::Array<WallSurfaceSet> buildChunk(
 			const Data::DaxBlockWalldef &walldef,
-			int chunkIdx,
+			int chunkIdx, int targetSlot,
 			const Tile8x8Cache &tileCache);
 };
 
@@ -122,9 +135,19 @@ public:
 	 */
 	const WallSurfaceSet *surfaceSetForWallType(uint8 wallType) const;
 
+	/** Debug: return the walldef block ID used to load a slot (1..3). */
+	uint8 walldefBlockIdForSlot(int slot) const;
+
+	/** Debug: return the chunk index used to load a slot (1..3). */
+	int chunkIndexForSlot(int slot) const;
+
 private:
 	// _slices[slot-1] holds one WallSurfaceSet per slice within the loaded chunk
 	Common::Array<WallSurfaceSet> _slices[kSlotCount];
+
+	// Debug metadata: track which walldef block/chunk was used per slot
+	uint8 _walldefBlockId[kSlotCount];
+	int _chunkIdx[kSlotCount];
 };
 
 } // namespace Gfx
