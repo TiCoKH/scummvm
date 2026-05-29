@@ -117,6 +117,7 @@ namespace Data {
 	void DaxBlockSprit::adjust() {
 		_frameCount = 0;
 		_validLayout = false;
+		memset(_frames, 0, sizeof(_frames));
 
 		if (_data.empty())
 			return;
@@ -137,39 +138,58 @@ namespace Data {
 			const uint16 height = readUint16LE(_data, offset);
 			offset += 2;
 
-			const uint16 width = readUint16LE(_data, offset);
+			const uint16 charWidth = readUint16LE(_data, offset);
 			offset += 2;
 
-			// x/y positions are present in stream but not needed for validation
-			offset += 2; // x_pos
-			offset += 2; // y_pos
+			const int16 xPos = static_cast<int16>(readUint16LE(_data, offset));
+			offset += 2;
 
-			// skip 1 byte + 2-byte field + 8-byte field (matches C# parser)
-			offset += 11;
+			const int16 yPos = static_cast<int16>(readUint16LE(_data, offset));
+			offset += 2;
 
-			const uint32 widthPx = static_cast<uint32>(width) * 8;
+			// skip 1 byte (sub-image count) + 8 bytes (CGA color mapping)
+			offset += 9;
+
+			const uint32 widthPx = static_cast<uint32>(charWidth) * 8;
 			const uint32 heightPx = static_cast<uint32>(height);
 			if (widthPx < 1 || heightPx < 1 || widthPx > 320 || heightPx > 200)
 				return;
 
-			// EGA packed planes: height * width * 4 bytes.
+			// EGA packed planes: height * charWidth * 4 bytes.
 			const uint32 egaDataSize = static_cast<uint32>(height)
-				* static_cast<uint32>(width) * 4;
+				* static_cast<uint32>(charWidth) * 4;
 			if (egaDataSize > 0x7fffffff)
 				return;
 
 			if (_data.size() < offset + egaDataSize)
 				return;
 
+			_frames[frame].width = static_cast<uint16>(widthPx);
+			_frames[frame].height = height;
+			_frames[frame].xPos = xPos;
+			_frames[frame].yPos = yPos;
+			_frames[frame].dataOffset = offset;
+			_frames[frame].dataSize = egaDataSize;
+
 			offset += egaDataSize;
 		}
 
 		// Match strict C# specification: no trailing payload bytes.
-		if (offset != _data.size())
-			return;
-
 		_frameCount = static_cast<int>(frames);
+		if (offset != _data.size()) {
+			// Frames parsed OK but trailing data exists — mark layout
+			// as non-strict but keep frameCount valid for rendering.
+			_validLayout = false;
+			return;
+		}
+
 		_validLayout = true;
+	}
+
+	const DaxBlockSprit::FrameInfo *DaxBlockSprit::frameInfo(int idx) const {
+		if (idx < 0 || idx >= _frameCount)
+			return nullptr;
+		return &_frames[idx];
 	}
 
 	void DaxBlockPic::adjust() {

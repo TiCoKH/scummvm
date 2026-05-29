@@ -52,6 +52,41 @@ Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
 	return pic;
 }
 
+Pic *Pic::readSpriteFrame(Data::DaxBlockSprit *spritBlock, int frameIdx) {
+	if (!spritBlock)
+		return nullptr;
+
+	const Data::DaxBlockSprit::FrameInfo *info = spritBlock->frameInfo(frameIdx);
+	if (!info)
+		return nullptr;
+
+	const Common::Array<uint8> &raw = spritBlock->rawData();
+	if (info->dataOffset + info->dataSize > raw.size())
+		return nullptr;
+
+	const int widthPx = info->width;
+	const int height = info->height;
+
+	Pic *pic = new Pic(widthPx, height);
+	// Sprite palette: index 0 = transparent, index 13 = black.
+	// Use 255 as transparent sentinel so black (remapped from 13 to 0) is drawable.
+	pic->setTransparentIndex(255);
+
+	const uint8 *src = raw.data() + info->dataOffset;
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < widthPx; x += 2) {
+			uint8 byte = *src++;
+			uint8 hi = (byte & 0xF0) >> 4;
+			uint8 lo = byte & 0x0F;
+			// 0 -> 255 (transparent), 13 -> 0 (black), rest unchanged
+			pic->setPixel(x, y, hi == 0 ? 255 : (hi == 13 ? 0 : hi));
+			pic->setPixel(x + 1, y, lo == 0 ? 255 : (lo == 13 ? 0 : lo));
+		}
+	}
+
+	return pic;
+}
+
 Pic *Pic::readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint8 targetColor) {
 	int width = daxBlock->width;
 	int height = daxBlock->height;
