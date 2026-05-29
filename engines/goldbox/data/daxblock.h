@@ -229,19 +229,12 @@ public:
      * belongs to cache slot N. Matches gbl.symbol_set_fix = {1,46,116,186,256}
      * from the C# reimplementation.
      * - Slot 0: IDs  1-45   (universal/common tiles, 8x8D block 203)
-     * - Slot 1: IDs 46-115  (WALLDEF symbolSet 1, tileOffset = 0)
-     * - Slot 2: IDs 116-185 (WALLDEF symbolSet 2, tileOffset = 70)
-     * - Slot 3: IDs 186-255 (WALLDEF symbolSet 3, tileOffset = 140)
+     * - Slot 1: IDs 46-115  (WALLDEF symbolSet 1)
+     * - Slot 2: IDs 116-185 (WALLDEF symbolSet 2)
+     * - Slot 3: IDs 186-255 (WALLDEF symbolSet 3)
      * - Slot 4: IDs 256+    (extra/extended tiles)
      */
     static const uint16 kTileSlotBase[5];
-
-    /**
-     * Return the tile ID offset for the given 1-based symbol set slot (1-3).
-     * Mirrors: offset = symbol_set_fix[slot] - symbol_set_fix[1]
-     * slot=1 → 0, slot=2 → 70, slot=3 → 140.
-     */
-    static int tileOffsetForSlot(int slot);
 
     DaxBlockWalldef();
 
@@ -251,30 +244,10 @@ public:
     /** Reset chunk span to point at original unpatched data. */
     void resetChunk(int chunkIdx);
 
-    /**
-     * Patch tile indices in-place so that slot-specific IDs (> kTileSharedCount)
-     * are remapped to their global tile IDs for the given slot.
-     * Shared tiles (raw 1..115) reference slot 0 (1-45) + slot 1 (46-115)
-     * directly and are never offset. Only raw > 115 are slot-specific.
-     *   for each byte b in all slices: if b > kTileSharedCount: b += offset
-     * Must be called after adjust() and before WalldefSurfaceBuilder::buildChunk().
-     * @param chunkIdx  Which chunk to patch (0-based)
-     * @param offset    Value to add: tileOffsetForSlot(slot)
-     */
-    void applyTileOffset(int chunkIdx, int offset);
-
 private:
     void adjust() override;
 
-    // Raw tile indices 1..kTileSharedCount reference shared tiles from
-    // slot 0 (universal, 1-45) and slot 1 (common wall tiles, 46-115).
-    // These are available to ALL walldef chunks and never get offset.
-    // Only raw indices > kTileSharedCount are slot-specific.
-    static const int kTileSharedCount = 115;
-
     Common::Array<Chunk> _chunks;
-    // Mutable patched copy of _data for offset-adjusted chunks.
-    Common::Array<Common::Array<uint8> > _patchedData;
 };
 
 class DaxBlockEcl : public DaxBlock {

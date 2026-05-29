@@ -20,7 +20,6 @@
  */
 
 #include "common/util.h"
-#include "common/debug.h"
 #include "common/memstream.h"
 #include "goldbox/data/daxblock.h"
 
@@ -184,52 +183,16 @@ DaxBlockWalldef::DaxBlockWalldef() {}
 
 const uint16 DaxBlockWalldef::kTileSlotBase[5] = { 1, 46, 116, 186, 256 };
 
-int DaxBlockWalldef::tileOffsetForSlot(int slot) {
-	// Slot-specific tiles start at raw index kTileSharedCount+1 (=116).
-	// Offset maps them into the target slot's global range:
-	//   slot 1: 0 (slot 1 data never has raw > 115)
-	//   slot 2: 0 (raw 116 -> 116 = first tile in slot 2)
-	//   slot 3: 70 (raw 116 -> 186 = first tile in slot 3)
-	if (slot < 2 || slot > 4)
-		return 0;
-	return (int)kTileSlotBase[slot] - (kTileSharedCount + 1);
-}
-
 void DaxBlockWalldef::adjust() {
 	_chunks.clear();
-	_patchedData.clear();
 	size_t count = _data.size() / CHUNK_SIZE;
-	for (size_t i = 0; i < count; ++i) {
+	for (size_t i = 0; i < count; ++i)
 		_chunks.push_back(Chunk(_data.data() + i * CHUNK_SIZE));
-		_patchedData.push_back(Common::Array<uint8>());
-	}
-}
-
-void DaxBlockWalldef::applyTileOffset(int chunkIdx, int offset) {
-	if (chunkIdx < 0 || chunkIdx >= (int)_chunks.size())
-		return;
-
-	// Lazily copy this chunk's raw bytes into _patchedData so we don't
-	// mutate _data (which backs un-patched Chunk spans from other slots).
-	const uint8 *src = _data.data() + chunkIdx * CHUNK_SIZE;
-	Common::Array<uint8> &patched = _patchedData[chunkIdx];
-	patched.resize(CHUNK_SIZE);
-	for (int i = 0; i < CHUNK_SIZE; ++i) {
-		uint8 val = src[i];
-		if (val > kTileSharedCount)
-			val = (uint8)(val + offset);
-		patched[i] = val;
-	}
-
-	// Rebuild Chunk span pointing at patched buffer.
-	_chunks[chunkIdx] = Chunk(patched.data());
 }
 
 void DaxBlockWalldef::resetChunk(int chunkIdx) {
 	if (chunkIdx < 0 || chunkIdx >= (int)_chunks.size())
 		return;
-	debug(1, "DaxBlockWalldef::resetChunk(%d) restoring from _data at offset %d",
-			chunkIdx, chunkIdx * CHUNK_SIZE);
 	_chunks[chunkIdx] = Chunk(_data.data() + chunkIdx * CHUNK_SIZE);
 }
 
