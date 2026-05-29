@@ -235,11 +235,33 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 				}
 			}
 			sprite->trDraw(&s, sprX, sprY, sprite->getTransparentIndex());
-		} else if (spriteCache.isSpriteLoaded() && spriteCache.headPic()) {
-			const ::Goldbox::Gfx::Pic *head = spriteCache.headPic();
+		}
+		// Draw head/portrait on top when at distance 0 (adjacent).
+		if (spriteCache.isSpriteLoaded() && spriteCache.distance() == 0) {
 			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * 8;
 			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * 8;
-			head->draw(&s, vpX, vpY);
+			const uint8 headPicId = spriteCache.lastHeadPicId();
+			const uint8 bodyPicId = spriteCache.bodyPicId();
+
+			if (headPicId == 0xFF) {
+				// Scene picture from PIC DAX (no body/head composite).
+				if (spriteCache.headPic())
+					spriteCache.headPic()->draw(&s, vpX, vpY);
+			} else {
+				// Portrait composite: head at top, body 5 char rows below.
+				if (spriteCache.headPic())
+					spriteCache.headPic()->draw(&s, vpX, vpY);
+				::Goldbox::Data::DaxBlock *bodyRaw =
+					::Goldbox::VmInterface::getDaxBody().getBlockById(bodyPicId);
+				::Goldbox::Data::DaxBlockPic *bodyBlock = bodyRaw
+					? dynamic_cast< ::Goldbox::Data::DaxBlockPic *>(bodyRaw) : nullptr;
+				if (bodyBlock) {
+					Common::SharedPtr< ::Goldbox::Gfx::Pic> bodyPic(
+						::Goldbox::Gfx::Pic::read(bodyBlock));
+					if (bodyPic)
+						bodyPic->draw(&s, vpX, vpY + 5 * 8);
+				}
+			}
 		}
 		return;
 	}

@@ -80,7 +80,7 @@ static uint16 skipEncodedOperandsFromMemory(const AddressSpace &memory,
             break;
         case 0x80: {
             const uint32 packedSize =
-                (static_cast<uint32>(lo) * 3 + 3) / 4;
+                static_cast<uint32>(lo);
             pos = static_cast<uint16>(pos + packedSize);
             break;
         }
@@ -360,8 +360,8 @@ void EclVM::getOperand(uint8 opCount) {
             break;
         }
         case 0x80: {
-            const uint32 packedSize = (static_cast<uint32>(lo) * 3 + 3) / 4;
-            pos += packedSize;
+            const uint32 packedSize = static_cast<uint32>(lo);
+            pos = static_cast<uint16>(pos + packedSize);
             _opValues[i] = static_cast<uint16>(lo);
             break;
         }
@@ -481,13 +481,13 @@ Common::String EclVM::readString(uint8 index) const {
         if (i == index) {
             switch (typeTag) {
             case 0x80: {
-                const uint8 len = lo;
-                const uint32 packedSize = (static_cast<uint32>(len) * 3 + 3) / 4;
+                const uint8 packedSize = lo;
+                const uint8 charCount = static_cast<uint8>((static_cast<uint32>(packedSize) * 4) / 3);
                 Common::Array<uint8> packed;
                 packed.resize(packedSize);
                 for (uint32 b = 0; b < packedSize; ++b)
                     packed[b] = _memory.read8(pos++);
-                return decompress6BitString(packed.data(), len);
+                return decompress6BitString(packed.data(), charCount);
             }
             case 0x81:
             case 0x01:
@@ -517,7 +517,7 @@ Common::String EclVM::readString(uint8 index) const {
             pos++; // skip hi byte
             break;
         case 0x80: {
-            const uint32 packedSize = (static_cast<uint32>(lo) * 3 + 3) / 4;
+            const uint32 packedSize = static_cast<uint32>(lo);
             pos += packedSize;
             break;
         }

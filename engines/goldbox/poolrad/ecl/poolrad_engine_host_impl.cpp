@@ -252,20 +252,6 @@ public:
     }
 };
 
-class AsyncDelaySink : public Goldbox::UIElement {
-public:
-    bool done;
-
-    AsyncDelaySink(const Common::String &name, Goldbox::UIElement *parent,
-            uint frames)
-        : Goldbox::UIElement(name, parent), done(false) {
-        delayFrames(frames);
-    }
-
-    void timeout() override {
-        done = true;
-    }
-};
 
 PoolradEngineHostImpl::PoolradEngineHostImpl(::Goldbox::Engine *engine,
         ECL::AddressSpace *memory)
@@ -280,11 +266,8 @@ PoolradEngineHostImpl::~PoolradEngineHostImpl() {
     _asyncHorizontalMenu = nullptr;
     _asyncMenuModel.reset();
     _asyncMenuPending = false;
-
-    if (_asyncPrintSink)
-        delete _asyncPrintSink;
-    _asyncPrintSink = nullptr;
     _asyncPrintPending = false;
+    _asyncDelayPending = false;
     clearMonsters();
 }
 
@@ -662,6 +645,18 @@ VmResult PoolradEngineHostImpl::drawEncounterStage(uint8 resourceId,
     }
 
     _updateViewState();
+
+    // Mark view dirty and force immediate screen repaint so the sprite is
+    // visible before the next DELAY opcode yields.
+    UIElement *focused = g_events ? g_events->focusedView() : nullptr;
+    if (focused)
+        focused->redraw();
+    if (g_events)
+        g_events->drawElements();
+    Graphics::Screen *screen = _engine->getScreen();
+    if (screen)
+        screen->update();
+
     return VM_OK;
 }
 
@@ -681,6 +676,18 @@ VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
     }
 
     _updateViewState();
+
+    // Mark view dirty and force immediate screen repaint so the new sprite
+    // frame is visible before the next DELAY opcode yields.
+    UIElement *focused = g_events ? g_events->focusedView() : nullptr;
+    if (focused)
+        focused->redraw();
+    if (g_events)
+        g_events->drawElements();
+    Graphics::Screen *screen = _engine->getScreen();
+    if (screen)
+        screen->update();
+
     return VM_OK;
 }
 
@@ -729,34 +736,43 @@ VmResult PoolradEngineHostImpl::beginHorizontalMenuAsync(uint16 resultAddr,
     return VM_YIELD;
 }
 
-VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
-        bool clearBox) {
-    if (!_engine || !g_events)
-        return VM_OK;
-    if (_asyncMenuPending || _asyncPrintPending)
+VmResult PoolradEngineHostImpl::beginDelay() {
+    if (_asyncMenuPending || _asyncPrintPending || _asyncDelayPending)
         return VM_ERROR;
 
-    UIElement *focused = g_events->focusedView();
-    if (!focused)
-        return VM_OK;
+    // Read CFG_GAME_SPEED from VM memory (1-9 scale, 0 treated as 1).
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+    uint8 speed = _memory->read8(
+        layout.vmField(kVmFieldGameSpeed).vmAddr);
+    if (speed == 0)
+        speed = 1;
 
-    // Start visual print immediately, then yield for pacing frames.
+    // Convert game speed to milliseconds: speed * 500ms per unit.
+    _asyncDelayEndTime = g_system->getMillis() + static_cast<uint32>(speed) * 500;
+    _asyncDelayPending = true;
+    return VM_YIELD;
+}
+
+VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
+        bool clearBox) {
+    if (_asyncMenuPending || _asyncPrintPending || _asyncDelayPending)
+        return VM_ERROR;
+
+    // Start visual print immediately, then yield for pacing.
     printText(text, clearBox);
 
     const uint textDelay = VmInterface::getTextDelay();
-    const uint frames = textDelay * FRAME_RATE / 2;
-    if (frames == 0)
+    const uint32 delayMs = textDelay * 500;
+    if (delayMs == 0)
         return VM_OK;
 
-    Common::String sinkName = Common::String::format("EclAsyncPrintSink_%u",
-        ++kModalMenuSinkCounter);
-    _asyncPrintSink = new AsyncDelaySink(sinkName, focused, frames);
+    _asyncPrintEndTime = g_system->getMillis() + delayMs;
     _asyncPrintPending = true;
     return VM_YIELD;
 }
 
 bool PoolradEngineHostImpl::hasPendingAsync() const {
-    return _asyncMenuPending || _asyncPrintPending;
+    return _asyncMenuPending || _asyncPrintPending || _asyncDelayPending;
 }
 
 bool PoolradEngineHostImpl::isPendingAsyncReady() const {
@@ -768,13 +784,11 @@ bool PoolradEngineHostImpl::isPendingAsyncReady() const {
         return sink && sink->done;
     }
 
-    if (_asyncPrintPending) {
-        if (!_asyncPrintSink)
-            return false;
-        const AsyncDelaySink *sink =
-            dynamic_cast<const AsyncDelaySink *>(_asyncPrintSink);
-        return sink && sink->done;
-    }
+    if (_asyncPrintPending)
+        return g_system->getMillis() >= _asyncPrintEndTime;
+
+    if (_asyncDelayPending)
+        return g_system->getMillis() >= _asyncDelayEndTime;
 
     return false;
 }
@@ -800,14 +814,12 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
     }
 
     if (_asyncPrintPending) {
-        AsyncDelaySink *sink =
-            dynamic_cast<AsyncDelaySink *>(_asyncPrintSink);
-        if (!sink || !sink->done)
-            return VM_YIELD;
-
-        delete _asyncPrintSink;
-        _asyncPrintSink = nullptr;
         _asyncPrintPending = false;
+        return VM_OK;
+    }
+
+    if (_asyncDelayPending) {
+        _asyncDelayPending = false;
         return VM_OK;
     }
 

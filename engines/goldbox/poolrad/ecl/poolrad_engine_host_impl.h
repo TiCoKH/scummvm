@@ -94,6 +94,7 @@ public:
     VmResult handleCallOpcode(uint16 callId) override;
     VmResult readGeoAtPosition() override;
     VmResult refreshViewport() override;
+    VmResult beginDelay() override;
     VmResult beginPrintAsync(const Common::String &text,
         bool clearBox) override;
     VmResult beginHorizontalMenuAsync(uint16 resultAddr,
@@ -144,9 +145,13 @@ private:
     Goldbox::UIElement *_asyncMenuSink = nullptr;
     Views::Dialogs::HorizontalMenu *_asyncHorizontalMenu = nullptr;
 
+    // Async VM_YIELD state for DELAY opcode.
+    bool _asyncDelayPending = false;
+    uint32 _asyncDelayEndTime = 0;
+
     // Async VM_YIELD state for PRINT/PRINTCLEAR letter-pacing.
     bool _asyncPrintPending = false;
-    Goldbox::UIElement *_asyncPrintSink = nullptr;
+    uint32 _asyncPrintEndTime = 0;
 
     // Runtime static-map payload buffer (legacy PTR_GEO_BUFF equivalent).
     // Stores 4 x 0x100 map planes (NE, SW, events, doors) copied from GEO.
