@@ -40,9 +40,6 @@ class Tile8x8Cache {
 public:
 	static const int kSlotCount = 5;
 
-	/** First raw walldef index that is slot-specific (not universal). */
-	static const int kSlotSpecificBase = 46;
-
 	Tile8x8Cache();
 
 	void setSlot(int slot, const DaxTile *tiles);
@@ -51,16 +48,6 @@ public:
 	int slotForGlobalTileId(uint16 globalTileId) const;
 	int localTileIndex(uint16 globalTileId) const;
 	const Graphics::ManagedSurface *tileSurface(uint16 globalTileId) const;
-
-	/**
-	 * Resolve a raw walldef tile byte for a given target slot.
-	 * - Raw 0: returns nullptr (transparent)
-	 * - Raw 1-45: universal tile from slot 0
-	 * - Raw 46+: slot-specific tile from the target slot (local = raw - 46)
-	 * This bypasses global ID mapping and offset patching entirely.
-	 */
-	const Graphics::ManagedSurface *walldefTileSurface(uint8 rawIndex,
-			int targetSlot) const;
 
 	static uint16 firstGlobalTileIdForSlot(int slot);
 	static uint16 lastGlobalTileIdForSlot(int slot);
@@ -85,15 +72,10 @@ private:
 class WalldefSurfaceBuilder {
 public:
 	static WallSurfaceSet buildSlice(const Data::DaxBlockWalldef::Slice &slice,
-			int targetSlot, const Tile8x8Cache &tileCache);
+			const Tile8x8Cache &tileCache);
 
 	static Common::Array<WallSurfaceSet> buildChunk(
 			const Data::DaxBlockWalldef::Chunk &chunk,
-			int targetSlot, const Tile8x8Cache &tileCache);
-
-	static Common::Array<WallSurfaceSet> buildChunk(
-			const Data::DaxBlockWalldef &walldef,
-			int chunkIdx, int targetSlot,
 			const Tile8x8Cache &tileCache);
 };
 

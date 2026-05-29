@@ -22,7 +22,6 @@
 #include "goldbox/gfx/walldef_surface_builder.h"
 
 #include "common/bitarray.h"
-#include "common/debug.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/gfx/pic.h"
 
@@ -61,7 +60,6 @@ static const uint8 kWallTileTransparentColor = 13;
 Common::SharedPtr<Pic> buildRegionSurface(
 		const Data::DaxBlockWalldef::Slice &slice,
 		Data::WalldefRegionId regionId,
-		int /*targetSlot*/,
 		const Tile8x8Cache &tileCache) {
 	const int cols = slice.cols(regionId);
 	const int rows = slice.rows(regionId);
@@ -148,37 +146,6 @@ const Graphics::ManagedSurface *Tile8x8Cache::tileSurface(
 	return tiles->getTileSurface(localIndex);
 }
 
-const Graphics::ManagedSurface *Tile8x8Cache::walldefTileSurface(
-		uint8 rawIndex, int targetSlot) const {
-	if (rawIndex == 0)
-		return nullptr;
-
-	if (rawIndex < kSlotSpecificBase) {
-		// Universal tile from slot 0
-		const DaxTile *tiles = _slots[0];
-		if (!tiles)
-			return nullptr;
-		return tiles->getTileSurface(rawIndex - 1);
-	}
-
-	// Slot-specific tile from the target slot
-	if (targetSlot < 0 || targetSlot >= kSlotCount)
-		return nullptr;
-	const DaxTile *tiles = _slots[targetSlot];
-	if (!tiles) {
-		debug(1, "walldefTileSurface: slot %d is NULL for raw %u",
-				targetSlot, (unsigned)rawIndex);
-		return nullptr;
-	}
-	const int localIdx = rawIndex - kSlotSpecificBase;
-	const Graphics::ManagedSurface *result = tiles->getTileSurface(localIdx);
-	if (!result) {
-		debug(1, "walldefTileSurface: slot %d local %d out of range (count=%u) raw=%u",
-				targetSlot, localIdx, tiles->getTileCount(), (unsigned)rawIndex);
-	}
-	return result;
-}
-
 uint16 Tile8x8Cache::firstGlobalTileIdForSlot(int slot) {
 	if (slot < 0 || slot >= kSlotCount)
 		return 0;
@@ -212,7 +179,6 @@ void WallSurfaceSet::setRegion(Data::WalldefRegionId id,
 
 WallSurfaceSet WalldefSurfaceBuilder::buildSlice(
 		const Data::DaxBlockWalldef::Slice &slice,
-		int targetSlot,
 		const Tile8x8Cache &tileCache) {
 	WallSurfaceSet result;
 
@@ -220,7 +186,7 @@ WallSurfaceSet WalldefSurfaceBuilder::buildSlice(
 		const Data::WalldefRegionId regionId =
 				static_cast<Data::WalldefRegionId>(i);
 		result.setRegion(regionId,
-				buildRegionSurface(slice, regionId, targetSlot, tileCache));
+				buildRegionSurface(slice, regionId, tileCache));
 	}
 
 	return result;
@@ -228,25 +194,14 @@ WallSurfaceSet WalldefSurfaceBuilder::buildSlice(
 
 Common::Array<WallSurfaceSet> WalldefSurfaceBuilder::buildChunk(
 		const Data::DaxBlockWalldef::Chunk &chunk,
-		int targetSlot,
 		const Tile8x8Cache &tileCache) {
 	Common::Array<WallSurfaceSet> result;
 	result.reserve(Data::DaxBlockWalldef::SLICE_COUNT);
 
 	for (int i = 0; i < Data::DaxBlockWalldef::SLICE_COUNT; ++i)
-		result.push_back(buildSlice(chunk.slice(i), targetSlot, tileCache));
+		result.push_back(buildSlice(chunk.slice(i), tileCache));
 
 	return result;
-}
-
-Common::Array<WallSurfaceSet> WalldefSurfaceBuilder::buildChunk(
-		const Data::DaxBlockWalldef &walldef,
-		int chunkIdx, int targetSlot,
-		const Tile8x8Cache &tileCache) {
-	if (chunkIdx < 0 || chunkIdx >= walldef.chunkCount())
-		return Common::Array<WallSurfaceSet>();
-
-	return buildChunk(walldef.chunk(chunkIdx), targetSlot, tileCache);
 }
 
 // ---------------------------------------------------------------------------
@@ -271,7 +226,7 @@ void WalldefSlotCache::loadSlot(int slot, Data::DaxBlockWalldef *walldef,
 	_chunkIdx[slotIdx] = chunkIdx;
 	walldef->resetChunk(chunkIdx);
 	_slices[slotIdx] = WalldefSurfaceBuilder::buildChunk(
-			walldef->chunk(chunkIdx), slot, tileCache);
+			walldef->chunk(chunkIdx), tileCache);
 }
 
 void WalldefSlotCache::clearSlot(int slot) {
