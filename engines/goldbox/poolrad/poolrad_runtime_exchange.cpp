@@ -58,10 +58,16 @@ bool PoolradRuntimeExchange::captureMapSnapshot(
 		(mem->read8(vmLayout.field(kVmFieldIndoorModeFlag).vmAddr) != 0);
 	out.mapType = mem->read8(globalLayout.field(kVmGlobalFieldMapWallType).vmAddr);
 
-	out.dungeonX = mem->read16LE(globalLayout.field(kVmGlobalFieldDungeonX).vmAddr);
-	out.dungeonY = mem->read16LE(globalLayout.field(kVmGlobalFieldDungeonY).vmAddr);
-	out.dungeonDir = static_cast<uint8>(
-		mem->read16LE(globalLayout.field(kVmGlobalFieldDungeonDir).vmAddr) & 0x03);
+	// DungeonX/Y/Dir are packed at consecutive byte addresses in the
+	// system bank (0xC04B, 0xC04C, 0xC04D). Each ECL SAVE writes a
+	// 16-bit word, so the high byte of each overlaps the low byte of
+	// the next field. The original code reads them as bytes.
+	out.dungeonX = static_cast<uint16>(mem->read8(
+		globalLayout.field(kVmGlobalFieldDungeonX).vmAddr));
+	out.dungeonY = static_cast<uint16>(mem->read8(
+		globalLayout.field(kVmGlobalFieldDungeonY).vmAddr));
+	out.dungeonDir = mem->read8(
+		globalLayout.field(kVmGlobalFieldDungeonDir).vmAddr) & 0x03;
 
 	out.wildernessX = mem->read8(vmLayout.field(kVmFieldWildernessX).vmAddr);
 	out.wildernessY = mem->read8(vmLayout.field(kVmFieldWildernessY).vmAddr);

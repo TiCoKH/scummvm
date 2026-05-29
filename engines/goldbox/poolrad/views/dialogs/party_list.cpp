@@ -30,12 +30,8 @@ namespace Dialogs {
 namespace {
 
 static int acColumnOffset(int acCurrent) {
-    // Legacy DIALOG_ShowParty alignment logic (x86/m68k parity).
-    if (acCurrent < 0x33)
-        return 1;
-    if (acCurrent <= 0x3C)
-        return 2;
-    if (acCurrent >= 0x3D && acCurrent <= 0x45)
+    // Right-align AC values: single digit gets +1 offset.
+    if (acCurrent >= 0 && acCurrent <= 9)
         return 1;
     return 0;
 }

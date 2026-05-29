@@ -24,6 +24,7 @@
 
 #include "goldbox/core/global.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/runtime/runtime_exchange.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -34,12 +35,15 @@ class InGameStateAreaDialog : public Dialog {
 private:
     Goldbox::GameState _state = Goldbox::GS_START_MENU;
     uint8 _mapDir = 0;
+    bool _isDungeon = true;
 
 public:
     InGameStateAreaDialog(const Common::String &name = "InGameStateArea");
     ~InGameStateAreaDialog() override {}
 
     void setState(Goldbox::GameState state);
+    void setStateFromSnapshot(
+        const Goldbox::RuntimeMapSnapshot &snapshot);
 
     void draw() override;
 };

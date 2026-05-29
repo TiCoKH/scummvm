@@ -45,14 +45,14 @@ namespace Gfx {
  * The caller passes partyDir in the C# wire format (0/2/4/6 = N/E/S/W).
  * Internally it is divided by 2 to get the 0..3 C++ direction index.
  *
- * The 3D viewport occupies character-grid columns 2..12 and rows 2..12 on
- * the 40×25 screen (char cell size 8×8 pixels, matching ovr031 index+2 offset).
+ * The 3D viewport occupies character-grid columns 3..13 and rows 3..13 on
+ * the 40×25 screen (char cell size 8×8 pixels, matching ovr031 index+3 offset).
  */
 class FirstPersonRenderer {
 public:
 	/** 3D viewport offset within the character grid (C# index2+2 / index3+2). */
-	static const int k3dViewOffsetX = 2;
-	static const int k3dViewOffsetY = 2;
+	static const int k3dViewOffsetX = 3;
+	static const int k3dViewOffsetY = 3;
 
 	/** Pixels per character cell (8×8). */
 	static const int kCharW = 8;
@@ -115,10 +115,12 @@ private:
 
 	/**
 	 * Blit src onto dst at (dstX, dstY), skipping transparent-color pixels
-	 * (index 0). Clips the blit to dst surface bounds.
+	 * (index 0). Clips the blit to the viewport rectangle
+	 * [clipX0,clipY0)..[clipX1,clipY1) and to dst surface bounds.
 	 */
 	static void blitClipped(const Gfx::Pic &src, Graphics::ManagedSurface *dst,
-			int dstX, int dstY);
+			int dstX, int dstY,
+			int clipX0, int clipY0, int clipX1, int clipY1);
 
 	/** Return wall type at map cell (y, x) looking in direction dir. Wraps map. */
 	static uint8 wallTypeAt(int dir, int y, int x, const Data::DaxBlockGeo &geo);

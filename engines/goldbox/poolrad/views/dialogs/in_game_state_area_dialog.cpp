@@ -29,9 +29,16 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-static const char *const kDirNames[8] = {
+// 8-way compass directions indexed 0-7.
+static const char *const kDirNames8[8] = {
     "N", "NE", "E", "SE", "S", "SW", "W", "NW"
 };
+
+// Convert cardinal direction (0=N,1=E,2=S,3=W) to 8-way index
+// (0=N,2=E,4=S,6=W).
+static uint8 cardinalTo8Way(uint8 cardinal) {
+    return static_cast<uint8>((cardinal & 0x03) * 2);
+}
 
 static int wildernessXOffsetForType(uint8 mapType) {
     if (mapType == 3)
@@ -48,11 +55,17 @@ static Common::String twoDigits(int value) {
 InGameStateAreaDialog::InGameStateAreaDialog(const Common::String &name)
     : Dialog(name) {
     // Matches right-side state/status area used by DIALOG_StateArea.
-    setBounds(Window(17, 15, 38, 18));
+    setBounds(Window(17, 15, 38, 15));
 }
 
 void InGameStateAreaDialog::setState(Goldbox::GameState state) {
     _state = state;
+    redraw();
+}
+
+void InGameStateAreaDialog::setStateFromSnapshot(
+        const Goldbox::RuntimeMapSnapshot &snapshot) {
+    _state = snapshot.gameState;
     redraw();
 }
 
@@ -69,50 +82,62 @@ void InGameStateAreaDialog::draw() {
     int minute = 0;
     bool hideCoords = false;
     bool runtimeSearch = false;
+    bool isDungeon = true;
+    Goldbox::GameState gameState = _state;
 
     if (::Goldbox::Poolrad::g_engine) {
         const RuntimeExchange *exchange =
             ::Goldbox::Poolrad::g_engine->getRuntimeExchange();
         ::Goldbox::RuntimeMapSnapshot snapshot;
-        if (exchange && exchange->captureMapSnapshot(snapshot) && snapshot.valid) {
+        if (exchange && exchange->captureMapSnapshot(snapshot)
+                && snapshot.valid) {
             posX = static_cast<int>(snapshot.dungeonX);
             posY = static_cast<int>(snapshot.dungeonY);
-            mapDir = snapshot.dungeonDir % 8;
+            mapDir = snapshot.dungeonDir;
 
             hour = static_cast<int>(snapshot.clockHour);
             minute = static_cast<int>(snapshot.clockMinute);
             hideCoords = snapshot.hideCoords;
             runtimeSearch = snapshot.searchActive;
+            gameState = snapshot.gameState;
 
             uint8 mapType = snapshot.mapType;
             if (snapshot.indoorMode)
                 mapType = 1;
 
             if (mapType > 1) {
-                const int wildX = static_cast<int>(snapshot.wildernessX);
-                const int wildY = static_cast<int>(snapshot.wildernessY);
-                posX = wildX + wildernessXOffsetForType(mapType);
-                posY = wildY;
+                isDungeon = false;
+                posX = static_cast<int>(snapshot.wildernessX)
+                    + wildernessXOffsetForType(mapType);
+                posY = static_cast<int>(snapshot.wildernessY);
             }
         }
     }
 
     _mapDir = mapDir;
+    _isDungeon = isDungeon;
+
+    // Convert direction to 8-way index for display.
+    uint8 displayDir;
+    if (_isDungeon)
+        displayDir = cardinalTo8Way(_mapDir);
+    else
+        displayDir = _mapDir % 8;
 
     Common::String line;
     if (!hideCoords)
         line = Common::String::format("%d,%d ", posX, posY);
 
-    line += kDirNames[_mapDir % 8];
+    line += kDirNames8[displayDir];
     line += " ";
     line += twoDigits(hour);
     line += ":";
     line += twoDigits(minute);
 
-    if (_state == GS_CAMPING)
-        line += " camping";
+    if (gameState == GS_CAMPING)
+        line += " CAMPING";
     else if (runtimeSearch)
-        line += " search";
+        line += " SEARCH";
 
     if (line.size() > 22)
         line = line.substr(0, 22);

@@ -112,7 +112,7 @@ void AreaMapCache::drawViewport(Graphics::ManagedSurface &dst,
     // Draw cursor arrow at party position within viewport.
     const int cursorCol = playerX - viewOriginX;
     const int cursorRow = playerY - viewOriginY;
-    const uint16 cursorTileId = kCursorTileBase + (facing / 2);
+    const uint16 cursorTileId = kCursorTileBase + facing;
     const Graphics::ManagedSurface *cursorTile =
             tileCache.tileSurface(cursorTileId);
     if (!cursorTile)
@@ -121,11 +121,13 @@ void AreaMapCache::drawViewport(Graphics::ManagedSurface &dst,
     const int cursorDstX = vpX + cursorCol * kCellSize;
     const int cursorDstY = vpY + cursorRow * kCellSize;
 
+    // Blit cursor with color 13 as transparent (background color of
+    // the arrow tiles in the 8x8 tileset).
     for (int py = 0; py < kCellSize; ++py) {
         const byte *srcRow = (const byte *)cursorTile->getBasePtr(0, py);
         byte *dstRow = (byte *)dst.getBasePtr(cursorDstX, cursorDstY + py);
         for (int px = 0; px < kCellSize; ++px) {
-            if (srcRow[px] != 0)
+            if (srcRow[px] != 13)
                 dstRow[px] = srcRow[px];
         }
     }

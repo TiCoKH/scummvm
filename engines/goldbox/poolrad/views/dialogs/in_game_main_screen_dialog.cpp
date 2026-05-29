@@ -202,7 +202,9 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 				Gfx::ViewportBackground::kViewportX,
 				Gfx::ViewportBackground::kViewportY));
 
-		Gfx::FirstPersonRenderer::draw3dWorld(&s, mapDir % 8,
+		// Renderer expects wire format: cardinal * 2 (0=N,2=E,4=S,6=W).
+		const uint8 wireDir = static_cast<uint8>((mapDir & 0x03) * 2);
+		Gfx::FirstPersonRenderer::draw3dWorld(&s, wireDir,
 			(int)mapX, (int)mapY, *geo,
 			::Goldbox::Poolrad::g_engine->getWalldefSlotCache());
 		return;

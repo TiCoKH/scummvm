@@ -47,7 +47,7 @@ class Tile8x8Cache;
  *
  * Cursor tiles (facing arrow):
  *   0x100 = North, 0x101 = East, 0x102 = South, 0x103 = West
- *   Index = facing / 2  (wire format 0/2/4/6)
+ *   Index = cardinal direction (0=N, 1=E, 2=S, 3=W)
  */
 class AreaMapCache {
 public:
@@ -82,7 +82,7 @@ public:
      * @param dst       Target surface (full screen)
      * @param playerX   Party X position (0-15)
      * @param playerY   Party Y position (0-15)
-     * @param facing    Party facing direction (wire: 0/2/4/6)
+     * @param facing    Party facing direction (cardinal: 0=N,1=E,2=S,3=W)
      * @param tileCache Tile cache for cursor stamp
      */
     void drawViewport(Graphics::ManagedSurface &dst,

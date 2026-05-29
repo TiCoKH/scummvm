@@ -31,8 +31,8 @@ namespace Gfx {
 /**
  * Manages the cached background surface for the 3D first-person viewport.
  *
- * The viewport occupies an 88x88 pixel region at screen position (16,16),
- * corresponding to character-grid columns 2..12 and rows 2..12.
+ * The viewport occupies an 88x88 pixel region at screen position (24,24),
+ * corresponding to character-grid columns 3..13 and rows 3..13.
  *
  * The background is divided into four horizontal bands:
  *   Sky     : y 16-58  (43 rows)
