@@ -54,6 +54,7 @@
 
 #include "goldbox/ecl/ecl_vm.h"
 #include "goldbox/ecl/opcode_handlers.h"
+#include "goldbox/ecl/opcode_table.h"
 #include "goldbox/ecl/game_config.h"
 #include "goldbox/ecl/runtime_layout.h"
 
@@ -287,8 +288,16 @@ VmResult EclVM::runAtScriptAddress(uint16 scriptPc, uint32 maxSteps) {
 
 VmResult EclVM::step() {
     const uint8 opcode = _memory.read8(_pc);
-    debug(9, "EclVM::step pc=0x%04X opcode=0x%02X", _pc, opcode);
-    return executeInstruction(opcode, _pc);
+    _opStartPc = _pc;
+    _traceBuf.clear();
+    VmResult r = executeInstruction(opcode, _pc);
+    // Flush trace: getOperand() populates _traceBuf; empty means zero-operand.
+    if (_traceBuf.empty()) {
+        debug(3, "ECL: 0x%04X  %s()", _opStartPc, getOpcodeName(opcode));
+    } else {
+        debug(3, "%s", _traceBuf.c_str());
+    }
+    return r;
 }
 
 VmResult EclVM::executeInstruction(uint8 opcode, uint16 currentPc) {
@@ -363,6 +372,78 @@ void EclVM::getOperand(uint8 opCount) {
     }
 
     _nextInsnPc = pos;
+    buildTrace();
+}
+
+void EclVM::buildTrace() {
+    const uint8 opcode = _memory.read8(_opStartPc);
+    const uint8 count = static_cast<uint8>(_opValues[0]);
+    const char *name = getOpcodeName(opcode);
+
+    Common::String line = Common::String::format("ECL: 0x%04X  %s(",
+        _opStartPc, name);
+
+    bool hasVarargs = false;
+    uint8 fixedEnd = count;
+
+    // Detect varargs: ON GOTO/GOSUB (0x25/0x26), HORIZONTAL MENU (0x2B),
+    // VERTICAL MENU (0x15) have variable trailing operands.
+    if (opcode == 0x25 || opcode == 0x26) {
+        fixedEnd = 2;
+        hasVarargs = (count > 2);
+    } else if (opcode == 0x2B) {
+        fixedEnd = 2;
+        hasVarargs = (count > 2);
+    } else if (opcode == 0x15) {
+        fixedEnd = 3;
+        hasVarargs = (count > 3);
+    }
+
+    for (uint8 i = 1; i <= fixedEnd; ++i) {
+        if (i > 1)
+            line += ", ";
+        const uint8 tag = _opTypes[i];
+        const uint16 val = _opValues[i];
+        if (tag == 0x80) {
+            Common::String s = readString(i);
+            if (s.size() > 60) {
+                s = Common::String(s.c_str(), 60);
+                s += "...";
+            }
+            line += Common::String::format("%u:\"%s\"", tag, s.c_str());
+        } else if (tag == 0x01 || tag == 0x02 || tag == 0x03 || tag == 0x81) {
+            line += Common::String::format("%u:0x%04X", tag, val);
+        } else {
+            line += Common::String::format("%u:%u", tag, val);
+        }
+    }
+    line += ")";
+
+    if (hasVarargs && count > fixedEnd) {
+        line += "(";
+        for (uint8 i = fixedEnd + 1; i <= count; ++i) {
+            if (i > fixedEnd + 1)
+                line += ", ";
+            const uint8 tag = _opTypes[i];
+            const uint16 val = _opValues[i];
+            if (tag == 0x80) {
+                Common::String s = readString(i);
+                if (s.size() > 60) {
+                    s = Common::String(s.c_str(), 60);
+                    s += "...";
+                }
+                line += Common::String::format("%u:\"%s\"", tag, s.c_str());
+            } else if (tag == 0x01 || tag == 0x02 || tag == 0x03
+                    || tag == 0x81) {
+                line += Common::String::format("%u:0x%04X", tag, val);
+            } else {
+                line += Common::String::format("%u:%u", tag, val);
+            }
+        }
+        line += ")";
+    }
+
+    _traceBuf = line;
 }
 
 uint16 EclVM::getOpWord(uint8 index) const {

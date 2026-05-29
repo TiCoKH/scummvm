@@ -44,6 +44,7 @@
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/ecl/opcode_handlers.h"
 
 namespace {
 
@@ -468,13 +469,42 @@ int16 PoolradEngineHostImpl::horizontalMenu(
     return result;
 }
 
+VmResult PoolradEngineHostImpl::readGeoAtPosition() {
+    // Mirrors: STRUCT_POSITION.geo_id = MAP_getGEOData(y, x)
+    if (!_engine)
+        return VM_OK;
+
+    RuntimeGeoBlock &rtGeo = _engine->getRuntimeGeo();
+    if (!rtGeo.isLoaded())
+        return VM_OK;
+
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+    const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
+    const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+    const int x = static_cast<int>(_memory->read16LE(xAddr));
+    const int y = static_cast<int>(_memory->read16LE(yAddr));
+
+    const uint8 geoId = rtGeo.getGeoData(x, y);
+    const uint16 geoFieldAddr = layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
+    _memory->write16LE(geoFieldAddr, static_cast<uint16>(geoId));
+    return VM_OK;
+}
+
+VmResult PoolradEngineHostImpl::refreshViewport() {
+    // GFX_ViewPortUpdate() + DIALOG_StateArea()
+    // Only trigger if the area map cache has been built (geo + wallsets loaded).
+    if (_engine && _engine->getAreaMapCache().isBuilt())
+        _updateViewState();
+    return VM_OK;
+}
+
 VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
     // 0x2D CALL target dispatcher (x86/m68k compatible IDs).
+    // Note: 0x2C90 is handled by the opcode handler directly via
+    // readGeoAtPosition() + refreshViewport().
     switch (callId) {
     case 0x2C90:
-        // CALL_MAP_3D_COLOR_UPDATE + DIALOG_StateArea in originals.
-        // ScummVM route: refresh active InGameView, which applies
-        // MAP_3DColorUpdate-style branching (indoor 3D vs wilderness area).
+        // Fallback if called directly (shouldn't happen with new handler).
         _updateViewState();
         return VM_OK;
 

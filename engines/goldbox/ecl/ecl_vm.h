@@ -26,6 +26,7 @@
 #include "common/ptr.h"
 #include "common/scummsys.h"
 #include "common/span.h"
+#include "common/str.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/ecl/ecl_types.h"
 #include "goldbox/ecl/ecl_decoder.h"
@@ -100,6 +101,12 @@ public:
      * Set syscall handler (for I/O, menus, combat).
      */
     void setSyscallHandler(SyscallHandler *handler) { _syscalls = handler; }
+
+    /**
+     * Return the PC of the next instruction (past all operands).
+     * Valid after getOperand() has been called.
+     */
+    uint16 getNextInsnPc() const { return _nextInsnPc; }
 
     /**
      * Decode N operands from VM flat memory at the current instruction PC.
@@ -230,6 +237,14 @@ private:
     uint8  _opTypes[kMaxOperands + 1];
     uint16 _opStartPc;
     uint16 _nextInsnPc; // PC past last operand = next instruction start
+
+    // Instruction trace buffer. Built by getOperand(), flushed by step().
+    Common::String _traceBuf;
+
+    /**
+     * Build formatted trace string into _traceBuf from current decoded state.
+     */
+    void buildTrace();
 
     /**
      * Parse ECL header (5 GOTO instructions, 20 bytes) to extract entry

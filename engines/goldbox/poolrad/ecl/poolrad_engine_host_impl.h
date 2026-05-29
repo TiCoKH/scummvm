@@ -89,6 +89,8 @@ public:
     VmResult spriteOff() override;
     int16 horizontalMenu(const Common::Array<Common::String> &options) override;
     VmResult handleCallOpcode(uint16 callId) override;
+    VmResult readGeoAtPosition() override;
+    VmResult refreshViewport() override;
     VmResult beginPrintAsync(const Common::String &text,
         bool clearBox) override;
     VmResult beginHorizontalMenuAsync(uint16 resultAddr,

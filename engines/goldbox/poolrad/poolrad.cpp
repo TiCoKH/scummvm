@@ -242,6 +242,16 @@ bool PoolradEngine::loadGameAssets() {
 	getDaxManager().loadFile(Common::Path("walldef7.dax"));
 	getDaxManager().loadFile(Common::Path("walldef8.dax"));
 
+	// Load ECL script DAX files
+	getDaxManager().loadFile(Common::Path("ecl1.dax"));
+	getDaxManager().loadFile(Common::Path("ecl2.dax"));
+	getDaxManager().loadFile(Common::Path("ecl3.dax"));
+	getDaxManager().loadFile(Common::Path("ecl4.dax"));
+	getDaxManager().loadFile(Common::Path("ecl5.dax"));
+	getDaxManager().loadFile(Common::Path("ecl6.dax"));
+	getDaxManager().loadFile(Common::Path("ecl7.dax"));
+	getDaxManager().loadFile(Common::Path("ecl8.dax"));
+
 	// Load DAX Pic files
 	getDaxManager().loadFile(Common::Path("body1.dax"));
 	getDaxManager().loadFile(Common::Path("body2.dax"));
@@ -781,24 +791,30 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		(unsigned)_party.size());
 
 	// -------------------------------------------------------------------------
-	// Reload world graphics based on map type.
-	// vmMapType < 2 -> dungeon / town (geo block + wall sets need reload).
-	// vmMapType >= 2 -> wilderness / combat (icon block reload only).
+	// Reload world graphics / ECL script based on saved game state.
 	// -------------------------------------------------------------------------
+	const uint8 savedMapId =
+		mem->read8(layout.vmField(kVmFieldSavedMapId).vmAddr);
+	const uint8 geoBlockId =
+		mem->read8(layout.vmField(kVmFieldGeoBlockId).vmAddr);
+	const uint8 wallPrimary =
+		mem->read8(layout.vmField(kVmFieldWallSetPrimary).vmAddr);
+	const uint8 wallSecondary =
+		mem->read8(layout.vmField(kVmFieldWallSetSecondary).vmAddr);
+	debug(2, "PoolradEngine::loadGameSlotX86 loaded state: savedMapId=%u geoBlockId=%u wallPrimary=%u wallSecondary=%u vmMapType=%u gameState=%u",
+		(unsigned)savedMapId, (unsigned)geoBlockId,
+		(unsigned)wallPrimary, (unsigned)wallSecondary,
+		(unsigned)vmMapType, (unsigned)byteGameState);
+
 	const bool loadIntoRuntime =
 		(static_cast<GameState>(byteGameState) != GS_START_MENU);
+
 	if (loadIntoRuntime) {
+		// Non-GS_START_MENU: BOOL_GAME_LOADED=true path.
+		// Preload geo/walldefs from saved state (ECL script already in VMBANK3).
 		if (vmMapType < 2 && _eclHost) {
-			const uint8 geoBlockId =
-				mem->read8(layout.vmField(kVmFieldGeoBlockId).vmAddr);
 			_eclHost->loadGeoBlock(geoBlockId);
 
-			// Restore saved wall set block IDs and slot IDs from VMBANK0.
-			// G_SavedWallBlockIds (field474_0x3f2): vmAddr base = GEO_BASE + 0x3f2/2 = 0x4AF9
-			//   [slot] -> vmAddr 0x4AF9 + slot  (slots 1-3: 0x4AFA, 0x4AFB, 0x4AFC)
-			// G_SavedWallSlotIds  (field477_0x3f8): vmAddr base = GEO_BASE + 0x3f8/2 = 0x4AFC
-			//   [slot] -> vmAddr 0x4AFC + slot  (slots 1-3: 0x4AFD, 0x4AFE, 0x4AFF)
-			// Original x86 check is signed (JL): negative int16 means sentinel/invalid.
 			static const uint16 kGeoSavedWallBlockBase = 0x4AF9;
 			static const uint16 kGeoSavedWallSlotBase  = 0x4AFC;
 			for (uint8 wallSlot = 1; wallSlot <= 3; ++wallSlot) {
@@ -813,7 +829,36 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 			_eclHost->loadIconBlock();
 		}
 	} else {
-		debug(2, "PoolradEngine::loadGameSlotX86 skipping geo/icon preload for GS_START_MENU transfer mode");
+		// GS_START_MENU: BOOL_GAME_LOADED=false path.
+		// Original stays at title screen; player presses 'B' (Begin) which
+		// triggers GB_EngineMain -> ECL_LoadBlock(BYTE_MAP_ID) -> ON_INIT.
+		// Pre-load the ECL block from DAX now so it's ready for the 'B'
+		// transition. The actual state change happens in the title view.
+		const uint8 mapId = savedMapId;
+		debug(2, "PoolradEngine::loadGameSlotX86 GS_START_MENU: preloading ECL block %u from DAX",
+			(unsigned)mapId);
+
+		Goldbox::Data::DaxBlock *eclBlock =
+			getDaxManager().getEcl().getBlockById(mapId);
+		if (eclBlock && eclBlock->_data.size() > 2 && _eclVm) {
+			// Original zeroes VMBANK3 (0x1E00 bytes) before loading.
+			for (uint16 i = 0; i < 0x1E00; ++i)
+				mem->write8(static_cast<uint16>(0x9900 + i), 0);
+			// ECL_LoadBlock skips first 2 bytes (size header) then copies
+			// into VMBANK3. loadProgram handles the full sequence.
+			Common::Span<const uint8> eclData(
+				eclBlock->_data.data() + 2,
+				eclBlock->_data.size() - 2);
+			_eclVm->loadProgram(eclData, mapId);
+			debug(2, "PoolradEngine::loadGameSlotX86 ECL block %u loaded (%u bytes)",
+				(unsigned)mapId,
+				(unsigned)(eclBlock->_data.size() - 2));
+		} else {
+			warning("PoolradEngine::loadGameSlotX86 ECL block %u not found or too small",
+				(unsigned)mapId);
+		}
+
+		_legacySharedState.boolStateLoaded = false;
 	}
 
 	// -------------------------------------------------------------------------
