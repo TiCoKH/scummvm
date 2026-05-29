@@ -1050,7 +1050,14 @@ void PoolradEngine::refreshLegacySharedRuntimeState() {
 	_eclFlags.geoReady = _eclVm->geoReady;
 	_eclFlags.wallsetReady = _eclVm->wallsetReady;
 	_eclFlags.screenRefresh = _eclVm->screenRefresh;
-	_eclFlags.mapDataReady = _eclVm->geoReady && _eclVm->wallsetReady;
+
+	const bool newMapDataReady = _eclVm->geoReady && _eclVm->wallsetReady;
+	if (newMapDataReady && _eclVm->screenRefresh && !_eclFlags.mapDataReady) {
+		// Original: BOOL_SCREEN_REFRESH = false after ScreenByState fires.
+		_eclVm->screenRefresh = false;
+		_eclFlags.screenRefresh = false;
+	}
+	_eclFlags.mapDataReady = newMapDataReady;
 }
 
 VmResult PoolradEngine::runEclEntryPoint(ECL::EclRuntimeFieldId entryField,

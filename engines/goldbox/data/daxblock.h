@@ -248,11 +248,15 @@ public:
     int chunkCount() const { return _chunks.size(); }
     const Chunk &chunk(int idx) const { return _chunks[idx]; }
 
+    /** Reset chunk span to point at original unpatched data. */
+    void resetChunk(int chunkIdx);
+
     /**
-     * Patch tile indices in-place so that slot-specific IDs (>= kTileUniversalCount)
+     * Patch tile indices in-place so that slot-specific IDs (> kTileSharedCount)
      * are remapped to their global tile IDs for the given slot.
-     * Mirrors WallDefBlock.Offset(off) / WallDefs.BlockOffset(slot, off):
-     *   for each byte b in all slices: if b >= kTileUniversalCount: b += offset
+     * Shared tiles (raw 1..115) reference slot 0 (1-45) + slot 1 (46-115)
+     * directly and are never offset. Only raw > 115 are slot-specific.
+     *   for each byte b in all slices: if b > kTileSharedCount: b += offset
      * Must be called after adjust() and before WalldefSurfaceBuilder::buildChunk().
      * @param chunkIdx  Which chunk to patch (0-based)
      * @param offset    Value to add: tileOffsetForSlot(slot)
@@ -262,9 +266,11 @@ public:
 private:
     void adjust() override;
 
-    // Number of universal (shared) tiles; indices < this threshold are
-    // unchanged by applyTileOffset. Mirrors the >= 45 threshold in C#.
-    static const int kTileUniversalCount = 45;
+    // Raw tile indices 1..kTileSharedCount reference shared tiles from
+    // slot 0 (universal, 1-45) and slot 1 (common wall tiles, 46-115).
+    // These are available to ALL walldef chunks and never get offset.
+    // Only raw indices > kTileSharedCount are slot-specific.
+    static const int kTileSharedCount = 115;
 
     Common::Array<Chunk> _chunks;
     // Mutable patched copy of _data for offset-adjusted chunks.
