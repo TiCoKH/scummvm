@@ -298,18 +298,31 @@ void FirstPersonRenderer::drawRegion(Graphics::ManagedSurface *dst,
 
 	const int dstX = (colStart + k3dViewOffsetX) * kCharW;
 	const int dstY = (rowStart + k3dViewOffsetY) * kCharH;
-	blitClipped(*pic, dst, dstX, dstY);
+
+	// Clip to the 3D viewport bounds to avoid overwriting borders.
+	static const int kVpX0 = k3dViewOffsetX * kCharW;
+	static const int kVpY0 = k3dViewOffsetY * kCharH;
+	static const int kVpX1 = kVpX0 + 88;
+	static const int kVpY1 = kVpY0 + 88;
+	blitClipped(*pic, dst, dstX, dstY, kVpX0, kVpY0, kVpX1, kVpY1);
 }
 
 void FirstPersonRenderer::blitClipped(const Pic &src,
-		Graphics::ManagedSurface *dst, int dstX, int dstY) {
+		Graphics::ManagedSurface *dst, int dstX, int dstY,
+		int clipX0, int clipY0, int clipX1, int clipY1) {
 	int srcX0 = 0, srcY0 = 0;
 	int blitW  = src.w;
 	int blitH  = src.h;
 
-	if (dstX < 0) { srcX0 -= dstX; blitW += dstX; dstX = 0; }
-	if (dstY < 0) { srcY0 -= dstY; blitH += dstY; dstY = 0; }
+	// Clip to viewport left/top
+	if (dstX < clipX0) { srcX0 += clipX0 - dstX; blitW -= clipX0 - dstX; dstX = clipX0; }
+	if (dstY < clipY0) { srcY0 += clipY0 - dstY; blitH -= clipY0 - dstY; dstY = clipY0; }
 
+	// Clip to viewport right/bottom
+	if (dstX + blitW > clipX1) blitW = clipX1 - dstX;
+	if (dstY + blitH > clipY1) blitH = clipY1 - dstY;
+
+	// Clip to surface bounds
 	if (dstX + blitW > dst->w) blitW = dst->w - dstX;
 	if (dstY + blitH > dst->h) blitH = dst->h - dstY;
 

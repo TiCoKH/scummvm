@@ -483,8 +483,8 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
     const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
     const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
     const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
-    const int x = static_cast<int>(_memory->read16LE(xAddr));
-    const int y = static_cast<int>(_memory->read16LE(yAddr));
+    const int x = static_cast<int>(_memory->read8(xAddr));
+    const int y = static_cast<int>(_memory->read8(yAddr));
 
     const uint8 geoId = rtGeo.getGeoData(x, y);
     const uint16 geoFieldAddr = layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
@@ -544,9 +544,9 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
         const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
         const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
 
-        int x = static_cast<int>(_memory->read16LE(xAddr));
-        int y = static_cast<int>(_memory->read16LE(yAddr));
-        const uint8 dir = static_cast<uint8>(_memory->read16LE(dirAddr) & 0x07);
+        int x = static_cast<int>(_memory->read8(xAddr));
+        int y = static_cast<int>(_memory->read8(yAddr));
+        const uint8 dir = static_cast<uint8>(_memory->read8(dirAddr) & 0x07);
 
         x += kDirDeltaX[dir];
         y += kDirDeltaY[dir];
@@ -575,10 +575,11 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
         const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
         const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
 
-        const int x = static_cast<int>(_memory->read16LE(xAddr));
-        const int y = static_cast<int>(_memory->read16LE(yAddr));
-        // Direction is stored in wire format (0=N, 2=E, 4=S, 6=W).
-        const uint8 wireDir = static_cast<uint8>(_memory->read16LE(dirAddr) & 0x06);
+        const int x = static_cast<int>(_memory->read8(xAddr));
+        const int y = static_cast<int>(_memory->read8(yAddr));
+        // Direction is stored as cardinal (0=N,1=E,2=S,3=W); convert to
+        // wire format (0=N, 2=E, 4=S, 6=W) for nibble lookup.
+        const uint8 wireDir = static_cast<uint8>((_memory->read8(dirAddr) & 0x03) * 2);
 
         const uint8 nibble = rtGeo.getMapNibble(x, y, wireDir);
 
