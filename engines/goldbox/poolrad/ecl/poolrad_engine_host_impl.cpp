@@ -30,6 +30,7 @@
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/gfx/pic.h"
 #include "goldbox/gfx/area_map_cache.h"
+#include "goldbox/gfx/encounter_sprite_cache.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
@@ -594,9 +595,99 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
     }
 }
 
+/**
+ * MAP_CountStepsUntilWall equivalent.
+ * Walks forward from (x,y) in wireDir up to 2 steps, stopping at walls.
+ * Returns step count (0-2). For outdoor maps always returns 2.
+ */
+static uint8 countStepsUntilWall(const RuntimeGeoBlock &rtGeo, uint8 wireDir,
+        int x, int y, bool indoorMode) {
+    if (!indoorMode)
+        return 2;
+
+    static const int kDx[] = {0, 0, 1, 0, 0, 0, -1, 0};
+    static const int kDy[] = {-1, 0, 0, 0, 1, 0, 0, 0};
+
+    uint8 steps = 0;
+    for (uint8 i = 0; i < 2; ++i) {
+        uint8 nibble = rtGeo.getMapNibble(x, y, wireDir);
+        if (nibble != 0)
+            break;
+        steps++;
+        x += kDx[wireDir & 7];
+        y += kDy[wireDir & 7];
+    }
+    return steps;
+}
+
+VmResult PoolradEngineHostImpl::drawEncounterStage(uint8 resourceId,
+        uint8 distanceCap, uint8 variantId) {
+    if (!_engine)
+        return VM_ERROR;
+
+    // Calculate monster distance (MAP_CountStepsUntilWall equivalent).
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+    const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
+    const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+    const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
+    const int x = static_cast<int>(_memory->read8(xAddr));
+    const int y = static_cast<int>(_memory->read8(yAddr));
+    const uint8 wireDir = static_cast<uint8>((_memory->read8(dirAddr) & 0x03) * 2);
+
+    const bool indoorMode = (_memory->read8(
+        layout.vmField(kVmFieldIndoorModeFlag).vmAddr) != 0);
+
+    RuntimeGeoBlock &rtGeo = _engine->getRuntimeGeo();
+    uint8 distance = rtGeo.isLoaded()
+        ? countStepsUntilWall(rtGeo, wireDir, x, y, indoorMode)
+        : 2;
+
+    // Clamp to distance cap (D_DistanceCap < D_MonsterDistance).
+    if (distanceCap < distance)
+        distance = distanceCap;
+
+    // Write D_MonsterDistance to VM memory.
+    _memory->write16LE(
+        layout.vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr, distance);
+
+    // Populate the engine-global encounter sprite cache.
+    Goldbox::Gfx::EncounterSpriteCache &cache = _engine->getEncounterSpriteCache();
+    cache.loadSprite(resourceId, variantId, distance);
+
+    // Load head if distance == 0 (adjacent encounter).
+    if (distance == 0) {
+        const uint8 headPicId = _memory->read8(
+            layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr);
+        cache.loadHead(headPicId, variantId);
+    }
+
+    _updateViewState();
+    return VM_OK;
+}
+
+VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
+    if (!_engine)
+        return VM_ERROR;
+
+    Goldbox::Gfx::EncounterSpriteCache &cache = _engine->getEncounterSpriteCache();
+    cache.setDistance(newDistance);
+
+    // Load head if now adjacent.
+    if (newDistance == 0) {
+        const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+        const uint8 headPicId = _memory->read8(
+            layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr);
+        cache.loadHead(headPicId, cache.bodyPicId());
+    }
+
+    _updateViewState();
+    return VM_OK;
+}
+
 VmResult PoolradEngineHostImpl::spriteOff() {
-    // Legacy SPRITE_OFF calls MAP_3DColorUpdate when a sprite overlay is active.
-    // ScummVM route: refresh active InGameView to re-run map-state drawing.
+    if (!_engine)
+        return VM_OK;
+    _engine->getEncounterSpriteCache().clear();
     _updateViewState();
     return VM_OK;
 }

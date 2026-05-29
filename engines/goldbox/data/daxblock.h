@@ -136,10 +136,23 @@ private:
 
 class DaxBlockSprit : public DaxBlock {
 public:
+    struct FrameInfo {
+        uint16 width;    // pixels (charWidth * 8)
+        uint16 height;   // pixels
+        int16 xPos;      // viewport x offset
+        int16 yPos;      // viewport y offset
+        uint32 dataOffset; // byte offset into _data for EGA plane data
+        uint32 dataSize;   // EGA plane data size (height * charWidth * 4)
+    };
+
     DaxBlockSprit();
 
     int frameCount() const { return _frameCount; }
     bool isValidLayout() const { return _validLayout; }
+    const FrameInfo *frameInfo(int idx) const;
+
+    /** Access raw block data for EGA plane decoding. */
+    const Common::Array<uint8> &rawData() const { return _data; }
 
 private:
     void adjust() override;
@@ -148,6 +161,7 @@ private:
 
     int _frameCount;
     bool _validLayout;
+    FrameInfo _frames[8];
 };
 
 

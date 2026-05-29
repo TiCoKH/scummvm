@@ -86,6 +86,9 @@ public:
         uint8 graphicId) override;
     VmResult clearMonsters() override;
     VmResult displayPicture(uint8 picID) override;
+    VmResult drawEncounterStage(uint8 resourceId, uint8 distanceCap,
+        uint8 variantId) override;
+    VmResult redrawEncounterStage(uint8 newDistance) override;
     VmResult spriteOff() override;
     int16 horizontalMenu(const Common::Array<Common::String> &options) override;
     VmResult handleCallOpcode(uint16 callId) override;

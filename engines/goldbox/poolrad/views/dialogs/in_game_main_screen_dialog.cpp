@@ -22,6 +22,10 @@
 #include "goldbox/gfx/first_person_renderer.h"
 #include "goldbox/gfx/viewport_background.h"
 #include "goldbox/gfx/area_map_cache.h"
+#include "goldbox/gfx/encounter_sprite_cache.h"
+#include "goldbox/gfx/pic.h"
+#include "goldbox/data/daxblock.h"
+#include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/views/dialogs/in_game_main_screen_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
@@ -207,6 +211,36 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 		Gfx::FirstPersonRenderer::draw3dWorld(&s, wireDir,
 			(int)mapX, (int)mapY, *geo,
 			::Goldbox::Poolrad::g_engine->getWalldefSlotCache());
+
+		// Draw encounter sprite overlay if active.
+		const ::Goldbox::Gfx::EncounterSpriteCache &spriteCache =
+			::Goldbox::Poolrad::g_engine->getEncounterSpriteCache();
+		if (spriteCache.isSpriteLoaded() && spriteCache.spritePic()) {
+			const ::Goldbox::Gfx::Pic *sprite = spriteCache.spritePic();
+			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * 8;
+			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * 8;
+			// Sprite xPos/yPos from header are in char units; multiply by 8.
+			::Goldbox::Data::DaxBlock *rawSp =
+				::Goldbox::VmInterface::getDaxSprit().getBlockById(
+					spriteCache.spriteBlockId());
+			::Goldbox::Data::DaxBlockSprit *spBlock = rawSp
+				? dynamic_cast< ::Goldbox::Data::DaxBlockSprit *>(rawSp) : nullptr;
+			int sprX = vpX, sprY = vpY;
+			if (spBlock) {
+				const ::Goldbox::Data::DaxBlockSprit::FrameInfo *fi =
+					spBlock->frameInfo(static_cast<int>(spriteCache.distance()));
+				if (fi) {
+					sprX += static_cast<int>(fi->xPos) * 8;
+					sprY += static_cast<int>(fi->yPos) * 8;
+				}
+			}
+			sprite->trDraw(&s, sprX, sprY, sprite->getTransparentIndex());
+		} else if (spriteCache.isSpriteLoaded() && spriteCache.headPic()) {
+			const ::Goldbox::Gfx::Pic *head = spriteCache.headPic();
+			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * 8;
+			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * 8;
+			head->draw(&s, vpX, vpY);
+		}
 		return;
 	}
 
