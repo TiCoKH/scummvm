@@ -154,7 +154,7 @@ static int handle_0x02_GOSUB(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)mem; (void)syscalls;
     vm.getOperand(1);
-    callStack.push_back(nextPc);
+    callStack.push_back(vm.getNextInsnPc());
     nextPc = vm.getOpWord(1);
     return VM_OK;
 }
@@ -777,7 +777,7 @@ static int handle_0x26_ON_GOSUB(EclVM &vm, AddressSpace &mem,
     // Re-decode all operands including varargs jump targets.
     vm.getOperand(static_cast<uint8>(2 + count));
     if (selector < count) {
-        callStack.push_back(nextPc);
+        callStack.push_back(vm.getNextInsnPc());
         nextPc = vm.getOpWord(static_cast<uint8>(3 + selector));
     }
     return VM_OK;
@@ -868,49 +868,61 @@ static int handle_0x2D_CALL(EclVM &vm, AddressSpace &mem,
     const uint16 callId = vm.getOpWord(1);
 
     EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+    if (!host)
+        return VM_OK;
 
-    // Special x86/m68k 0x2C90 flow: mapdata-load redraw/state refresh gate.
-    if (callId == 0x2C90 && vm.mapdataInload) {
-        const EclLayoutAccess layout = getOpcodeLayout();
-        const uint16 spriteLoadAddr = layout.runtimeField(kEclRuntimeSpriteState);
-        const uint16 skyboxRedrawAddr = layout.runtimeField(kEclRuntimeSkyboxRedrawFlag);
-        const uint16 positionDirtyAddr = layout.runtimeField(kEclRuntimePositionDirtyFlag);
-        const uint16 charRedrawAddr = layout.runtimeField(kEclRuntimeCharacterRedrawFlag);
-        const uint16 statusRedrawAddr = layout.runtimeField(kEclRuntimeStatusRedrawFlag);
+    if (callId == 0x2C90) {
+        // Step 1: Always read geo cell at current position.
+        // Mirrors: STRUCT_POSITION.geo_id = MAP_getGEOData(y, x)
+        VmResult r = host->readGeoAtPosition();
+        if (r != VM_OK)
+            return r;
 
-        const bool needsRefresh =
-            (EclRuntimeLayout::isValidVmAddr(statusRedrawAddr) && mem.read8(statusRedrawAddr) != 0) ||
-            (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr) && mem.read8(spriteLoadAddr) != 0) ||
-            (EclRuntimeLayout::isValidVmAddr(charRedrawAddr) && mem.read8(charRedrawAddr) != 0) ||
-            (EclRuntimeLayout::isValidVmAddr(positionDirtyAddr) && mem.read8(positionDirtyAddr) != 0) ||
-            (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr) && mem.read8(skyboxRedrawAddr) != 0);
+        // Step 2: Conditional viewport refresh gated by BOOL_MAPDATA_INLOAD.
+        if (vm.mapdataInload) {
+            const EclLayoutAccess layout = getOpcodeLayout();
+            const uint16 spriteLoadAddr = layout.runtimeField(kEclRuntimeSpriteState);
+            const uint16 skyboxRedrawAddr = layout.runtimeField(kEclRuntimeSkyboxRedrawFlag);
+            const uint16 positionDirtyAddr = layout.runtimeField(kEclRuntimePositionDirtyFlag);
+            const uint16 charRedrawAddr = layout.runtimeField(kEclRuntimeCharacterRedrawFlag);
+            const uint16 statusRedrawAddr = layout.runtimeField(kEclRuntimeStatusRedrawFlag);
 
-        if (needsRefresh) {
-            if (host) {
-                VmResult r = host->handleCallOpcode(callId);
+            const bool needsRefresh =
+                (EclRuntimeLayout::isValidVmAddr(charRedrawAddr) && mem.read8(charRedrawAddr) != 0) ||
+                (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr) && mem.read8(spriteLoadAddr) != 0) ||
+                (EclRuntimeLayout::isValidVmAddr(statusRedrawAddr) && mem.read8(statusRedrawAddr) != 0) ||
+                (EclRuntimeLayout::isValidVmAddr(positionDirtyAddr) && mem.read8(positionDirtyAddr) != 0) ||
+                (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr) && mem.read8(skyboxRedrawAddr) != 0);
+
+            if (needsRefresh) {
+                // GFX_ViewPortUpdate() + DIALOG_StateArea()
+                r = host->refreshViewport();
                 if (r != VM_OK)
                     return r;
+
+                if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
+                    mem.write8(skyboxRedrawAddr, 0);
+                if (EclRuntimeLayout::isValidVmAddr(positionDirtyAddr))
+                    mem.write8(positionDirtyAddr, 0);
+                if (EclRuntimeLayout::isValidVmAddr(charRedrawAddr))
+                    mem.write8(charRedrawAddr, 0);
+                if (EclRuntimeLayout::isValidVmAddr(statusRedrawAddr))
+                    mem.write8(statusRedrawAddr, 0);
+                if (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr))
+                    mem.write8(spriteLoadAddr, 0);
             }
-
-            if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
-                mem.write8(skyboxRedrawAddr, 0);
-            if (EclRuntimeLayout::isValidVmAddr(positionDirtyAddr))
-                mem.write8(positionDirtyAddr, 0);
-            if (EclRuntimeLayout::isValidVmAddr(charRedrawAddr))
-                mem.write8(charRedrawAddr, 0);
-            if (EclRuntimeLayout::isValidVmAddr(statusRedrawAddr))
-                mem.write8(statusRedrawAddr, 0);
-            if (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr))
-                mem.write8(spriteLoadAddr, 0);
         }
-
         return VM_OK;
     }
 
-    if (host)
-        return host->handleCallOpcode(callId);
+    if (callId == 0xC018) {
+        // Only when indoor mode is active (BYTE_VM_MAP_TYPE == 1).
+        if (mem.read8(getOpcodeLayout().vmField(kVmFieldIndoorModeFlag).vmAddr) != 1)
+            return VM_OK;
+    }
 
-    return VM_OK;
+    // All other call IDs dispatch to the host's generic handler.
+    return host->handleCallOpcode(callId);
 }
 
 // 0x2E: DAMAGE <var1> <dice> <sides> <bonus> <var2>

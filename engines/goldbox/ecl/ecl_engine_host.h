@@ -460,11 +460,28 @@ public:
      * Execute legacy CALL opcode target (0x2D CALL <address>). The target is a
      * fixed engine routine ID used by original binaries. Hosts may implement
      * platform-specific behavior for known IDs and return VM_OK for unknowns.
+     * Known IDs: 0x8000/0x8001 (combat mode), 0xBA03 (sound), 0xC01E (step
+     * forward), 0xC018 (read map nibble).
      */
     virtual VmResult handleCallOpcode(uint16 callId) {
         (void)callId;
         return VM_OK;
     }
+
+    /**
+     * Read the GEO cell data at the current party position.
+     * Mirrors MAP_getGEOData(y, x) in the original. Writes the geo_id
+     * into the appropriate VM field.
+     * Called at the start of CALL(0x2C90) before viewport refresh.
+     */
+    virtual VmResult readGeoAtPosition() { return VM_OK; }
+
+    /**
+     * Refresh the 3D viewport and party status area.
+     * Mirrors GFX_ViewPortUpdate() + DIALOG_StateArea() in the original.
+     * Called by CALL(0x2C90) when dirty flags indicate a redraw is needed.
+     */
+    virtual VmResult refreshViewport() { return VM_OK; }
 
     /**
      * Stop movement and redraw the screen (0x42 STOP MOVE).
