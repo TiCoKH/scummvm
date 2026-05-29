@@ -922,19 +922,25 @@ bool PoolradEngine::tick() {
 	}
 
 	if (_eclFlags.suspended && _eclHost && _eclVm) {
-		if (!_eclHost->hasPendingAsync()) {
-			_eclFlags.suspended = false;
-		} else if (_eclHost->isPendingAsyncReady()) {
+		bool readyToResume = false;
+		const bool hasAsync = _eclHost->hasPendingAsync();
+		const bool asyncReady = hasAsync ? _eclHost->isPendingAsyncReady() : false;
+		if (!hasAsync) {
+			readyToResume = true;
+		} else if (asyncReady) {
 			const VmResult finalizeResult = _eclHost->finalizePendingAsync();
 			if (finalizeResult == VM_OK) {
-				_eclFlags.suspended = false;
-				const VmResult resume =
-					executeEclAtScriptAddress(_eclVm->getPC());
-				if (resume == VM_YIELD)
-					_eclFlags.suspended = true;
+				readyToResume = true;
 			} else if (finalizeResult == VM_ERROR || finalizeResult == VM_HALTED) {
 				_eclFlags.suspended = false;
 			}
+		}
+		if (readyToResume) {
+			_eclFlags.suspended = false;
+			const VmResult resume =
+				executeEclAtScriptAddress(_eclVm->getPC());
+			if (resume == VM_YIELD)
+				_eclFlags.suspended = true;
 		}
 	}
 
