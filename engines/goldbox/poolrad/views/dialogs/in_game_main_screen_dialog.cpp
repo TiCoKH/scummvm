@@ -20,7 +20,6 @@
  */
 
 #include "goldbox/gfx/first_person_renderer.h"
-#include "common/debug.h"
 #include "goldbox/gfx/viewport_background.h"
 #include "goldbox/gfx/area_map_cache.h"
 #include "goldbox/gfx/encounter_sprite_cache.h"
@@ -31,7 +30,6 @@
 #include "goldbox/poolrad/views/dialogs/in_game_main_screen_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/runtime/runtime_exchange.h"
-#include "goldbox/runtime/runtime_geo.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -192,18 +190,6 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 		}
 
 		Data::DaxBlockGeo *geo = ::Goldbox::Poolrad::g_engine->getActiveGeoBlock();
-		if (!geo) {
-			// Fallback: try RuntimeGeoBlock's blockId (covers case where
-			// _legacySharedState.byteMapId hasn't been synced yet).
-			const ::Goldbox::RuntimeGeoBlock &rtGeo =
-				::Goldbox::Poolrad::g_engine->getRuntimeGeo();
-			if (rtGeo.isLoaded())
-				geo = ::Goldbox::Poolrad::g_engine->getGeoBlockById(
-					rtGeo.blockId());
-			if (geo)
-				debug(3, "drawMap3dIfNeeded: fallback geo lookup succeeded blockId=%u",
-					(unsigned)rtGeo.blockId());
-		}
 		if (!geo)
 			return;
 

@@ -153,6 +153,17 @@ public:
 	/** True if the 2D area map overlay is active instead of 3D view. */
 	bool isAreaMapMode() const { return _areaMapMode; }
 
+	/** Get current map X position. */
+	uint16 getMapX() const { return _mapX; }
+	/** Get current map Y position. */
+	uint16 getMapY() const { return _mapY; }
+	/** Get current facing direction (wire format: 0=N,2=E,4=S,6=W). */
+	uint8 getMapDir() const { return _mapDir; }
+	/** Set map position and direction from VM memory. */
+	void setMapPosition(uint16 x, uint16 y, uint8 wireDir) {
+		_mapX = x; _mapY = y; _mapDir = wireDir;
+	}
+
 	/**
 	 * Print text into the message text box area (rows 17-22).
 	 * Implements TEXT_boxMessage / TEXT_BlockPrint word-wrapping logic.

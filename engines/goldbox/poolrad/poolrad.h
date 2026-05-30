@@ -91,6 +91,7 @@ private:
 	Common::ScopedPtr<PoolradRuntimeExchange>  _runtimeExchange;
 	EclRuntimeFlags                            _eclFlags;
 	bool                                       _mapRuntimeNeedsInit = false;
+	bool                                       _mapRuntimeReady = false;
 
 	/**
 	 * Shared engine/VM runtime state (legacy globals mirror).
@@ -119,7 +120,7 @@ private:
 	void refreshLegacySharedRuntimeState();
 	VmResult runEclEntryPoint(ECL::EclRuntimeFieldId entryField,
 			uint32 maxSteps = 1000000);
-	void processLegacyInGameLoopStep();
+	void dispatchPlayerCommand();
 
 protected:
 	void setup() override;

@@ -168,6 +168,8 @@ bool EclVM::parseECLHeader(Common::Span<const uint8> program) {
         _entryPoints.push_back(entryPc);
         _memory.write16LE(layout.runtimeField(kEntryRuntimeFields[i]),
             entryPc);
+        debug(2, "EclVM::parseECLHeader entry[%u] = 0x%04X (field addr 0x%04X)",
+            i, entryPc, layout.runtimeField(kEntryRuntimeFields[i]));
         // _nextInsnPc points at the next instruction's opcode.
         _pc = _nextInsnPc;
         syncRuntimePc(_pc);

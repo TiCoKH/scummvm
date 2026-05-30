@@ -941,11 +941,36 @@ bool PoolradEngine::tick() {
 				executeEclAtScriptAddress(_eclVm->getPC());
 			if (resume == VM_YIELD)
 				_eclFlags.suspended = true;
+			else if (!_mapRuntimeReady && isMapRuntimeState(getGameState())) {
+				// ONINIT yielded and has now completed. Do post-init refresh.
+				if (getGameState() != GS_WILDERNESS_MAP) {
+					if (_eclVm->screenRefresh) {
+						Views::InGameView *igv = getInGameView();
+						if (igv)
+							igv->applyScreenByState(getGameState());
+						_eclVm->screenRefresh = false;
+						_eclFlags.screenRefresh = false;
+					}
+					if (_eclHost)
+						_eclHost->refreshViewport();
+				}
+				// Sync VM position → InGameView.
+				Views::InGameView *syncIgv = getInGameView();
+				if (syncIgv && _eclVm) {
+					ECL::AddressSpace &m = _eclVm->getMemory();
+					ECL::EclLayoutAccess l = _eclConfig.getLayoutAccess();
+					const uint16 x = m.read16LE(l.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr);
+					const uint16 y = m.read16LE(l.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr);
+					const uint8 d = static_cast<uint8>(m.read8(l.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr) & 0x03);
+					syncIgv->setMapPosition(x, y, static_cast<uint8>(d * 2));
+				}
+				_mapRuntimeReady = true;
+			}
 		}
 	}
 
 	if (isMapRuntimeState(getGameState())) {
-		processLegacyInGameLoopStep();
+		dispatchPlayerCommand();
 		refreshLegacySharedRuntimeState();
 	}
 
@@ -978,6 +1003,7 @@ Views::InGameView *PoolradEngine::getInGameView() {
 void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	debug(3, "PoolradEngine::initializeMapRuntimeForState state=%d", (int)state);
 	_mapRuntimeNeedsInit = false;
+	_mapRuntimeReady = false;
 
 	_eclFlags.wallsetReady = false;
 	_eclFlags.geoReady = false;
@@ -1025,7 +1051,40 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	// Dispatch ON_INIT at runtime bootstrap point (ENGINE_Execute(ECL_ONINIT)).
 	debug(3, "PoolradEngine::initializeMapRuntimeForState dispatching ECL ON_INIT mapId=%u",
 		(unsigned)mapId);
-	(void)runEclEntryPoint(ECL::kEclRuntimeOnInitEntry);
+	const VmResult initResult = runEclEntryPoint(ECL::kEclRuntimeOnInitEntry);
+
+	// Post-ONINIT viewport refresh (mirrors GB_EngineMain after ENGINE_Execute):
+	//   if (BYTE_GAME_STATE != GS_WILDERNESS_MAP) {
+	//       if (BOOL_SCREEN_REFRESH) { GAME_ScreenByState(); BOOL_SCREEN_REFRESH=false; }
+	//       GFX_ViewPortUpdate();
+	//   }
+	if (initResult != VM_YIELD && state != GS_WILDERNESS_MAP) {
+		if (_eclVm->screenRefresh) {
+			Views::InGameView *igv = getInGameView();
+			if (igv)
+				igv->applyScreenByState(state);
+			_eclVm->screenRefresh = false;
+			_eclFlags.screenRefresh = false;
+		}
+		if (_eclHost)
+			_eclHost->refreshViewport();
+
+		// Sync VM position/direction → InGameView after ONINIT.
+		Views::InGameView *syncIgv = getInGameView();
+		if (syncIgv) {
+			ECL::AddressSpace &syncMem = _eclVm->getMemory();
+			ECL::EclLayoutAccess syncLayout = _eclConfig.getLayoutAccess();
+			const uint16 x = syncMem.read16LE(
+				syncLayout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr);
+			const uint16 y = syncMem.read16LE(
+				syncLayout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr);
+			const uint8 dir = static_cast<uint8>(
+				syncMem.read8(syncLayout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr) & 0x03);
+			syncIgv->setMapPosition(x, y, static_cast<uint8>(dir * 2));
+		}
+	}
+
+	_mapRuntimeReady = true;
 }
 
 void PoolradEngine::refreshLegacySharedRuntimeState() {
@@ -1071,15 +1130,21 @@ VmResult PoolradEngine::runEclEntryPoint(ECL::EclRuntimeFieldId entryField,
 	if (!_eclVm)
 		return VM_ERROR;
 
-	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
-	ECL::AddressSpace &mem = _eclVm->getMemory();
-	const uint16 entryAddr = layout.runtimeField(entryField);
-	if (!ECL::EclRuntimeLayout::isValidVmAddr(entryAddr))
-		return VM_ERROR;
+	// Map runtime field ID to entry point index (0-4).
+	uint8 entryIndex = 0xFF;
+	switch (entryField) {
+	case ECL::kEclRuntimeOnMoveEntry:          entryIndex = 0; break;
+	case ECL::kEclRuntimeOnSearchEntry:        entryIndex = 1; break;
+	case ECL::kEclRuntimeOnRestEntry:          entryIndex = 2; break;
+	case ECL::kEclRuntimeOnRestInterruptEntry: entryIndex = 3; break;
+	case ECL::kEclRuntimeOnInitEntry:          entryIndex = 4; break;
+	default: return VM_ERROR;
+	}
 
-	const uint16 entryPc = mem.read16LE(entryAddr);
-	debug(3, "PoolradEngine::runEclEntryPoint field=%d entryAddr=0x%04X entryPc=0x%04X",
-		(int)entryField, entryAddr, entryPc);
+	// Use immutable parsed entry points (not runtime memory which scripts can overwrite).
+	const uint16 entryPc = _eclVm->getEntryPointPc(entryIndex);
+	debug(3, "PoolradEngine::runEclEntryPoint field=%d index=%u entryPc=0x%04X",
+		(int)entryField, (unsigned)entryIndex, entryPc);
 	if (entryPc == 0) {
 		debug(3, "PoolradEngine::runEclEntryPoint entryPc=0, skipping");
 		return VM_OK;
@@ -1092,8 +1157,12 @@ VmResult PoolradEngine::runEclEntryPoint(ECL::EclRuntimeFieldId entryField,
 	return result;
 }
 
-void PoolradEngine::processLegacyInGameLoopStep() {
+void PoolradEngine::dispatchPlayerCommand() {
 	if (!_eclVm || _eclFlags.suspended)
+		return;
+
+	// Don't accept player commands until ONINIT has fully completed.
+	if (!_mapRuntimeReady)
 		return;
 
 	Views::InGameView *inGameView = getInGameView();
@@ -1165,6 +1234,19 @@ void PoolradEngine::processLegacyInGameLoopStep() {
 	if (cmd != Views::InGameView::kCmdMove)
 		return;
 
+	// Sync InGameView position/direction to VM memory before ONMOVE.
+	// Original DIALOG_InGame updates STRUCT_POSITION before returning.
+	{
+		const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
+		const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+		const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
+		// InGameView stores wire direction (0=N,2=E,4=S,6=W); VM stores cardinal (0-3).
+		const uint8 cardinal = static_cast<uint8>((inGameView->getMapDir() / 2) & 0x03);
+		mem.write16LE(xAddr, inGameView->getMapX());
+		mem.write16LE(yAddr, inGameView->getMapY());
+		mem.write16LE(dirAddr, cardinal);
+	}
+
 	const VmResult onMove = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
 	if (onMove == VM_YIELD) {
 		_eclFlags.suspended = true;
@@ -1192,13 +1274,19 @@ void PoolradEngine::processLegacyInGameLoopStep() {
 
 		_legacySharedState.bool3dRedraw = false;
 		_legacySharedState.boolPictureReady = true;
-		const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
-		if (onSearch == VM_YIELD)
-			_eclFlags.suspended = true;
-		else if (_eclVm->eclReady) {
-			const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
-			if (resume == VM_YIELD)
+
+		// Only run ONSEARCH if search-while-walking is active (D_SearchFlags & 1).
+		const uint16 postMoveSearchAddr =
+			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
+		if (mem.read8(postMoveSearchAddr) & 1) {
+			const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
+			if (onSearch == VM_YIELD)
 				_eclFlags.suspended = true;
+			else if (_eclVm->eclReady) {
+				const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
+				if (resume == VM_YIELD)
+					_eclFlags.suspended = true;
+			}
 		}
 		return;
 	}
