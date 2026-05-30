@@ -35,6 +35,7 @@ class Dialog;
 class InGameMainScreenDialog;
 class InGameStateAreaDialog;
 class InGamePanelDialog;
+class TextBoxDialog;
 }
 
 /**
@@ -88,6 +89,7 @@ private:
 
 	Dialogs::Dialog *_activeLeftPanelDialog = nullptr;
 	Dialogs::Dialog *_activeStateAreaDialog = nullptr;
+	Dialogs::TextBoxDialog *_textBoxDialog = nullptr;
 
 	// --- Dungeon navigation state ---
 	/** Party map X position (column, 0-15). */
@@ -150,6 +152,17 @@ public:
 
 	/** True if the 2D area map overlay is active instead of 3D view. */
 	bool isAreaMapMode() const { return _areaMapMode; }
+
+	/**
+	 * Print text into the message text box area (rows 17-22).
+	 * Implements TEXT_boxMessage / TEXT_BlockPrint word-wrapping logic.
+	 * @param text     Text to display
+	 * @param clearBox If true, clear the text area before printing
+	 */
+	void printToTextBox(const Common::String &text, bool clearBox);
+
+	/** Returns true if the text box is still rendering or waiting for key. */
+	bool isTextBoxBusy() const;
 };
 
 } // namespace Views

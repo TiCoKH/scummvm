@@ -43,6 +43,7 @@
 #include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/events.h"
@@ -758,15 +759,17 @@ VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
     if (_asyncMenuPending || _asyncPrintPending || _asyncDelayPending)
         return VM_ERROR;
 
-    // Start visual print immediately, then yield for pacing.
-    printText(text, clearBox);
-
-    const uint textDelay = VmInterface::getTextDelay();
-    const uint32 delayMs = textDelay * 500;
-    if (delayMs == 0)
+    // Route text to InGameView's TextBoxDialog for word-wrapped rendering.
+    Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
+        g_engine ? g_engine->findView("InGame") : nullptr);
+    if (igv) {
+        igv->printToTextBox(text, clearBox);
+    } else {
+        printText(text, clearBox);
         return VM_OK;
+    }
 
-    _asyncPrintEndTime = g_system->getMillis() + delayMs;
+    // VM yields until TextBoxDialog finishes rendering the entire message.
     _asyncPrintPending = true;
     return VM_YIELD;
 }
@@ -784,8 +787,12 @@ bool PoolradEngineHostImpl::isPendingAsyncReady() const {
         return sink && sink->done;
     }
 
-    if (_asyncPrintPending)
-        return g_system->getMillis() >= _asyncPrintEndTime;
+    if (_asyncPrintPending) {
+        // VM resumes only when TextBoxDialog has finished rendering.
+        const Views::InGameView *igv = dynamic_cast<const Views::InGameView *>(
+            g_engine ? g_engine->findView("InGame") : nullptr);
+        return !igv || !igv->isTextBoxBusy();
+    }
 
     if (_asyncDelayPending)
         return g_system->getMillis() >= _asyncDelayEndTime;
