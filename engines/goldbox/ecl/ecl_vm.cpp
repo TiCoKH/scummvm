@@ -725,8 +725,21 @@ void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
         EclLayoutAccess layout = _config->getLayoutAccess();
         uint16 dirAddr = layout.vmGlobalField(
             kVmGlobalFieldDungeonDir).vmAddr;
-        if (vmAddr == dirAddr)
-            writeValue = (uint16)(writeValue & 0x3);
+        uint16 xAddr = layout.vmGlobalField(
+            kVmGlobalFieldDungeonX).vmAddr;
+        uint16 yAddr = layout.vmGlobalField(
+            kVmGlobalFieldDungeonY).vmAddr;
+        // Position fields are single-byte; write only low byte to avoid
+        // corrupting adjacent fields (they are at consecutive addresses).
+        if (vmAddr == xAddr || vmAddr == yAddr || vmAddr == dirAddr) {
+            _memory.write8(vmAddr, static_cast<uint8>(writeValue & 0xFF));
+            // Set position dirty flag.
+            uint16 flagAddr = layout.runtimeField(
+                kEclRuntimePositionDirtyFlag);
+            if (EclRuntimeLayout::isValidVmAddr(flagAddr))
+                _memory.write8(flagAddr, 1);
+            return;
+        }
     }
 
     _memory.write16LE(vmAddr, writeValue);
@@ -735,7 +748,10 @@ void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
         EclLayoutAccess layout = _config->getLayoutAccess();
         uint16 skyAddr = layout.vmField(kVmFieldSkyColor).vmAddr;
         uint16 ceilAddr = layout.vmField(kVmFieldCeilingColor).vmAddr;
-        if (vmAddr == skyAddr || vmAddr == ceilAddr) {
+        uint16 picHeadAddr = layout.vmGlobalField(
+            kVmGlobalFieldPictureHeadId).vmAddr;
+        if (vmAddr == skyAddr || vmAddr == ceilAddr
+                || vmAddr == picHeadAddr) {
             uint16 flagAddr = layout.runtimeField(
                 kEclRuntimeSkyboxRedrawFlag);
             if (EclRuntimeLayout::isValidVmAddr(flagAddr))
@@ -743,18 +759,6 @@ void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
         }
     }
 
-    if (region == 4 && _config) {
-        EclLayoutAccess layout = _config->getLayoutAccess();
-        uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
-        uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
-        uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
-        if (vmAddr == xAddr || vmAddr == yAddr || vmAddr == dirAddr) {
-            uint16 flagAddr = layout.runtimeField(
-                kEclRuntimePositionDirtyFlag);
-            if (EclRuntimeLayout::isValidVmAddr(flagAddr))
-                _memory.write8(flagAddr, 1);
-        }
-    }
 
     if (region == 1)
         onDatBankWrite(vmAddr, writeValue, activeSyscalls);

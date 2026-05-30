@@ -91,7 +91,7 @@ static OpcodeInfo opcodeTable[] = {
     { 0x27, "TREASURE", varArgsOps, "Add treasure for next combat" },
     { 0x28, "ROB", val8Val8AddrOps, "Rob party of money and items" },
     { 0x29, "ENCOUNTER MENU", varArgsOps, "Encounter with menu options" },
-    { 0x2A, "GETTABLE", varArgsOps, "Retrieve array element" },
+    { 0x2A, "COPY MEM", varArgsOps, "Copy values inernal memory" },
     { 0x2B, "HORIZONTAL MENU", varArgsOps, "Display horizontal menu" },
     { 0x2C, "PARLAY", varArgsOps, "Parley attitude selection" },
     { 0x2D, "CALL", addrOps, "Call machine code at address" },

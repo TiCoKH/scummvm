@@ -468,6 +468,11 @@ static int handle_0x0D_SPRITE_ADVANCE(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x0E: PICTURE <pictureID>
+// Original behavior (x86 Inst_PICTURE / m68k INSTR_Picture):
+// - picId == 0xFF: restore 3D viewport if BOOL_3D_REDRAW or SPRITE_LOAD_FLAG
+//   is set, then clear both flags and ARRAY_DRAW_STATE.
+// - picId != 0xFF: set BOOL_3D_REDRAW, mark draw state, then draw picture
+//   or portrait depending on D_PictureHeadId.
 static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack;
@@ -475,7 +480,39 @@ static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem,
         return VM_ERROR;
     vm.getOperand(1);
     const uint8 picId = static_cast<uint8>(vm.getOpWord(1));
-    mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr, picId);
+
+    const EclLayoutAccess layout = getOpcodeLayout();
+    const uint16 spriteLoadAddr = layout.runtimeField(kEclRuntimeSpriteState);
+    const uint16 skyboxRedrawAddr = layout.runtimeField(kEclRuntimeSkyboxRedrawFlag);
+
+    if (picId == 0xFF) {
+        // Original guard: (BYTE_PREV_MAP_TYPE > 1 || BYTE_VM_MAP_TYPE == 1)
+        // We approximate with indoor-mode check (BYTE_VM_MAP_TYPE == 1 is
+        // indoor). BYTE_PREV_MAP_TYPE > 1 covers "was previously in a mode
+        // that uses 3D view". Since we always have a 3D viewport when
+        // indoor, and outdoor also uses it, we simplify to always-true for
+        // the refresh guard — matching observed behavior.
+        const bool skyboxDirty = EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr)
+            && mem.read8(skyboxRedrawAddr) != 0;
+        const bool spriteDirty = EclRuntimeLayout::isValidVmAddr(spriteLoadAddr)
+            && mem.read8(spriteLoadAddr) != 0;
+
+        if (skyboxDirty || spriteDirty) {
+            VmResult r = syscalls->displayPicture(picId);
+            if (r != VM_OK)
+                return r;
+            if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
+                mem.write8(skyboxRedrawAddr, 0);
+            if (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr))
+                mem.write8(spriteLoadAddr, 0);
+        }
+        return VM_OK;
+    }
+
+    // picId != 0xFF: mark 3D redraw flag and draw picture/portrait.
+    if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
+        mem.write8(skyboxRedrawAddr, 1);
+    mem.write8(layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr, picId);
     return syscalls->displayPicture(picId);
 }
 
@@ -878,40 +915,14 @@ static int handle_0x2D_CALL(EclVM &vm, AddressSpace &mem,
         if (r != VM_OK)
             return r;
 
-        // Step 2: Conditional viewport refresh gated by BOOL_MAPDATA_INLOAD.
-        if (vm.mapdataInload) {
-            const EclLayoutAccess layout = getOpcodeLayout();
-            const uint16 spriteLoadAddr = layout.runtimeField(kEclRuntimeSpriteState);
-            const uint16 skyboxRedrawAddr = layout.runtimeField(kEclRuntimeSkyboxRedrawFlag);
-            const uint16 positionDirtyAddr = layout.runtimeField(kEclRuntimePositionDirtyFlag);
-            const uint16 charRedrawAddr = layout.runtimeField(kEclRuntimeCharacterRedrawFlag);
-            const uint16 statusRedrawAddr = layout.runtimeField(kEclRuntimeStatusRedrawFlag);
+        // Step 2: Viewport refresh (GFX_ViewPortUpdate + DIALOG_StateArea).
+        // Original gates on BOOL_MAPDATA_INLOAD which is true once geo+wallsets
+        // are loaded. We always refresh here — the host's refreshViewport()
+        // already guards on areaMapCache.isBuilt().
+        r = host->refreshViewport();
+        if (r != VM_OK)
+            return r;
 
-            const bool needsRefresh =
-                (EclRuntimeLayout::isValidVmAddr(charRedrawAddr) && mem.read8(charRedrawAddr) != 0) ||
-                (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr) && mem.read8(spriteLoadAddr) != 0) ||
-                (EclRuntimeLayout::isValidVmAddr(statusRedrawAddr) && mem.read8(statusRedrawAddr) != 0) ||
-                (EclRuntimeLayout::isValidVmAddr(positionDirtyAddr) && mem.read8(positionDirtyAddr) != 0) ||
-                (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr) && mem.read8(skyboxRedrawAddr) != 0);
-
-            if (needsRefresh) {
-                // GFX_ViewPortUpdate() + DIALOG_StateArea()
-                r = host->refreshViewport();
-                if (r != VM_OK)
-                    return r;
-
-                if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
-                    mem.write8(skyboxRedrawAddr, 0);
-                if (EclRuntimeLayout::isValidVmAddr(positionDirtyAddr))
-                    mem.write8(positionDirtyAddr, 0);
-                if (EclRuntimeLayout::isValidVmAddr(charRedrawAddr))
-                    mem.write8(charRedrawAddr, 0);
-                if (EclRuntimeLayout::isValidVmAddr(statusRedrawAddr))
-                    mem.write8(statusRedrawAddr, 0);
-                if (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr))
-                    mem.write8(spriteLoadAddr, 0);
-            }
-        }
         return VM_OK;
     }
 

@@ -26,6 +26,7 @@
 #include "goldbox/poolrad/views/dialogs/party_list.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
+#include "goldbox/poolrad/poolrad.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/vm_interface.h"
 
@@ -279,8 +280,15 @@ void InGameView::draw() {
 	if (runtimeState != _state)
 		applyScreenByState(runtimeState);
 
-	if (_mainScreenDialog)
+	// Always ensure main screen dialog mode is synced (may have been
+	// disrupted by encounter/picture flow without a state change).
+	syncMainScreenDialog();
+
+	if (_mainScreenDialog) {
+		if (!_mainScreenDialog->isActive())
+			_mainScreenDialog->activate();
 		_mainScreenDialog->draw();
+	}
 
 	if (_activeLeftPanelDialog && _activeLeftPanelDialog->isActive())
 		_activeLeftPanelDialog->draw();
@@ -322,10 +330,19 @@ bool InGameView::msgKeypress(const KeypressMessage &msg) {
 	if (_activeStateAreaDialog && _activeStateAreaDialog->send(msg))
 		return true;
 
-	if (_state == GS_DUNGEON_MAP || _state == GS_WILDERNESS_MAP
+	if ((_state == GS_DUNGEON_MAP || _state == GS_WILDERNESS_MAP
 			|| _state == GS_CAMPING || _state == GS_AFTER_COMBAT
 			|| _state == GS_COMBAT)
-		return handleDungeonKeypress(msg);
+			&& !(g_engine && g_engine->getLegacySharedRuntimeState().boolSuspendFlag))
+		if (handleDungeonKeypress(msg))
+			return true;
+
+	// Propagate to remaining children (async menus, etc.).
+	for (Common::Array<UIElement *>::iterator it = _children.begin();
+			it != _children.end(); ++it) {
+		if ((*it)->send(msg))
+			return true;
+	}
 
 	return false;
 }

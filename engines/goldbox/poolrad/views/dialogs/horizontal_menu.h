@@ -39,6 +39,7 @@ struct HorizontalMenuConfig {
     bool allowNumPad;
     bool suppressUnhandledKeys = true;
     int backgroundColor = 0;
+    bool singleItemMode = false;
 };
 
 class HorizontalMenu : public Dialog {
@@ -51,6 +52,7 @@ private:
     Common::String _promptTxt;
     bool _allowNumPad;
     bool _suppressUnhandledKeys;
+    bool _singleItemMode;
     bool _redraw = true;
 
     void drawText();

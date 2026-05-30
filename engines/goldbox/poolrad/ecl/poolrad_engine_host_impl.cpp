@@ -31,6 +31,8 @@
 #include "goldbox/gfx/pic.h"
 #include "goldbox/gfx/area_map_cache.h"
 #include "goldbox/gfx/encounter_sprite_cache.h"
+#include "goldbox/gfx/first_person_renderer.h"
+#include "goldbox/gfx/viewport_background.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
@@ -366,9 +368,29 @@ VmResult PoolradEngineHostImpl::displayPicture(uint8 picID) {
         return VmResult::VM_ERROR;
 
     if (picID == 0xFF) {
-        // Original 0x0E clear path triggers redraw state changes.
-        // For now, request a view refresh and return.
-        _updateViewState();
+        // Original PICTURE(0xFF) path: GFX_ViewPortUpdate().
+        // Force immediate 3D viewport redraw so any previously blitted
+        // portrait/picture is replaced by the current 3D scene.
+        // Use findView to ensure InGameView redraws even if focus is
+        // temporarily elsewhere (e.g. during async menu/dialog).
+        Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
+            _engine->findView("InGame"));
+        if (igv) {
+            igv->redraw();
+        } else {
+            // Fallback: clear the 3D viewport area directly if no view.
+            Graphics::Screen *screen = _engine->getScreen();
+            if (screen) {
+                Goldbox::Poolrad::Gfx::Surface screenSurface(*screen,
+                    Common::Rect(0, 0, screen->w, screen->h));
+                screenSurface.clearBox(3, 3, 13, 13, 0);
+            }
+        }
+        if (g_events)
+            g_events->drawElements();
+        Graphics::Screen *screen = _engine->getScreen();
+        if (screen)
+            screen->update();
         return VmResult::VM_OK;
     }
 
@@ -419,19 +441,39 @@ int16 PoolradEngineHostImpl::horizontalMenu(
     if (!focused)
         return -1;
 
+    const bool singleItemMode = (options.size() == 1);
+
     // Build legacy-compatible menu metadata so the UI layer can consume
     // shortcut/text splits identical to MENU_processShortcuts semantics.
     Goldbox::MenuItemList parsed =
         buildLegacyHorizontalMenuModel(options);
 
+    // In singleItemMode, clear menu items — only the prompt is shown.
+    if (singleItemMode)
+        parsed.items.clear();
+
     Views::Dialogs::HorizontalMenuConfig cfg;
-    cfg.promptTxt = "";
     cfg.menuItemList = &parsed;
-    cfg.textColor = 10;
-    cfg.selectColor = 15;
-    cfg.promptColor = 15;
     cfg.allowNumPad = true;
     cfg.backgroundColor = 0;
+    cfg.singleItemMode = singleItemMode;
+
+    if (singleItemMode) {
+        Common::String promptText = options[0];
+        if (promptText.hasPrefix("PRESS <RETURN>") ||
+                promptText.hasPrefix("PRESS <ENTER>")) {
+            promptText = "PRESS <ENTER>/<RETURN> TO CONTINUE";
+        }
+        cfg.promptTxt = promptText;
+        cfg.textColor = 15;
+        cfg.selectColor = 15;
+        cfg.promptColor = 15;
+    } else {
+        cfg.promptTxt = "";
+        cfg.textColor = 10;
+        cfg.selectColor = 15;
+        cfg.promptColor = 15;
+    }
 
     Common::String sinkName = Common::String::format("EclMenuSink_%u",
         ++kModalMenuSinkCounter);
@@ -453,6 +495,16 @@ int16 PoolradEngineHostImpl::horizontalMenu(
         : static_cast<int16>(-1);
 
     delete sink;
+
+    // Clear prompt row 24 after menu closes.
+    Graphics::Screen *screen = _engine->getScreen();
+    if (screen) {
+        Goldbox::Poolrad::Gfx::Surface screenSurface(*screen,
+            Common::Rect(0, 0, screen->w, screen->h));
+        screenSurface.clearBox(0, 24, 39, 24, 0);
+    }
+
+    _updateViewState();
     return result;
 }
 
@@ -479,9 +531,77 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
 
 VmResult PoolradEngineHostImpl::refreshViewport() {
     // GFX_ViewPortUpdate() + DIALOG_StateArea()
-    // Only trigger if the area map cache has been built (geo + wallsets loaded).
-    if (_engine && _engine->getAreaMapCache().isBuilt())
-        _updateViewState();
+    if (!_engine)
+        return VM_OK;
+
+    // Draw 3D viewport directly to screen, bypassing dialog visibility state.
+    // This matches original GFX_ViewPortUpdate which always blits regardless
+    // of UI dialog state.
+    Graphics::Screen *screen = _engine->getScreen();
+    if (!screen)
+        return VM_OK;
+
+    const Goldbox::RuntimeExchange *exchange = _engine->getRuntimeExchange();
+    Goldbox::RuntimeMapSnapshot snapshot;
+    if (!exchange || !exchange->captureMapSnapshot(snapshot) || !snapshot.valid)
+        return VM_OK;
+
+    const uint8 mapType = snapshot.indoorMode ? 1 : snapshot.mapType;
+    if (mapType != 1)
+        return VM_OK;
+
+    // Get geo block for 3D rendering.
+    Goldbox::Poolrad::PoolradEngine *poolradEngine =
+        dynamic_cast<Goldbox::Poolrad::PoolradEngine *>(_engine);
+    if (!poolradEngine)
+        return VM_OK;
+    Data::DaxBlockGeo *geo = poolradEngine->getActiveGeoBlock();
+    if (!geo) {
+        RuntimeGeoBlock &rtGeo = _engine->getRuntimeGeo();
+        if (rtGeo.isLoaded())
+            geo = poolradEngine->getGeoBlockById(rtGeo.blockId());
+    }
+    if (!geo)
+        return VM_OK;
+
+    // Draw 3D viewport directly to screen, bypassing dialog system entirely.
+    const Goldbox::Gfx::ViewportBackground &vpBg =
+        _engine->getViewportBackground();
+    screen->blitFrom(vpBg.surface(),
+        Common::Rect(
+            Goldbox::Gfx::ViewportBackground::kViewportX,
+            Goldbox::Gfx::ViewportBackground::kViewportY,
+            Goldbox::Gfx::ViewportBackground::kViewportX +
+                Goldbox::Gfx::ViewportBackground::kViewportSize,
+            Goldbox::Gfx::ViewportBackground::kViewportY +
+                Goldbox::Gfx::ViewportBackground::kViewportSize),
+        Common::Point(
+            Goldbox::Gfx::ViewportBackground::kViewportX,
+            Goldbox::Gfx::ViewportBackground::kViewportY));
+
+    // Draw 3D walls.
+    const uint8 wireDir = static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2);
+    Goldbox::Gfx::FirstPersonRenderer::draw3dWorld(
+        screen, wireDir,
+        static_cast<int>(snapshot.dungeonX),
+        static_cast<int>(snapshot.dungeonY),
+        *geo, _engine->getWalldefSlotCache());
+
+    // Draw state area (position/direction) directly to screen.
+    // The state area is at row 15, cols 17-39 — outside the 3D viewport.
+    {
+        Goldbox::Poolrad::Gfx::Surface stateSurface(*screen,
+            Common::Rect(0, 0, screen->w, screen->h));
+        static const char *kDirNames[] = {"N", "E", "S", "W"};
+        const uint8 dir4 = snapshot.dungeonDir & 0x03;
+        Common::String posStr = Common::String::format("%u,%u %s",
+            (unsigned)snapshot.dungeonX, (unsigned)snapshot.dungeonY,
+            kDirNames[dir4]);
+        stateSurface.clearBox(17, 15, 38, 15, 0);
+        stateSurface.writeStringC(17, 15, 10, posStr);
+    }
+
+    screen->update();
     return VM_OK;
 }
 
@@ -696,7 +816,17 @@ VmResult PoolradEngineHostImpl::spriteOff() {
     if (!_engine)
         return VM_OK;
     _engine->getEncounterSpriteCache().clear();
-    _updateViewState();
+    // Force immediate 3D viewport redraw (GFX_ViewPortUpdate equivalent)
+    // so the previously drawn sprite/portrait is replaced by the 3D scene.
+    Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
+        _engine->findView("InGame"));
+    if (igv)
+        igv->redraw();
+    if (g_events)
+        g_events->drawElements();
+    Graphics::Screen *screen = _engine->getScreen();
+    if (screen)
+        screen->update();
     return VM_OK;
 }
 
@@ -711,17 +841,40 @@ VmResult PoolradEngineHostImpl::beginHorizontalMenuAsync(uint16 resultAddr,
     if (!focused)
         return VM_ERROR;
 
+    const bool singleItemMode = (options.size() == 1);
+
     _asyncMenuModel.reset(new Goldbox::MenuItemList(
         buildLegacyHorizontalMenuModel(options)));
 
+    // In singleItemMode, clear menu items — only the prompt is shown.
+    if (singleItemMode)
+        _asyncMenuModel->items.clear();
+
     Views::Dialogs::HorizontalMenuConfig cfg;
-    cfg.promptTxt = "";
     cfg.menuItemList = _asyncMenuModel.get();
-    cfg.textColor = 10;
-    cfg.selectColor = 15;
-    cfg.promptColor = 15;
     cfg.allowNumPad = true;
     cfg.backgroundColor = 0;
+    cfg.singleItemMode = singleItemMode;
+
+    if (singleItemMode) {
+        // Single-item mode: show option text as prompt, accept any key.
+        // Original replaces "PRESS <RETURN> OR BUTTON TO CONTINUE" with
+        // platform-appropriate text.
+        Common::String promptText = options[0];
+        if (promptText.hasPrefix("PRESS <RETURN>") ||
+                promptText.hasPrefix("PRESS <ENTER>")) {
+            promptText = "PRESS <ENTER>/<RETURN> TO CONTINUE";
+        }
+        cfg.promptTxt = promptText;
+        cfg.textColor = 15;
+        cfg.selectColor = 15;
+        cfg.promptColor = 15;
+    } else {
+        cfg.promptTxt = "";
+        cfg.textColor = 10;
+        cfg.selectColor = 15;
+        cfg.promptColor = 15;
+    }
 
     Common::String sinkName = Common::String::format("EclAsyncMenuSink_%u",
         ++kModalMenuSinkCounter);
@@ -817,6 +970,17 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
         _asyncMenuModel.reset();
         _asyncMenuResultAddr = 0;
         _asyncMenuPending = false;
+
+        // Gap #5: Clear prompt row 24 after menu closes.
+        Graphics::Screen *screen = _engine ? _engine->getScreen() : nullptr;
+        if (screen) {
+            Goldbox::Poolrad::Gfx::Surface screenSurface(*screen,
+                Common::Rect(0, 0, screen->w, screen->h));
+            screenSurface.clearBox(0, 24, 39, 24, 0);
+        }
+
+        // Gap #4: Refresh viewport if a picture/sprite was active.
+        _updateViewState();
         return VM_OK;
     }
 
