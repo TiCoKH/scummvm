@@ -39,6 +39,7 @@ HorizontalMenu::HorizontalMenu(const String &name, const HorizontalMenuConfig &c
       _backgroundColor(config.backgroundColor),
       _allowNumPad(config.allowNumPad),
       _suppressUnhandledKeys(config.suppressUnhandledKeys),
+      _singleItemMode(config.singleItemMode),
       _promptTxt(config.promptTxt) {
     assert(_menuItems != nullptr);
 
@@ -89,6 +90,15 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
     KeyCode keyCode = msg.keycode;
     char asciiValue = (msg.ascii >= 'a' && msg.ascii <= 'z') ? msg.ascii - 32 : msg.ascii;
     bool handled = false;
+
+    // singleItemMode: any key accepts (original "PRESS RETURN" behavior).
+    if (_singleItemMode) {
+        deactivate();
+        if (_parent)
+            g_events->postMenuResult(_parent->getName(), true, keyCode,
+                0, Common::String(), true, false);
+        return true;
+    }
 
     switch (keyCode) {
         case Common::KEYCODE_COMMA: {
