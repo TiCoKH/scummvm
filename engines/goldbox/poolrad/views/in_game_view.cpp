@@ -24,6 +24,7 @@
 #include "goldbox/poolrad/views/dialogs/in_game_panel_dialog.h"
 #include "goldbox/poolrad/views/dialogs/in_game_state_area_dialog.h"
 #include "goldbox/poolrad/views/dialogs/party_list.h"
+#include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/vm_interface.h"
@@ -59,6 +60,9 @@ InGameView::InGameView() : View("InGame") {
 	_afterCombatPanelDialog->setRuntimeMode(Dialogs::InGamePanelDialog::kRuntimeAfterCombat);
 	_afterCombatPanelDialog->deactivate();
 	attachDialog(_afterCombatPanelDialog);
+
+	_textBoxDialog = new Dialogs::TextBoxDialog("InGameTextBox");
+	attachDialog(_textBoxDialog);
 }
 
 InGameView::~InGameView() {
@@ -90,6 +94,11 @@ InGameView::~InGameView() {
 	if (_partyList) {
 		delete _partyList;
 		_partyList = nullptr;
+	}
+
+	if (_textBoxDialog) {
+		delete _textBoxDialog;
+		_textBoxDialog = nullptr;
 	}
 }
 
@@ -283,12 +292,22 @@ void InGameView::draw() {
 		_stateAreaDialog->setState(_state);
 		_stateAreaDialog->draw();
 	}
+
+	if (_textBoxDialog && _textBoxDialog->isActive())
+		_textBoxDialog->draw();
 }
 
 // -----------------------------------------------------------------------
 // Input
 
 bool InGameView::msgKeypress(const KeypressMessage &msg) {
+	// Text box gets priority when waiting for key (overflow prompt).
+	if (_textBoxDialog && _textBoxDialog->isActive()
+			&& _textBoxDialog->msgKeypress(msg)) {
+		redraw();
+		return true;
+	}
+
 	// Legacy DIALOG_ShowParty navigation stays active in states that show it.
 	if (_showPartyPanel && _partyList && _partyList->isActive()) {
 		if (_partyList->msgKeypress(msg)) {
@@ -368,6 +387,18 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 		redraw();
 
 	return handled;
+}
+
+void InGameView::printToTextBox(const Common::String &text, bool clearBox) {
+	if (_textBoxDialog) {
+		if (!_textBoxDialog->isActive())
+			_textBoxDialog->activate();
+		_textBoxDialog->setText(text, clearBox);
+	}
+}
+
+bool InGameView::isTextBoxBusy() const {
+	return _textBoxDialog && _textBoxDialog->isBusy();
 }
 
 void InGameView::stepForward() {

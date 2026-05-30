@@ -94,6 +94,7 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/in_game_main_screen_dialog.o \
 	poolrad/views/dialogs/in_game_state_area_dialog.o \
 	poolrad/views/dialogs/in_game_panel_dialog.o \
+	poolrad/views/dialogs/text_box_dialog.o \
 	poolrad/views/dialogs/set_portrait.o \
 	poolrad/views/dialogs/set_icon.o
 
