@@ -594,9 +594,10 @@ VmResult PoolradEngineHostImpl::refreshViewport() {
             Common::Rect(0, 0, screen->w, screen->h));
         static const char *kDirNames[] = {"N", "E", "S", "W"};
         const uint8 dir4 = snapshot.dungeonDir & 0x03;
-        Common::String posStr = Common::String::format("%u,%u %s",
+        Common::String posStr = Common::String::format("%u,%u %s %02u:%02u",
             (unsigned)snapshot.dungeonX, (unsigned)snapshot.dungeonY,
-            kDirNames[dir4]);
+            kDirNames[dir4],
+            (unsigned)snapshot.clockHour, (unsigned)snapshot.clockMinute);
         stateSurface.clearBox(17, 15, 38, 15, 0);
         stateSurface.writeStringC(17, 15, 10, posStr);
     }
@@ -788,18 +789,9 @@ VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
     Goldbox::Gfx::EncounterSpriteCache &cache = _engine->getEncounterSpriteCache();
     cache.setDistance(newDistance);
 
-    // Load head if now adjacent.
-    if (newDistance == 0) {
-        const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
-        const uint8 headPicId = _memory->read8(
-            layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr);
-        cache.loadHead(headPicId, cache.bodyPicId());
-    }
-
     _updateViewState();
 
-    // Mark view dirty and force immediate screen repaint so the new sprite
-    // frame is visible before the next DELAY opcode yields.
+    // Draw the sprite at the new distance immediately.
     UIElement *focused = g_events ? g_events->focusedView() : nullptr;
     if (focused)
         focused->redraw();
@@ -808,6 +800,29 @@ VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
     Graphics::Screen *screen = _engine->getScreen();
     if (screen)
         screen->update();
+
+    // When reaching distance 0 (adjacent): hold the final sprite frame
+    // briefly before switching to the portrait/picture.
+    if (newDistance == 0) {
+        const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+        uint8 speed = _memory->read8(
+            layout.vmField(kVmFieldGameSpeed).vmAddr);
+        if (speed == 0)
+            speed = 1;
+        g_system->delayMillis(static_cast<uint32>(speed) * 200);
+
+        const uint8 headPicId = _memory->read8(
+            layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr);
+        cache.loadHead(headPicId, cache.bodyPicId());
+
+        _updateViewState();
+        if (focused)
+            focused->redraw();
+        if (g_events)
+            g_events->drawElements();
+        if (screen)
+            screen->update();
+    }
 
     return VM_OK;
 }

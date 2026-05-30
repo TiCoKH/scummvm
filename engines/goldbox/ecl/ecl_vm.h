@@ -87,6 +87,16 @@ public:
     uint16 getPC() const { return _pc; }
 
     /**
+     * Get parsed entry point PC by index (0-4).
+     * These are immutable after loadProgram and cannot be corrupted by scripts.
+     */
+    uint16 getEntryPointPc(uint8 index) const {
+        if (index < _entryPoints.size())
+            return _entryPoints[index];
+        return 0;
+    }
+
+    /**
      * Set PC (for debugging/save/load).
      */
     void setPC(uint16 pc);

@@ -280,15 +280,8 @@ void InGameView::draw() {
 	if (runtimeState != _state)
 		applyScreenByState(runtimeState);
 
-	// Always ensure main screen dialog mode is synced (may have been
-	// disrupted by encounter/picture flow without a state change).
-	syncMainScreenDialog();
-
-	if (_mainScreenDialog) {
-		if (!_mainScreenDialog->isActive())
-			_mainScreenDialog->activate();
+	if (_mainScreenDialog)
 		_mainScreenDialog->draw();
-	}
 
 	if (_activeLeftPanelDialog && _activeLeftPanelDialog->isActive())
 		_activeLeftPanelDialog->draw();
