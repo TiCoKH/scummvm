@@ -156,6 +156,12 @@ public:
 	bool queueInGameCommand(Views::InGameView::InGameCommand cmd);
 
 	/**
+	 * Write cardinal direction to VM memory and trigger viewport redraw.
+	 * Called by InGameView on turn keys (4/6/2) without dispatching ONMOVE.
+	 */
+	void syncViewDirection(uint8 cardinal);
+
+	/**
 	 * Execute ECL bytecode from an absolute script VM address.
 	 * Returns VM_YIELD when an async syscall suspends the VM.
 	 */

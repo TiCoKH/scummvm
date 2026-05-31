@@ -25,6 +25,7 @@
 #include "goldbox/poolrad/views/dialogs/in_game_state_area_dialog.h"
 #include "goldbox/poolrad/views/dialogs/party_list.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
+#include "goldbox/poolrad/views/dialogs/in_game_menu_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/core/direction.h"
@@ -64,6 +65,9 @@ InGameView::InGameView() : View("InGame") {
 
 	_textBoxDialog = new Dialogs::TextBoxDialog("InGameTextBox");
 	attachDialog(_textBoxDialog);
+
+	_inGameMenuDialog = new Dialogs::InGameMenuDialog("InGameMenu");
+	// Not attached to view hierarchy — managed via setInGameMenuVisible.
 }
 
 InGameView::~InGameView() {
@@ -100,6 +104,11 @@ InGameView::~InGameView() {
 	if (_textBoxDialog) {
 		delete _textBoxDialog;
 		_textBoxDialog = nullptr;
+	}
+
+	if (_inGameMenuDialog) {
+		delete _inGameMenuDialog;
+		_inGameMenuDialog = nullptr;
 	}
 }
 
@@ -296,6 +305,9 @@ void InGameView::draw() {
 
 	if (_textBoxDialog && _textBoxDialog->isActive())
 		_textBoxDialog->draw();
+
+	if (_inGameMenuDialog && _inGameMenuDialog->isActive())
+		_inGameMenuDialog->draw();
 }
 
 // -----------------------------------------------------------------------
@@ -323,19 +335,30 @@ bool InGameView::msgKeypress(const KeypressMessage &msg) {
 	if (_activeStateAreaDialog && _activeStateAreaDialog->send(msg))
 		return true;
 
-	if ((_state == GS_DUNGEON_MAP || _state == GS_WILDERNESS_MAP
-			|| _state == GS_CAMPING || _state == GS_AFTER_COMBAT
-			|| _state == GS_COMBAT)
-			&& !(g_engine && g_engine->getLegacySharedRuntimeState().boolSuspendFlag))
-		if (handleDungeonKeypress(msg))
-			return true;
-
-	// Propagate to remaining children (async menus, etc.).
+	// Propagate to children first (ECL async menus during ONINIT).
 	for (Common::Array<UIElement *>::iterator it = _children.begin();
 			it != _children.end(); ++it) {
 		if ((*it)->send(msg))
 			return true;
 	}
+
+	// In-game menu: explicitly forward keypresses when active.
+	// Not in the child tree — only active after ONINIT completes.
+	if (_inGameMenuDialog && _inGameMenuDialog->isActive()) {
+		if (_inGameMenuDialog->send(msg)) {
+			redraw();
+			return true;
+		}
+	}
+
+	// Fallback: dungeon keys only when no in-game menu and not suspended.
+	if ((_state == GS_DUNGEON_MAP || _state == GS_WILDERNESS_MAP
+			|| _state == GS_CAMPING || _state == GS_AFTER_COMBAT
+			|| _state == GS_COMBAT)
+			&& !(g_engine && g_engine->getLegacySharedRuntimeState().boolSuspendFlag)
+			&& !(_inGameMenuDialog && _inGameMenuDialog->isActive()))
+		if (handleDungeonKeypress(msg))
+			return true;
 
 	return false;
 }
@@ -409,6 +432,129 @@ void InGameView::printToTextBox(const Common::String &text, bool clearBox) {
 
 bool InGameView::isTextBoxBusy() const {
 	return _textBoxDialog && _textBoxDialog->isBusy();
+}
+
+void InGameView::handleMenuResult(const MenuResultMessage &result) {
+	if (!result._success)
+		return;
+
+	Common::KeyCode key = result._keyCode;
+
+	// Navigation keys.
+	switch (key) {
+	case Common::KEYCODE_UP:
+	case Common::KEYCODE_KP8:
+		handleInGameMenuKey('8');
+		return;
+	case Common::KEYCODE_DOWN:
+	case Common::KEYCODE_KP2:
+		handleInGameMenuKey('2');
+		return;
+	case Common::KEYCODE_LEFT:
+	case Common::KEYCODE_KP4:
+		handleInGameMenuKey('4');
+		return;
+	case Common::KEYCODE_RIGHT:
+	case Common::KEYCODE_KP6:
+		handleInGameMenuKey('6');
+		return;
+	default:
+		break;
+	}
+
+	// Shortcut letter keys.
+	char ascii = static_cast<char>(key);
+	if (ascii >= 'a' && ascii <= 'z')
+		ascii = ascii - 32;
+	if (ascii >= 'A' && ascii <= 'Z')
+		handleInGameMenuKey(ascii);
+}
+
+void InGameView::handleInGameMenuKey(char key) {
+	switch (key) {
+	case '8': // Forward — step and dispatch ONMOVE
+		queueCommand(kCmdMove);
+		break;
+	case '2': // Turn around — rotate only, no ONMOVE
+		_mapDir = (_mapDir + 4) % 8;
+		syncDirectionAndRedraw();
+		break;
+	case '4': // Turn left — rotate only, no ONMOVE
+		_mapDir = (_mapDir + 6) % 8;
+		syncDirectionAndRedraw();
+		break;
+	case '6': // Turn right — rotate only, no ONMOVE
+		_mapDir = (_mapDir + 2) % 8;
+		syncDirectionAndRedraw();
+		break;
+	case 'A': // Area map toggle
+		_areaMapMode = !_areaMapMode;
+		break;
+	case 'E': // Encamp
+		queueCommand(kCmdEncamp);
+		break;
+	case 'S': // Search toggle
+		_searchMode = !_searchMode;
+		queueCommand(kCmdSearch);
+		break;
+	case 'L': // Look
+		queueCommand(kCmdLook);
+		break;
+	case 'V': // View character
+		replaceView("ViewCharacter");
+		break;
+	case 'C': // Cast spell
+		// TODO: Open spell menu
+		break;
+	default:
+		break;
+	}
+	redraw();
+}
+
+void InGameView::syncDirectionAndRedraw() {
+	if (!g_engine)
+		return;
+	ECL::AddressSpace *mem = g_engine->getEclMemory();
+	if (!mem)
+		return;
+	// Write direction directly to the known VM global field.
+	// DungeonDir is at a fixed offset in bank 4 (global fields).
+	// Use the runtime exchange to get the address.
+	RuntimeMapSnapshot snap;
+	const RuntimeExchange *exchange = g_engine->getRuntimeExchange();
+	if (!exchange)
+		return;
+	// The direction field address can be obtained from the layout,
+	// but since poolrad.h is included we can cast and use getEclMemory.
+	// Simpler: just write cardinal direction at the known offset.
+	// kVmGlobalFieldDungeonDir is at offset within bank 4.
+	// We already have the address from the snapshot system.
+	// Actually just use the Poolrad engine's writeDirection helper.
+	Poolrad::PoolradEngine *pe = Poolrad::g_engine;
+	if (pe) {
+		pe->syncViewDirection(static_cast<uint8>((_mapDir / 2) & 0x03));
+	}
+}
+
+void InGameView::setInGameMenuVisible(bool visible) {
+	if (!_inGameMenuDialog)
+		return;
+	if (visible) {
+		if (!_inGameMenuDialog->isActive()) {
+			_inGameMenuDialog->setMode(
+				(_state == GS_WILDERNESS_MAP)
+					? Dialogs::InGameMenuDialog::kModeWilderness
+					: Dialogs::InGameMenuDialog::kModeDungeon);
+			_inGameMenuDialog->activate();
+			redraw();
+		}
+	} else {
+		if (_inGameMenuDialog->isActive()) {
+			_inGameMenuDialog->deactivate();
+			redraw();
+		}
+	}
 }
 
 void InGameView::stepForward() {

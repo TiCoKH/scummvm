@@ -34,6 +34,7 @@
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
+#include "goldbox/core/direction.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
 
 #include "goldbox/poolrad/console.h"
@@ -965,6 +966,10 @@ bool PoolradEngine::tick() {
 					syncIgv->setMapPosition(x, y, static_cast<uint8>(d * 2));
 				}
 				_mapRuntimeReady = true;
+				// Show the in-game menu now that init is complete.
+				Views::InGameView *readyIgv = getInGameView();
+				if (readyIgv)
+					readyIgv->setInGameMenuVisible(true);
 			}
 		}
 	}
@@ -1004,6 +1009,11 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	debug(3, "PoolradEngine::initializeMapRuntimeForState state=%d", (int)state);
 	_mapRuntimeNeedsInit = false;
 	_mapRuntimeReady = false;
+
+	// Hide the in-game menu during ONINIT.
+	Views::InGameView *menuIgv = getInGameView();
+	if (menuIgv)
+		menuIgv->setInGameMenuVisible(false);
 
 	_eclFlags.wallsetReady = false;
 	_eclFlags.geoReady = false;
@@ -1085,6 +1095,11 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	}
 
 	_mapRuntimeReady = true;
+
+	// Show the in-game menu now that init is complete (DIALOG_InGame equivalent).
+	Views::InGameView *readyIgv2 = getInGameView();
+	if (readyIgv2)
+		readyIgv2->setInGameMenuVisible(true);
 }
 
 void PoolradEngine::refreshLegacySharedRuntimeState() {
@@ -1155,6 +1170,17 @@ VmResult PoolradEngine::runEclEntryPoint(ECL::EclRuntimeFieldId entryField,
 		(int)result, (int)_eclVm->eclReady);
 	_eclFlags.eclReady = _eclVm->eclReady;
 	return result;
+}
+
+void PoolradEngine::syncViewDirection(uint8 cardinal) {
+	if (!_eclVm)
+		return;
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+	ECL::AddressSpace &mem = _eclVm->getMemory();
+	const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
+	mem.write8(dirAddr, cardinal & 0x03);
+	if (_eclHost)
+		_eclHost->refreshViewport();
 }
 
 void PoolradEngine::dispatchPlayerCommand() {
@@ -1234,23 +1260,44 @@ void PoolradEngine::dispatchPlayerCommand() {
 	if (cmd != Views::InGameView::kCmdMove)
 		return;
 
-	// Sync InGameView position/direction to VM memory before ONMOVE.
-	// Original DIALOG_InGame updates STRUCT_POSITION before returning.
+	// Sync direction to VM memory before ONMOVE.
+	// Position is authoritative in VM memory (set by scripts); only direction
+	// is changed by InGameView (player turning).
 	{
+		const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
+		const uint8 cardinal = static_cast<uint8>((inGameView->getMapDir() / 2) & 0x03);
+		mem.write8(dirAddr, cardinal);
+
+		// For forward movement (kCmdMove with unchanged direction from '8'),
+		// advance position in VM memory before ONMOVE (MAP_StepForward equivalent).
+		// The ONMOVE script expects the party to already be at the new position.
 		const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
 		const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
-		const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
-		// InGameView stores wire direction (0=N,2=E,4=S,6=W); VM stores cardinal (0-3).
-		const uint8 cardinal = static_cast<uint8>((inGameView->getMapDir() / 2) & 0x03);
-		mem.write16LE(xAddr, inGameView->getMapX());
-		mem.write16LE(yAddr, inGameView->getMapY());
-		mem.write16LE(dirAddr, cardinal);
+		int x = static_cast<int>(mem.read8(xAddr));
+		int y = static_cast<int>(mem.read8(yAddr));
+		x += kDirDeltaX[inGameView->getMapDir()];
+		y += kDirDeltaY[inGameView->getMapDir()];
+		x = (x + 16) & 0x0F;
+		y = (y + 16) & 0x0F;
+		mem.write8(xAddr, static_cast<uint8>(x));
+		mem.write8(yAddr, static_cast<uint8>(y));
 	}
 
 	const VmResult onMove = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
 	if (onMove == VM_YIELD) {
 		_eclFlags.suspended = true;
 		return;
+	}
+
+	// Sync VM position back to InGameView after ONMOVE completes.
+	{
+		const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
+		const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+		const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
+		const uint16 x = mem.read16LE(xAddr);
+		const uint16 y = mem.read16LE(yAddr);
+		const uint8 d = static_cast<uint8>(mem.read8(dirAddr) & 0x03);
+		inGameView->setMapPosition(x, y, static_cast<uint8>(d * 2));
 	}
 
 	if (!_eclVm->eclReady) {
