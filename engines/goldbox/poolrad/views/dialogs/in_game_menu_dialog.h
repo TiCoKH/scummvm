@@ -19,50 +19,56 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTAL_MENU_H
-#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTAL_MENU_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_IN_GAME_MENU_DIALOG_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_IN_GAME_MENU_DIALOG_H
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/core/global.h"
 #include "goldbox/core/menu_item.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
+
+class InGameView;
+
 namespace Dialogs {
 
-struct HorizontalMenuConfig {
-    Common::String promptTxt;
-    Goldbox::MenuItemList *menuItemList;
-    int textColor;
-    int selectColor;
-    int promptColor;
-    bool allowNumPad;
-    bool suppressUnhandledKeys = true;
-    int backgroundColor = 0;
-    bool singleItemMode = false;
-};
+class HorizontalMenu;
 
-class HorizontalMenu : public Dialog {
+/**
+ * Persistent in-game horizontal menu (DIALOG_InGame equivalent).
+ *
+ * Wraps a HorizontalMenu configured with:
+ * - Dungeon:    "Area Cast View Encamp Search Look"
+ * - Wilderness: "Cast View Encamp Search Look"
+ *
+ * Routes selection results back to InGameView::handleInGameMenuKey().
+ * After a selection, the menu re-activates to stay persistent.
+ */
+class InGameMenuDialog : public Dialog {
+public:
+    enum MapMode {
+        kModeDungeon = 0,
+        kModeWilderness
+    };
+
 private:
-    Goldbox::MenuItemList *_menuItems;
-    int _textColor;
-    int _selectColor;
-    int _promptColor;
-    int _backgroundColor;
-    Common::String _promptTxt;
-    bool _allowNumPad;
-    bool _suppressUnhandledKeys;
-    bool _singleItemMode;
-    bool _redraw = true;
+    MapMode _mode;
+    MenuItemList _menuModel;
+    HorizontalMenu *_horizontalMenu;
 
-    void drawText();
+    void buildMenuModel();
 
 public:
-    HorizontalMenu(const Common::String &name, const HorizontalMenuConfig &config);
-    bool msgKeypress(const KeypressMessage &msg) override;
-    void setRedraw() { _redraw = true; }
-    void setBackgroundColor(int color) { _backgroundColor = color; }
+    InGameMenuDialog(const Common::String &name = "InGameMenu");
+    ~InGameMenuDialog() override;
+
+    void setMode(MapMode mode);
+    void activate() override;
+    void deactivate() override;
     void draw() override;
+    bool msgKeypress(const KeypressMessage &msg) override;
 };
 
 } // namespace Dialogs
@@ -70,4 +76,4 @@ public:
 } // namespace Poolrad
 } // namespace Goldbox
 
-#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_HORIZONTAL_MENU_H
+#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_IN_GAME_MENU_DIALOG_H

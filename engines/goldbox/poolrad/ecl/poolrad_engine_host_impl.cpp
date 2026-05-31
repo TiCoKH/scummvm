@@ -368,24 +368,13 @@ VmResult PoolradEngineHostImpl::displayPicture(uint8 picID) {
         return VmResult::VM_ERROR;
 
     if (picID == 0xFF) {
-        // Original PICTURE(0xFF) path: GFX_ViewPortUpdate().
-        // Force immediate 3D viewport redraw so any previously blitted
-        // portrait/picture is replaced by the current 3D scene.
-        // Use findView to ensure InGameView redraws even if focus is
-        // temporarily elsewhere (e.g. during async menu/dialog).
+        // Original PICTURE(0xFF) path: clear picture state and redraw 3D.
+        _engine->getEncounterSpriteCache().clear();
+
         Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
             _engine->findView("InGame"));
-        if (igv) {
+        if (igv)
             igv->redraw();
-        } else {
-            // Fallback: clear the 3D viewport area directly if no view.
-            Graphics::Screen *screen = _engine->getScreen();
-            if (screen) {
-                Goldbox::Poolrad::Gfx::Surface screenSurface(*screen,
-                    Common::Rect(0, 0, screen->w, screen->h));
-                screenSurface.clearBox(3, 3, 13, 13, 0);
-            }
-        }
         if (g_events)
             g_events->drawElements();
         Graphics::Screen *screen = _engine->getScreen();

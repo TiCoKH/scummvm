@@ -36,6 +36,7 @@ class InGameMainScreenDialog;
 class InGameStateAreaDialog;
 class InGamePanelDialog;
 class TextBoxDialog;
+class InGameMenuDialog;
 }
 
 /**
@@ -90,6 +91,7 @@ private:
 	Dialogs::Dialog *_activeLeftPanelDialog = nullptr;
 	Dialogs::Dialog *_activeStateAreaDialog = nullptr;
 	Dialogs::TextBoxDialog *_textBoxDialog = nullptr;
+	Dialogs::InGameMenuDialog *_inGameMenuDialog = nullptr;
 
 	// --- Dungeon navigation state ---
 	/** Party map X position (column, 0-15). */
@@ -122,6 +124,7 @@ private:
 
 	// --- Mode-specific input ---
 	bool handleDungeonKeypress(const KeypressMessage &msg);
+	void syncDirectionAndRedraw();
 
 public:
 	InGameView();
@@ -174,6 +177,21 @@ public:
 
 	/** Returns true if the text box is still rendering or waiting for key. */
 	bool isTextBoxBusy() const;
+
+	/**
+	 * Handle menu result from InGameMenuDialog.
+	 * Routes keycode to the appropriate game command.
+	 */
+	void handleMenuResult(const MenuResultMessage &result) override;
+
+	/**
+	 * Handle a key from the in-game menu dialog (DIALOG_InGame equivalent).
+	 * Called by InGameMenuDialog when the player presses a shortcut or movement key.
+	 */
+	void handleInGameMenuKey(char key);
+
+	/** Show/hide the in-game menu based on map runtime ready state. */
+	void setInGameMenuVisible(bool visible);
 };
 
 } // namespace Views
