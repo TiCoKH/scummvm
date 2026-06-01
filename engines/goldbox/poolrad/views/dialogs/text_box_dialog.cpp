@@ -211,13 +211,18 @@ bool TextBoxDialog::tick() {
 
 bool TextBoxDialog::msgKeypress(const KeypressMessage &msg) {
     if (_waitingForKey) {
+        (void)msg;
         // Any key resumes: clear area and continue rendering.
         _waitingForKey = false;
         _rendering = true;
         clearArea();
+        _cursorX = _startX;
+        _cursorY = _startY;
         // Clear the prompt row.
         Surface s = getSurface();
         s.clearBox(0, 24, 39, 24, 0);
+        debug(2, "TextBoxDialog::msgKeypress resume cursor=(%u,%u)",
+            (unsigned)_cursorX, (unsigned)_cursorY);
         redraw();
         return true;
     }
