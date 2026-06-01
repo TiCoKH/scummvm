@@ -192,6 +192,9 @@ public:
 
 	/** Show/hide the in-game menu based on map runtime ready state. */
 	void setInGameMenuVisible(bool visible);
+
+	/** React to VM opcode/syscall/state notifications. */
+	void handleEclVmMessage(const EclVmMessage &msg) override;
 };
 
 } // namespace Views

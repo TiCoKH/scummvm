@@ -130,8 +130,15 @@ Common::Path Engine::resolveSavePath() const {
 
 void Engine::setGameState(GameState state) {
 	GameState prev = _gameState;
+	if (prev == state)
+		return;
+
 	debug(2, "Engine::setGameState prev=%d next=%d", (int)prev, (int)state);
 	_gameState = state;
+	if (g_events) {
+		g_events->postEclStateMessage(EclVmMessage::ST_GAME_STATE,
+			static_cast<uint16>(state), EclVmMessage::VT_UINT8);
+	}
 	onGameStateEnter(prev, state);
 }
 

@@ -28,6 +28,7 @@
 #include "goldbox/poolrad/views/dialogs/in_game_menu_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/poolrad.h"
+#include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/vm_interface.h"
 
@@ -136,6 +137,8 @@ void InGameView::applyScreenByState(GameState state) {
 }
 
 void InGameView::onUpdate() {
+	// Safety-net polling path: primary state routing is event-driven via
+	// EclVmMessage(ST_GAME_STATE).
 	const GameState runtimeState = VmInterface::getGameStatus();
 	if (runtimeState != _state)
 		applyScreenByState(runtimeState);
@@ -283,12 +286,6 @@ bool InGameView::msgUnfocus(const UnfocusMessage &msg) {
 // Drawing
 
 void InGameView::draw() {
-	// Keep long-lived InGameView presentation synchronized with authoritative
-	// engine game state even when the view is not recreated.
-	const GameState runtimeState = VmInterface::getGameStatus();
-	if (runtimeState != _state)
-		applyScreenByState(runtimeState);
-
 	if (_mainScreenDialog)
 		_mainScreenDialog->draw();
 
@@ -553,6 +550,123 @@ void InGameView::setInGameMenuVisible(bool visible) {
 		if (_inGameMenuDialog->isActive()) {
 			_inGameMenuDialog->deactivate();
 			redraw();
+		}
+	}
+}
+
+void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
+	if (!g_engine)
+		return;
+
+	if (msg._kind == EclVmMessage::MK_STATE) {
+		switch (msg._tag) {
+		case EclVmMessage::ST_GAME_STATE:
+			applyScreenByState(static_cast<GameState>(msg.asUint8()));
+			return;
+		case EclVmMessage::ST_POSITION_DIRTY: {
+			RuntimeMapSnapshot snapshot;
+			if (g_engine->captureRuntimeMapSnapshot(snapshot) && snapshot.valid) {
+				setMapPosition(snapshot.dungeonX, snapshot.dungeonY,
+					static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2));
+				_searchMode = snapshot.searchActive;
+				if (snapshot.gameState != _state)
+					applyScreenByState(snapshot.gameState);
+				else
+					redraw();
+			}
+			return;
+		}
+		case EclVmMessage::ST_SCREEN_REFRESH:
+		case EclVmMessage::ST_SKYBOX_DIRTY:
+		case EclVmMessage::ST_CHARACTER_DIRTY:
+		case EclVmMessage::ST_STATUS_DIRTY:
+			redraw();
+			return;
+		default:
+			break;
+		}
+	}
+
+	if (msg._kind == EclVmMessage::MK_SYSCALL) {
+		switch (msg._tag) {
+		case EclVmMessage::SC_MAP_DATA_READY:
+			setInGameMenuVisible(true);
+			redraw();
+			return;
+		case EclVmMessage::SC_PRINT:
+		case EclVmMessage::SC_PRINT_ASYNC:
+		case EclVmMessage::SC_CLEAR_TEXTBOX:
+		case EclVmMessage::SC_DISPLAY_PICTURE:
+		case EclVmMessage::SC_LOAD_GEO:
+		case EclVmMessage::SC_LOAD_WALLSET:
+		case EclVmMessage::SC_LOAD_ICON:
+		case EclVmMessage::SC_SPRITE_OFF:
+			redraw();
+			return;
+		case EclVmMessage::SC_START_COMBAT:
+		case EclVmMessage::SC_EXECUTE_PROGRAM:
+			onUpdate();
+			redraw();
+			return;
+		default:
+			break;
+		}
+	}
+
+	if (msg._kind == EclVmMessage::MK_OPCODE &&
+			msg._phase == EclVmMessage::OP_EXIT) {
+		switch (msg._opcode) {
+		case 0x0E:
+		case 0x11:
+		case 0x12:
+		case 0x21:
+		case 0x31:
+		case 0x37:
+		case 0x3D:
+			redraw();
+			return;
+		case 0x24:
+		case 0x38:
+			onUpdate();
+			redraw();
+			return;
+		default:
+			break;
+		}
+	}
+
+	if (msg._kind == EclVmMessage::MK_MEMORY_WRITE) {
+		const Goldbox::VmGlobalLayout &globalLayout =
+			Data::getPoolradGlobalVmLayout();
+		const uint16 xAddr = globalLayout.field(kVmGlobalFieldDungeonX).vmAddr;
+		const uint16 yAddr = globalLayout.field(kVmGlobalFieldDungeonY).vmAddr;
+		const uint16 dirAddr =
+			globalLayout.field(kVmGlobalFieldDungeonDir).vmAddr;
+		const uint16 searchAddr =
+			globalLayout.field(kVmGlobalFieldSearchFlags).vmAddr;
+
+		if (msg._address == xAddr) {
+			_mapX = msg.asUint8();
+			redraw();
+			return;
+		}
+
+		if (msg._address == yAddr) {
+			_mapY = msg.asUint8();
+			redraw();
+			return;
+		}
+
+		if (msg._address == dirAddr) {
+			_mapDir = static_cast<uint8>((msg.asUint8() & 0x03) * 2);
+			redraw();
+			return;
+		}
+
+		if (msg._address == searchAddr) {
+			_searchMode = ((msg.asUint8() & 1) != 0);
+			redraw();
+			return;
 		}
 	}
 }

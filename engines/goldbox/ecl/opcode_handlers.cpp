@@ -27,6 +27,7 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/core/vm_layout.h"
 #include "goldbox/ecl/runtime_layout.h"
+#include "goldbox/events.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -110,7 +111,7 @@ static Common::String getLegacyPrintText(EclVM &vm) {
 }
 
 static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
-        bool clearBox) {
+    bool clearBox, uint8 opcode) {
     if (!syscalls)
         return VM_ERROR;
 
@@ -120,6 +121,11 @@ static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
 
     if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
         const VmResult asyncStart = host->beginPrintAsync(text, clearBox);
+        if (g_events) {
+            g_events->postEclSyscallMessage(vm.getPC(), opcode,
+                EclVmMessage::SC_PRINT_ASYNC,
+                static_cast<int16>(asyncStart));
+        }
         if (asyncStart == VM_YIELD || asyncStart == VM_ERROR) {
             // Host should capture any needed delay state when async starts.
             syscalls->setTextDelayEnabled(false);
@@ -129,6 +135,10 @@ static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
 
     // Fallback: synchronous print.
     syscalls->printText(text, clearBox);
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), opcode,
+            EclVmMessage::SC_PRINT, static_cast<int16>(VM_OK));
+    }
     syscalls->setTextDelayEnabled(false);
     return VM_OK;
 }
@@ -266,13 +276,13 @@ static int handle_0x09_SAVE(EclVM &vm, AddressSpace &mem,
 static int handle_0x11_PRINT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)mem; (void)nextPc; (void)callStack;
-    return runLegacyPrint(vm, syscalls, false);
+    return runLegacyPrint(vm, syscalls, false, 0x11);
 }
 
 static int handle_0x12_PRINTCLEAR(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)mem; (void)nextPc; (void)callStack;
-    return runLegacyPrint(vm, syscalls, true);
+    return runLegacyPrint(vm, syscalls, true, 0x12);
 }
 
 static int handle_0x13_RETURN(EclVM &vm, AddressSpace &mem,
@@ -499,6 +509,11 @@ static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem,
 
         if (skyboxDirty || spriteDirty) {
             VmResult r = syscalls->displayPicture(picId);
+            if (g_events) {
+                g_events->postEclSyscallMessage(vm.getPC(), 0x0E,
+                    EclVmMessage::SC_DISPLAY_PICTURE,
+                    static_cast<int16>(r));
+            }
             if (r != VM_OK)
                 return r;
             if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
@@ -513,7 +528,13 @@ static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem,
     if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
         mem.write8(skyboxRedrawAddr, 1);
     mem.write8(layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr, picId);
-    return syscalls->displayPicture(picId);
+    const VmResult picResult = syscalls->displayPicture(picId);
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x0E,
+            EclVmMessage::SC_DISPLAY_PICTURE,
+            static_cast<int16>(picResult));
+    }
+    return picResult;
 }
 
 static int handle_0x33_PRINT_RETURN(EclVM &vm, AddressSpace &mem,
@@ -533,7 +554,12 @@ static int handle_0x3A_DELAY(EclVM &vm, AddressSpace &mem,
     if (!syscalls)
         return VM_ERROR;
     // Host accesses its own CFG_GAME_SPEED configuration
-    return syscalls->beginDelay();
+    const VmResult delayResult = syscalls->beginDelay();
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x3A,
+            EclVmMessage::SC_DELAY, static_cast<int16>(delayResult));
+    }
+    return delayResult;
 }
 
 static int handle_0x38_PROGRAM(EclVM &vm, AddressSpace &mem,
@@ -542,7 +568,14 @@ static int handle_0x38_PROGRAM(EclVM &vm, AddressSpace &mem,
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
-    return syscalls->executeProgram(static_cast<uint8>(vm.getOpWord(1)));
+    const VmResult result =
+        syscalls->executeProgram(static_cast<uint8>(vm.getOpWord(1)));
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x38,
+            EclVmMessage::SC_EXECUTE_PROGRAM,
+            static_cast<int16>(result));
+    }
+    return result;
 }
 
 static int handle_0x3C_PROTECTION(EclVM &vm, AddressSpace &mem,
@@ -566,6 +599,10 @@ static int handle_0x3D_CLEAR_BOX(EclVM &vm, AddressSpace &mem,
     if (!syscalls)
         return VM_ERROR;
     syscalls->clearTextBox();
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x3D,
+            EclVmMessage::SC_CLEAR_TEXTBOX, static_cast<int16>(VM_OK));
+    }
     return VM_OK;
 }
 
@@ -599,6 +636,10 @@ static int handle_0x15_VERTICAL_MENU(EclVM &vm, AddressSpace &mem,
         options.push_back(vm.readString(static_cast<uint8>(4 + i)));
 
     const int16 selection = syscalls->verticalMenu(message, options);
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x15,
+            EclVmMessage::SC_VERTICAL_MENU, selection);
+    }
     if (selection >= 0)
         vm.writeVmMemory(resultAddr, static_cast<uint16>(selection),
             syscalls);
@@ -719,7 +760,14 @@ static int handle_0x20_NEWECL(EclVM &vm, AddressSpace &mem,
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
-    return syscalls->loadScript(static_cast<uint8>(vm.getOpWord(1)));
+    const VmResult result =
+        syscalls->loadScript(static_cast<uint8>(vm.getOpWord(1)));
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x20,
+            EclVmMessage::SC_LOAD_SCRIPT,
+            static_cast<int16>(result));
+    }
+    return result;
 }
 
 // 0x21: LOAD_AREA_GEO <geoBlockId> <unused> <iconTrigger>
@@ -737,12 +785,22 @@ static int handle_0x21_LOAD_AREA_GEO(EclVM &vm, AddressSpace &mem,
     if (geoBlockId != 0xFF && geoBlockId != 0x7F && indoorMode) {
         mem.write8(getOpcodeLayout().vmField(kVmFieldGeoBlockId).vmAddr, geoBlockId);
         VmResult geoResult = syscalls->loadGeoBlock(geoBlockId);
+        if (g_events) {
+            g_events->postEclSyscallMessage(vm.getPC(), 0x21,
+                EclVmMessage::SC_LOAD_GEO,
+                static_cast<int16>(geoResult));
+        }
         if (geoResult != VM_OK)
             return geoResult;
         mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldMovementBlock).vmAddr, 0);
     }
     if (iconTrigger != 0xFF && !indoorMode) {
         VmResult iconResult = syscalls->loadIconBlock();
+        if (g_events) {
+            g_events->postEclSyscallMessage(vm.getPC(), 0x21,
+                EclVmMessage::SC_LOAD_ICON,
+                static_cast<int16>(iconResult));
+        }
         if (iconResult != VM_OK)
             return iconResult;
     }
@@ -785,7 +843,13 @@ static int handle_0x24_COMBAT(EclVM &vm, AddressSpace &mem,
         mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldShopFlag).vmAddr, 0);
         return VM_OK;
     }
-    return syscalls->startCombat();
+    const VmResult combatResult = syscalls->startCombat();
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x24,
+            EclVmMessage::SC_START_COMBAT,
+            static_cast<int16>(combatResult));
+    }
+    return combatResult;
 }
 
 // 0x25: ON GOTO <var> <count> <addressVarargs>
@@ -874,11 +938,20 @@ static int handle_0x2B_HORIZONTAL_MENU(EclVM &vm, AddressSpace &mem,
     if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
         const VmResult asyncStart =
             host->beginHorizontalMenuAsync(resultAddr, options);
+        if (g_events) {
+            g_events->postEclSyscallMessage(vm.getPC(), 0x2B,
+                EclVmMessage::SC_HORIZONTAL_MENU,
+                static_cast<int16>(asyncStart));
+        }
         if (asyncStart == VM_YIELD || asyncStart == VM_ERROR)
             return asyncStart;
     }
 
     const int16 selection = syscalls->horizontalMenu(options);
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x2B,
+            EclVmMessage::SC_HORIZONTAL_MENU, selection);
+    }
     if (selection >= 0)
         vm.writeVmMemory(resultAddr, static_cast<uint16>(selection),
             syscalls);
@@ -956,6 +1029,11 @@ static int handle_0x31_SPRITE_OFF(EclVM &vm, AddressSpace &mem,
             && mem.read8(spriteLoadAddr) != 0) {
         if (syscalls) {
             VmResult r = syscalls->spriteOff();
+            if (g_events) {
+                g_events->postEclSyscallMessage(vm.getPC(), 0x31,
+                    EclVmMessage::SC_SPRITE_OFF,
+                    static_cast<int16>(r));
+            }
             if (r != VM_OK)
                 return r;
         }
@@ -1040,6 +1118,11 @@ static int handle_0x37_LOAD_AREA_WALLDEF(EclVM &vm, AddressSpace &mem,
                           : (slot == 2) ? middleBlockId
                                         : secondaryBlockId;
             VmResult result = syscalls->loadWallSet(blockId, slot);
+            if (g_events) {
+                g_events->postEclSyscallMessage(vm.getPC(), 0x37,
+                    EclVmMessage::SC_LOAD_WALLSET,
+                    static_cast<int16>(result));
+            }
             if (result != VM_OK)
                 return result;
         }
@@ -1048,9 +1131,19 @@ static int handle_0x37_LOAD_AREA_WALLDEF(EclVM &vm, AddressSpace &mem,
         // slot 2 if the walldef has multiple 780-byte chunks); secondary
         // fills slot 3.  Middle param is unused in this mode.
         VmResult result = syscalls->loadWallSet(primaryBlockId, 1);
+        if (g_events) {
+            g_events->postEclSyscallMessage(vm.getPC(), 0x37,
+                EclVmMessage::SC_LOAD_WALLSET,
+                static_cast<int16>(result));
+        }
         if (result != VM_OK)
             return result;
         result = syscalls->loadWallSet(secondaryBlockId, 3);
+        if (g_events) {
+            g_events->postEclSyscallMessage(vm.getPC(), 0x37,
+                EclVmMessage::SC_LOAD_WALLSET,
+                static_cast<int16>(result));
+        }
         if (result != VM_OK)
             return result;
     }

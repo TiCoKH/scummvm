@@ -119,6 +119,10 @@ void PoolradEngine::initGameDefaults() {
     // Runtime game state = GS_START_MENU (0) while at main menu
     mem.write8(layout.runtimeField(ECL::kEclRuntimeGameState),
         static_cast<uint8>(GS_START_MENU));
+	if (g_events) {
+		g_events->postEclStateMessage(EclVmMessage::ST_GAME_STATE,
+			static_cast<uint16>(GS_START_MENU), EclVmMessage::VT_UINT8);
+	}
 
     // WORD_ECL_PC = 0x9900 (script start, matches original)
     mem.write16LE(layout.runtimeField(ECL::kEclRuntimePc), 0x9900);
@@ -1050,6 +1054,11 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	if (ECL::EclRuntimeLayout::isValidVmAddr(rtGameStateAddr)) {
 		mem.write8(rtGameStateAddr,
 			static_cast<uint8>(_legacySharedState.byteGameState));
+		if (g_events) {
+			g_events->postEclStateMessage(EclVmMessage::ST_GAME_STATE,
+				static_cast<uint16>(_legacySharedState.byteGameState),
+				EclVmMessage::VT_UINT8);
+		}
 	}
 
 	// G_SaveMapId writeback (original writes BYTE_MAP_ID to world state
