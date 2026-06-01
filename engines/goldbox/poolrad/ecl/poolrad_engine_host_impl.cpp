@@ -42,7 +42,6 @@
 #include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
-#include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
@@ -780,10 +779,10 @@ VmResult PoolradEngineHostImpl::beginDelay() {
 }
 
 void PoolradEngineHostImpl::clearTextBox() {
-    Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
-        g_engine ? g_engine->findView("InGame") : nullptr);
-    if (igv)
-        igv->clearTextBox();
+    if (g_events) {
+        g_events->postEclSyscallMessage(0, 0,
+            EclVmMessage::SC_CLEAR_TEXTBOX, 0);
+    }
 }
 
 VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
@@ -791,17 +790,18 @@ VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
     if (_asyncMenuPending || _asyncPrintPending || _asyncDelayPending)
         return VM_ERROR;
 
-    // Route text to InGameView's TextBoxDialog for word-wrapped rendering.
-    Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
-        g_engine ? g_engine->findView("InGame") : nullptr);
-    if (igv) {
-        igv->printToTextBox(text, clearBox);
-    } else {
+    if (!g_events) {
         printText(text, clearBox);
         return VM_OK;
     }
 
-    // VM yields until TextBoxDialog finishes rendering the entire message.
+    // Post text to InGameView via EclVmMessage; View handles rendering.
+    g_events->postEclVmMessage(
+        EclVmMessage::makeSyscallWithText(0, 0,
+            EclVmMessage::SC_PRINT_ASYNC, text,
+            clearBox ? 1 : 0));
+
+    // VM yields until View signals completion via RuntimeExchange.
     _asyncPrintPending = true;
     return VM_YIELD;
 }
@@ -820,10 +820,11 @@ bool PoolradEngineHostImpl::isPendingAsyncReady() const {
     }
 
     if (_asyncPrintPending) {
-        // VM resumes only when TextBoxDialog has finished rendering.
-        const Views::InGameView *igv = dynamic_cast<const Views::InGameView *>(
-            g_engine ? g_engine->findView("InGame") : nullptr);
-        return !igv || !igv->isTextBoxBusy();
+        // VM resumes when View signals textbox completion via RuntimeExchange.
+        const RuntimeExchange *exchange = _engine
+            ? _engine->getRuntimeExchange() : nullptr;
+        return !exchange || exchange->hasAsync(
+            RuntimeExchange::kAsyncTextBoxDone);
     }
 
     if (_asyncDelayPending) {
@@ -886,6 +887,13 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
     }
 
     if (_asyncPrintPending) {
+        // Consume the async completion signal from RuntimeExchange.
+        RuntimeExchange *exchange = _engine
+            ? _engine->getRuntimeExchange() : nullptr;
+        if (exchange) {
+            RuntimeExchange::AsyncCompletion completion;
+            exchange->pollAsync(completion);
+        }
         _asyncPrintPending = false;
         return VM_OK;
     }
@@ -1068,10 +1076,11 @@ VmResult PoolradEngineHostImpl::onMapDataReady() {
 
     // GAME_ScreenByState + DIALOG_ShowParty: refresh the InGameView layout
     // and party panel for the current game state.
-    Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
-        g_engine ? g_engine->findView("InGame") : nullptr);
-    if (igv)
-        igv->applyScreenByState(_engine->getGameState());
+    if (g_events) {
+        g_events->postEclStateMessage(EclVmMessage::ST_GAME_STATE,
+            static_cast<uint16>(_engine->getGameState()),
+            EclVmMessage::VT_UINT8);
+    }
 
     return VmResult::VM_OK;
 }

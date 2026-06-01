@@ -30,6 +30,7 @@
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/core/direction.h"
+#include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -562,6 +563,19 @@ void InGameView::setInGameMenuVisible(bool visible) {
 	}
 }
 
+bool InGameView::tick() {
+	// Detect textbox busy->idle transition and signal RuntimeExchange.
+	const bool busy = _textBoxDialog && _textBoxDialog->isBusy();
+	if (_textBoxWasBusy && !busy) {
+		RuntimeExchange *exchange = g_engine
+			? g_engine->getRuntimeExchange() : nullptr;
+		if (exchange)
+			exchange->signalAsync(RuntimeExchange::kAsyncTextBoxDone);
+	}
+	_textBoxWasBusy = busy;
+	return UIElement::tick();
+}
+
 void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 	if (!g_engine)
 		return;
@@ -601,9 +615,25 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 			setInGameMenuVisible(true);
 			redraw();
 			return;
-		case EclVmMessage::SC_PRINT:
 		case EclVmMessage::SC_PRINT_ASYNC:
+			if (_textBoxDialog) {
+				if (!_textBoxDialog->isActive())
+					_textBoxDialog->activate();
+				_textBoxDialog->setText(msg._stringPayload,
+					msg._result != 0);
+				_textBoxWasBusy = true;
+			}
+			redraw();
+			return;
 		case EclVmMessage::SC_CLEAR_TEXTBOX:
+			if (_textBoxDialog) {
+				if (!_textBoxDialog->isActive())
+					_textBoxDialog->activate();
+				_textBoxDialog->clearText();
+			}
+			redraw();
+			return;
+		case EclVmMessage::SC_PRINT:
 		case EclVmMessage::SC_DISPLAY_PICTURE:
 		case EclVmMessage::SC_LOAD_GEO:
 		case EclVmMessage::SC_LOAD_WALLSET:

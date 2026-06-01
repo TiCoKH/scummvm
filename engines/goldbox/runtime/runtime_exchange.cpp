@@ -24,7 +24,8 @@
 namespace Goldbox {
 
 RuntimeExchange::RuntimeExchange() :
-		_hasPendingIntent(false) {
+		_hasPendingIntent(false),
+		_hasPendingAsync(false) {
 }
 
 RuntimeExchange::~RuntimeExchange() {
@@ -50,6 +51,29 @@ bool RuntimeExchange::pollIntent(Intent &out) {
 	_pendingIntent.kind = kIntentNone;
 	_pendingIntent.value = 0;
 	return true;
+}
+
+void RuntimeExchange::signalAsync(AsyncTag tag, int16 result, bool success) {
+	_pendingAsync.tag = tag;
+	_pendingAsync.result = result;
+	_pendingAsync.success = success;
+	_hasPendingAsync = true;
+}
+
+bool RuntimeExchange::pollAsync(AsyncCompletion &out) {
+	if (!_hasPendingAsync)
+		return false;
+
+	out = _pendingAsync;
+	_hasPendingAsync = false;
+	_pendingAsync.tag = kAsyncNone;
+	_pendingAsync.result = 0;
+	_pendingAsync.success = false;
+	return true;
+}
+
+bool RuntimeExchange::hasAsync(AsyncTag tag) const {
+	return _hasPendingAsync && _pendingAsync.tag == tag;
 }
 
 } // namespace Goldbox

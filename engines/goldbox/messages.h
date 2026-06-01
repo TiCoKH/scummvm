@@ -355,6 +355,17 @@ struct EclVmMessage : public Message {
 		return makeState(static_cast<uint16>(stateTag), rawValue, valueType);
 	}
 
+	// Optional string payload for messages that carry text data.
+	Common::String _stringPayload;
+
+	static EclVmMessage makeSyscallWithText(uint16 pc, uint8 opcode,
+			SyscallTag syscallTag, const Common::String &text,
+			int16 result = 0) {
+		EclVmMessage msg = makeSyscall(pc, opcode, syscallTag, result);
+		msg._stringPayload = text;
+		return msg;
+	}
+
 	uint8 asUint8() const { return static_cast<uint8>(_rawValue & 0xFFu); }
 	int8 asInt8() const { return static_cast<int8>(_rawValue & 0xFFu); }
 	uint16 asUint16() const { return _rawValue; }
