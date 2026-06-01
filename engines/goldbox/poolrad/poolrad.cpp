@@ -1188,6 +1188,11 @@ void PoolradEngine::syncViewDirection(uint8 cardinal) {
 	ECL::AddressSpace &mem = _eclVm->getMemory();
 	const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
 	mem.write8(dirAddr, cardinal & 0x03);
+	if (g_events) {
+		g_events->postEclVmMessage(dirAddr, static_cast<uint8>(cardinal & 0x03));
+		g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,
+			EclVmMessage::VT_UINT8);
+	}
 	if (_eclHost)
 		_eclHost->refreshViewport();
 }
@@ -1234,7 +1239,10 @@ void PoolradEngine::dispatchPlayerCommand() {
 		const uint16 searchAddr =
 			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
 		const uint8 flags = mem.read8(searchAddr);
-		mem.write8(searchAddr, static_cast<uint8>(flags ^ 1));
+		const uint8 newFlags = static_cast<uint8>(flags ^ 1);
+		mem.write8(searchAddr, newFlags);
+		if (g_events)
+			g_events->postEclVmMessage(searchAddr, newFlags);
 		return;
 	}
 
@@ -1244,15 +1252,22 @@ void PoolradEngine::dispatchPlayerCommand() {
 		const uint16 searchAddr =
 			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
 		const uint8 savedSearchFlag = static_cast<uint8>(mem.read8(searchAddr) & 1);
-		mem.write8(searchAddr, static_cast<uint8>(savedSearchFlag | 2));
+		const uint8 lookFlags = static_cast<uint8>(savedSearchFlag | 2);
+		mem.write8(searchAddr, lookFlags);
+		if (g_events)
+			g_events->postEclVmMessage(searchAddr, lookFlags);
 
 		// TIME_AddUnits(1, 2) - advance clock by 2 minutes.
 		// TODO: Wire TIME_AddUnits once clock system is implemented.
 
 		// Now enter the search-loop path: set flags=1, run ONSEARCH, restore.
 		mem.write8(searchAddr, 1);
+		if (g_events)
+			g_events->postEclVmMessage(searchAddr, static_cast<uint8>(1));
 		const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
 		mem.write8(searchAddr, savedSearchFlag);
+		if (g_events)
+			g_events->postEclVmMessage(searchAddr, savedSearchFlag);
 		if (onSearch == VM_YIELD) {
 			_eclFlags.suspended = true;
 			return;
@@ -1290,6 +1305,13 @@ void PoolradEngine::dispatchPlayerCommand() {
 		y = (y + 16) & 0x0F;
 		mem.write8(xAddr, static_cast<uint8>(x));
 		mem.write8(yAddr, static_cast<uint8>(y));
+		if (g_events) {
+			g_events->postEclVmMessage(dirAddr, cardinal);
+			g_events->postEclVmMessage(xAddr, static_cast<uint8>(x));
+			g_events->postEclVmMessage(yAddr, static_cast<uint8>(y));
+			g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,
+				EclVmMessage::VT_UINT8);
+		}
 	}
 
 	const VmResult onMove = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
