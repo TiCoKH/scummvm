@@ -269,13 +269,20 @@ void InGameView::syncDialogs() {
 
 bool InGameView::msgFocus(const FocusMessage &msg) {
 	View::msgFocus(msg);
-	if (_inGameMenuDialog && _inGameMenuDialog->isActive())
+	// When returning from a stacked view (popView path), preserve the
+	// in-game menu visibility. On fresh entry (replaceView path from
+	// engine/ECL), deactivate so ONINIT can enable it explicitly.
+	if (!_wasMenuActiveBeforeUnfocus && _inGameMenuDialog
+			&& _inGameMenuDialog->isActive())
 		_inGameMenuDialog->deactivate();
+	_wasMenuActiveBeforeUnfocus = false;
 	applyScreenByState(_state);
 	return true;
 }
 
 bool InGameView::msgUnfocus(const UnfocusMessage &msg) {
+	_wasMenuActiveBeforeUnfocus = _inGameMenuDialog
+			&& _inGameMenuDialog->isActive();
 	if (_activeLeftPanelDialog)
 		_activeLeftPanelDialog->deactivate();
 	if (_activeStateAreaDialog)
@@ -400,7 +407,7 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 		break;
 	case Common::KEYCODE_v:
 		// View character sheet.
-		replaceView("ViewCharacter");
+		addView("ViewCharacter");
 		return true;
 	case Common::KEYCODE_c:
 		// TODO: Open spell menu for selected player.
@@ -509,7 +516,7 @@ void InGameView::handleInGameMenuKey(char key) {
 		queueCommand(kCmdLook);
 		break;
 	case 'V': // View character
-		replaceView("ViewCharacter");
+		addView("ViewCharacter");
 		break;
 	case 'C': // Cast spell
 		// TODO: Open spell menu

@@ -165,6 +165,11 @@ bool ViewCharacterView::msgFocus(const FocusMessage &msg) {
     return true;
 }
 
+bool ViewCharacterView::msgUnfocus(const UnfocusMessage &msg) {
+    clearSurface();
+    return View::msgUnfocus(msg);
+}
+
 void ViewCharacterView::draw() {
 	syncSelectedCharacter(false);
     if (!_character) {
@@ -416,7 +421,7 @@ void ViewCharacterView::handleRenameCharacter() {
 }
 
 void ViewCharacterView::handleExit() {
-    replaceView("Mainmenu");
+    close();
 }
 
 } // namespace Views

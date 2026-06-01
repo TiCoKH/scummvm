@@ -106,6 +106,8 @@ private:
 	bool _textBoxWasBusy = false;
 	/** Area map overlay active (toggled by 'A' key). */
 	bool _areaMapMode = false;
+	/** Tracks whether in-game menu was active before unfocus (for stack restore). */
+	bool _wasMenuActiveBeforeUnfocus = false;
 	/** Next command for engine-side map-loop. */
 	InGameCommand _pendingCommand = kCmdNone;
 

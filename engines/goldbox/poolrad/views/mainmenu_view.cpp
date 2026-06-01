@@ -195,7 +195,7 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
             break;
         case Common::KEYCODE_v:
             if (_menuItemList.isActive(VIEW))
-                replaceView("ViewCharacter");
+                addView("ViewCharacter");
             break;
         case Common::KEYCODE_a:
             if (_menuItemList.isActive(ADD))
