@@ -102,6 +102,8 @@ private:
 	uint8 _mapDir = 0;
 	/** Search mode active flag. */
 	bool _searchMode = false;
+	/** Tracks textbox busy state for async completion signaling. */
+	bool _textBoxWasBusy = false;
 	/** Area map overlay active (toggled by 'A' key). */
 	bool _areaMapMode = false;
 	/** Next command for engine-side map-loop. */
@@ -142,6 +144,7 @@ public:
 	bool msgUnfocus(const UnfocusMessage &msg) override;
 	bool msgKeypress(const KeypressMessage &msg) override;
 	void draw() override;
+	bool tick() override;
 	void onEnter(GameState state) override;
 
 	/** Queue a command for the engine runtime loop. */

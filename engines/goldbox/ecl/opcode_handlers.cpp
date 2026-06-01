@@ -123,11 +123,6 @@ static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
             host->clearTextBox();
         else
             syscalls->printText(text, true);
-        if (g_events) {
-            g_events->postEclSyscallMessage(vm.getPC(), opcode,
-                EclVmMessage::SC_CLEAR_TEXTBOX,
-                static_cast<int16>(VM_OK));
-        }
         syscalls->setTextDelayEnabled(false);
         return VM_OK;
     }
@@ -136,13 +131,7 @@ static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
 
     if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
         const VmResult asyncStart = host->beginPrintAsync(text, clearBox);
-        if (g_events) {
-            g_events->postEclSyscallMessage(vm.getPC(), opcode,
-                EclVmMessage::SC_PRINT_ASYNC,
-                static_cast<int16>(asyncStart));
-        }
         if (asyncStart == VM_YIELD || asyncStart == VM_ERROR) {
-            // Host should capture any needed delay state when async starts.
             syscalls->setTextDelayEnabled(false);
             return asyncStart;
         }

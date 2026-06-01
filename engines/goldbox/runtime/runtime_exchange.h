@@ -66,9 +66,22 @@ public:
 		kIntentEncamp
 	};
 
+	/** Tags for async completion signals (View -> VM/Host). */
+	enum AsyncTag {
+		kAsyncNone = 0,
+		kAsyncTextBoxDone,
+		kAsyncMenuResult
+	};
+
 	struct Intent {
 		IntentKind kind = kIntentNone;
 		int16 value = 0;
+	};
+
+	struct AsyncCompletion {
+		AsyncTag tag = kAsyncNone;
+		int16 result = 0;
+		bool success = false;
 	};
 
 	RuntimeExchange();
@@ -78,9 +91,19 @@ public:
 	virtual bool submitIntent(const Intent &intent);
 	bool pollIntent(Intent &out);
 
+	/** Signal async completion from View to VM/Host. */
+	void signalAsync(AsyncTag tag, int16 result = 0, bool success = true);
+	/** Poll for async completion (returns true and clears if pending). */
+	bool pollAsync(AsyncCompletion &out);
+	/** Check if a specific async tag is pending without consuming it. */
+	bool hasAsync(AsyncTag tag) const;
+
 private:
 	bool _hasPendingIntent;
 	Intent _pendingIntent;
+
+	bool _hasPendingAsync;
+	AsyncCompletion _pendingAsync;
 };
 
 } // namespace Goldbox
