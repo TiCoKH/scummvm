@@ -73,6 +73,7 @@ private:
     // Per-character pacing
     uint _frameCounter;
     uint _framesPerWord;
+    bool _pendingDrawStep = false;
 
     static bool isWordBreak(char c);
     void renderNextWord();
