@@ -970,10 +970,11 @@ bool PoolradEngine::tick() {
 					syncIgv->setMapPosition(x, y, static_cast<uint8>(d * 2));
 				}
 				_mapRuntimeReady = true;
-				// Show the in-game menu now that init is complete.
-				Views::InGameView *readyIgv = getInGameView();
-				if (readyIgv)
-					readyIgv->setInGameMenuVisible(true);
+				if (g_events) {
+					g_events->postEclStateMessage(
+						EclVmMessage::ST_INGAME_MENU_VISIBLE,
+						1, EclVmMessage::VT_UINT8);
+				}
 			}
 		}
 	}
@@ -1014,10 +1015,17 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	_mapRuntimeNeedsInit = false;
 	_mapRuntimeReady = false;
 
+	// Clear menu row 24 immediately (visible before message dispatch).
+	Graphics::Screen *screen = getScreen();
+	if (screen) {
+		screen->fillRect(Common::Rect(0, 24 * 8, 320, 25 * 8), 0);
+	}
+
 	// Hide the in-game menu during ONINIT.
-	Views::InGameView *menuIgv = getInGameView();
-	if (menuIgv)
-		menuIgv->setInGameMenuVisible(false);
+	if (g_events) {
+		g_events->postEclStateMessage(EclVmMessage::ST_INGAME_MENU_VISIBLE,
+			0, EclVmMessage::VT_UINT8);
+	}
 
 	_eclFlags.wallsetReady = false;
 	_eclFlags.geoReady = false;
@@ -1103,12 +1111,19 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 		}
 	}
 
+	if (initResult == VM_YIELD) {
+		_eclFlags.suspended = true;
+		return;
+	}
+
 	_mapRuntimeReady = true;
 
-	// Show the in-game menu now that init is complete (DIALOG_InGame equivalent).
-	Views::InGameView *readyIgv2 = getInGameView();
-	if (readyIgv2)
-		readyIgv2->setInGameMenuVisible(true);
+	// Show the in-game menu now that ON_INIT and viewport refresh are done
+	// (equivalent to reaching DIALOG_InGame in the original).
+	if (g_events) {
+		g_events->postEclStateMessage(EclVmMessage::ST_INGAME_MENU_VISIBLE,
+			1, EclVmMessage::VT_UINT8);
+	}
 }
 
 void PoolradEngine::refreshLegacySharedRuntimeState() {

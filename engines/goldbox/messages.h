@@ -235,7 +235,8 @@ struct EclVmMessage : public Message {
 		ST_POSITION_DIRTY,
 		ST_SKYBOX_DIRTY,
 		ST_CHARACTER_DIRTY,
-		ST_STATUS_DIRTY
+		ST_STATUS_DIRTY,
+		ST_INGAME_MENU_VISIBLE
 	};
 
 	MessageKind _kind;

@@ -69,7 +69,7 @@ InGameView::InGameView() : View("InGame") {
 	attachDialog(_textBoxDialog);
 
 	_inGameMenuDialog = new Dialogs::InGameMenuDialog("InGameMenu");
-	// Not attached to view hierarchy — managed via setInGameMenuVisible.
+	_inGameMenuDialog->deactivate();
 }
 
 InGameView::~InGameView() {
@@ -269,6 +269,8 @@ void InGameView::syncDialogs() {
 
 bool InGameView::msgFocus(const FocusMessage &msg) {
 	View::msgFocus(msg);
+	if (_inGameMenuDialog && _inGameMenuDialog->isActive())
+		_inGameMenuDialog->deactivate();
 	applyScreenByState(_state);
 	return true;
 }
@@ -604,6 +606,9 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 		case EclVmMessage::ST_STATUS_DIRTY:
 			redraw();
 			return;
+		case EclVmMessage::ST_INGAME_MENU_VISIBLE:
+			setInGameMenuVisible(msg.asUint8() != 0);
+			return;
 		default:
 			break;
 		}
@@ -612,7 +617,6 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 	if (msg._kind == EclVmMessage::MK_SYSCALL) {
 		switch (msg._tag) {
 		case EclVmMessage::SC_MAP_DATA_READY:
-			setInGameMenuVisible(true);
 			redraw();
 			return;
 		case EclVmMessage::SC_PRINT_ASYNC:

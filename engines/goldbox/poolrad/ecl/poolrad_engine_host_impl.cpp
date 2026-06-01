@@ -999,6 +999,10 @@ VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
     if (!walldef) return VmResult::VM_ERROR;
 
     const int numChunks = walldef->chunkCount();
+
+    // First pass: load all tile atlases into the cache so that cross-slot
+    // tile references (e.g. a surface in slot 1 referencing a tile from
+    // slot 3) are resolved correctly during surface building.
     for (int i = 0; i < numChunks; ++i) {
         const int curSlot = setSlot + i;
         if (curSlot < 1 || curSlot > 3)
@@ -1006,16 +1010,10 @@ VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
 
         const int slotIdx = curSlot - 1;
 
-        // Reset any previous runtime tile/surface state for this slot before
-        // rebuilding it from the newly loaded walldef chunk.
         walldefCache.clearSlot(curSlot);
         _walldefTiles[slotIdx].reset();
         tileCache.setSlot(curSlot, nullptr);
 
-        // x86/m68k LoadWallSet behavior:
-        // - one-chunk walldef: use blockId directly
-        // - multi-chunk walldef: use blockId*10 + chunkIndex (1-based),
-        //   with blockId 0 remapped to 10 before multiplication.
         uint16 tileBlockId = blockId;
         if (numChunks >= 2) {
             const uint16 tileBase = (blockId == 0)
@@ -1039,15 +1037,19 @@ VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
                 (unsigned)tileBlockId, curSlot);
         }
 
-        // Build the runtime wall-region surfaces only after the slot-specific
-        // 8x8 tile atlas is attached to the tile cache.  The debugger commands
-        // (`walldef`, `fpview`) inspect this runtime-built cache directly.
-        walldefCache.loadSlot(curSlot, walldef, i, tileCache);
-
         _wallSetStates[slotIdx].loaded = true;
         _wallSetStates[slotIdx].walldefBlockId = blockId;
         _wallSetStates[slotIdx].tileBlockId = static_cast<uint8>(tileBlockId);
         _wallSetStates[slotIdx].chunkIndex = static_cast<uint8>(i);
+    }
+
+    // Second pass: build wall-region surfaces now that all tile atlases
+    // for this walldef block are present in the cache.
+    for (int i = 0; i < numChunks; ++i) {
+        const int curSlot = setSlot + i;
+        if (curSlot < 1 || curSlot > 3)
+            break;
+        walldefCache.loadSlot(curSlot, walldef, i, tileCache);
     }
 
     return VmResult::VM_OK;
