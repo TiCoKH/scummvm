@@ -427,6 +427,14 @@ void InGameView::printToTextBox(const Common::String &text, bool clearBox) {
 	}
 }
 
+void InGameView::clearTextBox() {
+	if (_textBoxDialog) {
+		if (!_textBoxDialog->isActive())
+			_textBoxDialog->activate();
+		_textBoxDialog->clearText();
+	}
+}
+
 bool InGameView::isTextBoxBusy() const {
 	return _textBoxDialog && _textBoxDialog->isBusy();
 }

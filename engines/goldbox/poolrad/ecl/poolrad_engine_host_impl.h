@@ -95,6 +95,7 @@ public:
     VmResult readGeoAtPosition() override;
     VmResult refreshViewport() override;
     VmResult beginDelay() override;
+    void clearTextBox() override;
     VmResult beginPrintAsync(const Common::String &text,
         bool clearBox) override;
     VmResult beginHorizontalMenuAsync(uint16 resultAddr,

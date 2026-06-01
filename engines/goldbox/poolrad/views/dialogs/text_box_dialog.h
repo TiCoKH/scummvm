@@ -90,6 +90,11 @@ public:
     void setText(const Common::String &text, bool clearBox);
 
     /**
+     * Clear the text area immediately and reset paging/cursor state.
+     */
+    void clearText();
+
+    /**
      * Returns true while text is still being rendered or waiting for key.
      */
     bool isBusy() const { return _rendering || _waitingForKey; }
