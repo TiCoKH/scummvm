@@ -36,7 +36,7 @@ TextBoxDialog::TextBoxDialog(const Common::String &name)
       _endX(kDefaultEndX), _endY(kDefaultEndY),
       _cursorX(kDefaultStartX), _cursorY(kDefaultStartY),
       _textColor(kDefaultTextColor),
-      _srcIdx(0), _rendering(false), _waitingForKey(false),
+            _srcIdx(0), _pageStartIdx(0), _rendering(false), _waitingForKey(false),
       _frameCounter(0), _framesPerWord(0) {
     setBounds(Window(0, 0, 39, 24));
 }
@@ -62,6 +62,7 @@ void TextBoxDialog::activate() {
 void TextBoxDialog::clearText() {
     _text.clear();
     _srcIdx = 0;
+    _pageStartIdx = 0;
     _rendering = false;
     _waitingForKey = false;
     _frameCounter = 0;
@@ -78,9 +79,55 @@ void TextBoxDialog::clearText() {
     redraw();
 }
 
+void TextBoxDialog::redrawCurrentPage() {
+    clearArea();
+
+    uint cursorX = _startX;
+    uint cursorY = _startY;
+    uint pos = _pageStartIdx;
+    Surface s = getSurface();
+
+    while (pos < _srcIdx) {
+        uint wordStart = pos;
+        uint wordEnd = pos;
+
+        while (wordEnd < _srcIdx && !isWordBreak(_text[wordEnd])) {
+            ++wordEnd;
+        }
+
+        if (wordEnd < _srcIdx && _text[wordEnd] != '\0') {
+            ++wordEnd;
+        }
+
+        const uint wordLen = wordEnd - wordStart;
+        if (wordLen > 0 && cursorX + wordLen > static_cast<uint>(_endX) + 1) {
+            if (cursorX != _startX) {
+                cursorY++;
+                cursorX = _startX;
+            }
+        }
+
+        if (cursorY > _endY)
+            break;
+
+        for (uint i = wordStart; i < wordEnd; ++i) {
+            const char c = _text[i];
+            if (c == '\0')
+                break;
+            if (c == ' ' && cursorX > _endX)
+                continue;
+            s.writeCharC(cursorX, cursorY, _textColor, c);
+            cursorX++;
+        }
+
+        pos = wordEnd;
+    }
+}
+
 void TextBoxDialog::setText(const Common::String &text, bool clearBox) {
     _text = text;
     _srcIdx = 0;
+    _pageStartIdx = 0;
     _rendering = true;
     _waitingForKey = false;
     _frameCounter = 0;
@@ -161,6 +208,7 @@ void TextBoxDialog::renderNextWord() {
     if (_cursorY > _endY) {
         _cursorX = _startX;
         _cursorY = _startY;
+        _pageStartIdx = wordStart;
         _waitingForKey = true;
         _rendering = false;
         // Draw "PRESS ANY KEY" on row 24.
@@ -204,6 +252,14 @@ void TextBoxDialog::draw() {
         _pendingDrawStep = false;
         renderNextWord();
     }
+
+    redrawCurrentPage();
+
+    if (_waitingForKey) {
+        Surface s = getSurface();
+        s.clearBox(0, 24, 39, 24, 0);
+        s.writeStringC(0, 24, _textColor, "PRESS ANY KEY");
+    }
 }
 
 bool TextBoxDialog::tick() {
@@ -235,6 +291,7 @@ bool TextBoxDialog::msgKeypress(const KeypressMessage &msg) {
         _waitingForKey = false;
         _rendering = true;
         _pendingDrawStep = false;
+        _pageStartIdx = _srcIdx;
         clearArea();
         _cursorX = _startX;
         _cursorY = _startY;
