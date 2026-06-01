@@ -121,6 +121,23 @@ static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
     debug(2, "ECL PRINT opcode=0x%02X pc=0x%04X clear=%u len=%u",
         (unsigned)opcode, (unsigned)vm.getPC(),
         clearBox ? 1U : 0U, (unsigned)text.size());
+
+    if (clearBox && text.empty()) {
+        debug(2, "ECL PRINTCLEAR empty clear-only pc=0x%04X",
+            (unsigned)vm.getPC());
+        if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+            host->clearTextBox();
+        else
+            syscalls->printText(text, true);
+        if (g_events) {
+            g_events->postEclSyscallMessage(vm.getPC(), opcode,
+                EclVmMessage::SC_CLEAR_TEXTBOX,
+                static_cast<int16>(VM_OK));
+        }
+        syscalls->setTextDelayEnabled(false);
+        return VM_OK;
+    }
+
     syscalls->setTextDelayEnabled(true);
 
     if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {

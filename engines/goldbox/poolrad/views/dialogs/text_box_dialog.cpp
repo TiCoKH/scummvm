@@ -58,6 +58,24 @@ void TextBoxDialog::activate() {
     _waitingForKey = false;
 }
 
+void TextBoxDialog::clearText() {
+    _text.clear();
+    _srcIdx = 0;
+    _rendering = false;
+    _waitingForKey = false;
+    _frameCounter = 0;
+    _framesPerWord = 0;
+    _cursorX = _startX;
+    _cursorY = _startY;
+
+    clearArea();
+    Surface s = getSurface();
+    s.clearBox(0, 24, 39, 24, 0);
+    debug(2, "TextBoxDialog::clearText cursor=(%u,%u)",
+        (unsigned)_cursorX, (unsigned)_cursorY);
+    redraw();
+}
+
 void TextBoxDialog::setText(const Common::String &text, bool clearBox) {
     _text = text;
     _srcIdx = 0;

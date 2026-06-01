@@ -174,6 +174,7 @@ public:
 	 * @param clearBox If true, clear the text area before printing
 	 */
 	void printToTextBox(const Common::String &text, bool clearBox);
+	void clearTextBox();
 
 	/** Returns true if the text box is still rendering or waiting for key. */
 	bool isTextBoxBusy() const;

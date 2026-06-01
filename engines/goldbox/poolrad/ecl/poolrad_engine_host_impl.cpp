@@ -789,6 +789,15 @@ VmResult PoolradEngineHostImpl::beginDelay() {
     return VM_YIELD;
 }
 
+void PoolradEngineHostImpl::clearTextBox() {
+    Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
+        g_engine ? g_engine->findView("InGame") : nullptr);
+    if (igv) {
+        debug(2, "PoolradHost::clearTextBox via InGameView");
+        igv->clearTextBox();
+    }
+}
+
 VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
         bool clearBox) {
     if (_asyncMenuPending || _asyncPrintPending || _asyncDelayPending)
