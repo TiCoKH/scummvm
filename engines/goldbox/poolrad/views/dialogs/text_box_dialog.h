@@ -67,6 +67,7 @@ private:
     // Source text and rendering state
     Common::String _text;
     uint _srcIdx;
+    uint _pageStartIdx;
     bool _rendering;
     bool _waitingForKey;
 
@@ -76,6 +77,7 @@ private:
     bool _pendingDrawStep = false;
 
     static bool isWordBreak(char c);
+    void redrawCurrentPage();
     void renderNextWord();
     void clearArea();
 
