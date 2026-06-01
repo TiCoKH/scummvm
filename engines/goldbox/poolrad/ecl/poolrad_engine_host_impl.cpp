@@ -640,10 +640,6 @@ VmResult PoolradEngineHostImpl::drawEncounterStage(uint8 resourceId,
     if (distanceCap < distance)
         distance = distanceCap;
 
-    debug(2, "PoolradHost::drawEncounterStage res=%u cap=%u variant=%u dist=%u",
-        (unsigned)resourceId, (unsigned)distanceCap, (unsigned)variantId,
-        (unsigned)distance);
-
     // Write D_MonsterDistance to VM memory.
     _memory->write16LE(
         layout.vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr, distance);
@@ -675,11 +671,7 @@ VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
         return VM_ERROR;
 
     Goldbox::Gfx::EncounterSpriteCache &cache = _engine->getEncounterSpriteCache();
-    debug(2, "PoolradHost::redrawEncounterStage dist_in=%u prev=%u",
-        (unsigned)newDistance, (unsigned)cache.distance());
     cache.setDistance(newDistance);
-    debug(2, "PoolradHost::redrawEncounterStage dist_applied=%u",
-        (unsigned)cache.distance());
 
     if (newDistance == 0) {
         const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
@@ -689,8 +681,6 @@ VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
         _pendingEncounterHeadReveal = true;
         _pendingEncounterHeadRevealTime = g_system->getMillis() +
             static_cast<uint32>(speed) * 200;
-        debug(2, "PoolradHost::redrawEncounterStage scheduled head reveal at %u",
-            (unsigned)_pendingEncounterHeadRevealTime);
     } else {
         _pendingEncounterHeadReveal = false;
         _pendingEncounterHeadRevealTime = 0;
@@ -792,10 +782,8 @@ VmResult PoolradEngineHostImpl::beginDelay() {
 void PoolradEngineHostImpl::clearTextBox() {
     Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
         g_engine ? g_engine->findView("InGame") : nullptr);
-    if (igv) {
-        debug(2, "PoolradHost::clearTextBox via InGameView");
+    if (igv)
         igv->clearTextBox();
-    }
 }
 
 VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
@@ -807,12 +795,8 @@ VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
     Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
         g_engine ? g_engine->findView("InGame") : nullptr);
     if (igv) {
-        debug(2, "PoolradHost::beginPrintAsync clear=%u len=%u to InGameView",
-            clearBox ? 1U : 0U, (unsigned)text.size());
         igv->printToTextBox(text, clearBox);
     } else {
-        debug(2, "PoolradHost::beginPrintAsync clear=%u len=%u fallback sync",
-            clearBox ? 1U : 0U, (unsigned)text.size());
         printText(text, clearBox);
         return VM_OK;
     }
@@ -859,8 +843,6 @@ bool PoolradEngineHostImpl::isPendingAsyncReady() const {
                     g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY,
                         1, EclVmMessage::VT_UINT8);
                 }
-                debug(2, "PoolradHost::isPendingAsyncReady revealed head pic=%u body=%u",
-                    (unsigned)headPicId, (unsigned)cache.bodyPicId());
             }
             self->_pendingEncounterHeadReveal = false;
             self->_pendingEncounterHeadRevealTime = 0;
