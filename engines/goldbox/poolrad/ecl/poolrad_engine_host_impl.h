@@ -149,6 +149,11 @@ private:
     bool _asyncDelayPending = false;
     uint32 _asyncDelayEndTime = 0;
 
+    // Final sprite-stage portrait/picture reveal that should occur during
+    // the following async DELAY, before the VM resumes past the delay.
+    mutable bool _pendingEncounterHeadReveal = false;
+    mutable uint32 _pendingEncounterHeadRevealTime = 0;
+
     // Async VM_YIELD state for PRINT/PRINTCLEAR letter-pacing.
     bool _asyncPrintPending = false;
     uint32 _asyncPrintEndTime = 0;

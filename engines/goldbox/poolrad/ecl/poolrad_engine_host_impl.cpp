@@ -650,6 +650,8 @@ VmResult PoolradEngineHostImpl::drawEncounterStage(uint8 resourceId,
 
     // Populate the engine-global encounter sprite cache.
     Goldbox::Gfx::EncounterSpriteCache &cache = _engine->getEncounterSpriteCache();
+    _pendingEncounterHeadReveal = false;
+    _pendingEncounterHeadRevealTime = 0;
     cache.loadSprite(resourceId, variantId, distance);
 
     // Load head if distance == 0 (adjacent encounter).
@@ -678,6 +680,21 @@ VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
     cache.setDistance(newDistance);
     debug(2, "PoolradHost::redrawEncounterStage dist_applied=%u",
         (unsigned)cache.distance());
+
+    if (newDistance == 0) {
+        const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+        uint8 speed = _memory->read8(layout.vmField(kVmFieldGameSpeed).vmAddr);
+        if (speed == 0)
+            speed = 1;
+        _pendingEncounterHeadReveal = true;
+        _pendingEncounterHeadRevealTime = g_system->getMillis() +
+            static_cast<uint32>(speed) * 200;
+        debug(2, "PoolradHost::redrawEncounterStage scheduled head reveal at %u",
+            (unsigned)_pendingEncounterHeadRevealTime);
+    } else {
+        _pendingEncounterHeadReveal = false;
+        _pendingEncounterHeadRevealTime = 0;
+    }
 
     _updateViewState();
     if (g_events) {
@@ -816,8 +833,32 @@ bool PoolradEngineHostImpl::isPendingAsyncReady() const {
         return !igv || !igv->isTextBoxBusy();
     }
 
-    if (_asyncDelayPending)
+    if (_asyncDelayPending) {
+        if (_pendingEncounterHeadReveal &&
+                g_system->getMillis() >= _pendingEncounterHeadRevealTime) {
+            PoolradEngineHostImpl *self =
+                const_cast<PoolradEngineHostImpl *>(this);
+            Goldbox::Gfx::EncounterSpriteCache &cache =
+                self->_engine->getEncounterSpriteCache();
+            if (cache.isSpriteLoaded() && cache.distance() == 0) {
+                const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+                const uint8 headPicId = self->_memory->read8(
+                    layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr);
+                cache.loadHead(headPicId, cache.bodyPicId());
+                self->_updateViewState();
+                if (g_events) {
+                    g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY,
+                        1, EclVmMessage::VT_UINT8);
+                }
+                debug(2, "PoolradHost::isPendingAsyncReady revealed head pic=%u body=%u",
+                    (unsigned)headPicId, (unsigned)cache.bodyPicId());
+            }
+            self->_pendingEncounterHeadReveal = false;
+            self->_pendingEncounterHeadRevealTime = 0;
+            return false;
+        }
         return g_system->getMillis() >= _asyncDelayEndTime;
+    }
 
     return false;
 }
@@ -860,6 +901,8 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
 
     if (_asyncDelayPending) {
         _asyncDelayPending = false;
+        _pendingEncounterHeadReveal = false;
+        _pendingEncounterHeadRevealTime = 0;
         return VM_OK;
     }
 
