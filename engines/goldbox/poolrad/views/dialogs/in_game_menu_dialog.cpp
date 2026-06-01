@@ -100,6 +100,7 @@ void InGameMenuDialog::setMode(MapMode mode) {
 }
 
 void InGameMenuDialog::activate() {
+    debug(0, "InGameMenuDialog::activate() called");
     Dialog::activate();
 
     if (_horizontalMenu) {
@@ -136,6 +137,8 @@ void InGameMenuDialog::deactivate() {
 void InGameMenuDialog::draw() {
     if (!_isVisible)
         return;
+    debug(0, "InGameMenuDialog::draw() _isActive=%d _horizontalMenu=%p",
+        (int)_isActive, (void*)_horizontalMenu);
     if (_horizontalMenu)
         _horizontalMenu->draw();
 }
