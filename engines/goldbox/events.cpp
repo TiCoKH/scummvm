@@ -62,6 +62,7 @@ void Events::runGame() {
 		}
 
 		dispatchPendingMenuResults();
+		dispatchPendingEclVmMessages();
 
 		if (_views.empty())
 			break;
@@ -99,6 +100,66 @@ void Events::dispatchPendingMenuResults() {
 			target->handleMenuResult(msg);
 		}
 	}
+}
+
+void Events::dispatchPendingEclVmMessages() {
+	if (_pendingEclVmMessages.empty())
+		return;
+
+	Common::Array<EclVmMessage> pending = _pendingEclVmMessages;
+	_pendingEclVmMessages.clear();
+
+	UIElement *target = focusedView();
+	if (!target)
+		return;
+
+	for (uint i = 0; i < pending.size(); ++i) {
+		target->handleEclVmMessage(pending[i]);
+	}
+}
+
+void Events::postEclVmMessage(uint16 address, uint8 value) {
+	postEclVmMessage(EclVmMessage(address, value));
+}
+
+void Events::postEclVmMessage(uint16 address, int8 value) {
+	postEclVmMessage(EclVmMessage(address, value));
+}
+
+void Events::postEclVmMessage(uint16 address, uint16 value) {
+	postEclVmMessage(EclVmMessage(address, value));
+}
+
+void Events::postEclVmMessage(uint16 address, int16 value) {
+	postEclVmMessage(EclVmMessage(address, value));
+}
+
+void Events::postEclOpcodeMessage(uint16 pc, uint8 opcode,
+		EclVmMessage::OpcodePhase phase, int16 result) {
+	postEclVmMessage(EclVmMessage::makeOpcode(pc, opcode, phase, result));
+}
+
+void Events::postEclSyscallMessage(uint16 pc, uint8 opcode,
+		uint16 syscallTag, int16 result) {
+	postEclVmMessage(EclVmMessage::makeSyscall(pc, opcode,
+		syscallTag, result));
+}
+
+void Events::postEclSyscallMessage(uint16 pc, uint8 opcode,
+		EclVmMessage::SyscallTag syscallTag, int16 result) {
+	postEclVmMessage(EclVmMessage::makeSyscall(pc, opcode,
+		syscallTag, result));
+}
+
+void Events::postEclStateMessage(uint16 stateTag, uint16 rawValue,
+		EclVmMessage::ValueType valueType) {
+	postEclVmMessage(EclVmMessage::makeState(stateTag, rawValue, valueType));
+}
+
+void Events::postEclStateMessage(EclVmMessage::StateTag stateTag,
+		uint16 rawValue, EclVmMessage::ValueType valueType) {
+	postEclVmMessage(EclVmMessage::makeState(stateTag, rawValue,
+		valueType));
 }
 
 #define SHOW_CURSOR           \
@@ -262,6 +323,7 @@ bool Events::pumpModalInputFrame() {
 	}
 
 	dispatchPendingMenuResults();
+	dispatchPendingEclVmMessages();
 
 	if (_views.empty() || shouldQuit())
 		return false;

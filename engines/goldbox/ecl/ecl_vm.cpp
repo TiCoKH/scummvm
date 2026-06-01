@@ -57,11 +57,33 @@
 #include "goldbox/ecl/opcode_table.h"
 #include "goldbox/ecl/game_config.h"
 #include "goldbox/ecl/runtime_layout.h"
+#include "goldbox/events.h"
 
 namespace Goldbox {
 namespace ECL {
 
 namespace {
+
+static bool isUiRelevantOpcode(uint8 opcode) {
+    switch (opcode) {
+    case 0x0E: // PICTURE
+    case 0x11: // PRINT
+    case 0x12: // PRINTCLEAR
+    case 0x15: // VERTICAL MENU
+    case 0x20: // NEWECL
+    case 0x21: // LOAD_AREA_GEO
+    case 0x24: // COMBAT
+    case 0x2B: // HORIZONTAL MENU
+    case 0x31: // SPRITE OFF
+    case 0x37: // LOAD_AREA_WALLDEF
+    case 0x38: // PROGRAM
+    case 0x3A: // DELAY
+    case 0x3D: // CLEAR BOX
+        return true;
+    default:
+        return false;
+    }
+}
 
 static uint16 skipEncodedOperandsFromMemory(const AddressSpace &memory,
         uint16 pc, uint8 operandCount) {
@@ -196,6 +218,10 @@ void EclVM::initializeECLState() {
 
     // Set default game state (dungeon)
     _memory.write8(layout.runtimeField(kEclRuntimeGameState), GS_DUNGEON_MAP);
+    if (g_events) {
+        g_events->postEclStateMessage(EclVmMessage::ST_GAME_STATE,
+            static_cast<uint16>(GS_DUNGEON_MAP), EclVmMessage::VT_UINT8);
+    }
     _memory.write8(layout.vmField(kVmFieldNoMagicFlag).vmAddr, 0);
     _memory.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
 
@@ -315,6 +341,11 @@ VmResult EclVM::executeInstruction(uint8 opcode, uint16 currentPc) {
     _nextInsnPc = static_cast<uint16>(currentPc + 1);
     uint16 nextPc = _nextInsnPc;
     VmResult result = static_cast<VmResult>(handler(*this, _memory, nextPc, _callStack, _syscalls));
+
+    if (g_events && isUiRelevantOpcode(opcode)) {
+        g_events->postEclOpcodeMessage(currentPc, opcode,
+            EclVmMessage::OP_EXIT, static_cast<int16>(result));
+    }
 
     if (result == VM_OK || result == VM_YIELD) {
         // If handler didn't override nextPc, advance past operands.
@@ -637,6 +668,11 @@ void EclVM::onDatBankWrite(uint16 vmAddr, uint16 value,
                 kEclRuntimeCharacterRedrawFlag);
             if (EclRuntimeLayout::isValidVmAddr(flagAddr))
                 _memory.write8(flagAddr, 1);
+            if (g_events) {
+                g_events->postEclStateMessage(
+                    EclVmMessage::ST_CHARACTER_DIRTY, 1,
+                    EclVmMessage::VT_UINT8);
+            }
         }
         return;
     }
@@ -672,6 +708,11 @@ void EclVM::onDatBankWrite(uint16 vmAddr, uint16 value,
                 kEclRuntimeStatusRedrawFlag);
             if (EclRuntimeLayout::isValidVmAddr(flagAddr))
                 _memory.write8(flagAddr, 1);
+            if (g_events) {
+                g_events->postEclStateMessage(
+                    EclVmMessage::ST_STATUS_DIRTY, 1,
+                    EclVmMessage::VT_UINT8);
+            }
         }
         break;
     }
@@ -720,6 +761,9 @@ void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
 
     if (region == 3) {
         _memory.write8(vmAddr, (uint8)writeValue);
+        if (g_events)
+            g_events->postEclVmMessage(vmAddr,
+                static_cast<uint8>(writeValue & 0xFF));
         return;
     }
 
@@ -740,11 +784,20 @@ void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
                 kEclRuntimePositionDirtyFlag);
             if (EclRuntimeLayout::isValidVmAddr(flagAddr))
                 _memory.write8(flagAddr, 1);
+            if (g_events) {
+                g_events->postEclVmMessage(vmAddr,
+                    static_cast<uint8>(writeValue & 0xFF));
+                g_events->postEclStateMessage(
+                    EclVmMessage::ST_POSITION_DIRTY, 1,
+                    EclVmMessage::VT_UINT8);
+            }
             return;
         }
     }
 
     _memory.write16LE(vmAddr, writeValue);
+    if (g_events)
+        g_events->postEclVmMessage(vmAddr, writeValue);
 
     if (region == 0 && _config) {
         EclLayoutAccess layout = _config->getLayoutAccess();
@@ -758,6 +811,11 @@ void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
                 kEclRuntimeSkyboxRedrawFlag);
             if (EclRuntimeLayout::isValidVmAddr(flagAddr))
                 _memory.write8(flagAddr, 1);
+            if (g_events) {
+                g_events->postEclStateMessage(
+                    EclVmMessage::ST_SKYBOX_DIRTY, 1,
+                    EclVmMessage::VT_UINT8);
+            }
         }
     }
 
@@ -770,6 +828,13 @@ VmResult EclVM::checkMapDataReady() {
     if (screenRefresh && wallsetReady && geoReady) {
         VmResult result = onMapDataReady();
         screenRefresh = false;
+        if (g_events) {
+            g_events->postEclSyscallMessage(_pc, 0x00,
+                EclVmMessage::SC_MAP_DATA_READY,
+                static_cast<int16>(result));
+            g_events->postEclStateMessage(EclVmMessage::ST_SCREEN_REFRESH,
+                0, EclVmMessage::VT_UINT8);
+        }
         return result;
     }
     return VM_OK;

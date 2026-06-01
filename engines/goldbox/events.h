@@ -266,6 +266,12 @@ public:
 	}
 
 	/**
+	 * Called when an ECL opcode handler posts a VM memory-write notification.
+	 * Override in views/dialogs that need to react to specific address writes.
+	 */
+	virtual void handleEclVmMessage(const EclVmMessage &msg) {}
+
+	/**
 	 * Handles events
 	 */
 	#define MESSAGE(NAME) \
@@ -338,10 +344,12 @@ private:
 	bool _cursorVisible = false;
 	int _cursorNum = -1;
 	Common::Array<MenuResultMessage> _pendingMenuResults;
+	Common::Array<EclVmMessage> _pendingEclVmMessages;
 
 protected:
 	CursorArray _cursors;
 	void dispatchPendingMenuResults();
+	void dispatchPendingEclVmMessages();
 
 protected:
 	/**
@@ -473,6 +481,34 @@ public:
 			const Common::String &stringValue = Common::String(),
 			bool hasIntValue = false,
 			bool hasStringValue = false);
+
+	/**
+	 * Post an ECL VM memory-write notification.  The message is queued and
+	 * dispatched to the focused view at the start of the next frame (or
+	 * modal input pump), mirroring the MenuResultMessage dispatch pattern.
+	 */
+	void postEclVmMessage(const EclVmMessage &msg) {
+		_pendingEclVmMessages.push_back(msg);
+	}
+
+	void postEclVmMessage(uint16 address, uint8 value);
+	void postEclVmMessage(uint16 address, int8 value);
+	void postEclVmMessage(uint16 address, uint16 value);
+	void postEclVmMessage(uint16 address, int16 value);
+	void postEclOpcodeMessage(uint16 pc, uint8 opcode,
+			EclVmMessage::OpcodePhase phase,
+			int16 result = 0);
+	void postEclSyscallMessage(uint16 pc, uint8 opcode,
+			uint16 syscallTag,
+			int16 result = 0);
+	void postEclSyscallMessage(uint16 pc, uint8 opcode,
+			EclVmMessage::SyscallTag syscallTag,
+			int16 result = 0);
+	void postEclStateMessage(uint16 stateTag, uint16 rawValue,
+			EclVmMessage::ValueType valueType = EclVmMessage::VT_UINT16);
+	void postEclStateMessage(EclVmMessage::StateTag stateTag,
+			uint16 rawValue,
+			EclVmMessage::ValueType valueType = EclVmMessage::VT_UINT16);
 
 	/**
 	 * Pumps one modal UI frame (events + pending menu results + draw/update)
