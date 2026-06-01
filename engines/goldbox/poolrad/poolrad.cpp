@@ -1279,6 +1279,9 @@ void PoolradEngine::dispatchPlayerCommand() {
 		mem.write8(searchAddr, 1);
 		if (g_events)
 			g_events->postEclVmMessage(searchAddr, static_cast<uint8>(1));
+		// Refresh MapSquareInfo so ONSEARCH script can check bit 7.
+		if (_eclHost)
+			_eclHost->readGeoAtPosition();
 		const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
 		mem.write8(searchAddr, savedSearchFlag);
 		if (g_events)
@@ -1299,6 +1302,10 @@ void PoolradEngine::dispatchPlayerCommand() {
 	if (cmd != Views::InGameView::kCmdMove)
 		return;
 
+	// Pre-clear the message area (rows 17-22) on every step.
+	// Matches original: SCREEN_ClearRect(1,17,38,22) / BOOL_PROMPT_CLEARED.
+	inGameView->clearTextBox();
+
 	// Sync direction to VM memory before ONMOVE.
 	// Position is authoritative in VM memory (set by scripts); only direction
 	// is changed by InGameView (player turning).
@@ -1307,17 +1314,43 @@ void PoolradEngine::dispatchPlayerCommand() {
 		const uint8 cardinal = static_cast<uint8>((inGameView->getMapDir() / 2) & 0x03);
 		mem.write8(dirAddr, cardinal);
 
-		// For forward movement (kCmdMove with unchanged direction from '8'),
-		// advance position in VM memory before ONMOVE (MAP_StepForward equivalent).
-		// The ONMOVE script expects the party to already be at the new position.
+		// MAP_StepForward equivalent: check wall, advance position,
+		// clamp to borders, set TriedToLeaveMap.
 		const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
 		const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+		const uint16 leaveAddr = layout.vmGlobalField(kVmGlobalFieldTriedToLeaveMap).vmAddr;
+		const uint8 wireDir = static_cast<uint8>(cardinal * 2);
+
+		mem.write16LE(leaveAddr, 0);
+
+		// Check wall passability.
+		RuntimeGeoBlock &rtGeo = getRuntimeGeo();
+		if (rtGeo.isLoaded()) {
+			const int cx = static_cast<int>(mem.read8(xAddr));
+			const int cy = static_cast<int>(mem.read8(yAddr));
+			const uint8 wallFlag = rtGeo.getWallFlag(cx, cy, wireDir);
+			if (wallFlag == 0) {
+				// Wall blocks movement — still sync direction.
+				if (g_events)
+					g_events->postEclVmMessage(dirAddr, cardinal);
+				return;
+			}
+		}
+
 		int x = static_cast<int>(mem.read8(xAddr));
 		int y = static_cast<int>(mem.read8(yAddr));
 		x += kDirDeltaX[inGameView->getMapDir()];
 		y += kDirDeltaY[inGameView->getMapDir()];
-		x = (x + 16) & 0x0F;
-		y = (y + 16) & 0x0F;
+
+		// Clamp to map borders and flag if clamped.
+		bool clamped = false;
+		if (x > 15) { x = 15; clamped = true; }
+		if (x < 0)  { x = 0;  clamped = true; }
+		if (y > 15) { y = 15; clamped = true; }
+		if (y < 0)  { y = 0;  clamped = true; }
+		if (clamped)
+			mem.write16LE(leaveAddr, 1);
+
 		mem.write8(xAddr, static_cast<uint8>(x));
 		mem.write8(yAddr, static_cast<uint8>(y));
 		if (g_events) {
@@ -1328,6 +1361,11 @@ void PoolradEngine::dispatchPlayerCommand() {
 				EclVmMessage::VT_UINT8);
 		}
 	}
+
+	// Read geo event data at new position (MAP_getGEOData equivalent).
+	// ONMOVE script uses MapSquareInfo to decide which event to trigger.
+	if (_eclHost)
+		_eclHost->readGeoAtPosition();
 
 	const VmResult onMove = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
 	if (onMove == VM_YIELD) {
@@ -1368,18 +1406,45 @@ void PoolradEngine::dispatchPlayerCommand() {
 		_legacySharedState.bool3dRedraw = false;
 		_legacySharedState.boolPictureReady = true;
 
-		// Only run ONSEARCH if search-while-walking is active (D_SearchFlags & 1).
+		// Always run ONSEARCH after movement. Scripts decide whether the
+		// current square event needs active search mode (bit 7 in MapSquareInfo)
+		// by checking D_SearchFlags themselves.
+		// Refresh MapSquareInfo so ONSEARCH script can check bit 7.
+		if (_eclHost)
+			_eclHost->readGeoAtPosition();
+
+		// Compatibility: event byte 0xFE should trigger without requiring
+		// persistent search mode. For this one ONSEARCH dispatch, force bit0 on
+		// if currently off, then restore after execution.
 		const uint16 postMoveSearchAddr =
 			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
-		if (mem.read8(postMoveSearchAddr) & 1) {
-			const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
-			if (onSearch == VM_YIELD)
+		const uint16 squareInfoAddr =
+			layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
+		const uint8 savedSearchFlags = mem.read8(postMoveSearchAddr);
+		const uint8 squareInfo = mem.read8(squareInfoAddr);
+		const bool forceSearchForFe =
+			(squareInfo == 0xFE) && ((savedSearchFlags & 1) == 0);
+		if (forceSearchForFe) {
+			const uint8 forcedFlags = static_cast<uint8>(savedSearchFlags | 1);
+			mem.write8(postMoveSearchAddr, forcedFlags);
+			if (g_events)
+				g_events->postEclVmMessage(postMoveSearchAddr, forcedFlags);
+		}
+
+		const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
+
+		if (forceSearchForFe) {
+			mem.write8(postMoveSearchAddr, savedSearchFlags);
+			if (g_events)
+				g_events->postEclVmMessage(postMoveSearchAddr, savedSearchFlags);
+		}
+
+		if (onSearch == VM_YIELD)
+			_eclFlags.suspended = true;
+		else if (_eclVm->eclReady) {
+			const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
+			if (resume == VM_YIELD)
 				_eclFlags.suspended = true;
-			else if (_eclVm->eclReady) {
-				const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
-				if (resume == VM_YIELD)
-					_eclFlags.suspended = true;
-			}
 		}
 		return;
 	}

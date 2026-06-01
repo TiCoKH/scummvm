@@ -721,15 +721,26 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 }
 
 void InGameView::stepForward() {
-	// Use 8-direction deltas directly from the shared table.
-	const int newX = (int)_mapX + kDirDeltaX[_mapDir];
-	const int newY = (int)_mapY + kDirDeltaY[_mapDir];
+	// Check wall passability before moving.
+	RuntimeGeoBlock &rtGeo = VmInterface::getRuntimeGeo();
+	if (rtGeo.isLoaded()) {
+		const uint8 wireDir = _mapDir & 0x06;
+		const uint8 wallFlag = rtGeo.getWallFlag(
+			(int)_mapX, (int)_mapY, wireDir);
+		if (wallFlag == 0)
+			return; // Wall blocks movement.
+	}
 
-	// Boundary check: GEO maps are 16×16.
-	if (newX < 0 || newX >= 16 || newY < 0 || newY >= 16)
-		return;
+	// Compute new position using 8-direction deltas.
+	int newX = (int)_mapX + kDirDeltaX[_mapDir];
+	int newY = (int)_mapY + kDirDeltaY[_mapDir];
 
-	// TODO: Check wall / door collision via DaxBlockGeo once geo is loaded.
+	// Clamp to map borders (0-15).
+	if (newX > 15) newX = 15;
+	if (newX < 0)  newX = 0;
+	if (newY > 15) newY = 15;
+	if (newY < 0)  newY = 0;
+
 	_mapX = (uint16)newX;
 	_mapY = (uint16)newY;
 }

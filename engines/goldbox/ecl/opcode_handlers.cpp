@@ -864,10 +864,54 @@ static int handle_0x25_ON_GOTO(EclVM &vm, AddressSpace &mem,
     vm.getOperand(2);
     const uint8 selector = static_cast<uint8>(vm.readVar(1));
     const uint8 count = static_cast<uint8>(vm.readVar(2));
-    // Re-decode all operands including varargs jump targets.
-    vm.getOperand(static_cast<uint8>(2 + count));
+    static const uint8 kVmMaxOperands = 16;
+
+    // Fast path: full decode fits VM operand scratch buffer.
+    if (static_cast<uint16>(2 + count) <= kVmMaxOperands) {
+        vm.getOperand(static_cast<uint8>(2 + count));
+        // Fall-through after full ON GOTO instruction if selector is out of range.
+        nextPc = vm.getNextInsnPc();
+        if (selector < count)
+            nextPc = vm.getOpWord(static_cast<uint8>(3 + selector));
+        return VM_OK;
+    }
+
+    // Slow path: count exceeds fixed decode buffer; scan encoded operands
+    // directly to compute full instruction end and selected jump target.
+    uint16 pos = static_cast<uint16>(vm.getPC() + 1); // skip opcode
+    uint16 targetPc = 0;
+    const uint16 targetIndex = static_cast<uint16>(3 + selector);
+    const uint16 totalOperands = static_cast<uint16>(2 + count);
+
+    for (uint16 i = 1; i <= totalOperands; ++i) {
+        const uint8 typeTag = mem.read8(pos++);
+        const uint8 lo = mem.read8(pos++);
+        uint16 value = lo;
+
+        switch (typeTag) {
+        case 0x01:
+        case 0x02:
+        case 0x03:
+        case 0x81: {
+            const uint8 hi = mem.read8(pos++);
+            value = static_cast<uint16>(lo | (hi << 8));
+            break;
+        }
+        case 0x80:
+            pos = static_cast<uint16>(pos + lo);
+            break;
+        default:
+            break;
+        }
+
+        if (i == targetIndex)
+            targetPc = value;
+    }
+
+    // Default: continue after full instruction; ON GOTO overrides when valid.
+    nextPc = pos;
     if (selector < count)
-        nextPc = vm.getOpWord(static_cast<uint8>(3 + selector));
+        nextPc = targetPc;
     return VM_OK;
 }
 
@@ -879,11 +923,57 @@ static int handle_0x26_ON_GOSUB(EclVM &vm, AddressSpace &mem,
     vm.getOperand(2);
     const uint8 selector = static_cast<uint8>(vm.readVar(1));
     const uint8 count = static_cast<uint8>(vm.readVar(2));
-    // Re-decode all operands including varargs jump targets.
-    vm.getOperand(static_cast<uint8>(2 + count));
+    static const uint8 kVmMaxOperands = 16;
+
+    // Fast path: full decode fits VM operand scratch buffer.
+    if (static_cast<uint16>(2 + count) <= kVmMaxOperands) {
+        vm.getOperand(static_cast<uint8>(2 + count));
+        const uint16 returnPc = vm.getNextInsnPc();
+        nextPc = returnPc;
+        if (selector < count) {
+            callStack.push_back(returnPc);
+            nextPc = vm.getOpWord(static_cast<uint8>(3 + selector));
+        }
+        return VM_OK;
+    }
+
+    // Slow path: count exceeds fixed decode buffer; scan encoded operands
+    // directly to compute full instruction end and selected jump target.
+    uint16 pos = static_cast<uint16>(vm.getPC() + 1); // skip opcode
+    uint16 targetPc = 0;
+    const uint16 targetIndex = static_cast<uint16>(3 + selector);
+    const uint16 totalOperands = static_cast<uint16>(2 + count);
+
+    for (uint16 i = 1; i <= totalOperands; ++i) {
+        const uint8 typeTag = mem.read8(pos++);
+        const uint8 lo = mem.read8(pos++);
+        uint16 value = lo;
+
+        switch (typeTag) {
+        case 0x01:
+        case 0x02:
+        case 0x03:
+        case 0x81: {
+            const uint8 hi = mem.read8(pos++);
+            value = static_cast<uint16>(lo | (hi << 8));
+            break;
+        }
+        case 0x80:
+            pos = static_cast<uint16>(pos + lo);
+            break;
+        default:
+            break;
+        }
+
+        if (i == targetIndex)
+            targetPc = value;
+    }
+
+    const uint16 returnPc = pos;
+    nextPc = returnPc;
     if (selector < count) {
-        callStack.push_back(vm.getNextInsnPc());
-        nextPc = vm.getOpWord(static_cast<uint8>(3 + selector));
+        callStack.push_back(returnPc);
+        nextPc = targetPc;
     }
     return VM_OK;
 }
