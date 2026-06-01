@@ -56,6 +56,7 @@ void TextBoxDialog::activate() {
     Dialog::activate();
     _rendering = false;
     _waitingForKey = false;
+    _pendingDrawStep = false;
 }
 
 void TextBoxDialog::clearText() {
@@ -65,6 +66,7 @@ void TextBoxDialog::clearText() {
     _waitingForKey = false;
     _frameCounter = 0;
     _framesPerWord = 0;
+    _pendingDrawStep = false;
     _cursorX = _startX;
     _cursorY = _startY;
 
@@ -82,6 +84,7 @@ void TextBoxDialog::setText(const Common::String &text, bool clearBox) {
     _rendering = true;
     _waitingForKey = false;
     _frameCounter = 0;
+    _pendingDrawStep = false;
 
     // Pacing: frames per word based on game speed (1-5 scale).
     // Original x86: Wait_cycle(CFG_GAME_SPEED * 10)
@@ -191,13 +194,15 @@ void TextBoxDialog::renderNextWord() {
 void TextBoxDialog::draw() {
     if (!_isVisible)
         return;
-    // Drawing is handled incrementally via tick()/renderNextWord().
-    // On first draw after setText, render all available words immediately
-    // if no delay is configured.
+    // Render during draw, not tick, so later background/window redraws in the
+    // same frame do not erase already-emitted words from the text area.
     if (_rendering && _framesPerWord == 0) {
         while (_rendering) {
             renderNextWord();
         }
+    } else if (_rendering && _pendingDrawStep) {
+        _pendingDrawStep = false;
+        renderNextWord();
     }
 }
 
@@ -209,19 +214,15 @@ bool TextBoxDialog::tick() {
         return false;
 
     if (_framesPerWord == 0) {
-        // No delay: render everything at once.
-        while (_rendering) {
-            renderNextWord();
-        }
         redraw();
         return true;
     }
 
-    // Frame-paced rendering: one word per N frames.
+    // Frame-paced rendering: queue one word for the next draw pass.
     ++_frameCounter;
     if (_frameCounter >= _framesPerWord) {
         _frameCounter = 0;
-        renderNextWord();
+        _pendingDrawStep = true;
         redraw();
     }
     return true;
@@ -233,6 +234,7 @@ bool TextBoxDialog::msgKeypress(const KeypressMessage &msg) {
         // Any key resumes: clear area and continue rendering.
         _waitingForKey = false;
         _rendering = true;
+        _pendingDrawStep = false;
         clearArea();
         _cursorX = _startX;
         _cursorY = _startY;
