@@ -469,8 +469,12 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
     const int y = static_cast<int>(_memory->read8(yAddr));
 
     const uint8 geoId = rtGeo.getGeoData(x, y);
+    debug(1, "readGeoAtPosition: pos=(%d,%d) geoId=0x%02X eventId=%u searchRequired=%s skyColor=%u",
+        x, y, (unsigned)geoId, (unsigned)(geoId & 0x7F),
+        (geoId & 0x80) ? "yes" : "no",
+        (unsigned)_memory->read8(0x49FD));
     const uint16 geoFieldAddr = layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
-    _memory->write16LE(geoFieldAddr, static_cast<uint16>(geoId));
+    _memory->write8(geoFieldAddr, geoId);
     return VM_OK;
 }
 
@@ -524,33 +528,59 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
         return VM_OK;
 
     case 0xC01E: {
-        // MAP_StepForwardWrap: advance party one cell in facing direction
-        // with coordinate wrapping (0-15).
+        // MAP_StepForward: check wall flag, advance party one cell in
+        // facing direction, clamp to map borders (0-15), and set
+        // TriedToLeaveMap if clamped.
+        if (!_engine)
+            return VM_OK;
+
+        RuntimeGeoBlock &rtGeo = _engine->getRuntimeGeo();
         const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
         const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
         const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
         const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
+        const uint16 leaveAddr = layout.vmGlobalField(kVmGlobalFieldTriedToLeaveMap).vmAddr;
 
-        int x = static_cast<int>(_memory->read8(xAddr));
-        int y = static_cast<int>(_memory->read8(yAddr));
-        const uint8 dir = static_cast<uint8>(_memory->read8(dirAddr) & 0x07);
+        const int x = static_cast<int>(_memory->read8(xAddr));
+        const int y = static_cast<int>(_memory->read8(yAddr));
+        // Direction stored as cardinal index (0=N, 1=E, 2=S, 3=W).
+        const uint8 cardinalDir = static_cast<uint8>(_memory->read8(dirAddr) & 0x03);
+        // Wire direction for geo lookups: 0=N, 2=E, 4=S, 6=W.
+        const uint8 wireDir = static_cast<uint8>(cardinalDir * 2);
+        // 8-direction index for delta tables: 0=N, 2=E, 4=S, 6=W.
+        const uint8 dir8 = wireDir;
 
-        x += kDirDeltaX[dir];
-        y += kDirDeltaY[dir];
+        // Clear TriedToLeaveMap.
+        _memory->write16LE(leaveAddr, 0);
 
-        // Wrap 0-15.
-        x = (x + 16) & 0x0F;
-        y = (y + 16) & 0x0F;
+        // Check wall passability. getWallFlag returns 0 if blocked.
+        const uint8 wallFlag = rtGeo.isLoaded()
+            ? rtGeo.getWallFlag(x, y, wireDir) : 1;
+        if (wallFlag == 0)
+            return VM_OK; // Wall blocks movement.
 
-        // Packed system-bank fields are byte-addressed; keep writes byte-wide.
-        _memory->write8(xAddr, static_cast<uint8>(x));
-        _memory->write8(yAddr, static_cast<uint8>(y));
-		if (g_events) {
-			g_events->postEclVmMessage(xAddr, static_cast<uint8>(x));
-			g_events->postEclVmMessage(yAddr, static_cast<uint8>(y));
-			g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,
-				EclVmMessage::VT_UINT8);
-		}
+        // Compute new position.
+        int newX = x + kDirDeltaX[dir8];
+        int newY = y + kDirDeltaY[dir8];
+
+        // Clamp to map borders and flag if clamped.
+        bool clamped = false;
+        if (newX > 15) { newX = 15; clamped = true; }
+        if (newX < 0)  { newX = 0;  clamped = true; }
+        if (newY > 15) { newY = 15; clamped = true; }
+        if (newY < 0)  { newY = 0;  clamped = true; }
+
+        if (clamped)
+            _memory->write16LE(leaveAddr, 1);
+
+        _memory->write8(xAddr, static_cast<uint8>(newX));
+        _memory->write8(yAddr, static_cast<uint8>(newY));
+        if (g_events) {
+            g_events->postEclVmMessage(xAddr, static_cast<uint8>(newX));
+            g_events->postEclVmMessage(yAddr, static_cast<uint8>(newY));
+            g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,
+                EclVmMessage::VT_UINT8);
+        }
         return VM_OK;
     }
 
@@ -579,7 +609,7 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
 
         const uint16 infoAddr =
             layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
-        _memory->write16LE(infoAddr, static_cast<uint16>(nibble));
+        _memory->write8(infoAddr, nibble);
         return VM_OK;
     }
 

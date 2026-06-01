@@ -67,7 +67,11 @@ void InGameMenuDialog::setMode(MapMode mode) {
 }
 
 void InGameMenuDialog::activate() {
-    debug(0, "InGameMenuDialog::activate() called");
+    // Avoid redundant re-activation (prevents menu flicker and allocations).
+    if (_isActive && _horizontalMenu)
+        return;
+
+    debug(3, "InGameMenuDialog::activate() called");
     Dialog::activate();
 
     if (_horizontalMenu) {
@@ -104,10 +108,12 @@ void InGameMenuDialog::deactivate() {
 void InGameMenuDialog::draw() {
     if (!_isVisible)
         return;
-    debug(0, "InGameMenuDialog::draw() _isActive=%d _horizontalMenu=%p",
+    debug(3, "InGameMenuDialog::draw() _isActive=%d _horizontalMenu=%p",
         (int)_isActive, (void*)_horizontalMenu);
-    if (_horizontalMenu)
+    if (_horizontalMenu) {
+        _horizontalMenu->setRedraw();
         _horizontalMenu->draw();
+    }
 }
 
 bool InGameMenuDialog::msgKeypress(const KeypressMessage &msg) {
@@ -190,7 +196,11 @@ bool InGameMenuDialog::msgKeypress(const KeypressMessage &msg) {
         }
 
         // Reactivate the menu to stay persistent (DIALOG_InGame loops).
-        activate();
+        // Don't call activate() — just reactivate the existing HorizontalMenu.
+        if (_horizontalMenu) {
+            _horizontalMenu->activate();
+            _horizontalMenu->setRedraw();
+        }
     }
 
     return true;
