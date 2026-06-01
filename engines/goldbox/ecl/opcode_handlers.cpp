@@ -24,6 +24,7 @@
 #include "goldbox/ecl/ecl_vm.h"
 #include "common/hashmap.h"
 #include "common/random.h"
+#include "common/debug.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/core/vm_layout.h"
 #include "goldbox/ecl/runtime_layout.h"
@@ -117,10 +118,15 @@ static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
 
     vm.getOperand(1);
     const Common::String text = getLegacyPrintText(vm);
+    debug(2, "ECL PRINT opcode=0x%02X pc=0x%04X clear=%u len=%u",
+        (unsigned)opcode, (unsigned)vm.getPC(),
+        clearBox ? 1U : 0U, (unsigned)text.size());
     syscalls->setTextDelayEnabled(true);
 
     if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
         const VmResult asyncStart = host->beginPrintAsync(text, clearBox);
+        debug(2, "ECL PRINT async opcode=0x%02X pc=0x%04X result=%d",
+            (unsigned)opcode, (unsigned)vm.getPC(), (int)asyncStart);
         if (g_events) {
             g_events->postEclSyscallMessage(vm.getPC(), opcode,
                 EclVmMessage::SC_PRINT_ASYNC,
@@ -135,6 +141,8 @@ static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
 
     // Fallback: synchronous print.
     syscalls->printText(text, clearBox);
+    debug(2, "ECL PRINT sync opcode=0x%02X pc=0x%04X", (unsigned)opcode,
+        (unsigned)vm.getPC());
     if (g_events) {
         g_events->postEclSyscallMessage(vm.getPC(), opcode,
             EclVmMessage::SC_PRINT, static_cast<int16>(VM_OK));
@@ -469,11 +477,16 @@ static int handle_0x0D_SPRITE_ADVANCE(EclVM &vm, AddressSpace &mem,
         return VM_ERROR;
     uint16 distAddr = getOpcodeLayout().vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr;
     uint8 dist = mem.read8(distAddr);
+    debug(2, "ECL SPRITE_ADVANCE pc=0x%04X dist_before=%u", (unsigned)vm.getPC(),
+        (unsigned)dist);
     if (dist > 0) {
         dist--;
         mem.write8(distAddr, dist);
+        debug(2, "ECL SPRITE_ADVANCE pc=0x%04X dist_after=%u", (unsigned)vm.getPC(),
+            (unsigned)dist);
         return syscalls->redrawEncounterStage(dist);
     }
+    debug(2, "ECL SPRITE_ADVANCE pc=0x%04X already at 0", (unsigned)vm.getPC());
     return VM_OK;
 }
 

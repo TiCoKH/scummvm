@@ -89,13 +89,17 @@ void EncounterSpriteCache::loadSprite(uint8 spriteBlockId, uint8 bodyPicId,
         return;
     }
 
+    const uint8 maxFrame = static_cast<uint8>(spritBlock->frameCount() - 1);
+    const uint8 clampedDistance = MIN<uint8>(distance, maxFrame);
+
     // Mark as loaded — frame rendering will use DaxBlockSprit::frameInfo()
     // and EGA plane decode at draw time.
     _spriteLoaded = true;
+    _distance = clampedDistance;
 
     // Decode the frame at the requested distance into a Pic for rendering.
     _spritePic.reset(Gfx::Pic::readSpriteFrame(spritBlock,
-        static_cast<int>(distance)));
+        static_cast<int>(clampedDistance)));
 }
 
 void EncounterSpriteCache::loadHead(uint8 headPicId, uint8 bodyPicId) {
@@ -126,18 +130,23 @@ void EncounterSpriteCache::loadHead(uint8 headPicId, uint8 bodyPicId) {
 }
 
 void EncounterSpriteCache::setDistance(uint8 distance) {
-    _distance = distance;
-
     // Re-decode the sprite frame for the new distance.
-    if (_spriteLoaded && _spriteBlockId != 0xFF) {
-        Data::DaxBlock *rawBlock = VmInterface::getDaxSprit().getBlockById(_spriteBlockId);
-        Data::DaxBlockSprit *spritBlock = rawBlock
-            ? dynamic_cast<Data::DaxBlockSprit *>(rawBlock) : nullptr;
-        if (spritBlock && distance < static_cast<uint8>(spritBlock->frameCount()))
-            _spritePic.reset(Pic::readSpriteFrame(spritBlock, static_cast<int>(distance)));
-        else
-            _spritePic.reset();
+    if (!_spriteLoaded || _spriteBlockId == 0xFF)
+        return;
+
+    Data::DaxBlock *rawBlock = VmInterface::getDaxSprit().getBlockById(_spriteBlockId);
+    Data::DaxBlockSprit *spritBlock = rawBlock
+        ? dynamic_cast<Data::DaxBlockSprit *>(rawBlock) : nullptr;
+    if (!spritBlock || spritBlock->frameCount() < 1) {
+        _spritePic.reset();
+        return;
     }
+
+    const uint8 maxFrame = static_cast<uint8>(spritBlock->frameCount() - 1);
+    const uint8 clampedDistance = MIN<uint8>(distance, maxFrame);
+    _distance = clampedDistance;
+    _spritePic.reset(Pic::readSpriteFrame(spritBlock,
+        static_cast<int>(clampedDistance)));
 }
 
 } // namespace Gfx

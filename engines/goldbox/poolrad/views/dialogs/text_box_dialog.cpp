@@ -74,8 +74,14 @@ void TextBoxDialog::setText(const Common::String &text, bool clearBox) {
 
     if (clearBox) {
         clearArea();
+        // PRINTCLEAR semantics: also clear the prompt/status row and fully
+        // reset cursor to the text-box origin before rendering new text.
+        Surface s = getSurface();
+        s.clearBox(0, 24, 39, 24, 0);
         _cursorX = _startX;
         _cursorY = _startY;
+        debug(2, "TextBoxDialog::setText clear reset cursor=(%u,%u) len=%u",
+            (unsigned)_cursorX, (unsigned)_cursorY, (unsigned)_text.size());
     } else {
         // If cursor is outside the box, reset it (matches x86 behavior).
         if (_cursorX < _startX || _cursorX > _endX
@@ -85,6 +91,11 @@ void TextBoxDialog::setText(const Common::String &text, bool clearBox) {
         }
     }
 
+    if (!clearBox) {
+        debug(3, "TextBoxDialog::setText append cursor=(%u,%u) len=%u",
+            (unsigned)_cursorX, (unsigned)_cursorY, (unsigned)_text.size());
+    }
+
     redraw();
 }
 
@@ -92,6 +103,11 @@ void TextBoxDialog::renderNextWord() {
     if (_srcIdx >= _text.size()) {
         _rendering = false;
         return;
+    }
+
+    if (_srcIdx == 0) {
+        debug(3, "TextBoxDialog::renderNextWord start cursor=(%u,%u)",
+            (unsigned)_cursorX, (unsigned)_cursorY);
     }
 
     // Scan forward to find the end of the current word (stop at break char).
