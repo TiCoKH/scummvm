@@ -28,11 +28,7 @@
 #include "goldbox/poolrad/gfx/surface.h"
 #include "goldbox/gfx/icon.h"
 #include "goldbox/gfx/dax_tile.h"
-#include "goldbox/gfx/pic.h"
-#include "goldbox/gfx/area_map_cache.h"
 #include "goldbox/gfx/encounter_sprite_cache.h"
-#include "goldbox/gfx/first_person_renderer.h"
-#include "goldbox/gfx/viewport_background.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
@@ -368,54 +364,15 @@ VmResult PoolradEngineHostImpl::displayPicture(uint8 picID) {
         return VmResult::VM_ERROR;
 
     if (picID == 0xFF) {
-        // Original PICTURE(0xFF) path: clear picture state and redraw 3D.
+        // Event-driven path: clear picture cache and let the view redraw
+        // via SC_DISPLAY_PICTURE/SC_SPRITE_OFF handling.
         _engine->getEncounterSpriteCache().clear();
-
-        Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
-            _engine->findView("InGame"));
-        if (igv)
-            igv->redraw();
-        if (g_events)
-            g_events->drawElements();
-        Graphics::Screen *screen = _engine->getScreen();
-        if (screen)
-            screen->update();
         return VmResult::VM_OK;
     }
 
-    Graphics::Screen *screen = _engine->getScreen();
-    if (!screen)
-        return VmResult::VM_ERROR;
-
-    // Outdoor mode draws the inner 3D picture window frame before blitting.
-    const Goldbox::RuntimeExchange *exchange = _engine->getRuntimeExchange();
-    Goldbox::RuntimeMapSnapshot snapshot;
-    if (exchange && exchange->captureMapSnapshot(snapshot) && snapshot.valid
-            && !snapshot.indoorMode) {
-        Goldbox::Poolrad::Gfx::Surface screenSurface(*screen,
-            Common::Rect(0, 0, screen->w, screen->h));
-        screenSurface.drawWindow(3, 3, 13, 13);
-    }
-
-    Goldbox::Data::DaxBlock *rawBlock =
-        _engine->getDaxManager().getPic().getBlockById(picID);
-    if (!rawBlock) {
-        warning("PoolradEngineHostImpl::displayPicture: PIC block %u not found",
-            (unsigned)picID);
-        return VmResult::VM_ERROR;
-    }
-
-    Goldbox::Data::DaxBlockPic *picBlock =
-        dynamic_cast<Goldbox::Data::DaxBlockPic *>(rawBlock);
-    if (!picBlock)
-        return VmResult::VM_ERROR;
-
-    Common::ScopedPtr<Goldbox::Gfx::Pic> pic(Goldbox::Gfx::Pic::read(picBlock));
-    if (!pic)
-        return VmResult::VM_ERROR;
-
-    // Pic::read() allocates a right-sized ManagedSurface (block width/height).
-    pic->draw(screen, kPicture3DAreaPixelX, kPicture3DAreaPixelY);
+    // Scene pictures are cached and consumed by InGameMainScreenDialog on
+    // the next event-driven redraw.
+    _engine->getEncounterSpriteCache().loadHead(0xFF, picID);
     return VmResult::VM_OK;
 }
 
@@ -519,79 +476,15 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
 }
 
 VmResult PoolradEngineHostImpl::refreshViewport() {
-    // GFX_ViewPortUpdate() + DIALOG_StateArea()
+    // Event-driven viewport update. The authoritative render path is the
+    // view layer reacting to ST_POSITION_DIRTY/ST_SKYBOX_DIRTY.
     if (!_engine)
         return VM_OK;
 
-    // Draw 3D viewport directly to screen, bypassing dialog visibility state.
-    // This matches original GFX_ViewPortUpdate which always blits regardless
-    // of UI dialog state.
-    Graphics::Screen *screen = _engine->getScreen();
-    if (!screen)
-        return VM_OK;
-
-    const Goldbox::RuntimeExchange *exchange = _engine->getRuntimeExchange();
-    Goldbox::RuntimeMapSnapshot snapshot;
-    if (!exchange || !exchange->captureMapSnapshot(snapshot) || !snapshot.valid)
-        return VM_OK;
-
-    const uint8 mapType = snapshot.indoorMode ? 1 : snapshot.mapType;
-    if (mapType != 1)
-        return VM_OK;
-
-    // Get geo block for 3D rendering.
-    Goldbox::Poolrad::PoolradEngine *poolradEngine =
-        dynamic_cast<Goldbox::Poolrad::PoolradEngine *>(_engine);
-    if (!poolradEngine)
-        return VM_OK;
-    Data::DaxBlockGeo *geo = poolradEngine->getActiveGeoBlock();
-    if (!geo) {
-        RuntimeGeoBlock &rtGeo = _engine->getRuntimeGeo();
-        if (rtGeo.isLoaded())
-            geo = poolradEngine->getGeoBlockById(rtGeo.blockId());
+    if (g_events) {
+        g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,
+            EclVmMessage::VT_UINT8);
     }
-    if (!geo)
-        return VM_OK;
-
-    // Draw 3D viewport directly to screen, bypassing dialog system entirely.
-    const Goldbox::Gfx::ViewportBackground &vpBg =
-        _engine->getViewportBackground();
-    screen->blitFrom(vpBg.surface(),
-        Common::Rect(
-            Goldbox::Gfx::ViewportBackground::kViewportX,
-            Goldbox::Gfx::ViewportBackground::kViewportY,
-            Goldbox::Gfx::ViewportBackground::kViewportX +
-                Goldbox::Gfx::ViewportBackground::kViewportSize,
-            Goldbox::Gfx::ViewportBackground::kViewportY +
-                Goldbox::Gfx::ViewportBackground::kViewportSize),
-        Common::Point(
-            Goldbox::Gfx::ViewportBackground::kViewportX,
-            Goldbox::Gfx::ViewportBackground::kViewportY));
-
-    // Draw 3D walls.
-    const uint8 wireDir = static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2);
-    Goldbox::Gfx::FirstPersonRenderer::draw3dWorld(
-        screen, wireDir,
-        static_cast<int>(snapshot.dungeonX),
-        static_cast<int>(snapshot.dungeonY),
-        *geo, _engine->getWalldefSlotCache());
-
-    // Draw state area (position/direction) directly to screen.
-    // The state area is at row 15, cols 17-39 — outside the 3D viewport.
-    {
-        Goldbox::Poolrad::Gfx::Surface stateSurface(*screen,
-            Common::Rect(0, 0, screen->w, screen->h));
-        static const char *kDirNames[] = {"N", "E", "S", "W"};
-        const uint8 dir4 = snapshot.dungeonDir & 0x03;
-        Common::String posStr = Common::String::format("%u,%u %s %02u:%02u",
-            (unsigned)snapshot.dungeonX, (unsigned)snapshot.dungeonY,
-            kDirNames[dir4],
-            (unsigned)snapshot.clockHour, (unsigned)snapshot.clockMinute);
-        stateSurface.clearBox(17, 15, 38, 15, 0);
-        stateSurface.writeStringC(17, 15, 10, posStr);
-    }
-
-    screen->update();
     return VM_OK;
 }
 
@@ -650,8 +543,15 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
         x = (x + 16) & 0x0F;
         y = (y + 16) & 0x0F;
 
-        _memory->write16LE(xAddr, static_cast<uint16>(x));
-        _memory->write16LE(yAddr, static_cast<uint16>(y));
+        // Packed system-bank fields are byte-addressed; keep writes byte-wide.
+        _memory->write8(xAddr, static_cast<uint8>(x));
+        _memory->write8(yAddr, static_cast<uint8>(y));
+		if (g_events) {
+			g_events->postEclVmMessage(xAddr, static_cast<uint8>(x));
+			g_events->postEclVmMessage(yAddr, static_cast<uint8>(y));
+			g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,
+				EclVmMessage::VT_UINT8);
+		}
         return VM_OK;
     }
 
@@ -756,17 +656,10 @@ VmResult PoolradEngineHostImpl::drawEncounterStage(uint8 resourceId,
     }
 
     _updateViewState();
-
-    // Mark view dirty and force immediate screen repaint so the sprite is
-    // visible before the next DELAY opcode yields.
-    UIElement *focused = g_events ? g_events->focusedView() : nullptr;
-    if (focused)
-        focused->redraw();
-    if (g_events)
-        g_events->drawElements();
-    Graphics::Screen *screen = _engine->getScreen();
-    if (screen)
-        screen->update();
+    if (g_events) {
+        g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY, 1,
+            EclVmMessage::VT_UINT8);
+    }
 
     return VM_OK;
 }
@@ -779,16 +672,10 @@ VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
     cache.setDistance(newDistance);
 
     _updateViewState();
-
-    // Draw the sprite at the new distance immediately.
-    UIElement *focused = g_events ? g_events->focusedView() : nullptr;
-    if (focused)
-        focused->redraw();
-    if (g_events)
-        g_events->drawElements();
-    Graphics::Screen *screen = _engine->getScreen();
-    if (screen)
-        screen->update();
+    if (g_events) {
+        g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY, 1,
+            EclVmMessage::VT_UINT8);
+    }
 
     // When reaching distance 0 (adjacent): hold the final sprite frame
     // briefly before switching to the portrait/picture.
@@ -805,12 +692,10 @@ VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
         cache.loadHead(headPicId, cache.bodyPicId());
 
         _updateViewState();
-        if (focused)
-            focused->redraw();
-        if (g_events)
-            g_events->drawElements();
-        if (screen)
-            screen->update();
+        if (g_events) {
+            g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY, 1,
+                EclVmMessage::VT_UINT8);
+        }
     }
 
     return VM_OK;
@@ -820,17 +705,6 @@ VmResult PoolradEngineHostImpl::spriteOff() {
     if (!_engine)
         return VM_OK;
     _engine->getEncounterSpriteCache().clear();
-    // Force immediate 3D viewport redraw (GFX_ViewPortUpdate equivalent)
-    // so the previously drawn sprite/portrait is replaced by the 3D scene.
-    Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
-        _engine->findView("InGame"));
-    if (igv)
-        igv->redraw();
-    if (g_events)
-        g_events->drawElements();
-    Graphics::Screen *screen = _engine->getScreen();
-    if (screen)
-        screen->update();
     return VM_OK;
 }
 
