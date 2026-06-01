@@ -46,49 +46,16 @@ void InGameMenuDialog::buildMenuModel() {
     _menuModel.items.clear();
     _menuModel.currentSelection = 0;
 
-    if (_mode == kModeDungeon) {
-        MenuItem area;
-        area.shortcut = 'A';
-        area.text = "rea";
-        area.active = true;
-        area.shortcutFirst = true;
-        _menuModel.items.push_back(area);
-    }
+    Common::Array<Common::String> menuStrings;
+    if (_mode == kModeDungeon)
+        menuStrings.push_back("Area");
+    menuStrings.push_back("Cast");
+    menuStrings.push_back("View");
+    menuStrings.push_back("Encamp");
+    menuStrings.push_back("Search");
+    menuStrings.push_back("Look");
 
-    MenuItem cast;
-    cast.shortcut = 'C';
-    cast.text = "ast";
-    cast.active = true;
-    cast.shortcutFirst = true;
-    _menuModel.items.push_back(cast);
-
-    MenuItem view;
-    view.shortcut = 'V';
-    view.text = "iew";
-    view.active = true;
-    view.shortcutFirst = true;
-    _menuModel.items.push_back(view);
-
-    MenuItem encamp;
-    encamp.shortcut = 'E';
-    encamp.text = "ncamp";
-    encamp.active = true;
-    encamp.shortcutFirst = true;
-    _menuModel.items.push_back(encamp);
-
-    MenuItem search;
-    search.shortcut = 'S';
-    search.text = "earch";
-    search.active = true;
-    search.shortcutFirst = true;
-    _menuModel.items.push_back(search);
-
-    MenuItem look;
-    look.shortcut = 'L';
-    look.text = "ook";
-    look.active = true;
-    look.shortcutFirst = true;
-    _menuModel.items.push_back(look);
+    _menuModel.generateMenuItems(menuStrings, true);
 }
 
 void InGameMenuDialog::setMode(MapMode mode) {
