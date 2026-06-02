@@ -28,22 +28,25 @@ static uint32 getPackedStringSize(uint8 decodedLength) {
     return (decodedLength * 3 + 3) / 4;
 }
 
-Common::String decompress6BitString(const uint8 *compressedData, uint8 length) {
+Common::String decompress6BitString(const uint8 *compressedData,
+        uint8 packedSize, uint8 maxChars) {
     Common::String result;
-    if (!compressedData || length == 0) {
+    if (!compressedData || packedSize == 0 || maxChars == 0) {
         return result;
     }
 
     // 6-bit decompression: 4 chars packed into 3 bytes
-    // 3-state decoder matching ECL specification
+    // 3-state decoder matching ECL specification.
+    // A 6-bit value of 0 is the string terminator (padding at end of
+    // packed data); it must NOT be inflated to '@' (0x40).
     int state = 1;
     uint8 lastByte = 0;
     uint32 byteIndex = 0;
     uint8 outputCount = 0;
 
-    while (outputCount < length) {
-        if (byteIndex >= length * 3 / 4 + 1) {
-            break; // Safety check: compressed size ~= length * 3 / 4
+    while (outputCount < maxChars) {
+        if (byteIndex >= packedSize) {
+            break;
         }
 
         uint8 thisByte = compressedData[byteIndex++];
@@ -61,9 +64,10 @@ Common::String decompress6BitString(const uint8 *compressedData, uint8 length) {
             break;
         }
 
-        if (curr <= 0x1F) {
+        if (curr == 0)
+            break;
+        if (curr <= 0x1F)
             curr += 0x40;
-        }
 
         result += (char)curr;
         outputCount++;
@@ -71,11 +75,12 @@ Common::String decompress6BitString(const uint8 *compressedData, uint8 length) {
         lastByte = thisByte;
         state = (state % 3) + 1;
 
-        if (state == 1 && outputCount < length) {
+        if (state == 1 && outputCount < maxChars) {
             curr = thisByte & 0x3F;
-            if (curr <= 0x1F) {
+            if (curr == 0)
+                break;
+            if (curr <= 0x1F)
                 curr += 0x40;
-            }
             result += (char)curr;
             outputCount++;
         }

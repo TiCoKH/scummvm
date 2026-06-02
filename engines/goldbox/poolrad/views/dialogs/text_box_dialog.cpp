@@ -122,22 +122,19 @@ void TextBoxDialog::redrawCurrentPage() {
 }
 
 void TextBoxDialog::setText(const Common::String &text, bool clearBox) {
-    _text = text;
-    _srcIdx = 0;
-    _pageStartIdx = 0;
     _rendering = true;
     _waitingForKey = false;
     _frameCounter = 0;
     _pendingDrawStep = false;
 
     // Pacing: frames per word based on game speed (1-5 scale).
-    // Original x86: Wait_cycle(CFG_GAME_SPEED * 10)
-    // Original m68k: Delay(CFG_GAME_SPEED * 2)
-    // At 20fps, speed=3 -> 3 frames per word gives similar feel.
     uint speed = VmInterface::getTextDelay();
     _framesPerWord = (speed == 0) ? 0 : speed;
 
     if (clearBox) {
+        _text = text;
+        _srcIdx = 0;
+        _pageStartIdx = 0;
         clearArea();
         // PRINTCLEAR semantics: also clear the prompt/status row and fully
         // reset cursor to the text-box origin before rendering new text.
@@ -146,12 +143,9 @@ void TextBoxDialog::setText(const Common::String &text, bool clearBox) {
         _cursorX = _startX;
         _cursorY = _startY;
     } else {
-        // If cursor is outside the box, reset it (matches x86 behavior).
-        if (_cursorX < _startX || _cursorX > _endX
-                || _cursorY < _startY || _cursorY > _endY) {
-            _cursorX = _startX;
-            _cursorY = _startY;
-        }
+        // PRINT (non-clear): append to existing text buffer and continue
+        // rendering from the current position.
+        _text += text;
     }
 
     redraw();

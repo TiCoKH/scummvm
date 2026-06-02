@@ -1302,10 +1302,6 @@ void PoolradEngine::dispatchPlayerCommand() {
 	if (cmd != Views::InGameView::kCmdMove)
 		return;
 
-	// Pre-clear the message area (rows 17-22) on every step.
-	// Matches original: SCREEN_ClearRect(1,17,38,22) / BOOL_PROMPT_CLEARED.
-	inGameView->clearTextBox();
-
 	// Sync direction to VM memory before ONMOVE.
 	// Position is authoritative in VM memory (set by scripts); only direction
 	// is changed by InGameView (player turning).
@@ -1406,38 +1402,13 @@ void PoolradEngine::dispatchPlayerCommand() {
 		_legacySharedState.bool3dRedraw = false;
 		_legacySharedState.boolPictureReady = true;
 
-		// Always run ONSEARCH after movement. Scripts decide whether the
-		// current square event needs active search mode (bit 7 in MapSquareInfo)
-		// by checking D_SearchFlags themselves.
-		// Refresh MapSquareInfo so ONSEARCH script can check bit 7.
+		// Always run ONSEARCH unconditionally after movement.
+		// The script itself handles PRINTCLEAR, PICTURE(255), and checks
+		// D_SearchFlags internally to decide what to do.
 		if (_eclHost)
 			_eclHost->readGeoAtPosition();
 
-		// Compatibility: event byte 0xFE should trigger without requiring
-		// persistent search mode. For this one ONSEARCH dispatch, force bit0 on
-		// if currently off, then restore after execution.
-		const uint16 postMoveSearchAddr =
-			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
-		const uint16 squareInfoAddr =
-			layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
-		const uint8 savedSearchFlags = mem.read8(postMoveSearchAddr);
-		const uint8 squareInfo = mem.read8(squareInfoAddr);
-		const bool forceSearchForFe =
-			(squareInfo == 0xFE) && ((savedSearchFlags & 1) == 0);
-		if (forceSearchForFe) {
-			const uint8 forcedFlags = static_cast<uint8>(savedSearchFlags | 1);
-			mem.write8(postMoveSearchAddr, forcedFlags);
-			if (g_events)
-				g_events->postEclVmMessage(postMoveSearchAddr, forcedFlags);
-		}
-
 		const VmResult onSearch = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
-
-		if (forceSearchForFe) {
-			mem.write8(postMoveSearchAddr, savedSearchFlags);
-			if (g_events)
-				g_events->postEclVmMessage(postMoveSearchAddr, savedSearchFlags);
-		}
 
 		if (onSearch == VM_YIELD)
 			_eclFlags.suspended = true;
