@@ -36,7 +36,7 @@ enum DecodeStatus {
 /**
  * Decompress 6-bit packed string.
  * ECL uses 3-state decoder: 4 chars packed into 3 bytes.
- * Pattern: 0x80 <length> <compressed_data>
+ * Pattern: 0x80 <packedSize> <compressed_data>
  *
  * State machine:
  *   State 1: curr = (thisByte >> 2) & 0x3F
@@ -45,10 +45,12 @@ enum DecodeStatus {
  *   Inflate: if (curr <= 0x1F) curr += 0x40
  *
  * @param compressedData Compressed byte sequence
- * @param length Expected output character count
+ * @param packedSize Number of compressed bytes available
+ * @param maxChars Maximum output character count
  * @return Decompressed string
  */
-Common::String decompress6BitString(const uint8 *compressedData, uint8 length);
+Common::String decompress6BitString(const uint8 *compressedData,
+        uint8 packedSize, uint8 maxChars);
 
 } // namespace ECL
 } // namespace Goldbox

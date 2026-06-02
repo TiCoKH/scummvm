@@ -515,12 +515,12 @@ Common::String EclVM::readString(uint8 index) const {
             switch (typeTag) {
             case 0x80: {
                 const uint8 packedSize = lo;
-                const uint8 charCount = static_cast<uint8>((static_cast<uint32>(packedSize) * 4) / 3);
+                const uint8 maxChars = static_cast<uint8>((static_cast<uint32>(packedSize) * 4) / 3);
                 Common::Array<uint8> packed;
                 packed.resize(packedSize);
                 for (uint32 b = 0; b < packedSize; ++b)
                     packed[b] = _memory.read8(pos++);
-                return decompress6BitString(packed.data(), charCount);
+                return decompress6BitString(packed.data(), packedSize, maxChars);
             }
             case 0x81:
             case 0x01:
