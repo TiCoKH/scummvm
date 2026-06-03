@@ -34,6 +34,7 @@
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
+#include "goldbox/runtime/runtime_time.h"
 #include "goldbox/core/direction.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
 
@@ -55,6 +56,16 @@ static char toUpperAscii(char c) {
 		return static_cast<char>(c - ('a' - 'A'));
 	return c;
 }
+
+static const Goldbox::TimeFieldAddresses kPoolradClockAddrs = {{
+	0x49C5, // units
+	0x49C7, // minuteOnes
+	0x49C8, // minuteTens
+	0x49C9, // hour
+	0x49CA, // day
+	0x49CB, // month
+	0x49CC  // yearLo
+}};
 
 } // namespace
 
@@ -1273,7 +1284,10 @@ void PoolradEngine::dispatchPlayerCommand() {
 			g_events->postEclVmMessage(searchAddr, lookFlags);
 
 		// TIME_AddUnits(1, 2) - advance clock by 2 minutes.
-		// TODO: Wire TIME_AddUnits once clock system is implemented.
+		if (_eclVm) {
+			timeAddUnits(_eclVm->getMemory(), kPoolradClockAddrs,
+				_party, &_effectsRuntime, getGameState(), 1, 2);
+		}
 
 		// Now enter the search-loop path: set flags=1, run ONSEARCH, restore.
 		mem.write8(searchAddr, 1);
@@ -1362,6 +1376,19 @@ void PoolradEngine::dispatchPlayerCommand() {
 	// ONMOVE script uses MapSquareInfo to decide which event to trigger.
 	if (_eclHost)
 		_eclHost->readGeoAtPosition();
+
+	// TIME_AddUnits: advance clock based on search mode.
+	{
+		const uint16 searchAddr =
+			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
+		const uint8 searchFlags = mem.read8(searchAddr);
+		if ((searchFlags & 1) == 0)
+			timeAddUnits(mem, kPoolradClockAddrs, _party,
+				&_effectsRuntime, getGameState(), 1, 1);
+		else
+			timeAddUnits(mem, kPoolradClockAddrs, _party,
+				&_effectsRuntime, getGameState(), 2, 1);
+	}
 
 	const VmResult onMove = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
 	if (onMove == VM_YIELD) {
