@@ -9,6 +9,7 @@ MODULE_OBJS = \
 	metaengine.o \
 	runtime/runtime_exchange.o \
 	runtime/runtime_geo.o \
+	runtime/runtime_time.o \
 	vm_interface.o \
 	ecl/ecl_decoder.o \
 	ecl/ecl_memory.o \
