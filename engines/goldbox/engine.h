@@ -33,6 +33,7 @@
 #include "goldbox/core/global.h"
 #include "goldbox/detection.h"
 #include "goldbox/events.h"
+#include "goldbox/sound/sound_driver.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/strings_data.h"
 #include "goldbox/data/items/base_items.h"
@@ -53,6 +54,9 @@ private:
 	const GoldboxGameDescription *_gameDescription;
 	Common::RandomSource _randomSource;
 	GameState _gameState = GS_START_MENU;
+
+	GoldboxSoundDriver *_soundDriver;  ///< PC Speaker / Tandy sound driver
+	SoundMode _soundMode;              ///< Current sound mode from config
 protected:
 	Data::DaxFileManager _daxManager;
 	RuntimeGeoBlock _runtimeGeo;
@@ -102,6 +106,21 @@ public:
 	uint8 _skylineColor = 0;
 	uint8 _horizonColor = 0;
 	uint8 _floorColor = 0;
+
+	/**
+	 * Play a sound effect or song by ID.
+	 * Matches the original SOUND_Play(s_id) convention:
+	 *   0    = stop all, disable speaker
+	 *   1    = enable speaker (unmute)
+	 *   0xFF = stop songs, keep speaker enabled
+	 *   2+   = play song (1-based index)
+	 */
+	void soundPlay(uint8 songId);
+
+	/**
+	 * Returns the current sound mode.
+	 */
+	SoundMode getSoundMode() const { return _soundMode; }
 
 	/**
 	 * Gets the current game state.

@@ -41,6 +41,17 @@ static const ADExtraGuiOptionsMap optionsList[] = {
 			0
 		}
 	},
+	{
+		GAMEOPTION_SOUND_MODE,
+		{
+			_s("Sound device"),
+			_s("Select sound output: Tandy 3-voice, PC Speaker, or Off"),
+			"sound_mode",
+			true,
+			0,
+			0
+		}
+	},
 	AD_EXTRA_GUI_OPTIONS_TERMINATOR
 };
 

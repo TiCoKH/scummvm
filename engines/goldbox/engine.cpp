@@ -29,6 +29,7 @@
 #include "graphics/palette.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
+#include "goldbox/sound/sound_driver.h"
 
 namespace Goldbox {
 
@@ -37,11 +38,13 @@ Data::Items::Storage Engine::gItemProps;
 
 Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine(syst),
 	_gameDescription(gameDesc), _randomSource("Goldbox"),
-	_daxManager(gameDesc->desc.platform) {
+	_daxManager(gameDesc->desc.platform),
+	_soundDriver(nullptr), _soundMode(kSoundTandy) {
 	g_engine = this;
 }
 
 Engine::~Engine() {
+	delete _soundDriver;
 	delete _fixedTileCacheSlot0;
 	delete _font;
 	_daxManager.clear();
@@ -52,6 +55,22 @@ Engine::~Engine() {
 }
 
 void Engine::setup() {
+	// Read sound mode from config: "tandy" (default), "speaker", or "off"
+	Common::String modeStr = ConfMan.get("sound_mode");
+	if (modeStr.equalsIgnoreCase("off")) {
+		_soundMode = kSoundOff;
+	} else if (modeStr.equalsIgnoreCase("speaker")) {
+		_soundMode = kSoundPCSpeaker;
+	} else {
+		_soundMode = kSoundTandy;
+	}
+
+	// Initialize sound driver (unless sound is off)
+	if (_soundMode != kSoundOff) {
+		_soundDriver = new GoldboxSoundDriver(_mixer, nullptr, _soundMode);
+		_soundDriver->init();
+	}
+
 	if (!initializeGameData())
 		return;
 
@@ -178,6 +197,13 @@ Common::Error Engine::syncGame(Common::Serializer &s) {
 	s.syncAsUint32LE(dummy);
 
 	return Common::kNoError;
+}
+
+void Engine::soundPlay(uint8 songId) {
+	if (_soundMode == kSoundOff || !_soundDriver)
+		return;
+
+	_soundDriver->playSong(songId);
 }
 
 } // End of namespace Goldbox
