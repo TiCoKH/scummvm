@@ -50,6 +50,7 @@ extern const PlainGameDescriptor goldboxGames[];
 extern const GoldboxGameDescription gameDescriptions[];
 
 #define GAMEOPTION_ORIGINAL_SAVELOAD GUIO_GAMEOPTIONS1
+#define GAMEOPTION_SOUND_MODE GUIO_GAMEOPTIONS2
 
 } // End of namespace Goldbox
 
