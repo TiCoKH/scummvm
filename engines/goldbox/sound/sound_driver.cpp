@@ -25,21 +25,17 @@
 
 namespace Goldbox {
 
-// PIT clock frequency for frequency-to-Hz conversion
 static const uint32 kPitClock = 1193182;
 
 GoldboxSoundDriver::GoldboxSoundDriver(Audio::Mixer *mixer,
         const SoundData *data, SoundMode mode)
     : _mixer(mixer), _data(data), _mode(mode),
       _speakerEnabled(true), _tickAccumulator(0) {
-
     _outputRate = mixer->getOutputRate();
-
     for (int i = 0; i < kSoundChannels; ++i) {
         _channels[i].reset();
         _spkStreams[i] = new Audio::PCSpeakerStream(_outputRate);
     }
-
     memset(&_handle, 0, sizeof(_handle));
 }
 
@@ -56,10 +52,8 @@ void GoldboxSoundDriver::init() {
 
 void GoldboxSoundDriver::playSong(uint8 songId) {
     Common::StackLock lock(_mutex);
-
     if (_mode == kSoundOff)
         return;
-
     if (songId == 0) {
         silenceAll();
         _speakerEnabled = false;
@@ -68,8 +62,7 @@ void GoldboxSoundDriver::playSong(uint8 songId) {
     } else if (songId == 0xFF) {
         silenceAll();
     } else {
-        uint8 tableIndex = songId - 2;
-        loadSong(tableIndex);
+        loadSong(songId - 2);
     }
 }
 
@@ -84,32 +77,23 @@ void GoldboxSoundDriver::setSpeakerEnabled(bool enabled) {
 }
 
 // ---------------------------------------------------------------------------
-// AudioStream — generates PCM output by mixing PCSpeakerStream channels
+// AudioStream
 // ---------------------------------------------------------------------------
 
 int GoldboxSoundDriver::readBuffer(int16 *buffer, const int numSamples) {
     Common::StackLock lock(_mutex);
 
-    // Advance tick timing and queue audio to PCSpeakerStreams
-    int samplesPerTick = _outputRate / kTimerFrequency;
-    int generated = 0;
-
-    while (generated < numSamples) {
+    for (int i = 0; i < numSamples; ++i) {
         _tickAccumulator += kTimerFrequency;
         if (_tickAccumulator >= _outputRate) {
             _tickAccumulator -= _outputRate;
             tick();
         }
-        generated++;
     }
 
-    // Now read from PCSpeakerStreams and mix
     int channelLimit = (_mode == kSoundPCSpeaker) ? 1 : kSoundChannels;
-
-    // Zero the output buffer
     memset(buffer, 0, numSamples * sizeof(int16));
 
-    // Mix each channel's PCSpeakerStream output
     int16 *chBuf = new int16[numSamples];
     for (int ch = 0; ch < channelLimit; ++ch) {
         _spkStreams[ch]->readBuffer(chBuf, numSamples);
@@ -119,12 +103,11 @@ int GoldboxSoundDriver::readBuffer(int16 *buffer, const int numSamples) {
         }
     }
     delete[] chBuf;
-
     return numSamples;
 }
 
 // ---------------------------------------------------------------------------
-// Tick — called at ~237 Hz (original timer rate)
+// Tick
 // ---------------------------------------------------------------------------
 
 void GoldboxSoundDriver::tick() {
@@ -135,10 +118,6 @@ void GoldboxSoundDriver::tick() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Queue one tick's worth of audio to the PCSpeakerStream for a channel
-// ---------------------------------------------------------------------------
-
 void GoldboxSoundDriver::queueChannelAudio(int chIdx) {
     const SoundChannel &ch = _channels[chIdx];
 
@@ -148,43 +127,38 @@ void GoldboxSoundDriver::queueChannelAudio(int chIdx) {
         return;
     }
 
-    float hz = (float)kPitClock / (float)(uint16)ch.outFreq;
+    float hz;
+    if (_mode == kSoundTandy)
+        hz = 111860.0f / (float)((uint16)ch.outFreq >> 2);
+    else
+        hz = (float)kPitClock / (float)(uint16)ch.outFreq;
+
     _spkStreams[chIdx]->playQueue(Audio::PCSpeaker::kWaveFormSquare,
             hz, kTickLengthUs);
 }
 
-/**
- * Per-channel tick processing. This is the XT_PROGRAM equivalent.
- *
- * Execution order (matches original):
- *   1. Apply volume envelope slope
- *   2. Apply frequency portamento
- *   3. Calculate vibrato modulation
- *   4. Compute final output frequency
- *   5. Handle delay timer
- *   6. Decrement main duration counter -> load commands if zero
- *   7. Decrement envelope timer -> consume entries if zero
- */
+// ---------------------------------------------------------------------------
+// Per-channel tick
+// ---------------------------------------------------------------------------
+
 void GoldboxSoundDriver::tickChannel(SoundChannel &ch) {
     // 1. Volume slide
-    int32 newVol = (int32)ch.volume + ch.volDelta;
-    ch.volume = (int16)CLIP<int32>(newVol, 0, 0x7FFF);
+    ch.volume = (int16)CLIP<int32>((int32)ch.volume + ch.volDelta, 0, 0x7FFF);
 
     // 2. Frequency slide
     ch.freq += ch.freqDelta;
 
     // 3. Vibrato
     int16 vibrato = 0;
-    if (ch.vibSpeed != 0 && ch.vibWaveId < _data->waveforms.size()) {
+    if (ch.vibSpeed != 0 && ch.vibTable != 0) {
         uint16 newPos = ch.vibPos + ch.vibSpeed;
         if (ch.vibWrap != 0 && newPos >= ch.vibWrap)
             newPos -= ch.vibWrap;
         ch.vibPos = newPos;
 
-        uint8 idx = (uint8)(newPos >> 4);
-        int8 sample = (int8)_data->waveforms[ch.vibWaveId].samples[idx];
-        vibrato = (int16)(((int32)(sample << 8) *
-                (int32)ch.vibDepth) >> 16);
+        // Read sample directly from blob at vibTable address
+        int8 sample = (int8)_data->readByte(ch.vibTable + (newPos >> 4));
+        vibrato = (int16)(((int32)(sample << 8) * (int32)ch.vibDepth) >> 16);
     }
 
     // 4. Output frequency
@@ -195,195 +169,143 @@ void GoldboxSoundDriver::tickChannel(SoundChannel &ch) {
         ch.delayTimer--;
         if (ch.delayTimer == 0) {
             ch.envOffset = 0;
-            ch.envTicksLeft = 1;
+            ch.envTicks = 1;
         }
     }
 
     // 6. Main duration
-    if (ch.ticksLeft != 0) {
-        ch.ticksLeft--;
-        if (ch.ticksLeft == 0)
+    if (ch.duration != 0) {
+        ch.duration--;
+        if (ch.duration == 0)
             loadNextCommands(ch);
     }
 
     // 7. Envelope
-    if (ch.envTicksLeft != 0)
+    if (ch.envTicks != 0)
         processEnvelope(ch);
 }
 
 // ---------------------------------------------------------------------------
-// Envelope processing
+// Envelope — reads 4-byte entries from blob at envBase + envOffset
 // ---------------------------------------------------------------------------
 
 void GoldboxSoundDriver::processEnvelope(SoundChannel &ch) {
-    ch.envTicksLeft--;
-    if (ch.envTicksLeft != 0)
+    ch.envTicks--;
+    if (ch.envTicks != 0)
         return;
-
-    if (ch.envStreamId >= _data->envelopes.size())
+    if (ch.envBase == 0)
         return;
-
-    const EnvelopeStream &env = _data->envelopes[ch.envStreamId];
 
     for (int safety = 0; safety < 64; ++safety) {
-        if (ch.envOffset >= env.entries.size())
-            return;
+        uint16 addr = ch.envBase + ch.envOffset;
+        int16 value = (int16)_data->readUint16(addr);
+        int16 dur = (int16)_data->readUint16(addr + 2);
+        ch.envOffset += 4;
 
-        const EnvelopeEntry &entry = env.entries[ch.envOffset];
-        ch.envOffset++;
-
-        switch (entry.type) {
-        case EnvelopeEntry::SET_VOL:
-            ch.volume = entry.value;
-            if (entry.value == 0)
+        if (dur == -1) {
+            // Set volume absolutely
+            ch.volume = value;
+            if (value == 0) {
                 ch.volDelta = 0;
-            continue;  // Process next immediately
-
-        case EnvelopeEntry::SILENCE:
-            ch.volume = 0;
-            ch.volDelta = 0;
-            ch.envTicksLeft = 0;
-            return;
-
-        case EnvelopeEntry::SLOPE:
-            ch.volDelta = entry.value;
-            ch.envTicksLeft = entry.duration;
-            return;
+                ch.envTicks = 0;
+                return;
+            }
+            continue;  // Process next entry immediately
         }
+
+        // Slope: set volDelta, wait dur ticks
+        ch.volDelta = value;
+        ch.envTicks = (uint16)dur;
+        return;
     }
 }
 
 // ---------------------------------------------------------------------------
-// Command stream execution (XT_GameSTART equivalent)
+// Command stream execution — reads directly from blob at ch.pc
 // ---------------------------------------------------------------------------
 
 void GoldboxSoundDriver::loadNextCommands(SoundChannel &ch) {
-    if (ch.streamId >= _data->streams.size()) {
+    if (ch.pc == 0) {
         ch.active = false;
         return;
     }
 
-    const SoundStream &stream = _data->streams[ch.streamId];
-
     for (int safety = 0; safety < 256; ++safety) {
-        if (ch.cmdIndex >= stream.commands.size()) {
-            ch.active = false;
-            return;
-        }
+        byte opcode = _data->readByte(ch.pc);
 
-        const SoundCommand &cmd = stream.commands[ch.cmdIndex];
-        ch.cmdIndex++;
-
-        switch (cmd.type) {
-        case SoundCommand::END:
+        switch (opcode) {
+        case 0xFB:  // END
             ch.active = false;
             return;
 
-        case SoundCommand::JUMP:
-            ch.cmdIndex = cmd.loopTarget;
+        case 0xFC: {  // JUMP
+            uint16 target = _data->readUint16(ch.pc + 1);
+            ch.pc = target;
             continue;
-
-        case SoundCommand::LOOP_START:
-            ch.loopCounter = (uint16)cmd.value;
-            continue;
-
-        case SoundCommand::LOOP_BACK:
-            if (ch.loopCounter > 1) {
-                ch.loopCounter--;
-                ch.cmdIndex = cmd.loopTarget;
-            }
-            continue;
-
-        case SoundCommand::COND_JUMP:
-            if (ch.loopCounter2 > 0) {
-                ch.loopCounter2--;
-                ch.cmdIndex = cmd.loopTarget;
-            }
-            continue;
-
-        case SoundCommand::REG_WRITE:
-            break;  // Handle below
         }
 
-        // Process register write
-        uint16 uval = (uint16)cmd.value;
-        switch (cmd.reg) {
-        case SoundCommand::REG_DURATION:
-            if (ch.tempoMult >= 2)
-                ch.ticksLeft = uval * ch.tempoMult;
-            else
-                ch.ticksLeft = uval;
-            return;  // Duration set — pause execution
+        case 0xFD: {  // CALL (save return addr, jump)
+            // In the original this stores DI and jumps
+            uint16 target = _data->readUint16(ch.pc + 1);
+            ch.pc = target;
+            continue;
+        }
 
-        case SoundCommand::REG_FREQ:
-            ch.freq = cmd.value;
-            ch.outFreq = cmd.value;
-            break;
+        case 0xFE: {  // LOOP (decrement counter, jump if >0)
+            uint16 target = _data->readUint16(ch.pc + 1);
+            ch.pc += 3;
+            if (ch.loopCtr > 1) {
+                ch.loopCtr--;
+                ch.pc = target;
+            }
+            continue;
+        }
 
-        case SoundCommand::REG_FREQ_DELTA:
-            ch.freqDelta = cmd.value;
-            break;
+        case 0xFF: {  // REGISTER WRITE
+            uint8 reg = _data->readByte(ch.pc + 1);
+            int16 val = (int16)_data->readUint16(ch.pc + 2);
+            ch.pc += 4;
 
-        case SoundCommand::REG_VOLUME:
-            ch.volume = cmd.value;
-            break;
+            switch (reg) {
+            case 0x00:  // DURATION — pauses execution
+                if (ch.tempoMult >= 2)
+                    ch.duration = (uint16)val * ch.tempoMult;
+                else
+                    ch.duration = (uint16)val;
+                return;
 
-        case SoundCommand::REG_VOL_DELTA:
-            ch.volDelta = cmd.value;
-            break;
-
-        case SoundCommand::REG_DELAY_TIMER:
-            ch.delayTimer = uval;
-            break;
-
-        case SoundCommand::REG_TEMPO:
-            ch.tempoMult = (uint8)uval;
-            break;
-
-        case SoundCommand::REG_TRANSPOSE:
-            ch.transpose = cmd.value;
-            break;
-
-        case SoundCommand::REG_ENV_STREAM:
-            ch.envStreamId = uval;
-            ch.envOffset = 0;
-            ch.envTicksLeft = 1;  // Trigger immediately
-            break;
-
-        case SoundCommand::REG_VIB_WAVE:
-            ch.vibWaveId = uval;
-            break;
-
-        case SoundCommand::REG_VIB_POS:
-            ch.vibPos = uval;
-            break;
-
-        case SoundCommand::REG_VIB_SPEED:
-            ch.vibSpeed = uval;
-            break;
-
-        case SoundCommand::REG_VIB_DEPTH:
-            ch.vibDepth = cmd.value;
-            break;
-
-        case SoundCommand::REG_VIB_WRAP:
-            ch.vibWrap = uval;
-            break;
-
-        case SoundCommand::REG_LOOP_CTR:
-            ch.loopCounter = uval;
-            break;
-
-        case SoundCommand::REG_LOOP_CTR2:
-            ch.loopCounter2 = uval;
-            break;
+            case 0x04: ch.freq = val; ch.outFreq = val; break;
+            case 0x06: ch.freqDelta = val; break;
+            case 0x0A: ch.volume = val; break;
+            case 0x0C: ch.volDelta = val; break;
+            case 0x0E: ch.delayTimer = (uint16)val; break;
+            case 0x10: ch.tempoMult = (uint8)(uint16)val; break;
+            case 0x12: ch.transpose = val; break;
+            case 0x16:  // ENV_BASE — raw segment pointer, used directly
+                ch.envBase = (uint16)val;
+                ch.envOffset = 0;
+                ch.envTicks = 1;
+                break;
+            case 0x1C: ch.vibTable = (uint16)val; break;  // raw ptr, used directly
+            case 0x1E: ch.vibPos = (uint16)val; break;
+            case 0x20: ch.vibSpeed = (uint16)val; break;
+            case 0x22: ch.vibDepth = val; break;
+            case 0x24: ch.vibWrap = (uint16)val; break;
+            case 0x26: ch.loopCtr = (uint16)val; break;
+            case 0x28: ch.loopCtr2 = (uint16)val; break;
+            default: break;
+            }
+            continue;
+        }
 
         default:
-            break;
+            // Not a control byte — this is note data (v1.0 format)
+            // TODO: handle note stream format
+            ch.active = false;
+            return;
         }
     }
 
-    // Safety limit reached
     ch.active = false;
 }
 
@@ -394,26 +316,20 @@ void GoldboxSoundDriver::loadNextCommands(SoundChannel &ch) {
 void GoldboxSoundDriver::loadSong(uint8 songIndex) {
     silenceAll();
 
-    const Common::Array<SongDefinition> &songs =
-            (_mode == kSoundTandy) ? _data->tandySongs : _data->speakerSongs;
-
-    if (songIndex >= songs.size())
+    if (!_data || !_data->data || songIndex >= _data->songCount)
         return;
 
-    const SongDefinition &song = songs[songIndex];
+    bool tandy = (_mode == kSoundTandy);
 
     for (int ch = 0; ch < kSoundChannels; ++ch) {
-        uint16 streamId = song.channelStream[ch];
-        if (streamId == kStreamIdNone)
-            continue;
-        if (streamId >= _data->streams.size())
+        uint16 streamAddr = _data->getSongStreamAddr(tandy, songIndex, ch);
+        if (streamAddr == 0)
             continue;
 
         _channels[ch].reset();
         _channels[ch].active = true;
-        _channels[ch].streamId = streamId;
-        _channels[ch].cmdIndex = 0;
-        _channels[ch].ticksLeft = 1;  // Trigger immediate load
+        _channels[ch].pc = streamAddr;
+        _channels[ch].duration = 1;  // Trigger immediate load
     }
 }
 

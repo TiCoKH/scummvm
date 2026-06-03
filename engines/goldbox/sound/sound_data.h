@@ -29,40 +29,23 @@ namespace Goldbox {
 
 /**
  * @file sound_data.h
- * @brief Internal sound data structures for Gold Box games.
+ * @brief Gold Box sound data — raw blob approach.
  *
- * These structures hold the manually extracted sound data in a format
- * suitable for the ScummVM sound driver. The data originates from the
- * DOS executable's embedded sound segment but is stored here in a
- * clean, portable representation.
+ * The entire sound segment is dumped as a single binary blob starting
+ * from a known segment offset. All internal pointers (song tables,
+ * waveform refs, envelope refs) are segment-relative near pointers.
  *
- * ========================================================================
- * HOW THE ORIGINAL STORES DATA
- * ========================================================================
+ * Since we know the segment base offset, ANY raw pointer in the data
+ * resolves to a blob position via: blobOffset = rawPtr - segmentBase.
  *
- * In the DOS EXE, a single flat memory segment contains:
- *   - A frequency lookup table (12 notes)
- *   - Two song pointer tables (Tandy + Speaker, 21 songs × 4 channels)
- *   - Vibrato waveform LUTs (sine, noise, etc.)
- *   - Variable-length command streams for all songs/effects
- *
- * All pointers in the tables are segment-relative offsets into this same
- * block. Our internal representation replaces raw offsets with indices
- * into arrays, making the data fully self-contained and relocatable.
- *
- * ========================================================================
- * HOW THIS STRUCT IS USED
- * ========================================================================
- *
- * 1. At build time (or from a resource file), populate SoundData with
- *    the extracted tables and streams.
- * 2. Pass SoundData to the GoldboxSoundDriver.
- * 3. The driver indexes into streams[] by ID, reads commands, and
- *    generates audio.
- *
- * The driver never touches raw EXE data — all access goes through these
- * structures.
+ * No pre-parsing, no pointer maps, no extraction — just the blob,
+ * the segment base, and the song table locations.
  */
+
+/**
+ * Number of sound channels (4 for Tandy, only ch0 used for PC Speaker).
+ */
+static const int kSoundChannels = 4;
 
 /**
  * Number of chromatic notes in the frequency table (one octave).
@@ -70,238 +53,84 @@ namespace Goldbox {
 static const int kNotesPerOctave = 12;
 
 /**
- * Maximum songs in a pointer table.
- */
-static const int kMaxSongCount = 21;
-
-/**
- * Channels per song entry.
+ * Channels per song entry in the pointer table.
  */
 static const int kChannelsPerSong = 4;
 
 /**
- * Vibrato waveform LUT size (samples).
- */
-static const int kWaveformSize = 256;
-
-/**
- * Stream ID indicating "no stream" / silence.
- */
-static const uint16 kStreamIdNone = 0xFFFF;
-
-/**
- * A single command in a sound stream.
+ * Raw sound data blob with self-resolving pointers.
  *
- * Each command writes a value to a channel register, or performs
- * control flow (loop, jump, end).
- */
-struct SoundCommand {
-    /**
-     * Command type — determines how the driver interprets this entry.
-     */
-    enum Type : uint8 {
-        REG_WRITE,   ///< Write value to a channel register
-        LOOP_START,  ///< Set loop counter (value = count)
-        LOOP_BACK,   ///< Decrement counter, jump if > 0 (value = target cmd index)
-        JUMP,        ///< Unconditional jump (value = target cmd index)
-        COND_JUMP,   ///< Conditional jump (value = target cmd index)
-        END          ///< End of stream
-    };
-
-    /**
-     * Register IDs for REG_WRITE commands.
-     * These map to channel state fields.
-     */
-    enum Register : uint8 {
-        REG_DURATION    = 0x00,  ///< Ticks until next command block
-        REG_FREQ        = 0x04,  ///< Base frequency (PIT divisor)
-        REG_FREQ_DELTA  = 0x06,  ///< Frequency slide per tick
-        REG_VOLUME      = 0x0A,  ///< Current volume level
-        REG_VOL_DELTA   = 0x0C,  ///< Volume change per tick
-        REG_DELAY_TIMER = 0x0E,  ///< One-shot envelope reset timer
-        REG_TEMPO       = 0x10,  ///< Duration multiplier
-        REG_TRANSPOSE   = 0x12,  ///< Note number offset
-        REG_ENV_STREAM  = 0x16,  ///< Envelope sub-stream ID (index into streams[])
-        REG_VIB_WAVE    = 0x1C,  ///< Vibrato waveform ID (index into waveforms[])
-        REG_VIB_POS     = 0x1E,  ///< Vibrato phase position
-        REG_VIB_SPEED   = 0x20,  ///< Vibrato phase speed
-        REG_VIB_DEPTH   = 0x22,  ///< Vibrato amplitude
-        REG_VIB_WRAP    = 0x24,  ///< Vibrato phase wrap length
-        REG_LOOP_CTR    = 0x26,  ///< Primary loop counter
-        REG_LOOP_CTR2   = 0x28   ///< Secondary loop counter
-    };
-
-    Type type;          ///< What this command does
-    uint8 reg;          ///< Register ID (for REG_WRITE)
-    int16 value;        ///< Value to write, or jump target index
-    uint16 loopTarget;  ///< For LOOP_BACK: command index to jump to
-
-    SoundCommand() : type(END), reg(0), value(0), loopTarget(0) {}
-
-    static SoundCommand makeRegWrite(uint8 r, int16 val) {
-        SoundCommand cmd;
-        cmd.type = REG_WRITE;
-        cmd.reg = r;
-        cmd.value = val;
-        return cmd;
-    }
-
-    static SoundCommand makeEnd() {
-        SoundCommand cmd;
-        cmd.type = END;
-        return cmd;
-    }
-
-    static SoundCommand makeLoopStart(uint16 count) {
-        SoundCommand cmd;
-        cmd.type = LOOP_START;
-        cmd.value = (int16)count;
-        return cmd;
-    }
-
-    static SoundCommand makeLoopBack(uint16 targetCmdIndex) {
-        SoundCommand cmd;
-        cmd.type = LOOP_BACK;
-        cmd.loopTarget = targetCmdIndex;
-        return cmd;
-    }
-
-    static SoundCommand makeJump(uint16 targetCmdIndex) {
-        SoundCommand cmd;
-        cmd.type = JUMP;
-        cmd.loopTarget = targetCmdIndex;
-        return cmd;
-    }
-};
-
-/**
- * A single envelope entry (volume shaping over time).
- *
- * The envelope sub-stream runs in parallel with the main command stream
- * and controls volume slope independently of note timing.
- */
-struct EnvelopeEntry {
-    /**
-     * Entry type.
-     */
-    enum Type : uint8 {
-        SLOPE,     ///< Set volDelta = value, wait duration ticks
-        SET_VOL,   ///< Set volume = value immediately, continue
-        SILENCE    ///< Set volume = 0, stop envelope
-    };
-
-    Type type;
-    int16 value;      ///< Volume delta (SLOPE) or absolute volume (SET_VOL)
-    uint16 duration;  ///< Ticks to hold this slope (SLOPE only)
-
-    EnvelopeEntry() : type(SILENCE), value(0), duration(0) {}
-
-    static EnvelopeEntry makeSlope(int16 delta, uint16 dur) {
-        EnvelopeEntry e;
-        e.type = SLOPE;
-        e.value = delta;
-        e.duration = dur;
-        return e;
-    }
-
-    static EnvelopeEntry makeSetVol(int16 vol) {
-        EnvelopeEntry e;
-        e.type = SET_VOL;
-        e.value = vol;
-        return e;
-    }
-
-    static EnvelopeEntry makeSilence() {
-        EnvelopeEntry e;
-        e.type = SILENCE;
-        return e;
-    }
-};
-
-/**
- * A command stream — the main playback program for one channel.
- *
- * This is an ordered list of commands that the driver executes
- * sequentially. When a DURATION register write is encountered,
- * the driver pauses for that many ticks before continuing.
- */
-struct SoundStream {
-    uint16 id;                          ///< Unique stream ID
-    Common::Array<SoundCommand> commands; ///< Command sequence
-};
-
-/**
- * An envelope stream — parallel volume shaping for one channel.
- */
-struct EnvelopeStream {
-    uint16 id;                            ///< Unique stream ID
-    Common::Array<EnvelopeEntry> entries;  ///< Entry sequence
-};
-
-/**
- * A vibrato waveform lookup table.
- */
-struct Waveform {
-    uint16 id;                  ///< Unique waveform ID
-    uint8 samples[kWaveformSize]; ///< 256 signed 8-bit samples
-};
-
-/**
- * One song definition — maps song ID to channel streams.
- */
-struct SongDefinition {
-    uint16 channelStream[kChannelsPerSong]; ///< Stream ID per channel (kStreamIdNone = unused)
-
-    SongDefinition() {
-        for (int i = 0; i < kChannelsPerSong; ++i)
-            channelStream[i] = kStreamIdNone;
-    }
-};
-
-/**
- * Complete sound data for one game.
- *
- * This is the top-level container holding all extracted sound resources.
- * Populate this from the DOS executable data, then pass to the driver.
+ * All data lives in this blob. All near pointers found within command
+ * streams (waveform refs, envelope refs, jump targets) resolve directly
+ * via: offset = pointer - segmentBase.
  */
 struct SoundData {
-    /**
-     * Frequency table: 12 PIT divisor values for octave 0.
-     * Index by (noteNumber % 12), shift right by (noteNumber / 12).
-     */
-    uint16 freqTable[kNotesPerOctave];
+    const byte *data;       ///< Raw binary blob
+    uint32 size;            ///< Blob size in bytes
+    uint16 segmentBase;     ///< Original segment offset of data[0]
+
+    // Song table locations (segment-relative offsets)
+    uint16 speakerTableAddr;  ///< Segment offset of speaker song pointer table
+    uint16 tandyTableAddr;    ///< Segment offset of tandy song pointer table
+    uint8  songCount;         ///< Number of songs in each table
+
+    // Frequency tables (constant across all Gold Box games)
+    uint16 speakerFreqTable[kNotesPerOctave];
+    uint16 tandyFreqTable[kNotesPerOctave];
+
+    SoundData()
+        : data(nullptr), size(0), segmentBase(0),
+          speakerTableAddr(0), tandyTableAddr(0), songCount(0) {
+        // Speaker: PIT channel 2 divisors
+        static const uint16 kSpk[12] = {
+            0x8E84, 0x8684, 0x7EF7, 0x77D7,
+            0x714F, 0x6AC4, 0x64C6, 0x5F1E,
+            0x59C7, 0x54BD, 0x4FFC, 0x4B7E
+        };
+        // Tandy: SN76489 divisors (pre-shifted <<2)
+        static const uint16 kTdy[12] = {
+            0xFFC0, 0xF140, 0xE3C0, 0xD700,
+            0xCB40, 0xBF80, 0xB4C0, 0xAA80,
+            0xA100, 0x9800, 0x8F80, 0x8740
+        };
+        memcpy(speakerFreqTable, kSpk, sizeof(speakerFreqTable));
+        memcpy(tandyFreqTable, kTdy, sizeof(tandyFreqTable));
+    }
 
     /**
-     * Song definitions for Tandy mode.
-     * Index: 0-based song number (game uses 1-based, subtract 1).
+     * Convert a raw segment-relative pointer to a blob offset.
      */
-    Common::Array<SongDefinition> tandySongs;
+    uint32 toOffset(uint16 rawPtr) const {
+        return (uint32)(rawPtr - segmentBase);
+    }
 
     /**
-     * Song definitions for PC Speaker mode.
+     * Read a byte at segment-relative address.
      */
-    Common::Array<SongDefinition> speakerSongs;
+    byte readByte(uint16 addr) const {
+        uint32 off = toOffset(addr);
+        if (off >= size) return 0;
+        return data[off];
+    }
 
     /**
-     * All command streams, indexed by stream ID.
-     * Songs reference these by ID in their channelStream[] fields.
+     * Read a uint16 LE at segment-relative address.
      */
-    Common::Array<SoundStream> streams;
+    uint16 readUint16(uint16 addr) const {
+        uint32 off = toOffset(addr);
+        if (off + 1 >= size) return 0;
+        return data[off] | (data[off + 1] << 8);
+    }
 
     /**
-     * All envelope streams, indexed by stream ID.
-     * Referenced by REG_ENV_STREAM commands in the main streams.
+     * Get the stream pointer for a given song and channel.
+     * Returns the segment-relative address of the command stream,
+     * or 0 if the channel is unused.
      */
-    Common::Array<EnvelopeStream> envelopes;
-
-    /**
-     * Vibrato waveform tables.
-     * Referenced by REG_VIB_WAVE commands.
-     */
-    Common::Array<Waveform> waveforms;
-
-    SoundData() {
-        memset(freqTable, 0, sizeof(freqTable));
+    uint16 getSongStreamAddr(bool tandy, uint8 songIndex, uint8 ch) const {
+        uint16 tableAddr = tandy ? tandyTableAddr : speakerTableAddr;
+        uint16 entryAddr = tableAddr + (songIndex * kChannelsPerSong + ch) * 2;
+        return readUint16(entryAddr);
     }
 };
 
