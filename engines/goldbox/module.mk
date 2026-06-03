@@ -59,6 +59,7 @@ MODULE_OBJS = \
 	gfx/icon_manager.o \
 	gfx/combat_renderer.o \
 	gfx/surface.o \
+	sound/sound_driver.o \
 	poolrad/poolrad.o \
 	poolrad/poolrad_runtime_exchange.o \
 	poolrad/effect_handler.o \
