@@ -23,9 +23,13 @@
 #include "goldbox/poolrad/poolrad.h"
 
 #include "common/str.h"
+#include "common/file.h"
+#include "goldbox/data/daxblock.h"
+#include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/gfx/first_person_renderer.h"
 #include "goldbox/gfx/pic.h"
+#include "image/bmp.h"
 
 namespace {
 
@@ -240,6 +244,7 @@ Console::Console() : Goldbox::Console() {
 	registerCmd("walldef", WRAP_METHOD(Console, cmdWalldef));
 	registerCmd("fpview", WRAP_METHOD(Console, cmdFpview));
 	registerCmd("walldefstate", WRAP_METHOD(Console, cmdWalldefstate));
+	registerCmd("dumpPic", WRAP_METHOD(Console, cmdDumpPic));
 }
 
 bool Console::cmdFont(int argc, const char **argv) {
@@ -456,6 +461,138 @@ bool Console::cmdWalldefstate(int argc, const char **argv) {
 	return true;
 }
 
+
+bool Console::cmdDumpPic(int argc, const char **argv) {
+	if (argc < 2) {
+		debugPrintf("Usage: dumpPic <blockId> [container]\n");
+		debugPrintf("  container: PIC (default), HEAD, BODY, CPIC, TITLE\n");
+		return true;
+	}
+
+	uint blockId = 0;
+	if (!parseUintArg(argv[1], blockId)) {
+		debugPrintf("Invalid block ID\n");
+		return true;
+	}
+
+	Common::String containerName = "PIC";
+	if (argc >= 3)
+		containerName = argv[2];
+	containerName.toUppercase();
+
+	::Goldbox::Data::DaxBlockContainer *container = nullptr;
+	if (containerName == "PIC")
+		container = &g_engine->getDaxPic();
+	else if (containerName == "HEAD")
+		container = &g_engine->getDaxHead();
+	else if (containerName == "BODY")
+		container = &g_engine->getDaxBody();
+	else if (containerName == "CPIC")
+		container = &g_engine->getDaxCPic();
+	else if (containerName == "TITLE")
+		container = &g_engine->getDaxTitle();
+	else {
+		debugPrintf("Unknown container: %s\n", containerName.c_str());
+		return true;
+	}
+
+	::Goldbox::Data::DaxBlock *rawBlock = container->getBlockById((uint8)blockId);
+	if (!rawBlock) {
+		debugPrintf("Block %u not found in %s\n", blockId, containerName.c_str());
+		return true;
+	}
+
+	static const byte kEgaPalette[16 * 3] = {
+		0x00,0x00,0x00, 0x00,0x00,0xAA, 0x00,0xAA,0x00, 0x00,0xAA,0xAA,
+		0xAA,0x00,0x00, 0xAA,0x00,0xAA, 0xAA,0x55,0x00, 0xAA,0xAA,0xAA,
+		0x55,0x55,0x55, 0x55,0x55,0xFF, 0x55,0xFF,0x55, 0x55,0xFF,0xFF,
+		0xFF,0x55,0x55, 0xFF,0x55,0xFF, 0xFF,0xFF,0x55, 0xFF,0xFF,0xFF
+	};
+
+	if (containerName == "PIC") {
+		// PIC container uses EGAPIC (DaxBlockSprit with XOR decode).
+		::Goldbox::Data::DaxBlockSprit *spritBlock =
+			dynamic_cast< ::Goldbox::Data::DaxBlockSprit *>(rawBlock);
+		if (!spritBlock || spritBlock->frameCount() < 1) {
+			debugPrintf("Block %u: failed to decode as EGAPIC\n", blockId);
+			return true;
+		}
+
+		const ::Goldbox::Data::DaxBlockSprit::FrameInfo *f0 = spritBlock->frameInfo(0);
+		debugPrintf("%s block %u: %dx%d frameCount=%d (EGAPIC)\n",
+			containerName.c_str(), blockId,
+			f0 ? (int)f0->width : 0, f0 ? (int)f0->height : 0,
+			spritBlock->frameCount());
+
+		for (int f = 0; f < spritBlock->frameCount(); ++f) {
+			::Goldbox::Gfx::Pic *pic = ::Goldbox::Gfx::Pic::readEgaPicFrame(spritBlock, f);
+			if (!pic) {
+				debugPrintf("  frame %d: decode failed\n", f);
+				continue;
+			}
+
+			Common::String filename = Common::String::format("%s_%u_frame%d.bmp",
+				containerName.c_str(), blockId, f);
+			Common::DumpFile outFile;
+			if (outFile.open(Common::Path(filename))) {
+				Image::writeBMP(outFile, *pic, kEgaPalette, 16);
+				outFile.close();
+				debugPrintf("  frame %d: saved %s (%dx%d)\n", f, filename.c_str(),
+					pic->w, pic->h);
+			} else {
+				debugPrintf("  frame %d: failed to open %s\n", f, filename.c_str());
+			}
+			delete pic;
+		}
+	} else {
+		// HEAD, BODY, CPIC, TITLE use old DaxBlockPic format.
+		::Goldbox::Data::DaxBlockPic *picBlock =
+			dynamic_cast< ::Goldbox::Data::DaxBlockPic *>(rawBlock);
+		if (!picBlock) {
+			debugPrintf("Block %u is not a PIC block\n", blockId);
+			return true;
+		}
+
+		const int width = picBlock->width;
+		const int height = picBlock->height;
+		const int dataSize = (int)picBlock->_data.size();
+		debugPrintf("%s block %u: %dx%d frameCount=%d dataSize=%d\n",
+			containerName.c_str(), blockId, width, height,
+			picBlock->frameCount, dataSize);
+
+		if (width <= 0 || height <= 0) {
+			debugPrintf("Invalid dimensions\n");
+			return true;
+		}
+
+		const int frameSize = (width * height) / 2;
+		const int frames = dataSize / frameSize;
+		debugPrintf("frameSize=%d derivedFrames=%d\n", frameSize, frames);
+
+		for (int f = 0; f < frames && f < 16; ++f) {
+			::Goldbox::Gfx::Pic *pic = ::Goldbox::Gfx::Pic::readFrame(picBlock, f);
+			if (!pic) {
+				debugPrintf("  frame %d: decode failed\n", f);
+				continue;
+			}
+
+			Common::String filename = Common::String::format("%s_%u_frame%d.bmp",
+				containerName.c_str(), blockId, f);
+			Common::DumpFile outFile;
+			if (outFile.open(Common::Path(filename))) {
+				Image::writeBMP(outFile, *pic, kEgaPalette, 16);
+				outFile.close();
+				debugPrintf("  frame %d: saved %s (%dx%d)\n", f, filename.c_str(),
+					pic->w, pic->h);
+			} else {
+				debugPrintf("  frame %d: failed to open %s\n", f, filename.c_str());
+			}
+			delete pic;
+		}
+	}
+
+	return true;
+}
 
 } // namespace Poolrad
 } // namespace Goldbox

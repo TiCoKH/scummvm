@@ -33,7 +33,8 @@ EncounterSpriteCache::EncounterSpriteCache()
     : _spriteLoaded(false), _headDrawn(false),
       _spriteBlockId(0), _bodyPicId(0),
       _distance(0), _lastHeadPicId(0xFF),
-      _headCurrentFrame(0), _headLastFrameTime(0) {
+      _headCurrentFrame(0), _headAnimDirection(1),
+      _headLastFrameTime(0), _headAnimInterval(500) {
 }
 
 EncounterSpriteCache::~EncounterSpriteCache() {
@@ -50,6 +51,7 @@ void EncounterSpriteCache::clear() {
     _headPic.reset();
     _headFrames.clear();
     _headCurrentFrame = 0;
+    _headAnimDirection = 1;
     _headLastFrameTime = 0;
 }
 
@@ -113,29 +115,44 @@ void EncounterSpriteCache::loadHead(uint8 headPicId, uint8 bodyPicId) {
     _headCurrentFrame = 0;
     _headLastFrameTime = 0;
 
-    Data::DaxBlockPic *block = nullptr;
-
     if (headPicId == 0xFF) {
+        // PIC DAX: now EGAPIC format (DaxBlockSprit with XOR decode).
         Data::DaxBlock *rawBlock = VmInterface::getDaxPic().getBlockById(bodyPicId);
-        block = rawBlock ? dynamic_cast<Data::DaxBlockPic *>(rawBlock) : nullptr;
+        Data::DaxBlockSprit *spritBlock = rawBlock
+            ? dynamic_cast<Data::DaxBlockSprit *>(rawBlock) : nullptr;
+
+        if (!spritBlock || spritBlock->frameCount() < 1) {
+            _headPic.reset();
+            _headDrawn = false;
+            return;
+        }
+
+        for (int i = 0; i < spritBlock->frameCount(); ++i) {
+            Pic *frame = Pic::readEgaPicFrame(spritBlock, i);
+            if (frame)
+                _headFrames.push_back(Common::SharedPtr<Pic>(frame));
+            else
+                break;
+        }
     } else {
+        // HEAD DAX: old DaxBlockPic format.
         Data::DaxBlock *rawBlock = VmInterface::getDaxHead().getBlockById(headPicId);
-        block = rawBlock ? dynamic_cast<Data::DaxBlockPic *>(rawBlock) : nullptr;
-    }
+        Data::DaxBlockPic *block = rawBlock
+            ? dynamic_cast<Data::DaxBlockPic *>(rawBlock) : nullptr;
 
-    if (!block) {
-        _headPic.reset();
-        _headDrawn = false;
-        return;
-    }
+        if (!block) {
+            _headPic.reset();
+            _headDrawn = false;
+            return;
+        }
 
-    const int frames = (block->frameCount > 1) ? block->frameCount : 1;
-    for (int i = 0; i < frames; ++i) {
-        Pic *frame = Pic::readFrame(block, i);
-        if (frame) {
-            _headFrames.push_back(Common::SharedPtr<Pic>(frame));
-        } else {
-            break;
+        const int frames = (block->frameCount > 1) ? block->frameCount : 1;
+        for (int i = 0; i < frames; ++i) {
+            Pic *frame = Pic::readFrame(block, i);
+            if (frame)
+                _headFrames.push_back(Common::SharedPtr<Pic>(frame));
+            else
+                break;
         }
     }
 
@@ -163,10 +180,25 @@ bool EncounterSpriteCache::tickAnimation(uint32 intervalMs) {
     if (now - _headLastFrameTime < intervalMs)
         return false;
 
-    _headCurrentFrame = (_headCurrentFrame + 1) % _headFrames.size();
-    _headPic = _headFrames[_headCurrentFrame];
     _headLastFrameTime = now;
+
+    // Ping-pong: 0,1,2,...,max,max-1,...,1,0,1,...
+    int nextFrame = (int)_headCurrentFrame + _headAnimDirection;
+    if (nextFrame >= (int)_headFrames.size()) {
+        _headAnimDirection = -1;
+        nextFrame = (int)_headCurrentFrame + _headAnimDirection;
+    } else if (nextFrame < 0) {
+        _headAnimDirection = 1;
+        nextFrame = (int)_headCurrentFrame + _headAnimDirection;
+    }
+
+    _headCurrentFrame = (uint8)nextFrame;
+    _headPic = _headFrames[_headCurrentFrame];
     return true;
+}
+
+bool EncounterSpriteCache::tickAnimation() {
+    return tickAnimation(_headAnimInterval);
 }
 
 void EncounterSpriteCache::setDistance(uint8 distance) {

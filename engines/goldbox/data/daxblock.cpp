@@ -40,6 +40,10 @@ namespace Data {
 			// CTILE uses the same binary layout as PIC but allows callers to
 			// opt into mask-aware handling.
 			return new DaxBlockPic();
+		} else if (contentType == ContentType::EGAPIC) {
+			// Actual PIC.DAX/FINAL.DAX files: multi-frame EGA sprite format
+			// with XOR decoding of later frames against frame 0.
+			return new DaxBlockSprit(true);
 		} else if (contentType == ContentType::CHARACTER
 				|| contentType == ContentType::ITEM
 				|| contentType == ContentType::SPELL) {
@@ -104,7 +108,8 @@ namespace Data {
 		frameCount = 0;
 	}
 
-	DaxBlockSprit::DaxBlockSprit() : _frameCount(0), _validLayout(false) {}
+	DaxBlockSprit::DaxBlockSprit(bool xorDecode)
+		: _frameCount(0), _validLayout(false), _xorDecode(xorDecode) {}
 
 	uint16 DaxBlockSprit::readUint16LE(const Common::Array<uint8> &data,
 			uint pos) {

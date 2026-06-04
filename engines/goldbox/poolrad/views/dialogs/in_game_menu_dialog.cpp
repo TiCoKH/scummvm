@@ -47,13 +47,22 @@ void InGameMenuDialog::buildMenuModel() {
     _menuModel.currentSelection = 0;
 
     Common::Array<Common::String> menuStrings;
-    if (_mode == kModeDungeon)
-        menuStrings.push_back("Area");
-    menuStrings.push_back("Cast");
-    menuStrings.push_back("View");
-    menuStrings.push_back("Encamp");
-    menuStrings.push_back("Search");
-    menuStrings.push_back("Look");
+    if (_mode == kModeCamping) {
+        menuStrings.push_back("Save");
+        menuStrings.push_back("View");
+        menuStrings.push_back("Magic");
+        menuStrings.push_back("Rest");
+        menuStrings.push_back("Alter");
+        menuStrings.push_back("Exit");
+    } else {
+        if (_mode == kModeDungeon)
+            menuStrings.push_back("Area");
+        menuStrings.push_back("Cast");
+        menuStrings.push_back("View");
+        menuStrings.push_back("Encamp");
+        menuStrings.push_back("Search");
+        menuStrings.push_back("Look");
+    }
 
     _menuModel.generateMenuItems(menuStrings, true);
 }

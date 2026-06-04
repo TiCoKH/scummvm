@@ -73,7 +73,7 @@ using WallSet = DaxBlockWalldef;
     };
 
     enum class ContentType {
-        TILE, BACK, BIGPIC, CTILE, ECL, GEO, CHARACTER, PIC, SPRIT, WALLDEF, ITEM, SPELL, UNKNOWN
+        TILE, BACK, BIGPIC, CTILE, ECL, EGAPIC, GEO, CHARACTER, PIC, SPRIT, WALLDEF, ITEM, SPELL, UNKNOWN
     };
 
     enum class WalldefRegionId {
@@ -145,10 +145,11 @@ public:
         uint32 dataSize;   // EGA plane data size (height * charWidth * 4)
     };
 
-    DaxBlockSprit();
+    DaxBlockSprit(bool xorDecode = false);
 
     int frameCount() const { return _frameCount; }
     bool isValidLayout() const { return _validLayout; }
+    bool isXorDecode() const { return _xorDecode; }
     const FrameInfo *frameInfo(int idx) const;
 
     /** Access raw block data for EGA plane decoding. */
@@ -161,6 +162,7 @@ private:
 
     int _frameCount;
     bool _validLayout;
+    bool _xorDecode;
     FrameInfo _frames[8];
 };
 

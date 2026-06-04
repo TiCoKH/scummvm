@@ -19,14 +19,19 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_IN_GAME_MENU_DIALOG_H
-#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_IN_GAME_MENU_DIALOG_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_CAMP_MENU_DIALOG_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_CAMP_MENU_DIALOG_H
 
-#include "goldbox/poolrad/views/dialogs/dialog.h"
-#include "goldbox/core/global.h"
+#include "common/array.h"
+#include "common/ptr.h"
 #include "goldbox/core/menu_item.h"
+#include "goldbox/poolrad/views/dialogs/dialog.h"
 
 namespace Goldbox {
+namespace Gfx {
+class Pic;
+}
+
 namespace Poolrad {
 namespace Views {
 
@@ -37,39 +42,52 @@ namespace Dialogs {
 class HorizontalMenu;
 
 /**
- * Persistent in-game horizontal menu (DIALOG_InGame equivalent).
+ * Self-contained camping dialog (VIEW_PartyCamp equivalent).
  *
- * Wraps a HorizontalMenu configured with:
- * - Dungeon:    "Area Cast View Encamp Search Look"
- * - Wilderness: "Cast View Encamp Search Look"
+ * Owns:
+ *  - Campfire picture display (PIC 29, animated multi-frame)
+ *  - Horizontal menu: Save / View / Magic / Rest / Alter / Exit
+ *  - Key dispatch to sub-actions
+ *  - "The party makes camp..." text output
  *
- * Routes selection results back to InGameView::handleInGameMenuKey().
- * After a selection, the menu re-activates to stay persistent.
+ * Posts MenuResult to parent InGameView on exit:
+ *  - _success=true, _intValue=1 if rest was interrupted (encounter)
+ *  - _success=true, _intValue=0 on normal exit ('E')
+ *
+ * Blocks movement/navigation keys — only camp menu keys are accepted.
  */
-class InGameMenuDialog : public Dialog {
+class CampMenuDialog : public Dialog {
 public:
-    enum MapMode {
-        kModeDungeon = 0,
-        kModeWilderness,
-        kModeCamping
-    };
+    static const uint8 kCampfirePicId = 29;
 
 private:
-    MapMode _mode;
+    InGameView *_parentView;
     MenuItemList _menuModel;
     HorizontalMenu *_horizontalMenu;
 
+    // Animated campfire frames.
+    Common::Array<Common::SharedPtr<Goldbox::Gfx::Pic>> _campfireFrames;
+    uint8 _currentFrame;
+    uint32 _lastFrameTime;
+    uint16 _frameIntervalMs;
+
+    bool _isInterrupted;
+
     void buildMenuModel();
+    void loadCampfireFrames();
+    void handleMenuKey(char key);
 
 public:
-    InGameMenuDialog(const Common::String &name = "InGameMenu");
-    ~InGameMenuDialog() override;
+    CampMenuDialog(const Common::String &name, InGameView *parent);
+    ~CampMenuDialog() override;
 
-    void setMode(MapMode mode);
     void activate() override;
     void deactivate() override;
     void draw() override;
     bool msgKeypress(const KeypressMessage &msg) override;
+    void timeout() override;
+
+    bool isInterrupted() const { return _isInterrupted; }
 };
 
 } // namespace Dialogs
@@ -77,4 +95,4 @@ public:
 } // namespace Poolrad
 } // namespace Goldbox
 
-#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_IN_GAME_MENU_DIALOG_H
+#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_CAMP_MENU_DIALOG_H

@@ -94,6 +94,53 @@ Pic *Pic::readSpriteFrame(Data::DaxBlockSprit *spritBlock, int frameIdx) {
 	return pic;
 }
 
+Pic *Pic::readEgaPicFrame(Data::DaxBlockSprit *spritBlock, int frameIdx) {
+	if (!spritBlock)
+		return nullptr;
+
+	const Data::DaxBlockSprit::FrameInfo *info = spritBlock->frameInfo(frameIdx);
+	if (!info)
+		return nullptr;
+
+	const Common::Array<uint8> &raw = spritBlock->rawData();
+	if (info->dataOffset + info->dataSize > raw.size())
+		return nullptr;
+
+	const int widthPx = info->width;
+	const int height = info->height;
+
+	Pic *pic = new Pic(widthPx, height);
+	pic->setTransparentIndex(0);
+
+	const uint8 *src = raw.data() + info->dataOffset;
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < widthPx; x += 2) {
+			uint8 byte = *src++;
+			pic->setPixel(x, y, (byte & 0xF0) >> 4);
+			pic->setPixel(x + 1, y, byte & 0x0F);
+		}
+	}
+
+	// XOR decode: frames > 0 are XOR'd against frame 0.
+	if (frameIdx > 0) {
+		const Data::DaxBlockSprit::FrameInfo *frame0 = spritBlock->frameInfo(0);
+		if (frame0 && frame0->dataOffset + frame0->dataSize <= raw.size()) {
+			const uint8 *src0 = raw.data() + frame0->dataOffset;
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < widthPx; x += 2) {
+					uint8 base = *src0++;
+					uint8 curHi = pic->getPixel(x, y);
+					uint8 curLo = pic->getPixel(x + 1, y);
+					pic->setPixel(x, y, curHi ^ ((base & 0xF0) >> 4));
+					pic->setPixel(x + 1, y, curLo ^ (base & 0x0F));
+				}
+			}
+		}
+	}
+
+	return pic;
+}
+
 Pic *Pic::readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint8 targetColor) {
 	int width = daxBlock->width;
 	int height = daxBlock->height;

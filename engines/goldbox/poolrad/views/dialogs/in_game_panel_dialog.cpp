@@ -232,6 +232,23 @@ void InGamePanelDialog::draw() {
                     key._blockId = _resourceBlockId;
                     key._masked = _resourceMasked;
                     rebuildAnimatedFrames(picBlock, key);
+
+                    // Fallback: if DaxAnimDecoder failed, use Pic::readFrame
+                    // to decode frames directly from packed nibble data.
+                    if (_animFrames.empty()) {
+                        const int frames = (picBlock->frameCount > 1)
+                            ? picBlock->frameCount : 1;
+                        for (int i = 0; i < frames; ++i) {
+                            Goldbox::Gfx::Pic *frame =
+                                Goldbox::Gfx::Pic::readFrame(picBlock, i);
+                            if (frame)
+                                _animFrames.push_back(
+                                    Common::SharedPtr<Goldbox::Gfx::Pic>(frame));
+                            else
+                                break;
+                        }
+                        _resourceFrameCount = (uint8)_animFrames.size();
+                    }
                 }
             }
 

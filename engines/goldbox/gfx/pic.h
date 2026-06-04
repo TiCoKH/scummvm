@@ -62,6 +62,16 @@ public:
 	static Pic *readSpriteFrame(Data::DaxBlockSprit *spritBlock, int frameIdx);
 
 	/**
+	 * Decode a frame from an EGAPIC DAX block (PIC.DAX / FINAL.DAX).
+	 * Same EGA planar layout as SPRIT but no transparency/remapping.
+	 * For multi-frame blocks, frames > 0 are XOR-decoded against frame 0.
+	 * @param spritBlock The EGAPIC DAX block (isXorDecode() == true)
+	 * @param frameIdx Frame index to decode (0-based)
+	 * @return Decoded Pic, or nullptr on failure
+	 */
+	static Pic *readEgaPicFrame(Data::DaxBlockSprit *spritBlock, int frameIdx);
+
+	/**
 	 * Read a PIC with two-pass rendering for remappable sprites.
 	 * Pass 1: Decode palette (0-15); color 0 marks transparent pixels (mask created).
 	 * Pass 2: Apply color remapping (e.g., 13→0 to make black drawable).
