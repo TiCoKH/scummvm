@@ -207,9 +207,7 @@ public:
     // Sets current primary dice/sides/modifier and applies STR/DEX, ammo enchantment and racial adjustments.
     void setDamage();
 
-    void setEffect(uint8 type, uint16 durationMin, uint8 power, bool immediate) override {
-        effects.addEffect(type, durationMin, power, immediate ? 1 : 0);
-    }
+    void setEffect(uint8 type, uint16 durationMin, uint8 power, bool immediate) override;
 
     // draw methods
     byte getNameColor();

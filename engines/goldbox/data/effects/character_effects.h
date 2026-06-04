@@ -40,7 +40,32 @@ public:
     bool save(const Common::String &filename) const;
 
     const Common::Array<Effect> &effects() const { return _effects; }
-    Common::Array<Effect> &effects() { return _effects; }
+
+    uint effectCount() const { return _effects.size(); }
+    bool isEmpty() const { return _effects.empty(); }
+
+    const Effect &effectAt(uint idx) const { return _effects[idx]; }
+    Effect &effectAt(uint idx) { return _effects[idx]; }
+    Effect &lastEffect() { return _effects.back(); }
+
+    void removeEffectAt(uint idx) { _effects.remove_at(idx); }
+    void appendEffect(const Effect &effect) { _effects.push_back(effect); }
+
+    bool hasEffectType(uint8 type) const {
+        for (uint i = 0; i < _effects.size(); ++i) {
+            if (_effects[i].type == type)
+                return true;
+        }
+        return false;
+    }
+
+    int findEffectIndexByType(uint8 type) const {
+        for (uint i = 0; i < _effects.size(); ++i) {
+            if (_effects[i].type == type)
+                return static_cast<int>(i);
+        }
+        return -1;
+    }
 
     void clear() { _effects.clear(); }
 
@@ -57,7 +82,6 @@ public:
         e.durationMin = durationMin;
         e.power = power;
         e.immediate = immediate;
-        e.nextAddress = 0; // not used in ScummVM
         _effects.push_back(e);
     }
 };

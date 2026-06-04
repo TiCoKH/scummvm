@@ -73,9 +73,9 @@ static void timeApplyTimeStepEffects(
             CharacterEffects *fx = party[i] ? party[i]->getEffects() : nullptr;
             if (!fx)
                 continue;
-            const Common::Array<Effect> &list = fx->effects();
-            for (uint e = 0; e < list.size(); ++e) {
-                if (list[e].durationMin != 0 && list[e].durationMin != 0xFFFF) {
+            for (uint e = 0; e < fx->effectCount(); ++e) {
+                const Effect &effect = fx->effectAt(e);
+                if (effect.durationMin != 0 && effect.durationMin != 0xFFFF) {
                     anyActive = true;
                     hasActiveEffects[i] = true;
                     break;
@@ -109,19 +109,18 @@ static void timeApplyTimeStepEffects(
                 continue;
 
             hasActiveEffects[ci] = false;
-            Common::Array<Effect> &list = fx->effects();
 
             // Tail sentinel: only process effects present at chunk start.
-            const uint tailIdx = list.empty() ? 0 : (list.size() - 1);
+            const uint tailIdx = fx->isEmpty() ? 0 : (fx->effectCount() - 1);
             bool reachedTail = false;
 
-            for (uint ei = 0; ei < list.size();) {
+            for (uint ei = 0; ei < fx->effectCount();) {
                 if (reachedTail && ei > tailIdx)
                     break;
                 if (ei == tailIdx)
                     reachedTail = true;
 
-                Effect &effect = list[ei];
+                Effect &effect = fx->effectAt(ei);
 
                 // Permanent (0xFFFF) or zero-duration: skip.
                 if (effect.durationMin == 0 || effect.durationMin == 0xFFFF) {
@@ -137,15 +136,16 @@ static void timeApplyTimeStepEffects(
                     // Expired: remove.
                     if (handler)
                         handler->apply(EFF_REMOVE, effect, *party[ci]);
-                    list.remove_at(ei);
+                    fx->removeEffectAt(ei);
                 }
             }
 
             // Check remaining effects for timed entries.
             if (!hasActiveEffects[ci]) {
-                for (uint ei = 0; ei < list.size(); ++ei) {
-                    if (list[ei].durationMin != 0 &&
-                            list[ei].durationMin != 0xFFFF) {
+                for (uint ei = 0; ei < fx->effectCount(); ++ei) {
+                    const Effect &effect = fx->effectAt(ei);
+                    if (effect.durationMin != 0 &&
+                            effect.durationMin != 0xFFFF) {
                         hasActiveEffects[ci] = true;
                         break;
                     }

@@ -24,6 +24,7 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/data/daxblock.h"
 #include "common/debug.h"
+#include "common/system.h"
 
 namespace Goldbox {
 namespace Gfx {
@@ -31,7 +32,8 @@ namespace Gfx {
 EncounterSpriteCache::EncounterSpriteCache()
     : _spriteLoaded(false), _headDrawn(false),
       _spriteBlockId(0), _bodyPicId(0),
-      _distance(0), _lastHeadPicId(0xFF) {
+      _distance(0), _lastHeadPicId(0xFF),
+      _headCurrentFrame(0), _headLastFrameTime(0) {
 }
 
 EncounterSpriteCache::~EncounterSpriteCache() {
@@ -46,6 +48,9 @@ void EncounterSpriteCache::clear() {
     _lastHeadPicId = 0xFF;
     _spritePic.reset();
     _headPic.reset();
+    _headFrames.clear();
+    _headCurrentFrame = 0;
+    _headLastFrameTime = 0;
 }
 
 void EncounterSpriteCache::loadSprite(uint8 spriteBlockId, uint8 bodyPicId,
@@ -104,29 +109,64 @@ void EncounterSpriteCache::loadSprite(uint8 spriteBlockId, uint8 bodyPicId,
 
 void EncounterSpriteCache::loadHead(uint8 headPicId, uint8 bodyPicId) {
     _lastHeadPicId = headPicId;
+    _headFrames.clear();
+    _headCurrentFrame = 0;
+    _headLastFrameTime = 0;
+
+    Data::DaxBlockPic *block = nullptr;
 
     if (headPicId == 0xFF) {
-        // Use body pic from PIC DAX (GFX_DrawDaxPICFrames("PIC", bodyPicId, 0))
         Data::DaxBlock *rawBlock = VmInterface::getDaxPic().getBlockById(bodyPicId);
-        Data::DaxBlockPic *block = rawBlock
-            ? dynamic_cast<Data::DaxBlockPic *>(rawBlock) : nullptr;
-        if (block)
-            _headPic.reset(Pic::read(block));
-        else
-            _headPic.reset();
+        block = rawBlock ? dynamic_cast<Data::DaxBlockPic *>(rawBlock) : nullptr;
     } else {
-        // Use full-size portrait from HEAD DAX (GFX_drawPortrait).
-        // Note: CHEAD/CBODY are small combat-icon sprites, not these.
         Data::DaxBlock *rawBlock = VmInterface::getDaxHead().getBlockById(headPicId);
-        Data::DaxBlockPic *block = rawBlock
-            ? dynamic_cast<Data::DaxBlockPic *>(rawBlock) : nullptr;
-        if (block)
-            _headPic.reset(Pic::read(block));
-        else
-            _headPic.reset();
+        block = rawBlock ? dynamic_cast<Data::DaxBlockPic *>(rawBlock) : nullptr;
+    }
+
+    if (!block) {
+        _headPic.reset();
+        _headDrawn = false;
+        return;
+    }
+
+    const int frames = (block->frameCount > 1) ? block->frameCount : 1;
+    for (int i = 0; i < frames; ++i) {
+        Pic *frame = Pic::readFrame(block, i);
+        if (frame) {
+            _headFrames.push_back(Common::SharedPtr<Pic>(frame));
+        } else {
+            break;
+        }
+    }
+
+    if (!_headFrames.empty()) {
+        _headPic = _headFrames[0];
+        _headLastFrameTime = g_system->getMillis();
+    } else {
+        _headPic.reset();
     }
 
     _headDrawn = (_headPic.get() != nullptr);
+}
+
+const Pic *EncounterSpriteCache::currentHeadFrame() const {
+    if (_headFrames.empty())
+        return _headPic.get();
+    return _headFrames[_headCurrentFrame].get();
+}
+
+bool EncounterSpriteCache::tickAnimation(uint32 intervalMs) {
+    if (_headFrames.size() <= 1)
+        return false;
+
+    uint32 now = g_system->getMillis();
+    if (now - _headLastFrameTime < intervalMs)
+        return false;
+
+    _headCurrentFrame = (_headCurrentFrame + 1) % _headFrames.size();
+    _headPic = _headFrames[_headCurrentFrame];
+    _headLastFrameTime = now;
+    return true;
 }
 
 void EncounterSpriteCache::setDistance(uint8 distance) {

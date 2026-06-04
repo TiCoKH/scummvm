@@ -342,10 +342,14 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 		(int)next);
 
 	if (isMapRuntimeState(next) && (!isMapRuntimeState(prev) || prev != next)) {
-		// VM runtime bootstrap is orchestrator-owned and happens in tick().
-		_mapRuntimeNeedsInit = true;
-		debug(2, "PoolradEngine::onGameStateEnter map runtime init requested for state=%d",
-			(int)next);
+		// Don't re-init map runtime when entering camping from an active
+		// map state — camp uses the same map context without reloading.
+		const bool campFromMap = (next == GS_CAMPING && isMapRuntimeState(prev));
+		if (!campFromMap) {
+			_mapRuntimeNeedsInit = true;
+			debug(2, "PoolradEngine::onGameStateEnter map runtime init requested for state=%d",
+				(int)next);
+		}
 	}
 
 	switch (next) {
@@ -1254,8 +1258,14 @@ void PoolradEngine::dispatchPlayerCommand() {
 
 	if (cmd == Views::InGameView::kCmdEncamp) {
 		const VmResult r = runEclEntryPoint(ECL::kEclRuntimeOnRestEntry);
-		if (r == VM_YIELD)
+		if (r == VM_YIELD) {
 			_eclFlags.suspended = true;
+			return;
+		}
+		// ON_REST completed (VM_HALTED = EXIT = rest allowed).
+		// Transition to GS_CAMPING and load campfire picture (PIC 29).
+		getEncounterSpriteCache().loadHead(0xFF, 29);
+		setGameState(GS_CAMPING);
 		return;
 	}
 

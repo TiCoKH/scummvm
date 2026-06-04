@@ -34,18 +34,25 @@ Pic::~Pic() {
 }
 
 Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
+	return readFrame(daxBlock, 0);
+}
+
+Pic *Pic::readFrame(Data::DaxBlockPic *daxBlock, int frameIdx) {
 	int width = daxBlock->width;
 	int height = daxBlock->height;
+	int frameSize = (width * height) / 2;
+	int offset = frameIdx * frameSize;
+
+	if (offset + frameSize > (int)daxBlock->_data.size())
+		return nullptr;
+
 	Pic *pic = new Pic(width, height);
 	pic->setTransparentIndex(0);
-	// Decode the pixel data
-	const uint8 *data = daxBlock->_data.begin();
+	const uint8 *data = daxBlock->_data.data() + offset;
 	for (int y = 0; y < height; y++) {
 		for (int x = 0; x < width; x += 2) {
 			uint8 byte = *data++;
-			// Extract high nibble and set the corresponding pixel
 			pic->setPixel(x, y, (byte & 0xF0) >> 4);
-			// Extract low nibble and set the corresponding pixel
 			pic->setPixel(x + 1, y, byte & 0x0F);
 		}
 	}

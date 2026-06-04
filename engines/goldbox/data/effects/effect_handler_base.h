@@ -30,12 +30,15 @@ namespace Goldbox {
 namespace Data {
 namespace Effects {
 
+struct EffectExecutionContext;
+
 // Effect operation type: add, remove, or tick (per turn).
 //
 // Semantics:
 // - EFF_ADD: apply modifiers/flags for the effect once.
 // - EFF_REMOVE: reverse the modifiers/flags that EFF_ADD applied.
 // - EFF_TICK: periodic per-turn processing (no modifier reversal).
+// - EFF_EVAL: context-aware trigger-set evaluation.
 //
 // NOTE: This assumes effects are applied/removed as a single instance.
 // If stacking is needed, the runtime should either track reference counts
@@ -43,16 +46,22 @@ namespace Effects {
 enum EffectOp {
     EFF_ADD    = 0,
     EFF_REMOVE = 1,
-    EFF_TICK   = 2
+    EFF_TICK   = 2,
+    EFF_EVAL   = 3
 };
 
 class EffectHandlerBase {
 public:
-    using Handler = void (*)(EffectOp op, Effect &effect, Goldbox::Data::PlayerCharacter &character);
+    using Handler = void (*)(EffectOp op, Effect &effect,
+            Goldbox::Data::PlayerCharacter &character,
+            const EffectExecutionContext *ctx);
 
     virtual ~EffectHandlerBase() {}
 
     void apply(EffectOp op, Effect &effect, Goldbox::Data::PlayerCharacter &character) const;
+    void apply(EffectOp op, Effect &effect,
+            Goldbox::Data::PlayerCharacter &character,
+            const EffectExecutionContext *ctx) const;
     bool hasHandler(uint8 effectType) const;
 
 protected:

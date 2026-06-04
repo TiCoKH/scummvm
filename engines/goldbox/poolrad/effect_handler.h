@@ -43,9 +43,11 @@ public:
 
 private:
     static void handleNoop(Goldbox::Data::Effects::EffectOp op, Goldbox::Data::Effects::Effect &effect,
-                           Goldbox::Data::PlayerCharacter &character);
+                                                     Goldbox::Data::PlayerCharacter &character,
+                                                     const Goldbox::Data::Effects::EffectExecutionContext *ctx);
     static void handleEffect(Goldbox::Data::Effects::EffectOp op, Goldbox::Data::Effects::Effect &effect,
-                             Goldbox::Data::PlayerCharacter &character);
+                                                         Goldbox::Data::PlayerCharacter &character,
+                                                         const Goldbox::Data::Effects::EffectExecutionContext *ctx);
 };
 
 } // namespace Poolrad

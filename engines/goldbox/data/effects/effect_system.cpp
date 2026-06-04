@@ -20,15 +20,65 @@
 
 #include "goldbox/data/effects/effect_system.h"
 
+#include "goldbox/data/effects/effect_host_bridge.h"
+
 namespace Goldbox {
 namespace Data {
 namespace Effects {
 
-EffectSystem::EffectSystem(EffectHandlerBase *handler) : _handler(handler) {
+namespace {
+
+enum : uint8 {
+    // Raw effect ids as stored in CharacterEffects::Effect::type.
+    // Keep these aligned with Poolrad raw mapping in poolrad/effect_handler.cpp.
+    kRawEffectMirrorImage = 0x1C, // E_MIRROR_IMAGE
+    kRawEffectHaste = 0x27        // E_HASTE
+};
+
+struct EffectStackingRule {
+    uint8 effectType;
+    EffectStacking policy;
+};
+
+static const EffectStackingRule kStackingRules[] = {
+    { kRawEffectMirrorImage, STACK_ADD },
+    { kRawEffectHaste, STACK_IGNORE }
+};
+
+static void notifyBridgeOnEffectApply(EffectHostBridge *bridge,
+        EffectOp op, PlayerCharacter &character,
+        uint8 oldStatus, uint32 oldFlags) {
+    if (!bridge)
+        return;
+
+    bool statusPanelDirty = false;
+    if (oldFlags != character.effectState.flags)
+        statusPanelDirty = true;
+
+    if (oldStatus != character.healthStatus) {
+        if (op == EFF_REMOVE) {
+            bridge->notifyStatusChanged(&character, oldStatus,
+                character.healthStatus);
+        }
+        statusPanelDirty = true;
+    }
+
+    if (statusPanelDirty)
+        bridge->requestRefresh(EffectHostBridge::RF_STATUS_PANEL);
+}
+
+} // namespace
+
+EffectSystem::EffectSystem(EffectHandlerBase *handler,
+        EffectHostBridge *bridge) : _handler(handler), _bridge(bridge) {
 }
 
 void EffectSystem::setHandler(EffectHandlerBase *handler) {
     _handler = handler;
+}
+
+void EffectSystem::setHostBridge(EffectHostBridge *bridge) {
+    _bridge = bridge;
 }
 
 void EffectSystem::applyEffect(CharacterEffects &effects,
@@ -41,7 +91,7 @@ void EffectSystem::applyEffect(CharacterEffects &effects,
     if (stacking != STACK_ADD) {
         int idx = findEffectIndex(effects, type);
         if (idx >= 0) {
-            Effect &existing = effects.effects()[idx];
+            Effect &existing = effects.effectAt(static_cast<uint>(idx));
             if (stacking == STACK_IGNORE)
                 return;
             if (durationMin != 0xFFFF) {
@@ -58,9 +108,14 @@ void EffectSystem::applyEffect(CharacterEffects &effects,
     }
 
     effects.addEffect(type, durationMin, power, immediate ? 1 : 0);
-    Effect &added = effects.effects().back();
-    if (immediate)
+    Effect &added = effects.lastEffect();
+    if (immediate) {
+        const uint8 oldStatus = character.healthStatus;
+        const uint32 oldFlags = character.effectState.flags;
         _handler->apply(EFF_ADD, added, character);
+        notifyBridgeOnEffectApply(_bridge, EFF_ADD, character,
+            oldStatus, oldFlags);
+    }
 }
 
 void EffectSystem::tick(CharacterEffects &effects,
@@ -68,17 +123,24 @@ void EffectSystem::tick(CharacterEffects &effects,
     if (!_handler)
         return;
 
-    Common::Array<Effect> &list = effects.effects();
-    for (uint i = 0; i < list.size();) {
-        Effect &effect = list[i];
+    for (uint i = 0; i < effects.effectCount();) {
+        Effect &effect = effects.effectAt(i);
+        uint8 oldStatus = character.healthStatus;
+        uint32 oldFlags = character.effectState.flags;
         _handler->apply(EFF_TICK, effect, character);
+        notifyBridgeOnEffectApply(_bridge, EFF_TICK, character,
+            oldStatus, oldFlags);
 
         if (effect.durationMin != 0xFFFF) {
             if (effect.durationMin > 0)
                 --effect.durationMin;
             if (effect.durationMin == 0) {
+                oldStatus = character.healthStatus;
+                oldFlags = character.effectState.flags;
                 _handler->apply(EFF_REMOVE, effect, character);
-                list.remove_at(i);
+                notifyBridgeOnEffectApply(_bridge, EFF_REMOVE,
+                    character, oldStatus, oldFlags);
+                effects.removeEffectAt(i);
                 continue;
             }
         }
@@ -91,32 +153,32 @@ void EffectSystem::removeEffectsByType(CharacterEffects &effects,
     if (!_handler)
         return;
 
-    Common::Array<Effect> &list = effects.effects();
-    for (uint i = 0; i < list.size();) {
-        if (list[i].type != type) {
+    for (uint i = 0; i < effects.effectCount();) {
+        if (effects.effectAt(i).type != type) {
             ++i;
             continue;
         }
-        _handler->apply(EFF_REMOVE, list[i], character);
-        list.remove_at(i);
+        const uint8 oldStatus = character.healthStatus;
+        const uint32 oldFlags = character.effectState.flags;
+        _handler->apply(EFF_REMOVE, effects.effectAt(i), character);
+        notifyBridgeOnEffectApply(_bridge, EFF_REMOVE, character,
+            oldStatus, oldFlags);
+        effects.removeEffectAt(i);
     }
 }
 
 EffectStacking EffectSystem::getStackingPolicy(uint8 type) const {
-    switch (type) {
-    default:
-        return STACK_REFRESH;
+    for (uint i = 0; i < ARRAYSIZE(kStackingRules); ++i) {
+        if (kStackingRules[i].effectType == type)
+            return kStackingRules[i].policy;
     }
+
+    return STACK_REFRESH;
 }
 
 int EffectSystem::findEffectIndex(const CharacterEffects &effects,
         uint8 type) const {
-    const Common::Array<Effect> &list = effects.effects();
-    for (uint i = 0; i < list.size(); ++i) {
-        if (list[i].type == type)
-            return static_cast<int>(i);
-    }
-    return -1;
+    return effects.findEffectIndexByType(type);
 }
 
 } // namespace Effects

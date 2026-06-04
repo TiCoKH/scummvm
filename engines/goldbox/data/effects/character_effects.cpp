@@ -46,7 +46,6 @@ void CharacterEffects::loadFromStream(Common::SeekableReadStream &f) {
     for (int i = 0; i < count; ++i) {
         Effect e;
         e.load(f);
-        e.nextAddress = 0; // normalize
         _effects.push_back(e);
     }
 }

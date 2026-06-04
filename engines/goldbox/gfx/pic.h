@@ -41,6 +41,16 @@ public:
 	static Pic *read(Data::DaxBlockPic *daxBlock);
 
 	/**
+	 * Decode a specific frame from a multi-frame PIC DAX block.
+	 * Frame data is sequential: each frame is (width * height / 2) bytes
+	 * of packed nibbles following the header.
+	 * @param daxBlock The PIC DAX block
+	 * @param frameIdx 0-based frame index
+	 * @return Decoded Pic, or nullptr if frameIdx is out of bounds
+	 */
+	static Pic *readFrame(Data::DaxBlockPic *daxBlock, int frameIdx);
+
+	/**
 	 * Decode a single frame from a SPRIT DAX block's EGA planar data.
 	 * EGA format: 4 bitplanes interleaved per scanline row.
 	 * Each row is charWidth*4 bytes (one byte per plane per 8-pixel column).
