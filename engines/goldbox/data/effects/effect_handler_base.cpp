@@ -29,12 +29,18 @@ EffectHandlerBase::EffectHandlerBase() : _defaultHandler(nullptr) {
 }
 
 void EffectHandlerBase::apply(EffectOp op, Effect &effect, Goldbox::Data::PlayerCharacter &character) const {
+    apply(op, effect, character, nullptr);
+}
+
+void EffectHandlerBase::apply(EffectOp op, Effect &effect,
+        Goldbox::Data::PlayerCharacter &character,
+        const EffectExecutionContext *ctx) const {
     Effects internalId = mapRawEffectId(effect.type);
     Handler handler = getHandler((uint8)internalId);
     if (!handler)
         handler = _defaultHandler;
     if (handler)
-        handler(op, effect, character);
+        handler(op, effect, character, ctx);
 }
 
 bool EffectHandlerBase::hasHandler(uint8 effectType) const {

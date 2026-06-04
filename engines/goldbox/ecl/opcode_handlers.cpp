@@ -28,6 +28,7 @@
 #include "goldbox/core/vm_layout.h"
 #include "goldbox/ecl/runtime_layout.h"
 #include "goldbox/events.h"
+#include "goldbox/data/effects/character_effects.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -89,6 +90,31 @@ static bool useM68kWriteMemSemantics() {
     if (!Goldbox::g_engine)
         return false;
     return Goldbox::g_engine->getPlatform() == Common::kPlatformAmiga;
+}
+
+static bool hasEffectInParty(uint8 effectId) {
+    Common::Array<Data::PlayerCharacter *> *party = VmInterface::getParty();
+    if (!party)
+        return false;
+
+    for (uint i = 0; i < party->size(); ++i) {
+        Data::PlayerCharacter *character = (*party)[i];
+        if (!character)
+            continue;
+
+        const Data::Effects::CharacterEffects *effects =
+            character->getEffects();
+        if (!effects)
+            continue;
+
+        const Common::Array<Data::Effects::Effect> &list = effects->effects();
+        for (uint j = 0; j < list.size(); ++j) {
+            if (list[j].type == effectId)
+                return true;
+        }
+    }
+
+    return false;
 }
 
 static void writeLegacyStringVar(AddressSpace &mem, uint16 destAddr,
@@ -734,12 +760,20 @@ static int handle_0x1D_PARTYSTRENGTH(EclVM &vm, AddressSpace &mem,
 // 0x1E: CHECKPARTY <attributeAddress> <effectID> <unknown> <address1> <unknown> <address2>
 static int handle_0x1E_CHECKPARTY(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack;
     vm.getOperand(6);
     const uint16 attributeAddr = vm.readVar(1);
     const uint16 effectID      = vm.readVar(2);
     const uint16 addr1         = vm.getOpWord(4);
     const uint16 addr2         = vm.getOpWord(6);
+
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+        const VmResult result = host->checkParty(attributeAddr, effectID,
+            addr1, addr2);
+        if (result != VM_OK)
+            return result;
+        return VM_OK;
+    }
 
     if (attributeAddr != 0 && effectID == 0) {
         vm.writeVmMemory(addr1, 18, syscalls); // Placeholder highest
@@ -1152,7 +1186,17 @@ static int handle_0x32_FIND_ITEM(EclVM &vm, AddressSpace &mem,
 // 0x34: ECL CLOCK <var> <timeunit>
 static int handle_0x34_ECL_CLOCK(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
+    vm.getOperand(2);
+
+    // Operand 1 is amount; operand 2 is legacy time-unit selector.
+    // Current host path advances minute units (x86 TIME_AddUnits(1, amount))
+    // and ignores operand 2 until full selector parity is wired.
+    const uint8 amount = static_cast<uint8>(vm.readVar(1));
+
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+        return host->advanceClock(amount);
+
     return VM_OK;
 }
 
@@ -1273,9 +1317,19 @@ static int handle_0x3E_NPC_REMOVE(EclVM &vm, AddressSpace &mem,
 // 0x3F: HAS EFFECT <effectID>
 static int handle_0x3F_HAS_EFFECT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack;
     vm.getOperand(1);
-    vm.setCmpResult(1); // TODO: check active effects
+
+    const uint8 effectId = static_cast<uint8>(vm.readVar(1));
+    bool isActive = false;
+
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+        isActive = host->hasEffectActive(effectId);
+    else
+        isActive = hasEffectInParty(effectId);
+
+    // Legacy IF_EQUAL after HAS EFFECT means present.
+    vm.setCmpResult(isActive ? 0 : 1);
     return VM_OK;
 }
 

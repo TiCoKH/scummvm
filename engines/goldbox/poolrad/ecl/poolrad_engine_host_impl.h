@@ -39,6 +39,12 @@ namespace Gfx {
 class DaxTile;
 }
 
+namespace Data {
+namespace Effects {
+class EffectHostBridge;
+}
+}
+
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
@@ -49,6 +55,8 @@ class HorizontalMenu;
 namespace Data {
 class PoolradCharacter;
 }
+
+Goldbox::Data::Effects::EffectHostBridge *getEffectHostBridge();
 
 /**
  * Pool of Radiance implementation of the ECL engine host interface.
@@ -95,6 +103,11 @@ public:
     VmResult readGeoAtPosition() override;
     VmResult refreshViewport() override;
     VmResult beginDelay() override;
+    VmResult advanceClock(uint8 amount) override;
+    VmResult checkParty(uint16 attributeAddr, uint16 effectId,
+        uint16 highAddr, uint16 lowAddr) override;
+    VmResult hasEffect(uint8 effectId, uint16 resultAddr) override;
+    bool hasEffectActive(uint8 effectId) const override;
     void clearTextBox() override;
     VmResult beginPrintAsync(const Common::String &text,
         bool clearBox) override;

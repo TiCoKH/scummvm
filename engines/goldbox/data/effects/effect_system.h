@@ -30,6 +30,8 @@ namespace Goldbox {
 namespace Data {
 namespace Effects {
 
+class EffectHostBridge;
+
 enum EffectStacking {
     STACK_REFRESH = 0,
     STACK_ADD = 1,
@@ -38,9 +40,11 @@ enum EffectStacking {
 
 class EffectSystem {
 public:
-    explicit EffectSystem(EffectHandlerBase *handler);
+    explicit EffectSystem(EffectHandlerBase *handler,
+            EffectHostBridge *bridge = nullptr);
 
     void setHandler(EffectHandlerBase *handler);
+    void setHostBridge(EffectHostBridge *bridge);
 
     void applyEffect(CharacterEffects &effects,
                      Goldbox::Data::PlayerCharacter &character,
@@ -58,6 +62,7 @@ public:
 
 private:
     EffectHandlerBase *_handler;
+    EffectHostBridge *_bridge;
 
     EffectStacking getStackingPolicy(uint8 type) const;
     int findEffectIndex(const CharacterEffects &effects, uint8 type) const;

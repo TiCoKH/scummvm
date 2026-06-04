@@ -137,6 +137,42 @@ enum Effects : uint8 {
     E_REGEN_3_HP,
     E_WILD_BOAR_AND_BULLETTE_AFFECT_63,
     E_TROLL_FIRE_OR_ACID,
+    E_UNKNOWN_101,
+    E_UNKNOWN_102,
+    E_THRI_KREEN_MISSILE_EVASION,
+    E_RESIST_MAGIC_50,
+    E_RESIST_MAGIC_15,
+    E_RESIST_SLEEP_CHARM_90,
+    E_IMMUNITY_SLEEP_CHARM,
+    E_IMMUNITY_PARALYSIS,
+    E_IMMUNITY_COLD,
+    E_IMMUNITY_PARALYSIS_POISON,
+    E_IMMUNITY_FIRE,
+    E_EFREETI_FIRE_RESISTANCE,
+    E_HALF_DAMAGE_ELECTRICITY,
+    E_HALF_DAMAGE_PIERCING_SLASHING,
+    E_HALF_DAMAGE_MAGICAL_WEAPONS,
+    E_VULNERABILITY_HOLY_WATER,
+    E_HALF_DAMAGE_COLD,
+    E_IMMUNITY_NONMAGICAL_WEAPONS,
+    E_BOULDER_EVASION,
+    E_ANKHEG_ACID_SQUIRT_ATTACK,
+    E_VULNERABILITY_FIRE,
+    E_IMMUNITY_NONMAGICAL_HALF_SILVER,
+    E_RESIST_SLEEP_CHARM_30,
+    E_IMMUNITY_SLEEP_CHARM_PARALYSIS_POISON,
+    E_IMMUNITY_GAZE_ATTACKS,
+    E_UNIMPLEMENTED_126,
+    E_ITEM_EFFECT_127,
+    E_ITEM_EFFECT_128,
+    E_ITEM_EFFECT_129,
+    E_EXTRA_STRENGTH_130,
+    E_ITEM_131,
+    E_UNKNOWN_132,
+    E_UNKNOWN_133,
+    E_UNKNOWN_134,
+    E_UNKNOWN_135,
+    E_UNKNOWN_136,
     E_RESIST_PARALYZE,
     E_ENTANGLE,
     E_FAERIE_FIRE,
@@ -153,8 +189,14 @@ struct Effect {
     uint8 type;          // Effect ID (original e_id)
     uint16 durationMin;  // Duration in minutes (original duration word)
     uint8 power;         // Power (0xFF = permanent)
-    uint32 nextAddress;  // Original DOS far ptr to next node (always 0 in saves)
     uint8 immediate;
+
+    // Serialization-only compatibility tail (DOS x86 .SPC node bytes 5..8).
+    // Runtime effect logic must NOT model a linked list pointer.
+    // We still read/write these bytes to preserve on-disk format compatibility.
+    enum {
+        kLegacySerializedNextAddress = 0
+    };
 
     // Historical layout notes (x86 Pool of Radiance):
     //  Allocation size: 9 bytes
@@ -171,7 +213,8 @@ struct Effect {
         durationMin = s.readUint16LE();
         power = s.readByte();
         immediate = s.readByte();
-        nextAddress = s.readUint32LE();
+        // Legacy next-pointer field (far ptr) is ignored at runtime.
+        s.readUint32LE();
     }
 
     void save(Common::WriteStream &s) const {
@@ -179,7 +222,8 @@ struct Effect {
         s.writeUint16LE(durationMin);
         s.writeByte(power);
         s.writeByte(immediate);
-        s.writeUint32LE(nextAddress);
+        // Keep DOS save layout compatible: always serialize null next-pointer.
+        s.writeUint32LE(kLegacySerializedNextAddress);
     }
 };
 

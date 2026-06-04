@@ -450,6 +450,13 @@ bool InGameView::isTextBoxBusy() const {
 }
 
 void InGameView::handleMenuResult(const MenuResultMessage &result) {
+	if (result._hasStringValue &&
+			result._stringValue == "EffectStatusChanged") {
+		onUpdate();
+		redraw();
+		return;
+	}
+
 	if (!result._success)
 		return;
 

@@ -22,8 +22,11 @@
 #include "common/debug.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/data/pascal_string_buffer.h"
+#include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/data/spells/spell.h"
+#include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
+#include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/data/poolrad_spell_mapping.h"
 
@@ -52,6 +55,18 @@ using namespace Goldbox::Data;
 
 PoolradCharacter::PoolradCharacter() {
 	initialize();
+}
+
+void PoolradCharacter::setEffect(uint8 type, uint16 durationMin,
+		uint8 power, bool immediate) {
+	// Route all effect additions through EffectSystem so stacking and
+	// immediate EFF_ADD handler behavior stay consistent across callers
+	// (including script-triggered paths).
+	Goldbox::Poolrad::EffectHandler effectHandler;
+	Goldbox::Data::Effects::EffectSystem effectSystem(&effectHandler,
+		Goldbox::Poolrad::getEffectHostBridge());
+	effectSystem.applyEffect(effects, *this, type, durationMin, power,
+		immediate);
 }
 
 void PoolradCharacter::initialize() {

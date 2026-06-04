@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/effect_handler.h"
 #include "common/util.h"
+#include "goldbox/data/effects/effect_execution_context.h"
 #include "goldbox/data/effects/effect_mapping.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
@@ -129,8 +130,48 @@ static const Goldbox::Data::Effects::Effects kRawMap[] = {
         Goldbox::Data::Effects::E_CON_SAVING_BONUS,
         Goldbox::Data::Effects::E_REGEN_3_HP,
         Goldbox::Data::Effects::E_WILD_BOAR_AND_BULLETTE_AFFECT_63,
-        Goldbox::Data::Effects::E_TROLL_FIRE_OR_ACID
+        Goldbox::Data::Effects::E_TROLL_FIRE_OR_ACID,
+        Goldbox::Data::Effects::E_UNKNOWN_101,
+        Goldbox::Data::Effects::E_UNKNOWN_102,
+        Goldbox::Data::Effects::E_THRI_KREEN_MISSILE_EVASION,
+        Goldbox::Data::Effects::E_RESIST_MAGIC_50,
+        Goldbox::Data::Effects::E_RESIST_MAGIC_15,
+        Goldbox::Data::Effects::E_RESIST_SLEEP_CHARM_90,
+        Goldbox::Data::Effects::E_IMMUNITY_SLEEP_CHARM,
+        Goldbox::Data::Effects::E_IMMUNITY_PARALYSIS,
+        Goldbox::Data::Effects::E_IMMUNITY_COLD,
+        Goldbox::Data::Effects::E_IMMUNITY_PARALYSIS_POISON,
+        Goldbox::Data::Effects::E_IMMUNITY_FIRE,
+        Goldbox::Data::Effects::E_EFREETI_FIRE_RESISTANCE,
+        Goldbox::Data::Effects::E_HALF_DAMAGE_ELECTRICITY,
+        Goldbox::Data::Effects::E_HALF_DAMAGE_PIERCING_SLASHING,
+        Goldbox::Data::Effects::E_HALF_DAMAGE_MAGICAL_WEAPONS,
+        Goldbox::Data::Effects::E_VULNERABILITY_HOLY_WATER,
+        Goldbox::Data::Effects::E_HALF_DAMAGE_COLD,
+        Goldbox::Data::Effects::E_IMMUNITY_NONMAGICAL_WEAPONS,
+        Goldbox::Data::Effects::E_BOULDER_EVASION,
+        Goldbox::Data::Effects::E_ANKHEG_ACID_SQUIRT_ATTACK,
+        Goldbox::Data::Effects::E_VULNERABILITY_FIRE,
+        Goldbox::Data::Effects::E_IMMUNITY_NONMAGICAL_HALF_SILVER,
+        Goldbox::Data::Effects::E_RESIST_SLEEP_CHARM_30,
+        Goldbox::Data::Effects::E_IMMUNITY_SLEEP_CHARM_PARALYSIS_POISON,
+        Goldbox::Data::Effects::E_IMMUNITY_GAZE_ATTACKS,
+        Goldbox::Data::Effects::E_UNIMPLEMENTED_126,
+        Goldbox::Data::Effects::E_ITEM_EFFECT_127,
+        Goldbox::Data::Effects::E_ITEM_EFFECT_128,
+        Goldbox::Data::Effects::E_ITEM_EFFECT_129,
+        Goldbox::Data::Effects::E_EXTRA_STRENGTH_130,
+        Goldbox::Data::Effects::E_ITEM_131,
+        Goldbox::Data::Effects::E_UNKNOWN_132,
+        Goldbox::Data::Effects::E_UNKNOWN_133,
+        Goldbox::Data::Effects::E_UNKNOWN_134,
+        Goldbox::Data::Effects::E_UNKNOWN_135,
+        Goldbox::Data::Effects::E_UNKNOWN_136
 };
+
+static const uint kExpectedRawEffectCount = 0x89;
+static_assert(ARRAYSIZE(kRawMap) == kExpectedRawEffectCount,
+    "kRawMap must remain aligned with expected raw effect id count");
 
 static const Goldbox::Data::Effects::EffectMapping kRawEffectMap = {
     kRawMap,
@@ -172,7 +213,8 @@ Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const
 }
 
 void EffectHandler::handleNoop(Goldbox::Data::Effects::EffectOp, Goldbox::Data::Effects::Effect &,
-                               Goldbox::Data::PlayerCharacter &) {
+                               Goldbox::Data::PlayerCharacter &,
+                               const Goldbox::Data::Effects::EffectExecutionContext *) {
 }
 
 namespace {
@@ -232,8 +274,10 @@ static void applyTickDamage(Goldbox::Data::Effects::EffectOp op, Data::PoolradCh
 }
 
 void EffectHandler::handleEffect(Goldbox::Data::Effects::EffectOp op, Goldbox::Data::Effects::Effect &effect,
-                                 Goldbox::Data::PlayerCharacter &character) {
+                                 Goldbox::Data::PlayerCharacter &character,
+                                 const Goldbox::Data::Effects::EffectExecutionContext *ctx) {
     using Goldbox::Data::Effects::Effects;
+    (void)ctx;
     Data::PoolradCharacter &poolradCharacter = static_cast<Data::PoolradCharacter &>(character);
     Effects internalId = kRawEffectMap.mapRaw(effect.type);
     switch (internalId) {
@@ -295,6 +339,10 @@ void EffectHandler::handleEffect(Goldbox::Data::Effects::EffectOp op, Goldbox::D
         applySimpleModifiers(op, poolradCharacter, -1, -1, 0, 0, 0, 0);
         break;
     }
+    case Effects::E_FEEBLEMIND: {
+        applySimpleModifiers(op, poolradCharacter, -2, -2, -2, 0, -10, 0);
+        break;
+    }
     case Effects::E_STRENGTH: {
         applySimpleModifiers(op, poolradCharacter, 1, 1, 0, 0, 0, 0);
         break;
@@ -334,6 +382,10 @@ void EffectHandler::handleEffect(Goldbox::Data::Effects::EffectOp op, Goldbox::D
     case Effects::E_RAKSHASA_RESIST_NORMAL_WEAPONS:
         applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_RAKSHASA_RESIST);
         break;
+    case Effects::E_BERSERK: {
+        applySimpleModifiers(op, poolradCharacter, 2, 2, 0, -2, 10, 0);
+        break;
+    }
     case Effects::E_DISPLACE:
         applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_DISPLACE);
         break;
@@ -369,6 +421,137 @@ void EffectHandler::handleEffect(Goldbox::Data::Effects::EffectOp op, Goldbox::D
         break;
     case Effects::E_CON_SAVING_BONUS: {
         applySimpleModifiers(op, poolradCharacter, 0, 0, 2, 0, 0, 0);
+        break;
+    }
+    case Effects::E_PETRIFYING_GAZE:
+    case Effects::E_BEHOLDER_RAYS_AFFECT_57:
+    case Effects::E_AFFECT_4A:
+    case Effects::E_AFFECT_4E: {
+        applySimpleModifiers(op, poolradCharacter, 2, 0, 0, 0, 0, 0);
+        break;
+    }
+    case Effects::E_FIRE_ATTACK_2D10:
+    case Effects::E_ANKHEG_ACID_ATTACK:
+    case Effects::E_GIANT_SLUG_SPIT_ACID:
+    case Effects::E_BREATH_ELEC:
+    case Effects::E_BREATH_ACID:
+    case Effects::E_CLOUD_KILL:
+    case Effects::E_ANKHEG_ACID_SQUIRT_ATTACK:
+    case Effects::E_WILD_BOAR_DIE_AFTER_EXTRA_FIGHT_TIME_AFFECT_5F:
+    case Effects::E_OWLBEAR_HUG_CHECK:
+    case Effects::E_WILD_BOAR_AND_BULLETTE_AFFECT_63: {
+        applySimpleModifiers(op, poolradCharacter, 1, 3, 0, 0, 0, 0);
+        break;
+    }
+    case Effects::E_POISON_PLUS_0: {
+        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_POISONED);
+        if (op == Goldbox::Data::Effects::EFF_TICK)
+            applyTickDamage(op, poolradCharacter, 1);
+        break;
+    }
+    case Effects::E_POISON_PLUS_2: {
+        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_POISONED);
+        if (op == Goldbox::Data::Effects::EFF_TICK)
+            applyTickDamage(op, poolradCharacter, 2);
+        break;
+    }
+    case Effects::E_POISON_PLUS_4: {
+        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_POISONED);
+        if (op == Goldbox::Data::Effects::EFF_TICK)
+            applyTickDamage(op, poolradCharacter, 3);
+        break;
+    }
+    case Effects::E_POISON_NEG_2: {
+        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_POISONED);
+        if (op == Goldbox::Data::Effects::EFF_TICK)
+            applyTickDamage(op, poolradCharacter, 1);
+        applySimpleModifiers(op, poolradCharacter, 0, 0, -2, 0, 0, 0);
+        break;
+    }
+    case Effects::E_THRI_KREEN_MISSILE_EVASION:
+    case Effects::E_BOULDER_EVASION: {
+        applySimpleModifiers(op, poolradCharacter, 0, 0, 2, 0, 0, 0);
+        break;
+    }
+    case Effects::E_RESIST_MAGIC_15: {
+        applySimpleModifiers(op, poolradCharacter, 0, 0, 1, 0, 0, 0);
+        break;
+    }
+    case Effects::E_RESIST_SLEEP_CHARM_30: {
+        applySimpleModifiers(op, poolradCharacter, 0, 0, 2, 0, 0, 0);
+        break;
+    }
+    case Effects::E_RESIST_MAGIC_50: {
+        applySimpleModifiers(op, poolradCharacter, 0, 0, 3, 0, 0, 0);
+        break;
+    }
+    case Effects::E_RESIST_SLEEP_CHARM_90: {
+        applySimpleModifiers(op, poolradCharacter, 0, 0, 5, 0, 0, 0);
+        break;
+    }
+    case Effects::E_IMMUNITY_SLEEP_CHARM:
+    case Effects::E_IMMUNITY_PARALYSIS:
+    case Effects::E_IMMUNITY_SLEEP_CHARM_PARALYSIS_POISON:
+    case Effects::E_IMMUNITY_GAZE_ATTACKS: {
+        applySimpleModifiers(op, poolradCharacter, 0, 0, 6, 0, 0, 0);
+        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_FEAR_IMMUNE);
+        break;
+    }
+    case Effects::E_IMMUNITY_COLD: {
+        applyFlag(op, poolradCharacter,
+            Data::PoolradCharacter::EF_RESIST_COLD |
+            Data::PoolradCharacter::EF_HALF_DAMAGE);
+        break;
+    }
+    case Effects::E_IMMUNITY_FIRE:
+    case Effects::E_EFREETI_FIRE_RESISTANCE: {
+        applyFlag(op, poolradCharacter,
+            Data::PoolradCharacter::EF_RESIST_FIRE |
+            Data::PoolradCharacter::EF_FIRE_RESIST |
+            Data::PoolradCharacter::EF_HALF_FIRE_DAMAGE);
+        break;
+    }
+    case Effects::E_IMMUNITY_PARALYSIS_POISON: {
+        applyFlag(op, poolradCharacter,
+            Data::PoolradCharacter::EF_SLOW_POISON |
+            Data::PoolradCharacter::EF_FEAR_IMMUNE);
+        applySimpleModifiers(op, poolradCharacter, 0, 0, 6, 0, 0, 0);
+        break;
+    }
+    case Effects::E_HALF_DAMAGE_ELECTRICITY:
+    case Effects::E_HALF_DAMAGE_PIERCING_SLASHING:
+    case Effects::E_HALF_DAMAGE_MAGICAL_WEAPONS:
+    case Effects::E_HALF_DAMAGE_COLD: {
+        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_HALF_DAMAGE);
+        break;
+    }
+    case Effects::E_IMMUNITY_NONMAGICAL_WEAPONS:
+    case Effects::E_IMMUNITY_NONMAGICAL_HALF_SILVER: {
+        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_RAKSHASA_RESIST);
+        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_DAMAGE_REDUCTION);
+        break;
+    }
+    case Effects::E_VULNERABILITY_HOLY_WATER:
+    case Effects::E_VULNERABILITY_FIRE:
+    case Effects::E_TROLL_FIRE_OR_ACID: {
+        applySimpleModifiers(op, poolradCharacter, 0, 0, -2, 0, 0, 0);
+        break;
+    }
+    case Effects::E_UNKNOWN_101:
+    case Effects::E_UNKNOWN_102:
+    case Effects::E_UNIMPLEMENTED_126:
+    case Effects::E_ITEM_EFFECT_127:
+    case Effects::E_ITEM_EFFECT_128:
+    case Effects::E_ITEM_EFFECT_129:
+    case Effects::E_ITEM_131:
+    case Effects::E_UNKNOWN_132:
+    case Effects::E_UNKNOWN_133:
+    case Effects::E_UNKNOWN_134:
+    case Effects::E_UNKNOWN_135:
+    case Effects::E_UNKNOWN_136:
+        break;
+    case Effects::E_EXTRA_STRENGTH_130: {
+        applySimpleModifiers(op, poolradCharacter, 1, 2, 0, 0, 0, 0);
         break;
     }
     case Effects::E_POISON_DAMAGE:

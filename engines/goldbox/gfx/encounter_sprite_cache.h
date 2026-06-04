@@ -23,6 +23,7 @@
 #define GOLDBOX_GFX_ENCOUNTER_SPRITE_CACHE_H
 
 #include "common/scummsys.h"
+#include "common/array.h"
 #include "common/ptr.h"
 
 namespace Graphics {
@@ -112,6 +113,27 @@ public:
     /** Decoded head/portrait Pic (nullptr if not loaded). */
     const Pic *headPic() const { return _headPic.get(); }
 
+    /**
+     * Current display frame for animated PIC blocks (frameCount > 1).
+     * Returns the Pic for the active animation frame, cycling through
+     * all frames. Returns headPic() for single-frame pictures.
+     */
+    const Pic *currentHeadFrame() const;
+
+    /** True if the loaded head picture has animation frames. */
+    bool isAnimated() const { return _headFrames.size() > 1; }
+
+    /** Total frame count for the loaded head picture. */
+    int headFrameCount() const { return (int)_headFrames.size(); }
+
+    /**
+     * Advance animation frame if enough time has elapsed.
+     * Call from the view's tick() or draw() path.
+     * @param intervalMs Milliseconds per frame (e.g. gameSpeed * 500)
+     * @return True if frame changed (caller should redraw)
+     */
+    bool tickAnimation(uint32 intervalMs);
+
     /** Mark head as drawn (prevents redundant reloads). */
     void setHeadDrawn(bool drawn) { _headDrawn = drawn; }
 
@@ -125,6 +147,11 @@ private:
 
     Common::SharedPtr<Pic> _spritePic;
     Common::SharedPtr<Pic> _headPic;
+
+    // Multi-frame PIC animation state.
+    Common::Array<Common::SharedPtr<Pic>> _headFrames;
+    uint8 _headCurrentFrame;
+    uint32 _headLastFrameTime;
 };
 
 } // namespace Gfx

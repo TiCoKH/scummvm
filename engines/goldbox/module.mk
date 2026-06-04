@@ -35,6 +35,7 @@ MODULE_OBJS = \
 	data/strings_data.o \
 	data/effects/character_effects.o \
 	data/effects/effect_handler_base.o \
+	data/effects/effect_runtime.o \
 	data/effects/effect_system.o \
 	data/items/base_items.o \
 	data/items/character_item.o \

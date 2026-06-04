@@ -35,11 +35,15 @@
 #include "goldbox/core/menu_item.h"
 #include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/data/effects/effect_execution_context.h"
+#include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/runtime/runtime_geo.h"
+#include "goldbox/runtime/runtime_time.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
 #include "goldbox/core/direction.h"
@@ -62,6 +66,88 @@ static const int kPicture3DAreaCharY = 3;
 static const int kPicture3DAreaPixelX = kPicture3DAreaCharX * 8;
 static const int kPicture3DAreaPixelY = kPicture3DAreaCharY * 8;
 static uint32 kModalMenuSinkCounter = 0;
+
+static const char *kEffectStatusChangedEventName = "EffectStatusChanged";
+
+class PoolradEffectHostBridge : public Goldbox::Data::Effects::EffectHostBridge {
+public:
+    void postEffectMessage(Goldbox::Data::PlayerCharacter *character,
+            const Common::String &text, bool withDelay) override {
+        (void)character;
+        if (!Goldbox::g_events)
+            return;
+
+        const int16 result = withDelay ? 1 : 0;
+        Goldbox::g_events->postEclVmMessage(
+            Goldbox::EclVmMessage::makeSyscallWithText(0, 0,
+            Goldbox::EclVmMessage::SC_PRINT_ASYNC, text, result));
+    }
+
+    void requestRefresh(uint32 refreshFlags) override {
+        if (!Goldbox::g_events)
+            return;
+
+        if (refreshFlags & RF_STATUS_PANEL) {
+            Goldbox::g_events->postEclStateMessage(
+                Goldbox::EclVmMessage::ST_STATUS_DIRTY, 1,
+                Goldbox::EclVmMessage::VT_UINT8);
+        }
+
+        if (refreshFlags & RF_CHARACTER_PANEL) {
+            Goldbox::g_events->postEclStateMessage(
+                Goldbox::EclVmMessage::ST_CHARACTER_DIRTY, 1,
+                Goldbox::EclVmMessage::VT_UINT8);
+        }
+
+        if (refreshFlags & RF_VIEWPORT) {
+            Goldbox::g_events->postEclStateMessage(
+                Goldbox::EclVmMessage::ST_SKYBOX_DIRTY, 1,
+                Goldbox::EclVmMessage::VT_UINT8);
+        }
+
+        if (refreshFlags & RF_AREA_MAP) {
+            Goldbox::g_events->postEclStateMessage(
+                Goldbox::EclVmMessage::ST_SCREEN_REFRESH, 1,
+                Goldbox::EclVmMessage::VT_UINT8);
+        }
+
+        Goldbox::UIElement *focused = Goldbox::g_events->focusedView();
+        if (focused)
+            focused->redraw();
+    }
+
+    void notifyStatusChanged(Goldbox::Data::PlayerCharacter *character,
+            uint8 oldStatus, uint8 newStatus) override {
+        (void)character;
+        if (!Goldbox::g_events)
+            return;
+
+        const uint16 packed = static_cast<uint16>(oldStatus) << 8 |
+            static_cast<uint16>(newStatus);
+        const Common::String target = Goldbox::g_events->isPresent("InGame")
+            ? Common::String("InGame") : Common::String();
+        Goldbox::g_events->postMenuResult(target, true,
+            Common::KEYCODE_INVALID,
+            packed, Common::String(kEffectStatusChangedEventName), true,
+            true);
+
+        Goldbox::g_events->postEclStateMessage(
+            Goldbox::EclVmMessage::ST_STATUS_DIRTY, 1,
+            Goldbox::EclVmMessage::VT_UINT8);
+        Goldbox::g_events->postEclStateMessage(
+            Goldbox::EclVmMessage::ST_CHARACTER_DIRTY, 1,
+            Goldbox::EclVmMessage::VT_UINT8);
+    }
+
+    void postVmState(uint16 tag, uint16 value,
+            uint8 valueType) override {
+        if (!Goldbox::g_events)
+            return;
+
+        Goldbox::g_events->postEclStateMessage(tag, value,
+            static_cast<Goldbox::EclVmMessage::ValueType>(valueType));
+    }
+};
 
 static bool isAsciiAlphaNum(char c) {
     return (c >= 'A' && c <= 'Z')
@@ -223,12 +309,22 @@ static void loadMonsterEffects(Goldbox::Engine *engine, uint8 monsterId,
     while (stream.pos() + recSize <= total) {
         Goldbox::Data::Effects::Effect effect;
         effect.load(stream);
-        effect.nextAddress = 0;
-        monster.effects.effects().push_back(effect);
+        monster.effects.appendEffect(effect);
     }
 }
 
 } // namespace
+
+namespace Goldbox {
+namespace Poolrad {
+
+Goldbox::Data::Effects::EffectHostBridge *getEffectHostBridge() {
+    static PoolradEffectHostBridge s_bridge;
+    return &s_bridge;
+}
+
+} // namespace Poolrad
+} // namespace Goldbox
 
 namespace Goldbox {
 namespace Poolrad {
@@ -806,6 +902,153 @@ VmResult PoolradEngineHostImpl::beginDelay() {
     _asyncDelayEndTime = g_system->getMillis() + static_cast<uint32>(speed) * 500;
     _asyncDelayPending = true;
     return VM_YIELD;
+}
+
+VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
+    if (!_memory)
+        return VmResult::VM_ERROR;
+
+    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+        VmInterface::getParty();
+    if (!party)
+        return VmResult::VM_ERROR;
+
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+    TimeFieldAddresses clockAddrs = {{
+        layout.vmField(kVmFieldClockUnits).vmAddr,
+        layout.vmField(kVmFieldClockMinuteOnes).vmAddr,
+        layout.vmField(kVmFieldClockMinuteTens).vmAddr,
+        layout.vmField(kVmFieldClockHour).vmAddr,
+        layout.vmField(kVmFieldClockDay).vmAddr,
+        layout.vmField(kVmFieldClockMonth).vmAddr,
+        layout.vmField(kVmFieldClockYearLo).vmAddr
+    }};
+
+    EffectHandler effectHandler;
+    timeAddUnits(*_memory, clockAddrs, *party, &effectHandler,
+        VmInterface::getGameStatus(), 1, amount);
+
+    // First runtime trigger-set integration: periodic poison/disease cycle.
+    Goldbox::Data::Effects::EffectRuntime runtime(&effectHandler,
+        Goldbox::Poolrad::getEffectHostBridge());
+    for (uint i = 0; i < party->size(); ++i) {
+        Goldbox::Data::PlayerCharacter *character = (*party)[i];
+        if (!character)
+            continue;
+
+        Goldbox::Data::Effects::CharacterEffects *effects =
+            character->getEffects();
+        if (!effects)
+            continue;
+
+        Goldbox::Data::Effects::EffectExecutionContext context;
+        context.actor = character;
+        context.source = character;
+        context.inCombat =
+            (VmInterface::getGameStatus() == Goldbox::GS_COMBAT);
+
+        runtime.applyTriggerSet(Goldbox::Data::Effects::ETS_POISON_CYCLE,
+            *effects, *character, context);
+    }
+
+    if (g_events) {
+        g_events->postEclStateMessage(EclVmMessage::ST_STATUS_DIRTY, 1,
+            EclVmMessage::VT_UINT8);
+        g_events->postEclStateMessage(EclVmMessage::ST_CHARACTER_DIRTY, 1,
+            EclVmMessage::VT_UINT8);
+    }
+
+    return VmResult::VM_OK;
+}
+
+VmResult PoolradEngineHostImpl::checkParty(uint16 attributeAddr,
+        uint16 effectId, uint16 highAddr, uint16 lowAddr) {
+    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+        VmInterface::getParty();
+    if (!party || !_memory)
+        return VmResult::VM_ERROR;
+
+    // Decompile-aligned first pass:
+    // - attributeAddr == 0 and effectId != 0 -> count members having effect.
+    // - write count to lowAddr; highAddr is reserved for attribute mode.
+    if (attributeAddr == 0 && effectId != 0) {
+        uint16 count = 0;
+        for (uint i = 0; i < party->size(); ++i) {
+            Goldbox::Data::PlayerCharacter *character = (*party)[i];
+            if (!character)
+                continue;
+
+            Goldbox::Data::Effects::CharacterEffects *effects =
+                character->getEffects();
+            if (!effects)
+                continue;
+
+            const Common::Array<Goldbox::Data::Effects::Effect> &list =
+                effects->effects();
+            bool hasEffect = false;
+            for (uint j = 0; j < list.size(); ++j) {
+                if (list[j].type == static_cast<uint8>(effectId)) {
+                    hasEffect = true;
+                    break;
+                }
+            }
+
+            if (hasEffect)
+                ++count;
+        }
+
+        _memory->write16LE(lowAddr, count);
+        if (highAddr != 0)
+            _memory->write16LE(highAddr, 0);
+        return VmResult::VM_OK;
+    }
+
+    // Attribute mode not fully mapped yet from decompile struct offsets.
+    // Keep deterministic behavior while preserving script flow.
+    if (attributeAddr != 0 && effectId == 0) {
+        _memory->write16LE(highAddr, 0);
+        _memory->write16LE(lowAddr, 0);
+        return VmResult::VM_OK;
+    }
+
+    // Unsupported mixed-operand mode.
+    _memory->write16LE(highAddr, 0);
+    _memory->write16LE(lowAddr, 0);
+    return VmResult::VM_OK;
+}
+
+bool PoolradEngineHostImpl::hasEffectActive(uint8 effectId) const {
+    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+        VmInterface::getParty();
+    if (!party)
+        return false;
+
+    for (uint i = 0; i < party->size(); ++i) {
+        Goldbox::Data::PlayerCharacter *character = (*party)[i];
+        if (!character)
+            continue;
+
+        Goldbox::Data::Effects::CharacterEffects *effects =
+            character->getEffects();
+        if (!effects)
+            continue;
+
+        const Common::Array<Goldbox::Data::Effects::Effect> &list =
+            effects->effects();
+        for (uint j = 0; j < list.size(); ++j) {
+            if (list[j].type == effectId)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+VmResult PoolradEngineHostImpl::hasEffect(uint8 effectId, uint16 resultAddr) {
+    const bool present = hasEffectActive(effectId);
+    if (_memory && resultAddr != 0)
+        _memory->write16LE(resultAddr, present ? 0 : 1);
+    return VmResult::VM_OK;
 }
 
 void PoolradEngineHostImpl::clearTextBox() {

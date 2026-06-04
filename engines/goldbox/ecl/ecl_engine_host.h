@@ -378,6 +378,15 @@ public:
      */
     virtual VmResult hasEffect(uint8 effectId, uint16 resultAddr) { return VM_OK; }
 
+        /**
+         * Fast predicate form of HAS EFFECT for compare-only opcode flow.
+         * Returns true when at least one party member currently has the effect.
+         */
+        virtual bool hasEffectActive(uint8 effectId) const {
+                (void)effectId;
+                return false;
+        }
+
     /**
      * Find a specific item in the party inventory (0x32 FIND ITEM).
      * Should set compare EQ if found, NE if not.
