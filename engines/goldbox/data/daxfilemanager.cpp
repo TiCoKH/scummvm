@@ -44,7 +44,7 @@ DaxFileManager::DaxFileManager(Common::Platform platform) :
     _containerMonCha(ContentType::CHARACTER),
     _containerMonItm(ContentType::ITEM),
     _containerMonSpc(ContentType::SPELL),
-    _containerPic(ContentType::PIC),
+    _containerPic(ContentType::EGAPIC),
     _containerCPic(ContentType::CTILE),
     _containerSprit(ContentType::SPRIT),
     _containerTitle(ContentType::PIC),

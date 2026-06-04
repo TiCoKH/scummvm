@@ -127,12 +127,25 @@ public:
     int headFrameCount() const { return (int)_headFrames.size(); }
 
     /**
-     * Advance animation frame if enough time has elapsed.
-     * Call from the view's tick() or draw() path.
+     * Advance animation frame using ping-pong pattern (1→max→1).
+     * Self-timed: checks elapsed time internally.
+     * Call from any periodic update path (tick, draw, timeout).
      * @param intervalMs Milliseconds per frame (e.g. gameSpeed * 500)
      * @return True if frame changed (caller should redraw)
      */
     bool tickAnimation(uint32 intervalMs);
+
+    /**
+     * Set the animation frame interval in milliseconds.
+     * Allows external control of animation speed.
+     */
+    void setAnimInterval(uint32 intervalMs) { _headAnimInterval = intervalMs; }
+
+    /**
+     * Self-tick: advances animation using internally stored interval.
+     * @return True if frame changed
+     */
+    bool tickAnimation();
 
     /** Mark head as drawn (prevents redundant reloads). */
     void setHeadDrawn(bool drawn) { _headDrawn = drawn; }
@@ -151,7 +164,9 @@ private:
     // Multi-frame PIC animation state.
     Common::Array<Common::SharedPtr<Pic>> _headFrames;
     uint8 _headCurrentFrame;
+    int8 _headAnimDirection;  // +1 forward, -1 reverse (ping-pong)
     uint32 _headLastFrameTime;
+    uint32 _headAnimInterval; // ms per frame
 };
 
 } // namespace Gfx

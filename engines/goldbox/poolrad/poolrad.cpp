@@ -202,6 +202,14 @@ bool PoolradEngine::loadGameAssets() {
 	getDaxManager().loadFile(Common::Path("geo6.dax"));
 	getDaxManager().loadFile(Common::Path("geo7.dax"));
 	getDaxManager().loadFile(Common::Path("geo8.dax"));
+	getDaxManager().loadFile(Common::Path("pic1.dax"));
+	getDaxManager().loadFile(Common::Path("pic2.dax"));
+	getDaxManager().loadFile(Common::Path("pic3.dax"));
+	getDaxManager().loadFile(Common::Path("pic4.dax"));
+	getDaxManager().loadFile(Common::Path("pic5.dax"));
+	getDaxManager().loadFile(Common::Path("pic6.dax"));
+	getDaxManager().loadFile(Common::Path("pic7.dax"));
+	getDaxManager().loadFile(Common::Path("pic8.dax"));
 	getDaxManager().loadFile(Common::Path("cpic1.dax"));
 	getDaxManager().loadFile(Common::Path("cpic2.dax"));
 	getDaxManager().loadFile(Common::Path("cpic3.dax"));
@@ -1263,8 +1271,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 			return;
 		}
 		// ON_REST completed (VM_HALTED = EXIT = rest allowed).
-		// Transition to GS_CAMPING and load campfire picture (PIC 29).
-		getEncounterSpriteCache().loadHead(0xFF, 29);
+		// Transition to GS_CAMPING — InGameView::applyScreenByState
+		// will call enterCamp() which activates CampMenuDialog.
 		setGameState(GS_CAMPING);
 		return;
 	}

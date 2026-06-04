@@ -26,6 +26,7 @@
 #include "goldbox/poolrad/views/dialogs/party_list.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
 #include "goldbox/poolrad/views/dialogs/in_game_menu_dialog.h"
+#include "goldbox/poolrad/views/dialogs/camp_menu_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
@@ -55,10 +56,8 @@ InGameView::InGameView() : View("InGame") {
 	_shopPanelDialog->deactivate();
 	attachDialog(_shopPanelDialog);
 
-	_campingPanelDialog = new Dialogs::InGamePanelDialog("InGameCampPanel", "Camp");
-	_campingPanelDialog->setRuntimeMode(Dialogs::InGamePanelDialog::kRuntimeCamping);
-	_campingPanelDialog->deactivate();
-	attachDialog(_campingPanelDialog);
+	// CampMenuDialog handles camping picture + menu directly.
+	_campingPanelDialog = nullptr;
 
 	_afterCombatPanelDialog = new Dialogs::InGamePanelDialog("InGameAfterCombatPanel", "AfterFight");
 	_afterCombatPanelDialog->setRuntimeMode(Dialogs::InGamePanelDialog::kRuntimeAfterCombat);
@@ -70,6 +69,9 @@ InGameView::InGameView() : View("InGame") {
 
 	_inGameMenuDialog = new Dialogs::InGameMenuDialog("InGameMenu");
 	_inGameMenuDialog->deactivate();
+
+	_campMenuDialog = new Dialogs::CampMenuDialog("CampMenu", this);
+	_campMenuDialog->deactivate();
 }
 
 InGameView::~InGameView() {
@@ -83,10 +85,6 @@ InGameView::~InGameView() {
 		_afterCombatPanelDialog = nullptr;
 	}
 
-	if (_campingPanelDialog) {
-		delete _campingPanelDialog;
-		_campingPanelDialog = nullptr;
-	}
 
 	if (_shopPanelDialog) {
 		delete _shopPanelDialog;
@@ -112,6 +110,11 @@ InGameView::~InGameView() {
 		delete _inGameMenuDialog;
 		_inGameMenuDialog = nullptr;
 	}
+
+	if (_campMenuDialog) {
+		delete _campMenuDialog;
+		_campMenuDialog = nullptr;
+	}
 }
 
 // -----------------------------------------------------------------------
@@ -134,6 +137,14 @@ void InGameView::applyScreenByState(GameState state) {
 	syncDialogs();
 	if (_stateAreaDialog)
 		_stateAreaDialog->setState(_state);
+
+	// Enter/exit camp dialog based on state.
+	if (state == GS_CAMPING) {
+		enterCamp();
+	} else if (_campMenuDialog && _campMenuDialog->isActive()) {
+		_campMenuDialog->deactivate();
+	}
+
 	redraw();
 }
 
@@ -241,7 +252,8 @@ void InGameView::syncLeftPanelDialog() {
 		nextDialog = _shopPanelDialog;
 		break;
 	case GS_CAMPING:
-		nextDialog = _campingPanelDialog;
+		// CampMenuDialog handles the campfire picture directly.
+		nextDialog = nullptr;
 		break;
 	case GS_AFTER_COMBAT:
 		nextDialog = _afterCombatPanelDialog;
@@ -299,6 +311,27 @@ void InGameView::draw() {
 	if (_mainScreenDialog)
 		_mainScreenDialog->draw();
 
+	// Camp dialog takes over left panel + menu when active.
+	if (_campMenuDialog && _campMenuDialog->isActive()) {
+		// Tick campfire animation from the view's draw cycle.
+		if (Poolrad::g_engine) {
+			::Goldbox::Gfx::EncounterSpriteCache &cache =
+				Poolrad::g_engine->getEncounterSpriteCache();
+			if (cache.tickAnimation())
+				_mainScreenDialog->draw(); // Redraw viewport with new frame.
+		}
+		_campMenuDialog->draw();
+
+		if (_showPartyPanel && _partyList && _partyList->isActive())
+			_partyList->draw();
+
+		if (_showStateArea && _stateAreaDialog && _stateAreaDialog->isActive()) {
+			_stateAreaDialog->setState(_state);
+			_stateAreaDialog->draw();
+		}
+		return;
+	}
+
 	if (_activeLeftPanelDialog && _activeLeftPanelDialog->isActive())
 		_activeLeftPanelDialog->draw();
 
@@ -321,6 +354,23 @@ void InGameView::draw() {
 // Input
 
 bool InGameView::msgKeypress(const KeypressMessage &msg) {
+	// Camp dialog consumes most keys when active — blocks navigation.
+	// Party list gets first pass at scroll keys.
+	if (_campMenuDialog && _campMenuDialog->isActive()) {
+		if (_showPartyPanel && _partyList && _partyList->isActive()) {
+			if (_partyList->msgKeypress(msg)) {
+				redraw();
+				return true;
+			}
+		}
+		if (_campMenuDialog->msgKeypress(msg)) {
+			redraw();
+			return true;
+		}
+		// Camp dialog returned false for passthrough keys — already handled above.
+		return true;
+	}
+
 	// Text box gets priority when waiting for key (overflow prompt).
 	if (_textBoxDialog && _textBoxDialog->isActive()
 			&& _textBoxDialog->msgKeypress(msg)) {
@@ -457,6 +507,13 @@ void InGameView::handleMenuResult(const MenuResultMessage &result) {
 		return;
 	}
 
+	// Camp exit result from CampMenuDialog.
+	if (result._success && result._keyCode == Common::KEYCODE_e
+			&& _campMenuDialog && _campMenuDialog->isActive()) {
+		exitCamp(result._hasIntValue && result._intValue != 0);
+		return;
+	}
+
 	if (!result._success)
 		return;
 
@@ -563,11 +620,15 @@ void InGameView::setInGameMenuVisible(bool visible) {
 	if (!_inGameMenuDialog)
 		return;
 	if (visible) {
+		Dialogs::InGameMenuDialog::MapMode menuMode;
+		if (_state == GS_CAMPING)
+			menuMode = Dialogs::InGameMenuDialog::kModeCamping;
+		else if (_state == GS_WILDERNESS_MAP)
+			menuMode = Dialogs::InGameMenuDialog::kModeWilderness;
+		else
+			menuMode = Dialogs::InGameMenuDialog::kModeDungeon;
+		_inGameMenuDialog->setMode(menuMode);
 		if (!_inGameMenuDialog->isActive()) {
-			_inGameMenuDialog->setMode(
-				(_state == GS_WILDERNESS_MAP)
-					? Dialogs::InGameMenuDialog::kModeWilderness
-					: Dialogs::InGameMenuDialog::kModeDungeon);
 			_inGameMenuDialog->activate();
 			redraw();
 		}
@@ -589,6 +650,12 @@ bool InGameView::tick() {
 			exchange->signalAsync(RuntimeExchange::kAsyncTextBoxDone);
 	}
 	_textBoxWasBusy = busy;
+
+	// Keep view dirty while camp animation is active.
+	if (_campMenuDialog && _campMenuDialog->isActive() && Poolrad::g_engine
+			&& Poolrad::g_engine->getEncounterSpriteCache().isAnimated())
+		redraw();
+
 	return UIElement::tick();
 }
 
@@ -723,6 +790,32 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 			_searchMode = ((msg.asUint8() & 1) != 0);
 			redraw();
 			return;
+		}
+	}
+}
+
+void InGameView::enterCamp() {
+	// Hide normal in-game menu.
+	if (_inGameMenuDialog && _inGameMenuDialog->isActive())
+		_inGameMenuDialog->deactivate();
+
+	// Activate camp dialog — it owns picture + menu + key handling.
+	if (_campMenuDialog && !_campMenuDialog->isActive())
+		_campMenuDialog->activate();
+
+	redraw();
+}
+
+void InGameView::exitCamp(bool wasInterrupted) {
+	if (_campMenuDialog && _campMenuDialog->isActive())
+		_campMenuDialog->deactivate();
+
+	// Restore previous dungeon state via engine.
+	if (Poolrad::g_engine) {
+		Poolrad::g_engine->setGameState(GS_DUNGEON_MAP);
+		if (g_events) {
+			g_events->postEclStateMessage(EclVmMessage::ST_INGAME_MENU_VISIBLE,
+				1, EclVmMessage::VT_UINT8);
 		}
 	}
 }

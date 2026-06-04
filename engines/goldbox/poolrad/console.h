@@ -36,6 +36,7 @@ private:
 	bool cmdWalldef(int argc, const char **argv);
 	bool cmdFpview(int argc, const char **argv);
 	bool cmdWalldefstate(int argc, const char **argv);
+	bool cmdDumpPic(int argc, const char **argv);
 public:
 	Console();
 	~Console() override {}

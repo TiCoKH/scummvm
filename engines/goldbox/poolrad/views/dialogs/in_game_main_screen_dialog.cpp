@@ -158,11 +158,25 @@ void InGameMainScreenDialog::drawWildernessPositionMarker(Surface &s,
 }
 
 void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
-	if (_mode != kModeDungeon && _mode != kModeWilderness && _mode != kModeCombat)
+	if (_mode != kModeDungeon && _mode != kModeWilderness
+			&& _mode != kModeCombat && _mode != kModeCamping)
 		return;
 
 	if (!::Goldbox::Poolrad::g_engine)
 		return;
+
+	// Camping mode: draw picture from EncounterSpriteCache (PIC 29 campfire).
+	if (_mode == kModeCamping) {
+		const ::Goldbox::Gfx::EncounterSpriteCache &spriteCache =
+			::Goldbox::Poolrad::g_engine->getEncounterSpriteCache();
+		const ::Goldbox::Gfx::Pic *headPic = spriteCache.currentHeadFrame();
+		if (headPic) {
+			const int vpX = 3 * 8;
+			const int vpY = 3 * 8;
+			headPic->draw(&s, vpX, vpY);
+		}
+		return;
+	}
 
 	::Goldbox::RuntimeMapSnapshot snapshot;
 	const RuntimeExchange *exchange =

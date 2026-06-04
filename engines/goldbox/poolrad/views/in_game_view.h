@@ -37,6 +37,7 @@ class InGameStateAreaDialog;
 class InGamePanelDialog;
 class TextBoxDialog;
 class InGameMenuDialog;
+class CampMenuDialog;
 }
 
 /**
@@ -92,6 +93,7 @@ private:
 	Dialogs::Dialog *_activeStateAreaDialog = nullptr;
 	Dialogs::TextBoxDialog *_textBoxDialog = nullptr;
 	Dialogs::InGameMenuDialog *_inGameMenuDialog = nullptr;
+	Dialogs::CampMenuDialog *_campMenuDialog = nullptr;
 
 	// --- Dungeon navigation state ---
 	/** Party map X position (column, 0-15). */
@@ -151,6 +153,12 @@ public:
 
 	/** Queue a command for the engine runtime loop. */
 	void queueCommand(InGameCommand cmd) { _pendingCommand = cmd; }
+
+	/** Enter camp mode: activate CampMenuDialog, hide normal menu. */
+	void enterCamp();
+
+	/** Exit camp mode: deactivate CampMenuDialog, restore previous state. */
+	void exitCamp(bool wasInterrupted);
 
 	/** Returns true if a command is waiting for the engine runtime loop. */
 	bool hasPendingCommand() const { return _pendingCommand != kCmdNone; }

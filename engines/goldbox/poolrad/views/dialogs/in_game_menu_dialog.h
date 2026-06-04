@@ -50,7 +50,8 @@ class InGameMenuDialog : public Dialog {
 public:
     enum MapMode {
         kModeDungeon = 0,
-        kModeWilderness
+        kModeWilderness,
+        kModeCamping
     };
 
 private:
