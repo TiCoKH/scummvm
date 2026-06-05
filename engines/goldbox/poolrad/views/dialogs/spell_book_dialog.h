@@ -19,11 +19,11 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_SPELL_BOOK_VIEW_H
-#define GOLDBOX_POOLRAD_VIEWS_SPELL_BOOK_VIEW_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_SPELL_BOOK_DIALOG_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_SPELL_BOOK_DIALOG_H
 
 #include "goldbox/core/menu_item.h"
-#include "goldbox/poolrad/views/view.h"
+#include "goldbox/poolrad/views/dialogs/dialog.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -37,38 +37,11 @@ namespace Dialogs {
 class HorizontalMenu;
 class HorizontalYesNo;
 class SpellsMenu;
-class PartyList;
-}
 
 /**
- * VIEW_SpellBook equivalent — top-level spell management view.
- *
- * Pushed onto the view stack from CampMenuDialog ('M' key) or any
- * other caller that needs the spellbook interface. Returns by
- * popping itself from the stack.
- *
- * Original signatures:
- *   x86:  void VIEW_SpellBook(bool *result)
- *   m68k: void VIEW_SpellBook(bool *b_res)
- *
- * Main loop presents a horizontal menu:
- *   Cast / Memorize / Scribe / Display / Rest
- *
- * Sub-actions dispatched:
- *   'C' -> SPELL_CastSpell     (SpellsMenu SL_IN_MEMORY / SA_CAST)
- *   'M' -> SPELL_SpellMemorize (SpellsMenu SL_IN_SPELL_BOOK / SA_MEMORIZE)
- *   'S' -> SPELL_Scribe        (SpellsMenu SL_ON_SCROLLS / SA_SCRIBE)
- *   'D' -> SPELL_ScrollRead    (display active effects on party)
- *   'R' -> ACTION_Rest          (rest and regain spells)
- *
- * Party navigation keys (+/-/PgUp/PgDn) cycle the active character
- * and redraw the party list (DIALOG_PartyListNavigate + DIALOG_ShowParty).
- *
- * Exits on 'E'/ESC, or when rest is interrupted (encounter).
- * The original returns a bool *result indicating interruption; here
- * the caller can query wasInterrupted() after the view pops.
+ * Dialog equivalent of legacy spell-book flow used from camp.
  */
-class SpellBookView : public View {
+class SpellBookDialog : public Dialog {
 public:
     enum Stage {
         STAGE_MAIN_MENU = 0,
@@ -81,12 +54,11 @@ public:
         STAGE_REST
     };
 
-    SpellBookView();
-    ~SpellBookView() override;
+    SpellBookDialog();
+    ~SpellBookDialog() override;
 
-    void onEnter(Goldbox::GameState state) override;
-    bool msgFocus(const FocusMessage &msg) override;
-    bool msgUnfocus(const UnfocusMessage &msg) override;
+    void activate() override;
+    void deactivate() override;
     bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
     void handleMenuResult(const MenuResultMessage &result) override;
@@ -101,12 +73,11 @@ private:
 
     // Main horizontal menu: Cast / Memorize / Scribe / Display / Rest
     MenuItemList _mainMenuModel;
-    Dialogs::HorizontalMenu *_horizontalMenu;
+    HorizontalMenu *_horizontalMenu;
 
     // Child dialogs
-    Dialogs::SpellsMenu *_spellsMenu;
-    Dialogs::PartyList *_partyList;
-    Dialogs::HorizontalYesNo *_confirmDialog;
+    SpellsMenu *_spellsMenu;
+    HorizontalYesNo *_confirmDialog;
 
     // Memorize/scribe pending state
     bool _pendingMemorizeSpells;
@@ -116,7 +87,6 @@ private:
     void setStage(Stage stage);
     void returnToMainMenu();
     void handleMainMenuKey(char key);
-    void handlePartyNavigation(const KeypressMessage &msg);
 
     // Sub-action entry points (mirror original function names)
     void beginCast();
@@ -134,8 +104,9 @@ private:
     void exitView();
 };
 
+} // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
 
-#endif // GOLDBOX_POOLRAD_VIEWS_SPELL_BOOK_VIEW_H
+#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_SPELL_BOOK_DIALOG_H

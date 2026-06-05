@@ -19,13 +19,12 @@
  *
  */
 
-#include "goldbox/poolrad/views/spell_book_view.h"
+#include "goldbox/poolrad/views/dialogs/spell_book_dialog.h"
 
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
-#include "goldbox/poolrad/views/dialogs/party_list.h"
 #include "goldbox/poolrad/views/dialogs/spells_menu.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "common/debug.h"
@@ -33,30 +32,25 @@
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
+namespace Dialogs {
 
 using Dialogs::HorizontalMenu;
 using Dialogs::HorizontalMenuConfig;
 using Dialogs::HorizontalYesNo;
 using Dialogs::HorizontalYesNoConfig;
-using Dialogs::PartyList;
 using Dialogs::SpellsMenu;
 
-SpellBookView::SpellBookView()
-    : View("SpellBook"),
+SpellBookDialog::SpellBookDialog()
+    : Dialog("SpellBook"),
       _stage(STAGE_MAIN_MENU),
       _interrupted(false),
       _screenDirty(false),
       _character(nullptr),
       _horizontalMenu(nullptr),
       _spellsMenu(nullptr),
-      _partyList(nullptr),
       _confirmDialog(nullptr),
       _pendingMemorizeSpells(false),
       _pendingScribeSpells(false) {
-
-    // PartyList — always-visible party display (right side).
-    _partyList = new PartyList("SpellBookPartyList");
-    subView(_partyList);
 
     // SpellsMenu — reused for cast/memorize/scribe sub-stages.
     _spellsMenu = new SpellsMenu("SpellBookSpellsMenu");
@@ -65,7 +59,7 @@ SpellBookView::SpellBookView()
     _spellsMenu->deactivate();
 }
 
-SpellBookView::~SpellBookView() {
+SpellBookDialog::~SpellBookDialog() {
     if (_horizontalMenu) {
         delete _horizontalMenu;
         _horizontalMenu = nullptr;
@@ -74,10 +68,10 @@ SpellBookView::~SpellBookView() {
         delete _confirmDialog;
         _confirmDialog = nullptr;
     }
-    // _spellsMenu and _partyList are owned via subView (UIElement children).
+    // _spellsMenu is owned via subView (UIElement child).
 }
 
-void SpellBookView::buildMainMenu() {
+void SpellBookDialog::buildMainMenu() {
     _mainMenuModel.items.clear();
     _mainMenuModel.currentSelection = 0;
 
@@ -87,35 +81,29 @@ void SpellBookView::buildMainMenu() {
     labels.push_back("Scribe");
     labels.push_back("Display");
     labels.push_back("Rest");
+    labels.push_back("Exit");
 
     _mainMenuModel.generateMenuItems(labels, true);
 }
 
-// --- View lifecycle ---
+// --- Dialog lifecycle ---
 
-void SpellBookView::onEnter(Goldbox::GameState /*state*/) {
+void SpellBookDialog::activate() {
+    Dialog::activate();
+
     _interrupted = false;
     _screenDirty = false;
     _pendingMemorizeSpells = false;
     _pendingScribeSpells = false;
-}
-
-bool SpellBookView::msgFocus(const FocusMessage &msg) {
-    View::msgFocus(msg);
 
     _character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
         VmInterface::getSelectedCharacter());
 
-    // Activate party list.
-    if (_partyList)
-        _partyList->activate();
-
     // Enter main menu stage.
     returnToMainMenu();
-    return true;
 }
 
-bool SpellBookView::msgUnfocus(const UnfocusMessage &msg) {
+void SpellBookDialog::deactivate() {
     if (_spellsMenu)
         _spellsMenu->deactivate();
     if (_horizontalMenu) {
@@ -128,15 +116,15 @@ bool SpellBookView::msgUnfocus(const UnfocusMessage &msg) {
         delete _confirmDialog;
         _confirmDialog = nullptr;
     }
-    if (_partyList)
-        _partyList->deactivate();
 
-    return View::msgUnfocus(msg);
+    Dialog::deactivate();
 }
 
 // --- Main menu ---
 
-void SpellBookView::returnToMainMenu() {
+void SpellBookDialog::returnToMainMenu() {
+    debug(3, "SpellBookDialog::returnToMainMenu() stage was=%d spellsMenuActive=%d",
+        (int)_stage, (int)(_spellsMenu && _spellsMenu->isActive()));
     if (_spellsMenu)
         _spellsMenu->deactivate();
     if (_confirmDialog) {
@@ -167,10 +155,15 @@ void SpellBookView::returnToMainMenu() {
     _horizontalMenu->activate();
     _stage = STAGE_MAIN_MENU;
 
-    redraw();
+    // Force full redraw from the top-level focused view so the campfire
+    // viewport clears any full-screen spell sub-dialog content (rows 1-22).
+    if (g_events && g_events->focusedView())
+        g_events->focusedView()->redraw();
+    else
+        redraw();
 }
 
-void SpellBookView::setStage(Stage stage) {
+void SpellBookDialog::setStage(Stage stage) {
     _stage = stage;
 
     switch (_stage) {
@@ -199,15 +192,20 @@ void SpellBookView::setStage(Stage stage) {
 
 // --- Input handling ---
 
-bool SpellBookView::msgKeypress(const KeypressMessage &msg) {
-    // Party navigation keys pass through in all stages.
+bool SpellBookDialog::msgKeypress(const KeypressMessage &msg) {
+    if (!isActive())
+        return false;
+
+    // Party navigation keys: unwind sub-menus if needed, then pass
+    // back to parent (InGameView) which owns the PartyList.
     switch (msg.keycode) {
     case Common::KEYCODE_KP_PLUS:
     case Common::KEYCODE_KP_MINUS:
     case Common::KEYCODE_PAGEUP:
     case Common::KEYCODE_PAGEDOWN:
-        handlePartyNavigation(msg);
-        return true;
+        if (_stage != STAGE_MAIN_MENU)
+            returnToMainMenu();
+        return false; // let InGameView's PartyList handle cycling
     default:
         break;
     }
@@ -267,13 +265,14 @@ bool SpellBookView::msgKeypress(const KeypressMessage &msg) {
     return View::msgKeypress(msg);
 }
 
-void SpellBookView::handleMainMenuKey(char key) {
+void SpellBookDialog::handleMainMenuKey(char key) {
     switch (key) {
     case 'C': setStage(STAGE_CAST); break;
     case 'M': setStage(STAGE_MEMORIZE); break;
     case 'S': setStage(STAGE_SCRIBE); break;
     case 'D': setStage(STAGE_DISPLAY); break;
     case 'R': setStage(STAGE_REST); break;
+    case 'E': exitView(); break;
     default:
         if (_horizontalMenu)
             _horizontalMenu->activate();
@@ -281,30 +280,11 @@ void SpellBookView::handleMainMenuKey(char key) {
     }
 }
 
-void SpellBookView::handlePartyNavigation(const KeypressMessage &msg) {
-    // Original: DIALOG_PartyListNavigate(keypress) + DIALOG_ShowParty()
-    if (_partyList) {
-        _partyList->handleKeypressDirect(msg);
-    }
-
-    // Refresh character pointer after cycling.
-    _character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
-        VmInterface::getSelectedCharacter());
-
-    redraw();
-}
-
 // --- Draw ---
 
-void SpellBookView::draw() {
-    Surface s = getSurface();
-
-    // Draw main windows (party area + message area).
-    drawMainScreenWindows(false);
-
-    // Party list draws itself.
-    if (_partyList)
-        _partyList->draw();
+void SpellBookDialog::draw() {
+    if (!isVisible())
+        return;
 
     // Stage-specific drawing.
     if (_stage == STAGE_MAIN_MENU && _horizontalMenu) {
@@ -321,10 +301,10 @@ void SpellBookView::draw() {
 
 // --- MenuResult routing ---
 
-void SpellBookView::handleMenuResult(const MenuResultMessage &result) {
-    debug(5, "SpellBookView::handleMenuResult stage=%d success=%d key=%d",
-        (int)_stage, (int)result._success, (int)result._keyCode);
-
+void SpellBookDialog::handleMenuResult(const MenuResultMessage &result) {
+    debug(3, "SpellBookDialog::handleMenuResult stage=%d success=%d key=%d hasInt=%d intVal=%d",
+        (int)_stage, (int)result._success, (int)result._keyCode,
+        (int)result._hasIntValue, (int)(result._hasIntValue ? result._intValue : -1));
     switch (_stage) {
     case STAGE_CAST:
         handleCastResult(result);
@@ -346,7 +326,7 @@ void SpellBookView::handleMenuResult(const MenuResultMessage &result) {
 
 // --- Sub-action entry points ---
 
-void SpellBookView::beginCast() {
+void SpellBookDialog::beginCast() {
     // Original: ACTION_CheckSpellActionType(SA_CAST) then loop
     // DIALOG_Spells(SL_IN_MEMORY, SA_CAST) until spell==0.
     // TODO: ACTION_CheckSpellActionType validation.
@@ -361,7 +341,7 @@ void SpellBookView::beginCast() {
     _spellsMenu->activate();
 }
 
-void SpellBookView::beginMemorize() {
+void SpellBookDialog::beginMemorize() {
     // Original: ACTION_CheckSpellActionType(SA_MEMORIZE), shows
     // pending-memorize list, asks Y/N, then loops spell book selection.
     // TODO: Show pending list + confirmation first pass.
@@ -377,7 +357,7 @@ void SpellBookView::beginMemorize() {
     _spellsMenu->activate();
 }
 
-void SpellBookView::beginScribe() {
+void SpellBookDialog::beginScribe() {
     // Original: ACTION_CheckSpellActionType(SA_SCRIBE), shows
     // pending-scribe list, asks Y/N, then loops scroll selection.
     // TODO: Show pending list + confirmation first pass.
@@ -392,7 +372,7 @@ void SpellBookView::beginScribe() {
     _spellsMenu->activate();
 }
 
-void SpellBookView::beginDisplay() {
+void SpellBookDialog::beginDisplay() {
     // Original SPELL_ScrollRead: iterate party characters, build effect
     // list per character, present in a VerticalMenu scroll window.
     // TODO: Build effect list + vertical scroll display.
@@ -401,7 +381,7 @@ void SpellBookView::beginDisplay() {
     returnToMainMenu();
 }
 
-void SpellBookView::beginRest() {
+void SpellBookDialog::beginRest() {
     // Original ACTION_Rest: calculate max regain time from party,
     // populate rest time struct, call DIALOG_RestInterrupt.
     // TODO: Implement rest logic + encounter check.
@@ -412,16 +392,19 @@ void SpellBookView::beginRest() {
 
 // --- Sub-action result handlers ---
 
-void SpellBookView::handleCastResult(const MenuResultMessage &result) {
+void SpellBookDialog::handleCastResult(const MenuResultMessage &result) {
+    debug(3, "SpellBookDialog::handleCastResult success=%d hasInt=%d intVal=%d",
+        (int)result._success, (int)result._hasIntValue,
+        (int)(result._hasIntValue ? result._intValue : -1));
     if (!result._success || !result._hasIntValue) {
-        // User exited without casting (ESC/no-spells).
+        debug(3, "SpellBookDialog::handleCastResult -> returnToMainMenu");
         _screenDirty = true;
         returnToMainMenu();
         return;
     }
 
     int legacyIndex = result._intValue;
-    debug(5, "SpellBookView: cast spell legacyIndex=%d", legacyIndex);
+    debug(3, "SpellBookDialog: cast spell legacyIndex=%d -> re-entering loop", legacyIndex);
 
     // Original: SCREEN_drawBitmapBorder + SCREEN_ClearRect + ACTION_Execute
     // TODO: Execute the spell via ACTION_Execute.
@@ -433,9 +416,12 @@ void SpellBookView::handleCastResult(const MenuResultMessage &result) {
     _spellsMenu->activate();
 }
 
-void SpellBookView::handleMemorizeResult(const MenuResultMessage &result) {
+void SpellBookDialog::handleMemorizeResult(const MenuResultMessage &result) {
+    debug(3, "SpellBookDialog::handleMemorizeResult success=%d hasInt=%d intVal=%d",
+        (int)result._success, (int)result._hasIntValue,
+        (int)(result._hasIntValue ? result._intValue : -1));
     if (!result._success || !result._hasIntValue) {
-        // Exited memorize. If spells were queued, show confirmation.
+        debug(3, "SpellBookDialog::handleMemorizeResult -> returnToMainMenu");
         if (_pendingMemorizeSpells) {
             _stage = STAGE_MEMORIZE_CONFIRM;
             // TODO: Show "Memorize these spells?" HorizontalYesNo.
@@ -447,7 +433,7 @@ void SpellBookView::handleMemorizeResult(const MenuResultMessage &result) {
     }
 
     int legacyIndex = result._intValue;
-    debug(5, "SpellBookView: memorize spell legacyIndex=%d", legacyIndex);
+    debug(5, "SpellBookDialog: memorize spell legacyIndex=%d", legacyIndex);
 
     // Original: CHARACTER_GetRemainingSpellSlots, find empty slot,
     // assign spellId | 0x80 (pending bit), CHARACTER_SortMemorizedSpells.
@@ -462,8 +448,12 @@ void SpellBookView::handleMemorizeResult(const MenuResultMessage &result) {
     _spellsMenu->activate();
 }
 
-void SpellBookView::handleScribeResult(const MenuResultMessage &result) {
+void SpellBookDialog::handleScribeResult(const MenuResultMessage &result) {
+    debug(3, "SpellBookDialog::handleScribeResult success=%d hasInt=%d intVal=%d",
+        (int)result._success, (int)result._hasIntValue,
+        (int)(result._hasIntValue ? result._intValue : -1));
     if (!result._success || !result._hasIntValue) {
+        debug(3, "SpellBookDialog::handleScribeResult -> returnToMainMenu");
         if (_pendingScribeSpells) {
             _stage = STAGE_SCRIBE_CONFIRM;
             // TODO: Show "Scribe these spells?" HorizontalYesNo.
@@ -475,7 +465,7 @@ void SpellBookView::handleScribeResult(const MenuResultMessage &result) {
     }
 
     int legacyIndex = result._intValue;
-    debug(5, "SpellBookView: scribe spell legacyIndex=%d", legacyIndex);
+    debug(5, "SpellBookDialog: scribe spell legacyIndex=%d", legacyIndex);
 
     // Original: check mem_spells[spellId + 0x1b] ("already know"),
     // traverse items for ITEM_isMissileOrScroll, mark scroll bit 7.
@@ -489,7 +479,7 @@ void SpellBookView::handleScribeResult(const MenuResultMessage &result) {
     _spellsMenu->activate();
 }
 
-void SpellBookView::handleConfirmResult(const MenuResultMessage &result) {
+void SpellBookDialog::handleConfirmResult(const MenuResultMessage &result) {
     // Y/N result for "Memorize/Scribe these spells?"
     // Original: 'N' -> CHARACTER_ClearMemorizedSpells or
     //                   CHARACTER_clearItemMemorizedSpellFlags.
@@ -505,15 +495,20 @@ void SpellBookView::handleConfirmResult(const MenuResultMessage &result) {
     returnToMainMenu();
 }
 
-void SpellBookView::exitView() {
+void SpellBookDialog::exitView() {
     if (_screenDirty) {
         // Original: GAME_ScreenByState() — parent view redraws on refocus.
     }
 
-    // Pop this view from the stack, returning to the previous view.
-    close();
+    // As in-camp overlay dialog, close by deactivation.
+    // Keep fallback pop behavior when this object is pushed as a top-level view.
+    if (isFocused())
+        close();
+    else
+        deactivate();
 }
 
+} // namespace Dialogs
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox

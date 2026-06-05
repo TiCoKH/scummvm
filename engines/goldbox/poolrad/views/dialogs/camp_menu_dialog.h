@@ -40,6 +40,7 @@ class InGameView;
 namespace Dialogs {
 
 class HorizontalMenu;
+class SpellBookDialog;
 
 /**
  * Self-contained camping dialog (VIEW_PartyCamp equivalent).
@@ -64,6 +65,7 @@ private:
     InGameView *_parentView;
     MenuItemList _menuModel;
     HorizontalMenu *_horizontalMenu;
+    SpellBookDialog *_spellBookDialog;
 
     // Animated campfire frames.
     Common::Array<Common::SharedPtr<Goldbox::Gfx::Pic>> _campfireFrames;
