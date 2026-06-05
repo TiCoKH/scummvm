@@ -246,7 +246,8 @@ void CampMenuDialog::handleMenuKey(char key) {
             _parentView->addView("ViewCharacter");
         break;
     case 'M':
-        // TODO: VIEW_Magic(isInterrupted)
+        if (_parentView)
+            _parentView->addView("SpellBook");
         break;
     case 'R':
         // TODO: ACTION_Rest(isInterrupted)
