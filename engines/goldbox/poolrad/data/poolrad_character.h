@@ -66,6 +66,9 @@ public:
         uint8 knownSpells[55];
     } spells;
 
+    // Legacy byte at character offset 0x02C.
+    uint8 spellRegainRate = 0;
+
     uint32 equippedOffsets[EQUIPMENT_SLOT_COUNT];
 
     uint8 hitPointsRolled = 0;
@@ -182,6 +185,8 @@ public:
     void computeSpellSlots();
 
     static uint8 getBaseIconColor(int index);
+    static void clearPartyMemorizedSpellState(
+        Common::Array<Goldbox::Data::PlayerCharacter *> &party);
     /**
      * Set platform-dependent default values for a freshly generated character.
      *
@@ -193,6 +198,8 @@ public:
     virtual void initializeNewCharacter();
 
     void resolveEquippedItems();
+    void clearInvalidMemorizedSpellsLegacy();
+    void clearMemorizedSpellStateLegacy();
     void recalcCombatStats();
     // Legacy Pool of Radiance receive-item fit check (CHARACTER_checkItemFit).
     // Returns true when the character can receive/carry the item.
@@ -249,6 +256,10 @@ protected:
             const Goldbox::Data::Items::CharacterItem *item) const override;
     void onReadyItemEffect(Goldbox::Data::Items::CharacterItem *item,
                      bool equipping) override;
+
+private:
+    void importSpellBookFromLegacyArrays();
+    void exportSpellBookToLegacyArrays();
 };
 
 } // namespace Data

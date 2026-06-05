@@ -81,6 +81,9 @@ public:
         const Common::Array<CharacterItem *> &equippedSlots,
         uint8 *handsUsed, uint8 *saveBonus) const;
 
+    // Clear legacy memorized-spell flags on eligible inventory items.
+    void clearMemorizedSpellFlagsOnEligibleItems();
+
     /// Access loaded items.
     const Common::Array<CharacterItem> &all() const { return _items; }
     int                                count() const { return _items.size(); }
