@@ -43,7 +43,7 @@ SpellsMenu::SpellsMenu(const Common::String &name)
       _selectedLegacyIndex(-1),
       _selectedSpell(Goldbox::Data::Spells::SP_NONE) {
 
-    _menuConfig.promptTxt = "Choose Spell:";
+    _menuConfig.promptTxt = "Choose Spell: ";
     _menuConfig.promptOptions = &_horizontalMenuLabels;
     _menuConfig.menuItemList = &_spellMenuList;
     _menuConfig.headColor = 13;
@@ -75,6 +75,8 @@ void SpellsMenu::configure(SpellLocation location, SpellAction action) {
 }
 
 void SpellsMenu::activate() {
+    debug(3, "SpellsMenu::activate() name='%s' location=%d action=%d",
+        getName().c_str(), (int)_location, (int)_action);
     Dialog::activate();
 
     _character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
@@ -164,11 +166,12 @@ void SpellsMenu::handleMenuResult(const MenuResultMessage &result) {
         (int)result._success, (int)result._keyCode, (int)result._hasIntValue,
         (int)(result._hasIntValue ? result._intValue : -1));
 
-    if (!result._success) {
-        if (result._keyCode == Common::KEYCODE_ESCAPE ||
-                result._keyCode == Common::KEYCODE_e) {
-            handleExit();
-        }
+    // Exit when cancelled OR when 'E' was chosen from the horizontal prompt
+    // (VerticalMenu posts success=true with key=KEYCODE_e for its Exit option).
+    if (!result._success ||
+            result._keyCode == Common::KEYCODE_ESCAPE ||
+            result._keyCode == Common::KEYCODE_e) {
+        handleExit();
         return;
     }
 
@@ -348,6 +351,9 @@ void SpellsMenu::appendSpellEntry(int legacyIndex,
 }
 
 void SpellsMenu::handleExit() {
+    debug(3, "SpellsMenu::handleExit() name='%s' parent='%s'",
+        getName().c_str(),
+        _parent ? _parent->getName().c_str() : "(null)");
     _selectedLegacyIndex = -1;
     _selectedSpell = Goldbox::Data::Spells::SP_NONE;
     _selectedSpellName.clear();
@@ -355,6 +361,8 @@ void SpellsMenu::handleExit() {
     deactivate();
 
     if (_parent) {
+        debug(3, "SpellsMenu::handleExit() -> posting ESCAPE/false to '%s'",
+            _parent->getName().c_str());
         g_events->postMenuResult(_parent->getName(), false,
             Common::KEYCODE_ESCAPE, 0, Common::String(), true, false);
     }

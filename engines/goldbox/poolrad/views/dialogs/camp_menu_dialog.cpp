@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/views/dialogs/camp_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/spell_book_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/poolrad.h"
@@ -38,16 +39,26 @@ namespace Views {
 namespace Dialogs {
 
 CampMenuDialog::CampMenuDialog(const Common::String &name, InGameView *parent)
-    : Dialog(name), _parentView(parent), _horizontalMenu(nullptr),
+        : Dialog(name), _parentView(parent), _horizontalMenu(nullptr),
+            _spellBookDialog(nullptr),
       _currentFrame(0), _lastFrameTime(0), _frameIntervalMs(500),
       _isInterrupted(false) {
     setBounds(Window(0, 0, 39, 24));
+
+        _spellBookDialog = new SpellBookDialog();
+        _spellBookDialog->deactivate();
+        subView(_spellBookDialog);
 }
 
 CampMenuDialog::~CampMenuDialog() {
     if (_horizontalMenu) {
         delete _horizontalMenu;
         _horizontalMenu = nullptr;
+    }
+
+    if (_spellBookDialog) {
+        delete _spellBookDialog;
+        _spellBookDialog = nullptr;
     }
 }
 
@@ -82,6 +93,9 @@ void CampMenuDialog::loadCampfireFrames() {
 void CampMenuDialog::activate() {
     Dialog::activate();
     _isInterrupted = false;
+
+    if (_spellBookDialog)
+        _spellBookDialog->deactivate();
 
     // Legacy party-camp flow sanitizes memorized spell/item flags on entry.
     if (Common::Array<Goldbox::Data::PlayerCharacter *> *party =
@@ -138,6 +152,9 @@ void CampMenuDialog::activate() {
 }
 
 void CampMenuDialog::deactivate() {
+    if (_spellBookDialog)
+        _spellBookDialog->deactivate();
+
     if (_horizontalMenu) {
         _horizontalMenu->deactivate();
         delete _horizontalMenu;
@@ -161,6 +178,11 @@ void CampMenuDialog::draw() {
     s.clearBox(1, 17, 38, 22, 0);
     s.writeStringC(1, 18, 10, "The party makes camp...");
 
+    if (_spellBookDialog && _spellBookDialog->isActive()) {
+        _spellBookDialog->draw();
+        return;
+    }
+
     // Draw menu at row 24.
     if (_horizontalMenu) {
         _horizontalMenu->setRedraw();
@@ -173,7 +195,22 @@ void CampMenuDialog::timeout() {
 }
 
 bool CampMenuDialog::msgKeypress(const KeypressMessage &msg) {
-    if (!_isActive || !_horizontalMenu)
+    if (!_isActive)
+        return false;
+
+    if (_spellBookDialog && _spellBookDialog->isActive()) {
+        if (_spellBookDialog->msgKeypress(msg)) {
+            if (!_spellBookDialog->isActive() && _horizontalMenu) {
+                _horizontalMenu->activate();
+                _horizontalMenu->setRedraw();
+            }
+            redraw();
+            return true;
+        }
+        return true;
+    }
+
+    if (!_horizontalMenu)
         return false;
 
     bool wasActive = _horizontalMenu->isActive();
@@ -226,7 +263,8 @@ bool CampMenuDialog::msgKeypress(const KeypressMessage &msg) {
             handleMenuKey(ascii);
 
         // Reactivate menu unless we're exiting.
-        if (_isActive && _horizontalMenu) {
+        if (_isActive && _horizontalMenu
+            && !(_spellBookDialog && _spellBookDialog->isActive())) {
             _horizontalMenu->activate();
             _horizontalMenu->setRedraw();
         }
@@ -246,8 +284,10 @@ void CampMenuDialog::handleMenuKey(char key) {
             _parentView->addView("ViewCharacter");
         break;
     case 'M':
-        if (_parentView)
-            _parentView->addView("SpellBook");
+        if (_horizontalMenu)
+            _horizontalMenu->deactivate();
+        if (_spellBookDialog)
+            _spellBookDialog->activate();
         break;
     case 'R':
         // TODO: ACTION_Rest(isInterrupted)
