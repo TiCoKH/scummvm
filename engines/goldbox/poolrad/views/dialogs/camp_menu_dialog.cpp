@@ -127,7 +127,7 @@ void CampMenuDialog::activate() {
     cfg.menuItemList = &_menuModel;
     cfg.textColor = 10;
     cfg.selectColor = 15;
-    cfg.promptColor = 15;
+    cfg.promptColor = 13;
     cfg.allowNumPad = false;
     cfg.suppressUnhandledKeys = true;
     cfg.backgroundColor = 0;
