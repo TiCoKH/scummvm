@@ -110,6 +110,7 @@ void PoolradCharacter::initialize() {
 
 	npc = 0;
 	modified = 0;
+	spellRegainRate = 0;
 
 	// Initialize current rolls to zero
 	curPrimaryRoll.attacks = 0;
@@ -121,6 +122,66 @@ void PoolradCharacter::initialize() {
 	curSecondaryRoll.action.roll.diceNum = 0;
 	curSecondaryRoll.action.roll.diceSides = 0;
 	curSecondaryRoll.action.modifier = 0;
+}
+
+void PoolradCharacter::importSpellBookFromLegacyArrays() {
+	spellBook = Goldbox::Data::Spells::SpellBook();
+
+	for (int i = 0; i < POOLRAD_KNOWN_SIZE; ++i) {
+		if (spells.knownSpells[i] != 0)
+			spellBook.setKnown(kPoolradSpellMapping[i], true);
+	}
+
+	Common::Array<uint8> memorizedCounts;
+	memorizedCounts.resize(POOLRAD_KNOWN_SIZE);
+	for (int i = 0; i < POOLRAD_KNOWN_SIZE; ++i)
+		memorizedCounts[i] = 0;
+
+	for (int i = 0; i < POOLRAD_MEMORIZED_SIZE; ++i) {
+		const uint8 raw = spells.memorizedSpells[i];
+		if (raw == 0 || raw >= 0x80)
+			continue;
+
+		const int idx = (raw & 0x7F) - 1;
+		if (idx >= 0 && idx < POOLRAD_KNOWN_SIZE)
+			memorizedCounts[idx]++;
+	}
+
+	for (int i = 0; i < POOLRAD_KNOWN_SIZE; ++i) {
+		if (memorizedCounts[i] != 0)
+			spellBook.setMemorized(kPoolradSpellMapping[i], memorizedCounts[i]);
+	}
+}
+
+void PoolradCharacter::exportSpellBookToLegacyArrays() {
+	for (int i = 0; i < POOLRAD_KNOWN_SIZE; ++i) {
+		const Goldbox::Data::Spells::Spells spell = kPoolradSpellMapping[i];
+		spells.knownSpells[i] = spellBook.isKnown(spell) ? 1 : 0;
+	}
+}
+
+void PoolradCharacter::clearInvalidMemorizedSpellsLegacy() {
+	for (int i = 0; i < POOLRAD_MEMORIZED_SIZE; ++i) {
+		if (spells.memorizedSpells[i] > 0x7F)
+			spells.memorizedSpells[i] = 0;
+	}
+	spellRegainRate = 0;
+}
+
+void PoolradCharacter::clearMemorizedSpellStateLegacy() {
+	clearInvalidMemorizedSpellsLegacy();
+	inventory.clearMemorizedSpellFlagsOnEligibleItems();
+	importSpellBookFromLegacyArrays();
+}
+
+void PoolradCharacter::clearPartyMemorizedSpellState(
+		Common::Array<Goldbox::Data::PlayerCharacter *> &party) {
+	for (uint i = 0; i < party.size(); ++i) {
+		PoolradCharacter *character =
+			dynamic_cast<PoolradCharacter *>(party[i]);
+		if (character)
+			character->clearMemorizedSpellStateLegacy();
+	}
 }
 
 void PoolradCharacter::initializeNewCharacter() {
@@ -158,8 +219,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
 	// 0x017-x02B: memorized spells
 	stream.read(spells.memorizedSpells, 21);
-	// 0x02C: unknown
-	stream.seek(0x2D, SEEK_SET);
+	spellRegainRate = stream.readByte(); // 0x02C
 	thac0.base = stream.readByte(); // 0x02D
 
 	race       = stream.readByte(); // 0x02E
@@ -171,12 +231,8 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	// 0x33-0x69: cleric/mage spell knowledge - 55 bytes
 	stream.read(spells.knownSpells, 55);
 
-	// Convert legacy spell arrays to modern SpellBook
-	spellBook.loadFromLegacyArrays(
-		spells.memorizedSpells, POOLRAD_MEMORIZED_SIZE,
-		spells.knownSpells, POOLRAD_KNOWN_SIZE,
-		kPoolradSpellMapping, POOLRAD_KNOWN_SIZE
-	);
+	// Poolrad memorized array stores spell IDs per slot with pending bit 7.
+	importSpellBookFromLegacyArrays();
 
 	stream.readByte(); // Padding/Unknown at 0x06A
 
@@ -679,12 +735,8 @@ int8 PoolradCharacter::getConHPModifier() const {
 
 void PoolradCharacter::save(Common::WriteStream &stream) {
 
-	// Convert modern SpellBook back to legacy arrays for saving
-	spellBook.saveToLegacyArrays(
-		spells.memorizedSpells, POOLRAD_MEMORIZED_SIZE,
-		spells.knownSpells, POOLRAD_KNOWN_SIZE,
-		kPoolradSpellMapping, POOLRAD_KNOWN_SIZE
-	);
+	// Keep Poolrad slot-based memorized array as source of truth.
+	exportSpellBookToLegacyArrays();
 
 	// Write spells from legacy arrays
 	Goldbox::Data::PascalStringBuffer<15>::write(stream, name);
@@ -700,7 +752,7 @@ void PoolradCharacter::save(Common::WriteStream &stream) {
 	// Spells memorized (21 bytes)
 	stream.write(spells.memorizedSpells, 21);
 
-	stream.writeByte(0); // Unknown at 0x02C
+	stream.writeByte(spellRegainRate); // 0x02C
 
 	// Combat
 	stream.writeByte(thac0.base);

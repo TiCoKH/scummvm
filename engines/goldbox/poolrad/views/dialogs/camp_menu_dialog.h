@@ -75,6 +75,7 @@ private:
 
     void buildMenuModel();
     void loadCampfireFrames();
+    void exitCamp();
     void handleMenuKey(char key);
 
 public:

@@ -155,6 +155,24 @@ bool CharacterItem::isMissile() const {
     return prop().isMissile();
 }
 
+bool CharacterItem::isMissileOrScroll() const {
+    const uint8 slot = prop().slotID;
+    const bool isAmmoLike =
+        slot >= static_cast<uint8>(Slot::S_ARROW) &&
+        slot < static_cast<uint8>(Slot::SLOT_COUNT);
+    return isAmmoLike || isScroll();
+}
+
+bool CharacterItem::shouldClearMemorizedSpellFlags() const {
+    return isMissileOrScroll();
+}
+
+void CharacterItem::clearMemorizedSpellFlags() {
+    nameCode1 &= 0x7F;
+    nameCode2 &= 0x7F;
+    nameCode3 &= 0x7F;
+}
+
 bool CharacterItem::hasSpecialEffect() const {
     return effect3 >= 128;
 }

@@ -293,6 +293,14 @@ void CharacterInventory::recomputeEquippedTotals(
         *saveBonus = (uint8)saves;
 }
 
+void CharacterInventory::clearMemorizedSpellFlagsOnEligibleItems() {
+    for (uint i = 0; i < _items.size(); ++i) {
+        CharacterItem &item = _items[i];
+        if (item.shouldClearMemorizedSpellFlags())
+            item.clearMemorizedSpellFlags();
+    }
+}
+
 bool CharacterInventory::equipItem(
     CharacterItem *item, Slot slot,
     Common::Array<CharacterItem *> &equippedSlots,

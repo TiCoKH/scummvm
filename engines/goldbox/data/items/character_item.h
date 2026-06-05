@@ -78,6 +78,16 @@ struct CharacterItem {
     /// Determines if this item is a missile weapon (arrows, bolts, darts, etc.)
     bool isMissile() const;
 
+    /// Determines if this item should be treated as missile/scroll in
+    /// legacy memorized-spell flag cleanup paths.
+    bool isMissileOrScroll() const;
+
+    /// Returns true when memorized-spell flags should be cleared on this item.
+    bool shouldClearMemorizedSpellFlags() const;
+
+    /// Clears bit 7 on legacy name code components used as memorized flags.
+    void clearMemorizedSpellFlags();
+
     /// Determines if this is a special effect item (effect3 >= 128)
     bool hasSpecialEffect() const;
 

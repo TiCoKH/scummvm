@@ -22,6 +22,7 @@
 #include "goldbox/poolrad/views/dialogs/camp_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/in_game_view.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/gfx/pic.h"
 #include "goldbox/gfx/encounter_sprite_cache.h"
@@ -82,6 +83,13 @@ void CampMenuDialog::activate() {
     Dialog::activate();
     _isInterrupted = false;
 
+    // Legacy party-camp flow sanitizes memorized spell/item flags on entry.
+    if (Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+            Goldbox::VmInterface::getParty()) {
+        Goldbox::Poolrad::Data::PoolradCharacter::
+            clearPartyMemorizedSpellState(*party);
+    }
+
     loadCampfireFrames();
 
     // Read game speed for animation interval.
@@ -115,7 +123,7 @@ void CampMenuDialog::activate() {
     buildMenuModel();
 
     HorizontalMenuConfig cfg;
-    cfg.promptTxt = "";
+    cfg.promptTxt = "Camp: ";
     cfg.menuItemList = &_menuModel;
     cfg.textColor = 10;
     cfg.selectColor = 15;
@@ -150,7 +158,7 @@ void CampMenuDialog::draw() {
 
     Surface s = getSurface();
 
-    // Draw "The party makes camp..." text in message area.
+    s.clearBox(1, 17, 38, 22, 0);
     s.writeStringC(1, 18, 10, "The party makes camp...");
 
     // Draw menu at row 24.
@@ -187,6 +195,13 @@ bool CampMenuDialog::msgKeypress(const KeypressMessage &msg) {
 
     // Menu made a selection (deactivated itself).
     if (wasActive && !_horizontalMenu->isActive()) {
+        // Escape is an explicit camp-exit intent.
+        if (msg.keycode == Common::KEYCODE_ESCAPE) {
+            exitCamp();
+            redraw();
+            return true;
+        }
+
         char ascii = msg.ascii;
         if (ascii >= 'a' && ascii <= 'z')
             ascii = ascii - 32;
@@ -240,17 +255,27 @@ void CampMenuDialog::handleMenuKey(char key) {
         // TODO: DIALOG_Preferences
         break;
     case 'E':
-        // Exit camp.
-        if (_parentView && g_events) {
-            g_events->postMenuResult(_parentView->getName(), true,
-                Common::KEYCODE_e, _isInterrupted ? 1 : 0,
-                Common::String(), true, false);
-        }
-        deactivate();
+        exitCamp();
         break;
     default:
         break;
     }
+}
+
+void CampMenuDialog::exitCamp() {
+    // Legacy party-camp flow sanitizes memorized spell/item flags on exit.
+    if (Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+            Goldbox::VmInterface::getParty()) {
+        Goldbox::Poolrad::Data::PoolradCharacter::
+            clearPartyMemorizedSpellState(*party);
+    }
+
+    if (_parentView && g_events) {
+        g_events->postMenuResult(_parentView->getName(), true,
+            Common::KEYCODE_e, _isInterrupted ? 1 : 0,
+            Common::String(), true, false);
+    }
+    deactivate();
 }
 
 } // namespace Dialogs
