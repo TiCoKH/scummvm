@@ -135,6 +135,14 @@ public:
      */
     void playSound(uint8 soundId);
 
+    /**
+     * Initialize full default skybox background palette.
+     * Mirrors original GFX_SetDefaultColors(6,7,0,0xb) — sets ground,
+     * horizon, and other fixed background layer colors. VM sky/ceiling
+     * fields overlay on top of this after redraw.
+     */
+    void setDefaultSkyboxColors();
+
     bool hasStaticMapPayload() const { return _staticMapPayloadLoaded; }
     uint8 staticMapPayloadBlockId() const { return _staticMapPayloadBlockId; }
     Common::Span<const uint8> staticMapPayload() const {
@@ -144,6 +152,13 @@ public:
 
 private:
     uint8 allocateMonsterIconSlot() const;
+
+    // Skybox background layer colors (set by GFX_SetDefaultColors,
+    // updated from VM $49FD/$49FE when scripts change them).
+    uint8 _colorFloor   = 6;
+    uint8 _colorHorizon = 7;
+    uint8 _colorSkyline = 0;
+    uint8 _colorSky     = 0x0b;
 
     // Owned DaxTile instances for walldef tile atlases (slots 1-3, 0-based idx)
     Common::ScopedPtr<Goldbox::Gfx::DaxTile> _walldefTiles[3];

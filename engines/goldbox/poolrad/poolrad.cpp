@@ -627,15 +627,16 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 	}
 
 	// Legacy save tail layout (0x150 bytes):
-	// +0x00 u16 posX, +0x02 u16 posY, +0x04 u8 dir, +0x05 u8 vmMapType,
+	// +0x00 u8 dungeonX, +0x01 u8 dungeonY, +0x02 u8 dir (8-way),
+	// +0x03 u8 overlandX, +0x04 u8 overlandY, +0x05 u8 vmMapType,
 	// +0x06 u8 gameState, +0x07 u8 charCount, +0x08..+0x14f char table.
 	byte tail[0x150];
 	memset(tail, 0, sizeof(tail));
 	tail[0x00] = static_cast<byte>(posX & 0xFF);
-	tail[0x01] = static_cast<byte>((posX >> 8) & 0xFF);
-	tail[0x02] = static_cast<byte>(posY & 0xFF);
-	tail[0x03] = static_cast<byte>((posY >> 8) & 0xFF);
-	tail[0x04] = posDir;
+	tail[0x01] = static_cast<byte>(posY & 0xFF);
+	tail[0x02] = static_cast<byte>(posDir * 2);  // 4-way to 8-way
+	tail[0x03] = 0;  // overlandX (TODO: capture from VM)
+	tail[0x04] = 0;  // overlandY (TODO: capture from VM)
 	tail[0x05] = vmMapType;
 	tail[0x06] = static_cast<byte>(getGameState());
 	tail[0x07] = characterCount;
@@ -711,31 +712,32 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	readVmBlockWord(0x9700, 0x0200); // VMBANK2_COMBAT_STATE (0x0200 words = 0x0400 bytes)
 	readVmBlockByte(0x9900, 0x1E00); // VMBANK3_ECL_SCRIPT  (byte-addressed)
 
-	// Read STRUCT_POSITION: uint16 x + uint16 y + uint8 dir (5 bytes total).
-	// The system bank (not dumped above) holds the live position; restore below.
-	const uint16 posX        = in->readUint16LE();
-	const uint16 posY        = in->readUint16LE();
-	const uint8 posDir       = in->readByte();
+	// Legacy save tail struct (8 bytes):
+	// +0x00 u8 dungeonX, +0x01 u8 dungeonY, +0x02 u8 dir (8-way),
+	// +0x03 u8 overlandX, +0x04 u8 overlandY, +0x05 u8 vmMapType,
+	// +0x06 u8 gameState, +0x07 u8 charCount.
+	const uint8 dungeonX       = in->readByte();
+	const uint8 dungeonY       = in->readByte();
+	const uint8 dir8way        = in->readByte();
+	const uint8 overlandX      = in->readByte();
+	const uint8 overlandY      = in->readByte();
+	const uint8 vmMapType      = in->readByte();
+	const uint8 byteGameState  = in->readByte();
 
-	// BYTE_VM_MAP_TYPE: dungeon/town (< 2) vs wilderness/combat (>= 2).
-	const uint8 vmMapType = in->readByte();
-
-	// BYTE_GAME_STATE: the saved GameState enum value.
-	const uint8 byteGameState = in->readByte();
-
-	// Character table: count byte + 8 Ã— 0x29-byte Pascal-style base filenames
-	// (length byte + up to 0x28 chars).
+	// Character table: 8 x 0x29-byte Pascal-style base filenames.
 	const uint8 characterCount = in->readByte();
 	byte characterTable[0x148];
 	in->read(characterTable, sizeof(characterTable));
 
-	debug(2, "PoolradEngine::loadGameSlotX86 tail posX=%u posY=%u dir=%u mapType=%u gameState=%u charCount=%u",
-		(unsigned)posX, (unsigned)posY, (unsigned)posDir,
+	// Convert 8-way direction to 4-way for VM memory storage.
+	const uint8 posDir = static_cast<uint8>((dir8way / 2) & 0x03);
+	(void)overlandX; (void)overlandY; // TODO: restore overland position
+
+	debug(2, "PoolradEngine::loadGameSlotX86 tail x=%u y=%u dir8=%u dir4=%u ovX=%u ovY=%u mapType=%u gameState=%u charCount=%u",
+		(unsigned)dungeonX, (unsigned)dungeonY, (unsigned)dir8way,
+		(unsigned)posDir, (unsigned)overlandX, (unsigned)overlandY,
 		(unsigned)vmMapType, (unsigned)byteGameState,
 		(unsigned)characterCount);
-	debug(2, "PoolradEngine::loadGameSlotX86 decoded gameState=%u (%s)",
-		(unsigned)byteGameState,
-		(byteGameState == GS_START_MENU) ? "GS_START_MENU" : "runtime/ingame");
 
 	delete in;
 	in = nullptr;
@@ -745,14 +747,9 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// -------------------------------------------------------------------------
 	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
 
-	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr,
-		static_cast<uint8>(posX & 0xFF));
-	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr,
-		static_cast<uint8>(posY & 0xFF));
-	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr,
-		posDir);
-	mem->write8(layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr,
-		vmMapType);
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr, dungeonX);
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr, dungeonY);
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr, posDir);
 
 	// Reset party count in VM memory before rebuilding the party list.
 	mem->write8(layout.vmGlobalField(kVmGlobalFieldPartyCount).vmAddr, 0);
@@ -962,10 +959,20 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		_eclVm->stateLoaded = loadedIntoRuntime;
 
 	// Mirror original: GFX_SetDefaultColors(6,7,0,0xb) before GB_EngineMain.
-	// Sets default sky (6=cyan) and ceiling (7=white) rendering colors.
+	// Initialize full default skybox, then signal redraw so the renderer
+	// picks up sky/ceiling colors from the restored World bank state.
 	if (loadIntoRuntime) {
-		mem->write8(layout.vmField(kVmFieldSkyColor).vmAddr, 6);
-		mem->write8(layout.vmField(kVmFieldCeilingColor).vmAddr, 7);
+		if (_eclHost)
+			_eclHost->setDefaultSkyboxColors();
+
+		const uint16 skyboxFlag = layout.runtimeField(
+			ECL::kEclRuntimeSkyboxRedrawFlag);
+		if (ECL::EclRuntimeLayout::isValidVmAddr(skyboxFlag))
+			mem->write8(skyboxFlag, 1);
+		if (g_events) {
+			g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY, 1,
+				EclVmMessage::VT_UINT8);
+		}
 	}
 
 	debug(2, "PoolradEngine::loadGameSlotX86 applying setGameState(%u)",

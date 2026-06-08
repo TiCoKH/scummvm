@@ -1400,5 +1400,16 @@ void PoolradEngineHostImpl::playSound(uint8 soundId) {
         (unsigned)soundId);
 }
 
+void PoolradEngineHostImpl::setDefaultSkyboxColors() {
+    // GFX_SetDefaultColors(6,7,0,0xb): set the 4 background layer colors
+    // used by the 3D viewport renderer and rebuild the cached surface.
+    _colorFloor   = 6;
+    _colorHorizon = 7;
+    _colorSkyline = 0;
+    _colorSky     = 0x0b;
+    if (_engine)
+        _engine->setColors(_colorSky, _colorSkyline, _colorHorizon, _colorFloor);
+}
+
 } // namespace Poolrad
 } // namespace Goldbox
