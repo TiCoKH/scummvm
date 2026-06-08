@@ -29,8 +29,8 @@ namespace ECL {
 
 namespace {
 
-static const uint16 kGeoFirstVmAddr = 0x4900;
-static const uint16 kGeoLastVmAddr = 0x4CFF;
+static const uint16 kWorldFirstVmAddr = 0x4900;
+static const uint16 kWorldLastVmAddr = 0x4CFF;
 
 static const uint16 kDatFirstVmAddr = 0x6B00;
 static const uint16 kDatLastVmAddr = 0x6EFF;
@@ -48,7 +48,7 @@ struct DefaultBankRange {
 };
 
 static const DefaultBankRange kDefaultBankRanges[] = {
-    {kVmBankGeo, kGeoFirstVmAddr, kGeoLastVmAddr},
+    {kVmBankWorld, kWorldFirstVmAddr, kWorldLastVmAddr},
     {kVmBankDat, kDatFirstVmAddr, kDatLastVmAddr},
     {kVmBankHeap, kHeapFirstVmAddr, kHeapLastVmAddr},
     {kVmBankEcl, kEclFirstVmAddr, kEclLastVmAddr}
@@ -56,8 +56,8 @@ static const DefaultBankRange kDefaultBankRanges[] = {
 
 static const char *vmBankName(VmBankId bankId) {
     switch (bankId) {
-    case kVmBankGeo:
-        return "GEO";
+    case kVmBankWorld:
+        return "WORLD";
     case kVmBankDat:
         return "DAT";
     case kVmBankHeap:

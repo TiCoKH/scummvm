@@ -108,9 +108,9 @@ void PoolradEngine::initGameDefaults() {
     //              HEAP 0x9700-0x98FF, ECL 0x9900-0xB6FF.
 
     // Default position: x=15, y=1, dir=WEST(2)
-    mem.write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr, 15);
-    mem.write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr, 1);
-    mem.write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr, 2); // WEST
+    mem.write8(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr, 15);
+    mem.write8(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr, 1);
+    mem.write8(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr, 2); // WEST
 
     // Map type defaults
     mem.write8(layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr, 1);
@@ -122,7 +122,7 @@ void PoolradEngine::initGameDefaults() {
     mem.write8(layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr, 0xFF);
 
     // Game speed default = 1
-    mem.write16LE(layout.vmField(kVmFieldGameSpeed).vmAddr, 1);
+    mem.write8(layout.vmField(kVmFieldGameSpeed).vmAddr, 1);
 
     // Indoor mode = 1 (dungeon), map type = 1
     mem.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
@@ -528,7 +528,15 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		return false;
 	}
 
-	auto writeVmBlock = [&](uint16 startAddr, uint32 size) {
+	auto writeVmBlockWord = [&](uint16 firstVmAddr, uint16 wordCount) {
+		for (uint16 i = 0; i < wordCount; ++i) {
+			const uint16 addr = static_cast<uint16>(firstVmAddr + i);
+			out.writeByte(mem->read8(addr)); // lo byte (the value)
+			out.writeByte(0);                // hi byte (always 0 for byte-sized fields)
+		}
+	};
+
+	auto writeVmBlockByte = [&](uint16 startAddr, uint32 size) {
 		for (uint32 i = 0; i < size; ++i)
 			out.writeByte(mem->read8(static_cast<uint16>(startAddr + i)));
 	};
@@ -541,10 +549,10 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 	// binary compatibility with the original save format.
 	out.writeByte(3);
 
-	writeVmBlock(0x4900, 0x0800); // VMBANK0_WORLD_STATE
-	writeVmBlock(0x6B00, 0x0800); // VMBANK1_PARTY_STATE
-	writeVmBlock(0x9700, 0x0400); // VMBANK2_COMBAT_STATE
-	writeVmBlock(0x9900, 0x1E00); // VMBANK3_ECL_SCRIPT
+	writeVmBlockWord(0x4900, 0x0400); // VMBANK0_WORLD_STATE (0x0400 words = 0x0800 bytes)
+	writeVmBlockWord(0x6B00, 0x0400); // VMBANK1_PARTY_STATE (0x0400 words = 0x0800 bytes)
+	writeVmBlockWord(0x9700, 0x0200); // VMBANK2_COMBAT_STATE (0x0200 words = 0x0400 bytes)
+	writeVmBlockByte(0x9900, 0x1E00); // VMBANK3_ECL_SCRIPT  (byte-addressed)
 
 	::Goldbox::RuntimeMapSnapshot snapshot;
 	if (!captureRuntimeMapSnapshot(snapshot)) {
@@ -677,17 +685,31 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	in->readByte();
 
 	// Load the 4 VM banks directly into ECL flat memory.
-	auto readVmBlock = [&](uint16 startAddr, uint32 size) {
+	// VMBANK0-2 are word-addressed in the original: each logical VM address
+	// occupies 2 bytes (LE word) in the save file. We unpack them so that
+	// vm.read8(addr) returns the low byte of the stored word, matching
+	// original VM_ReadVar / VM_ReadMemory behavior.
+	auto readVmBlockWord = [&](uint16 firstVmAddr, uint16 wordCount) {
+		for (uint16 i = 0; i < wordCount; ++i) {
+			const uint8 lo = in->readByte();
+			in->readByte(); // hi byte (unused in flat byte-addressed memory)
+			const uint16 addr = static_cast<uint16>(firstVmAddr + i);
+			mem->write8(addr, lo);
+		}
+	};
+
+	// VMBANK3 (ECL script) is byte-addressed: 1 byte per address.
+	auto readVmBlockByte = [&](uint16 startAddr, uint32 size) {
 		byte *buf = new byte[size];
 		in->read(buf, size);
 		mem->loadBytes(startAddr, Common::Span<const uint8>(buf, size));
 		delete[] buf;
 	};
 
-	readVmBlock(0x4900, 0x0800); // VMBANK0_WORLD_STATE (GEO bank)
-	readVmBlock(0x6B00, 0x0800); // VMBANK1_PARTY_STATE (DAT bank)
-	readVmBlock(0x9700, 0x0400); // VMBANK2_COMBAT_STATE (HEAP bank)
-	readVmBlock(0x9900, 0x1E00); // VMBANK3_ECL_SCRIPT  (ECL bank)
+	readVmBlockWord(0x4900, 0x0400); // VMBANK0_WORLD_STATE (0x0400 words = 0x0800 bytes)
+	readVmBlockWord(0x6B00, 0x0400); // VMBANK1_PARTY_STATE (0x0400 words = 0x0800 bytes)
+	readVmBlockWord(0x9700, 0x0200); // VMBANK2_COMBAT_STATE (0x0200 words = 0x0400 bytes)
+	readVmBlockByte(0x9900, 0x1E00); // VMBANK3_ECL_SCRIPT  (byte-addressed)
 
 	// Read STRUCT_POSITION: uint16 x + uint16 y + uint8 dir (5 bytes total).
 	// The system bank (not dumped above) holds the live position; restore below.
@@ -723,10 +745,12 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// -------------------------------------------------------------------------
 	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
 
-	mem->write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr,   posX);
-	mem->write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr,   posY);
-	mem->write16LE(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr,
-		static_cast<uint16>(posDir));
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr,
+		static_cast<uint8>(posX & 0xFF));
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr,
+		static_cast<uint8>(posY & 0xFF));
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr,
+		posDir);
 	mem->write8(layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr,
 		vmMapType);
 
@@ -837,19 +861,49 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	const bool loadIntoRuntime =
 		(static_cast<GameState>(byteGameState) != GS_START_MENU);
 
+	// Debug: dump key addresses after VM bank restore to verify save data integrity.
+	{
+		const uint8 val4AC5 = mem->read8(0x4AC5);
+		const uint16 val4AC5_w = mem->read16LE(0x4AC5);
+		const uint8 val4A17 = mem->read8(0x4A17);
+		const uint16 val4A17_w = mem->read16LE(0x4A17);
+		debug(1, "PoolradEngine::loadGameSlotX86 POST-RESTORE: "
+			"mem[0x4AC5]=0x%02X (word=0x%04X) mem[0x4A17]=0x%02X (word=0x%04X)",
+			(unsigned)val4AC5, (unsigned)val4AC5_w,
+			(unsigned)val4A17, (unsigned)val4A17_w);
+		// Dump a few bytes around 0x4AC5 for context.
+		debug(1, "PoolradEngine::loadGameSlotX86 DUMP 0x4AC0-0x4ACF: "
+			"%02X %02X %02X %02X %02X %02X %02X %02X "
+			"%02X %02X %02X %02X %02X %02X %02X %02X",
+			(unsigned)mem->read8(0x4AC0), (unsigned)mem->read8(0x4AC1),
+			(unsigned)mem->read8(0x4AC2), (unsigned)mem->read8(0x4AC3),
+			(unsigned)mem->read8(0x4AC4), (unsigned)mem->read8(0x4AC5),
+			(unsigned)mem->read8(0x4AC6), (unsigned)mem->read8(0x4AC7),
+			(unsigned)mem->read8(0x4AC8), (unsigned)mem->read8(0x4AC9),
+			(unsigned)mem->read8(0x4ACA), (unsigned)mem->read8(0x4ACB),
+			(unsigned)mem->read8(0x4ACC), (unsigned)mem->read8(0x4ACD),
+			(unsigned)mem->read8(0x4ACE), (unsigned)mem->read8(0x4ACF));
+	}
+
 	if (loadIntoRuntime) {
 		// Non-GS_START_MENU: BOOL_GAME_LOADED=true path.
-		// Preload geo/walldefs from saved state (ECL script already in VMBANK3).
+		// Original GB_EngineMain skips ECL_LoadBlock (bytes already in VMBANK3
+		// from save) but still calls ECL_LoadHeader to parse entry points.
+		if (_eclVm) {
+			_eclVm->loadProgramFromMemory(savedMapId);
+		}
+
+		// Preload geo/walldefs from saved state.
 		if (vmMapType < 2 && _eclHost) {
 			_eclHost->loadGeoBlock(geoBlockId);
 
 			static const uint16 kGeoSavedWallBlockBase = 0x4AF9;
 			static const uint16 kGeoSavedWallSlotBase  = 0x4AFC;
 			for (uint8 wallSlot = 1; wallSlot <= 3; ++wallSlot) {
-				const int16 blockId = static_cast<int16>(mem->read16LE(
-					static_cast<uint16>(kGeoSavedWallBlockBase + wallSlot)));
-				const uint8 setSlot = static_cast<uint8>(mem->read16LE(
-					static_cast<uint16>(kGeoSavedWallSlotBase + wallSlot)) & 0xFF);
+				const int16 blockId = static_cast<int16>(static_cast<int8>(mem->read8(
+					static_cast<uint16>(kGeoSavedWallBlockBase + wallSlot))));
+				const uint8 setSlot = mem->read8(
+					static_cast<uint16>(kGeoSavedWallSlotBase + wallSlot));
 				if (blockId >= 0)
 					_eclHost->loadWallSet(static_cast<uint8>(blockId & 0xFF), setSlot);
 			}
@@ -900,8 +954,6 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// -------------------------------------------------------------------------
 	// Update legacy shared state and transition to the saved game state.
 	// -------------------------------------------------------------------------
-	_legacySharedState.byteGameState =
-		static_cast<GameState>(byteGameState);
 	_legacySharedState.byteMapId =
 		mem->read8(layout.vmField(kVmFieldGeoBlockId).vmAddr);
 	const bool loadedIntoRuntime = loadIntoRuntime;
@@ -909,9 +961,32 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	if (_eclVm)
 		_eclVm->stateLoaded = loadedIntoRuntime;
 
+	// Mirror original: GFX_SetDefaultColors(6,7,0,0xb) before GB_EngineMain.
+	// Sets default sky (6=cyan) and ceiling (7=white) rendering colors.
+	if (loadIntoRuntime) {
+		mem->write8(layout.vmField(kVmFieldSkyColor).vmAddr, 6);
+		mem->write8(layout.vmField(kVmFieldCeilingColor).vmAddr, 7);
+	}
+
 	debug(2, "PoolradEngine::loadGameSlotX86 applying setGameState(%u)",
 		(unsigned)byteGameState);
-	setGameState(static_cast<GameState>(byteGameState));
+	// Original GB_EngineMain only enters with GS_DUNGEON_MAP or GS_WILDERNESS_MAP.
+	// Other states (CAMPING, SHOP, COMBAT) are transient sub-loops that always
+	// resume into a map state. Resolve to the correct map state on load.
+	GameState resolvedState = static_cast<GameState>(byteGameState);
+	if (resolvedState != GS_DUNGEON_MAP && resolvedState != GS_WILDERNESS_MAP
+			&& resolvedState != GS_START_MENU) {
+		const uint8 loadedMapId = mem->read8(layout.vmField(kVmFieldSavedMapId).vmAddr);
+		const uint8 indoorFlag = mem->read8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr);
+		if (isWildernessMapId(loadedMapId) && indoorFlag == 0)
+			resolvedState = GS_WILDERNESS_MAP;
+		else
+			resolvedState = GS_DUNGEON_MAP;
+		debug(2, "PoolradEngine::loadGameSlotX86 resolved transient state %u -> %u",
+			(unsigned)byteGameState, (unsigned)resolvedState);
+	}
+	_legacySharedState.byteGameState = resolvedState;
+	setGameState(resolvedState);
 	debug(2, "PoolradEngine::loadGameSlotX86 complete: engine gameState now=%d",
 		(int)getGameState());
 
@@ -987,8 +1062,8 @@ bool PoolradEngine::tick() {
 				if (syncIgv && _eclVm) {
 					ECL::AddressSpace &m = _eclVm->getMemory();
 					ECL::EclLayoutAccess l = _eclConfig.getLayoutAccess();
-					const uint16 x = m.read16LE(l.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr);
-					const uint16 y = m.read16LE(l.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr);
+					const uint16 x = m.read8(l.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr);
+					const uint16 y = m.read8(l.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr);
 					const uint8 d = static_cast<uint8>(m.read8(l.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr) & 0x03);
 					syncIgv->setMapPosition(x, y, static_cast<uint8>(d * 2));
 				}
@@ -1101,7 +1176,24 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	// Dispatch ON_INIT at runtime bootstrap point (ENGINE_Execute(ECL_ONINIT)).
 	debug(3, "PoolradEngine::initializeMapRuntimeForState dispatching ECL ON_INIT mapId=%u",
 		(unsigned)mapId);
+	const bool wasStateLoaded = _eclVm->stateLoaded;
 	const VmResult initResult = runEclEntryPoint(ECL::kEclRuntimeOnInitEntry);
+
+	// After ON_INIT, re-apply saved position. ON_INIT resets position to
+	// map defaults (via LOAD_AREA_GEO), but the original restores
+	// STRUCT_POSITION from the save tail after ON_INIT completes.
+	if (wasStateLoaded) {
+		_eclVm->stateLoaded = false;
+		const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
+		const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+		const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
+		mem.write8(xAddr, snapshot.dungeonX & 0xFF);
+		mem.write8(yAddr, snapshot.dungeonY & 0xFF);
+		mem.write8(dirAddr, snapshot.dungeonDir & 0x03);
+		debug(3, "PoolradEngine::initializeMapRuntimeForState POST-ONINIT restored pos x=%u y=%u dir=%u",
+			(unsigned)snapshot.dungeonX, (unsigned)snapshot.dungeonY,
+			(unsigned)snapshot.dungeonDir);
+	}
 
 	// Post-ONINIT viewport refresh (mirrors GB_EngineMain after ENGINE_Execute):
 	//   if (BYTE_GAME_STATE != GS_WILDERNESS_MAP) {
@@ -1124,9 +1216,9 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 		if (syncIgv) {
 			ECL::AddressSpace &syncMem = _eclVm->getMemory();
 			ECL::EclLayoutAccess syncLayout = _eclConfig.getLayoutAccess();
-			const uint16 x = syncMem.read16LE(
+			const uint16 x = syncMem.read8(
 				syncLayout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr);
-			const uint16 y = syncMem.read16LE(
+			const uint16 y = syncMem.read8(
 				syncLayout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr);
 			const uint8 dir = static_cast<uint8>(
 				syncMem.read8(syncLayout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr) & 0x03);
@@ -1349,7 +1441,7 @@ void PoolradEngine::dispatchPlayerCommand() {
 		const uint16 leaveAddr = layout.vmGlobalField(kVmGlobalFieldTriedToLeaveMap).vmAddr;
 		const uint8 wireDir = static_cast<uint8>(cardinal * 2);
 
-		mem.write16LE(leaveAddr, 0);
+		mem.write8(leaveAddr, 0);
 
 		// Check wall passability.
 		RuntimeGeoBlock &rtGeo = getRuntimeGeo();
@@ -1377,7 +1469,7 @@ void PoolradEngine::dispatchPlayerCommand() {
 		if (y > 15) { y = 15; clamped = true; }
 		if (y < 0)  { y = 0;  clamped = true; }
 		if (clamped)
-			mem.write16LE(leaveAddr, 1);
+			mem.write8(leaveAddr, 1);
 
 		mem.write8(xAddr, static_cast<uint8>(x));
 		mem.write8(yAddr, static_cast<uint8>(y));
@@ -1419,8 +1511,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 		const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
 		const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
 		const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
-		const uint16 x = mem.read16LE(xAddr);
-		const uint16 y = mem.read16LE(yAddr);
+		const uint16 x = mem.read8(xAddr);
+		const uint16 y = mem.read8(yAddr);
 		const uint8 d = static_cast<uint8>(mem.read8(dirAddr) & 0x03);
 		inGameView->setMapPosition(x, y, static_cast<uint8>(d * 2));
 	}

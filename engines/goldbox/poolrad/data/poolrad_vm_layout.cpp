@@ -148,31 +148,31 @@ Goldbox::VmFieldLocation PoolradVmLayout::field(Goldbox::VmFieldId fieldId) cons
 	// Note: VM addresses are word-addressed. Incrementing vmAddr by 1 means
 	// +2 bytes in legacy decompile-style bank offsets.
 	// GEO bank, ordered by VM address / offset
-	case kVmFieldWildernessX:                  return {kVmBankGeo, 0x49C2}; // @ +0x186
-	case kVmFieldWildernessY:                  return {kVmBankGeo, 0x49C4}; // @ +0x188
-	case kVmFieldGeoBlockId:                   return {kVmBankGeo, 0x49C6}; // @ +0x18A
-	case kVmFieldClockUnits:                   return {kVmBankGeo, 0x49C5}; // @ +0x18C
-	case kVmFieldClockMinuteOnes:              return {kVmBankGeo, 0x49C7}; // @ +0x18E
-	case kVmFieldClockMinuteTens:              return {kVmBankGeo, 0x49C8}; // @ +0x190
-	case kVmFieldClockHour:                    return {kVmBankGeo, 0x49C9}; // @ +0x192
-	case kVmFieldClockDay:                     return {kVmBankGeo, 0x49CA}; // @ +0x194
-	case kVmFieldClockMonth:                   return {kVmBankGeo, 0x49CB}; // @ +0x196
-	case kVmFieldClockYearLo:                  return {kVmBankGeo, 0x49CC}; // @ +0x198
-	case kVmFieldClockYearHi:                  return {kVmBankGeo, 0x49CD}; // @ +0x19A
-	case kVmFieldNoMagicFlag:                  return {kVmBankGeo, 0x49E5}; // @ +0x1CA
-	case kVmFieldIndoorModeFlag:               return {kVmBankGeo, 0x49E6}; // @ +0x1CC
-	case kVmFieldWallSetPrimary:               return {kVmBankGeo, 0x49E7}; // @ +0x1CE
-	case kVmFieldWallSetSecondary:             return {kVmBankGeo, 0x49E8}; // @ +0x1D0
-	case kVmFieldSavedMapX:                    return {kVmBankGeo, 0x49F0}; // @ +0x1E0
-	case kVmFieldSavedMapY:                    return {kVmBankGeo, 0x49F1}; // @ +0x1E2
-	case kVmFieldSavedMapId:                   return {kVmBankGeo, 0x49F2}; // @ +0x1E4
-	case kVmFieldHideCoordsOrAutomapDisable:   return {kVmBankGeo, 0x49FB}; // @ +0x1F6
-	case kVmFieldGameSpeed:                    return {kVmBankGeo, 0x49FC}; // @ +0x1F8
-	case kVmFieldSkyColor:                     return {kVmBankGeo, 0x49FD}; // @ +0x1FA
-	case kVmFieldCeilingColor:                 return {kVmBankGeo, 0x49FE}; // @ +0x1FC
-	case kVmFieldOptionBits:                   return {kVmBankGeo, 0x49FF}; // @ +0x1FE
-	case kVmFieldScriptFlagAA2:                return {kVmBankGeo, 0x4AA2}; // @ +0x344
-	case kVmFieldScriptFlagAB3:                return {kVmBankGeo, 0x4AB3}; // @ +0x366
+	case kVmFieldWildernessX:                  return {kVmBankWorld, 0x49C2}; // @ +0x186
+	case kVmFieldWildernessY:                  return {kVmBankWorld, 0x49C4}; // @ +0x188
+	case kVmFieldGeoBlockId:                   return {kVmBankWorld, 0x49C6}; // @ +0x18A
+	case kVmFieldClockUnits:                   return {kVmBankWorld, 0x49C5}; // @ +0x18C
+	case kVmFieldClockMinuteOnes:              return {kVmBankWorld, 0x49C7}; // @ +0x18E
+	case kVmFieldClockMinuteTens:              return {kVmBankWorld, 0x49C8}; // @ +0x190
+	case kVmFieldClockHour:                    return {kVmBankWorld, 0x49C9}; // @ +0x192
+	case kVmFieldClockDay:                     return {kVmBankWorld, 0x49CA}; // @ +0x194
+	case kVmFieldClockMonth:                   return {kVmBankWorld, 0x49CB}; // @ +0x196
+	case kVmFieldClockYearLo:                  return {kVmBankWorld, 0x49CC}; // @ +0x198
+	case kVmFieldClockYearHi:                  return {kVmBankWorld, 0x49CD}; // @ +0x19A
+	case kVmFieldNoMagicFlag:                  return {kVmBankWorld, 0x49E5}; // @ +0x1CA
+	case kVmFieldIndoorModeFlag:               return {kVmBankWorld, 0x49E6}; // @ +0x1CC
+	case kVmFieldWallSetPrimary:               return {kVmBankWorld, 0x49E7}; // @ +0x1CE
+	case kVmFieldWallSetSecondary:             return {kVmBankWorld, 0x49E8}; // @ +0x1D0
+	case kVmFieldSavedMapX:                    return {kVmBankWorld, 0x49F0}; // @ +0x1E0
+	case kVmFieldSavedMapY:                    return {kVmBankWorld, 0x49F1}; // @ +0x1E2
+	case kVmFieldSavedMapId:                   return {kVmBankWorld, 0x49F2}; // @ +0x1E4
+	case kVmFieldHideCoordsOrAutomapDisable:   return {kVmBankWorld, 0x49FB}; // @ +0x1F6
+	case kVmFieldGameSpeed:                    return {kVmBankWorld, 0x49FC}; // @ +0x1F8
+	case kVmFieldSkyColor:                     return {kVmBankWorld, 0x49FD}; // @ +0x1FA
+	case kVmFieldCeilingColor:                 return {kVmBankWorld, 0x49FE}; // @ +0x1FC
+	case kVmFieldOptionBits:                   return {kVmBankWorld, 0x49FF}; // @ +0x1FE
+	case kVmFieldScriptFlagAA2:                return {kVmBankWorld, 0x4AA2}; // @ +0x344
+	case kVmFieldScriptFlagAB3:                return {kVmBankWorld, 0x4AB3}; // @ +0x366
 	default:
 		return Goldbox::VmLayout::invalidLocation();
 	}
@@ -343,7 +343,7 @@ bool poolradGeoVmAddrOffset(uint16 vmAddr, uint16 &byteOffset) {
 bool poolradVmFieldOffset(Goldbox::VmFieldId fieldId, uint16 &byteOffset) {
 	const Goldbox::VmLayout &layout = getPoolradVmLayout();
 	Goldbox::VmFieldLocation location = layout.field(fieldId);
-	if (!Goldbox::VmLayout::isValid(location) || location.bankId != kVmBankGeo) {
+	if (!Goldbox::VmLayout::isValid(location) || location.bankId != kVmBankWorld) {
 		return false;
 	}
 

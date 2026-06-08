@@ -29,7 +29,7 @@
 namespace Goldbox {
 
 enum VmBankId {
-	kVmBankGeo   = 0,
+	kVmBankWorld = 0,
 	kVmBankDat   = 1,
 	kVmBankHeap  = 2,
 	kVmBankEcl   = 3,

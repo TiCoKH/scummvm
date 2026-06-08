@@ -58,6 +58,17 @@ public:
     DecodeStatus loadProgram(Common::Span<const uint8> program, uint8 scriptId);
 
     /**
+     * Re-parse ECL header from bytecode already present in VM memory.
+     * Mirrors the BOOL_GAME_LOADED=true path in GB_EngineMain: skips
+     * ECL_LoadBlock (bytes already in VMBANK3 from save) but still calls
+     * ECL_LoadHeader to extract entry points and resolve game state.
+     * Does NOT clear transient flags or overwrite save-restored memory.
+     * @param scriptId Script ID for debugging
+     * @return DECODE_OK on success
+     */
+    DecodeStatus loadProgramFromMemory(uint8 scriptId);
+
+    /**
      * Run script starting at an entry point. Synchronous: all syscalls block
      * internally until resolved; this method returns when the script halts.
      * @param entry Entry point selector
