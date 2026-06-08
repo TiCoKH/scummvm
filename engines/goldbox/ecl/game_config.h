@@ -91,7 +91,7 @@ public:
 
     /**
      * Get the maximum opcode byte for this game's ECL dialect.
-     * 
+     *
      * The baseline (Pool of Radiance) uses 0x00-0x3D.
      * Future games may extend this range by overriding this method.
      */
@@ -137,7 +137,7 @@ public:
         Common::Array<MemoryRegionRange> ranges;
 
         const Goldbox::VmBankId banks[] = {
-            Goldbox::kVmBankGeo,
+            Goldbox::kVmBankWorld,
             Goldbox::kVmBankDat,
             Goldbox::kVmBankHeap,
             Goldbox::kVmBankEcl

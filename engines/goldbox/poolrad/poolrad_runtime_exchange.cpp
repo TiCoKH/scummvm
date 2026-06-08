@@ -80,10 +80,10 @@ bool PoolradRuntimeExchange::captureMapSnapshot(
 	out.clockMinute = static_cast<uint8>(minuteTens * 10 + minuteOnes);
 
 	out.searchActive =
-		((mem->read16LE(globalLayout.field(kVmGlobalFieldSearchFlags).vmAddr) & 1)
+		((mem->read8(globalLayout.field(kVmGlobalFieldSearchFlags).vmAddr) & 1)
 		!= 0);
 	out.hideCoords =
-		(mem->read16LE(vmLayout.field(kVmFieldHideCoordsOrAutomapDisable).vmAddr)
+		(mem->read8(vmLayout.field(kVmFieldHideCoordsOrAutomapDisable).vmAddr)
 		!= 0);
 
 	out.pictureHeadId =

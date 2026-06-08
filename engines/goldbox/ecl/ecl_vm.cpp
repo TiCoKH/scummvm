@@ -57,6 +57,7 @@
 #include "goldbox/ecl/opcode_table.h"
 #include "goldbox/ecl/game_config.h"
 #include "goldbox/ecl/runtime_layout.h"
+#include "goldbox/data/adnd_character.h"
 #include "goldbox/events.h"
 
 namespace Goldbox {
@@ -158,6 +159,54 @@ DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptI
     return DECODE_OK;
 }
 
+DecodeStatus EclVM::loadProgramFromMemory(uint8 scriptId) {
+    if (!_config)
+        return DECODE_OUT_OF_BOUNDS;
+
+    const uint16 scriptVmStart = _config->getScriptVmStart();
+
+    _scriptId = scriptId;
+    _pc = scriptVmStart;
+    _callStack.clear();
+    _entryPoints.clear();
+
+    // Minimal state reset for header parse (no flag clearing — save owns those).
+    EclLayoutAccess layout = _config->getLayoutAccess();
+    _memory.write8(layout.runtimeField(kEclRuntimeHaltFlag), 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeExitScript), 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeProgramState), 0);
+
+    // Mirror GB_EngineMain initial flags.
+    screenRefresh   = true;
+    geoReady        = false;
+    wallsetReady    = false;
+    eclReady        = false;
+    mapdataInload   = false;
+    characterInload = false;
+
+    syncRuntimePc(scriptVmStart);
+
+    // Parse entry points from bytecode already in VM memory.
+    // Determine script bank size from config bank range.
+    uint16 bankFirst = 0, bankLast = 0;
+    uint16 scriptSize = kEclHeaderWordCount * 4; // minimum: 5 GOTO entries
+    if (_config->getVmBankRange(Goldbox::kVmBankEcl, bankFirst, bankLast)
+            && bankLast >= bankFirst) {
+        scriptSize = static_cast<uint16>(bankLast - bankFirst + 1);
+    }
+
+    Common::Array<uint8> buf;
+    buf.resize(scriptSize);
+    for (uint16 i = 0; i < scriptSize; ++i)
+        buf[i] = _memory.read8(static_cast<uint16>(scriptVmStart + i));
+
+    Common::Span<const uint8> program(buf.data(), buf.size());
+    if (!parseECLHeader(program))
+        return DECODE_OUT_OF_BOUNDS;
+
+    return DECODE_OK;
+}
+
 bool EclVM::parseECLHeader(Common::Span<const uint8> program) {
     if (!_config)
         return false;
@@ -216,14 +265,18 @@ void EclVM::initializeECLState() {
     _memory.write16LE(layout.runtimeField(kEclRuntimeOnRestInterruptEntry), 0);
     _memory.write16LE(layout.runtimeField(kEclRuntimeOnInitEntry), 0);
 
-    // Set default game state (dungeon)
-    _memory.write8(layout.runtimeField(kEclRuntimeGameState), GS_DUNGEON_MAP);
-    if (g_events) {
-        g_events->postEclStateMessage(EclVmMessage::ST_GAME_STATE,
-            static_cast<uint16>(GS_DUNGEON_MAP), EclVmMessage::VT_UINT8);
+    // Set default game state (dungeon) only when NOT restoring a saved game.
+    // Original GB_EngineMain resolves state externally (GS_DUNGEON_MAP default,
+    // overridden to GS_WILDERNESS_MAP based on mapId + IndoorModeFlag).
+    if (!stateLoaded) {
+        _memory.write8(layout.runtimeField(kEclRuntimeGameState), GS_DUNGEON_MAP);
+        if (g_events) {
+            g_events->postEclStateMessage(EclVmMessage::ST_GAME_STATE,
+                static_cast<uint16>(GS_DUNGEON_MAP), EclVmMessage::VT_UINT8);
+        }
+        _memory.write8(layout.vmField(kVmFieldNoMagicFlag).vmAddr, 0);
+        _memory.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
     }
-    _memory.write8(layout.vmField(kVmFieldNoMagicFlag).vmAddr, 0);
-    _memory.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
 
     // Clear character pointers
     _memory.write16LE(layout.runtimeField(kEclRuntimeSelectedCharPtr), 0);
@@ -640,9 +693,13 @@ uint16 EclVM::readVmMemory(uint16 vmAddr) const {
         return value;
     }
 
-    // Legacy rule: script region reads are byte-wide.
-    // This mirrors x86/m68k VM_ReadVar/VM_ReadMemory behavior for bank 3.
-    if (getMemoryRegion(vmAddr) == 3)
+    // All word-addressed banks (regions 0-3) store one logical value per
+    // VM address in the low byte. The original VM treats these as 16-bit
+    // words but only the low byte carries meaningful data for flag/state
+    // variables. Read as byte to avoid contamination from adjacent addresses
+    // in our flat byte-addressed memory layout.
+    const uint8 region = getMemoryRegion(vmAddr);
+    if (region <= 3)
         return static_cast<uint16>(_memory.read8(vmAddr));
 
     return _memory.read16LE(vmAddr);
@@ -679,7 +736,13 @@ void EclVM::onDatBankWrite(uint16 vmAddr, uint16 value,
 
     // Spell memorization range: offsets 0x20..0x70
     if (localOffset >= 0x20 && localOffset <= 0x70) {
-        // Written directly to VM memory by caller; no extra side-effect.
+        Data::ADnDCharacter *adnd =
+            dynamic_cast<Data::ADnDCharacter *>(VmInterface::getSelectedCharacter());
+        if (adnd) {
+            uint8 spellIdx = static_cast<uint8>(localOffset - 0x1F) & 0xFF;
+            if (spellIdx < ARRAYSIZE(adnd->spells.memorizedSpells))
+                adnd->spells.memorizedSpells[spellIdx] = (uint8)value;
+        }
         return;
     }
 
@@ -687,13 +750,52 @@ void EclVM::onDatBankWrite(uint16 vmAddr, uint16 value,
     if (!pc)
         return;
 
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(pc);
+
     switch (localOffset) {
     case 0xB8: {
         // NPC index with wrap
         uint16 npcVal = value;
         if (npcVal > 0xB2)
             npcVal -= 0x32;
-        // Store low byte into character NPC field via VM memory.
+        if (adnd)
+            adnd->npc = static_cast<int8>(npcVal & 0xFF);
+        break;
+    }
+    case 0xBB: {
+        if (adnd)
+            adnd->valuableItems[Data::VAL_COPPER] = value;
+        break;
+    }
+    case 0xBD: {
+        if (adnd)
+            adnd->valuableItems[Data::VAL_SILVER] = value;
+        break;
+    }
+    case 0xBF: {
+        if (adnd)
+            adnd->valuableItems[Data::VAL_ELECTRUM] = value;
+        break;
+    }
+    case 0xC1: {
+        if (adnd)
+            adnd->valuableItems[Data::VAL_GOLD] = value;
+        break;
+    }
+    case 0xC3: {
+        if (adnd)
+            adnd->valuableItems[Data::VAL_PLATINUM] = value;
+        break;
+    }
+    case 0xF7: {
+        // xpForDefeating: game-specific field (PoolradCharacter).
+        // VM memory is already written by caller; struct sync is handled
+        // by the game layer when it reads the character back.
+        break;
+    }
+    case 0xF9: {
+        // bonusXpPerHp: game-specific field (PoolradCharacter).
+        // VM memory is already written by caller.
         break;
     }
     case 0x100: {
@@ -795,7 +897,7 @@ void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
         }
     }
 
-    _memory.write16LE(vmAddr, writeValue);
+    _memory.write8(vmAddr, static_cast<uint8>(writeValue & 0xFF));
     if (g_events)
         g_events->postEclVmMessage(vmAddr, writeValue);
 

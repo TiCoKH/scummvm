@@ -191,7 +191,7 @@ bool VmFlatMemory::classifyAddr(uint16 addr, VmBankId &bankId,
 	static const VmBankId kPriority[kVmBankCount] = {
 		kVmBankSystem,
 		kVmBankEcl,
-		kVmBankGeo,
+		kVmBankWorld,
 		kVmBankDat,
 		kVmBankHeap
 	};

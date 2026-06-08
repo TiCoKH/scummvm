@@ -56,7 +56,7 @@ public:
     bool getVmBankRange(Goldbox::VmBankId bankId, uint16 &firstAddr,
             uint16 &lastAddr) const override {
         switch (bankId) {
-        case Goldbox::kVmBankGeo:
+        case Goldbox::kVmBankWorld:
             firstAddr = 0x4900;
             lastAddr = 0x4CFF;
             return true;

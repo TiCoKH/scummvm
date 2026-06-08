@@ -29,7 +29,7 @@ VmFieldLocation VmLayout::invalidLocation() {
 }
 
 bool VmLayout::isValid(const VmFieldLocation &location) {
-	return location.bankId >= kVmBankGeo &&
+	return location.bankId >= kVmBankWorld &&
 		location.bankId < kVmBankCount &&
 		location.vmAddr != kInvalidVmAddr;
 }
