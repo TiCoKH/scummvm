@@ -27,6 +27,7 @@
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
 #include "goldbox/poolrad/views/dialogs/in_game_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/camp_menu_dialog.h"
+#include "goldbox/poolrad/views/dialogs/door_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
@@ -73,6 +74,10 @@ InGameView::InGameView() : View("InGame") {
 	_campMenuDialog = new Dialogs::CampMenuDialog("CampMenu", this);
 	_campMenuDialog->deactivate();
 	attachDialog(_campMenuDialog);
+
+	_doorDialog = new Dialogs::DoorDialog("DoorDialog", this);
+	_doorDialog->deactivate();
+	attachDialog(_doorDialog);
 }
 
 InGameView::~InGameView() {
@@ -115,6 +120,11 @@ InGameView::~InGameView() {
 	if (_campMenuDialog) {
 		delete _campMenuDialog;
 		_campMenuDialog = nullptr;
+	}
+
+	if (_doorDialog) {
+		delete _doorDialog;
+		_doorDialog = nullptr;
 	}
 }
 
@@ -349,6 +359,9 @@ void InGameView::draw() {
 
 	if (_inGameMenuDialog && _inGameMenuDialog->isActive())
 		_inGameMenuDialog->draw();
+
+	if (_doorDialog && _doorDialog->isActive())
+		_doorDialog->draw();
 }
 
 // -----------------------------------------------------------------------
@@ -402,6 +415,13 @@ bool InGameView::msgKeypress(const KeypressMessage &msg) {
 
 	// In-game menu: explicitly forward keypresses when active.
 	// Not in the child tree — only active after ONINIT completes.
+	if (_doorDialog && _doorDialog->isActive()) {
+		if (_doorDialog->send(msg)) {
+			redraw();
+			return true;
+		}
+	}
+
 	if (_inGameMenuDialog && _inGameMenuDialog->isActive()) {
 		if (_inGameMenuDialog->send(msg)) {
 			redraw();
@@ -432,15 +452,15 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 		break;
 	case Common::KEYCODE_LEFT:
 		_mapDir = (_mapDir + 6) % 8;
-		queueCommand(kCmdMove);
+		syncDirectionAndRedraw();
 		break;
 	case Common::KEYCODE_RIGHT:
 		_mapDir = (_mapDir + 2) % 8;
-		queueCommand(kCmdMove);
+		syncDirectionAndRedraw();
 		break;
 	case Common::KEYCODE_DOWN:
 		_mapDir = (_mapDir + 4) % 8;
-		queueCommand(kCmdMove);
+		syncDirectionAndRedraw();
 		break;
 
 	// --- Menu keys ---
@@ -504,6 +524,25 @@ void InGameView::handleMenuResult(const MenuResultMessage &result) {
 	if (result._hasStringValue &&
 			result._stringValue == "EffectStatusChanged") {
 		onUpdate();
+		redraw();
+		return;
+	}
+
+	// Door dialog result.
+	if (result._hasStringValue &&
+			result._stringValue == "DoorResult") {
+		if (result._hasIntValue &&
+				result._intValue == Dialogs::DoorDialog::kDoorOpened) {
+			// Door opened — play step sound and advance forward.
+			if (Poolrad::g_engine)
+				Poolrad::g_engine->soundPlay(0x0B);
+			stepForward();
+			queueCommand(kCmdMove);
+		} else {
+			// Door blocked — play blocked sound.
+			if (Poolrad::g_engine)
+				Poolrad::g_engine->soundPlay(0x08);
+		}
 		redraw();
 		return;
 	}
@@ -795,6 +834,26 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 	}
 }
 
+void InGameView::openDoor() {
+	RuntimeGeoBlock &rtGeo = VmInterface::getRuntimeGeo();
+	if (!rtGeo.isLoaded())
+		return;
+
+	const uint8 wireDir = _mapDir & 0x06;
+	uint8 doorFlag = rtGeo.getWallFlag(
+		(int)_mapX, (int)_mapY, wireDir);
+
+	if (doorFlag < 2)
+		return; // No locked door (0=wall, 1=open).
+
+	// Hide in-game menu while door dialog is active.
+	if (_inGameMenuDialog && _inGameMenuDialog->isActive())
+		_inGameMenuDialog->deactivate();
+
+	if (_doorDialog)
+		_doorDialog->openDoor(doorFlag);
+}
+
 void InGameView::enterCamp() {
 	// Hide normal in-game menu.
 	if (_inGameMenuDialog && _inGameMenuDialog->isActive())
@@ -823,13 +882,15 @@ void InGameView::exitCamp(bool wasInterrupted) {
 
 void InGameView::stepForward() {
 	// Check wall passability before moving.
+	// Door handling is done by the engine's tryOpenDoor() after ONMOVE,
+	// NOT here. This only blocks solid walls (wallFlag == 0).
 	RuntimeGeoBlock &rtGeo = VmInterface::getRuntimeGeo();
 	if (rtGeo.isLoaded()) {
 		const uint8 wireDir = _mapDir & 0x06;
 		const uint8 wallFlag = rtGeo.getWallFlag(
 			(int)_mapX, (int)_mapY, wireDir);
 		if (wallFlag == 0)
-			return; // Wall blocks movement.
+			return; // Solid wall blocks movement.
 	}
 
 	// Compute new position using 8-direction deltas.

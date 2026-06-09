@@ -628,15 +628,16 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 
 	// Legacy save tail layout (0x150 bytes):
 	// +0x00 u8 dungeonX, +0x01 u8 dungeonY, +0x02 u8 dir (8-way),
-	// +0x03 u8 overlandX, +0x04 u8 overlandY, +0x05 u8 vmMapType,
-	// +0x06 u8 gameState, +0x07 u8 charCount, +0x08..+0x14f char table.
+	// +0x03 u8 posNibble (walldef in facing dir), +0x04 u8 posEventId,
+	// +0x05 u8 vmMapType, +0x06 u8 gameState, +0x07 u8 charCount,
+	// +0x08..+0x14f char table.
 	byte tail[0x150];
 	memset(tail, 0, sizeof(tail));
 	tail[0x00] = static_cast<byte>(posX & 0xFF);
 	tail[0x01] = static_cast<byte>(posY & 0xFF);
 	tail[0x02] = static_cast<byte>(posDir * 2);  // 4-way to 8-way
-	tail[0x03] = 0;  // overlandX (TODO: capture from VM)
-	tail[0x04] = 0;  // overlandY (TODO: capture from VM)
+	tail[0x03] = snapshot.wallNibble;   // position nibble (walldef type)
+	tail[0x04] = snapshot.eventId;      // position event ID
 	tail[0x05] = vmMapType;
 	tail[0x06] = static_cast<byte>(getGameState());
 	tail[0x07] = characterCount;
@@ -714,13 +715,13 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 	// Legacy save tail struct (8 bytes):
 	// +0x00 u8 dungeonX, +0x01 u8 dungeonY, +0x02 u8 dir (8-way),
-	// +0x03 u8 overlandX, +0x04 u8 overlandY, +0x05 u8 vmMapType,
-	// +0x06 u8 gameState, +0x07 u8 charCount.
+	// +0x03 u8 posNibble (walldef in facing dir), +0x04 u8 posEventId,
+	// +0x05 u8 vmMapType, +0x06 u8 gameState, +0x07 u8 charCount.
 	const uint8 dungeonX       = in->readByte();
 	const uint8 dungeonY       = in->readByte();
 	const uint8 dir8way        = in->readByte();
-	const uint8 overlandX      = in->readByte();
-	const uint8 overlandY      = in->readByte();
+	const uint8 wallNibble     = in->readByte();
+	const uint8 eventId        = in->readByte();
 	const uint8 vmMapType      = in->readByte();
 	const uint8 byteGameState  = in->readByte();
 
@@ -731,11 +732,11 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 	// Convert 8-way direction to 4-way for VM memory storage.
 	const uint8 posDir = static_cast<uint8>((dir8way / 2) & 0x03);
-	(void)overlandX; (void)overlandY; // TODO: restore overland position
 
-	debug(2, "PoolradEngine::loadGameSlotX86 tail x=%u y=%u dir8=%u dir4=%u ovX=%u ovY=%u mapType=%u gameState=%u charCount=%u",
+
+	debug(2, "PoolradEngine::loadGameSlotX86 tail x=%u y=%u dir8=%u dir4=%u nibble=%u event=%u mapType=%u gameState=%u charCount=%u",
 		(unsigned)dungeonX, (unsigned)dungeonY, (unsigned)dir8way,
-		(unsigned)posDir, (unsigned)overlandX, (unsigned)overlandY,
+		(unsigned)posDir, (unsigned)wallNibble, (unsigned)eventId,
 		(unsigned)vmMapType, (unsigned)byteGameState,
 		(unsigned)characterCount);
 
@@ -750,6 +751,8 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr, dungeonX);
 	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr, dungeonY);
 	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr, posDir);
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr, wallNibble);
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr, eventId);
 
 	// Reset party count in VM memory before rebuilding the party list.
 	mem->write8(layout.vmGlobalField(kVmGlobalFieldPartyCount).vmAddr, 0);
@@ -1456,8 +1459,11 @@ void PoolradEngine::dispatchPlayerCommand() {
 			const int cx = static_cast<int>(mem.read8(xAddr));
 			const int cy = static_cast<int>(mem.read8(yAddr));
 			const uint8 wallFlag = rtGeo.getWallFlag(cx, cy, wireDir);
-			if (wallFlag == 0) {
-				// Wall blocks movement — still sync direction.
+			if (wallFlag == 0 || wallFlag >= 2) {
+				// wallFlag 0 = solid wall, 2/3 = locked door.
+				// For locked doors, tryOpenDoor() handles the dialog.
+				if (wallFlag >= 2 && _eclHost)
+					_eclHost->tryOpenDoor();
 				if (g_events)
 					g_events->postEclVmMessage(dirAddr, cardinal);
 				return;
