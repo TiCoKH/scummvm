@@ -46,6 +46,7 @@
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
+#include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
@@ -1378,19 +1379,21 @@ bool PoolradEngineHostImpl::tryOpenDoor() {
 
     const int x = static_cast<int>(snapshot.dungeonX);
     const int y = static_cast<int>(snapshot.dungeonY);
-    // Wire direction: 0=N, 2=E, 4=S, 6=W
     const uint8 wireDir = static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2);
 
-    // Check if there's a door flag (non-zero) in the facing direction.
     const uint8 doorFlag = rtGeo.getWallFlag(x, y, wireDir);
-    if (doorFlag == 0)
+
+    // doorFlag 0 = solid wall (no door), 1 = open door (already passable).
+    if (doorFlag < 2)
         return false;
 
-    // Clear the door flag (open the door).
-    rtGeo.clearFlag(x, y, wireDir);
-    debug(3, "PoolradEngineHostImpl::tryOpenDoor: opened door at (%d,%d) dir=%u",
-        x, y, (unsigned)wireDir);
-    return true;
+    // Closed/locked door directly ahead — activate DoorDialog.
+    Views::InGameView *igv = dynamic_cast<Views::InGameView *>(
+        _engine->findView("InGame"));
+    if (igv)
+        igv->openDoor();
+
+    return false; // Don't advance position here; DoorDialog handles it async.
 }
 
 void PoolradEngineHostImpl::playSound(uint8 soundId) {

@@ -38,6 +38,7 @@ class InGamePanelDialog;
 class TextBoxDialog;
 class InGameMenuDialog;
 class CampMenuDialog;
+class DoorDialog;
 }
 
 /**
@@ -94,6 +95,7 @@ private:
 	Dialogs::TextBoxDialog *_textBoxDialog = nullptr;
 	Dialogs::InGameMenuDialog *_inGameMenuDialog = nullptr;
 	Dialogs::CampMenuDialog *_campMenuDialog = nullptr;
+	Dialogs::DoorDialog *_doorDialog = nullptr;
 
 	// --- Dungeon navigation state ---
 	/** Party map X position (column, 0-15). */
@@ -153,6 +155,12 @@ public:
 
 	/** Queue a command for the engine runtime loop. */
 	void queueCommand(InGameCommand cmd) { _pendingCommand = cmd; }
+
+	/**
+	 * Initiate door interaction at the current facing direction.
+	 * Reads the GEO door flag and either auto-opens or shows DoorDialog.
+	 */
+	void openDoor();
 
 	/** Enter camp mode: activate CampMenuDialog, hide normal menu. */
 	void enterCamp();

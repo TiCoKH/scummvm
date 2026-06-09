@@ -39,6 +39,9 @@ struct RuntimeMapSnapshot {
 	uint16 dungeonY = 0;
 	uint8 dungeonDir = 0;
 
+	uint8 wallNibble = 0;   // walldef type in facing direction
+	uint8 eventId = 0;      // event ID at current map cell
+
 	uint8 wildernessX = 0;
 	uint8 wildernessY = 0;
 

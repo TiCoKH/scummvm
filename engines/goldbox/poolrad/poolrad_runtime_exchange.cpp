@@ -56,7 +56,9 @@ bool PoolradRuntimeExchange::captureMapSnapshot(
 	out.mapId = mem->read8(vmLayout.field(kVmFieldSavedMapId).vmAddr);
 	out.indoorMode =
 		(mem->read8(vmLayout.field(kVmFieldIndoorModeFlag).vmAddr) != 0);
-	out.mapType = mem->read8(globalLayout.field(kVmGlobalFieldMapWallType).vmAddr);
+	out.mapType = mem->read8(vmLayout.field(kVmFieldIndoorModeFlag).vmAddr);
+	out.wallNibble = mem->read8(globalLayout.field(kVmGlobalFieldMapWallType).vmAddr);
+	out.eventId = mem->read8(globalLayout.field(kVmGlobalFieldMapSquareInfo).vmAddr);
 
 	// DungeonX/Y/Dir are packed at consecutive byte addresses in the
 	// system bank (0xC04B, 0xC04C, 0xC04D). Each ECL SAVE writes a

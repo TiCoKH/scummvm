@@ -25,7 +25,9 @@
 #include "goldbox/ecl/game_config.h"
 #include "goldbox/ecl/opcode_handlers.h"
 #include "goldbox/ecl/opcode_table.h"
+#include "goldbox/ecl/ecl_memory.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -87,6 +89,52 @@ public:
         // Poolrad-specific behavior is injected via EclEngineHost callbacks
         // (loadGeoBlock/loadWallSet/loadMonster/etc.) in PoolradEngineHostImpl.
         ECL::registerBaselineOpcodeHandlers();
+    }
+
+    /**
+     * Intercept writes to DAT walldef trigger addresses.
+     *
+     * Original decomp (m68k/x86 parity):
+     *   DAT+0x322 (vmAddr 0x6C91) -> GFX_LoadWalldef(value & 0x7F, slot=1)
+     *   DAT+0x324 (vmAddr 0x6C92) -> GFX_LoadWalldef(value & 0x7F, slot=2)
+     *   DAT+0x326 (vmAddr 0x6C93) -> GFX_LoadWalldef(value & 0x7F, slot=3)
+     *
+     * Triggered only when value > 0x80 (bit 7 acts as "load" flag).
+     * The low 7 bits specify the DAX walldef block ID to load.
+     */
+    bool onWriteVmMemory(ECL::AddressSpace &memory, uint16 vmAddr,
+            uint16 &ioValue, uint8 region,
+            ECL::SyscallHandler *syscalls) const override {
+        // Only intercept DAT bank writes (region determined by address range).
+        static const uint16 kWalldefSlot1Addr = 0x6C91; // DAT+0x322
+        static const uint16 kWalldefSlot2Addr = 0x6C92; // DAT+0x324
+        static const uint16 kWalldefSlot3Addr = 0x6C93; // DAT+0x326
+
+        uint8 slot = 0;
+        if (vmAddr == kWalldefSlot1Addr)
+            slot = 1;
+        else if (vmAddr == kWalldefSlot2Addr)
+            slot = 2;
+        else if (vmAddr == kWalldefSlot3Addr)
+            slot = 3;
+
+        if (slot != 0) {
+            // Write the value through to memory first.
+            memory.write8(vmAddr, static_cast<uint8>(ioValue & 0xFF));
+
+            // Trigger walldef reload only when bit 7 is set (value > 0x80).
+            const uint8 rawValue = static_cast<uint8>(ioValue & 0xFF);
+            if (rawValue > 0x80 && syscalls) {
+                const uint8 blockId = rawValue & 0x7F;
+                debug(3, "PoolradGameConfig::onWriteVmMemory: walldef trigger "
+                    "addr=0x%04X slot=%u blockId=%u",
+                    (unsigned)vmAddr, (unsigned)slot, (unsigned)blockId);
+                syscalls->loadWallSet(blockId, slot);
+            }
+            return true; // Handled — skip default write path.
+        }
+
+        return false;
     }
 
     bool getOpcodeOperandCount(uint8 opcode, int &count) const override {
