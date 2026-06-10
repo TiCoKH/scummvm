@@ -29,8 +29,6 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-class InGameView;
-
 namespace Dialogs {
 
 class HorizontalMenu;
@@ -60,7 +58,6 @@ public:
     };
 
 private:
-    InGameView *_parentView;
     MenuItemList _menuModel;
     HorizontalMenu *_horizontalMenu;
 
@@ -85,7 +82,7 @@ private:
     bool partyHasKnockSpell() const;
 
 public:
-    DoorDialog(const Common::String &name, InGameView *parent);
+    DoorDialog(const Common::String &name);
     ~DoorDialog() override;
 
     /**

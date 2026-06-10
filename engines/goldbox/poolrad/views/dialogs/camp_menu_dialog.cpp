@@ -22,7 +22,6 @@
 #include "goldbox/poolrad/views/dialogs/camp_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/spell_book_dialog.h"
-#include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/gfx/pic.h"
@@ -38,8 +37,8 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-CampMenuDialog::CampMenuDialog(const Common::String &name, InGameView *parent)
-        : Dialog(name), _parentView(parent), _horizontalMenu(nullptr),
+CampMenuDialog::CampMenuDialog(const Common::String &name)
+    : Dialog(name), _horizontalMenu(nullptr),
             _spellBookDialog(nullptr),
       _currentFrame(0), _lastFrameTime(0), _frameIntervalMs(500),
       _isInterrupted(false) {
@@ -81,11 +80,7 @@ void CampMenuDialog::loadCampfireFrames() {
     _campfireFrames.clear();
     _currentFrame = 0;
 
-    // Load campfire PIC into PictureDisplayCache so the normal
-    // InGameMainScreenDialog viewport draw path renders it.
-    if (Poolrad::g_engine) {
-        Poolrad::g_engine->getPictureDisplayCache().load(0xFF, kCampfirePicId);
-    }
+    // Camp picture loading is handled by the host on GS_CAMPING entry.
 
     _lastFrameTime = g_system->getMillis();
 }
@@ -106,17 +101,8 @@ void CampMenuDialog::activate() {
 
     loadCampfireFrames();
 
-    // Read game speed for animation interval.
-    _frameIntervalMs = 500;
-    if (Poolrad::g_engine) {
-        ECL::AddressSpace *mem = Poolrad::g_engine->getEclMemory();
-        if (mem) {
-            const uint16 speedAddr = 0x49FC; // kVmFieldGameSpeed
-            uint8 speed = mem->read8(speedAddr);
-            if (speed == 0) speed = 1;
-            _frameIntervalMs = static_cast<uint16>(speed) * 500;
-        }
-    }
+    // Read game speed via VM/host interface.
+    _frameIntervalMs = static_cast<uint16>(VmInterface::getGameSpeed()) * 500;
 
     // Start animation timer - store interval, animation ticks in draw().
     if (Poolrad::g_engine) {
@@ -285,8 +271,7 @@ void CampMenuDialog::handleMenuKey(char key) {
         // TODO: DIALOG_SaveGame + quit prompt
         break;
     case 'V':
-        if (_parentView)
-            _parentView->addView("ViewCharacter");
+        addView("ViewCharacter");
         break;
     case 'M':
         if (_horizontalMenu)
@@ -316,8 +301,8 @@ void CampMenuDialog::exitCamp() {
             clearPartyMemorizedSpellState(*party);
     }
 
-    if (_parentView && g_events) {
-        g_events->postMenuResult(_parentView->getName(), true,
+    if (g_events) {
+        g_events->postMenuResult("InGame", true,
             Common::KEYCODE_e, _isInterrupted ? 1 : 0,
             Common::String(), true, false);
     }

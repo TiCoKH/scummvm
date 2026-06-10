@@ -52,23 +52,44 @@ SpellBookDialog::SpellBookDialog()
       _pendingMemorizeSpells(false),
       _pendingScribeSpells(false) {
 
+    buildMainMenu();
+
+    HorizontalMenuConfig cfg;
+    cfg.promptTxt = "";
+    cfg.menuItemList = &_mainMenuModel;
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.promptColor = 15;
+    cfg.allowNumPad = true;
+    cfg.suppressUnhandledKeys = false;
+    cfg.backgroundColor = 0;
+    cfg.singleItemMode = false;
+
+    _horizontalMenu = new HorizontalMenu("SpellBookHMenu", cfg);
+    _horizontalMenu->setParent(this);
+    subView(_horizontalMenu);
+    _horizontalMenu->deactivate();
+
     // SpellsMenu — reused for cast/memorize/scribe sub-stages.
     _spellsMenu = new SpellsMenu("SpellBookSpellsMenu");
     _spellsMenu->setParent(this);
     subView(_spellsMenu);
     _spellsMenu->deactivate();
+
+    HorizontalYesNoConfig ynCfg;
+    ynCfg.promptTxt = "";
+    ynCfg.promptColor = 15;
+    ynCfg.textColor = 10;
+    ynCfg.selectColor = 15;
+    ynCfg.backgroundColor = 0;
+    _confirmDialog = new HorizontalYesNo("SpellBookConfirm", ynCfg);
+    _confirmDialog->setParent(this);
+    subView(_confirmDialog);
+    _confirmDialog->deactivate();
 }
 
 SpellBookDialog::~SpellBookDialog() {
-    if (_horizontalMenu) {
-        delete _horizontalMenu;
-        _horizontalMenu = nullptr;
-    }
-    if (_confirmDialog) {
-        delete _confirmDialog;
-        _confirmDialog = nullptr;
-    }
-    // _spellsMenu is owned via subView (UIElement child).
+    // Child dialogs are owned via subView (UIElement children).
 }
 
 void SpellBookDialog::buildMainMenu() {
@@ -104,18 +125,12 @@ void SpellBookDialog::activate() {
 }
 
 void SpellBookDialog::deactivate() {
+    if (_horizontalMenu)
+        _horizontalMenu->deactivate();
     if (_spellsMenu)
         _spellsMenu->deactivate();
-    if (_horizontalMenu) {
-        _horizontalMenu->deactivate();
-        delete _horizontalMenu;
-        _horizontalMenu = nullptr;
-    }
-    if (_confirmDialog) {
+    if (_confirmDialog)
         _confirmDialog->deactivate();
-        delete _confirmDialog;
-        _confirmDialog = nullptr;
-    }
 
     Dialog::deactivate();
 }
@@ -125,34 +140,18 @@ void SpellBookDialog::deactivate() {
 void SpellBookDialog::returnToMainMenu() {
     debug(3, "SpellBookDialog::returnToMainMenu() stage was=%d spellsMenuActive=%d",
         (int)_stage, (int)(_spellsMenu && _spellsMenu->isActive()));
+
+    if (_horizontalMenu)
+        _horizontalMenu->deactivate();
     if (_spellsMenu)
         _spellsMenu->deactivate();
-    if (_confirmDialog) {
+    if (_confirmDialog)
         _confirmDialog->deactivate();
-        delete _confirmDialog;
-        _confirmDialog = nullptr;
-    }
-
-    if (_horizontalMenu) {
-        delete _horizontalMenu;
-        _horizontalMenu = nullptr;
-    }
 
     buildMainMenu();
 
-    HorizontalMenuConfig cfg;
-    cfg.promptTxt = "";
-    cfg.menuItemList = &_mainMenuModel;
-    cfg.textColor = 10;
-    cfg.selectColor = 15;
-    cfg.promptColor = 15;
-    cfg.allowNumPad = true;
-    cfg.suppressUnhandledKeys = false;
-    cfg.backgroundColor = 0;
-    cfg.singleItemMode = false;
-
-    _horizontalMenu = new HorizontalMenu("SpellBookHMenu", cfg);
-    _horizontalMenu->activate();
+    if (_horizontalMenu)
+        _horizontalMenu->activate();
     _stage = STAGE_MAIN_MENU;
 
     // Force full redraw from the top-level focused view so the campfire
@@ -210,58 +209,6 @@ bool SpellBookDialog::msgKeypress(const KeypressMessage &msg) {
         break;
     }
 
-    // Forward to active sub-dialog.
-    if (_stage != STAGE_MAIN_MENU && _spellsMenu && _spellsMenu->isActive()) {
-        if (_spellsMenu->msgKeypress(msg))
-            return true;
-    }
-    if (_confirmDialog && _confirmDialog->isActive()) {
-        if (_confirmDialog->msgKeypress(msg))
-            return true;
-    }
-
-    // Main menu input.
-    if (_stage == STAGE_MAIN_MENU && _horizontalMenu) {
-        bool wasActive = _horizontalMenu->isActive();
-        bool handled = _horizontalMenu->msgKeypress(msg);
-
-        if (handled && wasActive && !_horizontalMenu->isActive()) {
-            char ascii = msg.ascii;
-            if (ascii >= 'a' && ascii <= 'z')
-                ascii = ascii - 32;
-
-            // Exit check.
-            if (msg.keycode == Common::KEYCODE_ESCAPE || ascii == 'E') {
-                exitView();
-                return true;
-            }
-
-            bool validKey = false;
-            for (uint i = 0; i < _mainMenuModel.items.size(); ++i) {
-                if (_mainMenuModel.items[i].shortcut == ascii) {
-                    validKey = true;
-                    break;
-                }
-            }
-            if (!validKey && msg.keycode == Common::KEYCODE_RETURN) {
-                int sel = _mainMenuModel.currentSelection;
-                if (sel >= 0 && sel < (int)_mainMenuModel.items.size()) {
-                    ascii = _mainMenuModel.items[sel].shortcut;
-                    validKey = true;
-                }
-            }
-
-            if (validKey) {
-                handleMainMenuKey(ascii);
-            } else {
-                _horizontalMenu->activate();
-            }
-            return true;
-        }
-        if (handled)
-            return true;
-    }
-
     return View::msgKeypress(msg);
 }
 
@@ -306,6 +253,9 @@ void SpellBookDialog::handleMenuResult(const MenuResultMessage &result) {
         (int)_stage, (int)result._success, (int)result._keyCode,
         (int)result._hasIntValue, (int)(result._hasIntValue ? result._intValue : -1));
     switch (_stage) {
+    case STAGE_MAIN_MENU:
+        handleMainMenuResult(result);
+        break;
     case STAGE_CAST:
         handleCastResult(result);
         break;
@@ -324,6 +274,25 @@ void SpellBookDialog::handleMenuResult(const MenuResultMessage &result) {
     }
 }
 
+void SpellBookDialog::handleMainMenuResult(const MenuResultMessage &result) {
+    if (!result._success) {
+        exitView();
+        return;
+    }
+
+    if (!result._hasIntValue)
+        return;
+
+    const int sel = result._intValue;
+    if (sel < 0 || sel >= (int)_mainMenuModel.items.size()) {
+        if (_horizontalMenu)
+            _horizontalMenu->activate();
+        return;
+    }
+
+    handleMainMenuKey(_mainMenuModel.items[sel].shortcut);
+}
+
 // --- Sub-action entry points ---
 
 void SpellBookDialog::beginCast() {
@@ -331,11 +300,8 @@ void SpellBookDialog::beginCast() {
     // DIALOG_Spells(SL_IN_MEMORY, SA_CAST) until spell==0.
     // TODO: ACTION_CheckSpellActionType validation.
 
-    if (_horizontalMenu) {
+    if (_horizontalMenu)
         _horizontalMenu->deactivate();
-        delete _horizontalMenu;
-        _horizontalMenu = nullptr;
-    }
 
     _spellsMenu->configure(SpellsMenu::SL_IN_MEMORY, SpellsMenu::SA_CAST);
     _spellsMenu->activate();
@@ -346,11 +312,8 @@ void SpellBookDialog::beginMemorize() {
     // pending-memorize list, asks Y/N, then loops spell book selection.
     // TODO: Show pending list + confirmation first pass.
 
-    if (_horizontalMenu) {
+    if (_horizontalMenu)
         _horizontalMenu->deactivate();
-        delete _horizontalMenu;
-        _horizontalMenu = nullptr;
-    }
 
     _spellsMenu->configure(SpellsMenu::SL_IN_SPELL_BOOK,
         SpellsMenu::SA_MEMORIZE);
@@ -362,11 +325,8 @@ void SpellBookDialog::beginScribe() {
     // pending-scribe list, asks Y/N, then loops scroll selection.
     // TODO: Show pending list + confirmation first pass.
 
-    if (_horizontalMenu) {
+    if (_horizontalMenu)
         _horizontalMenu->deactivate();
-        delete _horizontalMenu;
-        _horizontalMenu = nullptr;
-    }
 
     _spellsMenu->configure(SpellsMenu::SL_ON_SCROLLS, SpellsMenu::SA_SCRIBE);
     _spellsMenu->activate();
@@ -485,11 +445,8 @@ void SpellBookDialog::handleConfirmResult(const MenuResultMessage &result) {
     //                   CHARACTER_clearItemMemorizedSpellFlags.
     // TODO: Wire up character spell clearing on 'N'.
 
-    if (_confirmDialog) {
+    if (_confirmDialog)
         _confirmDialog->deactivate();
-        delete _confirmDialog;
-        _confirmDialog = nullptr;
-    }
 
     _screenDirty = true;
     returnToMainMenu();

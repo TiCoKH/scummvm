@@ -71,11 +71,11 @@ InGameView::InGameView() : View("InGame") {
 	_inGameMenuDialog = new Dialogs::InGameMenuDialog("InGameMenu");
 	_inGameMenuDialog->deactivate();
 
-	_campMenuDialog = new Dialogs::CampMenuDialog("CampMenu", this);
+	_campMenuDialog = new Dialogs::CampMenuDialog("CampMenu");
 	_campMenuDialog->deactivate();
 	attachDialog(_campMenuDialog);
 
-	_doorDialog = new Dialogs::DoorDialog("DoorDialog", this);
+	_doorDialog = new Dialogs::DoorDialog("DoorDialog");
 	_doorDialog->deactivate();
 	attachDialog(_doorDialog);
 }

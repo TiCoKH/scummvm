@@ -31,4 +31,10 @@ Gfx::IconManager *VmInterface::getIconManager() {
 	return engine ? engine->getIconManager() : nullptr;
 }
 
+uint8 VmInterface::getGameSpeed() {
+	Poolrad::PoolradEngine *engine =
+		dynamic_cast<Poolrad::PoolradEngine *>(g_engine);
+	return engine ? engine->getGameSpeed() : 1;
+}
+
 } // namespace Goldbox
