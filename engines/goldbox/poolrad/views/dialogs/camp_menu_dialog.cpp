@@ -26,7 +26,7 @@
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/gfx/pic.h"
-#include "goldbox/gfx/encounter_sprite_cache.h"
+#include "goldbox/gfx/picture_display_cache.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/events.h"
@@ -81,10 +81,10 @@ void CampMenuDialog::loadCampfireFrames() {
     _campfireFrames.clear();
     _currentFrame = 0;
 
-    // Load campfire PIC into EncounterSpriteCache so the normal
+    // Load campfire PIC into PictureDisplayCache so the normal
     // InGameMainScreenDialog viewport draw path renders it.
     if (Poolrad::g_engine) {
-        Poolrad::g_engine->getEncounterSpriteCache().loadHead(0xFF, kCampfirePicId);
+        Poolrad::g_engine->getPictureDisplayCache().load(0xFF, kCampfirePicId);
     }
 
     _lastFrameTime = g_system->getMillis();
@@ -120,11 +120,11 @@ void CampMenuDialog::activate() {
 
     // Start animation timer - store interval, animation ticks in draw().
     if (Poolrad::g_engine) {
-        ::Goldbox::Gfx::EncounterSpriteCache &cache =
-            Poolrad::g_engine->getEncounterSpriteCache();
-        cache.setAnimInterval(_frameIntervalMs);
+        ::Goldbox::Gfx::PictureDisplayCache &picCache =
+            Poolrad::g_engine->getPictureDisplayCache();
+        picCache.setAnimInterval(_frameIntervalMs);
         debug(2, "CampMenuDialog::activate: isAnimated=%d headFrameCount=%d interval=%u",
-            (int)cache.isAnimated(), cache.headFrameCount(),
+            (int)picCache.isAnimated(), picCache.headFrameCount(),
             (unsigned)_frameIntervalMs);
     }
 
@@ -162,9 +162,14 @@ void CampMenuDialog::deactivate() {
     }
     _campfireFrames.clear();
 
-    // Clear the encounter cache when leaving camp.
-    if (Poolrad::g_engine)
-        Poolrad::g_engine->getEncounterSpriteCache().clear();
+    // Clear the picture cache when leaving camp and signal viewport redraw.
+    if (Poolrad::g_engine) {
+        Poolrad::g_engine->getPictureDisplayCache().clear();
+        if (g_events) {
+            g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY, 1,
+                EclVmMessage::VT_UINT8);
+        }
+    }
 
     Dialog::deactivate();
 }

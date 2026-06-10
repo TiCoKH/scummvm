@@ -1444,10 +1444,15 @@ void PoolradEngine::dispatchPlayerCommand() {
 		const uint8 cardinal = static_cast<uint8>((inGameView->getMapDir() / 2) & 0x03);
 		mem.write8(dirAddr, cardinal);
 
-		// MAP_StepForward equivalent: check wall, advance position,
-		// clamp to borders, set TriedToLeaveMap.
+		// Save current position to SavedMapX/SavedMapY BEFORE stepping forward.
+		// Scripts use SAVE(0x49F0, 0xC04B) to restore the pre-move position.
 		const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
 		const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+		mem.write8(layout.vmField(kVmFieldSavedMapX).vmAddr, mem.read8(xAddr));
+		mem.write8(layout.vmField(kVmFieldSavedMapY).vmAddr, mem.read8(yAddr));
+
+		// MAP_StepForward equivalent: check wall, advance position,
+		// clamp to borders, set TriedToLeaveMap.
 		const uint16 leaveAddr = layout.vmGlobalField(kVmGlobalFieldTriedToLeaveMap).vmAddr;
 		const uint8 wireDir = static_cast<uint8>(cardinal * 2);
 

@@ -42,6 +42,7 @@
 #include "goldbox/gfx/viewport_background.h"
 #include "goldbox/gfx/area_map_cache.h"
 #include "goldbox/gfx/encounter_sprite_cache.h"
+#include "goldbox/gfx/picture_display_cache.h"
 #include "goldbox/runtime/runtime_geo.h"
 
 namespace Goldbox {
@@ -63,6 +64,7 @@ protected:
 	Gfx::ViewportBackground _viewportBg;
 	Gfx::AreaMapCache _areaMapCache;
 	Gfx::EncounterSpriteCache _encounterSpriteCache;
+	Gfx::PictureDisplayCache _pictureDisplayCache;
 	// Engine APIs
 	Common::Error run() override;
 	void setup() override;
@@ -156,6 +158,9 @@ public:
 
 	Gfx::EncounterSpriteCache &getEncounterSpriteCache() { return _encounterSpriteCache; }
 	const Gfx::EncounterSpriteCache &getEncounterSpriteCache() const { return _encounterSpriteCache; }
+
+	Gfx::PictureDisplayCache &getPictureDisplayCache() { return _pictureDisplayCache; }
+	const Gfx::PictureDisplayCache &getPictureDisplayCache() const { return _pictureDisplayCache; }
 
 	/**
 	 * Returns the currently selected character.
