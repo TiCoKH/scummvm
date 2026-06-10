@@ -96,6 +96,7 @@ private:
     void beginRest();
 
     // Sub-action result handlers
+    void handleMainMenuResult(const MenuResultMessage &result);
     void handleCastResult(const MenuResultMessage &result);
     void handleMemorizeResult(const MenuResultMessage &result);
     void handleScribeResult(const MenuResultMessage &result);

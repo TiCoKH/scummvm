@@ -82,6 +82,9 @@ public:
         return g_engine->getTextDelay();
     }
 
+    // Get runtime game speed (1-5 scale).
+    static uint8 getGameSpeed();
+
     // Add setTextDelay accessor
     static void setTextDelay(uint delay) {
         g_engine->setTextDelay(delay);

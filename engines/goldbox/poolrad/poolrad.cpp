@@ -67,6 +67,8 @@ static const Goldbox::TimeFieldAddresses kPoolradClockAddrs = {{
 	0x49CC  // yearLo
 }};
 
+static const uint8 kCampfirePicId = 29;
+
 } // namespace
 
 PoolradEngine *g_engine;
@@ -379,6 +381,9 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 		break;
 	case GS_CAMPING:
 		debug(2, "PoolradEngine::onGameStateEnter -> replaceView(InGame) [CAMPING]");
+		// Host-layer resource preparation for camp mode: preload campfire
+		// picture so the viewport draw path can consume PictureDisplayCache.
+		getPictureDisplayCache().load(0xFF, kCampfirePicId);
 		// InGameView kModeCamping: drawMainScreenWindows(true) + camp state area.
 		replaceView("InGame");
 		view = dynamic_cast<Views::View *>(findView("InGame"));
@@ -477,6 +482,16 @@ bool PoolradEngine::getActiveMapPosition(uint16 &x, uint16 &y,
 	y = snapshot.dungeonY;
 	dir = snapshot.dungeonDir;
 	return true;
+}
+
+uint8 PoolradEngine::getGameSpeed() const {
+	const ECL::AddressSpace *mem = getEclMemory();
+	if (!mem)
+		return 1;
+
+	const ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+	const uint8 speed = mem->read8(layout.vmField(kVmFieldGameSpeed).vmAddr);
+	return (speed == 0) ? 1 : speed;
 }
 
 void PoolradEngine::setLegacyMenuStatus(uint8 status) {

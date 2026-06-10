@@ -21,8 +21,9 @@
 
 #include "goldbox/poolrad/views/dialogs/door_dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
-#include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/data/poolrad_vm_layout.h"
+#include "goldbox/poolrad/poolrad.h"
 #include "goldbox/data/spells/spell.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/runtime/runtime_geo.h"
@@ -36,8 +37,28 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-DoorDialog::DoorDialog(const Common::String &name, InGameView *parent)
-    : Dialog(name), _parentView(parent), _horizontalMenu(nullptr),
+static bool readRuntimeDoorPos(int &x, int &y, uint8 &wireDir) {
+    if (!Poolrad::g_engine)
+        return false;
+
+    const ECL::AddressSpace *mem = Poolrad::g_engine->getEclMemory();
+    if (!mem)
+        return false;
+
+    const Goldbox::VmGlobalLayout &globalLayout =
+        Data::getPoolradGlobalVmLayout();
+    const uint16 xAddr = globalLayout.field(kVmGlobalFieldDungeonX).vmAddr;
+    const uint16 yAddr = globalLayout.field(kVmGlobalFieldDungeonY).vmAddr;
+    const uint16 dirAddr = globalLayout.field(kVmGlobalFieldDungeonDir).vmAddr;
+
+    x = (int)mem->read8(xAddr);
+    y = (int)mem->read8(yAddr);
+    wireDir = static_cast<uint8>((mem->read8(dirAddr) & 0x03) * 2);
+    return true;
+}
+
+DoorDialog::DoorDialog(const Common::String &name)
+    : Dialog(name), _horizontalMenu(nullptr),
       _doorFlag(0), _bashAllowed(true), _pickAllowed(true),
       _knockAllowed(true) {
     setBounds(Window(0, 24, 39, 24));
@@ -273,10 +294,11 @@ void DoorDialog::openDoor(uint8 doorFlag) {
     if (_menuModel.items.size() == 1 &&
             _menuModel.items[0].shortcut == 'E') {
         RuntimeGeoBlock &rtGeo = Goldbox::VmInterface::getRuntimeGeo();
-        if (_parentView && rtGeo.isLoaded()) {
-            uint8 wireDir = _parentView->getMapDir() & 0x06;
-            rtGeo.clearFlag((int)_parentView->getMapX(),
-                (int)_parentView->getMapY(), wireDir);
+        int x = 0;
+        int y = 0;
+        uint8 wireDir = 0;
+        if (rtGeo.isLoaded() && readRuntimeDoorPos(x, y, wireDir)) {
+            rtGeo.clearFlag(x, y, wireDir);
         }
         postResult(false);
         return;
@@ -406,10 +428,10 @@ void DoorDialog::handleMenuKey(char key) {
 
     if (opened) {
         RuntimeGeoBlock &rtGeo = Goldbox::VmInterface::getRuntimeGeo();
-        if (_parentView && rtGeo.isLoaded()) {
-            int x = (int)_parentView->getMapX();
-            int y = (int)_parentView->getMapY();
-            uint8 wireDir = _parentView->getMapDir() & 0x06;
+        int x = 0;
+        int y = 0;
+        uint8 wireDir = 0;
+        if (rtGeo.isLoaded() && readRuntimeDoorPos(x, y, wireDir)) {
 
             rtGeo.setTileDirectionState(x, y, wireDir);
 
@@ -424,10 +446,11 @@ void DoorDialog::handleMenuKey(char key) {
         if (_menuModel.items.size() == 1 &&
                 _menuModel.items[0].shortcut == 'E') {
             RuntimeGeoBlock &rtGeo = Goldbox::VmInterface::getRuntimeGeo();
-            if (_parentView && rtGeo.isLoaded()) {
-                uint8 wireDir = _parentView->getMapDir() & 0x06;
-                rtGeo.clearFlag((int)_parentView->getMapX(),
-                    (int)_parentView->getMapY(), wireDir);
+            int x = 0;
+            int y = 0;
+            uint8 wireDir = 0;
+            if (rtGeo.isLoaded() && readRuntimeDoorPos(x, y, wireDir)) {
+                rtGeo.clearFlag(x, y, wireDir);
             }
             postResult(false);
         } else if (_horizontalMenu) {
@@ -457,8 +480,8 @@ void DoorDialog::handleMenuKey(char key) {
 
 void DoorDialog::postResult(bool opened) {
     deactivate();
-    if (_parentView && g_events) {
-        g_events->postMenuResult(_parentView->getName(), true,
+    if (g_events) {
+        g_events->postMenuResult("InGame", true,
             Common::KEYCODE_RETURN,
             opened ? kDoorOpened : kDoorBlocked,
             Common::String("DoorResult"), true, true);

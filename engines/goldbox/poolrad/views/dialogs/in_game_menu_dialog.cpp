@@ -21,7 +21,6 @@
 
 #include "goldbox/poolrad/views/dialogs/in_game_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
-#include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/events.h"
 
@@ -129,9 +128,6 @@ bool InGameMenuDialog::msgKeypress(const KeypressMessage &msg) {
     if (!_isActive || !_horizontalMenu)
         return false;
 
-    InGameView *igv = dynamic_cast<InGameView *>(
-        g_engine ? g_engine->findView("InGame") : nullptr);
-
     // Forward key to HorizontalMenu. It handles shortcuts and navigation.
     // Since HorizontalMenu will deactivate itself and post a result we can't
     // receive (not in tree), we instead check if it handled the key and
@@ -143,7 +139,7 @@ bool InGameMenuDialog::msgKeypress(const KeypressMessage &msg) {
         return false;
 
     // HorizontalMenu handled the key. If it deactivated (selection made),
-    // route the result to InGameView via handleMenuResult and reactivate.
+    // queue a menu result for InGameView and reactivate.
     if (wasActive && !_horizontalMenu->isActive()) {
         Common::KeyCode resultKey = msg.keycode;
         bool hasResult = false;
@@ -193,16 +189,8 @@ bool InGameMenuDialog::msgKeypress(const KeypressMessage &msg) {
             }
         }
 
-        if (hasResult && igv) {
-            MenuResultMessage result;
-            result._targetViewName = igv->getName();
-            result._success = true;
-            result._keyCode = resultKey;
-            result._intValue = 0;
-            result._hasIntValue = false;
-            result._hasStringValue = false;
-            igv->handleMenuResult(result);
-        }
+        if (hasResult && g_events)
+            g_events->postMenuResult("InGame", true, resultKey);
 
         // Reactivate the menu to stay persistent (DIALOG_InGame loops).
         // Don't call activate() — just reactivate the existing HorizontalMenu.

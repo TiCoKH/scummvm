@@ -35,8 +35,6 @@ class Pic;
 namespace Poolrad {
 namespace Views {
 
-class InGameView;
-
 namespace Dialogs {
 
 class HorizontalMenu;
@@ -62,7 +60,6 @@ public:
     static const uint8 kCampfirePicId = 29;
 
 private:
-    InGameView *_parentView;
     MenuItemList _menuModel;
     HorizontalMenu *_horizontalMenu;
     SpellBookDialog *_spellBookDialog;
@@ -81,7 +78,7 @@ private:
     void handleMenuKey(char key);
 
 public:
-    CampMenuDialog(const Common::String &name, InGameView *parent);
+    CampMenuDialog(const Common::String &name);
     ~CampMenuDialog() override;
 
     void activate() override;
