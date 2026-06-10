@@ -29,6 +29,7 @@
 #include "goldbox/gfx/icon.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/gfx/encounter_sprite_cache.h"
+#include "goldbox/gfx/picture_display_cache.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
@@ -460,15 +461,33 @@ VmResult PoolradEngineHostImpl::displayPicture(uint8 picID) {
         return VmResult::VM_ERROR;
 
     if (picID == 0xFF) {
-        // Event-driven path: clear picture cache and let the view redraw
-        // via SC_DISPLAY_PICTURE/SC_SPRITE_OFF handling.
+        // Clear both picture displays — mirrors original clear behavior.
+        _engine->getPictureDisplayCache().clear();
         _engine->getEncounterSpriteCache().clear();
+        if (g_events) {
+            g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY, 1,
+                EclVmMessage::VT_UINT8);
+        }
         return VmResult::VM_OK;
     }
 
-    // Scene pictures are cached and consumed by InGameMainScreenDialog on
-    // the next event-driven redraw.
-    _engine->getEncounterSpriteCache().loadHead(0xFF, picID);
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+    const uint8 headPicId = _memory->read8(
+        layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr);
+
+    if (_engine->getEncounterSpriteCache().isSpriteLoaded()) {
+        // Sprite encounter active: load head into EncounterSpriteCache
+        // so the existing sprite+head rendering path handles it.
+        _engine->getEncounterSpriteCache().loadHead(headPicId, picID);
+    } else {
+        // No sprite: standalone portrait/scene via PictureDisplayCache.
+        _engine->getPictureDisplayCache().load(headPicId, picID);
+    }
+
+    if (g_events) {
+        g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY, 1,
+            EclVmMessage::VT_UINT8);
+    }
     return VmResult::VM_OK;
 }
 
@@ -580,6 +599,12 @@ VmResult PoolradEngineHostImpl::refreshViewport() {
     // view layer reacting to ST_POSITION_DIRTY/ST_SKYBOX_DIRTY.
     if (!_engine)
         return VM_OK;
+
+    // Viewport refresh restores the 3D world view. Clear the picture cache
+    // only when no sprite encounter is active (sprite encounters manage
+    // their own lifecycle via SPRITE_START/SPRITE_OFF).
+    if (!_engine->getEncounterSpriteCache().isSpriteLoaded())
+        _engine->getPictureDisplayCache().clear();
 
     if (g_events) {
         g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,

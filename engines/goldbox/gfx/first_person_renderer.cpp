@@ -347,9 +347,8 @@ void FirstPersonRenderer::blitClipped(const Pic &src,
 
 uint8 FirstPersonRenderer::wallTypeAt(int dir, int y, int x,
 		const Data::DaxBlockGeo &geo) {
-	// Wrap coordinates for maps that tile seamlessly
-	x = (x % kMapSize + kMapSize) % kMapSize;
-	y = (y % kMapSize + kMapSize) % kMapSize;
+	if (!mapCoordIsValid(y, x))
+		return 0;
 	return geo.getWallType(y, x,
 			static_cast<Data::DaxBlockGeo::Direction>(dir));
 }

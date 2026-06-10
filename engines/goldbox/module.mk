@@ -54,6 +54,7 @@ MODULE_OBJS = \
 	gfx/first_person_renderer.o \
 	gfx/area_map_cache.o \
 	gfx/encounter_sprite_cache.o \
+	gfx/picture_display_cache.o \
 	gfx/pic.o \
 	gfx/viewport_background.o \
 	gfx/walldef_surface_builder.o \

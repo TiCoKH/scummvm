@@ -23,6 +23,7 @@
 #include "goldbox/gfx/viewport_background.h"
 #include "goldbox/gfx/area_map_cache.h"
 #include "goldbox/gfx/encounter_sprite_cache.h"
+#include "goldbox/gfx/picture_display_cache.h"
 #include "goldbox/gfx/pic.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/vm_interface.h"
@@ -165,17 +166,17 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 	if (!::Goldbox::Poolrad::g_engine)
 		return;
 
-	// Camping mode: draw picture from EncounterSpriteCache (PIC 29 campfire).
+	// Camping mode: draw picture from PictureDisplayCache (PIC 29 campfire).
 	if (_mode == kModeCamping) {
-		const ::Goldbox::Gfx::EncounterSpriteCache &spriteCache =
-			::Goldbox::Poolrad::g_engine->getEncounterSpriteCache();
-		const ::Goldbox::Gfx::Pic *headPic = spriteCache.currentHeadFrame();
+		const ::Goldbox::Gfx::PictureDisplayCache &picCache =
+			::Goldbox::Poolrad::g_engine->getPictureDisplayCache();
+		const ::Goldbox::Gfx::Pic *headPic = picCache.currentHeadFrame();
 		if (headPic) {
 			const int vpX = 3 * 8;
 			const int vpY = 3 * 8;
 			headPic->draw(&s, vpX, vpY);
+			return;
 		}
-		return;
 	}
 
 	::Goldbox::RuntimeMapSnapshot snapshot;
@@ -220,6 +221,26 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 				Gfx::ViewportBackground::kViewportX,
 				Gfx::ViewportBackground::kViewportY));
 
+		// Rendering priority:
+		// 1. EncounterSpriteCache (SPRITE_START/ADVANCE) -> 3D + sprite overlay
+		// 2. PictureDisplayCache (PICTURE opcode) -> portrait replaces 3D
+		// 3. Neither -> normal 3D world
+		const ::Goldbox::Gfx::EncounterSpriteCache &spriteCache =
+			::Goldbox::Poolrad::g_engine->getEncounterSpriteCache();
+		const ::Goldbox::Gfx::PictureDisplayCache &picCache =
+			::Goldbox::Poolrad::g_engine->getPictureDisplayCache();
+
+		if (!spriteCache.isSpriteLoaded() && picCache.isActive()) {
+			// PICTURE opcode portrait/scene — replaces 3D view.
+			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * 8;
+			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * 8;
+			if (picCache.headPic())
+				picCache.headPic()->draw(&s, vpX, vpY);
+			if (picCache.bodyPic())
+				picCache.bodyPic()->draw(&s, vpX, vpY + 5 * 8);
+			return;
+		}
+
 		// Renderer expects wire format: cardinal * 2 (0=N,2=E,4=S,6=W).
 		const uint8 wireDir = static_cast<uint8>((mapDir & 0x03) * 2);
 		Gfx::FirstPersonRenderer::draw3dWorld(&s, wireDir,
@@ -227,8 +248,6 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 			::Goldbox::Poolrad::g_engine->getWalldefSlotCache());
 
 		// Draw encounter sprite overlay if active.
-		const ::Goldbox::Gfx::EncounterSpriteCache &spriteCache =
-			::Goldbox::Poolrad::g_engine->getEncounterSpriteCache();
 		if (spriteCache.isSpriteLoaded() && spriteCache.spritePic()) {
 			const ::Goldbox::Gfx::Pic *sprite = spriteCache.spritePic();
 			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * 8;

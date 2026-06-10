@@ -526,26 +526,23 @@ static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem,
     const uint16 skyboxRedrawAddr = layout.runtimeField(kEclRuntimeSkyboxRedrawFlag);
 
     if (picId == 0xFF) {
-        // Original guard: (BYTE_PREV_MAP_TYPE > 1 || BYTE_VM_MAP_TYPE == 1)
-        // We approximate with indoor-mode check (BYTE_VM_MAP_TYPE == 1 is
-        // indoor). BYTE_PREV_MAP_TYPE > 1 covers "was previously in a mode
-        // that uses 3D view". Since we always have a 3D viewport when
-        // indoor, and outdoor also uses it, we simplify to always-true for
-        // the refresh guard — matching observed behavior.
+        // Always clear the picture display cache.
+        VmResult r = syscalls->displayPicture(picId);
+        if (r != VM_OK)
+            return r;
+
+        // Original guard: only redraw 3D viewport if skybox or sprite was dirty.
         const bool skyboxDirty = EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr)
             && mem.read8(skyboxRedrawAddr) != 0;
         const bool spriteDirty = EclRuntimeLayout::isValidVmAddr(spriteLoadAddr)
             && mem.read8(spriteLoadAddr) != 0;
 
         if (skyboxDirty || spriteDirty) {
-            VmResult r = syscalls->displayPicture(picId);
             if (g_events) {
                 g_events->postEclSyscallMessage(vm.getPC(), 0x0E,
                     EclVmMessage::SC_DISPLAY_PICTURE,
-                    static_cast<int16>(r));
+                    static_cast<int16>(VM_OK));
             }
-            if (r != VM_OK)
-                return r;
             if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
                 mem.write8(skyboxRedrawAddr, 0);
             if (EclRuntimeLayout::isValidVmAddr(spriteLoadAddr))
@@ -555,9 +552,12 @@ static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem,
     }
 
     // picId != 0xFF: mark 3D redraw flag and draw picture/portrait.
+    // Original x86/m68k: D_PictureHeadId was set by a prior SAVE opcode
+    // (e.g. SAVE(headId, 0x6DE1)) to select portrait mode. PICTURE's picId
+    // parameter is the body/scene resource ID, NOT the head portrait ID.
+    // Do NOT overwrite PictureHeadId here — the script controls it.
     if (EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
         mem.write8(skyboxRedrawAddr, 1);
-    mem.write8(layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr, picId);
     const VmResult picResult = syscalls->displayPicture(picId);
     if (g_events) {
         g_events->postEclSyscallMessage(vm.getPC(), 0x0E,

@@ -326,8 +326,8 @@ void InGameView::draw() {
 	if (_campMenuDialog && _campMenuDialog->isActive()) {
 		// Tick campfire animation from the view's draw cycle.
 		if (Poolrad::g_engine) {
-			::Goldbox::Gfx::EncounterSpriteCache &cache =
-				Poolrad::g_engine->getEncounterSpriteCache();
+			::Goldbox::Gfx::PictureDisplayCache &cache =
+				Poolrad::g_engine->getPictureDisplayCache();
 			if (cache.tickAnimation())
 				_mainScreenDialog->draw(); // Redraw viewport with new frame.
 		}
@@ -693,7 +693,7 @@ bool InGameView::tick() {
 
 	// Keep view dirty while camp animation is active.
 	if (_campMenuDialog && _campMenuDialog->isActive() && Poolrad::g_engine
-			&& Poolrad::g_engine->getEncounterSpriteCache().isAnimated())
+			&& Poolrad::g_engine->getPictureDisplayCache().isAnimated())
 		redraw();
 
 	return UIElement::tick();
