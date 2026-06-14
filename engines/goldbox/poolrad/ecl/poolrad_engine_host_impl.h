@@ -120,6 +120,8 @@ public:
     VmResult loadIconBlock() override;
     VmResult loadWallSet(uint8 blockId, uint8 setSlot) override;
     VmResult onMapDataReady() override;
+    VmResult enterShop() override;
+    VmResult enterTemple() override;
     const WallSetRuntimeState &wallSetState(int slot) const;
 
     /**
@@ -173,6 +175,10 @@ private:
     Common::ScopedPtr<Goldbox::MenuItemList> _asyncMenuModel;
     Goldbox::UIElement *_asyncMenuSink = nullptr;
     Views::Dialogs::HorizontalMenu *_asyncHorizontalMenu = nullptr;
+
+    // Async VM_YIELD state for shop/temple/treasure dialog.
+    bool _asyncShopPending = false;
+    mutable bool _asyncShopWasActivated = false;
 
     // Async VM_YIELD state for DELAY opcode.
     bool _asyncDelayPending = false;

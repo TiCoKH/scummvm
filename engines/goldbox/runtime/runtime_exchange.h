@@ -73,7 +73,8 @@ public:
 	enum AsyncTag {
 		kAsyncNone = 0,
 		kAsyncTextBoxDone,
-		kAsyncMenuResult
+		kAsyncMenuResult,
+		kAsyncShopDone
 	};
 
 	struct Intent {

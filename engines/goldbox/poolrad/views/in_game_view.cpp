@@ -28,6 +28,10 @@
 #include "goldbox/poolrad/views/dialogs/in_game_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/camp_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/door_dialog.h"
+#include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
+#include "goldbox/poolrad/views/dialogs/store_dialog.h"
+#include "goldbox/poolrad/views/dialogs/temple_dialog.h"
+#include "goldbox/poolrad/views/dialogs/treasure_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
@@ -78,6 +82,18 @@ InGameView::InGameView() : View("InGame") {
 	_doorDialog = new Dialogs::DoorDialog("DoorDialog");
 	_doorDialog->deactivate();
 	attachDialog(_doorDialog);
+
+	_shopDialog = new Dialogs::StoreDialog("Store");
+	_shopDialog->deactivate();
+	attachDialog(_shopDialog);
+
+	_templeDialog = new Dialogs::TempleDialog("Temple");
+	_templeDialog->deactivate();
+	attachDialog(_templeDialog);
+
+	_treasureDialog = new Dialogs::TreasureDialog("Treasure");
+	_treasureDialog->deactivate();
+	attachDialog(_treasureDialog);
 }
 
 InGameView::~InGameView() {
@@ -125,6 +141,21 @@ InGameView::~InGameView() {
 	if (_doorDialog) {
 		delete _doorDialog;
 		_doorDialog = nullptr;
+	}
+
+	if (_shopDialog) {
+		delete _shopDialog;
+		_shopDialog = nullptr;
+	}
+
+	if (_templeDialog) {
+		delete _templeDialog;
+		_templeDialog = nullptr;
+	}
+
+	if (_treasureDialog) {
+		delete _treasureDialog;
+		_treasureDialog = nullptr;
 	}
 }
 
@@ -184,6 +215,7 @@ void InGameView::configureByState(GameState state) {
 
 	switch (state) {
 	case GS_SHOP:
+		_showPartyPanel = true;
 		break;
 	case GS_CAMPING:
 		_showPartyPanel = true;
@@ -292,14 +324,16 @@ void InGameView::syncDialogs() {
 
 bool InGameView::msgFocus(const FocusMessage &msg) {
 	View::msgFocus(msg);
-	// When returning from a stacked view (popView path), preserve the
-	// in-game menu visibility. On fresh entry (replaceView path from
-	// engine/ECL), deactivate so ONINIT can enable it explicitly.
 	if (!_wasMenuActiveBeforeUnfocus && _inGameMenuDialog
 			&& _inGameMenuDialog->isActive())
 		_inGameMenuDialog->deactivate();
 	_wasMenuActiveBeforeUnfocus = false;
 	applyScreenByState(_state);
+
+	// Reactivate shop dialog if it was active before unfocus.
+	if (_activeShopDialog && !_activeShopDialog->isActive())
+		_activeShopDialog->activate();
+
 	return true;
 }
 
@@ -312,6 +346,8 @@ bool InGameView::msgUnfocus(const UnfocusMessage &msg) {
 		_activeStateAreaDialog->deactivate();
 	if (_partyList && _partyList->isActive())
 		_partyList->deactivate();
+	if (_activeShopDialog && _activeShopDialog->isActive())
+		_activeShopDialog->deactivate();
 	return true;
 }
 
@@ -340,6 +376,15 @@ void InGameView::draw() {
 			_stateAreaDialog->setState(_state);
 			_stateAreaDialog->draw();
 		}
+		return;
+	}
+
+	// Shop/Temple/Treasure dialog active.
+	if (_activeShopDialog && _activeShopDialog->isActive()) {
+		if (_showPartyPanel && _partyList && _partyList->isActive())
+			_partyList->draw();
+
+		_activeShopDialog->draw();
 		return;
 	}
 
@@ -382,6 +427,21 @@ bool InGameView::msgKeypress(const KeypressMessage &msg) {
 			return true;
 		}
 		// Camp dialog returned false for passthrough keys — already handled above.
+		return true;
+	}
+
+	// Shop/Temple/Treasure dialog: party list nav first, then shop menu.
+	if (_activeShopDialog && _activeShopDialog->isActive()) {
+		if (_showPartyPanel && _partyList && _partyList->isActive()) {
+			if (_partyList->msgKeypress(msg)) {
+				redraw();
+				return true;
+			}
+		}
+		if (_activeShopDialog->msgKeypress(msg)) {
+			redraw();
+			return true;
+		}
 		return true;
 	}
 
@@ -551,6 +611,20 @@ void InGameView::handleMenuResult(const MenuResultMessage &result) {
 	if (result._success && result._keyCode == Common::KEYCODE_e
 			&& _campMenuDialog && _campMenuDialog->isActive()) {
 		exitCamp(result._hasIntValue && result._intValue != 0);
+		return;
+	}
+
+	// Shop/Temple/Treasure exit result from ShopBaseDialog.
+	if (result._success && result._keyCode == Common::KEYCODE_e
+			&& _activeShopDialog) {
+		exitShop();
+		return;
+	}
+
+	// Shop dialog View action.
+	if (result._success && result._keyCode == Common::KEYCODE_v
+			&& _activeShopDialog) {
+		addView("ViewCharacter");
 		return;
 	}
 
@@ -730,6 +804,9 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 		case EclVmMessage::ST_INGAME_MENU_VISIBLE:
 			setInGameMenuVisible(msg.asUint8() != 0);
 			return;
+		case EclVmMessage::ST_ENTER_SHOP:
+			enterShop(msg.asUint8());
+			return;
 		default:
 			break;
 		}
@@ -878,6 +955,65 @@ void InGameView::exitCamp(bool wasInterrupted) {
 				1, EclVmMessage::VT_UINT8);
 		}
 	}
+}
+
+void InGameView::enterShop(uint8 shopType) {
+	// Hide normal in-game menu.
+	if (_inGameMenuDialog && _inGameMenuDialog->isActive())
+		_inGameMenuDialog->deactivate();
+
+	// Deactivate any previously active shop dialog.
+	if (_activeShopDialog && _activeShopDialog->isActive())
+		_activeShopDialog->deactivate();
+
+	// Shop/temple/treasure all show the party panel.
+	_showPartyPanel = true;
+	syncPartyDialog();
+
+	switch (shopType) {
+	case Dialogs::SHOP_STORE:
+		_activeShopDialog = _shopDialog;
+		break;
+	case Dialogs::SHOP_TEMPLE:
+		_activeShopDialog = _templeDialog;
+		break;
+	case Dialogs::SHOP_TREASURE:
+		_activeShopDialog = _treasureDialog;
+		break;
+	default:
+		_activeShopDialog = _shopDialog;
+		break;
+	}
+
+	if (_activeShopDialog)
+		_activeShopDialog->activate();
+
+	redraw();
+}
+
+void InGameView::exitShop() {
+	if (_activeShopDialog && _activeShopDialog->isActive())
+		_activeShopDialog->deactivate();
+	_activeShopDialog = nullptr;
+
+	// Signal the engine host that the shop interaction is complete.
+	RuntimeExchange *exchange = g_engine
+		? g_engine->getRuntimeExchange() : nullptr;
+	if (exchange)
+		exchange->signalAsync(RuntimeExchange::kAsyncShopDone);
+
+	// Restore previous dungeon state via engine.
+	if (Poolrad::g_engine) {
+		Poolrad::g_engine->setGameState(GS_DUNGEON_MAP);
+		if (g_events) {
+			g_events->postEclStateMessage(EclVmMessage::ST_INGAME_MENU_VISIBLE,
+				1, EclVmMessage::VT_UINT8);
+		}
+	}
+}
+
+bool InGameView::isShopActive() const {
+	return _activeShopDialog && _activeShopDialog->isActive();
 }
 
 void InGameView::stepForward() {

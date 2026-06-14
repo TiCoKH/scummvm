@@ -39,6 +39,7 @@ class TextBoxDialog;
 class InGameMenuDialog;
 class CampMenuDialog;
 class DoorDialog;
+class ShopBaseDialog;
 }
 
 /**
@@ -96,6 +97,10 @@ private:
 	Dialogs::InGameMenuDialog *_inGameMenuDialog = nullptr;
 	Dialogs::CampMenuDialog *_campMenuDialog = nullptr;
 	Dialogs::DoorDialog *_doorDialog = nullptr;
+	Dialogs::ShopBaseDialog *_shopDialog = nullptr;
+	Dialogs::ShopBaseDialog *_templeDialog = nullptr;
+	Dialogs::ShopBaseDialog *_treasureDialog = nullptr;
+	Dialogs::ShopBaseDialog *_activeShopDialog = nullptr;
 
 	// --- Dungeon navigation state ---
 	/** Party map X position (column, 0-15). */
@@ -167,6 +172,15 @@ public:
 
 	/** Exit camp mode: deactivate CampMenuDialog, restore previous state. */
 	void exitCamp(bool wasInterrupted);
+
+	/** Enter shop/temple/treasure dialog based on encounter type. */
+	void enterShop(uint8 shopType);
+
+	/** Exit active shop dialog, restore previous state. */
+	void exitShop();
+
+	/** Returns true if a shop/temple/treasure dialog is currently active. */
+	bool isShopActive() const;
 
 	/** Returns true if a command is waiting for the engine runtime loop. */
 	bool hasPendingCommand() const { return _pendingCommand != kCmdNone; }
