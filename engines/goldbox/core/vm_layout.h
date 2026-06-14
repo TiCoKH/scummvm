@@ -69,7 +69,7 @@ enum VmGlobalFieldId {
 	kVmGlobalFieldRestInterruptChance,
 	kVmGlobalFieldTriedToLeaveMap,
 	kVmGlobalFieldPictureHeadId,
-	kVmGlobalFieldEnterTemplePending,
+	kVmGlobalFieldEnterTempleFlag,
 	kVmGlobalFieldNoItemCombatFlag,
 	kVmGlobalFieldPartyCount,
 	kVmGlobalFieldDivisionModulo,

@@ -45,6 +45,8 @@ enum EclRuntimeFieldId {
 	kEclRuntimeUiFlag,
 	kEclRuntimeOperandBufferLow,
 	kEclRuntimeOperandBufferHigh,
+	kEclRuntimeMonsterLoadReady,
+	kEclRuntimeMonsterSlotId,
 	kEclRuntimeMonsterCount,
 	kEclRuntimeMonsterData,
 	kEclRuntimeEncounterFlags,

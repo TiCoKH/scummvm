@@ -85,7 +85,7 @@ static OpcodeInfo opcodeTable[] = {
     { 0x21, "LOAD_AREA_GEO", varArgsOps, "Load map and resources" },
     { 0x22, "PARTY SURPRISE", addr2Ops, "Initialize surprise rolls" },
     { 0x23, "SURPRISE", varArgsOps, "Roll for combat surprise" },
-    { 0x24, "COMBAT", noOps, "Start combat" },
+    { 0x24, "ENCOUNTER", noOps, "Start encounter temple/shop or combat" },
     { 0x25, "ON GOTO", varArgsOps, "Conditional GOTO based on value" },
     { 0x26, "ON GOSUB", varArgsOps, "Conditional GOSUB based on value" },
     { 0x27, "TREASURE", varArgsOps, "Add treasure for next combat" },

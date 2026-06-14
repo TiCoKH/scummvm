@@ -743,7 +743,10 @@ static int handle_0x1C_CLEARMONSTERS(EclVM &vm, AddressSpace &mem,
                 return result;
         }
     }
-    mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeMonsterCount), 0);
+    const EclLayoutAccess layout = getOpcodeLayout();
+    mem.write8(layout.runtimeField(kEclRuntimeMonsterCount), 0);
+    mem.write8(layout.runtimeField(kEclRuntimeMonsterLoadReady), 0);
+    mem.write8(layout.runtimeField(kEclRuntimeMonsterSlotId), 8);
     return VM_OK;
 }
 
@@ -866,28 +869,85 @@ static int handle_0x23_SURPRISE(EclVM &vm, AddressSpace &mem,
     return VM_OK;
 }
 
-// 0x24: COMBAT
-static int handle_0x24_COMBAT(EclVM &vm, AddressSpace &mem,
+// 0x24: ENCOUNTER
+// Primary encounter dispatcher. Branch logic:
+// - If monsters are loaded (MONST_LOAD_READY or COMBAT_TRIGGER): run combat
+// - Else if ShopFlag: open shop dialog
+// - Else if TemplePending: open temple dialog
+// - Else: just run battle-end cleanup (no-op encounter)
+// Post-encounter: reset game state, clear search flags, clear draw state.
+// ECL scripts call CLEARMONSTERS (0x1C) before this opcode to ensure the
+// else-branch (shop/temple) is taken instead of combat.
+static int handle_0x24_ENCOUNTER(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)vm; (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
-    const uint8 templeFlag = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldEnterTemplePending).vmAddr);
-    const uint8 shopFlag   = mem.read8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldShopFlag).vmAddr);
-    if (templeFlag == 1) {
-        mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldEnterTemplePending).vmAddr, 0);
-        return VM_OK;
-    } else if (shopFlag == 1) {
-        mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldShopFlag).vmAddr, 0);
-        return VM_OK;
+    const EclLayoutAccess layout = getOpcodeLayout();
+    EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+
+    const uint8 monsterReady = mem.read8(
+        layout.runtimeField(kEclRuntimeMonsterLoadReady));
+    const uint8 combatTrigger = mem.read8(
+        layout.runtimeField(kEclRuntimeMenuCombatState));
+
+    if (monsterReady || combatTrigger) {
+        // Combat path
+        const VmResult combatResult = syscalls->startCombat();
+        if (g_events) {
+            g_events->postEclSyscallMessage(vm.getPC(), 0x24,
+                EclVmMessage::SC_START_COMBAT,
+                static_cast<int16>(combatResult));
+        }
+        if (combatResult != VM_OK)
+            return combatResult;
+
+        if (combatTrigger)
+            mem.write8(layout.runtimeField(kEclRuntimeMenuCombatState), 0);
+    } else {
+        // Non-combat path: shop, temple, or empty encounter
+        const uint8 shopFlag = mem.read8(
+            layout.vmGlobalField(kVmGlobalFieldShopFlag).vmAddr);
+        const uint8 templeFlag = mem.read8(
+            layout.vmGlobalField(kVmGlobalFieldEnterTempleFlag).vmAddr);
+
+        if (shopFlag == 1) {
+            mem.write8(layout.vmGlobalField(kVmGlobalFieldShopFlag).vmAddr, 0);
+            if (host) {
+                VmResult r = host->enterShop();
+                if (r != VM_OK)
+                    return r;
+            }
+        } else if (templeFlag == 1) {
+            mem.write8(layout.vmGlobalField(
+                kVmGlobalFieldEnterTempleFlag).vmAddr, 0);
+            if (host) {
+                VmResult r = host->enterTemple();
+                if (r != VM_OK)
+                    return r;
+            }
+        }
     }
-    const VmResult combatResult = syscalls->startCombat();
-    if (g_events) {
-        g_events->postEclSyscallMessage(vm.getPC(), 0x24,
-            EclVmMessage::SC_START_COMBAT,
-            static_cast<int16>(combatResult));
-    }
-    return combatResult;
+
+    // Post-encounter cleanup: reset game state based on map type
+    const uint8 indoorMode = mem.read8(
+        layout.vmField(kVmFieldIndoorModeFlag).vmAddr);
+    mem.write8(layout.runtimeField(kEclRuntimeGameState),
+        indoorMode == 1 ? 1 : 0);
+
+    // Clear search flags (keep only bit 0)
+    const uint16 searchAddr = layout.vmGlobalField(
+        kVmGlobalFieldSearchFlags).vmAddr;
+    mem.write8(searchAddr,
+        static_cast<uint8>(mem.read8(searchAddr) & 1));
+
+    // Clear draw state and skybox redraw flag
+    const uint16 skyboxAddr = layout.runtimeField(
+        kEclRuntimeSkyboxRedrawFlag);
+    if (EclRuntimeLayout::isValidVmAddr(skyboxAddr))
+        mem.write8(skyboxAddr, 0);
+
+    return VM_OK;
 }
 
 // 0x25: ON GOTO <var> <count> <addressVarargs>
@@ -1492,7 +1552,7 @@ void registerBaselineOpcodeHandlers() {
     registerOpcodeHandler(0x21, handle_0x21_LOAD_AREA_GEO);
     registerOpcodeHandler(0x22, handle_0x22_PARTY_SURPRISE);
     registerOpcodeHandler(0x23, handle_0x23_SURPRISE);
-    registerOpcodeHandler(0x24, handle_0x24_COMBAT);
+    registerOpcodeHandler(0x24, handle_0x24_ENCOUNTER);
     registerOpcodeHandler(0x25, handle_0x25_ON_GOTO);
     registerOpcodeHandler(0x26, handle_0x26_ON_GOSUB);
     registerOpcodeHandler(0x27, handle_0x27_TREASURE);

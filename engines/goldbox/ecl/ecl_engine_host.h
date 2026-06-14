@@ -295,19 +295,19 @@ public:
     // -----------------------------------------------------------------------
 
     /**
-     * Start the main combat loop with currently loaded monsters (0x24 COMBAT).
+     * Start the main combat loop with currently loaded monsters (0x24 ENCOUNTER).
      * @return VM_YIELD while combat is in progress
      */
     virtual VmResult startCombat() = 0;
 
     /**
-     * Enter a temple (0x24 COMBAT with temple flag set).
+     * Enter a temple (0x24 ENCOUNTER with temple flag set).
      * @return VmResult
      */
     virtual VmResult enterTemple() { return VM_OK; }
 
     /**
-     * Enter a shop (0x24 COMBAT with shop flag set).
+     * Enter a shop (0x24 ENCOUNTER with shop flag set).
      * @return VmResult
      */
     virtual VmResult enterShop() { return VM_OK; }

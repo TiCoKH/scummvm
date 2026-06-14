@@ -205,7 +205,7 @@ Goldbox::VmFieldLocation PoolradGlobalVmLayout::field(
 	case kVmGlobalFieldRestInterruptChance:    return {kVmBankDat, 0x6DD3}; // @ +0x5A6
 	case kVmGlobalFieldTriedToLeaveMap:        return {kVmBankDat, 0x6DD5}; // @ +0x5AA
 	case kVmGlobalFieldPictureHeadId:          return {kVmBankDat, 0x6DE1}; // @ +0x5C2
-	case kVmGlobalFieldEnterTemplePending:     return {kVmBankDat, 0x6DE2}; // @ +0x5C4
+	case kVmGlobalFieldEnterTempleFlag:        return {kVmBankDat, 0x6DE2}; // @ +0x5C4
 	case kVmGlobalFieldNoItemCombatFlag:       return {kVmBankDat, 0x6DE3}; // @ +0x5C6
 	case kVmGlobalFieldPartyCount:             return {kVmBankDat, 0x6E3E}; // @ +0x67C
 	case kVmGlobalFieldDivisionModulo:         return {kVmBankDat, 0x6E3F}; // @ +0x67E
@@ -260,6 +260,8 @@ public:
 		case Goldbox::ECL::kEclRuntimeUiFlag:            return 0x84E9;
 		case Goldbox::ECL::kEclRuntimeOperandBufferLow:  return 0x7046;
 		case Goldbox::ECL::kEclRuntimeOperandBufferHigh: return 0x7086;
+		case Goldbox::ECL::kEclRuntimeMonsterLoadReady: return 0x057E;
+		case Goldbox::ECL::kEclRuntimeMonsterSlotId:     return 0x057F;
 		case Goldbox::ECL::kEclRuntimeMonsterCount:      return 0x0580;
 		case Goldbox::ECL::kEclRuntimeMonsterData:       return 0x0582;
 		case Goldbox::ECL::kEclRuntimeEncounterFlags:    return 0x0594;
