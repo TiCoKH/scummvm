@@ -49,7 +49,7 @@
  *
  * Command Table: 60+ opcodes for game logic
  * Key Opcodes: 0x21 (LOAD_AREA_GEO), 0x37 (LOAD_AREA_WALLDEF), 0x25/0x26 (ON GOTO/GOSUB),
- *              0x0E (PICTURE), 0x24 (COMBAT)
+ *              0x0E (PICTURE), 0x24 (ENCOUNTER)
  */
 
 #include "goldbox/ecl/ecl_vm.h"
@@ -73,7 +73,7 @@ static bool isUiRelevantOpcode(uint8 opcode) {
     case 0x15: // VERTICAL MENU
     case 0x20: // NEWECL
     case 0x21: // LOAD_AREA_GEO
-    case 0x24: // COMBAT
+    case 0x24: // ENCOUNTER
     case 0x2B: // HORIZONTAL MENU
     case 0x31: // SPRITE OFF
     case 0x37: // LOAD_AREA_WALLDEF
