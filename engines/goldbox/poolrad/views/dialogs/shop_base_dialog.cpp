@@ -198,13 +198,6 @@ bool ShopBaseDialog::msgKeypress(const KeypressMessage &msg) {
             return true;
         }
 
-        // Party navigation keys: let them bubble up to InGameView.
-        if (msg.keycode >= Common::KEYCODE_UP &&
-                msg.keycode <= Common::KEYCODE_PAGEDOWN) {
-            recreateHorizontalMenu();
-            return false;
-        }
-
         char ascii = msg.ascii;
         if (ascii >= 'a' && ascii <= 'z')
             ascii -= 32;
@@ -275,7 +268,9 @@ void ShopBaseDialog::handleMenuKey(char key) {
 }
 
 void ShopBaseDialog::actionView() {
-    addView("ViewCharacter");
+    if (_parent)
+        g_events->postMenuResult(_parent->getName(), true,
+            Common::KEYCODE_v, 0, Common::String(), true, false);
 }
 
 void ShopBaseDialog::actionTake() {

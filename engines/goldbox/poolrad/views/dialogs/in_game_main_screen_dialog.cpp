@@ -160,7 +160,8 @@ void InGameMainScreenDialog::drawWildernessPositionMarker(Surface &s,
 
 void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 	if (_mode != kModeDungeon && _mode != kModeWilderness
-			&& _mode != kModeCombat && _mode != kModeCamping)
+			&& _mode != kModeCombat && _mode != kModeCamping
+			&& _mode != kModeShop && _mode != kModeAfterCombat)
 		return;
 
 	if (!::Goldbox::Poolrad::g_engine)
@@ -177,6 +178,22 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 			headPic->draw(&s, vpX, vpY);
 			return;
 		}
+	}
+
+	// Shop/AfterCombat: draw portrait from PictureDisplayCache
+	// (loaded by ECL PICTURE opcode before ENCOUNTER, preserved by VM yield).
+	if (_mode == kModeShop || _mode == kModeAfterCombat) {
+		const ::Goldbox::Gfx::PictureDisplayCache &picCache =
+			::Goldbox::Poolrad::g_engine->getPictureDisplayCache();
+		if (picCache.isActive()) {
+			const int vpX = 3 * 8;
+			const int vpY = 3 * 8;
+			if (picCache.headPic())
+				picCache.headPic()->draw(&s, vpX, vpY);
+			if (picCache.bodyPic())
+				picCache.bodyPic()->draw(&s, vpX, vpY + 5 * 8);
+		}
+		return;
 	}
 
 	::Goldbox::RuntimeMapSnapshot snapshot;

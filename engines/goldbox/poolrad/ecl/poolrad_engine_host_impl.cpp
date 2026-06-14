@@ -46,6 +46,7 @@
 #include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/core/direction.h"
@@ -364,6 +365,8 @@ PoolradEngineHostImpl::~PoolradEngineHostImpl() {
     _asyncMenuPending = false;
     _asyncPrintPending = false;
     _asyncDelayPending = false;
+    _asyncShopPending = false;
+    _asyncShopWasActivated = false;
     clearMonsters();
 }
 
@@ -1106,7 +1109,8 @@ VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
 }
 
 bool PoolradEngineHostImpl::hasPendingAsync() const {
-    return _asyncMenuPending || _asyncPrintPending || _asyncDelayPending;
+    return _asyncMenuPending || _asyncPrintPending || _asyncDelayPending
+        || _asyncShopPending;
 }
 
 bool PoolradEngineHostImpl::isPendingAsyncReady() const {
@@ -1149,6 +1153,23 @@ bool PoolradEngineHostImpl::isPendingAsyncReady() const {
             return false;
         }
         return g_system->getMillis() >= _asyncDelayEndTime;
+    }
+
+    if (_asyncShopPending) {
+        // InGameView signals kAsyncShopDone via RuntimeExchange when the
+        // shop dialog exits. We must wait at least one frame for the
+        // ST_ENTER_SHOP event to dispatch before checking completion.
+        if (!_asyncShopWasActivated) {
+            // First frame: the event hasn't dispatched yet. Mark as
+            // activated unconditionally after one pump cycle.
+            _asyncShopWasActivated = true;
+            return false;
+        }
+        // Once activated, wait for completion signal.
+        const RuntimeExchange *exchange = _engine
+            ? _engine->getRuntimeExchange() : nullptr;
+        return !exchange || exchange->hasAsync(
+            RuntimeExchange::kAsyncShopDone);
     }
 
     return false;
@@ -1201,6 +1222,19 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
         _asyncDelayPending = false;
         _pendingEncounterHeadReveal = false;
         _pendingEncounterHeadRevealTime = 0;
+        return VM_OK;
+    }
+
+    if (_asyncShopPending) {
+        // Consume the async completion signal from RuntimeExchange.
+        RuntimeExchange *exchange = _engine
+            ? _engine->getRuntimeExchange() : nullptr;
+        if (exchange) {
+            RuntimeExchange::AsyncCompletion completion;
+            exchange->pollAsync(completion);
+        }
+        _asyncShopPending = false;
+        _asyncShopWasActivated = false;
         return VM_OK;
     }
 
@@ -1384,6 +1418,34 @@ VmResult PoolradEngineHostImpl::onMapDataReady() {
     }
 
     return VmResult::VM_OK;
+}
+
+VmResult PoolradEngineHostImpl::enterShop() {
+    if (_asyncShopPending)
+        return VM_ERROR;
+    if (!g_events)
+        return VM_OK;
+
+    _asyncShopPending = true;
+    _asyncShopWasActivated = false;
+    g_events->postEclStateMessage(EclVmMessage::ST_ENTER_SHOP,
+        static_cast<uint16>(Views::Dialogs::SHOP_STORE),
+        EclVmMessage::VT_UINT8);
+    return VM_YIELD;
+}
+
+VmResult PoolradEngineHostImpl::enterTemple() {
+    if (_asyncShopPending)
+        return VM_ERROR;
+    if (!g_events)
+        return VM_OK;
+
+    _asyncShopPending = true;
+    _asyncShopWasActivated = false;
+    g_events->postEclStateMessage(EclVmMessage::ST_ENTER_SHOP,
+        static_cast<uint16>(Views::Dialogs::SHOP_TEMPLE),
+        EclVmMessage::VT_UINT8);
+    return VM_YIELD;
 }
 
 bool PoolradEngineHostImpl::tryOpenDoor() {

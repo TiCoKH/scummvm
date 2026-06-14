@@ -1073,9 +1073,14 @@ static int handle_0x26_ON_GOSUB(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x27: TREASURE <copper> <silver> <electrum> <gold> <platinum> <gems> <jewelry> <treasureID>
+// Loads treasure/item data into the shop item pool. Does NOT open a dialog.
+// The dialog is opened by ENCOUNTER (0x24) when ShopFlag is set.
 static int handle_0x27_TREASURE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)syscalls;
+    vm.getOperand(8);
+    // TODO: Parse operands and populate the shop/treasure item pool.
+    // Operands: copper, silver, electrum, gold, platinum, gems, jewelry, treasureBlockID
     return VM_OK;
 }
 
