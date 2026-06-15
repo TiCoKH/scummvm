@@ -420,12 +420,12 @@ public:
      * @param platinum   Platinum coins
      * @param gems       Gem count
      * @param jewelry    Jewelry count
-     * @param treasureId Magic item treasure table ID
+     * @param itemSetId Magic item treasure table ID
      * @return VmResult
      */
     virtual VmResult setupTreasure(uint8 copper, uint8 silver, uint8 electrum,
             uint8 gold, uint8 platinum, uint8 gems, uint8 jewelry,
-            uint8 treasureId) { return VM_OK; }
+            uint8 itemSetId) { return VM_OK; }
 
     /**
      * Rob the party of money and items (0x28 ROB).

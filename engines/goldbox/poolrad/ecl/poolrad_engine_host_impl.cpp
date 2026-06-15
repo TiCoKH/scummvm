@@ -40,11 +40,13 @@
 #include "goldbox/data/effects/effect_execution_context.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/items/character_item.h"
+#include "goldbox/data/items/character_inventory.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/runtime/runtime_time.h"
+#include "goldbox/runtime/treasure_pool.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
@@ -1496,9 +1498,123 @@ void PoolradEngineHostImpl::setDefaultSkyboxColors() {
     _colorFloor   = 6;
     _colorHorizon = 7;
     _colorSkyline = 0;
-    _colorSky     = 0x0b;
+    _colorSky     = 11;
     if (_engine)
         _engine->setColors(_colorSky, _colorSkyline, _colorHorizon, _colorFloor);
+}
+
+// ----------------------------------------------------------------------------
+// 0x27 TREASURE — Populate global treasure pool with coins and items.
+// ----------------------------------------------------------------------------
+
+static uint8 rollRandomMagicItemType() {
+    int roll = VmInterface::rollDice(1, 100);
+
+    if (roll >= 1 && roll <= 60) {
+        int roll2 = VmInterface::rollDice(1, 100);
+        if (roll2 >= 1 && roll2 <= 47)
+            return static_cast<uint8>(roll2);
+        if (roll2 == 48 || roll2 == 49)
+            return 59;
+        if (roll2 >= 50 && roll2 <= 59)
+            return static_cast<uint8>(roll2);
+        if (roll2 >= 60 && roll2 <= 90) {
+            int roll3 = VmInterface::rollDice(1, 10);
+            if (roll3 >= 1 && roll3 <= 4) return 36;
+            if (roll3 >= 5 && roll3 <= 7) return 35;
+            if (roll3 == 8) return 34;
+            if (roll3 == 9) return 37;
+            return 38;
+        }
+        if (roll2 >= 91 && roll2 <= 94) return 73;
+        if (roll2 >= 95 && roll2 <= 97) return 93;
+        if (roll2 >= 98 && roll2 <= 100) return 77;
+    } else if (roll >= 61 && roll <= 85) {
+        return 61;
+    } else if (roll >= 86 && roll <= 92) {
+        return 62;
+    } else if (roll >= 93 && roll <= 98) {
+        int roll2 = VmInterface::rollDice(1, 16);
+        if (roll2 >= 1 && roll2 <= 7)  return 71;
+        if (roll2 == 8 || roll2 == 9)  return 70;
+        if (roll2 == 10) return 84;
+        if (roll2 == 11 || roll2 == 12) return 78;
+        if (roll2 == 13 || roll2 == 14) return 79;
+        if (roll2 == 15) return 92;
+        return 67;
+    } else {
+        return 69;
+    }
+
+    return 36;
+}
+
+VmResult PoolradEngineHostImpl::setupTreasure(uint8 copper, uint8 silver,
+        uint8 electrum, uint8 gold, uint8 platinum, uint8 gems,
+        uint8 jewelry, uint8 itemSetId) {
+    if (!_engine)
+        return VM_ERROR;
+
+    TreasurePool &pool = _engine->getTreasurePool();
+    pool.clear();
+
+    pool.setCoin(Goldbox::Data::VAL_COPPER,   copper);
+    pool.setCoin(Goldbox::Data::VAL_SILVER,   silver);
+    pool.setCoin(Goldbox::Data::VAL_ELECTRUM, electrum);
+    pool.setCoin(Goldbox::Data::VAL_GOLD,     gold);
+    pool.setCoin(Goldbox::Data::VAL_PLATINUM, platinum);
+    pool.setCoin(Goldbox::Data::VAL_GEMS,     gems);
+    pool.setCoin(Goldbox::Data::VAL_JEWELRY,  jewelry);
+
+    if (itemSetId < 0x80) {
+        Goldbox::Data::DaxBlockContainer &itemDax = _engine->getDaxMonItm();
+        Goldbox::Data::DaxBlock *block = itemDax.getBlockById(itemSetId);
+        if (!block || block->_data.empty()) {
+            debug(1, "setupTreasure: unable to find item block %u",
+                (unsigned)itemSetId);
+            return VM_OK;
+        }
+
+        Common::MemoryReadStream stream(block->_data.data(),
+            block->_data.size());
+        Goldbox::Data::Items::CharacterInventory inv;
+        inv.loadFromStream(stream);
+        for (int i = 0; i < inv.count(); ++i)
+            pool.addItem(inv[i]);
+
+        debug(3, "setupTreasure: loaded %d items from ITEM block %u",
+            inv.count(), (unsigned)itemSetId);
+
+    } else if (itemSetId != 0xFF) {
+        const uint8 count = itemSetId - 0x80;
+        for (uint8 i = 0; i < count; ++i) {
+            const uint8 itemTypeId = rollRandomMagicItemType();
+
+            // TODO: Full ITEM_createRandomMagicItem(itemTypeId) implementation.
+            Goldbox::Data::Items::CharacterItem item;
+            item.typeIndex = itemTypeId;
+            item.bonus = 0;
+            item.nameCode1 = 0;
+            item.nameCode2 = 0;
+            item.nameCode3 = 0;
+            item.readied = 0;
+            item.hidden = 0;
+            item.cursed = 0;
+            item.weight = 0;
+            item.stackSize = 1;
+            item.value = 0;
+            item.effect1 = 0;
+            item.effect2 = 0;
+            item.effect3 = 0;
+            item.nextAddress = 0;
+            pool.addItem(item);
+        }
+
+        debug(3, "setupTreasure: generated %u random magic items",
+            (unsigned)count);
+    }
+
+    return VM_OK;
 }
 
 } // namespace Poolrad
