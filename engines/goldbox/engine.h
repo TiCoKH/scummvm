@@ -299,6 +299,7 @@ public:
 	Data::DaxBlockContainer &getDaxHead() { return _daxManager.getHead(); }
 	Data::DaxBlockContainer &getDaxMonCha() { return _daxManager.getMonCha(); }
 	Data::DaxBlockContainer &getDaxMonItm() { return _daxManager.getMonItm(); }
+	Data::DaxBlockContainer &getDaxItem() { return _daxManager.getItem(); }
 	Data::DaxBlockContainer &getDaxMonSpc() { return _daxManager.getMonSpc(); }
 	Data::DaxBlockContainer &getDaxPic() { return _daxManager.getPic(); }
 	Data::DaxBlockContainer &getDaxCPic() { return _daxManager.getCPic(); }
@@ -322,6 +323,7 @@ public:
 	const Data::DaxBlockContainer &getDaxHead() const { return _daxManager.getHead(); }
 	const Data::DaxBlockContainer &getDaxMonCha() const { return _daxManager.getMonCha(); }
 	const Data::DaxBlockContainer &getDaxMonItm() const { return _daxManager.getMonItm(); }
+	const Data::DaxBlockContainer &getDaxItem() const { return _daxManager.getItem(); }
 	const Data::DaxBlockContainer &getDaxMonSpc() const { return _daxManager.getMonSpc(); }
 	const Data::DaxBlockContainer &getDaxPic() const { return _daxManager.getPic(); }
 	const Data::DaxBlockContainer &getDaxCPic() const { return _daxManager.getCPic(); }
