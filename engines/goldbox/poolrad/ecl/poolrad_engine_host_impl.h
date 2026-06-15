@@ -122,6 +122,9 @@ public:
     VmResult onMapDataReady() override;
     VmResult enterShop() override;
     VmResult enterTemple() override;
+    VmResult setupTreasure(uint8 copper, uint8 silver, uint8 electrum,
+        uint8 gold, uint8 platinum, uint8 gems, uint8 jewelry,
+        uint8 itemSetId) override;
     const WallSetRuntimeState &wallSetState(int slot) const;
 
     /**

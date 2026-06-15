@@ -1077,11 +1077,24 @@ static int handle_0x26_ON_GOSUB(EclVM &vm, AddressSpace &mem,
 // The dialog is opened by ENCOUNTER (0x24) when ShopFlag is set.
 static int handle_0x27_TREASURE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
     vm.getOperand(8);
-    // TODO: Parse operands and populate the shop/treasure item pool.
-    // Operands: copper, silver, electrum, gold, platinum, gems, jewelry, treasureBlockID
-    return VM_OK;
+
+    EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+    if (!host)
+        return VM_OK;
+
+    const uint8 copper    = static_cast<uint8>(vm.readVar(1));
+    const uint8 silver    = static_cast<uint8>(vm.readVar(2));
+    const uint8 electrum  = static_cast<uint8>(vm.readVar(3));
+    const uint8 gold      = static_cast<uint8>(vm.readVar(4));
+    const uint8 platinum  = static_cast<uint8>(vm.readVar(5));
+    const uint8 gems      = static_cast<uint8>(vm.readVar(6));
+    const uint8 jewelry   = static_cast<uint8>(vm.readVar(7));
+    const uint8 itemSetId = static_cast<uint8>(vm.readVar(8));
+
+    return host->setupTreasure(copper, silver, electrum, gold,
+        platinum, gems, jewelry, itemSetId);
 }
 
 // 0x28: ROB <isWholeParty> <percentMoney> <itemChance>

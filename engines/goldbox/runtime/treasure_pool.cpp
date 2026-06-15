@@ -19,40 +19,43 @@
  *
  */
 
-#include "goldbox/poolrad/views/dialogs/temple_dialog.h"
-#include "goldbox/vm_interface.h"
 #include "goldbox/runtime/treasure_pool.h"
+#include "goldbox/data/items/character_item.h"
 
 namespace Goldbox {
-namespace Poolrad {
-namespace Views {
-namespace Dialogs {
 
-static ShopBaseConfig makeTempleConfig() {
-    ShopBaseConfig cfg;
-    cfg.type = SHOP_TEMPLE;
-    cfg.menuPrompt = "";
-    cfg.exitConfirmLine1 = "As you leave a priest says, 'Excuse me"
-        " but you left some things here.'";
-    cfg.exitConfirmLine2 = "Do you want to go back and retrieve them?";
-    return cfg;
+TreasurePool::TreasurePool() {
+    _items = new Common::Array<Data::Items::CharacterItem>();
 }
 
-TempleDialog::TempleDialog(const Common::String &name)
-    : ShopBaseDialog(name, makeTempleConfig()) {
+TreasurePool::~TreasurePool() {
+    delete _items;
 }
 
-void TempleDialog::actionPrimary() {
-    // TODO: TEMPLE_Heal — present healing cost menu for selected character.
+void TreasurePool::clear() {
+    for (int i = 0; i < Data::VALUABLE_COUNT; ++i)
+        _coins[static_cast<Data::ValuableType>(i)] = 0;
+    _items->clear();
 }
 
-void TempleDialog::getShopFlags(bool &hasItems, bool &hasMoney) {
-    const TreasurePool &pool = VmInterface::getTreasurePool();
-    hasItems = pool.hasItems();
-    hasMoney = pool.hasAnyCoin();
+const Common::Array<Data::Items::CharacterItem> &TreasurePool::items() const {
+    return *_items;
 }
 
-} // namespace Dialogs
-} // namespace Views
-} // namespace Poolrad
+Common::Array<Data::Items::CharacterItem> &TreasurePool::items() {
+    return *_items;
+}
+
+void TreasurePool::addItem(const Data::Items::CharacterItem &item) {
+    _items->push_back(item);
+}
+
+bool TreasurePool::hasItems() const {
+    return !_items->empty();
+}
+
+bool TreasurePool::isEmpty() const {
+    return !hasAnyCoin() && !hasItems();
+}
+
 } // namespace Goldbox

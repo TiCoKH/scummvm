@@ -22,6 +22,7 @@
 #include "goldbox/poolrad/views/dialogs/treasure_dialog.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/runtime/treasure_pool.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -75,9 +76,9 @@ void TreasureDialog::actionDetect() {
 }
 
 void TreasureDialog::getShopFlags(bool &hasItems, bool &hasMoney) {
-    // TODO: Query treasure pool state from engine/VM runtime.
-    hasItems = false;
-    hasMoney = false;
+    const TreasurePool &pool = VmInterface::getTreasurePool();
+    hasItems = pool.hasItems();
+    hasMoney = pool.hasAnyCoin();
 }
 
 } // namespace Dialogs

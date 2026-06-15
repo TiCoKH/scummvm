@@ -20,6 +20,8 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/store_dialog.h"
+#include "goldbox/vm_interface.h"
+#include "goldbox/runtime/treasure_pool.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -49,9 +51,9 @@ void StoreDialog::actionPrimary() {
 }
 
 void StoreDialog::getShopFlags(bool &hasItems, bool &hasMoney) {
-    // TODO: Query VM/engine state for unclaimed shop items.
-    hasItems = false;
-    hasMoney = false;
+    const TreasurePool &pool = VmInterface::getTreasurePool();
+    hasItems = pool.hasItems();
+    hasMoney = pool.hasAnyCoin();
 }
 
 } // namespace Dialogs

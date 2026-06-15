@@ -49,6 +49,7 @@ namespace Goldbox {
 
 struct GoldboxGameDescription;
 class RuntimeExchange;
+class TreasurePool;
 
 class Engine : public ::Engine, public Events {
 private:
@@ -61,6 +62,7 @@ private:
 protected:
 	Data::DaxFileManager _daxManager;
 	RuntimeGeoBlock _runtimeGeo;
+	TreasurePool *_treasurePool;
 	Gfx::ViewportBackground _viewportBg;
 	Gfx::AreaMapCache _areaMapCache;
 	Gfx::EncounterSpriteCache _encounterSpriteCache;
@@ -341,6 +343,9 @@ public:
 
 	RuntimeGeoBlock &getRuntimeGeo() { return _runtimeGeo; }
 	const RuntimeGeoBlock &getRuntimeGeo() const { return _runtimeGeo; }
+
+	TreasurePool &getTreasurePool();
+	const TreasurePool &getTreasurePool() const;
 
 	Gfx::Tile8x8Cache &getTileCache() { return _tileCache; }
 	const Gfx::Tile8x8Cache &getTileCache() const { return _tileCache; }

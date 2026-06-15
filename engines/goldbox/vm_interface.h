@@ -24,6 +24,7 @@
 
 #include "goldbox/engine.h"
 #include "goldbox/runtime/runtime_geo.h"
+#include "goldbox/runtime/treasure_pool.h"
 #include "common/array.h"
 #include "common/scummsys.h"
 
@@ -127,6 +128,9 @@ public:
 
     // Runtime GEO block (mutable map state)
     static RuntimeGeoBlock &getRuntimeGeo() { return g_engine->getRuntimeGeo(); }
+
+    // Shared treasure pool (populated by TREASURE opcode, read by shop/treasure dialogs)
+    static TreasurePool &getTreasurePool() { return g_engine->getTreasurePool(); }
 
     // Icon Manager accessor
     static Gfx::IconManager *getIconManager();
