@@ -40,7 +40,6 @@
 #include "goldbox/data/effects/effect_execution_context.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/items/character_item.h"
-#include "goldbox/data/items/character_inventory.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/runtime/runtime_exchange.h"
@@ -1567,7 +1566,7 @@ VmResult PoolradEngineHostImpl::setupTreasure(uint8 copper, uint8 silver,
     pool.setCoin(Goldbox::Data::VAL_JEWELRY,  jewelry);
 
     if (itemSetId < 0x80) {
-        Goldbox::Data::DaxBlockContainer &itemDax = _engine->getDaxMonItm();
+        Goldbox::Data::DaxBlockContainer &itemDax = _engine->getDaxItem();
         Goldbox::Data::DaxBlock *block = itemDax.getBlockById(itemSetId);
         if (!block || block->_data.empty()) {
             debug(1, "setupTreasure: unable to find item block %u",
@@ -1575,15 +1574,40 @@ VmResult PoolradEngineHostImpl::setupTreasure(uint8 copper, uint8 silver,
             return VM_OK;
         }
 
-        Common::MemoryReadStream stream(block->_data.data(),
-            block->_data.size());
-        Goldbox::Data::Items::CharacterInventory inv;
-        inv.loadFromStream(stream);
-        for (int i = 0; i < inv.count(); ++i)
-            pool.addItem(inv[i]);
+        const uint32 blockSize = block->_data.size();
+        const uint32 recSize = 63;
+        const uint32 itemCount = blockSize / recSize;
+        debug(3, "setupTreasure: ITEM block %u size=%u items=%u",
+            (unsigned)itemSetId, blockSize, itemCount);
 
-        debug(3, "setupTreasure: loaded %d items from ITEM block %u",
-            inv.count(), (unsigned)itemSetId);
+        Common::MemoryReadStream stream(block->_data.data(), blockSize);
+        for (uint32 idx = 0; idx < itemCount; ++idx) {
+            Goldbox::Data::Items::CharacterItem it;
+            it.name = Goldbox::Data::PascalStringBuffer<41>::read(stream);
+            it.nextAddress = stream.readUint32LE();
+            it.typeIndex   = stream.readByte();
+            it.nameCode1   = stream.readByte();
+            it.nameCode2   = stream.readByte();
+            it.nameCode3   = stream.readByte();
+            it.bonus       = stream.readByte();
+            it.saveBonus   = stream.readByte();
+            it.readied     = stream.readByte();
+            it.hidden      = stream.readByte();
+            it.cursed      = stream.readByte();
+            it.weight      = stream.readUint16LE();
+            it.stackSize   = stream.readByte();
+            it.value       = stream.readUint16LE();
+            it.effect1     = stream.readByte();
+            it.effect2     = stream.readByte();
+            it.effect3     = stream.readByte();
+            pool.addItem(it);
+            debug(3, "  item[%u]: typeIndex=%u name='%s'",
+                idx, (unsigned)it.typeIndex,
+                it.getDisplayName().c_str());
+        }
+
+        debug(3, "setupTreasure: loaded %u items from ITEM block %u",
+            itemCount, (unsigned)itemSetId);
 
     } else if (itemSetId != 0xFF) {
         const uint8 count = itemSetId - 0x80;
@@ -1608,6 +1632,8 @@ VmResult PoolradEngineHostImpl::setupTreasure(uint8 copper, uint8 silver,
             item.effect3 = 0;
             item.nextAddress = 0;
             pool.addItem(item);
+            debug(3, "  random item[%u]: typeIndex=%u",
+                (unsigned)i, (unsigned)itemTypeId);
         }
 
         debug(3, "setupTreasure: generated %u random magic items",

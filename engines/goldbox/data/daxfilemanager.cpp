@@ -44,6 +44,7 @@ DaxFileManager::DaxFileManager(Common::Platform platform) :
     _containerMonCha(ContentType::CHARACTER),
     _containerMonItm(ContentType::ITEM),
     _containerMonSpc(ContentType::SPELL),
+    _containerItem(ContentType::ITEM),
     _containerPic(ContentType::EGAPIC),
     _containerCPic(ContentType::CTILE),
     _containerSprit(ContentType::SPRIT),
@@ -122,6 +123,9 @@ void DaxFileManager::loadFile(const Common::Path &path) {
     } else if (filename.contains("MON") && filename.contains("ITM")) {
         debug(1, "  - Detected MONITM container");
         _containerMonItm.loadFromFile(&file);
+    } else if (filename.contains("ITEM")) {
+        debug(1, "  - Detected ITEM container");
+        _containerItem.loadFromFile(&file);
     } else if (filename.contains("MON") && filename.contains("SPC")) {
         debug(1, "  - Detected MONSPC container");
         _containerMonSpc.loadFromFile(&file);
@@ -162,6 +166,7 @@ void DaxFileManager::clear() {
     _containerHead.clear();
     _containerMonCha.clear();
     _containerMonItm.clear();
+    _containerItem.clear();
     _containerMonSpc.clear();
     _containerPic.clear();
     _containerCPic.clear();

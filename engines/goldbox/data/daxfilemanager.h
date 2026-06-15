@@ -58,6 +58,7 @@ private:
     DaxBlockContainer _containerMonCha;
     DaxBlockContainer _containerMonItm;
     DaxBlockContainer _containerMonSpc;
+    DaxBlockContainer _containerItem;
     DaxBlockContainer _containerPic;
     DaxBlockContainer _containerCPic;
     DaxBlockContainer _containerSprit;
@@ -101,6 +102,7 @@ public:
     DaxBlockContainer &getMonCha() { return _containerMonCha; }
     DaxBlockContainer &getMonItm() { return _containerMonItm; }
     DaxBlockContainer &getMonSpc() { return _containerMonSpc; }
+    DaxBlockContainer &getItem() { return _containerItem; }
     DaxBlockContainer &getPic() { return _containerPic; }
     DaxBlockContainer &getCPic() { return _containerCPic; }
     DaxBlockContainer &getSprit() { return _containerSprit; }
@@ -124,6 +126,7 @@ public:
     const DaxBlockContainer &getMonCha() const { return _containerMonCha; }
     const DaxBlockContainer &getMonItm() const { return _containerMonItm; }
     const DaxBlockContainer &getMonSpc() const { return _containerMonSpc; }
+    const DaxBlockContainer &getItem() const { return _containerItem; }
     const DaxBlockContainer &getPic() const { return _containerPic; }
     const DaxBlockContainer &getCPic() const { return _containerCPic; }
     const DaxBlockContainer &getSprit() const { return _containerSprit; }
