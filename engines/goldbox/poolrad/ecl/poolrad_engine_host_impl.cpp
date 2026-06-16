@@ -575,6 +575,7 @@ int16 PoolradEngineHostImpl::horizontalMenu(
 
 VmResult PoolradEngineHostImpl::readGeoAtPosition() {
     // Mirrors: STRUCT_POSITION.geo_id = MAP_getGEOData(y, x)
+    // Also samples the wall nibble in facing direction into MapWallType.
     if (!_engine)
         return VM_OK;
 
@@ -585,6 +586,7 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
     const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
     const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
     const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+    const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
     const int x = static_cast<int>(_memory->read8(xAddr));
     const int y = static_cast<int>(_memory->read8(yAddr));
 
@@ -595,6 +597,14 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
         (unsigned)_memory->read8(0x49FD));
     const uint16 geoFieldAddr = layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
     _memory->write8(geoFieldAddr, geoId);
+
+    // Sample wall nibble in facing direction into MapWallType.
+    // Original CALL 0x2C90 does this as part of MAP_getGEOData flow.
+    const uint8 wireDir = static_cast<uint8>((_memory->read8(dirAddr) & 0x03) * 2);
+    const uint8 wallNibble = rtGeo.getMapNibble(x, y, wireDir);
+    const uint16 wallTypeAddr = layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr;
+    _memory->write8(wallTypeAddr, wallNibble);
+
     return VM_OK;
 }
 
@@ -712,7 +722,7 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
 
     case 0xC018: {
         // Nibble sampling: read wall type in facing direction at current
-        // position from RuntimeGeoBlock and store in MapSquareInfo.
+        // position from RuntimeGeoBlock and store in MapWallType.
         if (!_engine)
             return VM_OK;
 
@@ -733,9 +743,9 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
 
         const uint8 nibble = rtGeo.getMapNibble(x, y, wireDir);
 
-        const uint16 infoAddr =
-            layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
-        _memory->write8(infoAddr, nibble);
+        const uint16 wallTypeAddr =
+            layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr;
+        _memory->write8(wallTypeAddr, nibble);
         return VM_OK;
     }
 

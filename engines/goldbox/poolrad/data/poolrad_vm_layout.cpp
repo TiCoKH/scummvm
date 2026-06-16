@@ -29,10 +29,10 @@ namespace Data {
 
 namespace {
 
-static const uint16 kPoolradGeoFirstVmAddr = 0x4900;
+static const uint16 kPoolradWorldFirstVmAddr = 0x4900;
 static const uint16 kPoolradDatFirstVmAddr = 0x6B00;
 static const uint16 kPoolradSystemFirstVmAddr = 0xC04B;
-static const uint16 kPoolradGeoLastScriptFlagVmAddr =
+static const uint16 kPoolradWorldLastScriptFlagVmAddr =
 	PoolradScriptFlags::kFirstVmAddr + PoolradScriptFlags::kFlagCount - 1;
 
 // Geo bank mapping notes:
@@ -214,6 +214,7 @@ Goldbox::VmFieldLocation PoolradGlobalVmLayout::field(
 	case kVmGlobalFieldMonsterThac0Bonus:      return {kVmBankDat, 0x6E70}; // @ +0x6E0
 	case kVmGlobalFieldPartyThac0DmgBonus:     return {kVmBankDat, 0x6E71}; // @ +0x6E2
 	case kVmGlobalFieldPartyMoveModifier:      return {kVmBankDat, 0x6E72}; // @ +0x6E4
+	case kVmGlobalFieldGeoEventId:             return {kVmBankDat, 0x6E82};
 
 	// SYSTEM bank, ordered by VM address / offset
 	case kVmGlobalFieldDungeonX:               return {kVmBankSystem, 0xC04B}; // @ +0x000
@@ -221,6 +222,8 @@ Goldbox::VmFieldLocation PoolradGlobalVmLayout::field(
 	case kVmGlobalFieldDungeonDir:             return {kVmBankSystem, 0xC04D}; // @ +0x004
 	case kVmGlobalFieldMapWallType:            return {kVmBankSystem, 0xC04E}; // @ +0x006
 	case kVmGlobalFieldMapSquareInfo:          return {kVmBankSystem, 0xC04F}; // @ +0x008
+	case kVmGlobalFieldMapColorFloor:          return {kVmBankSystem, 0xC059};
+	case kVmGlobalFieldMapColorHorizon:        return {kVmBankSystem, 0xC05F};
 
 
 	default:
@@ -326,14 +329,14 @@ const char *poolradVmFieldName(Goldbox::VmFieldId fieldId) {
 	return kPoolradVmFieldNames[fieldId];
 }
 
-bool poolradGeoVmAddrOffset(uint16 vmAddr, uint16 &byteOffset) {
-	if (vmAddr < kPoolradGeoFirstVmAddr ||
-			vmAddr > kPoolradGeoLastScriptFlagVmAddr) {
+bool poolradWorldVmAddrOffset(uint16 vmAddr, uint16 &byteOffset) {
+	if (vmAddr < kPoolradWorldFirstVmAddr ||
+			vmAddr > kPoolradWorldLastScriptFlagVmAddr) {
 		return false;
 	}
 
 	int32 offset = Goldbox::VmAddressMapper::toByteOffset(vmAddr,
-		kPoolradGeoFirstVmAddr);
+		kPoolradWorldFirstVmAddr);
 	if (offset < 0 || offset > 0xFFFF) {
 		return false;
 	}
@@ -349,7 +352,7 @@ bool poolradVmFieldOffset(Goldbox::VmFieldId fieldId, uint16 &byteOffset) {
 		return false;
 	}
 
-	return poolradGeoVmAddrOffset(location.vmAddr, byteOffset);
+	return poolradWorldVmAddrOffset(location.vmAddr, byteOffset);
 }
 
 void debugDumpPoolradVmLayout() {
@@ -394,7 +397,7 @@ bool PoolradScriptFlags::flagOffset(uint8 index, uint16 &byteOffset) {
 		return false;
 	}
 
-	return poolradGeoVmAddrOffset(flagAddr(index), byteOffset);
+	return poolradWorldVmAddrOffset(flagAddr(index), byteOffset);
 }
 
 void PoolradScriptFlags::resetOnScriptLoad(Goldbox::VmWordBank &geoBank) {

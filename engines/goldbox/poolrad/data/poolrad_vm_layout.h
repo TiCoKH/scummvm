@@ -65,7 +65,7 @@ const Goldbox::ECL::EclRuntimeLayout &getPoolradEclRuntimeLayout();
 // Converts any GEO-backed VM address to a bank-relative byte offset.
 // This covers both the fixed GEO fields and the script-flag range
 // (0x4A00..0x4AFF).
-bool poolradGeoVmAddrOffset(uint16 vmAddr, uint16 &byteOffset);
+bool poolradWorldVmAddrOffset(uint16 vmAddr, uint16 &byteOffset);
 
 const char *poolradVmFieldName(Goldbox::VmFieldId fieldId);
 bool poolradVmFieldOffset(Goldbox::VmFieldId fieldId, uint16 &byteOffset);
