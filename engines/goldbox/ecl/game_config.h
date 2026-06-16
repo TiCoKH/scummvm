@@ -45,9 +45,9 @@ struct MemoryRegionRange {
  */
 namespace ECLMemoryLayout {
     // Memory Base Configuration
-    constexpr uint16 MEM_START_POOLRAD = 0x9900;        // Pool of Radiance specific
-    constexpr uint16 MEM_START_DEFAULT = 0x8000;        // Default for other games
-    constexpr uint16 MEM_BASE_POOLRAD = 0x10000 - MEM_START_POOLRAD; // = 0x6700
+    constexpr uint16 ECL_START_POOLRAD = 0x9900;        // Pool of Radiance specific
+    constexpr uint16 ECL_START_DEFAULT = 0x8000;        // Default for other games
+    constexpr uint16 MEM_BASE_POOLRAD = 0x10000 - ECL_START_POOLRAD; // = 0x6700
 
     // Transitional constants kept for compatibility with GameConfig and
     // opcode decoding helpers. Prefer layout-based access for VM addresses.
@@ -108,7 +108,7 @@ public:
     }
 
     // VM address layout
-    virtual uint16 getScriptVmStart() const { return ECLMemoryLayout::MEM_START_DEFAULT; }
+    virtual uint16 getScriptVmStart() const { return ECLMemoryLayout::ECL_START_DEFAULT; }
         virtual bool getVmBankRange(Goldbox::VmBankId /*bankId*/,
             uint16 & /*firstAddr*/,
             uint16 & /*lastAddr*/) const { return false; }

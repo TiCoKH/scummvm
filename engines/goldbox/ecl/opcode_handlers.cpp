@@ -641,9 +641,14 @@ static int handle_0x3D_CLEAR_BOX(EclVM &vm, AddressSpace &mem,
 // Only EQ/NE flags are meaningful after this opcode (no magnitude comparison).
 static int handle_0x14_COMPARE_AND(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(4);
-    const bool bothEqual = (vm.readVar(1) == vm.readVar(2)) && (vm.readVar(3) == vm.readVar(4));
+    const uint16 v1 = vm.readVar(1);
+    const uint16 v2 = vm.readVar(2);
+    const uint16 v3 = vm.readVar(3);
+    const uint16 v4 = vm.readVar(4);
+    debug(5, "ECL: COMPARE AND: (%u == %u) && (%u == %u)", v1, v2, v3, v4);
+    const bool bothEqual = (v1 == v2) && (v3 == v4);
     vm.setCmpResult(bothEqual ? 0 : 1);
     return VM_OK;
 }

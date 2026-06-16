@@ -120,7 +120,7 @@ static uint16 skipEncodedOperandsFromMemory(const AddressSpace &memory,
 EclVM::EclVM(GameConfig *config, SyscallHandler *syscalls)
     : _config(config), _syscalls(syscalls), _memory(config),
             _pc(config ? config->getScriptVmStart()
-                    : ECLMemoryLayout::MEM_START_DEFAULT),
+                    : ECLMemoryLayout::ECL_START_DEFAULT),
             _scriptId(0xFF), _opStartPc(0), _nextInsnPc(0) {
     memset(_opValues, 0, sizeof(_opValues));
     memset(_opTypes, 0, sizeof(_opTypes));
@@ -134,7 +134,7 @@ EclVM::~EclVM() {
 
 DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptId) {
     const uint16 scriptVmStart = _config ? _config->getScriptVmStart()
-            : ECLMemoryLayout::MEM_START_DEFAULT;
+            : ECLMemoryLayout::ECL_START_DEFAULT;
     // if we like replicate original behavior, sholud need 'Loading...Please Wait' promptMessage() display from here
     _scriptId = scriptId;
     _pc = scriptVmStart;
@@ -693,16 +693,12 @@ uint16 EclVM::readVmMemory(uint16 vmAddr) const {
         return value;
     }
 
-    // All word-addressed banks (regions 0-3) store one logical value per
-    // VM address in the low byte. The original VM treats these as 16-bit
-    // words but only the low byte carries meaningful data for flag/state
-    // variables. Read as byte to avoid contamination from adjacent addresses
-    // in our flat byte-addressed memory layout.
-    const uint8 region = getMemoryRegion(vmAddr);
-    if (region <= 3)
-        return static_cast<uint16>(_memory.read8(vmAddr));
-
-    return _memory.read16LE(vmAddr);
+    // All word-addressed banks (regions 0-4, including System) store one
+    // logical value per VM address in the low byte. The original VM treats
+    // these as 16-bit words but only the low byte carries meaningful data
+    // for flag/state variables. Read as byte to avoid contamination from
+    // adjacent addresses in our flat byte-addressed memory layout.
+    return static_cast<uint16>(_memory.read8(vmAddr));
 }
 
 uint16 EclVM::readMemory(uint16 vmAddr) const {
