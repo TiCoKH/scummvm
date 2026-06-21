@@ -28,6 +28,7 @@
 
 namespace Goldbox {
 namespace Data {
+class PlayerCharacter;
 namespace Items {
 struct CharacterItem;
 } // namespace Items
@@ -68,6 +69,24 @@ public:
     void addItem(const Data::Items::CharacterItem &item);
     bool hasItems() const;
     bool isEmpty() const;
+
+    // --- Money operations (Pool/Share) ---
+
+    /**
+     * Strips all coins from party members and adds them to the pool.
+     * Equivalent to ACTION_PoolMoney: zeroes each character's coin slots
+     * and aggregates into pool coins.
+     * @return true if pool has coins after operation
+     */
+    bool poolMoneyFromParty(Common::Array<Data::PlayerCharacter *> &party);
+
+    /**
+     * Divides pool coins evenly among party members (by count, not weight).
+     * Remainder stays in pool.
+     * Equivalent to ACTION_ShareMoney.
+     * @return true if pool still has coins after sharing
+     */
+    bool shareMoneyToParty(Common::Array<Data::PlayerCharacter *> &party);
 
 private:
     Data::ValuableItems _coins;

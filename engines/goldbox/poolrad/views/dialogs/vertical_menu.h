@@ -44,7 +44,7 @@ struct VerticalMenuConfig {
     int xEnd;
     int yEnd;
     Common::String title;
-    bool asHeader;
+    bool addExit;
 };
 
 
@@ -70,7 +70,7 @@ private:
     int _linesToRender;
     int _currentVisibleIndex = 0;
     Common::String _title;
-    bool _titleAsHeader = false;
+    bool _addExit = false;
     bool _redraw = true;
     HorizontalMenu *_horizontalMenu;
 

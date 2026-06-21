@@ -132,7 +132,6 @@ void StoreDialog::openBuySelector() {
 
     _buyPromptOpts.clear();
     _buyPromptOpts.push_back("Buy");
-    _buyPromptOpts.push_back("Exit");
 
     VerticalMenuConfig cfg;
     cfg.promptTxt = "Items: ";
@@ -146,7 +145,7 @@ void StoreDialog::openBuySelector() {
     cfg.xEnd = 38;
     cfg.yEnd = 22;
     cfg.title = "";
-    cfg.asHeader = false;
+    cfg.addExit = true;
 
     _shopSelector = new VerticalMenu("StoreBuyMenu", cfg);
     setDialogParent(_shopSelector, this);
