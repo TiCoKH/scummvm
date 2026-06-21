@@ -967,9 +967,16 @@ void InGameView::enterShop(uint8 shopType) {
 	if (_activeShopDialog && _activeShopDialog->isActive())
 		_activeShopDialog->deactivate();
 
-	// Shop/temple/treasure all show the party panel.
+	// Clear text box area (ECL prompt leftover from Y/N question).
+	if (_textBoxDialog && _textBoxDialog->isActive()) {
+		_textBoxDialog->clearText();
+		_textBoxDialog->deactivate();
+	}
+
+	// Shop/temple/treasure show party panel but hide state area.
 	_showPartyPanel = true;
-	syncPartyDialog();
+	_showStateArea = false;
+	syncDialogs();
 
 	switch (shopType) {
 	case Dialogs::SHOP_STORE:

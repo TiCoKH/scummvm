@@ -33,8 +33,8 @@ namespace Dialogs {
 
 class HorizontalInput;
 class HorizontalMenu;
-class HorizontalYesNo;
 class PartyList;
+class PromptMessage;
 class TextBoxDialog;
 class VerticalMenu;
 
@@ -146,17 +146,18 @@ private:
     ShopBaseConfig _config;
     MenuItemList _menuModel;
     HorizontalMenu *_horizontalMenu;
-    HorizontalYesNo *_exitConfirm;
     TextBoxDialog *_textBox;
+    PromptMessage *_promptMessage;
     bool _appraiseDone;
     bool _hasItems;
     bool _hasMoney;
 
     enum Stage {
         STAGE_MENU = 0,
-        STAGE_EXIT_CONFIRM,
         STAGE_TAKE_SELECTOR,
-        STAGE_TAKE_AMOUNT
+        STAGE_TAKE_AMOUNT,
+        STAGE_APPRAISE_MENU,
+        STAGE_APPRAISE_KEEP_SELL
     };
     Stage _stage;
 
@@ -164,7 +165,6 @@ private:
     void recreateHorizontalMenu();
     void refreshScreen();
     void handleMenuKey(char key);
-    void handleExitConfirmResult(const MenuResultMessage &result);
 
     // --- Take action state ---
     static const char *kValuableNames[Goldbox::Data::VALUABLE_COUNT];
@@ -182,6 +182,27 @@ private:
     void handleTakeSelectorResult(const MenuResultMessage &result);
     void handleTakeAmountResult(const MenuResultMessage &result);
     bool poolHasValuables() const;
+
+    // --- Appraise action state ---
+    enum AppraiseType { APPRAISE_GEM = 0, APPRAISE_JEWELRY };
+    HorizontalMenu *_appraiseMenu;
+    HorizontalMenu *_appraiseKeepSellMenu;
+    MenuItemList _appraiseMenuModel;
+    MenuItemList _appraiseKSModel;
+    uint16 _appraiseValue;
+    AppraiseType _appraiseType;
+    bool _appraiseSellOnly;
+
+    void openAppraiseScreen();
+    void closeAppraise();
+    void buildAppraiseMenuModel();
+    void handleAppraiseMenuResult(const MenuResultMessage &result);
+    void appraiseItem(AppraiseType type);
+    void buildKeepSellModel();
+    void handleKeepSellResult(const MenuResultMessage &result);
+    uint16 rollGemValue();
+    uint16 rollJewelryValue();
+    void showPromptMessage(const Common::String &msg);
 };
 
 } // namespace Dialogs

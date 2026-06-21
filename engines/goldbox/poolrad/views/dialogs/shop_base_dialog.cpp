@@ -22,12 +22,13 @@
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
-#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/party_list.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/engine.h"
 #include "goldbox/runtime/treasure_pool.h"
 #include "goldbox/events.h"
 
@@ -39,28 +40,24 @@ namespace Dialogs {
 ShopBaseDialog::ShopBaseDialog(const Common::String &name,
         const ShopBaseConfig &config)
     : Dialog(name), _shopType(config.type), _exitFlag(false),
-      _config(config), _horizontalMenu(nullptr), _exitConfirm(nullptr),
-      _textBox(nullptr), _appraiseDone(false),
+      _config(config), _horizontalMenu(nullptr),
+      _textBox(nullptr), _promptMessage(nullptr), _appraiseDone(false),
       _hasItems(false), _hasMoney(false), _stage(STAGE_MENU),
       _takeSelector(nullptr), _takeInput(nullptr),
-      _takeSelectedType(Goldbox::Data::VAL_COPPER) {
+      _takeSelectedType(Goldbox::Data::VAL_COPPER),
+      _appraiseMenu(nullptr), _appraiseKeepSellMenu(nullptr),
+      _appraiseValue(0), _appraiseType(APPRAISE_GEM),
+      _appraiseSellOnly(false) {
     setBounds(Window(0, 0, 39, 24));
-
-    HorizontalYesNoConfig ynCfg;
-    ynCfg.promptTxt = "";
-    ynCfg.promptColor = 13;
-    ynCfg.textColor = 10;
-    ynCfg.selectColor = 15;
-    _exitConfirm = new HorizontalYesNo("ShopExitConfirm", ynCfg);
-    _exitConfirm->deactivate();
-    subView(_exitConfirm);
 }
 
 ShopBaseDialog::~ShopBaseDialog() {
     delete _horizontalMenu;
-    delete _exitConfirm;
     delete _takeSelector;
     delete _takeInput;
+    delete _appraiseMenu;
+    delete _appraiseKeepSellMenu;
+    delete _promptMessage;
 }
 
 void ShopBaseDialog::activate() {
@@ -68,9 +65,6 @@ void ShopBaseDialog::activate() {
     _exitFlag = false;
     _appraiseDone = false;
     _stage = STAGE_MENU;
-
-    if (_exitConfirm)
-        _exitConfirm->deactivate();
 
     onShopActivate();
     recreateHorizontalMenu();
@@ -82,8 +76,6 @@ void ShopBaseDialog::deactivate() {
         delete _horizontalMenu;
         _horizontalMenu = nullptr;
     }
-    if (_exitConfirm)
-        _exitConfirm->deactivate();
 
     Dialog::deactivate();
 }
@@ -184,12 +176,18 @@ void ShopBaseDialog::draw() {
         if (_takeInput && _takeInput->isActive())
             _takeInput->draw();
         return;
-    case STAGE_EXIT_CONFIRM:
-        if (_exitConfirm && _exitConfirm->isActive()) {
-            _exitConfirm->draw();
-            return;
+    case STAGE_APPRAISE_MENU:
+        if (_appraiseMenu) {
+            _appraiseMenu->setRedraw();
+            _appraiseMenu->draw();
         }
-        break;
+        return;
+    case STAGE_APPRAISE_KEEP_SELL:
+        if (_appraiseKeepSellMenu) {
+            _appraiseKeepSellMenu->setRedraw();
+            _appraiseKeepSellMenu->draw();
+        }
+        return;
     default:
         break;
     }
@@ -198,17 +196,21 @@ void ShopBaseDialog::draw() {
         _horizontalMenu->setRedraw();
         _horizontalMenu->draw();
     }
+
+    if (_promptMessage && _promptMessage->isActive())
+        _promptMessage->draw();
 }
 
 bool ShopBaseDialog::msgKeypress(const KeypressMessage &msg) {
     if (!_isActive)
         return false;
 
-    switch (_stage) {
-    case STAGE_EXIT_CONFIRM:
-        if (_exitConfirm && _exitConfirm->isActive())
-            return _exitConfirm->msgKeypress(msg);
+    if (_promptMessage && _promptMessage->isActive()) {
+        _promptMessage->handleKeypress(msg);
         return true;
+    }
+
+    switch (_stage) {
     case STAGE_TAKE_SELECTOR:
         if (_takeSelector && _takeSelector->isActive())
             return _takeSelector->dispatchKeypress(msg);
@@ -216,6 +218,14 @@ bool ShopBaseDialog::msgKeypress(const KeypressMessage &msg) {
     case STAGE_TAKE_AMOUNT:
         if (_takeInput && _takeInput->isActive())
             return _takeInput->handleKeypress(msg);
+        return true;
+    case STAGE_APPRAISE_MENU:
+        if (_appraiseMenu && _appraiseMenu->isActive())
+            return _appraiseMenu->msgKeypress(msg);
+        return true;
+    case STAGE_APPRAISE_KEEP_SELL:
+        if (_appraiseKeepSellMenu && _appraiseKeepSellMenu->isActive())
+            return _appraiseKeepSellMenu->msgKeypress(msg);
         return true;
     default:
         break;
@@ -330,73 +340,48 @@ void ShopBaseDialog::actionShare() {
 }
 
 void ShopBaseDialog::actionAppraise() {
-    // TODO: SHOP_Appraise → set _appraiseDone on success
-    _appraiseDone = true;
-}
+    Goldbox::Data::PlayerCharacter *base = VmInterface::getSelectedCharacter();
+    Goldbox::Poolrad::Data::PoolradCharacter *ch =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(base);
+    if (!ch)
+        return;
 
-void ShopBaseDialog::actionExit() {
-    getShopFlags(_hasItems, _hasMoney);
+    uint16 gems = ch->valuableItems.values[Goldbox::Data::VAL_GEMS];
+    uint16 jewelry = ch->valuableItems.values[Goldbox::Data::VAL_JEWELRY];
 
-    // If nothing remains, exit immediately.
-    if (!_hasItems && !_hasMoney) {
-        _exitFlag = true;
-        if (_parent)
-            g_events->postMenuResult(_parent->getName(), true,
-                Common::KEYCODE_e, 0, Common::String(), true, false);
-        deactivate();
+    if (gems == 0 && jewelry == 0) {
+        showPromptMessage("No Gems or Jewelry");
         return;
     }
 
-    // Show exit confirmation prompt.
-    _stage = STAGE_EXIT_CONFIRM;
+    _appraiseDone = true;
+    openAppraiseScreen();
+}
 
-    // Display confirmation text in text area.
-    Surface s = getSurface();
-    s.clearBox(1, 17, 38, 22, 0);
-    s.writeStringC(1, 18, 10, _config.exitConfirmLine1);
-    s.writeStringC(1, 20, 10, _config.exitConfirmLine2);
-
-    if (_exitConfirm) {
-        setDialogParent(_exitConfirm, this);
-        _exitConfirm->activate();
-    }
+void ShopBaseDialog::actionExit() {
+    _exitFlag = true;
+    if (_parent)
+        g_events->postMenuResult(_parent->getName(), true,
+            Common::KEYCODE_e, 0, Common::String(), true, false);
+    deactivate();
 }
 
 void ShopBaseDialog::handleMenuResult(const MenuResultMessage &result) {
     switch (_stage) {
-    case STAGE_EXIT_CONFIRM:
-        handleExitConfirmResult(result);
-        return;
     case STAGE_TAKE_SELECTOR:
         handleTakeSelectorResult(result);
         return;
     case STAGE_TAKE_AMOUNT:
         handleTakeAmountResult(result);
         return;
+    case STAGE_APPRAISE_MENU:
+        handleAppraiseMenuResult(result);
+        return;
+    case STAGE_APPRAISE_KEEP_SELL:
+        handleKeepSellResult(result);
+        return;
     default:
         break;
-    }
-}
-
-void ShopBaseDialog::handleExitConfirmResult(const MenuResultMessage &result) {
-    _stage = STAGE_MENU;
-
-    if (_exitConfirm)
-        _exitConfirm->deactivate();
-
-    if (result._keyCode == Common::KEYCODE_y) {
-        // User confirmed exit despite remaining items.
-        _exitFlag = true;
-        if (_parent)
-            g_events->postMenuResult(_parent->getName(), true,
-                Common::KEYCODE_e, 0, Common::String(), true, false);
-        deactivate();
-    } else {
-        // User chose to go back.
-        Surface s = getSurface();
-        s.clearBox(1, 17, 38, 22, 0);
-        recreateHorizontalMenu();
-        redraw();
     }
 }
 
@@ -404,6 +389,20 @@ void ShopBaseDialog::refreshScreen() {
     // Redraw main screen layout after actions that modify display
     // (Buy, Take, Appraise success).
     redraw();
+}
+
+void ShopBaseDialog::showPromptMessage(const Common::String &msg) {
+    if (_promptMessage) {
+        delete _promptMessage;
+        _promptMessage = nullptr;
+    }
+
+    PromptMessageConfig cfg;
+    cfg.message = msg;
+    cfg.textColor = 10;
+    _promptMessage = new PromptMessage("ShopPrompt", cfg);
+    setDialogParent(_promptMessage, this);
+    _promptMessage->activate();
 }
 
 // --- Take action implementation ---
@@ -615,6 +614,329 @@ void ShopBaseDialog::handleTakeAmountResult(const MenuResultMessage &result) {
         // Pool empty — exit take
         closeTakeSelector();
     }
+}
+
+// --- Appraise action implementation ---
+
+uint16 ShopBaseDialog::rollGemValue() {
+    int roll = VmInterface::rollDice(1, 100);
+    if (roll <= 25)       return 10;
+    else if (roll <= 50)  return 50;
+    else if (roll <= 70)  return 100;
+    else if (roll <= 90)  return 500;
+    else if (roll <= 99)  return 1000;
+    else                  return 5000;
+}
+
+uint16 ShopBaseDialog::rollJewelryValue() {
+    int roll = VmInterface::rollDice(1, 100);
+    if (roll <= 10)       return (uint16)(g_engine->getRandomNumber(899) + 100);
+    else if (roll <= 20)  return (uint16)(g_engine->getRandomNumber(999) + 200);
+    else if (roll <= 40)  return (uint16)(g_engine->getRandomNumber(1499) + 300);
+    else if (roll <= 50)  return (uint16)(g_engine->getRandomNumber(2499) + 500);
+    else if (roll <= 70)  return (uint16)(g_engine->getRandomNumber(4999) + 1000);
+    else if (roll <= 90)  return (uint16)(g_engine->getRandomNumber(5999) + 2000);
+    else                  return (uint16)(g_engine->getRandomNumber(9999) + 2000);
+}
+
+void ShopBaseDialog::openAppraiseScreen() {
+    _stage = STAGE_APPRAISE_MENU;
+
+    Goldbox::Data::PlayerCharacter *base = VmInterface::getSelectedCharacter();
+    Goldbox::Poolrad::Data::PoolradCharacter *ch =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(base);
+    if (!ch) {
+        closeAppraise();
+        return;
+    }
+
+    uint16 gems = ch->valuableItems.values[Goldbox::Data::VAL_GEMS];
+    uint16 jewelry = ch->valuableItems.values[Goldbox::Data::VAL_JEWELRY];
+
+    // Draw info screen
+    Surface s = getSurface();
+    s.clearBox(1, 1, 38, 22, 0);
+    s.writeStringC(1, 1, 15, ch->name);
+    s.writeStringC(1, 7, 10, "You have a fine collection of:");
+
+    if (gems > 0) {
+        Common::String gemStr = Common::String::format("%u %s",
+            gems, (gems == 1) ? "Gem" : "Gems");
+        s.writeStringC(1, 9, 10, gemStr);
+    }
+    if (jewelry > 0) {
+        Common::String jewStr = Common::String::format("%u %s",
+            jewelry, (jewelry == 1) ? "piece of Jewelry" : "pieces of Jewelry");
+        s.writeStringC(1, 10, 10, jewStr);
+    }
+
+    buildAppraiseMenuModel();
+
+    if (_appraiseMenu) {
+        _appraiseMenu->deactivate();
+        delete _appraiseMenu;
+        _appraiseMenu = nullptr;
+    }
+
+    HorizontalMenuConfig cfg;
+    cfg.promptTxt = "Appraise :";
+    cfg.menuItemList = &_appraiseMenuModel;
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.promptColor = 13;
+    cfg.allowNumPad = false;
+    cfg.suppressUnhandledKeys = true;
+    cfg.backgroundColor = 0;
+
+    _appraiseMenu = new HorizontalMenu("AppraiseMenu", cfg);
+    setDialogParent(_appraiseMenu, this);
+    _appraiseMenu->activate();
+    redraw();
+}
+
+void ShopBaseDialog::buildAppraiseMenuModel() {
+    _appraiseMenuModel.items.clear();
+    _appraiseMenuModel.currentSelection = 0;
+
+    Goldbox::Data::PlayerCharacter *base = VmInterface::getSelectedCharacter();
+    Goldbox::Poolrad::Data::PoolradCharacter *ch =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(base);
+    if (!ch)
+        return;
+
+    Common::Array<Common::String> opts;
+    if (ch->valuableItems.values[Goldbox::Data::VAL_GEMS] > 0)
+        opts.push_back("Gems");
+    if (ch->valuableItems.values[Goldbox::Data::VAL_JEWELRY] > 0)
+        opts.push_back("Jewelry");
+    opts.push_back("Exit");
+
+    _appraiseMenuModel.generateMenuItems(opts, true);
+}
+
+void ShopBaseDialog::closeAppraise() {
+    if (_appraiseMenu) {
+        _appraiseMenu->deactivate();
+        delete _appraiseMenu;
+        _appraiseMenu = nullptr;
+    }
+    if (_appraiseKeepSellMenu) {
+        _appraiseKeepSellMenu->deactivate();
+        delete _appraiseKeepSellMenu;
+        _appraiseKeepSellMenu = nullptr;
+    }
+    _stage = STAGE_MENU;
+
+    Surface s = getSurface();
+    s.clearBox(1, 1, 38, 22, 0);
+    recreateHorizontalMenu();
+    redraw();
+}
+
+void ShopBaseDialog::handleAppraiseMenuResult(const MenuResultMessage &result) {
+    char key = 0;
+    if (result._keyCode == Common::KEYCODE_RETURN) {
+        int sel = _appraiseMenuModel.currentSelection;
+        if (sel >= 0 && sel < (int)_appraiseMenuModel.items.size())
+            key = _appraiseMenuModel.items[sel].shortcut;
+    } else {
+        key = (char)result._keyCode;
+        if (key >= 'a' && key <= 'z')
+            key -= 32;
+        // Match by shortcut
+        bool found = false;
+        for (uint i = 0; i < _appraiseMenuModel.items.size(); ++i) {
+            if (_appraiseMenuModel.items[i].shortcut == key) {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            key = 0;
+    }
+
+    if (key == 'G') {
+        appraiseItem(APPRAISE_GEM);
+    } else if (key == 'J') {
+        appraiseItem(APPRAISE_JEWELRY);
+    } else {
+        // Exit or Escape
+        closeAppraise();
+    }
+}
+
+void ShopBaseDialog::appraiseItem(AppraiseType type) {
+    Goldbox::Data::PlayerCharacter *base = VmInterface::getSelectedCharacter();
+    Goldbox::Poolrad::Data::PoolradCharacter *ch =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(base);
+    if (!ch) {
+        closeAppraise();
+        return;
+    }
+
+    _appraiseType = type;
+
+    // Consume one gem or jewelry
+    if (type == APPRAISE_GEM) {
+        if (ch->valuableItems.values[Goldbox::Data::VAL_GEMS] == 0) {
+            openAppraiseScreen();
+            return;
+        }
+        ch->valuableItems.values[Goldbox::Data::VAL_GEMS]--;
+        _appraiseValue = rollGemValue();
+    } else {
+        if (ch->valuableItems.values[Goldbox::Data::VAL_JEWELRY] == 0) {
+            openAppraiseScreen();
+            return;
+        }
+        ch->valuableItems.values[Goldbox::Data::VAL_JEWELRY]--;
+        _appraiseValue = rollJewelryValue();
+    }
+
+    // Display appraisal result
+    Surface s = getSurface();
+    Common::String valueStr = Common::String::format("The %s is Valued at %u gp.",
+        (type == APPRAISE_GEM) ? "Gem" : "Jewel", _appraiseValue);
+    s.writeStringC(1, 12, 10, valueStr);
+
+    // Determine keep/sell options
+    buildKeepSellModel();
+
+    _stage = STAGE_APPRAISE_KEEP_SELL;
+
+    if (_appraiseKeepSellMenu) {
+        _appraiseKeepSellMenu->deactivate();
+        delete _appraiseKeepSellMenu;
+        _appraiseKeepSellMenu = nullptr;
+    }
+
+    HorizontalMenuConfig cfg;
+    cfg.promptTxt = "You can :";
+    cfg.menuItemList = &_appraiseKSModel;
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.promptColor = 13;
+    cfg.allowNumPad = false;
+    cfg.suppressUnhandledKeys = true;
+    cfg.backgroundColor = 0;
+
+    _appraiseKeepSellMenu = new HorizontalMenu("AppraiseKSMenu", cfg);
+    setDialogParent(_appraiseKeepSellMenu, this);
+    _appraiseKeepSellMenu->activate();
+    redraw();
+}
+
+void ShopBaseDialog::buildKeepSellModel() {
+    _appraiseKSModel.items.clear();
+    _appraiseKSModel.currentSelection = 0;
+
+    Goldbox::Data::PlayerCharacter *base = VmInterface::getSelectedCharacter();
+    Goldbox::Poolrad::Data::PoolradCharacter *ch =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(base);
+
+    // Check if character can hold the item
+    _appraiseSellOnly = false;
+    if (ch) {
+        Goldbox::Data::Items::CharacterItem testItem;
+        testItem.name = (_appraiseType == APPRAISE_GEM) ? "Gem" : "Jewelry";
+        testItem.nextAddress = 0;
+        testItem.typeIndex = 70;
+        testItem.nameCode1 = 0;
+        testItem.nameCode2 = 0;
+        testItem.nameCode3 = (_appraiseType == APPRAISE_GEM) ? (uint8)101 : (uint8)214;
+        testItem.bonus = 0;
+        testItem.saveBonus = 0;
+        testItem.readied = 0;
+        testItem.hidden = 0;
+        testItem.cursed = 0;
+        testItem.weight = 1;
+        testItem.stackSize = 0;
+        testItem.value = _appraiseValue;
+        testItem.effect1 = 0;
+        testItem.effect2 = 0;
+        testItem.effect3 = 0;
+
+        if (!ch->canReceiveItemLegacy(testItem))
+            _appraiseSellOnly = true;
+    }
+
+    Common::Array<Common::String> opts;
+    opts.push_back("Sell");
+    if (!_appraiseSellOnly)
+        opts.push_back("Keep");
+    _appraiseKSModel.generateMenuItems(opts, true);
+}
+
+void ShopBaseDialog::handleKeepSellResult(const MenuResultMessage &result) {
+    char key = 0;
+    if (result._keyCode == Common::KEYCODE_RETURN) {
+        int sel = _appraiseKSModel.currentSelection;
+        if (sel >= 0 && sel < (int)_appraiseKSModel.items.size())
+            key = _appraiseKSModel.items[sel].shortcut;
+    } else {
+        key = (char)result._keyCode;
+        if (key >= 'a' && key <= 'z')
+            key -= 32;
+    }
+
+    Goldbox::Data::PlayerCharacter *base = VmInterface::getSelectedCharacter();
+    Goldbox::Poolrad::Data::PoolradCharacter *ch =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(base);
+
+    if (key == 'K' && !_appraiseSellOnly && ch) {
+        // Keep: add item to inventory
+        Goldbox::Data::Items::CharacterItem newItem;
+        newItem.name = (_appraiseType == APPRAISE_GEM) ? "Gem" : "Jewelry";
+        newItem.nextAddress = 0;
+        newItem.typeIndex = 70;
+        newItem.nameCode1 = 0;
+        newItem.nameCode2 = 0;
+        newItem.nameCode3 = (_appraiseType == APPRAISE_GEM) ? (uint8)101 : (uint8)214;
+        newItem.bonus = 0;
+        newItem.saveBonus = 0;
+        newItem.readied = 0;
+        newItem.hidden = 0;
+        newItem.cursed = 0;
+        newItem.weight = 1;
+        newItem.stackSize = 0;
+        newItem.value = _appraiseValue;
+        newItem.effect1 = 0;
+        newItem.effect2 = 0;
+        newItem.effect3 = 0;
+
+        ch->receiveItem(newItem);
+    } else {
+        // Sell: receive 1/5 value as gold to character
+        if (ch) {
+            uint16 sellValue = _appraiseValue / 5;
+            uint32 newGold = (uint32)ch->valuableItems.values[Goldbox::Data::VAL_GOLD] + sellValue;
+            ch->valuableItems.values[Goldbox::Data::VAL_GOLD] =
+                (newGold > 0xFFFF) ? (uint16)0xFFFF : (uint16)newGold;
+        }
+    }
+
+    // Recalc combat stats after inventory/weight change
+    if (ch)
+        ch->recalcCombatStats();
+
+    // Clean up keep/sell menu
+    if (_appraiseKeepSellMenu) {
+        _appraiseKeepSellMenu->deactivate();
+        delete _appraiseKeepSellMenu;
+        _appraiseKeepSellMenu = nullptr;
+    }
+
+    // Check if more gems/jewelry remain; if so, loop back
+    if (ch) {
+        uint16 gems = ch->valuableItems.values[Goldbox::Data::VAL_GEMS];
+        uint16 jewelry = ch->valuableItems.values[Goldbox::Data::VAL_JEWELRY];
+        if (gems > 0 || jewelry > 0) {
+            openAppraiseScreen();
+            return;
+        }
+    }
+
+    closeAppraise();
 }
 
 } // namespace Dialogs
