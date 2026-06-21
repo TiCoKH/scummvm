@@ -41,6 +41,7 @@ MODULE_OBJS = \
 	data/items/base_items.o \
 	data/items/character_item.o \
 	data/items/character_inventory.o \
+	data/rules/rules_types.o \
 	data/rules/rules_poolrad.o \
 	data/spells/spell_book.o \
 	spells/spell_metadata.o \

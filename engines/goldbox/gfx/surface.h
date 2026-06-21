@@ -141,6 +141,12 @@ public:
 	 * Clears an area with the given color and draws a frame around it
 	 */
 	void drawWindow(int start_x, int start_y, int end_x, int end_y, uint32 color);
+
+	/**
+	 * Clears an area, draws a frame, and renders a centered title string
+	 */
+	void drawWindow(int start_x, int start_y, int end_x, int end_y,
+			uint32 color, int titleColor, const Common::String &title);
 };
 
 } // namespace Gfx

@@ -113,6 +113,12 @@ enum ValuableType {
 };
 
 struct ValuableItems {
+    // Exchange rates to common base unit (copper=1, silver=10, electrum=100,
+    // gold=200, platinum=1000). Only the first 5 coin slots are convertible.
+    static const uint16 kExchangeRates[5];
+    static const uint16 kGoldRate = 200;
+    static const int kCoinSlotCount = 5;
+
     Common::Array<uint16> values;
     ValuableItems() : values(VALUABLE_COUNT) {}
     uint16 &operator[](ValuableType t) { return values[t]; }
@@ -124,6 +130,39 @@ struct ValuableItems {
         for (uint i = 0; i < values.size(); ++i)
             sum += values[i];
         return sum;
+    }
+
+    // Convert coin slots (copper..platinum) to a gold-piece value.
+    // Formula: (sum(coins[i] * rate[i]) + 100) / 200
+    inline uint32 getGoldValue() const {
+        uint32 sum = 0;
+        for (int i = 0; i < kCoinSlotCount; ++i)
+            sum += (uint32)values[i] * kExchangeRates[i];
+        return (sum + 100) / kGoldRate;
+    }
+
+    // Set coins from a gold-piece value (zeroes all coin slots, stores as
+    // gold coins). Matches CHARACTER_SetCoinValueFromGold /
+    // COINPOOL_SetValueFromGold.
+    inline void setFromGoldValue(uint32 goldValue) {
+        for (int i = 0; i < kCoinSlotCount; ++i)
+            values[i] = 0;
+        values[VAL_GOLD] = (uint16)goldValue;
+    }
+
+    // Add another ValuableItems' coin slots into this one (saturates at
+    // uint16 max). Used by pool-money to aggregate party coins.
+    inline void addCoins(const ValuableItems &other) {
+        for (int i = 0; i < kCoinSlotCount; ++i) {
+            uint32 v = (uint32)values[i] + other.values[i];
+            values[i] = (v > 0xFFFF) ? (uint16)0xFFFF : (uint16)v;
+        }
+    }
+
+    // Zero only the coin slots (copper..platinum), leaving gems/jewelry.
+    inline void clearCoins() {
+        for (int i = 0; i < kCoinSlotCount; ++i)
+            values[i] = 0;
     }
 };
 

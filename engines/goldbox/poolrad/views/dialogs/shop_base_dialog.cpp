@@ -20,11 +20,15 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
+#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/party_list.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/runtime/treasure_pool.h"
 #include "goldbox/events.h"
 
 namespace Goldbox {
@@ -37,7 +41,9 @@ ShopBaseDialog::ShopBaseDialog(const Common::String &name,
     : Dialog(name), _shopType(config.type), _exitFlag(false),
       _config(config), _horizontalMenu(nullptr), _exitConfirm(nullptr),
       _textBox(nullptr), _appraiseDone(false),
-      _hasItems(false), _hasMoney(false), _stage(STAGE_MENU) {
+      _hasItems(false), _hasMoney(false), _stage(STAGE_MENU),
+      _takeSelector(nullptr), _takeInput(nullptr),
+      _takeSelectedType(Goldbox::Data::VAL_COPPER) {
     setBounds(Window(0, 0, 39, 24));
 
     HorizontalYesNoConfig ynCfg;
@@ -53,6 +59,8 @@ ShopBaseDialog::ShopBaseDialog(const Common::String &name,
 ShopBaseDialog::~ShopBaseDialog() {
     delete _horizontalMenu;
     delete _exitConfirm;
+    delete _takeSelector;
+    delete _takeInput;
 }
 
 void ShopBaseDialog::activate() {
@@ -164,9 +172,23 @@ void ShopBaseDialog::draw() {
     if (!_isVisible)
         return;
 
-    if (_exitConfirm && _exitConfirm->isActive()) {
-        _exitConfirm->draw();
+    switch (_stage) {
+    case STAGE_TAKE_SELECTOR:
+        if (_takeSelector && _takeSelector->isActive())
+            _takeSelector->draw();
         return;
+    case STAGE_TAKE_AMOUNT:
+        if (_takeInput && _takeInput->isActive())
+            _takeInput->draw();
+        return;
+    case STAGE_EXIT_CONFIRM:
+        if (_exitConfirm && _exitConfirm->isActive()) {
+            _exitConfirm->draw();
+            return;
+        }
+        break;
+    default:
+        break;
     }
 
     if (_horizontalMenu) {
@@ -179,10 +201,21 @@ bool ShopBaseDialog::msgKeypress(const KeypressMessage &msg) {
     if (!_isActive)
         return false;
 
-    if (_stage == STAGE_EXIT_CONFIRM) {
+    switch (_stage) {
+    case STAGE_EXIT_CONFIRM:
         if (_exitConfirm && _exitConfirm->isActive())
             return _exitConfirm->msgKeypress(msg);
         return true;
+    case STAGE_TAKE_SELECTOR:
+        if (_takeSelector && _takeSelector->isActive())
+            return _takeSelector->dispatchKeypress(msg);
+        return true;
+    case STAGE_TAKE_AMOUNT:
+        if (_takeInput && _takeInput->isActive())
+            return _takeInput->handleKeypress(msg);
+        return true;
+    default:
+        break;
     }
 
     if (!_horizontalMenu)
@@ -274,8 +307,7 @@ void ShopBaseDialog::actionView() {
 }
 
 void ShopBaseDialog::actionTake() {
-    // TODO: Dispatch to DIALOG_TradeValuable (Shop/Temple)
-    // or ACTION_Take (Treasure) based on _shopType.
+    openTakeSelector();
 }
 
 void ShopBaseDialog::actionPool() {
@@ -320,9 +352,18 @@ void ShopBaseDialog::actionExit() {
 }
 
 void ShopBaseDialog::handleMenuResult(const MenuResultMessage &result) {
-    if (_stage == STAGE_EXIT_CONFIRM) {
+    switch (_stage) {
+    case STAGE_EXIT_CONFIRM:
         handleExitConfirmResult(result);
         return;
+    case STAGE_TAKE_SELECTOR:
+        handleTakeSelectorResult(result);
+        return;
+    case STAGE_TAKE_AMOUNT:
+        handleTakeAmountResult(result);
+        return;
+    default:
+        break;
     }
 }
 
@@ -352,6 +393,215 @@ void ShopBaseDialog::refreshScreen() {
     // Redraw main screen layout after actions that modify display
     // (Buy, Take, Appraise success).
     redraw();
+}
+
+// --- Take action implementation ---
+
+const char *ShopBaseDialog::kValuableNames[Goldbox::Data::VALUABLE_COUNT] = {
+    "Copper", "Silver", "Electrum", "Gold", "Platinum", "Gems", "Jewelry"
+};
+
+bool ShopBaseDialog::poolHasValuables() const {
+    const TreasurePool &pool = VmInterface::getTreasurePool();
+    const Goldbox::Data::ValuableItems &coins = pool.coins();
+    for (int i = 0; i < Goldbox::Data::VALUABLE_COUNT; ++i) {
+        if (coins.values[i] != 0)
+            return true;
+    }
+    return false;
+}
+
+void ShopBaseDialog::buildTakeMenuItems() {
+    _takeMenuItems.items.clear();
+    _takeMenuItems.currentSelection = 0;
+    _takeSlotMap.clear();
+
+    const TreasurePool &pool = VmInterface::getTreasurePool();
+    const Goldbox::Data::ValuableItems &coins = pool.coins();
+
+    // Iterate 6 downto 0 (Jewelry first) matching original build order
+    for (int i = Goldbox::Data::VALUABLE_COUNT - 1; i >= 0; --i) {
+        if (coins.values[i] == 0)
+            continue;
+
+        Common::String amountTxt = Common::String::format("%u", coins.values[i]);
+        Common::String nameTxt = kValuableNames[i];
+
+        // Format: "Name    Amount" right-aligned in 30-char field
+        const int fieldWidth = 30;
+        int padding = fieldWidth - (int)nameTxt.size() - (int)amountTxt.size();
+        if (padding < 1)
+            padding = 1;
+
+        Common::String line = nameTxt;
+        for (int p = 0; p < padding; ++p)
+            line += ' ';
+        line += amountTxt;
+
+        MenuItem mi;
+        mi.text = line;
+        mi.shortcut = 0;
+        mi.active = true;
+        mi.shortcutFirst = false;
+        _takeMenuItems.items.push_back(mi);
+        _takeSlotMap.push_back((Goldbox::Data::ValuableType)i);
+    }
+}
+
+void ShopBaseDialog::openTakeSelector() {
+    buildTakeMenuItems();
+
+    if (_takeMenuItems.items.empty()) {
+        // Nothing to take
+        return;
+    }
+
+    _stage = STAGE_TAKE_SELECTOR;
+
+    if (_takeSelector) {
+        delete _takeSelector;
+        _takeSelector = nullptr;
+    }
+
+    _takePromptOpts.clear();
+    _takePromptOpts.push_back("Take");
+    _takePromptOpts.push_back("Exit");
+
+    VerticalMenuConfig cfg;
+    cfg.promptTxt = "";
+    cfg.promptOptions = &_takePromptOpts;
+    cfg.menuItemList = &_takeMenuItems;
+    cfg.headColor = 15;
+    cfg.textColor = 10;
+    cfg.selectColor = 13;
+    cfg.xStart = 1;
+    cfg.yStart = 3;
+    cfg.xEnd = 38;
+    cfg.yEnd = 15;
+    cfg.title = "Valuables";
+    cfg.asHeader = false;
+
+    _takeSelector = new VerticalMenu("ShopTakeMenu", cfg);
+    setDialogParent(_takeSelector, this);
+    _takeSelector->activate();
+    redraw();
+}
+
+void ShopBaseDialog::closeTakeSelector() {
+    if (_takeSelector) {
+        _takeSelector->deactivate();
+        delete _takeSelector;
+        _takeSelector = nullptr;
+    }
+    _stage = STAGE_MENU;
+    recreateHorizontalMenu();
+    redraw();
+}
+
+void ShopBaseDialog::openTakeAmountInput() {
+    _stage = STAGE_TAKE_AMOUNT;
+
+    if (_takeInput) {
+        delete _takeInput;
+        _takeInput = nullptr;
+    }
+
+    Common::String prompt = Common::String::format(
+        "How much %s will you take? ", kValuableNames[_takeSelectedType]);
+
+    HorizontalInputConfig cfg;
+    cfg.promptTxt = prompt;
+    cfg.promptColor = 10;
+    cfg.maxInputLength = 5;
+
+    _takeInput = new HorizontalInput("ShopTakeInput", cfg);
+    setDialogParent(_takeInput, this);
+    _takeInput->activate();
+    redraw();
+}
+
+void ShopBaseDialog::handleTakeSelectorResult(const MenuResultMessage &result) {
+    Common::KeyCode key = result._keyCode;
+
+    if (key == Common::KEYCODE_t || key == Common::KEYCODE_RETURN) {
+        // Take selected valuable
+        int sel = _takeMenuItems.currentSelection;
+        if (sel >= 0 && sel < (int)_takeSlotMap.size()) {
+            _takeSelectedType = _takeSlotMap[sel];
+            openTakeAmountInput();
+        }
+    } else {
+        // Exit take menu
+        closeTakeSelector();
+    }
+}
+
+void ShopBaseDialog::handleTakeAmountResult(const MenuResultMessage &result) {
+    Common::KeyCode key = result._keyCode;
+    Common::String inputStr = result._stringValue;
+
+    if (_takeInput) {
+        _takeInput->deactivate();
+        delete _takeInput;
+        _takeInput = nullptr;
+    }
+
+    if (key == Common::KEYCODE_ESCAPE || inputStr.empty()) {
+        // Cancelled — return to take selector
+        _stage = STAGE_TAKE_SELECTOR;
+        if (_takeSelector)
+            _takeSelector->activate();
+        redraw();
+        return;
+    }
+
+    // Parse amount and clamp to available
+    uint32 amount = (uint32)atoi(inputStr.c_str());
+    TreasurePool &pool = VmInterface::getTreasurePool();
+    Goldbox::Data::ValuableItems &poolCoins = pool.coins();
+    uint16 available = poolCoins.values[_takeSelectedType];
+
+    if (amount > available)
+        amount = available;
+    if (amount == 0) {
+        _stage = STAGE_TAKE_SELECTOR;
+        if (_takeSelector)
+            _takeSelector->activate();
+        redraw();
+        return;
+    }
+
+    // Transfer to selected character
+    Goldbox::Data::PlayerCharacter *base = VmInterface::getSelectedCharacter();
+    Goldbox::Poolrad::Data::PoolradCharacter *ch =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(base);
+    if (ch) {
+        uint32 newVal = (uint32)ch->valuableItems.values[_takeSelectedType] + amount;
+        ch->valuableItems.values[_takeSelectedType] =
+            (newVal > 0xFFFF) ? (uint16)0xFFFF : (uint16)newVal;
+    }
+
+    // Subtract from pool
+    poolCoins.values[_takeSelectedType] = available - (uint16)amount;
+
+    // Check if pool still has valuables
+    if (poolHasValuables()) {
+        // Rebuild and continue take loop
+        buildTakeMenuItems();
+        if (_takeMenuItems.items.empty()) {
+            closeTakeSelector();
+        } else {
+            _stage = STAGE_TAKE_SELECTOR;
+            if (_takeSelector)
+                _takeSelector->rebuild(&_takeMenuItems, "Valuables");
+            else
+                openTakeSelector();
+            redraw();
+        }
+    } else {
+        // Pool empty — exit take
+        closeTakeSelector();
+    }
 }
 
 } // namespace Dialogs
