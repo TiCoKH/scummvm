@@ -207,21 +207,33 @@ void VerticalMenu::redrawLine(int index) {
 }
 
 void VerticalMenu::updateHorizontalMenu() {
-    while (!_hMenuList.items.empty() &&
-        (_hMenuList.items.back().shortcut == 'N' || _hMenuList.items.back().shortcut == 'P')) {
-        _hMenuList.items.pop_back();
+    // Remove any previously inserted Next/Prev items.
+    for (int i = (int)_hMenuList.items.size() - 1; i >= 0; --i) {
+        char sc = _hMenuList.items[i].shortcut;
+        if (sc == 'N' || sc == 'P')
+            _hMenuList.items.remove_at(i);
     }
 
+    // Insert Next/Prev before the last item (Exit) so Exit stays last.
+    int insertPos = MAX(0, (int)_hMenuList.items.size() - 1);
+
     if (_linesBelow > 0) {
-        _hMenuList.push_back("Next");
-        _hMenuList.generateShortcut(_hMenuList.items.size() - 1);
+        _hMenuList.items.insert_at(insertPos, MenuItem());
+        _hMenuList.items[insertPos].text = "Next";
+        _hMenuList.items[insertPos].active = true;
+        _hMenuList.items[insertPos].shortcutFirst = true;
+        _hMenuList.generateShortcut(insertPos);
+        ++insertPos;
     }
     // Show Prev only when there are selectable items above the current page.
     // _selectMin is the number of leading separator rows that must always stay
     // visible; scrolling back stops when _linesAbove == _selectMin.
     if (_selectMin < _linesAbove) {
-        _hMenuList.push_back("Prev");
-        _hMenuList.generateShortcut(_hMenuList.items.size() - 1);
+        _hMenuList.items.insert_at(insertPos, MenuItem());
+        _hMenuList.items[insertPos].text = "Prev";
+        _hMenuList.items[insertPos].active = true;
+        _hMenuList.items[insertPos].shortcutFirst = true;
+        _hMenuList.generateShortcut(insertPos);
     }
 
     if (_horizontalMenu) {

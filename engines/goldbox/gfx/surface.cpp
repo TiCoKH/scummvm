@@ -261,6 +261,16 @@ void Surface::drawWindow(int startX, int startY, int endX, int endY, uint32 colo
 	clearBox(startX, startY, endX, endY, color);
 }
 
+void Surface::drawWindow(int startX, int startY, int endX, int endY,
+		uint32 color, int titleColor, const Common::String &title) {
+	clearBox(startX, startY, endX, endY, color);
+	drawFrame(startX, startY, endX, endY);
+	if (!title.empty()) {
+		int x = (endX + startX - (int)title.size()) / 2;
+		writeStringC(x, startY, titleColor, title);
+	}
+}
+
 } // namespace Gfx
 } // namespace Shared
 } // namespace Goldbox

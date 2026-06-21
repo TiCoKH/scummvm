@@ -22,12 +22,24 @@
 #ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_STORE_DIALOG_H
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_STORE_DIALOG_H
 
+#include "goldbox/core/menu_item.h"
+#include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 
 namespace Goldbox {
+namespace Data {
+class PlayerCharacter;
+namespace Items {
+struct CharacterItem;
+}
+}
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
+
+class PartySelector;
+class PromptMessage;
+class VerticalMenu;
 
 /**
  * Item shop dialog (DIALOG_Shop equivalent).
@@ -37,11 +49,49 @@ namespace Dialogs {
 class StoreDialog : public ShopBaseDialog {
 public:
     StoreDialog(const Common::String &name = "Store");
+    ~StoreDialog() override;
+
+    bool msgKeypress(const KeypressMessage &msg) override;
+    void handleMenuResult(const MenuResultMessage &result) override;
+    void draw() override;
 
 protected:
     void actionPrimary() override;
     void onShopActivate() override;
     void getShopFlags(bool &hasItems, bool &hasMoney) override;
+
+private:
+    // Exchange rates and gold conversion now live in ValuableItems.
+
+    enum BuyStage {
+        BUY_NONE = 0,
+        BUY_SELECTOR,
+        BUY_RECEIVE
+    };
+    BuyStage _buyStage;
+
+    MenuItemList _shopMenuItems;
+    Common::Array<Common::String> _buyPromptOpts;
+    VerticalMenu *_shopSelector;
+    PartySelector *_partySelector;
+    PromptMessage *_activePrompt;
+    Goldbox::Data::Items::CharacterItem *_pendingItem;
+
+    void buildShopItemList();
+    void restoreItemDisplayText();
+    void openBuySelector();
+    void closeBuySelector();
+    void handleShopSelectorResult(const MenuResultMessage &result);
+    void attemptBuy();
+    void handleReceiveResult(const MenuResultMessage &result);
+    void deductFromParty(uint32 cost);
+    void deductFromPool(uint32 cost);
+    void showMessage(const Common::String &msg);
+
+    static uint32 sumPartyGoldValue(
+        const Common::Array<Goldbox::Data::PlayerCharacter *> &party);
+    static Goldbox::Data::ValuableItems collectPartyCoins(
+        const Common::Array<Goldbox::Data::PlayerCharacter *> &party);
 };
 
 } // namespace Dialogs

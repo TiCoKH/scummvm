@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_SHOP_BASE_DIALOG_H
 
 #include "goldbox/core/menu_item.h"
+#include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 
 namespace Goldbox {
@@ -30,10 +31,12 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+class HorizontalInput;
 class HorizontalMenu;
 class HorizontalYesNo;
 class PartyList;
 class TextBoxDialog;
+class VerticalMenu;
 
 /**
  * Enumeration of shop/service location types.
@@ -151,7 +154,9 @@ private:
 
     enum Stage {
         STAGE_MENU = 0,
-        STAGE_EXIT_CONFIRM
+        STAGE_EXIT_CONFIRM,
+        STAGE_TAKE_SELECTOR,
+        STAGE_TAKE_AMOUNT
     };
     Stage _stage;
 
@@ -160,6 +165,23 @@ private:
     void refreshScreen();
     void handleMenuKey(char key);
     void handleExitConfirmResult(const MenuResultMessage &result);
+
+    // --- Take action state ---
+    static const char *kValuableNames[Goldbox::Data::VALUABLE_COUNT];
+    MenuItemList _takeMenuItems;
+    Common::Array<Common::String> _takePromptOpts;
+    Common::Array<Goldbox::Data::ValuableType> _takeSlotMap;
+    VerticalMenu *_takeSelector;
+    HorizontalInput *_takeInput;
+    Goldbox::Data::ValuableType _takeSelectedType;
+
+    void openTakeSelector();
+    void closeTakeSelector();
+    void buildTakeMenuItems();
+    void openTakeAmountInput();
+    void handleTakeSelectorResult(const MenuResultMessage &result);
+    void handleTakeAmountResult(const MenuResultMessage &result);
+    bool poolHasValuables() const;
 };
 
 } // namespace Dialogs
