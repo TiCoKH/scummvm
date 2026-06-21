@@ -488,7 +488,7 @@ void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
 		kMenuSelectColor,    // selectColor
 		kMenuLeft, kMenuTop, kMenuRight, kMenuBottom, // bounds
 		topline,	         // title
-        false                // asHeader
+        false                // addExit
     };
 	if (_listmenu) {
 		_listmenu->rebuild(_menuItems, topline);

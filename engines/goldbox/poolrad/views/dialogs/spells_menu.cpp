@@ -54,7 +54,7 @@ SpellsMenu::SpellsMenu(const Common::String &name)
     _menuConfig.xEnd = 38;
     _menuConfig.yEnd = 22;
     _menuConfig.title = "";
-    _menuConfig.asHeader = true;
+    _menuConfig.addExit = false;
 
     _verticalMenu = new VerticalMenu(name + "_Vertical", _menuConfig);
     subView(_verticalMenu);

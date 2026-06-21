@@ -174,8 +174,11 @@ void ShopBaseDialog::draw() {
 
     switch (_stage) {
     case STAGE_TAKE_SELECTOR:
-        if (_takeSelector && _takeSelector->isActive())
+        if (_takeSelector && _takeSelector->isActive()) {
+            Surface s = getSurface();
+            s.drawWindow(1, 1, 38, 22, 0, 28, "");
             _takeSelector->draw();
+        }
         return;
     case STAGE_TAKE_AMOUNT:
         if (_takeInput && _takeInput->isActive())
@@ -311,11 +314,19 @@ void ShopBaseDialog::actionTake() {
 }
 
 void ShopBaseDialog::actionPool() {
-    // TODO: ACTION_PoolMoney
+    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+        VmInterface::getParty();
+    TreasurePool &pool = VmInterface::getTreasurePool();
+    pool.poolMoneyFromParty(*party);
+    refreshScreen();
 }
 
 void ShopBaseDialog::actionShare() {
-    // TODO: ACTION_ShareMoney
+    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+        VmInterface::getParty();
+    TreasurePool &pool = VmInterface::getTreasurePool();
+    pool.shareMoneyToParty(*party);
+    refreshScreen();
 }
 
 void ShopBaseDialog::actionAppraise() {
@@ -464,22 +475,20 @@ void ShopBaseDialog::openTakeSelector() {
     }
 
     _takePromptOpts.clear();
-    _takePromptOpts.push_back("Take");
-    _takePromptOpts.push_back("Exit");
 
     VerticalMenuConfig cfg;
-    cfg.promptTxt = "";
+    cfg.promptTxt = "Select type of coin ";
     cfg.promptOptions = &_takePromptOpts;
     cfg.menuItemList = &_takeMenuItems;
-    cfg.headColor = 15;
+    cfg.headColor = 13;
     cfg.textColor = 10;
-    cfg.selectColor = 13;
-    cfg.xStart = 1;
-    cfg.yStart = 3;
+    cfg.selectColor = 15;
+    cfg.xStart = 2;
+    cfg.yStart = 2;
     cfg.xEnd = 38;
-    cfg.yEnd = 15;
-    cfg.title = "Valuables";
-    cfg.asHeader = false;
+    cfg.yEnd = 8;
+    cfg.title = "";
+    cfg.addExit = true;
 
     _takeSelector = new VerticalMenu("ShopTakeMenu", cfg);
     setDialogParent(_takeSelector, this);
@@ -494,6 +503,10 @@ void ShopBaseDialog::closeTakeSelector() {
         _takeSelector = nullptr;
     }
     _stage = STAGE_MENU;
+
+    // Restore screen area used by the take window
+    Surface s = getSurface();
+    s.clearBox(1, 1, 38, 22, 0);
     recreateHorizontalMenu();
     redraw();
 }

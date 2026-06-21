@@ -430,17 +430,18 @@ bool InGameView::msgKeypress(const KeypressMessage &msg) {
 		return true;
 	}
 
-	// Shop/Temple/Treasure dialog: party list nav first, then shop menu.
+	// Shop/Temple/Treasure dialog: shop gets first pass at keys.
+	// Unhandled keys (e.g. HOME/END at base menu) fall through to party list.
 	if (_activeShopDialog && _activeShopDialog->isActive()) {
+		if (_activeShopDialog->msgKeypress(msg)) {
+			redraw();
+			return true;
+		}
 		if (_showPartyPanel && _partyList && _partyList->isActive()) {
 			if (_partyList->msgKeypress(msg)) {
 				redraw();
 				return true;
 			}
-		}
-		if (_activeShopDialog->msgKeypress(msg)) {
-			redraw();
-			return true;
 		}
 		return true;
 	}

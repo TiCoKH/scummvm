@@ -21,6 +21,8 @@
 
 #include "goldbox/runtime/treasure_pool.h"
 #include "goldbox/data/items/character_item.h"
+#include "goldbox/data/player_character.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
 
@@ -56,6 +58,57 @@ bool TreasurePool::hasItems() const {
 
 bool TreasurePool::isEmpty() const {
     return !hasAnyCoin() && !hasItems();
+}
+
+bool TreasurePool::poolMoneyFromParty(
+        Common::Array<Data::PlayerCharacter *> &party) {
+    for (uint i = 0; i < party.size(); ++i) {
+        Poolrad::Data::PoolradCharacter *ch =
+            dynamic_cast<Poolrad::Data::PoolradCharacter *>(party[i]);
+        if (!ch || ch->isNpc())
+            continue;
+        for (int t = 0; t < Data::VALUABLE_COUNT; ++t) {
+            uint32 v = (uint32)_coins.values[t] + ch->valuableItems.values[t];
+            _coins.values[t] = (v > 0xFFFF) ? (uint16)0xFFFF : (uint16)v;
+            ch->valuableItems.values[t] = 0;
+        }
+    }
+    return hasAnyCoin();
+}
+
+bool TreasurePool::shareMoneyToParty(
+        Common::Array<Data::PlayerCharacter *> &party) {
+    // Count eligible party members
+    int count = 0;
+    for (uint i = 0; i < party.size(); ++i) {
+        Poolrad::Data::PoolradCharacter *ch =
+            dynamic_cast<Poolrad::Data::PoolradCharacter *>(party[i]);
+        if (ch && !ch->isNpc())
+            ++count;
+    }
+    if (count == 0)
+        return hasAnyCoin();
+
+    // Divide each coin type evenly; remainder stays in pool
+    for (int t = 0; t < Data::VALUABLE_COUNT; ++t) {
+        uint16 total = _coins.values[t];
+        if (total == 0)
+            continue;
+        uint16 share = total / (uint16)count;
+        uint16 remainder = total - share * (uint16)count;
+
+        for (uint i = 0; i < party.size(); ++i) {
+            Poolrad::Data::PoolradCharacter *ch =
+                dynamic_cast<Poolrad::Data::PoolradCharacter *>(party[i]);
+            if (!ch || ch->isNpc())
+                continue;
+            uint32 v = (uint32)ch->valuableItems.values[t] + share;
+            ch->valuableItems.values[t] =
+                (v > 0xFFFF) ? (uint16)0xFFFF : (uint16)v;
+        }
+        _coins.values[t] = remainder;
+    }
+    return hasAnyCoin();
 }
 
 } // namespace Goldbox

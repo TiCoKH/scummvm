@@ -120,33 +120,13 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
             break;
         }
 		case Common::KEYCODE_RETURN: {
-			// If only one menu item, (Exit) on VerticalMenu use simple behavior
-			if (_menuItems->items.size() == 1) {
-                deactivate();
-                if (_parent)
-                    g_events->postMenuResult(_parent->getName(), true, keyCode, 0, Common::String(), true, false);
-			} else {
-				// Multiple items: simulate pressing the shortcut key of the selected item
-				if (_menuItems->currentSelection >= 0 && _menuItems->currentSelection < (int)_menuItems->items.size()) {
-					const MenuItem &selectedItem = _menuItems->items[_menuItems->currentSelection];
-					char shortcut = selectedItem.shortcut;
-					// Convert uppercase shortcuts to lowercase before casting to KeyCode
-					if (shortcut >= 'A' && shortcut <= 'Z') {
-						shortcut = shortcut + 32;
-					}
-					// Cast the shortcut character to KeyCode to simulate pressing that key
-					KeyCode shortcutKey = (KeyCode)shortcut;
-					deactivate();
-                    if (_parent)
-                        g_events->postMenuResult(_parent->getName(), true,
-                            shortcutKey, _menuItems->currentSelection,
-                            Common::String(), true, false);
-				} else {
-                    if (_parent)
-                        g_events->postMenuResult(_parent->getName(), false,
-                            keyCode, 0, Common::String(), true, false);
-				}
-			}
+			// Enter/Return always means "confirm current vertical selection".
+			// It never activates the highlighted horizontal option (original behavior).
+			deactivate();
+			if (_parent)
+				g_events->postMenuResult(_parent->getName(), true,
+					keyCode, _menuItems->currentSelection,
+					Common::String(), true, false);
 			return true;
 		}
 		case Common::KEYCODE_ESCAPE: {
@@ -217,7 +197,7 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
     }
 
 
-    if (keyCode >= Common::KEYCODE_UP && keyCode <= Common::KEYCODE_PAGEDOWN) {
+    if (_allowNumPad && keyCode >= Common::KEYCODE_UP && keyCode <= Common::KEYCODE_PAGEDOWN) {
         deactivate();
         if (_parent)
 			g_events->postMenuResult(_parent->getName(), true, keyCode,

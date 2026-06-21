@@ -59,7 +59,7 @@ ItemsMenu::ItemsMenu(const String &name)
 	_menuConfig.xEnd = 38;
 	_menuConfig.yEnd = 20;
 	_menuConfig.title = "";
-	_menuConfig.asHeader = true;
+	_menuConfig.addExit = false;
 
 	_verticalMenu = new VerticalMenu("ItemsVerticalMenu", _menuConfig);
 	subView(_verticalMenu);
