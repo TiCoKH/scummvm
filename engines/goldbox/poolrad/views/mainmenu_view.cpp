@@ -19,7 +19,6 @@
  *
  */
 
-#include "common/tokenizer.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/views/mainmenu_view.h"
@@ -42,7 +41,6 @@ namespace Views {
 
 using Common::String;
 using Common::Array;
-using Common::StringTokenizer;
 
 namespace {
 
@@ -57,11 +55,9 @@ static bool hasPartyMembers() {
 MainmenuView::MainmenuView() : View("Mainmenu") {
     Array<String> menuOptions;
 
-    const String shortcuts = VmInterface::getString("mainmenu.0");
-    StringTokenizer tokenizer(shortcuts, " ");
-    while (!tokenizer.empty()) {
-        const String shortcut = tokenizer.nextToken();
-        const String descriptionKey = "mainmenu." + shortcut;
+    const Common::Array<String> shortcuts = VmInterface::getStringTokens("mainmenu.0");
+    for (uint i = 0; i < shortcuts.size(); ++i) {
+        const String descriptionKey = "mainmenu." + shortcuts[i];
         const String description = VmInterface::getString(descriptionKey);
         menuOptions.push_back(description);
     }
