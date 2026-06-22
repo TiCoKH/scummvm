@@ -28,6 +28,7 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/runtime/treasure_pool.h"
 #include "goldbox/events.h"
+#include "common/tokenizer.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -109,23 +110,11 @@ void TempleDialog::buildHealMenuItems() {
     _healMenuItems.items.clear();
     _healMenuItems.currentSelection = 0;
 
-    for (int i = 0; i < kHealServiceCount; ++i) {
-        Common::String costTxt =
-            Common::String::format("%u", kHealServices[i].cost);
-        Common::String nameTxt = kHealServices[i].name;
-
-        const int fieldWidth = 30;
-        int padding = fieldWidth - (int)nameTxt.size() - (int)costTxt.size();
-        if (padding < 1)
-            padding = 1;
-
-        Common::String line = nameTxt;
-        for (int p = 0; p < padding; ++p)
-            line += ' ';
-        line += costTxt;
-
+    // Load service names from global_strings.yml "temple.services.0" .. "temple.services.9"
+    for (int i = 0; i < 10; ++i) {
+        Common::String key = Common::String::format("temple.services.%d", i);
         MenuItem mi;
-        mi.text = line;
+        mi.text = VmInterface::getString(key);
         mi.shortcut = 0;
         mi.active = true;
         mi.shortcutFirst = false;
@@ -143,10 +132,15 @@ void TempleDialog::openHealSelector() {
     }
 
     _healPromptOpts.clear();
-    _healPromptOpts.push_back("Heal");
+
+    // Load prompt options from yml as space-separated string
+    Common::String promptStr = VmInterface::getString("temple.prompt");
+    Common::StringTokenizer tokenizer(promptStr, " ");
+    while (!tokenizer.empty())
+        _healPromptOpts.push_back(tokenizer.nextToken());
 
     VerticalMenuConfig cfg;
-    cfg.promptTxt = "Healing Services: ";
+    cfg.promptTxt = "";
     cfg.promptOptions = &_healPromptOpts;
     cfg.menuItemList = &_healMenuItems;
     cfg.headColor = 15;
@@ -155,9 +149,9 @@ void TempleDialog::openHealSelector() {
     cfg.xStart = 2;
     cfg.yStart = 4;
     cfg.xEnd = 38;
-    cfg.yEnd = 22;
+    cfg.yEnd = 15;
     cfg.title = "";
-    cfg.addExit = true;
+    cfg.addExit = false;
 
     _healSelector = new VerticalMenu("TempleHealMenu", cfg);
     setDialogParent(_healSelector, this);
@@ -187,7 +181,7 @@ void TempleDialog::handleHealSelectorResult(const MenuResultMessage &result) {
         if (sel >= 0 && sel < kHealServiceCount)
             beginHealService(sel);
         else
-            closeHealSelector();
+            closeHealSelector();  // index 9 (Exit) or out of range
     } else {
         closeHealSelector();
     }
@@ -223,13 +217,14 @@ void TempleDialog::showNotAffectedPrompt() {
     _healStage = HEAL_NOT_AFFECTED;
     destroyYesNo();
 
-    // Draw the "not affected" message in the body area
+    // Display "<Name> is not <condition>." in the body area
     Goldbox::Data::PlayerCharacter *base = VmInterface::getSelectedCharacter();
     if (base && kNotAffectedMsg[_healSelectedIndex]) {
         Surface s = getSurface();
         Common::String msg = Common::String::format("%s %s",
             base->name.c_str(), kNotAffectedMsg[_healSelectedIndex]);
-        s.writeStringC(2, 17, 28, msg);
+        s.drawWindow(1, 17, 38, 22, 0);
+        s.writeStringC(2, 18, 28, msg);
     }
 
     HorizontalYesNoConfig cfg;
@@ -249,14 +244,15 @@ void TempleDialog::showPayConfirmPrompt() {
     _healStage = HEAL_CONFIRM_PAY;
     destroyYesNo();
 
-    // Display cost message: "<Service> will only cost <N> gold pieces."
+    // Display: "<Service> will only cost <N> gold pieces."
     uint16 cost = kHealServices[_healSelectedIndex].cost;
     Common::String costMsg = Common::String::format(
         "%s will only cost %u gold pieces.",
         kHealServices[_healSelectedIndex].name, cost);
 
     Surface s = getSurface();
-    s.writeStringC(2, 17, 28, costMsg);
+    s.drawWindow(1, 17, 38, 22, 0);
+    s.writeStringC(2, 18, 28, costMsg);
 
     HorizontalYesNoConfig cfg;
     cfg.promptTxt = "Pay for cure?";
@@ -591,18 +587,28 @@ void TempleDialog::draw() {
         Surface s = getSurface();
 
         if (_healSelector) {
+            // Outer frame and title bar borders
+            s.drawWindow(1, 1, 38, 22, 0);
+            s.drawWindow(1, 1, 38, 1, 0);
+
+            // Greeting: "<Name>, how can we help you?"
             Goldbox::Data::PlayerCharacter *base =
                 VmInterface::getSelectedCharacter();
-            s.drawWindow(1, 1, 38, 22, 0, 15, "Temple");
             if (base) {
                 Common::String greeting = Common::String::format(
                     "%s, how can we help you?", base->name.c_str());
                 if (greeting.size() > 38)
                     greeting = greeting.substr(0, 38);
-                s.writeStringC(1, 2, 10, greeting);
+                s.writeStringC(1, 1, 28, greeting);
             }
+
             if (_healSelector->isActive())
                 _healSelector->draw();
+
+            // Body window border drawn AFTER vertical menu to
+            // prevent the menu's embedded HorizontalMenu from
+            // overwriting it.
+            s.drawWindow(1, 17, 38, 22, 0);
         }
 
         if (_yesNoDialog && _yesNoDialog->isActive())
