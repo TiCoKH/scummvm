@@ -42,6 +42,14 @@ using Goldbox::Gfx::SLOT_OVERLAY_BUFFER;
 using Goldbox::Gfx::SLOT_RESERVED_START;
 using Goldbox::Gfx::SLOT_EDITOR_WORKING;
 
+static Common::Array<String> tokenizeString(const Common::String &str) {
+    Common::Array<String> labels;
+    Common::StringTokenizer tok(str, " ");
+    while (!tok.empty())
+        labels.push_back(tok.nextToken());
+    return labels;
+}
+
 SetIcon::SetIcon(const String &name, PoolradCharacter *pc)
     : Dialog(name), _pc(pc) {
     if (_pc) {
@@ -171,14 +179,8 @@ void SetIcon::setStage(IconMenuState stage) {
     case ICON_STATE_MAIN_MENU:
         _menuItems.items.clear();
         {
-            Common::Array<String> labels;
-            labels.push_back("Parts");
-            labels.push_back("color-1");
-            labels.push_back("color-2");
-            labels.push_back("Size");
-            labels.push_back("Exit");
+            Common::Array<String> labels = VmInterface::getStringTokens("iconmenu.1");
             _menuItems.generateMenuItems(labels, true);
-            // Ensure distinct shortcuts for color items: use trailing digit
             _menuItems.setShortcutToLast(1); // color-1 -> '1'
             _menuItems.setShortcutToLast(2); // color-2 -> '2'
         }
@@ -187,10 +189,7 @@ void SetIcon::setStage(IconMenuState stage) {
     case ICON_STATE_MAJOR_PART:
         _menuItems.items.clear();
         {
-            Common::Array<String> labels;
-            labels.push_back("Head");
-            labels.push_back("Weapon");
-            labels.push_back("Exit");
+            Common::Array<String> labels = VmInterface::getStringTokens("iconmenu.2");
             _menuItems.generateMenuItems(labels, true);
         }
         buildAndShowMenu("");
@@ -204,11 +203,7 @@ void SetIcon::setStage(IconMenuState stage) {
     case ICON_PARTS_ADJUSTMENT:
         _menuItems.items.clear();
         {
-            Common::Array<String> labels;
-            labels.push_back("Next");
-            labels.push_back("Prev");
-            labels.push_back("Keep");
-            labels.push_back("Exit");
+            Common::Array<String> labels = VmInterface::getStringTokens("iconmenu.5");
             _menuItems.generateMenuItems(labels, true);
         }
         buildAndShowMenu("");
@@ -218,11 +213,7 @@ void SetIcon::setStage(IconMenuState stage) {
         _originalColorByte = packSubpartColor(static_cast<SubPartIndex>(_selectedSubPart));
         _menuItems.items.clear();
         {
-            Common::Array<String> labels;
-            labels.push_back("Next");
-            labels.push_back("Prev");
-            labels.push_back("Keep");
-            labels.push_back("Exit");
+            Common::Array<String> labels = VmInterface::getStringTokens("iconmenu.5");
             _menuItems.generateMenuItems(labels, true);
         }
         buildAndShowMenu("");
@@ -260,15 +251,12 @@ void SetIcon::buildSizeMenu(bool saveInitialSize) {
 
     _menuItems.items.clear();
     {
+        // iconmenu.4 = "Keep Exit", prepend size toggle option
         Common::Array<String> labels;
-        // First option is always the opposite of current size.
-        if (_pc->iconData.iconSize == 2) {
-            labels.push_back("Small");
-        } else {
-            labels.push_back("Large");
-        }
-        labels.push_back("Keep");
-        labels.push_back("Exit");
+        labels.push_back((_pc->iconData.iconSize == 2) ? "Small" : "Large");
+        Common::Array<String> tail = VmInterface::getStringTokens("iconmenu.4");
+        for (uint i = 0; i < tail.size(); ++i)
+            labels.push_back(tail[i]);
         _menuItems.generateMenuItems(labels, true);
     }
     buildAndShowMenu("");
@@ -334,19 +322,22 @@ void SetIcon::setMenuStage(IconMenuState stage) {
         _menuItems.items.clear();
         _indexMap.clear();
 
-        // Build sub-part menu with dynamic Hair/Face label in specified order
-        Common::Array<String> labels;
-        labels.push_back(getSubPartLabel(SUBPART_WEAPON));
-        labels.push_back(getSubPartLabel(SUBPART_BODY));
-        labels.push_back(getSubPartLabel(SUBPART_HEAD_FACE));
-        labels.push_back(getSubPartLabel(SUBPART_SHIELD));
-        labels.push_back(getSubPartLabel(SUBPART_ARMS));
-        labels.push_back(getSubPartLabel(SUBPART_LEGS));
-        labels.push_back("Exit");
+        // iconmenu.3 = "Weapon Body xxxx Shield Arm Leg Exit"
+        // Replace "xxxx" with dynamic Hair/Face label
+        Common::String menuStr = VmInterface::getString("iconmenu.3");
+        Common::String dynLabel = getSubPartLabel(SUBPART_HEAD_FACE);
+        // Replace placeholder with actual label
+        Common::String::size_type pos = menuStr.find("xxxx");
+        if (pos != Common::String::npos) {
+            menuStr = Common::String(menuStr.c_str(), pos) +
+                      dynLabel +
+                      Common::String(menuStr.c_str() + pos + 4);
+        }
 
+        Common::Array<String> labels = tokenizeString(menuStr);
         _menuItems.generateMenuItems(labels, true);
 
-        // Map menu indices to SubPartIndex
+        // Map menu indices to SubPartIndex (order matches iconmenu.3)
         _indexMap.push_back(SUBPART_WEAPON);
         _indexMap.push_back(SUBPART_BODY);
         _indexMap.push_back(SUBPART_HEAD_FACE);
@@ -354,10 +345,8 @@ void SetIcon::setMenuStage(IconMenuState stage) {
         _indexMap.push_back(SUBPART_ARMS);
         _indexMap.push_back(SUBPART_LEGS);
 
-        Common::String prompt = "";
-
         HorizontalMenuConfig cfg = {
-            prompt,
+            "",
             &_menuItems,
             kTextColor,
             kSelectColor,

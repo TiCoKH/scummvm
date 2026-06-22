@@ -28,7 +28,6 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/runtime/treasure_pool.h"
 #include "goldbox/events.h"
-#include "common/tokenizer.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -134,10 +133,10 @@ void TempleDialog::openHealSelector() {
     _healPromptOpts.clear();
 
     // Load prompt options from yml as space-separated string
-    Common::String promptStr = VmInterface::getString("temple.prompt");
-    Common::StringTokenizer tokenizer(promptStr, " ");
-    while (!tokenizer.empty())
-        _healPromptOpts.push_back(tokenizer.nextToken());
+    Common::Array<Common::String> promptTokens =
+        VmInterface::getStringTokens("temple.prompt");
+    for (uint i = 0; i < promptTokens.size(); ++i)
+        _healPromptOpts.push_back(promptTokens[i]);
 
     VerticalMenuConfig cfg;
     cfg.promptTxt = "";

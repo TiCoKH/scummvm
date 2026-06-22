@@ -27,6 +27,7 @@
 #include "goldbox/runtime/treasure_pool.h"
 #include "common/array.h"
 #include "common/scummsys.h"
+#include "common/tokenizer.h"
 
 namespace Goldbox {
 
@@ -51,6 +52,14 @@ public:
     // Add getString method
     static Common::String getString(const Common::String &key) {
         return g_engine->_strings.getVal(key);
+    }
+
+    static Common::Array<Common::String> getStringTokens(const Common::String &key) {
+        Common::Array<Common::String> result;
+        Common::StringTokenizer tok(getString(key), " ");
+        while (!tok.empty())
+            result.push_back(tok.nextToken());
+        return result;
     }
 
     // Add getParty method
