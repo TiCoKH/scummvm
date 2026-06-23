@@ -45,7 +45,7 @@ enum VmFieldId {
 	kVmFieldWallSetSecondary,
 	kVmFieldSavedMapX,
 	kVmFieldSavedMapY,
-	kVmFieldSavedMapId,
+	kVmFieldSavedEclId,
 	kVmFieldHideCoordsOrAutomapDisable,
 	kVmFieldGameSpeed,
 	kVmFieldSkyColor,

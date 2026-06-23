@@ -53,7 +53,7 @@ bool PoolradRuntimeExchange::captureMapSnapshot(
 
 	out.valid = true;
 	out.gameState = _engine->getGameState();
-	out.mapId = mem->read8(vmLayout.field(kVmFieldSavedMapId).vmAddr);
+	out.mapId = mem->read8(vmLayout.field(kVmFieldSavedEclId).vmAddr);
 	out.indoorMode =
 		(mem->read8(vmLayout.field(kVmFieldIndoorModeFlag).vmAddr) != 0);
 	out.mapType = mem->read8(vmLayout.field(kVmFieldIndoorModeFlag).vmAddr);

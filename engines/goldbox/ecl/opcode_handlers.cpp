@@ -800,20 +800,52 @@ static int handle_0x1F_UNDEFINED(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x20: NEWECL <script>
+// Original INSTR_NewECL behavior:
+//   G_SaveEclId = BYTE_ECL_SCRIPT_ID;
+//   BYTE_ECL_SCRIPT_ID = new_ecl_id;
+//   ECL_LoadBlock(new_ecl_id);
+//   ECL_LoadHeader();
+//   BOOL_MAPDATA_INLOAD = false;
+//   BOOL_ECL_READY = true;
+//   ECL_EXIT = true;
 static int handle_0x20_NEWECL(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
-    const VmResult result =
-        syscalls->loadScript(static_cast<uint8>(vm.getOpWord(1)));
+    const uint8 newScriptId = static_cast<uint8>(vm.getOpWord(1));
+
+    debug(3, "ECL: 0x%04X  NEWECL(0:%u)", vm.getPC(), (unsigned)newScriptId);
+
+    // G_SaveEclId = BYTE_ECL_SCRIPT_ID: save current script ID so it
+    // can be restored later when the sub-script finishes.
+    const EclLayoutAccess layout = getOpcodeLayout();
+    const uint16 savedEclAddr = layout.vmField(kVmFieldSavedEclId).vmAddr;
+    const uint8 currentScriptId = mem.read8(savedEclAddr);
+    mem.write8(savedEclAddr, currentScriptId);
+
+    // Load new ECL block into VM memory (host zeroes VMBANK3, copies bytes).
+    const VmResult loadResult = syscalls->loadScript(newScriptId);
     if (g_events) {
         g_events->postEclSyscallMessage(vm.getPC(), 0x20,
             EclVmMessage::SC_LOAD_SCRIPT,
-            static_cast<int16>(result));
+            static_cast<int16>(loadResult));
     }
-    return result;
+    if (loadResult == VM_ERROR)
+        return VM_ERROR;
+
+    // Parse header from newly loaded bytecode (extracts entry points,
+    // clears call stack). Does NOT reset geo/wallset/screenRefresh flags
+    // since the sub-script shares the same map context.
+    vm.reloadHeader(newScriptId);
+
+    // Mirror original: set flags and halt current execution loop.
+    // The engine dispatches ON_INIT via getEntryPointPc(4) when it
+    // sees eclReady == true after the run loop exits.
+    vm.mapdataInload = false;
+    vm.eclReady = true;
+    return VM_HALTED;
 }
 
 // 0x21: LOAD_AREA_GEO <geoBlockId> <unused> <iconTrigger>

@@ -127,7 +127,7 @@ static void validatePoolradLayoutMappings() {
 
 	assert(vmLayout.field(kVmFieldSavedMapX).vmAddr == 0x49F0);
 	assert(vmLayout.field(kVmFieldSavedMapY).vmAddr == 0x49F1);
-	assert(vmLayout.field(kVmFieldSavedMapId).vmAddr == 0x49F2);
+	assert(vmLayout.field(kVmFieldSavedEclId).vmAddr == 0x49F2);
 
 	assert(globalLayout.field(kVmGlobalFieldPartyCount).vmAddr == 0x6E3E);
 	assert(globalLayout.field(kVmGlobalFieldMonsterDistance).vmAddr == 0x6DC1);
@@ -165,7 +165,7 @@ Goldbox::VmFieldLocation PoolradVmLayout::field(Goldbox::VmFieldId fieldId) cons
 	case kVmFieldWallSetSecondary:             return {kVmBankWorld, 0x49E8}; // @ +0x1D0
 	case kVmFieldSavedMapX:                    return {kVmBankWorld, 0x49F0}; // @ +0x1E0
 	case kVmFieldSavedMapY:                    return {kVmBankWorld, 0x49F1}; // @ +0x1E2
-	case kVmFieldSavedMapId:                   return {kVmBankWorld, 0x49F2}; // @ +0x1E4
+	case kVmFieldSavedEclId:                   return {kVmBankWorld, 0x49F2}; // @ +0x1E4
 	case kVmFieldHideCoordsOrAutomapDisable:   return {kVmBankWorld, 0x49FB}; // @ +0x1F6
 	case kVmFieldGameSpeed:                    return {kVmBankWorld, 0x49FC}; // @ +0x1F8
 	case kVmFieldSkyColor:                     return {kVmBankWorld, 0x49FD}; // @ +0x1FA

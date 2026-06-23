@@ -1261,6 +1261,33 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
     return VM_OK;
 }
 
+VmResult PoolradEngineHostImpl::loadScript(uint8 scriptID) {
+    if (!_engine || !_memory)
+        return VmResult::VM_ERROR;
+
+    Goldbox::Data::DaxBlock *eclBlock =
+        _engine->getDaxEcl().getBlockById(scriptID);
+    if (!eclBlock || eclBlock->_data.size() <= 2) {
+        warning("PoolradEngineHostImpl::loadScript: ECL block %u not found or too small",
+            (unsigned)scriptID);
+        return VmResult::VM_ERROR;
+    }
+
+    // Zero VMBANK3 (0x1E00 bytes at 0x9900) before loading new script.
+    for (uint16 i = 0; i < 0x1E00; ++i)
+        _memory->write8(static_cast<uint16>(0x9900 + i), 0);
+
+    // ECL_LoadBlock skips first 2 bytes (size header) then copies into VMBANK3.
+    const uint32 dataSize = eclBlock->_data.size() - 2;
+    const uint32 copySize = (dataSize > 0x1E00) ? 0x1E00 : dataSize;
+    _memory->loadBytes(0x9900,
+        Common::Span<const uint8>(eclBlock->_data.data() + 2, copySize));
+
+    debug(2, "PoolradEngineHostImpl::loadScript: loaded ECL block %u (%u bytes)",
+        (unsigned)scriptID, (unsigned)copySize);
+    return VmResult::VM_OK;
+}
+
 VmResult PoolradEngineHostImpl::loadGeoBlock(uint8 blockId) {
     debug(3, "PoolradEngineHostImpl::loadGeoBlock: requested blockId=%u", (unsigned)blockId);
     if (!_engine)
