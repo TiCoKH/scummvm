@@ -297,6 +297,16 @@ void EclVM::initializeECLState() {
     _memory.write8(
         layout.vmGlobalField(kVmGlobalFieldRestInterruptChance).vmAddr, 0);
 
+    // ECL_LoadHeader color register defaults: FLOOR=65, FAR=9.
+    _memory.write8(layout.vmGlobalField(kVmGlobalFieldColorFlagFloor).vmAddr,
+        65);
+    _memory.write8(
+        layout.vmGlobalField(kVmGlobalFieldColorFlagHorizon).vmAddr, 9);
+    // Mark base color refresh so viewport re-derives render colors.
+    uint16 skyboxFlag = layout.runtimeField(kEclRuntimeSkyboxRedrawFlag);
+    if (EclRuntimeLayout::isValidVmAddr(skyboxFlag))
+        _memory.write8(skyboxFlag, 1);
+
     // Original ECL_LoadHeader: clear scenario flags (32 bytes) and party
     // flags (10 bytes) only when NOT restoring a saved game.
     if (!stateLoaded) {
@@ -887,6 +897,28 @@ void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
                     static_cast<uint8>(writeValue & 0xFF));
                 g_events->postEclStateMessage(
                     EclVmMessage::ST_POSITION_DIRTY, 1,
+                    EclVmMessage::VT_UINT8);
+            }
+            return;
+        }
+
+        // COLOR_REG_FLOOR / COLOR_REG_FAR: set BOOL_BASE_COLOR_REFRESH
+        // (skybox redraw flag) so GFX_ViewPortUpdate re-derives colors.
+        uint16 floorAddr = layout.vmGlobalField(
+            kVmGlobalFieldColorFlagFloor).vmAddr;
+        uint16 horizAddr = layout.vmGlobalField(
+            kVmGlobalFieldColorFlagHorizon).vmAddr;
+        if (vmAddr == floorAddr || vmAddr == horizAddr) {
+            _memory.write8(vmAddr, static_cast<uint8>(writeValue & 0xFF));
+            uint16 flagAddr = layout.runtimeField(
+                kEclRuntimeSkyboxRedrawFlag);
+            if (EclRuntimeLayout::isValidVmAddr(flagAddr))
+                _memory.write8(flagAddr, 1);
+            if (g_events) {
+                g_events->postEclVmMessage(vmAddr,
+                    static_cast<uint8>(writeValue & 0xFF));
+                g_events->postEclStateMessage(
+                    EclVmMessage::ST_SKYBOX_DIRTY, 1,
                     EclVmMessage::VT_UINT8);
             }
             return;

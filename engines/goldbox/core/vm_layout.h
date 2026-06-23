@@ -83,8 +83,8 @@ enum VmGlobalFieldId {
 	kVmGlobalFieldDungeonDir,
 	kVmGlobalFieldMapWallType,
 	kVmGlobalFieldMapSquareInfo,
-	kVmGlobalFieldMapColorHorizon,
-	kVmGlobalFieldMapColorFloor,
+	kVmGlobalFieldColorFlagHorizon,
+	kVmGlobalFieldColorFlagFloor,
 	kVmGlobalFieldMonsterDistance,
 	kVmGlobalFieldShopFlag,
 	kVmGlobalFieldCount

@@ -137,6 +137,10 @@ void PoolradEngine::initGameDefaults() {
 			static_cast<uint16>(GS_START_MENU), EclVmMessage::VT_UINT8);
 	}
 
+    // GAME_Init color register defaults (pre-scenario startup values).
+    mem.write8(layout.vmGlobalField(kVmGlobalFieldColorFlagFloor).vmAddr, 219);
+    mem.write8(layout.vmGlobalField(kVmGlobalFieldColorFlagHorizon).vmAddr, 232);
+
     // WORD_ECL_PC = 0x9900 (script start, matches original)
     mem.write16LE(layout.runtimeField(ECL::kEclRuntimePc), 0x9900);
 

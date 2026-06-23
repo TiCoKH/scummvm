@@ -222,8 +222,8 @@ Goldbox::VmFieldLocation PoolradGlobalVmLayout::field(
 	case kVmGlobalFieldDungeonDir:             return {kVmBankSystem, 0xC04D}; // @ +0x004
 	case kVmGlobalFieldMapWallType:            return {kVmBankSystem, 0xC04E}; // @ +0x006
 	case kVmGlobalFieldMapSquareInfo:          return {kVmBankSystem, 0xC04F}; // @ +0x008
-	case kVmGlobalFieldMapColorFloor:          return {kVmBankSystem, 0xC059};
-	case kVmGlobalFieldMapColorHorizon:        return {kVmBankSystem, 0xC05F};
+	case kVmGlobalFieldColorFlagFloor:         return {kVmBankSystem, 0xC059};
+	case kVmGlobalFieldColorFlagHorizon:       return {kVmBankSystem, 0xC05F};
 
 
 	default:
