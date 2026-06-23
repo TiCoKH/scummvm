@@ -116,6 +116,7 @@ public:
     bool hasPendingAsync() const override;
     bool isPendingAsyncReady() const override;
     VmResult finalizePendingAsync() override;
+    VmResult loadScript(uint8 scriptID) override;
     VmResult loadGeoBlock(uint8 blockId) override;
     VmResult loadIconBlock() override;
     VmResult loadWallSet(uint8 blockId, uint8 setSlot) override;

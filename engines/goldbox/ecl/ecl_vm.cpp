@@ -207,6 +207,47 @@ DecodeStatus EclVM::loadProgramFromMemory(uint8 scriptId) {
     return DECODE_OK;
 }
 
+DecodeStatus EclVM::reloadHeader(uint8 scriptId) {
+    if (!_config)
+        return DECODE_OUT_OF_BOUNDS;
+
+    const uint16 scriptVmStart = _config->getScriptVmStart();
+
+    _scriptId = scriptId;
+    _pc = scriptVmStart;
+    _callStack.clear();
+    _entryPoints.clear();
+
+    // Minimal reset: only execution control flags.
+    // Do NOT touch screenRefresh/geoReady/wallsetReady — the sub-script
+    // shares the same map context as the caller.
+    EclLayoutAccess layout = _config->getLayoutAccess();
+    _memory.write8(layout.runtimeField(kEclRuntimeHaltFlag), 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeExitScript), 0);
+    _memory.write8(layout.runtimeField(kEclRuntimeProgramState), 0);
+
+    syncRuntimePc(scriptVmStart);
+
+    // Parse entry points from bytecode already in VM memory.
+    uint16 bankFirst = 0, bankLast = 0;
+    uint16 scriptSize = kEclHeaderWordCount * 4;
+    if (_config->getVmBankRange(Goldbox::kVmBankEcl, bankFirst, bankLast)
+            && bankLast >= bankFirst) {
+        scriptSize = static_cast<uint16>(bankLast - bankFirst + 1);
+    }
+
+    Common::Array<uint8> buf;
+    buf.resize(scriptSize);
+    for (uint16 i = 0; i < scriptSize; ++i)
+        buf[i] = _memory.read8(static_cast<uint16>(scriptVmStart + i));
+
+    Common::Span<const uint8> program(buf.data(), buf.size());
+    if (!parseECLHeader(program))
+        return DECODE_OUT_OF_BOUNDS;
+
+    return DECODE_OK;
+}
+
 bool EclVM::parseECLHeader(Common::Span<const uint8> program) {
     if (!_config)
         return false;

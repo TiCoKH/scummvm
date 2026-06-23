@@ -69,6 +69,16 @@ public:
     DecodeStatus loadProgramFromMemory(uint8 scriptId);
 
     /**
+     * Parse ECL header only (entry points) without resetting VM state flags.
+     * Used by NEWECL opcode: the sub-script shares the same map context
+     * so geo/wallset/screenRefresh must not be cleared.
+     * Clears call stack and entry points, sets PC past header.
+     * @param scriptId Script ID for debugging
+     * @return DECODE_OK on success
+     */
+    DecodeStatus reloadHeader(uint8 scriptId);
+
+    /**
      * Run script starting at an entry point. Synchronous: all syscalls block
      * internally until resolved; this method returns when the script halts.
      * @param entry Entry point selector

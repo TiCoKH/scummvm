@@ -865,7 +865,7 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// Reload world graphics / ECL script based on saved game state.
 	// -------------------------------------------------------------------------
 	const uint8 savedMapId =
-		mem->read8(layout.vmField(kVmFieldSavedMapId).vmAddr);
+		mem->read8(layout.vmField(kVmFieldSavedEclId).vmAddr);
 	const uint8 geoBlockId =
 		mem->read8(layout.vmField(kVmFieldGeoBlockId).vmAddr);
 	const uint8 wallPrimary =
@@ -1005,7 +1005,7 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	GameState resolvedState = static_cast<GameState>(byteGameState);
 	if (resolvedState != GS_DUNGEON_MAP && resolvedState != GS_WILDERNESS_MAP
 			&& resolvedState != GS_START_MENU) {
-		const uint8 loadedMapId = mem->read8(layout.vmField(kVmFieldSavedMapId).vmAddr);
+		const uint8 loadedMapId = mem->read8(layout.vmField(kVmFieldSavedEclId).vmAddr);
 		const uint8 indoorFlag = mem->read8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr);
 		if (isWildernessMapId(loadedMapId) && indoorFlag == 0)
 			resolvedState = GS_WILDERNESS_MAP;
@@ -1198,8 +1198,8 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 
 	// G_SaveMapId writeback (original writes BYTE_MAP_ID to world state
 	// before ECL_ONINIT and at the top of the main loop).
-	const uint16 saveMapIdAddr = layout.vmField(kVmFieldSavedMapId).vmAddr;
-	if (VmLayout::isValid(layout.vmField(kVmFieldSavedMapId)))
+	const uint16 saveMapIdAddr = layout.vmField(kVmFieldSavedEclId).vmAddr;
+	if (VmLayout::isValid(layout.vmField(kVmFieldSavedEclId)))
 		mem.write8(saveMapIdAddr, mapId);
 
 	// Dispatch ON_INIT at runtime bootstrap point (ENGINE_Execute(ECL_ONINIT)).
@@ -1381,8 +1381,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 		setSelectedCharacter(_party[0]);
 
 	// G_SaveMapId writeback (original does this at loop top)
-	const uint16 saveMapIdAddr = layout.vmField(kVmFieldSavedMapId).vmAddr;
-	if (VmLayout::isValid(layout.vmField(kVmFieldSavedMapId)))
+	const uint16 saveMapIdAddr = layout.vmField(kVmFieldSavedEclId).vmAddr;
+	if (VmLayout::isValid(layout.vmField(kVmFieldSavedEclId)))
 		mem.write8(saveMapIdAddr, _legacySharedState.byteMapId);
 
 	if (cmd == Views::InGameView::kCmdEncamp) {
@@ -1587,16 +1587,86 @@ void PoolradEngine::dispatchPlayerCommand() {
 		if (onSearch == VM_YIELD)
 			_eclFlags.suspended = true;
 		else if (_eclVm->eclReady) {
-			const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
-			if (resume == VM_YIELD)
-				_eclFlags.suspended = true;
+			// NEWECL fired during ON_SEARCH: enter ENGINE_Run loop.
+			while (_eclVm->eclReady) {
+				_eclVm->eclReady = false;
+
+				if (_eclHost)
+					_eclHost->readGeoAtPosition();
+
+				const uint16 initPc = _eclVm->getEntryPointPc(4);
+				if (initPc != 0) {
+					const VmResult initR = executeEclAtScriptAddress(initPc);
+					if (initR == VM_YIELD) {
+						_eclFlags.suspended = true;
+						return;
+					}
+				}
+
+				if (_eclHost)
+					_eclHost->refreshViewport();
+
+				_eclVm->eclReady = false;
+				const VmResult moveR = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
+				if (moveR == VM_YIELD) {
+					_eclFlags.suspended = true;
+					return;
+				}
+
+				if (!_eclVm->eclReady) {
+					const VmResult searchR = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
+					if (searchR == VM_YIELD) {
+						_eclFlags.suspended = true;
+						return;
+					}
+				}
+			}
 		}
 		return;
 	}
 
-	const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
-	if (resume == VM_YIELD)
-		_eclFlags.suspended = true;
+	// eclReady == true: NEWECL fired during ON_MOVE.
+	// Mirror ENGINE_Run: loop ON_INIT → ON_MOVE → ON_SEARCH until
+	// no more NEWECL fires (eclReady stays false).
+	while (_eclVm->eclReady) {
+		_eclVm->eclReady = false;
+
+		// MAP_GetGEOData at current position
+		if (_eclHost)
+			_eclHost->readGeoAtPosition();
+
+		// ENGINE_Execute(ECL_ONINIT)
+		const uint16 initPc = _eclVm->getEntryPointPc(4);
+		if (initPc != 0) {
+			const VmResult initR = executeEclAtScriptAddress(initPc);
+			if (initR == VM_YIELD) {
+				_eclFlags.suspended = true;
+				return;
+			}
+		}
+
+		// Viewport update (simplified)
+		if (_eclHost)
+			_eclHost->refreshViewport();
+
+		// BOOL_ECL_READY = false; ENGINE_Execute(ECL_ONMOVE)
+		_eclVm->eclReady = false;
+		const VmResult moveR = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
+		if (moveR == VM_YIELD) {
+			_eclFlags.suspended = true;
+			return;
+		}
+
+		if (!_eclVm->eclReady) {
+			// ENGINE_Execute(ECL_ONSEARCH)
+			const VmResult searchR = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
+			if (searchR == VM_YIELD) {
+				_eclFlags.suspended = true;
+				return;
+			}
+		}
+		// If eclReady is true again (another NEWECL), loop continues
+	}
 }
 
 RuntimeExchange *PoolradEngine::getRuntimeExchange() {
