@@ -97,6 +97,12 @@ bool PoolradRuntimeExchange::captureMapSnapshot(
 	if (ECL::EclRuntimeLayout::isValidVmAddr(skyboxRedrawAddr))
 		out.skyboxRedraw = (mem->read8(skyboxRedrawAddr) != 0);
 
+	// Read color registers for indoor 3D viewport rendering.
+	out.colorFlagFloor = mem->read8(
+		globalLayout.field(kVmGlobalFieldColorFlagFloor).vmAddr);
+	out.colorFlagHorizon = mem->read8(
+		globalLayout.field(kVmGlobalFieldColorFlagHorizon).vmAddr);
+
 	const uint16 positionDirtyAddr =
 		runtimeLayout.field(ECL::kEclRuntimePositionDirtyFlag);
 	if (ECL::EclRuntimeLayout::isValidVmAddr(positionDirtyAddr))

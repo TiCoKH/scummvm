@@ -591,10 +591,11 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
     const int y = static_cast<int>(_memory->read8(yAddr));
 
     const uint8 geoId = rtGeo.getGeoData(x, y);
-    debug(1, "readGeoAtPosition: pos=(%d,%d) geoId=0x%02X eventId=%u searchRequired=%s skyColor=%u",
+    debug(1, "readGeoAtPosition: pos=(%d,%d) geoId=0x%02X eventId=%u indoor=%s skyColor=%u ceilColor=%u",
         x, y, (unsigned)geoId, (unsigned)(geoId & 0x7F),
         (geoId & 0x80) ? "yes" : "no",
-        (unsigned)_memory->read8(0x49FD));
+        (unsigned)_memory->read8(layout.vmField(kVmFieldSkyColor).vmAddr),
+        (unsigned)_memory->read8(layout.vmField(kVmFieldCeilingColor).vmAddr));
     const uint16 geoFieldAddr = layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
     _memory->write8(geoFieldAddr, geoId);
 
@@ -604,6 +605,10 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
     const uint8 wallNibble = rtGeo.getMapNibble(x, y, wireDir);
     const uint16 wallTypeAddr = layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr;
     _memory->write8(wallTypeAddr, wallNibble);
+
+    // Immediately derive viewport colors from the freshly-written MapSquareInfo.
+    // Original GFX_ViewPortUpdate reads event_id right after MAP_getGEOData.
+    setDefaultSkyboxColors();
 
     return VM_OK;
 }
@@ -619,6 +624,10 @@ VmResult PoolradEngineHostImpl::refreshViewport() {
     // their own lifecycle via SPRITE_START/SPRITE_OFF).
     if (!_engine->getEncounterSpriteCache().isSpriteLoaded())
         _engine->getPictureDisplayCache().clear();
+
+    // Derive viewport colors (sky/ceiling switch + color registers).
+    // Original GFX_ViewPortUpdate does this on every refresh.
+    setDefaultSkyboxColors();
 
     if (g_events) {
         g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,
@@ -1501,13 +1510,90 @@ void PoolradEngineHostImpl::playSound(uint8 soundId) {
         (unsigned)soundId);
 }
 
+/**
+ * ARRAY_COLOR_LOOKUP: maps G_SkyColor / G_CeilingColor world bank
+ * values to EGA palette indices. First 16 entries from x86 original.
+ */
+static const uint8 kColorLookup[16] = {
+    0x00, 0x0F, 0x0C, 0x0B, 0x0D, 0x0A, 0x09, 0x0E,
+    0x00, 0x0F, 0x0C, 0x0B, 0x0D, 0x0A, 0x09, 0x0E
+};
+
+static uint8 lookupSkyColor(uint8 index) {
+    if (index < 16)
+        return kColorLookup[index];
+    return index & 0x0F;
+}
+
+/**
+ * GFX_Get3DDarkColor: COLOR_REG_FAR → skyline palette index.
+ * Platform-identical on x86 and m68k.
+ */
+static uint8 get3DDarkColor(uint8 regFar) {
+    switch (regFar) {
+    case 0x08: return 0x00;
+    case 0x41: return 0x00;
+    case 0xE8: return 0x0F;
+    default:   return 0x0F;
+    }
+}
+
+/**
+ * GFX_Get3DWallColor: COLOR_REG_FAR → horizon palette index.
+ * Platform-identical on x86 and m68k.
+ */
+static uint8 get3DWallColor(uint8 regFar) {
+    switch (regFar) {
+    case 0x08: return 0x08;
+    case 0x41: return 0x07;
+    case 0xE8: return 0x07;
+    default:   return 0x07;
+    }
+}
+
+/**
+ * GFX_Get3DFloorColor: COLOR_REG_FLOOR → floor palette index.
+ * Uses x86 mapping (EGA palette).
+ */
+static uint8 get3DFloorColor(uint8 regFloor) {
+    switch (regFloor) {
+    case 0x0B: return 0x08;
+    case 0x09: return 0x06;
+    case 0xDB: return 0x06;
+    case 0x06: return 0x01;
+    default:   return 0x06;
+    }
+}
+
 void PoolradEngineHostImpl::setDefaultSkyboxColors() {
-    // GFX_SetDefaultColors(6,7,0,0xb): set the 4 background layer colors
-    // used by the 3D viewport renderer and rebuild the cached surface.
-    _colorFloor   = 6;
-    _colorHorizon = 7;
-    _colorSkyline = 0;
-    _colorSky     = 11;
+    // GFX_ViewPortUpdate color derivation:
+    // 1. Sky color depends on event_id at current position:
+    //    - event_id < 0x80: sky = G_SkyColor (outdoor)
+    //    - event_id >= 0x80: sky = G_CeilingColor (indoor)
+    // 2. Skyline/horizon/floor derived from COLOR_REG_FAR / COLOR_REG_FLOOR.
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+
+    // Determine sky color based on event_id bit 7.
+    const uint8 eventId = _memory->read8(
+        layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr);
+    if (eventId < 0x80) {
+        _colorSky = lookupSkyColor(_memory->read8(
+            layout.vmField(kVmFieldSkyColor).vmAddr));
+    } else {
+        _colorSky = lookupSkyColor(_memory->read8(
+            layout.vmField(kVmFieldCeilingColor).vmAddr));
+    }
+
+    // Derive skyline/horizon/floor from color registers.
+    const uint8 regFloor = _memory->read8(
+        layout.vmGlobalField(kVmGlobalFieldColorFlagFloor).vmAddr);
+    const uint8 regFar = _memory->read8(
+        layout.vmGlobalField(kVmGlobalFieldColorFlagHorizon).vmAddr);
+
+    _colorSkyline = get3DDarkColor(regFar);
+    _colorHorizon = get3DWallColor(regFar);
+    _colorFloor   = get3DFloorColor(regFloor);
+
     if (_engine)
         _engine->setColors(_colorSky, _colorSkyline, _colorHorizon, _colorFloor);
 }

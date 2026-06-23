@@ -58,6 +58,9 @@ struct RuntimeMapSnapshot {
 	bool positionDirty = false;
 	bool characterRedraw = false;
 	bool statusRedraw = false;
+
+	uint8 colorFlagFloor = 65;   // COLOR_REG_FLOOR default
+	uint8 colorFlagHorizon = 9;  // COLOR_REG_FAR default
 };
 
 class RuntimeExchange {
