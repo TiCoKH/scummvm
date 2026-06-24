@@ -464,7 +464,14 @@ Data::DaxBlockGeo *PoolradEngine::getGeoBlockById(uint8 mapId) {
 }
 
 Data::DaxBlockGeo *PoolradEngine::getActiveGeoBlock() {
-	return getGeoBlockById(_legacySharedState.byteMapId);
+	// The renderer needs the GEO block that was actually loaded into
+	// RuntimeGeoBlock (kVmFieldGeoBlockId), NOT the ECL script ID
+	// (byteMapId / kVmFieldSavedEclId). These can differ when a map
+	// uses a different ECL script than its GEO block number.
+	const RuntimeGeoBlock &rtGeo = getRuntimeGeo();
+	if (!rtGeo.isLoaded())
+		return nullptr;
+	return getGeoBlockById(rtGeo.blockId());
 }
 
 bool PoolradEngine::captureRuntimeMapSnapshot(
@@ -1380,10 +1387,9 @@ void PoolradEngine::dispatchPlayerCommand() {
 	if (!_party.empty())
 		setSelectedCharacter(_party[0]);
 
-	// G_SaveMapId writeback (original does this at loop top)
-	const uint16 saveMapIdAddr = layout.vmField(kVmFieldSavedEclId).vmAddr;
-	if (VmLayout::isValid(layout.vmField(kVmFieldSavedEclId)))
-		mem.write8(saveMapIdAddr, _legacySharedState.byteMapId);
+	// G_SaveMapId writeback: kVmFieldSavedEclId is maintained by the
+	// NEWECL handler and initializeMapRuntimeForState. Don't overwrite
+	// it here — byteMapId tracks GEO block ID which can differ from ECL ID.
 
 	if (cmd == Views::InGameView::kCmdEncamp) {
 		const VmResult r = runEclEntryPoint(ECL::kEclRuntimeOnRestEntry);
@@ -1594,6 +1600,9 @@ void PoolradEngine::dispatchPlayerCommand() {
 				if (_eclHost)
 					_eclHost->readGeoAtPosition();
 
+				// ENGINE_Run: BYTE_VM_MAP_TYPE = 1 before ON_INIT.
+				mem.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
+
 				const uint16 initPc = _eclVm->getEntryPointPc(4);
 				if (initPc != 0) {
 					const VmResult initR = executeEclAtScriptAddress(initPc);
@@ -1634,6 +1643,10 @@ void PoolradEngine::dispatchPlayerCommand() {
 		// MAP_GetGEOData at current position
 		if (_eclHost)
 			_eclHost->readGeoAtPosition();
+
+		// ENGINE_Run: BYTE_VM_MAP_TYPE = 1 before ON_INIT (force indoor).
+		// After ON_INIT, IndoorModeFlag/ECL ID determine actual type.
+		mem.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
 
 		// ENGINE_Execute(ECL_ONINIT)
 		const uint16 initPc = _eclVm->getEntryPointPc(4);
