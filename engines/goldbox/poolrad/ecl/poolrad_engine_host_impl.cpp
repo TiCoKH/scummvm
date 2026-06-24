@@ -619,11 +619,10 @@ VmResult PoolradEngineHostImpl::refreshViewport() {
     if (!_engine)
         return VM_OK;
 
-    // Viewport refresh restores the 3D world view. Clear the picture cache
-    // only when no sprite encounter is active (sprite encounters manage
-    // their own lifecycle via SPRITE_START/SPRITE_OFF).
-    if (!_engine->getEncounterSpriteCache().isSpriteLoaded())
-        _engine->getPictureDisplayCache().clear();
+    // Viewport refresh restores the 3D world view. Clear both picture and
+    // sprite caches so the first-person renderer takes over.
+    _engine->getPictureDisplayCache().clear();
+    _engine->getEncounterSpriteCache().clear();
 
     // Derive viewport colors (sky/ceiling switch + color registers).
     // Original GFX_ViewPortUpdate does this on every refresh.
@@ -825,7 +824,21 @@ VmResult PoolradEngineHostImpl::drawEncounterStage(uint8 resourceId,
     cache.loadSprite(resourceId, variantId, distance);
 
     // Load head if distance == 0 (adjacent encounter).
+    // Show the last sprite frame briefly, then reveal head/body.
     if (distance == 0) {
+        uint8 speed = _memory->read8(layout.vmField(kVmFieldGameSpeed).vmAddr);
+        if (speed == 0)
+            speed = 1;
+
+        // Flush sprite frame to screen first.
+        _updateViewState();
+        if (g_events) {
+            g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY, 1,
+                EclVmMessage::VT_UINT8);
+            g_events->pumpModalInputFrame();
+        }
+        g_system->delayMillis(static_cast<uint32>(speed) * 150);
+
         const uint8 headPicId = _memory->read8(
             layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr);
         cache.loadHead(headPicId, variantId);
@@ -848,16 +861,27 @@ VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
     cache.setDistance(newDistance);
 
     if (newDistance == 0) {
+        // Show last sprite frame briefly, then reveal head/body immediately.
+        // Original engine draws the closest-frame sprite for one animation
+        // tick before compositing the portrait on top.
         const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
         uint8 speed = _memory->read8(layout.vmField(kVmFieldGameSpeed).vmAddr);
         if (speed == 0)
             speed = 1;
-        _pendingEncounterHeadReveal = true;
-        _pendingEncounterHeadRevealTime = g_system->getMillis() +
-            static_cast<uint32>(speed) * 200;
-    } else {
-        _pendingEncounterHeadReveal = false;
-        _pendingEncounterHeadRevealTime = 0;
+
+        // Flush the last sprite frame to screen before loading head.
+        _updateViewState();
+        if (g_events) {
+            g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY, 1,
+                EclVmMessage::VT_UINT8);
+            g_events->pumpModalInputFrame();
+        }
+        g_system->delayMillis(static_cast<uint32>(speed) * 150);
+
+        // Now load the head portrait so it's visible before the next opcode.
+        const uint8 headPicId = _memory->read8(
+            layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr);
+        cache.loadHead(headPicId, cache.bodyPicId());
     }
 
     _updateViewState();
@@ -1151,27 +1175,6 @@ bool PoolradEngineHostImpl::isPendingAsyncReady() const {
     }
 
     if (_asyncDelayPending) {
-        if (_pendingEncounterHeadReveal &&
-                g_system->getMillis() >= _pendingEncounterHeadRevealTime) {
-            PoolradEngineHostImpl *self =
-                const_cast<PoolradEngineHostImpl *>(this);
-            Goldbox::Gfx::EncounterSpriteCache &cache =
-                self->_engine->getEncounterSpriteCache();
-            if (cache.isSpriteLoaded() && cache.distance() == 0) {
-                const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
-                const uint8 headPicId = self->_memory->read8(
-                    layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr);
-                cache.loadHead(headPicId, cache.bodyPicId());
-                self->_updateViewState();
-                if (g_events) {
-                    g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY,
-                        1, EclVmMessage::VT_UINT8);
-                }
-            }
-            self->_pendingEncounterHeadReveal = false;
-            self->_pendingEncounterHeadRevealTime = 0;
-            return false;
-        }
         return g_system->getMillis() >= _asyncDelayEndTime;
     }
 
