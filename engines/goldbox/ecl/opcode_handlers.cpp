@@ -818,12 +818,11 @@ static int handle_0x20_NEWECL(EclVM &vm, AddressSpace &mem,
 
     debug(3, "ECL: 0x%04X  NEWECL(0:%u)", vm.getPC(), (unsigned)newScriptId);
 
-    // G_SaveEclId = BYTE_ECL_SCRIPT_ID: save current script ID so it
-    // can be restored later when the sub-script finishes.
+    // Update G_SaveEclId to the new active script ID.
+    // Original: BYTE_ECL_SCRIPT_ID = new_ecl_id, then ENGINE_Run writes
+    // G_SaveEclId = BYTE_ECL_SCRIPT_ID. We do it here directly.
     const EclLayoutAccess layout = getOpcodeLayout();
-    const uint16 savedEclAddr = layout.vmField(kVmFieldSavedEclId).vmAddr;
-    const uint8 currentScriptId = mem.read8(savedEclAddr);
-    mem.write8(savedEclAddr, currentScriptId);
+    mem.write8(layout.vmField(kVmFieldSavedEclId).vmAddr, newScriptId);
 
     // Load new ECL block into VM memory (host zeroes VMBANK3, copies bytes).
     const VmResult loadResult = syscalls->loadScript(newScriptId);

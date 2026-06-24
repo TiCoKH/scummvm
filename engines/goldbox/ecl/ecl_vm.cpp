@@ -226,6 +226,17 @@ DecodeStatus EclVM::reloadHeader(uint8 scriptId) {
     _memory.write8(layout.runtimeField(kEclRuntimeExitScript), 0);
     _memory.write8(layout.runtimeField(kEclRuntimeProgramState), 0);
 
+    // ECL_LoadHeader always resets these regardless of context:
+    _memory.write8(layout.vmGlobalField(kVmGlobalFieldPictureHeadId).vmAddr,
+        0xFF);
+    _memory.write8(layout.vmGlobalField(kVmGlobalFieldColorFlagFloor).vmAddr,
+        65);
+    _memory.write8(
+        layout.vmGlobalField(kVmGlobalFieldColorFlagHorizon).vmAddr, 9);
+    uint16 skyboxFlag = layout.runtimeField(kEclRuntimeSkyboxRedrawFlag);
+    if (EclRuntimeLayout::isValidVmAddr(skyboxFlag))
+        _memory.write8(skyboxFlag, 1);
+
     syncRuntimePc(scriptVmStart);
 
     // Parse entry points from bytecode already in VM memory.
