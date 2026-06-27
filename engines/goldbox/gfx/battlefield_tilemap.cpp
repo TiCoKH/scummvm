@@ -33,9 +33,85 @@ namespace Gfx {
 //   0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
 // GEO API wire directions (cardinal only): 0=N, 2=E, 4=S, 6=W
 
+const BattlefieldTilemap::TileProp BattlefieldTilemap::kTilePropTable[] = {
+/*  idx   gfxID  pass   pad  block    notes                          */
+/* [00] */ { 0x00, -1, 0x00, 0x02 }, // impassable, hard block
+/* [01] */ { 0x00, -1, 0x00, 0x02 }, // impassable, hard block
+/* [02] */ { 0x01, -1, 0x00, 0x02 }, // impassable, hard block
+/* [03] */ { 0x02, -1, 0x00, 0x02 }, // impassable, hard block
+/* [04] */ { 0x03, 0x01, 0x00, 0x00 }, // walkable
+/* [05] */ { 0x04, -1, 0x00, 0x02 }, // impassable, hard block
+/* [06] */ { 0x05, -1, 0x00, 0x02 }, // impassable, hard block
+/* [07] */ { 0x06, -1, 0x00, 0x02 }, // impassable, hard block
+/* [08] */ { 0x07, 0x01, 0x00, 0x00 }, // walkable
+/* [09] */ { 0x08, -1, 0x00, 0x02 }, // impassable, hard block
+/* [10] */ { 0x09, 0x01, 0x00, 0x00 }, // walkable
+/* [11] */ { 0x0A, -1, 0x00, 0x02 }, // impassable, hard block
+/* [12] */ { 0x0B, 0x01, 0x00, 0x00 }, // walkable
+/* [13] */ { 0x0C, -1, 0x00, 0x02 }, // impassable, hard block
+/* [14] */ { 0x0D, 0x01, 0x00, 0x00 }, // walkable
+/* [15] */ { 0x0E, -1, 0x00, 0x02 }, // impassable, hard block
+/* [16] */ { 0x0F, 0x01, 0x00, 0x00 }, // walkable
+/* [17] */ { 0x10, -1, 0x00, 0x02 }, // impassable, hard block
+/* [18] */ { 0x11, -1, 0x00, 0x02 }, // impassable, hard block
+/* [19] */ { 0x12, -1, 0x00, 0x02 }, // impassable, hard block
+/* [20] */ { 0x13, -1, 0x00, 0x02 }, // impassable, hard block
+/* [21] */ { 0x14, -1, 0x00, 0x02 }, // impassable, hard block
+/* [22] */ { 0x15, 0x01, 0x00, 0x00 }, // walkable
+/* [23] */ { 0x16, 0x01, 0x00, 0x00 }, // walkable  <-- TILE_OPEN_PLAIN (randomizable base)
+/* [24] */ { 0x17, -1, 0x00, 0x02 }, // impassable, hard block
+/* [25] */ { 0x18, 0x01, 0x00, 0x00 }, // walkable
+/* [26] */ { 0x22, 0x01, 0x00, 0x00 }, // walkable  <-- TILE_LIGHT_VEGETATION
+/* [27] */ { 0x23, 0x01, 0x00, 0x00 }, // walkable
+/* [28] */ { 0x24, 0x01, 0x00, 0x00 }, // walkable
+/* [29] */ { 0x25, 0x01, 0x00, 0x00 }, // walkable
+/* [30] */ { 0x26, 0x01, 0x00, 0x00 }, // walkable
+/* [31] */ { 0x27, -1, 0x00, 0x02 }, // impassable, hard block
+/* --- second tileset bank (indices 32..64) --- */
+/* [32] */ { 0x00, -1, 0x00, 0x02 }, // impassable, hard block
+/* [33] */ { 0x01, -1, 0x00, 0x02 }, // impassable, hard block
+/* [34] */ { 0x02, -1, 0x00, 0x02 }, // impassable, hard block
+/* [35] */ { 0x03, 0x01, 0x00, 0x00 }, // walkable
+/* [36] */ { 0x04, 0x01, 0x00, 0x00 }, // walkable
+/* [37] */ { 0x05, 0x01, 0x00, 0x00 }, // walkable
+/* [38] */ { 0x06, 0x01, 0x00, 0x00 }, // walkable
+/* [39] */ { 0x07, -1, 0x00, 0x00 }, // impassable, no hard block
+/* [40] */ { 0x08, -1, 0x00, 0x00 }, // impassable, no hard block
+/* [41] */ { 0x09, 0x01, 0x00, 0x00 }, // walkable
+/* [42] */ { 0x0A, 0x01, 0x00, 0x00 }, // walkable
+/* [43] */ { 0x0B, 0x01, 0x00, 0x00 }, // walkable
+/* [44] */ { 0x0C, 0x01, 0x00, 0x00 }, // walkable
+/* [45] */ { 0x0D, 0x01, 0x00, 0x00 }, // walkable
+/* [46] */ { 0x0E, 0x01, 0x00, 0x00 }, // walkable
+/* [47] */ { 0x0F, 0x01, 0x00, 0x00 }, // walkable
+/* [48] */ { 0x10, 0x01, 0x00, 0x00 }, // walkable
+/* [49] */ { 0x11, -1, 0x00, 0x00 }, // impassable, no hard block
+/* [50] */ { 0x12, -1, 0x00, 0x00 }, // impassable, no hard block
+/* [51] */ { 0x13, 0x01, 0x00, 0x00 }, // walkable
+/* [52] */ { 0x14, 0x01, 0x00, 0x00 }, // walkable
+/* [53] */ { 0x15, 0x01, 0x00, 0x00 }, // walkable
+/* [54] */ { 0x16, -1, 0x00, 0x00 }, // impassable, no hard block
+/* [55] */ { 0x17, -1, 0x00, 0x00 }, // impassable, no hard block
+/* [56] */ { 0x18, 0x01, 0x00, 0x00 }, // walkable
+/* [57] */ { 0x19, 0x01, 0x00, 0x00 }, // walkable
+/* [58] */ { 0x1A, 0x01, 0x00, 0x00 }, // walkable
+/* [59] */ { 0x1B, -1, 0x00, 0x00 }, // impassable, no hard block
+/* [60] */ { 0x1C, -1, 0x00, 0x02 }, // impassable, hard block <-- TILE_SMALL_ROCKS
+/* [61] */ { 0x1D, -1, 0x00, 0x02 }, // impassable, hard block <-- TILE_LARGE_BOULDERS
+/* [62] */ { 0x1E, -1, 0x00, 0x02 }, // impassable, hard block
+/* [63] */ { 0x1F, 0x01, 0x00, 0x00 }, // walkable
+/* [64] */ { 0x20, -1, 0x00, 0x02 }, // impassable, hard block
+};
+
+// Wilderness tilemap stub — TODO: populate from game data extraction
+const uint8 BattlefieldTilemap::kWildernessTilemap[kWildTilemapRows][kWildTilemapCols] = {
+    {0}
+};
+
 BattlefieldTilemap::BattlefieldTilemap()
     : _geo(nullptr), _playerY(0), _built(false), _isDungeon(true),
-      _eclScriptId(0),
+      _eclScriptId(0), _wildCell(0), _terrainOverrideFlags(0),
+      _mapType(1), _wildX(0), _wildY(0),
       _cellAbsX(0), _cellAbsY(0), _cellOffsetX(0), _cellOffsetY(0),
       _cellPassWest(0), _cellPassNorth(0), _cellPassEast(0) {
     memset(_header, 0, sizeof(_header));
@@ -319,16 +395,315 @@ void BattlefieldTilemap::generateDungeon(int8 centerX, int8 centerY) {
 void BattlefieldTilemap::generateWilderness(int8 centerX, int8 centerY) {
     (void)centerX;
     (void)centerY;
-    // TODO: Implement COMBAT_GenerateWildernessBattlefield
-    for (int row = kRowMargin; row < kPlayfieldRows; row++)
-        for (int col = kColMargin; col < kPlayfieldCols; col++)
-            _tileBuffer[row][col] = kTileFloor + 1;
+
+    // Fill entire field with open plain (tile 23 in original = index 22+1)
+    memset(_tileBuffer, kTileOpenPlain + 1, sizeof(_tileBuffer));
+
+    // Look up wilderness cell from tilemap
+    int wx = (int)_wildX;
+    if (_mapType == 3)
+        wx += 13;
+    if (_mapType == 4)
+        wx += 26;
+    int wy = (int)_wildY * 44;
+    if (wx + wy < kWildTilemapRows * kWildTilemapCols)
+        _wildCell = kWildernessTilemap[0][wx + wy];
+    else
+        _wildCell = 0;
+
+    setTilePatternRiver();
+    setTilePatternTrees();
+    setTilePatternCover();
+}
+
+// --- Wilderness terrain flags ---
+
+uint8 BattlefieldTilemap::getTerrainFlags() const {
+    uint8 flags;
+    int wt = (int)_wildCell;
+
+    if      (wt == 0 || wt == 1 || wt == 2)             flags = 0x01;
+    else if (wt >= 0x28 && wt <= 0x29)                   flags = 0x01;
+    else if (wt >= 0x4F && wt <= 0x56)                   flags = 0x01;
+    else if (wt >= 0x5B && wt <= 0x5C)                   flags = 0x01;
+    else if (wt == 0x2B || wt == 0xF1)                   flags = 0x01;
+    else if (wt >= 0xA8 && wt <= 0xB1)                   flags = 0x21;
+    else if (wt == 0xB9 || (wt >= 0xBC && wt <= 0xC0))   flags = 0x11;
+    else if (wt == 3 || wt == 4)                         flags = 0x02;
+    else if (wt == 6 || wt == 7)                         flags = 0x02;
+    else if (wt == 8 || wt == 9)                         flags = 0x02;
+    else if (wt >= 0x13 && wt <= 0x15)                   flags = 0x02;
+    else if (wt >= 0x17 && wt <= 0x19)                   flags = 0x02;
+    else if (wt == 0x16)                                 flags = 0x02;
+    else if (wt >= 0x1A && wt <= 0x24)                   flags = 0x02;
+    else if (wt >= 0xC9 && wt <= 0xD0)                   flags = 0x02;
+    else if (wt >= 0xD1 && wt <= 0xD5)                   flags = 0x12;
+    else if (wt == 0x25 || wt == 0x39 || wt == 0x40 ||
+             (wt >= 0x9A && wt <= 0x9E) ||
+             (wt >= 0xA4 && wt <= 0xA5) ||
+             wt == 0xB4 || wt == 0xF3 ||
+             (wt >= 0xEF && wt <= 0xF0) ||
+             wt == 0xFA || wt == 0xFC)                   flags = 0x04;
+    else if ((wt >= 0x27 && wt <= 0x2C) ||
+             wt == 0x99 || wt == 0x9F)                   flags = 0x44;
+    else if (wt >= 0x2D && wt <= 0x2E)                   flags = 0x44;
+    else if (wt >= 0x33 && wt <= 0x38)                   flags = 0x44;
+    else if (wt >= 0x43 && wt <= 0x4D)                   flags = 0x44;
+    else if (wt >= 0x5D && wt <= 0x61)                   flags = 0x44;
+    else if ((wt >= 0xB5 && wt <= 0xB8) ||
+             wt == 0xBA ||
+             (wt >= 0xC1 && wt <= 0xC8))                 flags = 0x14;
+    else if (wt >= 0x2F && wt <= 0x32)                   flags = 0x40;
+    else if (wt >= 0x62 && wt <= 0x65)                   flags = 0x40;
+    else if (wt == 0xF2)                                 flags = 0x40;
+    else if (wt == 0x26)                                 flags = 0x41;
+    else if (wt == 0xB2 || wt == 0xB3)                   flags = 0x60;
+    else if (wt >= 0x3A && wt <= 0x3C)                   flags = 0x48;
+    else if (wt == 0x41 || wt == 0x42)                   flags = 0x48;
+    else if (wt >= 0x3D && wt <= 0x3F)                   flags = 0x08;
+    else if (wt >= 0x57 && wt <= 0x5A)                   flags = 0x88;
+    else if (wt == 0xA3)                                 flags = 0x88;
+    else if (wt == 0xE0)                                 flags = 0x88;
+    else if (wt == 0x7C || wt == 0x7D ||
+             wt == 0x8A || wt == 0x8C ||
+             wt == 0x8E || wt == 0x8F ||
+             wt == 0x94 || wt == 0x96)                   flags = 0x09;
+    else if (wt >= 0x7E && wt <= 0x85)                   flags = 0x28;
+    else if (wt >= 0xE5 && wt <= 0xE7)                   flags = 0x28;
+    else if (wt >= 0xD9 && wt <= 0xDF)                   flags = 0x18;
+    else if (wt == 0x4E || wt == 0xF5 ||
+             (wt >= 0xE8 && wt <= 0xE9))                 flags = 0x20;
+    else if (wt == 0x6D ||
+             (wt >= 0xF4 && wt <= 0xF6))                 flags = 0x80;
+    else if (wt >= 0x6E && wt <= 0x71)                   flags = 0x81;
+    else if (wt >= 0x73 && wt <= 0x78)                   flags = 0x81;
+    else if (wt >= 0x66 && wt <= 0x6C)                   flags = 0x90;
+    else if (wt == 0x72)                                 flags = 0x90;
+    else if ((wt >= 0xE1 && wt <= 0xE4) ||
+             (wt >= 0xEA && wt <= 0xED))                 flags = 0xA0;
+    else                                                 flags = 0x00;
+
+    if ((flags & kTerrainUnderground) && (_terrainOverrideFlags == 0xFF))
+        flags = (flags & ~kTerrainUnderground) | kTerrainWater;
+
+    return flags;
+}
+
+// --- Wilderness river ---
+
+void BattlefieldTilemap::markFordPair(int col, int row, int &pairCount) {
+    if (col >= 0 && col < kPlayfieldCols - 1 &&
+        row >= 0 && row < kPlayfieldRows) {
+        _tileBuffer[row][col] = kTileFordA + 1;
+        _tileBuffer[row][col + 1] = kTileFordB + 1;
+        pairCount++;
+    }
+}
+
+void BattlefieldTilemap::setTilePatternRiver() {
+    uint8 terrainFlags = getTerrainFlags();
+    uint8 chanceThreshold = 0;
+
+    if (terrainFlags & kTerrainRuins)
+        chanceThreshold = 35;
+    if (terrainFlags & kTerrainHills)
+        chanceThreshold = 75;
+
+    int diceRoll = g_engine->rollDice(1, 100);
+    if (diceRoll > (int)chanceThreshold)
+        return;
+
+    // Starting column: roll 5d4 (5..20), streamCol = 34 - result
+    int startRoll = g_engine->rollDice(5, 4);
+    int streamCol = 34 - startRoll;
+
+    // Align to 7-column grid
+    while (((streamCol + 2) % 7) != 0)
+        streamCol--;
+
+    int streamColStart = streamCol;
+    int pairCount = 0;
+
+    // Paint stream diagonally across field
+    for (int row = 0; row < kPlayfieldRows; row++) {
+        if (streamCol >= 0 && streamCol < kPlayfieldCols - 1) {
+            _tileBuffer[row][streamCol] = kTileStreamA + 1;
+            _tileBuffer[row][streamCol + 1] = kTileStreamB + 1;
+
+            if (g_engine->rollDice(1, 20) == 1) {
+                markFordPair(streamCol, row, pairCount);
+            } else if (pairCount / 2 == 0) {
+                markFordPair(streamCol, row, pairCount);
+            }
+        }
+        streamCol++;
+    }
+
+    // Fallback: force two ford pairs if none placed
+    if (pairCount == 0) {
+        int fordsCol = 16 - g_engine->rollDice(1, 9);
+        int fordsRow = fordsCol + streamColStart;
+        if (fordsRow >= 0 && fordsRow < kPlayfieldRows - 1) {
+            markFordPair(fordsCol, fordsRow, pairCount);
+            markFordPair(fordsCol + 1, fordsRow + 1, pairCount);
+        }
+    }
+}
+
+// --- Wilderness trees ---
+
+void BattlefieldTilemap::setTilePatternTrees() {
+    uint8 terrainFlags = getTerrainFlags();
+    uint8 maxDensity = 1;
+
+    if (terrainFlags & kTerrainForest)
+        maxDensity = 3;
+    if (terrainFlags & kTerrainDesert)
+        maxDensity = 4;
+    if (terrainFlags & kTerrainMarsh)
+        maxDensity = 7;
+    if (terrainFlags & kTerrainUnderground)
+        maxDensity = 0;
+
+    for (int col = 0; col < kPlayfieldCols; col++) {
+        for (int row = 1; row < kPlayfieldRows; row++) {
+            uint8 rawCur = _tileBuffer[row][col];
+            uint8 rawAbove = _tileBuffer[row - 1][col];
+            if (rawCur == 0 || rawAbove == 0)
+                continue;
+
+            uint8 tidCur = rawCur - 1;
+            uint8 tidAbove = rawAbove - 1;
+            if (tidCur >= kTilePropTableCount || tidAbove >= kTilePropTableCount)
+                continue;
+            if (kTilePropTable[tidCur].gfxID != kTileOpenPlain)
+                continue;
+            if (kTilePropTable[tidAbove].gfxID != kTileOpenPlain)
+                continue;
+
+            int diceRoll = g_engine->rollDice(1, 100);
+            if (diceRoll > (int)maxDensity)
+                continue;
+
+            // Select tree variant
+            uint8 treeVariant;
+            int varRoll = g_engine->rollDice(1, 10);
+            if (varRoll < 9)
+                treeVariant = (uint8)((varRoll + 1) >> 1);  // 1..4
+            else
+                treeVariant = g_engine->rollDice(1, 2) + 4; // 5 or 6
+
+            // Desert override
+            if (getTerrainFlags() & kTerrainDesert)
+                treeVariant = g_engine->rollDice(1, 3) + 3; // 4..6
+
+            // Place bottom tile
+            _tileBuffer[row][col] = (treeVariant + kTileTreeBotBase) + 1;
+
+            // Place top tile for variants 1..4
+            if (treeVariant < 5)
+                _tileBuffer[row - 1][col] = (treeVariant + kTileTreeTopBase) + 1;
+        }
+    }
+}
+
+// --- Wilderness ground cover ---
+
+void BattlefieldTilemap::setTilePatternCover() {
+    uint8 terrainFlags = getTerrainFlags();
+
+    uint8 bandBase = 0;
+    uint8 bandWidth1 = 15;
+    uint8 bandWidth2 = 40;
+    uint8 bandWidth3 = 0;
+
+    if (terrainFlags & kTerrainRiver) {
+        bandWidth1 = 45;
+        bandWidth2 = 10;
+    }
+    if (terrainFlags & kTerrainForest)
+        bandWidth1 = 25;
+    if (terrainFlags & kTerrainDesert) {
+        bandWidth2 = 5;
+        bandWidth3 = 30;
+    }
+    if (terrainFlags & kTerrainUnderground) {
+        bandBase = 15;
+        bandWidth2 = 25;
+        bandWidth1 = 10;
+    }
+
+    int threshA = (int)bandBase;
+    int threshB = threshA + 6;
+    int threshC = threshB + (int)bandWidth1;
+    int threshD = threshC + (int)bandWidth2;
+    int threshE = threshD + (int)bandWidth3;
+
+    for (int col = 0; col < kPlayfieldCols; col++) {
+        for (int row = 0; row < kPlayfieldRows; row++) {
+            uint8 raw = _tileBuffer[row][col];
+            if (raw == 0)
+                continue;
+            uint8 tileId = raw - 1;
+            if (tileId >= kTilePropTableCount)
+                continue;
+            if (kTilePropTable[tileId].gfxID != kTileOpenPlain)
+                continue;
+
+            int roll = (int)(uint8)g_engine->rollDice(1, 255);
+
+            if (roll <= threshA) {
+                // Zone A: wall pairs / zone-A cover
+                int featureRoll = g_engine->rollDice(1, 4);
+                if (featureRoll == 4 && row > 0) {
+                    uint8 aboveRaw = _tileBuffer[row - 1][col];
+                    if (aboveRaw != 0) {
+                        uint8 aboveTid = aboveRaw - 1;
+                        if (aboveTid < kTilePropTableCount &&
+                            kTilePropTable[aboveTid].gfxID == kTileOpenPlain) {
+                            _tileBuffer[row - 1][col] = kTileWallTop + 1;
+                            _tileBuffer[row][col] = kTileWallBottom + 1;
+                        }
+                    }
+                } else if (featureRoll < 4) {
+                    _tileBuffer[row][col] = (uint8)(featureRoll + kTileZoneABase) + 1;
+                }
+            } else if (roll <= threshB) {
+                // Zone B: scrub
+                int featureRoll = g_engine->rollDice(1, 3);
+                _tileBuffer[row][col] = (uint8)(featureRoll + kTileScrubBase - 1) + 1;
+            } else if (roll <= threshC) {
+                // Zone C: ground cover
+                int featureRoll = g_engine->rollDice(1, 4);
+                _tileBuffer[row][col] = (uint8)(featureRoll + kTileCoverBase - 1) + 1;
+            } else if (roll <= threshD) {
+                // Zone D: crop rows
+                int d10 = g_engine->rollDice(1, 10);
+                int variant = ((d10 - 1) / 3) + 1;
+                _tileBuffer[row][col] = (uint8)(variant + kTileCropBase - 1) + 1;
+            } else if (roll <= threshE) {
+                // Zone E: cliff/special
+                int featureRoll = g_engine->rollDice(1, 4);
+                if (featureRoll == 4) {
+                    if (!(getTerrainFlags() & kTerrainDesert))
+                        featureRoll = g_engine->rollDice(1, 3);
+                }
+                _tileBuffer[row][col] = (uint8)(featureRoll + kTileCliffBase - 1) + 1;
+            }
+        }
+    }
 }
 
 void BattlefieldTilemap::setRandomFloorTiles() {
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
-            if (_tileBuffer[row][col] != kTileFloor + 1)
+            uint8 raw = _tileBuffer[row][col];
+            if (raw == 0)
+                continue;
+            uint8 tileId = raw - 1;
+            if (tileId >= kTilePropTableCount)
+                continue;
+            if (kTilePropTable[tileId].gfxID != kTileFloor)
                 continue;
 
             int roll = g_engine->rollDice(1, 100);
@@ -356,11 +731,17 @@ void BattlefieldTilemap::setRandomFloorTiles() {
 
 void BattlefieldTilemap::build(const RuntimeGeoBlock &geo,
                                 int8 centerX, int8 centerY, int8 playerY,
-                                bool isDungeon, uint8 eclScriptId) {
+                                bool isDungeon, uint8 eclScriptId,
+                                uint8 wildX, uint8 wildY,
+                                uint8 mapType, uint8 terrainOverride) {
     _geo = &geo;
     _playerY = playerY;
     _isDungeon = isDungeon;
     _eclScriptId = eclScriptId;
+    _wildX = wildX;
+    _wildY = wildY;
+    _mapType = mapType;
+    _terrainOverrideFlags = terrainOverride;
 
     memset(_header, 0, sizeof(_header));
     memset(_tileBuffer, 0, sizeof(_tileBuffer));
@@ -381,10 +762,16 @@ void BattlefieldTilemap::build(const RuntimeGeoBlock &geo,
 
 void BattlefieldTilemap::regenerate(const RuntimeGeoBlock &geo,
                                      int8 centerX, int8 centerY, int8 playerY,
-                                     uint8 eclScriptId) {
+                                     uint8 eclScriptId,
+                                     uint8 wildX, uint8 wildY,
+                                     uint8 mapType, uint8 terrainOverride) {
     _geo = &geo;
     _playerY = playerY;
     _eclScriptId = eclScriptId;
+    _wildX = wildX;
+    _wildY = wildY;
+    _mapType = mapType;
+    _terrainOverrideFlags = terrainOverride;
     memset(_tileBuffer, 0, sizeof(_tileBuffer));
 
     if (_isDungeon) {
