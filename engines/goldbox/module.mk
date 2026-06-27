@@ -62,6 +62,7 @@ MODULE_OBJS = \
 	gfx/walldef_surface_builder.o \
 	gfx/icon.o \
 	gfx/icon_manager.o \
+	gfx/battlefield_tilemap.o \
 	gfx/combat_renderer.o \
 	gfx/surface.o \
 	sound/sound_driver.o \

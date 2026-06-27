@@ -25,6 +25,7 @@
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/views/views.h"
 #include "goldbox/gfx/icon_manager.h"
+#include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/ecl/ecl_vm.h"
@@ -68,6 +69,7 @@ class PoolradEngine : public Goldbox::Engine {
 private:
 	Poolrad::Views::Views *_views = nullptr;
 	Gfx::IconManager *_iconManager = nullptr;
+	Gfx::BattlefieldTilemap _battlefield;
 	uint16 _mapX = 0, _mapY = 0;
 	EffectHandler _effectsRuntime;
 
@@ -141,6 +143,8 @@ public:
 	 * @return Pointer to the icon manager
 	 */
 	Gfx::IconManager *getIconManager() const { return _iconManager; }
+	Gfx::BattlefieldTilemap &getBattlefield() { return _battlefield; }
+	const Gfx::BattlefieldTilemap &getBattlefield() const { return _battlefield; }
 	EffectHandler &effectsRuntime() { return _effectsRuntime; }
 	ECL::AddressSpace *getEclMemory();
 	const ECL::AddressSpace *getEclMemory() const;

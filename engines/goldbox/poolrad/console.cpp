@@ -28,7 +28,9 @@
 #include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/gfx/first_person_renderer.h"
+#include "goldbox/gfx/icon_manager.h"
 #include "goldbox/gfx/pic.h"
+#include "goldbox/vm_interface.h"
 #include "image/bmp.h"
 
 namespace {
@@ -39,6 +41,13 @@ static const uint32 kColorRoom = 8;
 static const uint32 kColorWall = 7;
 static const uint32 kColorCursor = 15;
 static const uint32 kDoorColors[4] = {0, 15, 14, 12};
+
+static const byte kEgaPalette[16 * 3] = {
+	0x00,0x00,0x00, 0x00,0x00,0xAA, 0x00,0xAA,0x00, 0x00,0xAA,0xAA,
+	0xAA,0x00,0x00, 0xAA,0x00,0xAA, 0xAA,0x55,0x00, 0xAA,0xAA,0xAA,
+	0x55,0x55,0x55, 0x55,0x55,0xFF, 0x55,0xFF,0x55, 0x55,0xFF,0xFF,
+	0xFF,0x55,0x55, 0xFF,0x55,0xFF, 0xFF,0xFF,0x55, 0xFF,0xFF,0xFF
+};
 
 static void blitPic(Graphics::Screen *screen, const Goldbox::Gfx::Pic *pic,
 		int x, int y) {
@@ -245,6 +254,8 @@ Console::Console() : Goldbox::Console() {
 	registerCmd("fpview", WRAP_METHOD(Console, cmdFpview));
 	registerCmd("walldefstate", WRAP_METHOD(Console, cmdWalldefstate));
 	registerCmd("dumpPic", WRAP_METHOD(Console, cmdDumpPic));
+	registerCmd("dumpIconStore", WRAP_METHOD(Console, cmdDumpIconStore));
+	registerCmd("dumpBattlefield", WRAP_METHOD(Console, cmdDumpBattlefield));
 }
 
 bool Console::cmdFont(int argc, const char **argv) {
@@ -502,13 +513,6 @@ bool Console::cmdDumpPic(int argc, const char **argv) {
 		return true;
 	}
 
-	static const byte kEgaPalette[16 * 3] = {
-		0x00,0x00,0x00, 0x00,0x00,0xAA, 0x00,0xAA,0x00, 0x00,0xAA,0xAA,
-		0xAA,0x00,0x00, 0xAA,0x00,0xAA, 0xAA,0x55,0x00, 0xAA,0xAA,0xAA,
-		0x55,0x55,0x55, 0x55,0x55,0xFF, 0x55,0xFF,0x55, 0x55,0xFF,0xFF,
-		0xFF,0x55,0x55, 0xFF,0x55,0xFF, 0xFF,0xFF,0x55, 0xFF,0xFF,0xFF
-	};
-
 	if (containerName == "PIC") {
 		// PIC container uses EGAPIC (DaxBlockSprit with XOR decode).
 		::Goldbox::Data::DaxBlockSprit *spritBlock =
@@ -589,6 +593,81 @@ bool Console::cmdDumpPic(int argc, const char **argv) {
 			}
 			delete pic;
 		}
+	}
+
+	return true;
+}
+
+bool Console::cmdDumpIconStore(int argc, const char **argv) {
+	(void)argc; (void)argv;
+
+	Gfx::IconManager *mgr = VmInterface::getIconManager();
+	if (!mgr) {
+		debugPrintf("IconManager not available\n");
+		return true;
+	}
+
+	// Layout: 16 columns x 8 rows = 128 slots, each icon 24x24 px
+	// Plus 1px border between icons for visibility
+	const int kCols = 16;
+	const int kRows = 8;
+	const int kIconW = 24;
+	const int kIconH = 24;
+	const int kPad = 1;
+	const int gridW = kCols * (kIconW + kPad) + kPad;
+	const int gridH = kRows * (kIconH + kPad) + kPad;
+
+	Graphics::ManagedSurface grid(gridW, gridH);
+	grid.clear(0);
+
+	int populated = 0;
+	for (int slot = 0; slot < 128; ++slot) {
+		const Gfx::Pic *pic = mgr->getPic(static_cast<uint8>(slot));
+		if (!pic)
+			continue;
+
+		int col = slot % kCols;
+		int row = slot / kCols;
+		int px = kPad + col * (kIconW + kPad);
+		int py = kPad + row * (kIconH + kPad);
+		pic->draw(&grid, px, py);
+		++populated;
+	}
+
+	Common::DumpFile outFile;
+	Common::String filename("icon_store_dump.bmp");
+	if (outFile.open(Common::Path(filename))) {
+		Image::writeBMP(outFile, grid, kEgaPalette, 16);
+		outFile.close();
+		debugPrintf("Dumped %d icons to %s (%dx%d)\n",
+			populated, filename.c_str(), gridW, gridH);
+	} else {
+		debugPrintf("Failed to open %s for writing\n", filename.c_str());
+	}
+
+	return true;
+}
+
+bool Console::cmdDumpBattlefield(int argc, const char **argv) {
+	(void)argc; (void)argv;
+
+	const Gfx::BattlefieldTilemap &bf = g_engine->getBattlefield();
+	if (!bf.isBuilt()) {
+		debugPrintf("No active battlefield. Enter combat first.\n");
+		return true;
+	}
+
+	const Graphics::ManagedSurface *surface = bf.getSurface();
+	Common::DumpFile outFile;
+	Common::String filename("battlefield_dump.bmp");
+	if (outFile.open(Common::Path(filename))) {
+		Image::writeBMP(outFile, *surface, kEgaPalette, 16);
+		outFile.close();
+		debugPrintf("Dumped battlefield to %s (%dx%d, %s)\n",
+			filename.c_str(), surface->w, surface->h,
+			bf.isDungeon() ? "dungeon" : "wilderness");
+	} else {
+		debugPrintf("Failed to open %s for writing\n", filename.c_str());
 	}
 
 	return true;

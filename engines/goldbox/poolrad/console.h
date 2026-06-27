@@ -37,6 +37,8 @@ private:
 	bool cmdFpview(int argc, const char **argv);
 	bool cmdWalldefstate(int argc, const char **argv);
 	bool cmdDumpPic(int argc, const char **argv);
+	bool cmdDumpIconStore(int argc, const char **argv);
+	bool cmdDumpBattlefield(int argc, const char **argv);
 public:
 	Console();
 	~Console() override {}
