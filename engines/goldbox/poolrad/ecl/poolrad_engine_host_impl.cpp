@@ -399,6 +399,7 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
     }
     loadMonsterItems(_engine, monsterId, *templateMonster);
     loadMonsterEffects(_engine, monsterId, *templateMonster);
+    applyX86MonsterIconDefaults(*templateMonster);
 
     const uint8 slotId = allocateMonsterIconSlot();
     bool loadedIcon = false;

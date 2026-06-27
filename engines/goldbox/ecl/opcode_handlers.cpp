@@ -29,6 +29,7 @@
 #include "goldbox/ecl/runtime_layout.h"
 #include "goldbox/events.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/adnd_character.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -467,15 +468,16 @@ static int handle_0x0B_LOAD_MONSTER(EclVM &vm, AddressSpace &mem,
         }
     }
 
-    const uint16 currentCount = mem.read16LE(getOpcodeLayout().runtimeField(kEclRuntimeMonsterCount));
-    mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeMonsterCount),
+    const EclLayoutAccess layout = getOpcodeLayout();
+    const uint16 currentCount = mem.read16LE(layout.runtimeField(kEclRuntimeMonsterCount));
+    mem.write16LE(layout.runtimeField(kEclRuntimeMonsterCount),
         static_cast<uint16>((currentCount + count) & 0xFFFF));
-    mem.write16LE(getOpcodeLayout().runtimeField(kEclRuntimeEncounterFlags), monsterId);
+    mem.write16LE(layout.runtimeField(kEclRuntimeEncounterFlags), monsterId);
+    mem.write8(layout.runtimeField(kEclRuntimeMonsterLoadReady), 1);
     return VM_OK;
 }
 
-// 0x0C: SETUP MONSTER <monsterID> <distance> <graphicID>
-// 0x0C: SPRITE START
+// 0x0C: SPRITE START <ID> <distance> <graphicID>
 // Load sprite resource and variant, draw encounter stage with calculated distance
 static int handle_0x0C_SPRITE_START(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
@@ -489,7 +491,6 @@ static int handle_0x0C_SPRITE_START(EclVM &vm, AddressSpace &mem,
     return syscalls->drawEncounterStage(resourceId, distanceCap, variantId);
 }
 
-// 0x0D: APPROACH
 // 0x0D: SPRITE ADVANCE
 // Decrement monster distance and redraw encounter stage
 static int handle_0x0D_SPRITE_ADVANCE(EclVM &vm, AddressSpace &mem,
@@ -756,12 +757,41 @@ static int handle_0x1C_CLEARMONSTERS(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x1D: PARTYSTRENGTH <address>
+// Calculates a weighted party strength score from HP, class levels, AC, and
+// THAC0. AC and THAC0 are stored in 60-offset form (60 - actualValue).
 static int handle_0x1D_PARTYSTRENGTH(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)nextPc; (void)callStack; (void)mem;
     vm.getOperand(1);
-    // TODO: Calculate party strength based on character levels/stats
-    vm.writeVmMemory(vm.getOpWord(1), 100, syscalls);
+
+    uint8 totalScore = 0;
+    Common::Array<Data::PlayerCharacter *> *party = VmInterface::getParty();
+    if (party) {
+        for (uint i = 0; i < party->size(); ++i) {
+            Data::ADnDCharacter *ch =
+                dynamic_cast<Data::ADnDCharacter *>((*party)[i]);
+            if (!ch)
+                continue;
+
+            const uint8 acRaw = ch->armorClass.current;
+            const uint8 acBonus = (acRaw < 61) ? 0 : (acRaw - 60);
+
+            const uint8 thac0Raw = ch->thac0.current;
+            const uint8 thac0Bonus = (thac0Raw < 40) ? 0 : (thac0Raw - 39);
+
+            const uint8 charScore = (
+                ch->hitPoints.current * 1
+                + ch->levels[Data::C_CLERIC] * 4
+                + ch->levels[Data::C_MAGICUSER] * 8
+                + acBonus * 5
+                + thac0Bonus * 5
+            ) / 10;
+
+            totalScore += charScore;
+        }
+    }
+
+    vm.writeVmMemory(vm.getOpWord(1), totalScore, syscalls);
     return VM_OK;
 }
 
