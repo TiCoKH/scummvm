@@ -92,16 +92,70 @@ public:
     static const uint8 kTileSmallRocks = 28;
     static const uint8 kTileLargeBoulders = 29;
 
+    // Wilderness tile IDs
+    static const uint8 kTileOpenPlain = 22;
+    static const uint8 kTileStreamA = 50;
+    static const uint8 kTileStreamB = 51;
+    static const uint8 kTileFordA = 52;
+    static const uint8 kTileFordB = 53;
+    static const uint8 kTileTreeTopBase = 0x1F;   // +variant(1..4)
+    static const uint8 kTileTreeBotBase = 0x23;   // +variant(1..6)
+    static const uint8 kTileScrubBase = 0x37;
+    static const uint8 kTileCoverBase = 0x29;
+    static const uint8 kTileCropBase = 0x38;
+    static const uint8 kTileCliffBase = 0x2D;
+    static const uint8 kTileWallBottom = 0x40;
+    static const uint8 kTileWallTop = 0x41;
+    static const uint8 kTileZoneABase = 0x3C;
+
+    // Terrain flag bits
+    static const uint8 kTerrainWater = 0x01;
+    static const uint8 kTerrainRiver = 0x02;
+    static const uint8 kTerrainForest = 0x04;
+    static const uint8 kTerrainMarsh = 0x08;
+    static const uint8 kTerrainHills = 0x10;
+    static const uint8 kTerrainRuins = 0x20;
+    static const uint8 kTerrainDesert = 0x40;
+    static const uint8 kTerrainUnderground = 0x80;
+
+    // Wilderness tilemap dimensions
+    static const int kWildTilemapRows = 36;
+    static const int kWildTilemapCols = 44;
+
+    // Wilderness tilemap stub (TODO: populate from game data)
+    static const uint8 kWildernessTilemap[kWildTilemapRows][kWildTilemapCols];
+
+    static const int kTilePropTableCount = 65;
+
+    /**
+     * Tile property entry describing passability and obstacle type.
+     */
+    struct TileProp {
+        uint8 gfxID;      // [0] canonical graphic/sprite ID
+        int8  passable;   // [1] 0x01 = walkable, 0xFF = blocked
+        uint8 padding;    // [2] always 0x00
+        uint8 blockType;  // [3] 0x02 = hard obstacle, 0x00 = normal
+    };
+
+    // 65 entries (indices 0..64)
+    // passable: 0x01 = walkable, 0xFF = blocked
+    // blockType: 0x02 = hard obstacle, 0x00 = normal
+    static const TileProp kTilePropTable[kTilePropTableCount];
+
     BattlefieldTilemap();
     ~BattlefieldTilemap();
 
     void build(const RuntimeGeoBlock &geo,
                int8 centerX, int8 centerY, int8 playerY,
-               bool isDungeon, uint8 eclScriptId = 0);
+               bool isDungeon, uint8 eclScriptId = 0,
+               uint8 wildX = 0, uint8 wildY = 0,
+               uint8 mapType = 1, uint8 terrainOverride = 0);
 
     void regenerate(const RuntimeGeoBlock &geo,
                     int8 centerX, int8 centerY, int8 playerY,
-                    uint8 eclScriptId = 0);
+                    uint8 eclScriptId = 0,
+                    uint8 wildX = 0, uint8 wildY = 0,
+                    uint8 mapType = 1, uint8 terrainOverride = 0);
 
     void render(const IconManager &iconMgr);
 
@@ -140,6 +194,11 @@ private:
     bool _built;
     bool _isDungeon;
     uint8 _eclScriptId;
+    uint8 _wildCell;              // wilderness cell type for terrain lookup
+    uint8 _terrainOverrideFlags;  // 0xFF = override active
+    uint8 _mapType;               // VM map type (1=dungeon, 3/4=wilderness variants)
+    uint8 _wildX;                 // wilderness X coordinate
+    uint8 _wildY;                 // wilderness Y coordinate
 
     // Cell context state (mirrors Amiga global variables)
     int8  _cellAbsX;
@@ -158,6 +217,12 @@ private:
 
     void generateDungeon(int8 centerX, int8 centerY);
     void generateWilderness(int8 centerX, int8 centerY);
+
+    uint8 getTerrainFlags() const;
+    void setTilePatternRiver();
+    void setTilePatternTrees();
+    void setTilePatternCover();
+    void markFordPair(int col, int row, int &pairCount);
 
     void setTilePatternWestSide();
     void setTilePatternNorthSide();
