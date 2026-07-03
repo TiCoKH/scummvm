@@ -28,6 +28,7 @@
 #include "common/util.h"
 #include "common/scummsys.h"
 #include "goldbox/data/combat_icon_data.h"
+#include "goldbox/data/combat_state.h"
 
 namespace Goldbox {
 namespace Data {
@@ -160,6 +161,9 @@ public:
 
 	// Effects runtime state (flags + modifiers).
 	EffectState effectState;
+
+	// Combat runtime state (allocated during combat, null otherwise)
+	CombatState *combatState = nullptr;
 
 	//-----------------------------------------------------------
 	// Lifecycle

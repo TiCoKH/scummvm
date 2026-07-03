@@ -25,6 +25,8 @@ namespace Goldbox {
 namespace Data {
 
 PlayerCharacter::~PlayerCharacter() {
+    delete combatState;
+    combatState = nullptr;
 }
 
 void PlayerCharacter::damage(uint8 amount) {
