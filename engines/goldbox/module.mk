@@ -64,6 +64,10 @@ MODULE_OBJS = \
 	gfx/icon_manager.o \
 	gfx/battlefield_tilemap.o \
 	gfx/combat_renderer.o \
+	combat/combat_setup.o \
+	combat/combatant_table.o \
+	combat/combat_placement.o \
+	combat/combat_viewport.o \
 	gfx/surface.o \
 	sound/sound_driver.o \
 	poolrad/poolrad.o \
@@ -85,6 +89,7 @@ MODULE_OBJS = \
 	poolrad/views/add_character_view.o \
 	poolrad/views/view_character_view.o \
 	poolrad/views/in_game_view.o \
+	poolrad/views/combat_view.o \
 	poolrad/views/dialogs/dialog.o \
 	poolrad/views/dialogs/door_dialog.o \
 	poolrad/views/dialogs/spell_book_dialog.o \

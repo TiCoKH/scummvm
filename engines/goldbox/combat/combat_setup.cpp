@@ -19,13 +19,13 @@
  *
  */
 
-#include "goldbox/gfx/combat_setup.h"
+#include "goldbox/combat/combat_setup.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/combat_state.h"
 #include "goldbox/core/direction.h"
 
 namespace Goldbox {
-namespace Gfx {
+namespace Combat {
 
 void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
                          int partyCount, uint8 wayFlag,
@@ -71,5 +71,5 @@ void freeCombatStates(Common::Array<Data::PlayerCharacter *> &combatants) {
     }
 }
 
-} // namespace Gfx
+} // namespace Combat
 } // namespace Goldbox
