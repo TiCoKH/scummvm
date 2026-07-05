@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_GFX_COMBAT_SETUP_H
-#define GOLDBOX_GFX_COMBAT_SETUP_H
+#ifndef GOLDBOX_COMBAT_COMBAT_SETUP_H
+#define GOLDBOX_COMBAT_COMBAT_SETUP_H
 
 #include "common/scummsys.h"
 #include "common/array.h"
@@ -30,7 +30,7 @@ namespace Data {
 class PlayerCharacter;
 }
 
-namespace Gfx {
+namespace Combat {
 
 /**
  * Initialize combat state for all combatants.
@@ -56,7 +56,7 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
  */
 void freeCombatStates(Common::Array<Data::PlayerCharacter *> &combatants);
 
-} // namespace Gfx
+} // namespace Combat
 } // namespace Goldbox
 
-#endif // GOLDBOX_GFX_COMBAT_SETUP_H
+#endif // GOLDBOX_COMBAT_COMBAT_SETUP_H
