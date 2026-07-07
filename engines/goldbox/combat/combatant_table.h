@@ -102,6 +102,21 @@ public:
     /** Get occupant index at tile (0 = empty, 1-based combatant index). */
     uint8 getOccupant(int col, int row) const;
 
+    // --- Distance cache ---
+
+    /**
+     * Recompute distance arrays relative to a cursor/origin position.
+     * After calling, getColDist(i) and getRowDist(i) return the signed
+     * offset from (cursorCol, cursorRow) to combatant i's position.
+     */
+    void rebuildDistances(int cursorCol, int cursorRow);
+
+    int8 getColDist(int idx) const;
+    int8 getRowDist(int idx) const;
+
+    /** Manhattan distance from cursor to combatant. */
+    int getManhattanDist(int idx) const;
+
     // --- Side counts ---
 
     int getFriendsCount() const { return _friendsCount; }
@@ -125,6 +140,10 @@ private:
 
     // 50x25 occupancy grid: stores 1-based combatant index (0 = empty)
     uint8 _occupancy[25][50];
+
+    // Distance cache: signed offset from cursor to each combatant
+    int8 _colDist[MAX_COMBATANTS];
+    int8 _rowDist[MAX_COMBATANTS];
 
     Common::Array<TriggerRecord> _triggers;
 };

@@ -179,6 +179,9 @@ public:
     bool isBuilt() const { return _built; }
     bool isDungeon() const { return _isDungeon; }
 
+    int8 getCenterX() const { return _centerX; }
+    int8 getCenterY() const { return _centerY; }
+
 private:
     enum CellState {
         kCellOpen    = 0,
@@ -193,6 +196,8 @@ private:
     int8 _playerY;
     bool _built;
     bool _isDungeon;
+    int8 _centerX;
+    int8 _centerY;
     uint8 _eclScriptId;
     uint8 _wildCell;              // wilderness cell type for terrain lookup
     uint8 _terrainOverrideFlags;  // 0xFF = override active
@@ -213,7 +218,16 @@ private:
 
     /** Check cell passage state. wireDir uses direction.h format (0=N,2=E,4=S,6=W). */
     uint8 checkCell(int8 mapX, int8 mapY, uint8 wireDir) const;
-    uint8 checkCellAndOpposite(int8 mapX, int8 mapY, uint8 wireDir) const;
+
+public:
+    /**
+     * Check bidirectional passability between two adjacent cells.
+     * Returns 0 if both directions passable, non-zero if blocked.
+     * Equivalent to original COMBAT_GetBidirectionalPassability.
+     */
+    uint8 checkOpenPassage(int8 mapX, int8 mapY, uint8 wireDir) const;
+
+private:
 
     void generateDungeon(int8 centerX, int8 centerY);
     void generateWilderness(int8 centerX, int8 centerY);

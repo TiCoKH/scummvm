@@ -110,6 +110,7 @@ const uint8 BattlefieldTilemap::kWildernessTilemap[kWildTilemapRows][kWildTilema
 
 BattlefieldTilemap::BattlefieldTilemap()
     : _geo(nullptr), _playerY(0), _built(false), _isDungeon(true),
+      _centerX(0), _centerY(0),
       _eclScriptId(0), _wildCell(0), _terrainOverrideFlags(0),
       _mapType(1), _wildX(0), _wildY(0),
       _cellAbsX(0), _cellAbsY(0), _cellOffsetX(0), _cellOffsetY(0),
@@ -188,7 +189,7 @@ uint8 BattlefieldTilemap::checkCell(int8 mapX, int8 mapY, uint8 wireDir) const {
     return kCellWall;
 }
 
-uint8 BattlefieldTilemap::checkCellAndOpposite(int8 mapX, int8 mapY, uint8 wireDir) const {
+uint8 BattlefieldTilemap::checkOpenPassage(int8 mapX, int8 mapY, uint8 wireDir) const {
     uint8 oppositeWire = (wireDir + 4) % 8;
 
     uint8 thisCell = checkCell(mapX, mapY, wireDir);
@@ -235,9 +236,9 @@ void BattlefieldTilemap::setTilePatternNorthSide() {
 
 void BattlefieldTilemap::setTilePatternNWCorner() {
     // Original: COMBAT_GetBidirectionalPassability(C_BF_CELL_X, C_BF_CELL_Y - 1, 6) = West check on cell above
-    uint8 aboveWest = checkCellAndOpposite(_cellAbsX, _cellAbsY - 1, 6);
+    uint8 aboveWest = checkOpenPassage(_cellAbsX, _cellAbsY - 1, 6);
     // Original: COMBAT_GetBidirectionalPassability(C_BF_CELL_X - 1, C_BF_CELL_Y, 0) = North check on cell left
-    uint8 leftNorth = checkCellAndOpposite(_cellAbsX - 1, _cellAbsY, 0);
+    uint8 leftNorth = checkOpenPassage(_cellAbsX - 1, _cellAbsY, 0);
     bool isCornerOpen = (aboveWest == kCellOpen) && (leftNorth == kCellOpen);
 
     uint8 tileNW, tileNE, tileSW, tileSE;
@@ -302,9 +303,9 @@ void BattlefieldTilemap::setTilePatternNWCorner() {
 
 void BattlefieldTilemap::setTilePatternNECorner() {
     // Original: local_b = COMBAT_GetBidirectionalPassability(C_BF_CELL_X, C_BF_CELL_Y - 1, 2)
-    uint8 aboveEast = checkCellAndOpposite(_cellAbsX, _cellAbsY - 1, 2);
+    uint8 aboveEast = checkOpenPassage(_cellAbsX, _cellAbsY - 1, 2);
     // Original: local_c = COMBAT_GetBidirectionalPassability(C_BF_CELL_X + 1, C_BF_CELL_Y, 0)
-    uint8 rightNorth = checkCellAndOpposite(_cellAbsX + 1, _cellAbsY, 0);
+    uint8 rightNorth = checkOpenPassage(_cellAbsX + 1, _cellAbsY, 0);
     bool isCornerOpen = (aboveEast == kCellOpen) && (rightNorth == kCellOpen);
 
     uint8 tileNW, tileNE, tileSW, tileSE;
@@ -380,9 +381,9 @@ void BattlefieldTilemap::generateDungeon(int8 centerX, int8 centerY) {
             _cellAbsY = _cellOffsetY + centerY;
 
             // Wire directions: 6=W, 0=N, 2=E
-            _cellPassWest  = checkCellAndOpposite(_cellAbsX, _cellAbsY, 6);
-            _cellPassNorth = checkCellAndOpposite(_cellAbsX, _cellAbsY, 0);
-            _cellPassEast  = checkCellAndOpposite(_cellAbsX, _cellAbsY, 2);
+            _cellPassWest  = checkOpenPassage(_cellAbsX, _cellAbsY, 6);
+            _cellPassNorth = checkOpenPassage(_cellAbsX, _cellAbsY, 0);
+            _cellPassEast  = checkOpenPassage(_cellAbsX, _cellAbsY, 2);
 
             setTilePatternWestSide();
             setTilePatternNorthSide();
@@ -750,6 +751,9 @@ void BattlefieldTilemap::build(const RuntimeGeoBlock &geo,
     _header[5] = 1;
     _header[6] = 0;
 
+    _centerX = centerX;
+    _centerY = centerY;
+
     if (_isDungeon) {
         generateDungeon(centerX, centerY);
     } else {
@@ -772,6 +776,8 @@ void BattlefieldTilemap::regenerate(const RuntimeGeoBlock &geo,
     _wildY = wildY;
     _mapType = mapType;
     _terrainOverrideFlags = terrainOverride;
+    _centerX = centerX;
+    _centerY = centerY;
     memset(_tileBuffer, 0, sizeof(_tileBuffer));
 
     if (_isDungeon) {

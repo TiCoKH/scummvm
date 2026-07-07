@@ -37,6 +37,9 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
         if (!ch)
             continue;
 
+        // Recalculate derived combat stats (AC, movement, weapon bonuses)
+        // TODO: CHARACTER_recalcCombatStats equivalent
+
         combatantCount++;
 
         // Allocate and zero-fill combat state
@@ -52,13 +55,18 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
         uint8 dirIndex = (wayFlag >> 1) & 0x03;
         ch->combatState->direction = Data::kCombatDirectionTable[dirIndex];
 
-        // Hostile characters face the opposite direction (180 degree flip)
+        // Hostile characters face the opposite direction: (dir + 4) % 8
         if (ch->hostile)
             ch->combatState->direction = dirReverse(ch->combatState->direction);
 
-        // Neutral NPCs with no class or above standard range
-        // receive a morale-based NPC value with the override flag set
-        // TODO: npc field and class check when character data is fully ported
+        // Neutral NPCs (non-hostile, not-in-team) with npc class == 0 or > 102
+        // get morale override: npc = moraleThreshold | 0x80
+        // TODO: uncomment when npc field is ported to PlayerCharacter
+        // uint8 npcClass = ch->npc & 0x7F;
+        // if (!ch->hostile && ch->combatState->notInTeam &&
+        //     (npcClass == 0 || npcClass > 0x66)) {
+        //     ch->npc = (uint8)moraleThreshold | 0x80;
+        // }
     }
 }
 
