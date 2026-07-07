@@ -86,6 +86,8 @@ private:
     // Current placement context
     int _currentSide;
     bool _isDungeon;
+    int8 _mapCenterX;
+    int8 _mapCenterY;
     const Gfx::BattlefieldTilemap *_tilemap;
     CombatantTable *_table;
 
@@ -113,8 +115,8 @@ private:
     void scanDestination(int charIdx, uint8 direction,
                          uint8 &outOccupant, uint8 &outTile) const;
 
-    /** Check if both axes are simultaneously out of formation range. */
-    static bool bothAxesOutOfRange(int row, int col);
+    /** Check if position is outside all formation masks for current side. */
+    bool isOutOfFormation(int col, int row);
 };
 
 } // namespace Combat

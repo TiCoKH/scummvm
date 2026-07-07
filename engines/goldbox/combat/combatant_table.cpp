@@ -38,6 +38,8 @@ void CombatantTable::clear() {
     _friendsCount = 0;
     _foesCount = 0;
     memset(_occupancy, 0, sizeof(_occupancy));
+    memset(_colDist, 0, sizeof(_colDist));
+    memset(_rowDist, 0, sizeof(_rowDist));
     _triggers.clear();
 }
 
@@ -149,6 +151,38 @@ void CombatantTable::countSides(int partyCount) {
         else
             _foesCount++;
     }
+}
+
+void CombatantTable::rebuildDistances(int cursorCol, int cursorRow) {
+    for (int i = 0; i < _count; i++) {
+        if (_entries[i].size == 0) {
+            _colDist[i] = 0;
+            _rowDist[i] = 0;
+            continue;
+        }
+        _colDist[i] = (int8)((int)_entries[i].tileCol - cursorCol);
+        _rowDist[i] = (int8)((int)_entries[i].tileRow - cursorRow);
+    }
+}
+
+int8 CombatantTable::getColDist(int idx) const {
+    if (idx < 0 || idx >= MAX_COMBATANTS)
+        return 0;
+    return _colDist[idx];
+}
+
+int8 CombatantTable::getRowDist(int idx) const {
+    if (idx < 0 || idx >= MAX_COMBATANTS)
+        return 0;
+    return _rowDist[idx];
+}
+
+int CombatantTable::getManhattanDist(int idx) const {
+    if (idx < 0 || idx >= MAX_COMBATANTS)
+        return 127;
+    int cd = _colDist[idx] < 0 ? -_colDist[idx] : _colDist[idx];
+    int rd = _rowDist[idx] < 0 ? -_rowDist[idx] : _rowDist[idx];
+    return cd + rd;
 }
 
 } // namespace Combat

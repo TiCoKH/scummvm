@@ -56,20 +56,21 @@ const int8 CombatPlacement::kBaseY[8] = { 3, 2, 2, 3, 0, 2, 5, 3 };
 // [direction_index][row][0=minCol, 1=maxCol]
 // Rows where min > max have no valid cells.
 const int8 CombatPlacement::kFormationRange[5][6][2] = {
-    // dir 0
-    { {1, 0}, {1, 0}, {1, 0}, {2, 9}, {3, 10}, {4, 10} },
-    // dir 1
-    { {0, 2}, {0, 3}, {1, 4}, {2, 5}, {3, 6}, {4, 7} },
-    // dir 2
-    { {0, 6}, {0, 7}, {1, 8}, {1, 0}, {1, 0}, {1, 0} },
+    // dir 0 (N facing)
+    { {1, 0}, {1, 0}, {2, 9}, {3, 10}, {4, 10}, {0, 2} },
+    // dir 1 (E facing)
+    { {0, 3}, {1, 4}, {2, 5}, {3, 6}, {4, 7}, {0, 6} },
+    // dir 2 (dir_set 2)
+    { {1, 8}, {1, 0}, {1, 0}, {3, 6}, {4, 7}, {5, 8} },
     // dir 3
-    { {3, 6}, {4, 7}, {5, 8}, {6, 9}, {7, 10}, {8, 10} },
-    // dir 4
-    { {0, 6}, {0, 7}, {1, 8}, {2, 9}, {3, 10}, {4, 10} },
+    { {6, 9}, {7, 10}, {8, 10}, {0, 6}, {0, 7}, {1, 8} },
+    // dir 4 (W facing / special slot)
+    { {2, 9}, {3, 10}, {4, 10}, {0, 6}, {0, 7}, {1, 8} },
 };
 
 CombatPlacement::CombatPlacement()
-    : _currentSide(0), _isDungeon(false), _tilemap(nullptr), _table(nullptr) {
+    : _currentSide(0), _isDungeon(false), _mapCenterX(0), _mapCenterY(0),
+      _tilemap(nullptr), _table(nullptr) {
     memset(_formationValid, 0, sizeof(_formationValid));
     memset(_originX, 0, sizeof(_originX));
     memset(_originY, 0, sizeof(_originY));
@@ -86,6 +87,8 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
                                CombatantTable &table) {
     _tilemap = &tilemap;
     _isDungeon = isDungeon;
+    _mapCenterX = tilemap.getCenterX();
+    _mapCenterY = tilemap.getCenterY();
     _table = &table;
 
     table.clear();
@@ -175,112 +178,144 @@ void CombatPlacement::buildFormationMasks() {
 }
 
 bool CombatPlacement::placeCombatantSpiral(int charIdx) {
-    enum SpiralState { STATE_START = 0, STATE_RIGHT = 1, STATE_LEFT = 2 };
-
-    SpiralState state = STATE_START;
-    int rowDepth = 0;
-    int dirStep = 0;
-    bool firstRow = true;
+    int state = 1;
+    int ring = 0;
+    int formSet = 0;
+    bool isFirstRing = true;
     int8 originCol = _originX[_currentSide];
     int8 originRow = _originY[_currentSide];
+    uint8 dirIdx = _teamDir[_currentSide];
 
-    int8 baseX = 0, baseY = 0;
-    int8 curX = 0, curY = 0;
-    int lateralScale = 1;
-    int lateralCount = 1;
+    int8 anchorCol = 0, anchorRow = 0;
+    int8 candCol = 0, candRow = 0;
+    int stepsTaken = 0;
+    int armLen = 0;
 
     for (int iterations = 0; iterations < 2000; iterations++) {
-        uint8 halfDir = (kDirPrimary[_teamDir[_currentSide]][dirStep] / 2) & 3;
+        // Compute dir_index from primary direction table
+        uint8 dirIndex = (kDirPrimary[dirIdx][formSet] >> 1) & 3;
 
         switch (state) {
-        case STATE_START: {
-            int baseIdx = (dirStep > 0 ? 4 : 0) + halfDir;
-            uint8 backwardDir = kHalfDirToIso[((int)halfDir + 2) % 4];
-            baseX = kBaseX[baseIdx] + (int8)(rowDepth * kDirDeltaX[backwardDir]);
-            baseY = kBaseY[baseIdx] + (int8)(rowDepth * kDirDeltaY[backwardDir]);
-            curX = baseX;
-            curY = baseY;
-            lateralScale = 1;
-            lateralCount = 1;
-            state = STATE_RIGHT;
+        case 1: {
+            // State 1: Initialize ring anchor
+            // Ring advance direction: (dir_index + 2) / 4 indexes C_BF_DIRECTION_TABLE
+            uint8 advDir = kHalfDirToIso[(dirIndex + 2) / 4];
+            int8 dx = kDirDeltaX[advDir];
+            int8 dy = kDirDeltaY[advDir];
+
+            int baseIdx = (formSet != 0) ? 1 : 0;
+            anchorCol = kBaseX[baseIdx * 4 + dirIndex] + (int8)(dx * ring);
+            anchorRow = kBaseY[baseIdx * 4 + dirIndex] + (int8)(dy * ring);
+
+            candCol = anchorCol;
+            candRow = anchorRow;
+            stepsTaken = 1;
+            armLen = 1;
+            state = 2;
             break;
         }
-        case STATE_RIGHT: {
-            uint8 rightDir = kHalfDirToIso[((int)halfDir + 1) % 4];
-            curX = baseX + (int8)(kDirDeltaX[rightDir] * lateralScale);
-            curY = baseY + (int8)(kDirDeltaY[rightDir] * lateralScale);
-            lateralCount++;
-            state = STATE_LEFT;
+        case 2: {
+            // State 2: Step along axis A
+            uint8 axisADir = kHalfDirToIso[(dirIndex + 1) / 4];
+            int8 dx = kDirDeltaX[axisADir];
+            int8 dy = kDirDeltaY[axisADir];
+
+            candCol = anchorCol + (int8)(dx * armLen);
+            candRow = anchorRow + (int8)(dy * armLen);
+            stepsTaken++;
+            state = 3;
             break;
         }
-        case STATE_LEFT: {
-            uint8 leftDir = kHalfDirToIso[((int)halfDir + 3) % 4];
-            curX = baseX + (int8)(kDirDeltaX[leftDir] * lateralScale);
-            curY = baseY + (int8)(kDirDeltaY[leftDir] * lateralScale);
-            lateralScale++;
-            lateralCount++;
-            state = STATE_RIGHT;
+        case 3: {
+            // State 3: Step along axis B (perpendicular)
+            uint8 axisBDir = kHalfDirToIso[(dirIndex + 3) / 4];
+            int8 dx = kDirDeltaX[axisBDir];
+            int8 dy = kDirDeltaY[axisBDir];
+
+            candCol = anchorCol + (int8)(dx * armLen);
+            candRow = anchorRow + (int8)(dy * armLen);
+            armLen++;
+            stepsTaken++;
+            state = 2;
             break;
         }
+        default:
+            break;
         }
 
         // Bounds check
-        bool softOob = (curX < 0 || curY < 0 || curX > 10 || curY > 5);
-        bool hardOob = bothAxesOutOfRange(curY, curX);
+        bool outOfBounds = (candCol < 0 || candRow < 0 ||
+                            candCol > 10 || candRow > 5);
 
-        // Row advance check
-        if (state != STATE_START) {
+        // Ring advance check
+        if (state > 1) {
             bool needAdvance = false;
 
-            if (softOob && !hardOob)
+            if (outOfBounds && !isOutOfFormation(candCol, candRow))
                 needAdvance = true;
-            if (firstRow && lateralCount >= _halfCount[_currentSide])
+            if (isFirstRing && stepsTaken >= _halfCount[_currentSide])
                 needAdvance = true;
-            if (!firstRow && lateralCount > 11)
+            if (!isFirstRing && stepsTaken > 11)
                 needAdvance = true;
 
             if (needAdvance) {
-                rowDepth++;
-                state = STATE_START;
-                firstRow = false;
-            }
-        }
+                ring++;
 
-        // Hard out-of-bounds: try next approach direction
-        if (softOob && hardOob) {
-            bool found = false;
-            while (dirStep < 3) {
-                dirStep++;
-                uint8 testDir = kDirFallback[_teamDir[_currentSide]][dirStep];
-                if (testDir == 8)
-                    continue;
-
-                // In wilderness, all directions are passable
-                if (!_isDungeon) {
-                    originCol = _originX[_currentSide] + kDirDeltaX[testDir];
-                    originRow = _originY[_currentSide] + kDirDeltaY[testDir];
-                    rowDepth = 0;
-                    state = STATE_START;
-                    found = true;
-                    break;
+                // Diagonal terrain check: if party facing diagonal,
+                // primary form_set, just entered ring 1
+                if (_currentSide == CombatantTable::SIDE_PARTY &&
+                    (dirIdx % 2 != 0) && formSet == 0 && ring == 1) {
+                    bool anyBlocked = false;
+                    for (int d = 1; d < 4; d++) {
+                        uint8 checkDir = kDirFallback[dirIdx][d];
+                        if (checkDir >= 8)
+                            continue;
+                        if (_isDungeon &&
+                            _tilemap->checkOpenPassage(
+                                _mapCenterX, _mapCenterY, checkDir) != 1) {
+                            anyBlocked = true;
+                        }
+                    }
+                    if (anyBlocked)
+                        ring++;
                 }
 
-                // TODO: dungeon wall_passable check
-                originCol = _originX[_currentSide] + kDirDeltaX[testDir];
-                originRow = _originY[_currentSide] + kDirDeltaY[testDir];
-                rowDepth = 0;
-                state = STATE_START;
-                found = true;
-                break;
+                state = 1;
+                isFirstRing = false;
             }
-
-            if (!found)
-                return false;
         }
 
-        // Attempt placement at valid position
-        if (!softOob) {
-            if (tryPlaceAt(charIdx, curX, curY, originCol, originRow, dirStep))
+        // Formation exhaustion / fallback
+        if (outOfBounds && isOutOfFormation(candCol, candRow)) {
+            state = 0;
+
+            while (formSet < 3 && state != 1) {
+                formSet++;
+                uint8 testDir = kDirFallback[dirIdx][formSet];
+                if (testDir >= 8)
+                    continue;
+
+                // In wilderness (mapType > 1), always passable.
+                // In dungeon, check bidirectional passability != 1.
+                if (!_isDungeon ||
+                    _tilemap->checkOpenPassage(
+                        _mapCenterX, _mapCenterY, testDir) != 1) {
+                    originCol = _originX[_currentSide] + kDirDeltaX[testDir];
+                    originRow = _originY[_currentSide] + kDirDeltaY[testDir];
+                    ring = 0;
+                    state = 1;
+                }
+            }
+
+            if (state != 1)
+                return false;
+            continue;
+        }
+
+        // Attempt placement at valid in-bounds position
+        if (!outOfBounds) {
+            if (tryPlaceAt(charIdx, candCol, candRow,
+                           originCol, originRow, formSet))
                 return true;
         }
     }
@@ -375,10 +410,20 @@ void CombatPlacement::scanDestination(int charIdx, uint8 direction,
     }
 }
 
-bool CombatPlacement::bothAxesOutOfRange(int row, int col) {
-    bool colInRange = (col >= 0 && col <= 10);
-    bool rowInRange = (row >= 0 && row <= 5);
-    return !colInRange && !rowInRange;
+bool CombatPlacement::isOutOfFormation(int col, int row) {
+    // A position is "out of formation" if it doesn't fall within
+    // any valid formation cell for the current side's active slot.
+    // This is used to detect when the spiral has completely left
+    // the formation area (triggering fallback to next form_set).
+    if (col < 0 || col >= FORMATION_COLS || row < 0 || row >= FORMATION_ROWS)
+        return true;
+
+    // Check all slots — if valid in any slot, it's still in formation
+    for (int slot = 0; slot < FORMATION_SLOTS; slot++) {
+        if (_formationValid[_currentSide][slot][row][col])
+            return false;
+    }
+    return true;
 }
 
 } // namespace Combat
