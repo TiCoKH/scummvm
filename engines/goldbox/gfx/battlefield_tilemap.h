@@ -26,6 +26,7 @@
 #include "common/rect.h"
 #include "graphics/managed_surface.h"
 #include "goldbox/core/direction.h"
+#include "goldbox/combat/tile_property_provider.h"
 
 namespace Goldbox {
 
@@ -125,22 +126,14 @@ public:
     // Wilderness tilemap stub (TODO: populate from game data)
     static const uint8 kWildernessTilemap[kWildTilemapRows][kWildTilemapCols];
 
-    static const int kTilePropTableCount = 65;
+    /** Set the tile property provider (game-specific data). */
+    void setTilePropertyProvider(const Combat::TilePropertyProvider *provider) {
+        _tileProps = provider;
+    }
 
-    /**
-     * Tile property entry describing passability and obstacle type.
-     */
-    struct TileProp {
-        uint8 gfxID;      // [0] canonical graphic/sprite ID
-        int8  passable;   // [1] 0x01 = walkable, -1 (0xFF) = blocked
-        uint8 padding;    // [2] always 0x00
-        uint8 blockType;  // [3] 0x02 = hard obstacle, 0x00 = normal
-    };
-
-    // 65 entries (indices 0..64)
-    // passable: 0x01 = walkable, -1 (0xFF) = blocked
-    // blockType: 0x02 = hard obstacle, 0x00 = normal
-    static const TileProp kTilePropTable[kTilePropTableCount];
+    const Combat::TilePropertyProvider *getTilePropertyProvider() const {
+        return _tileProps;
+    }
 
     BattlefieldTilemap();
     ~BattlefieldTilemap();
@@ -194,6 +187,7 @@ private:
     uint8 _tileBuffer[kPlayfieldRows][kPlayfieldCols];
     Graphics::ManagedSurface _surface;
     const RuntimeGeoBlock *_geo;
+    const Combat::TilePropertyProvider *_tileProps;
     int8 _playerY;
     bool _built;
     bool _isDungeon;

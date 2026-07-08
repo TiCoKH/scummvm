@@ -33,83 +33,14 @@ namespace Gfx {
 //   0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
 // GEO API wire directions (cardinal only): 0=N, 2=E, 4=S, 6=W
 
-const BattlefieldTilemap::TileProp BattlefieldTilemap::kTilePropTable[] = {
-/*  idx   gfxID  pass   pad  block    notes                          */
-/* [00] */ { 0x00, -1, 0x00, 0x02 }, // impassable, hard block
-/* [01] */ { 0x00, -1, 0x00, 0x02 }, // impassable, hard block
-/* [02] */ { 0x01, -1, 0x00, 0x02 }, // impassable, hard block
-/* [03] */ { 0x02, -1, 0x00, 0x02 }, // impassable, hard block
-/* [04] */ { 0x03, 0x01, 0x00, 0x00 }, // walkable
-/* [05] */ { 0x04, -1, 0x00, 0x02 }, // impassable, hard block
-/* [06] */ { 0x05, -1, 0x00, 0x02 }, // impassable, hard block
-/* [07] */ { 0x06, -1, 0x00, 0x02 }, // impassable, hard block
-/* [08] */ { 0x07, 0x01, 0x00, 0x00 }, // walkable
-/* [09] */ { 0x08, -1, 0x00, 0x02 }, // impassable, hard block
-/* [10] */ { 0x09, 0x01, 0x00, 0x00 }, // walkable
-/* [11] */ { 0x0A, -1, 0x00, 0x02 }, // impassable, hard block
-/* [12] */ { 0x0B, 0x01, 0x00, 0x00 }, // walkable
-/* [13] */ { 0x0C, -1, 0x00, 0x02 }, // impassable, hard block
-/* [14] */ { 0x0D, 0x01, 0x00, 0x00 }, // walkable
-/* [15] */ { 0x0E, -1, 0x00, 0x02 }, // impassable, hard block
-/* [16] */ { 0x0F, 0x01, 0x00, 0x00 }, // walkable
-/* [17] */ { 0x10, -1, 0x00, 0x02 }, // impassable, hard block
-/* [18] */ { 0x11, -1, 0x00, 0x02 }, // impassable, hard block
-/* [19] */ { 0x12, -1, 0x00, 0x02 }, // impassable, hard block
-/* [20] */ { 0x13, -1, 0x00, 0x02 }, // impassable, hard block
-/* [21] */ { 0x14, -1, 0x00, 0x02 }, // impassable, hard block
-/* [22] */ { 0x15, 0x01, 0x00, 0x00 }, // walkable
-/* [23] */ { 0x16, 0x01, 0x00, 0x00 }, // walkable  <-- TILE_OPEN_PLAIN (randomizable base)
-/* [24] */ { 0x17, -1, 0x00, 0x02 }, // impassable, hard block
-/* [25] */ { 0x18, 0x01, 0x00, 0x00 }, // walkable
-/* [26] */ { 0x22, 0x01, 0x00, 0x00 }, // walkable  <-- TILE_LIGHT_VEGETATION
-/* [27] */ { 0x23, 0x01, 0x00, 0x00 }, // walkable
-/* [28] */ { 0x24, 0x01, 0x00, 0x00 }, // walkable
-/* [29] */ { 0x25, 0x01, 0x00, 0x00 }, // walkable
-/* [30] */ { 0x26, 0x01, 0x00, 0x00 }, // walkable
-/* [31] */ { 0x27, -1, 0x00, 0x02 }, // impassable, hard block
-/* --- second tileset bank (indices 32..64) --- */
-/* [32] */ { 0x00, -1, 0x00, 0x02 }, // impassable, hard block
-/* [33] */ { 0x01, -1, 0x00, 0x02 }, // impassable, hard block
-/* [34] */ { 0x02, -1, 0x00, 0x02 }, // impassable, hard block
-/* [35] */ { 0x03, 0x01, 0x00, 0x00 }, // walkable
-/* [36] */ { 0x04, 0x01, 0x00, 0x00 }, // walkable
-/* [37] */ { 0x05, 0x01, 0x00, 0x00 }, // walkable
-/* [38] */ { 0x06, 0x01, 0x00, 0x00 }, // walkable
-/* [39] */ { 0x07, -1, 0x00, 0x00 }, // impassable, no hard block
-/* [40] */ { 0x08, -1, 0x00, 0x00 }, // impassable, no hard block
-/* [41] */ { 0x09, 0x01, 0x00, 0x00 }, // walkable
-/* [42] */ { 0x0A, 0x01, 0x00, 0x00 }, // walkable
-/* [43] */ { 0x0B, 0x01, 0x00, 0x00 }, // walkable
-/* [44] */ { 0x0C, 0x01, 0x00, 0x00 }, // walkable
-/* [45] */ { 0x0D, 0x01, 0x00, 0x00 }, // walkable
-/* [46] */ { 0x0E, 0x01, 0x00, 0x00 }, // walkable
-/* [47] */ { 0x0F, 0x01, 0x00, 0x00 }, // walkable
-/* [48] */ { 0x10, 0x01, 0x00, 0x00 }, // walkable
-/* [49] */ { 0x11, -1, 0x00, 0x00 }, // impassable, no hard block
-/* [50] */ { 0x12, -1, 0x00, 0x00 }, // impassable, no hard block
-/* [51] */ { 0x13, 0x01, 0x00, 0x00 }, // walkable
-/* [52] */ { 0x14, 0x01, 0x00, 0x00 }, // walkable
-/* [53] */ { 0x15, 0x01, 0x00, 0x00 }, // walkable
-/* [54] */ { 0x16, -1, 0x00, 0x00 }, // impassable, no hard block
-/* [55] */ { 0x17, -1, 0x00, 0x00 }, // impassable, no hard block
-/* [56] */ { 0x18, 0x01, 0x00, 0x00 }, // walkable
-/* [57] */ { 0x19, 0x01, 0x00, 0x00 }, // walkable
-/* [58] */ { 0x1A, 0x01, 0x00, 0x00 }, // walkable
-/* [59] */ { 0x1B, -1, 0x00, 0x00 }, // impassable, no hard block
-/* [60] */ { 0x1C, -1, 0x00, 0x02 }, // impassable, hard block <-- TILE_SMALL_ROCKS
-/* [61] */ { 0x1D, -1, 0x00, 0x02 }, // impassable, hard block <-- TILE_LARGE_BOULDERS
-/* [62] */ { 0x1E, -1, 0x00, 0x02 }, // impassable, hard block
-/* [63] */ { 0x1F, 0x01, 0x00, 0x00 }, // walkable
-/* [64] */ { 0x20, -1, 0x00, 0x02 }, // impassable, hard block
-};
-
 // Wilderness tilemap stub — TODO: populate from game data extraction
 const uint8 BattlefieldTilemap::kWildernessTilemap[kWildTilemapRows][kWildTilemapCols] = {
     {0}
 };
 
 BattlefieldTilemap::BattlefieldTilemap()
-    : _geo(nullptr), _playerY(0), _built(false), _isDungeon(true),
+    : _geo(nullptr), _tileProps(nullptr),
+      _playerY(0), _built(false), _isDungeon(true),
       _centerX(0), _centerY(0),
       _eclScriptId(0), _wildCell(0), _terrainOverrideFlags(0),
       _mapType(1), _wildX(0), _wildY(0),
@@ -582,11 +513,12 @@ void BattlefieldTilemap::setTilePatternTrees() {
 
             uint8 tidCur = rawCur - 1;
             uint8 tidAbove = rawAbove - 1;
-            if (tidCur >= kTilePropTableCount || tidAbove >= kTilePropTableCount)
+            if (!_tileProps || tidCur >= _tileProps->getTilePropCount() ||
+                tidAbove >= _tileProps->getTilePropCount())
                 continue;
-            if (kTilePropTable[tidCur].gfxID != kTileOpenPlain)
+            if (_tileProps->getGfxID(tidCur) != kTileOpenPlain)
                 continue;
-            if (kTilePropTable[tidAbove].gfxID != kTileOpenPlain)
+            if (_tileProps->getGfxID(tidAbove) != kTileOpenPlain)
                 continue;
 
             int diceRoll = g_engine->rollDice(1, 100);
@@ -653,9 +585,9 @@ void BattlefieldTilemap::setTilePatternCover() {
             if (raw == 0)
                 continue;
             uint8 tileId = raw - 1;
-            if (tileId >= kTilePropTableCount)
+            if (!_tileProps || tileId >= _tileProps->getTilePropCount())
                 continue;
-            if (kTilePropTable[tileId].gfxID != kTileOpenPlain)
+            if (_tileProps->getGfxID(tileId) != kTileOpenPlain)
                 continue;
 
             int roll = (int)(uint8)g_engine->rollDice(1, 255);
@@ -667,8 +599,8 @@ void BattlefieldTilemap::setTilePatternCover() {
                     uint8 aboveRaw = _tileBuffer[row - 1][col];
                     if (aboveRaw != 0) {
                         uint8 aboveTid = aboveRaw - 1;
-                        if (aboveTid < kTilePropTableCount &&
-                            kTilePropTable[aboveTid].gfxID == kTileOpenPlain) {
+                        if (aboveTid < (uint8)_tileProps->getTilePropCount() &&
+                            _tileProps->getGfxID(aboveTid) == kTileOpenPlain) {
                             _tileBuffer[row - 1][col] = kTileWallTop + 1;
                             _tileBuffer[row][col] = kTileWallBottom + 1;
                         }
@@ -709,9 +641,9 @@ void BattlefieldTilemap::setRandomFloorTiles() {
             if (raw == 0)
                 continue;
             uint8 tileId = raw - 1;
-            if (tileId >= kTilePropTableCount)
+            if (!_tileProps || tileId >= _tileProps->getTilePropCount())
                 continue;
-            if (kTilePropTable[tileId].gfxID != kTileFloor)
+            if (_tileProps->getGfxID(tileId) != kTileFloor)
                 continue;
 
             int roll = g_engine->rollDice(1, 100);

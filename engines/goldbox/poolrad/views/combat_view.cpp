@@ -23,6 +23,7 @@
 #include "goldbox/combat/combat_setup.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/runtime/runtime_geo.h"
+#include "goldbox/poolrad/data/poolrad_tile_props.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/events.h"
 
@@ -141,6 +142,7 @@ bool CombatView::tick() {
 void CombatView::buildBattlefield() {
     RuntimeGeoBlock &geo = VmInterface::getRuntimeGeo();
 
+    _tilemap.setTilePropertyProvider(&PoolradTilePropertyProvider::instance());
     _tilemap.build(geo,
                    _params.mapCenterX, _params.mapCenterY, _params.playerY,
                    _params.isDungeon, _params.eclScriptId,
