@@ -139,6 +139,13 @@ uint8 BattlefieldTilemap::getRawTile(int col, int row) const {
     return _tileBuffer[row][col];
 }
 
+void BattlefieldTilemap::setRawTile(int col, int row, uint8 rawTile) {
+    if (col < 0 || col >= kPlayfieldCols ||
+        row < 0 || row >= kPlayfieldRows)
+        return;
+    _tileBuffer[row][col] = rawTile;
+}
+
 uint8 BattlefieldTilemap::getTileId(int col, int row) const {
     uint8 raw = getRawTile(col, row);
     return (raw == 0) ? 0xFF : static_cast<uint8>(raw - 1);

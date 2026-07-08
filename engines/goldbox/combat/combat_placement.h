@@ -69,8 +69,9 @@ public:
                   int partyCount,
                   uint8 mapDirection,
                   int encounterDist,
-                  const Gfx::BattlefieldTilemap &tilemap,
+                  Gfx::BattlefieldTilemap &tilemap,
                   bool isDungeon,
+                  bool combatTriggerActive,
                   CombatantTable &table);
 
 private:
@@ -88,7 +89,7 @@ private:
     bool _isDungeon;
     int8 _mapCenterX;
     int8 _mapCenterY;
-    const Gfx::BattlefieldTilemap *_tilemap;
+    Gfx::BattlefieldTilemap *_tilemap;
     CombatantTable *_table;
 
     // --- Direction tables (from spec) ---

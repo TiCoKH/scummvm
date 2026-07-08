@@ -153,7 +153,8 @@ void CombatView::buildBattlefield() {
 void CombatView::placeCombatants() {
     _placement.placeAll(_params.roster, _params.partyCount,
                         _params.mapDirection, _params.encounterDistance,
-                        _tilemap, _params.isDungeon, _table);
+                        _tilemap, _params.isDungeon,
+                        _params.combatTrigger, _table);
 }
 
 void CombatView::centerViewportOnParty() {

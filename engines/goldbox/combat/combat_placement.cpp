@@ -25,6 +25,10 @@
 #include "goldbox/core/direction.h"
 #include <string.h>
 
+// TileProp::passable is signed byte: -1 (0xFF) = impassable.
+#define TILE_IS_IMPASSABLE(rawTile) \
+    (Gfx::BattlefieldTilemap::kTilePropTable[(rawTile) - 1].passable == -1)
+
 namespace Goldbox {
 namespace Combat {
 
@@ -82,8 +86,9 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
                                int partyCount,
                                uint8 mapDirection,
                                int encounterDist,
-                               const Gfx::BattlefieldTilemap &tilemap,
+                               Gfx::BattlefieldTilemap &tilemap,
                                bool isDungeon,
+                               bool combatTriggerActive,
                                CombatantTable &table) {
     _tilemap = &tilemap;
     _isDungeon = isDungeon;
@@ -134,17 +139,27 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
             break;
 
         if (placeCombatantSpiral(idx)) {
-            if (!ch->enabled) {
-                // Inactive combatant: mark as trigger
+            const bool notInTeam = ch->combatState && ch->combatState->notInTeam;
+            if (!ch->enabled && !combatTriggerActive && !notInTeam) {
+                // Disabled team member: hide icon, save tile, stamp downed-member tile
                 table.setSize(idx, 0);
                 uint8 col = table.getTileCol(idx);
                 uint8 row = table.getTileRow(idx);
                 uint8 savedTile = _tilemap->getRawTile(col, row);
-                table.addTrigger(ch, col, row, savedTile);
+                _tilemap->setRawTile(col, row, CombatantTable::TILE_DOWNED_MEMBER);
+                table.addDownedMember(ch, col, row, savedTile);
             }
             table.rebuildOccupancy();
         } else {
-            table.setSize(idx, 0);
+            const bool notInTeam = ch->combatState && ch->combatState->notInTeam;
+            if (notInTeam) {
+                // Failed not-in-team placement should not consume a combatant slot.
+                table.rollbackLastAdd(idx);
+                roster[i] = nullptr;
+                table.rebuildOccupancy();
+            } else {
+                table.setSize(idx, 0);
+            }
         }
     }
 
@@ -265,18 +280,18 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
                 // primary form_set, just entered ring 1
                 if (_currentSide == CombatantTable::SIDE_PARTY &&
                     (dirIdx % 2 != 0) && formSet == 0 && ring == 1) {
-                    bool anyBlocked = false;
+                    bool anyPassable = false;
                     for (int d = 1; d < 4; d++) {
                         uint8 checkDir = kDirFallback[dirIdx][d];
                         if (checkDir >= 8)
                             continue;
-                        if (_isDungeon &&
+                        if (!_isDungeon ||
                             _tilemap->checkOpenPassage(
                                 _mapCenterX, _mapCenterY, checkDir) != 1) {
-                            anyBlocked = true;
+                            anyPassable = true;
                         }
                     }
-                    if (anyBlocked)
+                    if (anyPassable)
                         ring++;
                 }
 
@@ -357,7 +372,7 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
 
     // Check passability via tile property table
     if (groundTile > 0 && groundTile <= Gfx::BattlefieldTilemap::kTilePropTableCount) {
-        if (Gfx::BattlefieldTilemap::kTilePropTable[groundTile - 1].passable == -1)
+        if (TILE_IS_IMPASSABLE(groundTile))
             return false;
     }
 
@@ -369,7 +384,7 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
 void CombatPlacement::scanDestination(int charIdx, uint8 direction,
                                       uint8 &outOccupant, uint8 &outTile) const {
     outOccupant = 0;
-    outTile = 23;  // default passable (grass)
+    outTile = 23;
 
     uint8 baseCol = _table->getTileCol(charIdx);
     uint8 baseRow = _table->getTileRow(charIdx);
@@ -383,6 +398,7 @@ void CombatPlacement::scanDestination(int charIdx, uint8 direction,
     int w = (size >= 2 && size != 3) ? 2 : 1;
     int h = (size >= 3) ? 2 : 1;
 
+    bool anyValid = false;
     for (int fy = 0; fy < h; fy++) {
         for (int fx = 0; fx < w; fx++) {
             int checkCol = (int)baseCol + fx + dx;
@@ -390,7 +406,7 @@ void CombatPlacement::scanDestination(int charIdx, uint8 direction,
 
             if (checkCol < 0 || checkCol >= Gfx::BattlefieldTilemap::kPlayfieldCols ||
                 checkRow < 0 || checkRow >= Gfx::BattlefieldTilemap::kPlayfieldRows) {
-                outTile = 0;
+                // Out of bounds — tile is invalid
                 continue;
             }
 
@@ -399,12 +415,13 @@ void CombatPlacement::scanDestination(int charIdx, uint8 direction,
             if (occ != 0 && occ != (uint8)(charIdx + 1))
                 outOccupant = occ;
 
-            // Check tile
+            // Use last valid tile found (matches original single-tile probe)
             uint8 raw = _tilemap->getRawTile(checkCol, checkRow);
-            if (raw == 0) {
-                outTile = 0;
-            } else if (outTile != 0) {
+            if (raw != 0) {
                 outTile = raw;
+                anyValid = true;
+            } else if (!anyValid) {
+                outTile = 0;
             }
         }
     }
