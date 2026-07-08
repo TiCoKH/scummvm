@@ -20,14 +20,12 @@
  */
 
 #include "goldbox/combat/combat_placement.h"
+#include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/core/direction.h"
 #include <string.h>
 
-// TileProp::passable is signed byte: -1 (0xFF) = impassable.
-#define TILE_IS_IMPASSABLE(rawTile) \
-    (Gfx::BattlefieldTilemap::kTilePropTable[(rawTile) - 1].passable == -1)
 
 namespace Goldbox {
 namespace Combat {
@@ -370,11 +368,10 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
     if (groundTile == 0)
         return false;
 
-    // Check passability via tile property table
-    if (groundTile > 0 && groundTile <= Gfx::BattlefieldTilemap::kTilePropTableCount) {
-        if (TILE_IS_IMPASSABLE(groundTile))
-            return false;
-    }
+    // Check passability via tile property provider
+    const Combat::TilePropertyProvider *tileProps = _tilemap->getTilePropertyProvider();
+    if (tileProps && tileProps->isImpassable(groundTile))
+        return false;
 
     // Commit: mark formation cell as used
     _formationValid[_currentSide][slot][formRow][formCol] = 0;
