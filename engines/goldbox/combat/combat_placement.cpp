@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/combat/combat_placement.h"
+#include "goldbox/combat/combat_ground_info.h"
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/data/player_character.h"
@@ -58,16 +59,16 @@ const int8 CombatPlacement::kBaseY[8] = { 3, 2, 2, 3, 0, 2, 5, 3 };
 // [direction_index][row][0=minCol, 1=maxCol]
 // Rows where min > max have no valid cells.
 const int8 CombatPlacement::kFormationRange[5][6][2] = {
-    // dir 0 (N facing)
-    { {1, 0}, {1, 0}, {2, 9}, {3, 10}, {4, 10}, {0, 2} },
-    // dir 1 (E facing)
-    { {0, 3}, {1, 4}, {2, 5}, {3, 6}, {4, 7}, {0, 6} },
-    // dir 2 (dir_set 2)
-    { {1, 8}, {1, 0}, {1, 0}, {3, 6}, {4, 7}, {5, 8} },
+    // dir 0
+    { {1, 0}, {1, 0}, {1, 0}, {2, 9}, {3, 10}, {4, 10} },
+    // dir 1
+    { {0, 2}, {0, 3}, {1, 4}, {2, 5}, {3, 6}, {4, 7} },
+    // dir 2
+    { {0, 6}, {0, 7}, {1, 8}, {1, 0}, {1, 0}, {1, 0} },
     // dir 3
-    { {6, 9}, {7, 10}, {8, 10}, {0, 6}, {0, 7}, {1, 8} },
-    // dir 4 (W facing / special slot)
-    { {2, 9}, {3, 10}, {4, 10}, {0, 6}, {0, 7}, {1, 8} },
+    { {3, 6}, {4, 7}, {5, 8}, {6, 9}, {7, 10}, {8, 10} },
+    // dir 4
+    { {0, 6}, {0, 7}, {1, 8}, {2, 9}, {3, 10}, {4, 10} },
 };
 
 CombatPlacement::CombatPlacement()
@@ -211,8 +212,8 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
         switch (state) {
         case 1: {
             // State 1: Initialize ring anchor
-            // Ring advance direction: (dir_index + 2) / 4 indexes C_BF_DIRECTION_TABLE
-            uint8 advDir = kHalfDirToIso[(dirIndex + 2) / 4];
+            // Direction = C_BF_DIRECTION_TABLE[(dir_base + 2) % 4]
+            uint8 advDir = kHalfDirToIso[(dirIndex + 2) % 4];
             int8 dx = kDirDeltaX[advDir];
             int8 dy = kDirDeltaY[advDir];
 
@@ -228,8 +229,9 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
             break;
         }
         case 2: {
-            // State 2: Step along axis A
-            uint8 axisADir = kHalfDirToIso[(dirIndex + 1) / 4];
+            // State 2: Extend positive arm from anchor
+            // Direction = C_BF_DIRECTION_TABLE[(dir_base + 1) % 4]
+            uint8 axisADir = kHalfDirToIso[(dirIndex + 1) % 4];
             int8 dx = kDirDeltaX[axisADir];
             int8 dy = kDirDeltaY[axisADir];
 
@@ -240,8 +242,9 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
             break;
         }
         case 3: {
-            // State 3: Step along axis B (perpendicular)
-            uint8 axisBDir = kHalfDirToIso[(dirIndex + 3) / 4];
+            // State 3: Extend negative arm (opposite side)
+            // Direction = C_BF_DIRECTION_TABLE[(dir_base + 3) % 4]
+            uint8 axisBDir = kHalfDirToIso[(dirIndex + 3) % 4];
             int8 dx = kDirDeltaX[axisBDir];
             int8 dy = kDirDeltaY[axisBDir];
 
@@ -358,10 +361,10 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
     // Write position temporarily
     _table->setPosition(charIdx, (uint8)tileCol, (uint8)tileRow);
 
-    // Scan destination
+    // Scan destination using shared ground info utility
     uint8 occupant = 0;
     uint8 groundTile = 0;
-    scanDestination(charIdx, 8, occupant, groundTile);
+    getGroundInfo(charIdx, 8, *_tilemap, *_table, groundTile, occupant);
 
     if (occupant != 0)
         return false;
@@ -376,52 +379,6 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
     // Commit: mark formation cell as used
     _formationValid[_currentSide][slot][formRow][formCol] = 0;
     return true;
-}
-
-void CombatPlacement::scanDestination(int charIdx, uint8 direction,
-                                      uint8 &outOccupant, uint8 &outTile) const {
-    outOccupant = 0;
-    outTile = 23;
-
-    uint8 baseCol = _table->getTileCol(charIdx);
-    uint8 baseRow = _table->getTileRow(charIdx);
-    uint8 size = _table->getSize(charIdx) & 7;
-
-    // Direction 8 = stationary (no delta)
-    int8 dx = (direction < 8) ? kDirDeltaX[direction] : 0;
-    int8 dy = (direction < 8) ? kDirDeltaY[direction] : 0;
-
-    // Size footprint
-    int w = (size >= 2 && size != 3) ? 2 : 1;
-    int h = (size >= 3) ? 2 : 1;
-
-    bool anyValid = false;
-    for (int fy = 0; fy < h; fy++) {
-        for (int fx = 0; fx < w; fx++) {
-            int checkCol = (int)baseCol + fx + dx;
-            int checkRow = (int)baseRow + fy + dy;
-
-            if (checkCol < 0 || checkCol >= Gfx::BattlefieldTilemap::kPlayfieldCols ||
-                checkRow < 0 || checkRow >= Gfx::BattlefieldTilemap::kPlayfieldRows) {
-                // Out of bounds — tile is invalid
-                continue;
-            }
-
-            // Check occupant
-            uint8 occ = _table->getOccupant(checkCol, checkRow);
-            if (occ != 0 && occ != (uint8)(charIdx + 1))
-                outOccupant = occ;
-
-            // Use last valid tile found (matches original single-tile probe)
-            uint8 raw = _tilemap->getRawTile(checkCol, checkRow);
-            if (raw != 0) {
-                outTile = raw;
-                anyValid = true;
-            } else if (!anyValid) {
-                outTile = 0;
-            }
-        }
-    }
 }
 
 bool CombatPlacement::isOutOfFormation(int col, int row) {

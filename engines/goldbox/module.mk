@@ -65,6 +65,7 @@ MODULE_OBJS = \
 	gfx/battlefield_tilemap.o \
 	gfx/combat_renderer.o \
 	combat/combat_setup.o \
+	combat/combat_ground_info.o \
 	combat/combatant_table.o \
 	combat/combat_placement.o \
 	combat/combat_viewport.o \

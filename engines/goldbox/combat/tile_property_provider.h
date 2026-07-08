@@ -34,10 +34,10 @@ namespace Combat {
  * combat-relevant attributes (passability, blocking behavior).
  */
 struct TileProp {
-    int8  passable;   // 0x01 = walkable, -1 (0xFF) = blocked
-    uint8 padding;    // reserved (always 0x00)
-    uint8 blockType;  // 0x02 = hard obstacle, 0x00 = normal
-    uint8 gfxID;      // canonical graphic/sprite ID
+    int8  passable;   // [0] priority: 0x01 = walkable, -1 (0xFF) = blocked/impassable
+    uint8 padding;    // [1] reserved (always 0x00)
+    uint8 blockType;  // [2] 0x02 = hard obstacle, 0x00 = normal
+    uint8 gfxID;      // [3] canonical graphic/sprite ID
 };
 
 /**

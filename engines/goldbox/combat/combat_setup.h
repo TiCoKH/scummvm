@@ -26,11 +26,25 @@
 #include "common/array.h"
 
 namespace Goldbox {
+
+namespace Gfx {
+class BattlefieldTilemap;
+}
+
 namespace Data {
 class PlayerCharacter;
+namespace Effects {
+class EffectRuntime;
+}
 }
 
 namespace Combat {
+
+struct CombatGlobals;
+struct CombatParams;
+class CombatantTable;
+class CombatPlacement;
+class CombatViewport;
 
 /**
  * Initialize combat state for all combatants.
@@ -55,6 +69,45 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
  * Free combat state for all combatants (end of combat cleanup).
  */
 void freeCombatStates(Common::Array<Data::PlayerCharacter *> &combatants);
+
+/**
+ * Full combat setup orchestrator — mirrors original COMBAT_Setup.
+ *
+ * Sequence:
+ *   1. Reset combat globals
+ *   2. Clamp morale threshold to 100
+ *   3. Build playfield (tilemap)
+ *   4. Init combatant states (facing, team flags)
+ *   5. Place all combatants on battlefield
+ *   6. Center viewport on first party member
+ *   7. Apply combat aura effects (trigger set 8) to all combatants
+ *   8. Update hostile health percentages
+ *
+ * @param params     Combat parameters from VM/caller
+ * @param globals    Global combat state (reset here)
+ * @param tilemap    Battlefield tilemap (built here)
+ * @param table      Combatant table (populated here)
+ * @param placement  Placement engine
+ * @param viewport   Camera viewport (centered here)
+ * @param effectRuntime  Effect system for aura application (may be nullptr)
+ */
+void setupCombat(CombatParams &params,
+                 CombatGlobals &globals,
+                 Gfx::BattlefieldTilemap &tilemap,
+                 CombatantTable &table,
+                 CombatPlacement &placement,
+                 CombatViewport &viewport,
+                 Data::Effects::EffectRuntime *effectRuntime);
+
+/**
+ * Compute health percentage for each hostile combatant.
+ *
+ * Stores result in each hostile character's combat state for UI display.
+ * Mirrors original COMBAT_UpdateHostileHealthPercent.
+ *
+ * @param table  Combatant table with placed characters
+ */
+void updateHostileHealthPercent(const CombatantTable &table);
 
 } // namespace Combat
 } // namespace Goldbox
