@@ -40,7 +40,7 @@ void CombatantTable::clear() {
     memset(_occupancy, 0, sizeof(_occupancy));
     memset(_colDist, 0, sizeof(_colDist));
     memset(_rowDist, 0, sizeof(_rowDist));
-    _triggers.clear();
+    _downedMembers.clear();
 }
 
 int CombatantTable::addCombatant(Data::PlayerCharacter *ch, uint8 size) {
@@ -53,6 +53,17 @@ int CombatantTable::addCombatant(Data::PlayerCharacter *ch, uint8 size) {
     _entries[idx].tileRow = 0;
     _count++;
     return idx;
+}
+
+bool CombatantTable::rollbackLastAdd(int idx) {
+    if (_count <= 0)
+        return false;
+    if (idx != _count - 1)
+        return false;
+
+    _entries[idx] = Entry();
+    _count--;
+    return true;
 }
 
 void CombatantTable::removeCombatant(int idx) {
@@ -99,13 +110,13 @@ void CombatantTable::setSize(int idx, uint8 size) {
     _entries[idx].size = size;
 }
 
-void CombatantTable::addTrigger(Data::PlayerCharacter *ch, uint8 col, uint8 row, uint8 savedTile) {
-    TriggerRecord rec;
+void CombatantTable::addDownedMember(Data::PlayerCharacter *ch, uint8 col, uint8 row, uint8 savedTile) {
+    DownedMemberRecord rec;
     rec.character = ch;
     rec.tileCol = col;
     rec.tileRow = row;
     rec.savedTile = savedTile;
-    _triggers.push_back(rec);
+    _downedMembers.push_back(rec);
 }
 
 void CombatantTable::rebuildOccupancy() {

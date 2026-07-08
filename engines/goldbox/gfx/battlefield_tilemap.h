@@ -132,13 +132,13 @@ public:
      */
     struct TileProp {
         uint8 gfxID;      // [0] canonical graphic/sprite ID
-        int8  passable;   // [1] 0x01 = walkable, 0xFF = blocked
+        int8  passable;   // [1] 0x01 = walkable, -1 (0xFF) = blocked
         uint8 padding;    // [2] always 0x00
         uint8 blockType;  // [3] 0x02 = hard obstacle, 0x00 = normal
     };
 
     // 65 entries (indices 0..64)
-    // passable: 0x01 = walkable, 0xFF = blocked
+    // passable: 0x01 = walkable, -1 (0xFF) = blocked
     // blockType: 0x02 = hard obstacle, 0x00 = normal
     static const TileProp kTilePropTable[kTilePropTableCount];
 
@@ -173,6 +173,7 @@ public:
     Common::Rect getActiveAreaRect() const;
 
     uint8 getRawTile(int col, int row) const;
+    void setRawTile(int col, int row, uint8 rawTile);
     uint8 getTileId(int col, int row) const;
 
     void clear();

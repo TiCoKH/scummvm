@@ -45,7 +45,7 @@ namespace Combat {
 class CombatantTable {
 public:
     static const int MAX_COMBATANTS = 72;
-    static const uint8 TILE_TRIGGER = 0x1F;
+    static const uint8 TILE_DOWNED_MEMBER = 0x1F;
 
     enum Side {
         SIDE_PARTY = 0,
@@ -56,13 +56,13 @@ public:
     /**
      * Record for downed/sleeping combatants placed as terrain triggers.
      */
-    struct TriggerRecord {
+    struct DownedMemberRecord {
         Data::PlayerCharacter *character;
         uint8 tileCol;
         uint8 tileRow;
         uint8 savedTile;
 
-        TriggerRecord()
+        DownedMemberRecord()
             : character(nullptr), tileCol(0), tileRow(0), savedTile(0) {}
     };
 
@@ -75,6 +75,9 @@ public:
 
     /** Add a combatant entry. Returns slot index or -1 on failure. */
     int addCombatant(Data::PlayerCharacter *ch, uint8 size);
+
+    /** Roll back the most recently added combatant entry. */
+    bool rollbackLastAdd(int idx);
 
     /** Remove combatant at index (shifts nothing; zeros the slot). */
     void removeCombatant(int idx);
@@ -91,8 +94,8 @@ public:
 
     // --- Trigger records ---
 
-    void addTrigger(Data::PlayerCharacter *ch, uint8 col, uint8 row, uint8 savedTile);
-    const Common::Array<TriggerRecord> &getTriggers() const { return _triggers; }
+    void addDownedMember(Data::PlayerCharacter *ch, uint8 col, uint8 row, uint8 savedTile);
+    const Common::Array<DownedMemberRecord> &getDownedMembers() const { return _downedMembers; }
 
     // --- Occupancy grid ---
 
@@ -145,7 +148,7 @@ private:
     int8 _colDist[MAX_COMBATANTS];
     int8 _rowDist[MAX_COMBATANTS];
 
-    Common::Array<TriggerRecord> _triggers;
+    Common::Array<DownedMemberRecord> _downedMembers;
 };
 
 } // namespace Combat
