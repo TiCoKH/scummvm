@@ -26,6 +26,9 @@
 #include "common/array.h"
 
 namespace Goldbox {
+
+class RuntimeGeoBlock;
+
 namespace Data {
 class PlayerCharacter;
 }
@@ -52,6 +55,9 @@ struct CombatParams {
     int encounterDistance;    // distance between party and enemy origins
     bool isDungeon;           // true = dungeon terrain, false = wilderness
 
+    // --- Geometry source ---
+    RuntimeGeoBlock *geo;     // dungeon geometry for tilemap generation
+
     // --- Terrain generation inputs ---
     int8 mapCenterX;         // party map X for dungeon generation
     int8 mapCenterY;         // party map Y for dungeon generation
@@ -72,7 +78,8 @@ struct CombatParams {
 
     CombatParams()
         : partyCount(0), mapDirection(0), encounterDistance(2),
-          isDungeon(true), mapCenterX(0), mapCenterY(0), playerY(0),
+          isDungeon(true), geo(nullptr),
+          mapCenterX(0), mapCenterY(0), playerY(0),
           eclScriptId(0), wildX(0), wildY(0), mapType(1),
           terrainOverride(0), moraleThreshold(100),
           magicEnabled(false), slowMode(false), isAmbush(false),

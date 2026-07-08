@@ -22,9 +22,8 @@
 #include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/combat/combat_setup.h"
 #include "goldbox/data/player_character.h"
-#include "goldbox/runtime/runtime_geo.h"
+#include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/poolrad/data/poolrad_tile_props.h"
-#include "goldbox/vm_interface.h"
 #include "goldbox/events.h"
 
 namespace Goldbox {
@@ -44,11 +43,15 @@ void CombatView::setup(const Combat::CombatParams &params) {
     _combatRound = 0;
     _phase = PHASE_SETUP;
 
-    buildBattlefield();
-    Combat::initCombatStates(_params.roster, _params.partyCount,
-                             _params.mapDirection, _params.moraleThreshold);
-    placeCombatants();
-    centerViewportOnParty();
+    // Wire up game-specific tile property provider
+    _tilemap.setTilePropertyProvider(&PoolradTilePropertyProvider::instance());
+
+    // Run the full COMBAT_Setup sequence
+    // TODO: pass actual EffectRuntime* when effect system is wired to combat
+    Combat::setupCombat(_params, _globals, _tilemap, _table,
+                        _placement, _viewport, nullptr);
+
+    _tilemap.render(_iconManager);
 
     _needsFullRedraw = true;
     _phase = PHASE_PLAYER_TURN;
@@ -67,7 +70,6 @@ bool CombatView::msgUnfocus(const UnfocusMessage &msg) {
 
 bool CombatView::msgKeypress(const KeypressMessage &msg) {
     if (_phase == PHASE_ENDED) {
-        // Any key closes combat after it ends
         close();
         return true;
     }
@@ -75,11 +77,9 @@ bool CombatView::msgKeypress(const KeypressMessage &msg) {
     if (_phase != PHASE_PLAYER_TURN)
         return false;
 
-    // Minimal input: arrow keys scroll viewport, ESC ends combat
     switch (msg.keycode) {
     case Common::KEYCODE_ESCAPE:
         _phase = PHASE_ENDED;
-        // TODO: post CombatResult
         close();
         return true;
 
@@ -139,41 +139,6 @@ bool CombatView::tick() {
 
 // --- Internal ---
 
-void CombatView::buildBattlefield() {
-    RuntimeGeoBlock &geo = VmInterface::getRuntimeGeo();
-
-    _tilemap.setTilePropertyProvider(&PoolradTilePropertyProvider::instance());
-    _tilemap.build(geo,
-                   _params.mapCenterX, _params.mapCenterY, _params.playerY,
-                   _params.isDungeon, _params.eclScriptId,
-                   _params.wildX, _params.wildY,
-                   _params.mapType, _params.terrainOverride);
-
-    _tilemap.render(_iconManager);
-}
-
-void CombatView::placeCombatants() {
-    _placement.placeAll(_params.roster, _params.partyCount,
-                        _params.mapDirection, _params.encounterDistance,
-                        _tilemap, _params.isDungeon,
-                        _params.combatTrigger, _table);
-}
-
-void CombatView::centerViewportOnParty() {
-    // Center on first placed party member
-    for (int i = 0; i < _table.getCount(); i++) {
-        if (_table.getSize(i) == 0)
-            continue;
-        Data::PlayerCharacter *ch = _table.getCharacter(i);
-        if (ch && !ch->hostile) {
-            _viewport.centerOn(_table.getTileCol(i), _table.getTileRow(i));
-            return;
-        }
-    }
-    // Fallback: center of map
-    _viewport.centerOn(25, 12);
-}
-
 void CombatView::drawViewport() {
     if (!_tilemap.isBuilt())
         return;
@@ -206,11 +171,9 @@ void CombatView::drawCombatants() {
         int pixX = kViewportX + localCol * kTileSize;
         int pixY = kViewportY + localRow * kTileSize;
 
-        // Determine direction for icon rendering
         Gfx::IconDirection dir = Gfx::ICON_DIRECTION_RIGHT;
         if (ch->combatState) {
             uint8 facing = ch->combatState->direction;
-            // Directions 5,6,7,0 face left (W/NW/N side)
             if (facing >= 5 || facing == 0)
                 dir = Gfx::ICON_DIRECTION_LEFT;
         }
@@ -221,8 +184,6 @@ void CombatView::drawCombatants() {
 }
 
 void CombatView::drawUI() {
-    // TODO: combat menu bar, HP display, active character highlight
-    // For now just draw a border around the viewport
     Surface s = getSurface();
     Common::Rect vpRect(kViewportX - 1, kViewportY - 1,
                         kViewportX + kViewportPixelW + 1,

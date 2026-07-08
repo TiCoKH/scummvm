@@ -112,10 +112,6 @@ private:
     bool tryPlaceAt(int charIdx, int formCol, int formRow,
                     int8 originCol, int8 originRow, int slot);
 
-    /** Scan destination tiles for occupant/passability. */
-    void scanDestination(int charIdx, uint8 direction,
-                         uint8 &outOccupant, uint8 &outTile) const;
-
     /** Check if position is outside all formation masks for current side. */
     bool isOutOfFormation(int col, int row);
 };

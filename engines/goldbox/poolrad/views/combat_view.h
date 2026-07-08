@@ -24,6 +24,7 @@
 
 #include "goldbox/poolrad/views/view.h"
 #include "goldbox/combat/combat_params.h"
+#include "goldbox/combat/combat_globals.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_placement.h"
 #include "goldbox/combat/combat_viewport.h"
@@ -70,6 +71,7 @@ private:
 
     // --- Combat state ---
     Combat::CombatParams _params;
+    Combat::CombatGlobals _globals;
     Combat::CombatantTable _table;
     Combat::CombatPlacement _placement;
     Combat::CombatViewport _viewport;
@@ -90,9 +92,6 @@ private:
     static const int kViewportPixelH = Combat::CombatViewport::VIEW_ROWS * kTileSize;
 
     // --- Internal methods ---
-    void buildBattlefield();
-    void placeCombatants();
-    void centerViewportOnParty();
     void drawViewport();
     void drawCombatants();
     void drawUI();

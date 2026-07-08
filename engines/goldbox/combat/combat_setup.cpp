@@ -20,8 +20,18 @@
  */
 
 #include "goldbox/combat/combat_setup.h"
+#include "goldbox/combat/combat_globals.h"
+#include "goldbox/combat/combat_params.h"
+#include "goldbox/combat/combatant_table.h"
+#include "goldbox/combat/combat_placement.h"
+#include "goldbox/combat/combat_viewport.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/combat_state.h"
+#include "goldbox/data/effects/effect_runtime.h"
+#include "goldbox/data/effects/effect_execution_context.h"
+#include "goldbox/data/effects/character_effects.h"
+#include "goldbox/gfx/battlefield_tilemap.h"
+#include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/core/direction.h"
 
 namespace Goldbox {
@@ -37,9 +47,6 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
         if (!ch)
             continue;
 
-        // Recalculate derived combat stats (AC, movement, weapon bonuses)
-        // TODO: CHARACTER_recalcCombatStats equivalent
-
         combatantCount++;
 
         // Allocate and zero-fill combat state
@@ -51,22 +58,12 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
             ch->combatState->notInTeam = true;
 
         // Set initial facing from approach direction table
-        // wayFlag >> 1 gives index 0..3 into the direction table
         uint8 dirIndex = (wayFlag >> 1) & 0x03;
         ch->combatState->direction = Data::kCombatDirectionTable[dirIndex];
 
-        // Hostile characters face the opposite direction: (dir + 4) % 8
+        // Hostile characters face the opposite direction
         if (ch->hostile)
             ch->combatState->direction = dirReverse(ch->combatState->direction);
-
-        // Neutral NPCs (non-hostile, not-in-team) with npc class == 0 or > 102
-        // get morale override: npc = moraleThreshold | 0x80
-        // TODO: uncomment when npc field is ported to PlayerCharacter
-        // uint8 npcClass = ch->npc & 0x7F;
-        // if (!ch->hostile && ch->combatState->notInTeam &&
-        //     (npcClass == 0 || npcClass > 0x66)) {
-        //     ch->npc = (uint8)moraleThreshold | 0x80;
-        // }
     }
 }
 
@@ -76,6 +73,84 @@ void freeCombatStates(Common::Array<Data::PlayerCharacter *> &combatants) {
             delete combatants[i]->combatState;
             combatants[i]->combatState = nullptr;
         }
+    }
+}
+
+void setupCombat(CombatParams &params,
+                 CombatGlobals &globals,
+                 Gfx::BattlefieldTilemap &tilemap,
+                 CombatantTable &table,
+                 CombatPlacement &placement,
+                 CombatViewport &viewport,
+                 Data::Effects::EffectRuntime *effectRuntime) {
+    // Step 1: Reset combat globals (mirrors original zeroing of globals)
+    globals.reset();
+
+    // Step 2: Clamp morale threshold
+    if (params.moraleThreshold > 100)
+        params.moraleThreshold = 100;
+
+    // Step 3: Build playfield (COMBAT_BuildPlayfield)
+    tilemap.build(*params.geo,
+                  params.mapCenterX, params.mapCenterY, params.playerY,
+                  params.isDungeon, params.eclScriptId,
+                  params.wildX, params.wildY,
+                  params.mapType, params.terrainOverride);
+
+    // Step 4: Init combatant states (COMBAT_InitCombatantStates)
+    initCombatStates(params.roster, params.partyCount,
+                     params.mapDirection, params.moraleThreshold);
+
+    // Step 5: Place all combatants (COMBAT_AssignBattlefieldPositions)
+    placement.placeAll(params.roster, params.partyCount,
+                       params.mapDirection, params.encounterDistance,
+                       tilemap, params.isDungeon,
+                       params.combatTrigger, table);
+
+    // Step 6: Center viewport on first placed party member
+    // Original: _PTR_COMBAT_FIELD[2] = charX - 3; [3] = charY - 3
+    for (int i = 0; i < table.getCount(); i++) {
+        if (table.getSize(i) == 0)
+            continue;
+        Data::PlayerCharacter *ch = table.getCharacter(i);
+        if (ch && !ch->hostile) {
+            viewport.centerOn(table.getTileCol(i), table.getTileRow(i));
+            break;
+        }
+    }
+
+    // Step 7: Apply combat aura effects (EFFECT_applyEffectSet(8, ch))
+    if (effectRuntime) {
+        for (uint i = 0; i < params.roster.size(); i++) {
+            Data::PlayerCharacter *ch = params.roster[i];
+            if (!ch)
+                continue;
+            Data::Effects::CharacterEffects *effects = ch->getEffects();
+            if (effects) {
+                Data::Effects::EffectExecutionContext ctx;
+                effectRuntime->applyTriggerSet(
+                    Data::Effects::ETS_COMBAT_AURA,
+                    *effects, *ch, ctx);
+            }
+        }
+    }
+
+    // Step 8: Update hostile health percentages
+    updateHostileHealthPercent(table);
+}
+
+void updateHostileHealthPercent(const CombatantTable &table) {
+    for (int i = 0; i < table.getCount(); i++) {
+        if (table.getSize(i) == 0)
+            continue;
+        Data::PlayerCharacter *ch = table.getCharacter(i);
+        if (!ch || !ch->hostile || !ch->combatState)
+            continue;
+        if (ch->hitPoints.max == 0)
+            continue;
+        // Store health as percentage (0-100) in AI state byte for UI
+        uint8 pct = (uint8)((ch->hitPoints.current * 100) / ch->hitPoints.max);
+        ch->combatState->aiState = pct;
     }
 }
 
