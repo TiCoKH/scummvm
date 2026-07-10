@@ -73,6 +73,14 @@ void CombatantTable::removeCombatant(int idx) {
     _entries[idx].character = nullptr;
 }
 
+int CombatantTable::findIndex(const Data::PlayerCharacter *ch) const {
+    for (int i = 0; i < _count; i++) {
+        if (_entries[i].character == ch)
+            return i;
+    }
+    return -1;
+}
+
 Data::PlayerCharacter *CombatantTable::getCharacter(int idx) const {
     if (idx < 0 || idx >= MAX_COMBATANTS)
         return nullptr;
@@ -108,6 +116,27 @@ void CombatantTable::setSize(int idx, uint8 size) {
     if (idx < 0 || idx >= MAX_COMBATANTS)
         return;
     _entries[idx].size = size;
+}
+
+uint8 CombatantTable::getCharacterCol(const Data::PlayerCharacter *ch) const {
+    int idx = findIndex(ch);
+    if (idx < 0)
+        return 0;
+    return _entries[idx].tileCol;
+}
+
+uint8 CombatantTable::getCharacterRow(const Data::PlayerCharacter *ch) const {
+    int idx = findIndex(ch);
+    if (idx < 0)
+        return 0;
+    return _entries[idx].tileRow;
+}
+
+uint8 CombatantTable::getCharacterSize(const Data::PlayerCharacter *ch) const {
+    int idx = findIndex(ch);
+    if (idx < 0)
+        return 0;
+    return _entries[idx].size;
 }
 
 void CombatantTable::addDownedMember(Data::PlayerCharacter *ch, uint8 col, uint8 row, uint8 savedTile) {

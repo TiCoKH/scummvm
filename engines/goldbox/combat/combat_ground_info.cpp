@@ -46,7 +46,7 @@ struct IconOffsetPair {
     int8 row;
 };
 
-static const IconOffsetPair kIconOffsets[6][4] = {
+static const IconOffsetPair kIconOffsets[5][4] = {
     // size 0: invalid
     { {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0} },
     // size 1: 1x1
@@ -56,17 +56,15 @@ static const IconOffsetPair kIconOffsets[6][4] = {
     // size 3: 2x1 (wide)
     { { 0, 0}, { 1, 0}, {-1, 0}, {-1, 0} },
     // size 4: 2x2
-    { { 0, 0}, { 1, 0}, { 0, 1}, { 1, 1} },
-    // size 5: 3x3 (uses 4 corner slots)
-    { { 0, 0}, { 1, 0}, { 0, 1}, { 1, 1} },
+    { { 0, 0}, { 1, 0}, { 0, 1}, { 1, 1} }
 };
 
 bool getIconOffsetBySize(uint8 iconSize, uint8 slot,
                          int8 &outColDelta, int8 &outRowDelta) {
     if (iconSize == 0)
         return false;
-    if (iconSize > 5)
-        iconSize = 5;
+    if (iconSize > 4)
+        iconSize = 4;
     if (slot > 3)
         return false;
 

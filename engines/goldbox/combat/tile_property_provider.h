@@ -34,10 +34,10 @@ namespace Combat {
  * combat-relevant attributes (passability, blocking behavior).
  */
 struct TileProp {
-    int8  passable;   // [0] priority: 0x01 = walkable, -1 (0xFF) = blocked/impassable
-    uint8 padding;    // [1] reserved (always 0x00)
-    uint8 blockType;  // [2] 0x02 = hard obstacle, 0x00 = normal
-    uint8 gfxID;      // [3] canonical graphic/sprite ID
+    int8  passable;   // priority: 0x01 = walkable, -1 (0xFF) = blocked/impassable
+    uint8 padding;    // reserved (always 0x00)
+    uint8 tileSize;   // 0x02 = full tile obstacle, 0x00 = half-size
+    uint8 blockID;    // graphic/sprite block ID
 };
 
 /**
@@ -65,10 +65,10 @@ public:
         return prop && prop->passable == -1;
     }
 
-    /** Convenience: get gfxID for a 0-based tile index. Returns 0xFF on failure. */
+    /** Convenience: get blockID for a 0-based tile index. Returns 0xFF on failure. */
     uint8 getGfxID(int index) const {
         const TileProp *prop = getTileProp(index);
-        return prop ? prop->gfxID : 0xFF;
+        return prop ? prop->blockID : 0xFF;
     }
 };
 

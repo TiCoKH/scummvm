@@ -37,7 +37,7 @@ class CombatantTable;
 /**
  * Special tile values returned by getGroundInfo.
  */
-static const uint8 kTileImpassable = 0x00;
+static const uint8 kTileImpassable = 0;
 static const uint8 kTileHazard = 0x1E;
 static const uint8 kTileNeutralDefault = 0x17;
 
@@ -79,7 +79,6 @@ void getGroundInfo(int charIdx, uint8 direction,
  *   2 = 1x2 tall (slots 0, 2)
  *   3 = 2x1 wide (slots 0, 1)
  *   4 = 2x2 (slots 0, 1, 2, 3)
- *   5+ = 3x3 (all 4 corner slots)
  *
  * Invalid slots are marked with col_offset = -1 in the lookup table.
  *
