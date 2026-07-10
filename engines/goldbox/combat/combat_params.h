@@ -75,6 +75,7 @@ struct CombatParams {
     bool isAmbush;           // D_CombatIsAmbush (cleared each round)
     bool monsterLoadReady;   // BOOL_MONST_LOAD_READY (pre-checked by caller)
     bool combatTrigger;      // BOOL_COMBAT_TRIGGER (caller clears after combat)
+    Data::PlayerCharacter *nextChar;  // PTR_NEXT_CHAR (first character to act)
 
     CombatParams()
         : partyCount(0), mapDirection(0), encounterDistance(2),
@@ -83,7 +84,8 @@ struct CombatParams {
           eclScriptId(0), wildX(0), wildY(0), mapType(1),
           terrainOverride(0), moraleThreshold(100),
           magicEnabled(false), slowMode(false), isAmbush(false),
-          monsterLoadReady(false), combatTrigger(false) {}
+          monsterLoadReady(false), combatTrigger(false),
+          nextChar(nullptr) {}
 };
 
 /**

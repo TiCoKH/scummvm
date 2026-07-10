@@ -107,16 +107,11 @@ void setupCombat(CombatParams &params,
                        tilemap, params.isDungeon,
                        params.combatTrigger, table);
 
-    // Step 6: Center viewport on first placed party member
+    // Step 6: Center viewport on active character (PTR_NEXT_CHAR)
     // Original: _PTR_COMBAT_FIELD[2] = charX - 3; [3] = charY - 3
-    for (int i = 0; i < table.getCount(); i++) {
-        if (table.getSize(i) == 0)
-            continue;
-        Data::PlayerCharacter *ch = table.getCharacter(i);
-        if (ch && !ch->hostile) {
-            viewport.centerOn(table.getTileCol(i), table.getTileRow(i));
-            break;
-        }
+    if (params.nextChar) {
+        viewport.centerOn(table.getCharacterCol(params.nextChar),
+                          table.getCharacterRow(params.nextChar));
     }
 
     // Step 7: Apply combat aura effects (EFFECT_applyEffectSet(8, ch))

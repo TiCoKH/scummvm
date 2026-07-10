@@ -82,7 +82,12 @@ public:
     /** Remove combatant at index (shifts nothing; zeros the slot). */
     void removeCombatant(int idx);
 
-    // --- Position access ---
+    // --- Index lookup ---
+
+    /** Find the table index for a given character pointer. Returns -1 if not found. */
+    int findIndex(const Data::PlayerCharacter *ch) const;
+
+    // --- Position access by index ---
 
     Data::PlayerCharacter *getCharacter(int idx) const;
     uint8 getTileCol(int idx) const;
@@ -91,6 +96,12 @@ public:
 
     void setPosition(int idx, uint8 col, uint8 row);
     void setSize(int idx, uint8 size);
+
+    // --- Position access by character pointer ---
+
+    uint8 getCharacterCol(const Data::PlayerCharacter *ch) const;
+    uint8 getCharacterRow(const Data::PlayerCharacter *ch) const;
+    uint8 getCharacterSize(const Data::PlayerCharacter *ch) const;
 
     // --- Trigger records ---
 
