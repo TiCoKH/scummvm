@@ -30,7 +30,7 @@
 namespace Goldbox {
 namespace Gfx {
 
-class CombatIconLogic;
+class CombatIcon;
 
 /**
  * CombatRenderer is the main dispatcher for rendering character icons in combat.
@@ -106,7 +106,7 @@ public:
 	static void applyColorFilter(Graphics::ManagedSurface *surface, uint8 colorIndex);
 
 private:
-	CombatIconLogic *_logic;
+	CombatIcon *_cicon;
 };
 
 } // namespace Gfx

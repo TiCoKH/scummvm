@@ -21,7 +21,7 @@
 
 #include "goldbox/gfx/battlefield_tilemap.h"
 
-#include "goldbox/combat/battlefield_tilemap_logic.h"
+#include "goldbox/combat/battlefield_map.h"
 #include "goldbox/gfx/icon_manager.h"
 #include "goldbox/gfx/pic.h"
 
@@ -31,17 +31,17 @@ namespace Goldbox {
 namespace Gfx {
 
 BattlefieldTilemap::BattlefieldTilemap()
-    : _tileProps(nullptr), _logic(nullptr), _built(false), _isDungeon(true),
+    : _tileProps(nullptr), _cicon(nullptr), _built(false), _isDungeon(true),
       _centerX(0), _centerY(0) {
     memset(_header, 0, sizeof(_header));
     memset(_tileBuffer, 0, sizeof(_tileBuffer));
     _surface.create(kSurfaceWidth, kSurfaceHeight);
     _surface.clear(0);
-    _logic = new Combat::BattlefieldTilemapLogic(*this);
+    _cicon = new Combat::BattlefieldMap(*this);
 }
 
 BattlefieldTilemap::~BattlefieldTilemap() {
-    delete _logic;
+    delete _cicon;
     _surface.free();
 }
 
@@ -103,7 +103,7 @@ void BattlefieldTilemap::build(const RuntimeGeoBlock &geo,
     _header[5] = 1;
     _header[6] = 0;
 
-    _logic->build(geo, centerX, centerY, playerY, isDungeon, eclScriptId,
+    _cicon->build(geo, centerX, centerY, playerY, isDungeon, eclScriptId,
                   wildX, wildY, mapType, terrainOverride);
     _built = true;
 }
@@ -116,13 +116,13 @@ void BattlefieldTilemap::regenerate(const RuntimeGeoBlock &geo,
     _centerX = centerX;
     _centerY = centerY;
 
-    _logic->regenerate(geo, centerX, centerY, playerY, _isDungeon,
+    _cicon->regenerate(geo, centerX, centerY, playerY, _isDungeon,
                        eclScriptId, wildX, wildY, mapType, terrainOverride);
 }
 
 uint8 BattlefieldTilemap::checkOpenPassage(int8 mapX, int8 mapY,
                                            uint8 wireDir) const {
-    return _logic->checkOpenPassage(mapX, mapY, wireDir);
+    return _cicon->checkOpenPassage(mapX, mapY, wireDir);
 }
 
 void BattlefieldTilemap::render(const IconManager &iconMgr) {
