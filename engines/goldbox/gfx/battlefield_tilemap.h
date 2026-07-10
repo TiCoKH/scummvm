@@ -71,18 +71,18 @@ public:
     static const int kIconSize = 24;
     static const int kSurfaceWidth = kPlayfieldCols * kIconSize;
     static const int kSurfaceHeight = kPlayfieldRows * kIconSize;
-    static const int kColMargin = 21;
-    static const int kRowMargin = 10;
     static const int kHeaderSize = 7;
     static const int kBufferSize = kHeaderSize + kPlayfieldCols * kPlayfieldRows;
 
     /** Set the tile property provider (game-specific data). */
     void setTilePropertyProvider(const Combat::TilePropertyProvider *provider) {
         _tileProps = provider;
+        if (_cicon)
+            _cicon->setTilePropertyProvider(provider);
     }
 
     const Combat::TilePropertyProvider *getTilePropertyProvider() const {
-        return _tileProps;
+        return _cicon ? _cicon->getTilePropertyProvider() : _tileProps;
     }
 
     BattlefieldTilemap();
@@ -121,10 +121,10 @@ public:
 
     void clear();
     bool isBuilt() const { return _built; }
-    bool isDungeon() const { return _isDungeon; }
+    bool isDungeon() const;
 
-    int8 getCenterX() const { return _centerX; }
-    int8 getCenterY() const { return _centerY; }
+    int8 getCenterX() const;
+    int8 getCenterY() const;
 
     /**
      * Check bidirectional passability between two adjacent cells.
@@ -134,15 +134,10 @@ public:
     uint8 checkOpenPassage(int8 mapX, int8 mapY, uint8 wireDir) const;
 
 private:
-    uint8 _header[kHeaderSize];
-    uint8 _tileBuffer[kPlayfieldRows][kPlayfieldCols];
     Graphics::ManagedSurface _surface;
     const Combat::TilePropertyProvider *_tileProps;
     Combat::BattlefieldMap *_cicon;
     bool _built;
-    bool _isDungeon;
-    int8 _centerX;
-    int8 _centerY;
 };
 
 } // namespace Gfx

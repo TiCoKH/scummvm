@@ -31,13 +31,10 @@ namespace Goldbox {
 namespace Gfx {
 
 BattlefieldTilemap::BattlefieldTilemap()
-    : _tileProps(nullptr), _cicon(nullptr), _built(false), _isDungeon(true),
-      _centerX(0), _centerY(0) {
-    memset(_header, 0, sizeof(_header));
-    memset(_tileBuffer, 0, sizeof(_tileBuffer));
+        : _tileProps(nullptr), _cicon(nullptr), _built(false) {
     _surface.create(kSurfaceWidth, kSurfaceHeight);
     _surface.clear(0);
-    _cicon = new Combat::BattlefieldMap(*this);
+        _cicon = new Combat::BattlefieldMap();
 }
 
 BattlefieldTilemap::~BattlefieldTilemap() {
@@ -46,33 +43,33 @@ BattlefieldTilemap::~BattlefieldTilemap() {
 }
 
 void BattlefieldTilemap::clear() {
-    memset(_header, 0, sizeof(_header));
-    memset(_tileBuffer, 0, sizeof(_tileBuffer));
+    _cicon->clear();
     _surface.clear(0);
     _built = false;
 }
 
 uint8 BattlefieldTilemap::getRawTile(int col, int row) const {
-    if (col < 0 || col >= kPlayfieldCols ||
-        row < 0 || row >= kPlayfieldRows) {
-        return 0;
-    }
-
-    return _tileBuffer[row][col];
+    return _cicon->getRawTile(col, row);
 }
 
 void BattlefieldTilemap::setRawTile(int col, int row, uint8 rawTile) {
-    if (col < 0 || col >= kPlayfieldCols ||
-        row < 0 || row >= kPlayfieldRows) {
-        return;
-    }
-
-    _tileBuffer[row][col] = rawTile;
+    _cicon->setRawTile(col, row, rawTile);
 }
 
 uint8 BattlefieldTilemap::getTileId(int col, int row) const {
-    uint8 raw = getRawTile(col, row);
-    return (raw == 0) ? 0xFF : static_cast<uint8>(raw - 1);
+    return _cicon->getTileId(col, row);
+}
+
+bool BattlefieldTilemap::isDungeon() const {
+    return _cicon->isDungeon();
+}
+
+int8 BattlefieldTilemap::getCenterX() const {
+    return _cicon->getCenterX();
+}
+
+int8 BattlefieldTilemap::getCenterY() const {
+    return _cicon->getCenterY();
 }
 
 Common::Rect BattlefieldTilemap::tileToPixelRect(int col, int row,
@@ -82,9 +79,9 @@ Common::Rect BattlefieldTilemap::tileToPixelRect(int col, int row,
 }
 
 Common::Rect BattlefieldTilemap::getActiveAreaRect() const {
-    return tileToPixelRect(kColMargin, kRowMargin,
-                           kPlayfieldCols - kColMargin,
-                           kPlayfieldRows - kRowMargin);
+    return tileToPixelRect(_cicon->getViewportStartX(), _cicon->getViewportStartY(),
+                           kPlayfieldCols - _cicon->getViewportStartX(),
+                           kPlayfieldRows - _cicon->getViewportStartY());
 }
 
 void BattlefieldTilemap::build(const RuntimeGeoBlock &geo,
@@ -93,15 +90,6 @@ void BattlefieldTilemap::build(const RuntimeGeoBlock &geo,
                                uint8 wildX, uint8 wildY,
                                uint8 mapType, uint8 terrainOverride) {
     clear();
-
-    _centerX = centerX;
-    _centerY = centerY;
-    _isDungeon = isDungeon;
-
-    memset(_header, 0, sizeof(_header));
-    _header[4] = 0;
-    _header[5] = 1;
-    _header[6] = 0;
 
     _cicon->build(geo, centerX, centerY, playerY, isDungeon, eclScriptId,
                   wildX, wildY, mapType, terrainOverride);
@@ -113,10 +101,7 @@ void BattlefieldTilemap::regenerate(const RuntimeGeoBlock &geo,
                                     uint8 eclScriptId,
                                     uint8 wildX, uint8 wildY,
                                     uint8 mapType, uint8 terrainOverride) {
-    _centerX = centerX;
-    _centerY = centerY;
-
-    _cicon->regenerate(geo, centerX, centerY, playerY, _isDungeon,
+    _cicon->regenerate(geo, centerX, centerY, playerY, _cicon->isDungeon(),
                        eclScriptId, wildX, wildY, mapType, terrainOverride);
 }
 
@@ -130,7 +115,7 @@ void BattlefieldTilemap::render(const IconManager &iconMgr) {
 
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
-            uint8 raw = _tileBuffer[row][col];
+            uint8 raw = _cicon->getRawTile(col, row);
             if (raw == 0)
                 continue;
 

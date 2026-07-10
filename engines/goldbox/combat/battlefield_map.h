@@ -34,9 +34,19 @@ class BattlefieldTilemap;
 
 namespace Combat {
 
+class TilePropertyProvider;
+
 class BattlefieldMap {
 public:
-    explicit BattlefieldMap(Gfx::BattlefieldTilemap &tilemap);
+    static const int kPlayfieldCols = 50;
+    static const int kPlayfieldRows = 25;
+
+    BattlefieldMap();
+
+    void setTilePropertyProvider(const TilePropertyProvider *provider);
+    const TilePropertyProvider *getTilePropertyProvider() const;
+
+    void clear();
 
     void build(const RuntimeGeoBlock &geo,
                int8 centerX, int8 centerY, int8 playerY,
@@ -51,8 +61,30 @@ public:
                     uint8 mapType, uint8 terrainOverride);
 
     uint8 checkOpenPassage(int8 mapX, int8 mapY, uint8 wireDir) const;
+    uint8 getRawTile(int col, int row) const;
+    void setRawTile(int col, int row, uint8 rawTile);
+    uint8 getTileId(int col, int row) const;
+    uint8 getViewportStartX() const;
+    uint8 getViewportStartY() const;
+    uint8 getSize() const;
+    bool getTargetCursor() const;
+    bool getIgnoreWalls() const;
+    bool isDungeon() const;
+    int8 getCenterX() const;
+    int8 getCenterY() const;
 
 private:
+    struct PlayfieldState {
+        uint8 unknown1;
+        uint8 unknown2;
+        uint8 viewportStartX;
+        uint8 viewportStartY;
+        bool targetCursor;
+        uint8 size;
+        bool ignoreWalls;
+        uint8 fieldTileMap[kPlayfieldRows][kPlayfieldCols];
+    } _playfield;
+
     enum CellState {
         kCellOpen = 0,
         kCellBlocked = 1,
@@ -98,8 +130,11 @@ private:
 
     static const uint8 kWildernessTilemap[kWildTilemapRows][kWildTilemapCols];
 
-    Gfx::BattlefieldTilemap &_tilemap;
     const RuntimeGeoBlock *_geo;
+    const TilePropertyProvider *_tileProps;
+    bool _isDungeon;
+    int8 _centerX;
+    int8 _centerY;
     int8 _playerY;
     uint8 _eclScriptId;
     uint8 _wildCell;
@@ -134,6 +169,7 @@ private:
     void setTilePatternNECorner();
 
     void setRandomFloorTiles();
+    void resetPlayfieldState();
 };
 
 } // namespace Combat

@@ -35,11 +35,51 @@ const uint8 BattlefieldMap::kWildernessTilemap[kWildTilemapRows][kWildTilemapCol
     {0}
 };
 
-BattlefieldMap::BattlefieldMap(Gfx::BattlefieldTilemap &tilemap)
-    : _tilemap(tilemap), _geo(nullptr), _playerY(0), _eclScriptId(0),
-      _wildCell(0), _terrainOverrideFlags(0), _mapType(1), _wildX(0), _wildY(0),
+BattlefieldMap::BattlefieldMap()
+        : _geo(nullptr), _isDungeon(true), _centerX(0), _centerY(0),
+            _playerY(0), _eclScriptId(0), _wildCell(0), _terrainOverrideFlags(0), _mapType(1), _wildX(0), _wildY(0),
+      _tileProps(nullptr),
       _cellAbsX(0), _cellAbsY(0), _cellOffsetX(0), _cellOffsetY(0),
       _cellPassWest(0), _cellPassNorth(0), _cellPassEast(0) {
+    resetPlayfieldState();
+}
+
+void BattlefieldMap::setTilePropertyProvider(const TilePropertyProvider *provider) {
+    _tileProps = provider;
+}
+
+const TilePropertyProvider *BattlefieldMap::getTilePropertyProvider() const {
+    return _tileProps;
+}
+
+void BattlefieldMap::resetPlayfieldState() {
+    memset(&_playfield, 0, sizeof(_playfield));
+    _playfield.viewportStartX = 21;
+    _playfield.viewportStartY = 10;
+    _playfield.size = 1;
+}
+
+void BattlefieldMap::clear() {
+    resetPlayfieldState();
+    _geo = nullptr;
+    _tileProps = nullptr;
+    _isDungeon = true;
+    _centerX = 0;
+    _centerY = 0;
+    _playerY = 0;
+    _eclScriptId = 0;
+    _wildCell = 0;
+    _terrainOverrideFlags = 0;
+    _mapType = 1;
+    _wildX = 0;
+    _wildY = 0;
+    _cellAbsX = 0;
+    _cellAbsY = 0;
+    _cellOffsetX = 0;
+    _cellOffsetY = 0;
+    _cellPassWest = 0;
+    _cellPassNorth = 0;
+    _cellPassEast = 0;
 }
 
 void BattlefieldMap::build(const RuntimeGeoBlock &geo,
@@ -47,7 +87,11 @@ void BattlefieldMap::build(const RuntimeGeoBlock &geo,
                                     bool isDungeon, uint8 eclScriptId,
                                     uint8 wildX, uint8 wildY,
                                     uint8 mapType, uint8 terrainOverride) {
+    clear();
     _geo = &geo;
+    _isDungeon = isDungeon;
+    _centerX = centerX;
+    _centerY = centerY;
     _playerY = playerY;
     _eclScriptId = eclScriptId;
     _wildX = wildX;
@@ -68,7 +112,11 @@ void BattlefieldMap::regenerate(const RuntimeGeoBlock &geo,
                                          bool isDungeon, uint8 eclScriptId,
                                          uint8 wildX, uint8 wildY,
                                          uint8 mapType, uint8 terrainOverride) {
+    clear();
     _geo = &geo;
+    _isDungeon = isDungeon;
+    _centerX = centerX;
+    _centerY = centerY;
     _playerY = playerY;
     _eclScriptId = eclScriptId;
     _wildX = wildX;
@@ -78,7 +126,7 @@ void BattlefieldMap::regenerate(const RuntimeGeoBlock &geo,
 
     for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
         for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
-            _tilemap.setRawTile(col, row, 0);
+            setRawTile(col, row, 0);
         }
     }
 
@@ -92,16 +140,71 @@ void BattlefieldMap::regenerate(const RuntimeGeoBlock &geo,
 
 void BattlefieldMap::writeTile(int localCol, int localRow, uint8 tileId) {
     int absCol = localCol + (_cellOffsetY * kCellTileRows) +
-        (_cellOffsetX * kCellTileCols) + Gfx::BattlefieldTilemap::kColMargin;
+        (_cellOffsetX * kCellTileCols) + _playfield.viewportStartX;
     int absRow = localRow + (_cellOffsetY * kCellTileRows) +
-        Gfx::BattlefieldTilemap::kRowMargin;
+        _playfield.viewportStartY;
 
     if (absCol < 0 || absCol >= Gfx::BattlefieldTilemap::kPlayfieldCols)
         return;
     if (absRow < 0 || absRow >= Gfx::BattlefieldTilemap::kPlayfieldRows)
         return;
 
-    _tilemap.setRawTile(absCol, absRow, tileId + 1);
+    _playfield.fieldTileMap[absRow][absCol] = tileId + 1;
+}
+
+uint8 BattlefieldMap::getRawTile(int col, int row) const {
+    if (col < 0 || col >= Gfx::BattlefieldTilemap::kPlayfieldCols ||
+        row < 0 || row >= Gfx::BattlefieldTilemap::kPlayfieldRows) {
+        return 0;
+    }
+
+    return _playfield.fieldTileMap[row][col];
+}
+
+void BattlefieldMap::setRawTile(int col, int row, uint8 rawTile) {
+    if (col < 0 || col >= Gfx::BattlefieldTilemap::kPlayfieldCols ||
+        row < 0 || row >= Gfx::BattlefieldTilemap::kPlayfieldRows) {
+        return;
+    }
+
+    _playfield.fieldTileMap[row][col] = rawTile;
+}
+
+uint8 BattlefieldMap::getTileId(int col, int row) const {
+    uint8 raw = getRawTile(col, row);
+    return (raw == 0) ? 0xFF : static_cast<uint8>(raw - 1);
+}
+
+uint8 BattlefieldMap::getViewportStartX() const {
+    return _playfield.viewportStartX;
+}
+
+uint8 BattlefieldMap::getViewportStartY() const {
+    return _playfield.viewportStartY;
+}
+
+uint8 BattlefieldMap::getSize() const {
+    return _playfield.size;
+}
+
+bool BattlefieldMap::getTargetCursor() const {
+    return _playfield.targetCursor;
+}
+
+bool BattlefieldMap::getIgnoreWalls() const {
+    return _playfield.ignoreWalls;
+}
+
+bool BattlefieldMap::isDungeon() const {
+    return _isDungeon;
+}
+
+int8 BattlefieldMap::getCenterX() const {
+    return _centerX;
+}
+
+int8 BattlefieldMap::getCenterY() const {
+    return _centerY;
 }
 
 uint8 BattlefieldMap::checkCell(int8 mapX, int8 mapY, uint8 wireDir) const {
@@ -318,7 +421,7 @@ void BattlefieldMap::generateDungeon(int8 centerX, int8 centerY) {
 void BattlefieldMap::generateWilderness() {
     for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
         for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
-            _tilemap.setRawTile(col, row, kTileOpenPlain + 1);
+            setRawTile(col, row, kTileOpenPlain + 1);
         }
     }
 
@@ -413,8 +516,8 @@ uint8 BattlefieldMap::getTerrainFlags() const {
 void BattlefieldMap::markFordPair(int col, int row, int &pairCount) {
     if (col >= 0 && col < Gfx::BattlefieldTilemap::kPlayfieldCols - 1 &&
         row >= 0 && row < Gfx::BattlefieldTilemap::kPlayfieldRows) {
-        _tilemap.setRawTile(col, row, kTileFordA + 1);
-        _tilemap.setRawTile(col + 1, row, kTileFordB + 1);
+        setRawTile(col, row, kTileFordA + 1);
+        setRawTile(col + 1, row, kTileFordB + 1);
         pairCount++;
     }
 }
@@ -443,8 +546,8 @@ void BattlefieldMap::setTilePatternRiver() {
 
     for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
         if (streamCol >= 0 && streamCol < Gfx::BattlefieldTilemap::kPlayfieldCols - 1) {
-            _tilemap.setRawTile(streamCol, row, kTileStreamA + 1);
-            _tilemap.setRawTile(streamCol + 1, row, kTileStreamB + 1);
+            setRawTile(streamCol, row, kTileStreamA + 1);
+            setRawTile(streamCol + 1, row, kTileStreamB + 1);
 
             if (g_engine->rollDice(1, 20) == 1) {
                 markFordPair(streamCol, row, pairCount);
@@ -479,12 +582,12 @@ void BattlefieldMap::setTilePatternTrees() {
     if (terrainFlags & kTerrainUnderground)
         maxDensity = 0;
 
-    const TilePropertyProvider *tileProps = _tilemap.getTilePropertyProvider();
+    const TilePropertyProvider *tileProps = _tileProps;
 
     for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
         for (int row = 1; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
-            uint8 rawCur = _tilemap.getRawTile(col, row);
-            uint8 rawAbove = _tilemap.getRawTile(col, row - 1);
+            uint8 rawCur = getRawTile(col, row);
+            uint8 rawAbove = getRawTile(col, row - 1);
             if (rawCur == 0 || rawAbove == 0)
                 continue;
 
@@ -513,18 +616,18 @@ void BattlefieldMap::setTilePatternTrees() {
             if (getTerrainFlags() & kTerrainDesert)
                 treeVariant = static_cast<uint8>(g_engine->rollDice(1, 3) + 3);
 
-            _tilemap.setRawTile(col, row, (treeVariant + kTileTreeBotBase) + 1);
+            setRawTile(col, row, (treeVariant + kTileTreeBotBase) + 1);
 
             if (treeVariant < 5)
-                _tilemap.setRawTile(col, row - 1,
-                                    (treeVariant + kTileTreeTopBase) + 1);
+                setRawTile(col, row - 1, (treeVariant + kTileTreeTopBase) + 1);
         }
     }
 }
 
 void BattlefieldMap::setTilePatternCover() {
     uint8 terrainFlags = getTerrainFlags();
-    const TilePropertyProvider *tileProps = _tilemap.getTilePropertyProvider();
+    const TilePropertyProvider *tileProps = _tileProps;
+    const TilePropertyProvider *tileProps = _tileProps;
 
     uint8 bandBase = 0;
     uint8 bandWidth1 = 15;
@@ -555,7 +658,7 @@ void BattlefieldMap::setTilePatternCover() {
 
     for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
         for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
-            uint8 raw = _tilemap.getRawTile(col, row);
+            uint8 raw = getRawTile(col, row);
             if (raw == 0)
                 continue;
             uint8 tileId = raw - 1;
@@ -569,51 +672,51 @@ void BattlefieldMap::setTilePatternCover() {
             if (roll <= threshA) {
                 int featureRoll = g_engine->rollDice(1, 4);
                 if (featureRoll == 4 && row > 0) {
-                    uint8 aboveRaw = _tilemap.getRawTile(col, row - 1);
+                    uint8 aboveRaw = getRawTile(col, row - 1);
                     if (aboveRaw != 0) {
                         uint8 aboveTid = aboveRaw - 1;
                         if (aboveTid < static_cast<uint8>(tileProps->getTilePropCount()) &&
                             tileProps->getGfxID(aboveTid) == kTileOpenPlain) {
-                            _tilemap.setRawTile(col, row - 1, kTileWallTop + 1);
-                            _tilemap.setRawTile(col, row, kTileWallBottom + 1);
+                            setRawTile(col, row - 1, kTileWallTop + 1);
+                            setRawTile(col, row, kTileWallBottom + 1);
                         }
                     }
                 } else if (featureRoll < 4) {
-                    _tilemap.setRawTile(col, row,
-                                        static_cast<uint8>(featureRoll + kTileZoneABase) + 1);
+                    setRawTile(col, row,
+                               static_cast<uint8>(featureRoll + kTileZoneABase) + 1);
                 }
             } else if (roll <= threshB) {
                 int featureRoll = g_engine->rollDice(1, 3);
-                _tilemap.setRawTile(col, row,
-                                    static_cast<uint8>(featureRoll + kTileScrubBase - 1) + 1);
+                setRawTile(col, row,
+                           static_cast<uint8>(featureRoll + kTileScrubBase - 1) + 1);
             } else if (roll <= threshC) {
                 int featureRoll = g_engine->rollDice(1, 4);
-                _tilemap.setRawTile(col, row,
-                                    static_cast<uint8>(featureRoll + kTileCoverBase - 1) + 1);
+                setRawTile(col, row,
+                           static_cast<uint8>(featureRoll + kTileCoverBase - 1) + 1);
             } else if (roll <= threshD) {
                 int d10 = g_engine->rollDice(1, 10);
                 int variant = ((d10 - 1) / 3) + 1;
-                _tilemap.setRawTile(col, row,
-                                    static_cast<uint8>(variant + kTileCropBase - 1) + 1);
+                setRawTile(col, row,
+                           static_cast<uint8>(variant + kTileCropBase - 1) + 1);
             } else if (roll <= threshE) {
                 int featureRoll = g_engine->rollDice(1, 4);
                 if (featureRoll == 4) {
                     if (!(getTerrainFlags() & kTerrainDesert))
                         featureRoll = g_engine->rollDice(1, 3);
                 }
-                _tilemap.setRawTile(col, row,
-                                    static_cast<uint8>(featureRoll + kTileCliffBase - 1) + 1);
+                setRawTile(col, row,
+                           static_cast<uint8>(featureRoll + kTileCliffBase - 1) + 1);
             }
         }
     }
 }
 
 void BattlefieldMap::setRandomFloorTiles() {
-    const TilePropertyProvider *tileProps = _tilemap.getTilePropertyProvider();
+    const TilePropertyProvider *tileProps = _tileProps;
 
     for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
         for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
-            uint8 raw = _tilemap.getRawTile(col, row);
+            uint8 raw = getRawTile(col, row);
             if (raw == 0)
                 continue;
             uint8 tileId = raw - 1;
@@ -625,9 +728,9 @@ void BattlefieldMap::setRandomFloorTiles() {
             int roll = g_engine->rollDice(1, 100);
 
             if (roll == 98) {
-                _tilemap.setRawTile(col, row, kTileLightVegetation + 1);
+                setRawTile(col, row, kTileLightVegetation + 1);
             } else if (roll == 99) {
-                _tilemap.setRawTile(col, row, kTileDenseShrub + 1);
+                setRawTile(col, row, kTileDenseShrub + 1);
             } else if (roll == 100) {
                 if (_eclScriptId == 10)
                     continue;
@@ -635,9 +738,9 @@ void BattlefieldMap::setRandomFloorTiles() {
                     continue;
                 int d10 = g_engine->rollDice(1, 10);
                 if (d10 <= 6)
-                    _tilemap.setRawTile(col, row, kTileSmallRocks + 1);
+                    setRawTile(col, row, kTileSmallRocks + 1);
                 else
-                    _tilemap.setRawTile(col, row, kTileLargeBoulders + 1);
+                    setRawTile(col, row, kTileLargeBoulders + 1);
             }
         }
     }
