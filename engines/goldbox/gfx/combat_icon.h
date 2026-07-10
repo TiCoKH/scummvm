@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_GFX_COMBAT_ICON_LOGIC_H
-#define GOLDBOX_GFX_COMBAT_ICON_LOGIC_H
+#ifndef GOLDBOX_GFX_COMBAT_ICON_H
+#define GOLDBOX_GFX_COMBAT_ICON_H
 
 #include "common/scummsys.h"
 #include "common/hashmap.h"
@@ -31,10 +31,10 @@ namespace Gfx {
 
 class DaxRenderer;
 
-class CombatIconLogic {
+class CombatIcon {
 public:
-    explicit CombatIconLogic(DaxRenderer *renderer);
-    ~CombatIconLogic();
+    explicit CombatIcon(DaxRenderer *renderer);
+    ~CombatIcon();
 
     void drawIcon(const Goldbox::Data::CombatIconData &iconData,
                   IconState state,
@@ -69,4 +69,4 @@ private:
 } // namespace Gfx
 } // namespace Goldbox
 
-#endif // GOLDBOX_GFX_COMBAT_ICON_LOGIC_H
+#endif // GOLDBOX_GFX_COMBAT_ICON_H

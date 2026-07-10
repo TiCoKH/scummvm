@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_COMBAT_BATTLEFIELD_TILEMAP_LOGIC_H
-#define GOLDBOX_COMBAT_BATTLEFIELD_TILEMAP_LOGIC_H
+#ifndef GOLDBOX_COMBAT_BATTLEFIELD_MAP_H
+#define GOLDBOX_COMBAT_BATTLEFIELD_MAP_H
 
 #include "common/scummsys.h"
 
@@ -34,9 +34,9 @@ class BattlefieldTilemap;
 
 namespace Combat {
 
-class BattlefieldTilemapLogic {
+class BattlefieldMap {
 public:
-    explicit BattlefieldTilemapLogic(Gfx::BattlefieldTilemap &tilemap);
+    explicit BattlefieldMap(Gfx::BattlefieldTilemap &tilemap);
 
     void build(const RuntimeGeoBlock &geo,
                int8 centerX, int8 centerY, int8 playerY,
@@ -139,4 +139,4 @@ private:
 } // namespace Combat
 } // namespace Goldbox
 
-#endif // GOLDBOX_COMBAT_BATTLEFIELD_TILEMAP_LOGIC_H
+#endif // GOLDBOX_COMBAT_BATTLEFIELD_MAP_H

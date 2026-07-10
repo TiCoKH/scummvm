@@ -32,7 +32,7 @@ class RuntimeGeoBlock;
 
 namespace Combat {
 class TilePropertyProvider;
-class BattlefieldTilemapLogic;
+class BattlefieldMap;
 }
 
 namespace Gfx {
@@ -138,7 +138,7 @@ private:
     uint8 _tileBuffer[kPlayfieldRows][kPlayfieldCols];
     Graphics::ManagedSurface _surface;
     const Combat::TilePropertyProvider *_tileProps;
-    Combat::BattlefieldTilemapLogic *_logic;
+    Combat::BattlefieldMap *_cicon;
     bool _built;
     bool _isDungeon;
     int8 _centerX;

@@ -19,8 +19,7 @@
  *
  */
 
-#include "goldbox/combat/battlefield_tilemap_logic.h"
-
+#include "goldbox/combat/battlefield_map.h"
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/engine.h"
@@ -32,18 +31,18 @@
 namespace Goldbox {
 namespace Combat {
 
-const uint8 BattlefieldTilemapLogic::kWildernessTilemap[kWildTilemapRows][kWildTilemapCols] = {
+const uint8 BattlefieldMap::kWildernessTilemap[kWildTilemapRows][kWildTilemapCols] = {
     {0}
 };
 
-BattlefieldTilemapLogic::BattlefieldTilemapLogic(Gfx::BattlefieldTilemap &tilemap)
+BattlefieldMap::BattlefieldMap(Gfx::BattlefieldTilemap &tilemap)
     : _tilemap(tilemap), _geo(nullptr), _playerY(0), _eclScriptId(0),
       _wildCell(0), _terrainOverrideFlags(0), _mapType(1), _wildX(0), _wildY(0),
       _cellAbsX(0), _cellAbsY(0), _cellOffsetX(0), _cellOffsetY(0),
       _cellPassWest(0), _cellPassNorth(0), _cellPassEast(0) {
 }
 
-void BattlefieldTilemapLogic::build(const RuntimeGeoBlock &geo,
+void BattlefieldMap::build(const RuntimeGeoBlock &geo,
                                     int8 centerX, int8 centerY, int8 playerY,
                                     bool isDungeon, uint8 eclScriptId,
                                     uint8 wildX, uint8 wildY,
@@ -64,7 +63,7 @@ void BattlefieldTilemapLogic::build(const RuntimeGeoBlock &geo,
     setRandomFloorTiles();
 }
 
-void BattlefieldTilemapLogic::regenerate(const RuntimeGeoBlock &geo,
+void BattlefieldMap::regenerate(const RuntimeGeoBlock &geo,
                                          int8 centerX, int8 centerY, int8 playerY,
                                          bool isDungeon, uint8 eclScriptId,
                                          uint8 wildX, uint8 wildY,
@@ -91,7 +90,7 @@ void BattlefieldTilemapLogic::regenerate(const RuntimeGeoBlock &geo,
     setRandomFloorTiles();
 }
 
-void BattlefieldTilemapLogic::writeTile(int localCol, int localRow, uint8 tileId) {
+void BattlefieldMap::writeTile(int localCol, int localRow, uint8 tileId) {
     int absCol = localCol + (_cellOffsetY * kCellTileRows) +
         (_cellOffsetX * kCellTileCols) + Gfx::BattlefieldTilemap::kColMargin;
     int absRow = localRow + (_cellOffsetY * kCellTileRows) +
@@ -105,7 +104,7 @@ void BattlefieldTilemapLogic::writeTile(int localCol, int localRow, uint8 tileId
     _tilemap.setRawTile(absCol, absRow, tileId + 1);
 }
 
-uint8 BattlefieldTilemapLogic::checkCell(int8 mapX, int8 mapY, uint8 wireDir) const {
+uint8 BattlefieldMap::checkCell(int8 mapX, int8 mapY, uint8 wireDir) const {
     if (mapX < kMapBoundMin || mapX > kMapBoundMax ||
         mapY < kMapBoundMin || mapY > kMapBoundMax) {
         if (mapY == _playerY && (wireDir == 0 || wireDir == 4))
@@ -122,7 +121,7 @@ uint8 BattlefieldTilemapLogic::checkCell(int8 mapX, int8 mapY, uint8 wireDir) co
     return kCellWall;
 }
 
-uint8 BattlefieldTilemapLogic::checkOpenPassage(int8 mapX, int8 mapY,
+uint8 BattlefieldMap::checkOpenPassage(int8 mapX, int8 mapY,
                                                  uint8 wireDir) const {
     uint8 oppositeWire = (wireDir + 4) % 8;
 
@@ -134,7 +133,7 @@ uint8 BattlefieldTilemapLogic::checkOpenPassage(int8 mapX, int8 mapY,
     return thisCell | nextCell;
 }
 
-void BattlefieldTilemapLogic::setTilePatternWestSide() {
+void BattlefieldMap::setTilePatternWestSide() {
     for (int row = 2; row <= 4; row++) {
         for (int col = 0; col <= 5; col++) {
             writeTile(col, row, kTileFloor);
@@ -153,7 +152,7 @@ void BattlefieldTilemapLogic::setTilePatternWestSide() {
     }
 }
 
-void BattlefieldTilemapLogic::setTilePatternNorthSide() {
+void BattlefieldMap::setTilePatternNorthSide() {
     if (_cellPassNorth == kCellBlocked) {
         writeTile(3, 0, 5);
         writeTile(4, 0, 5);
@@ -167,7 +166,7 @@ void BattlefieldTilemapLogic::setTilePatternNorthSide() {
     }
 }
 
-void BattlefieldTilemapLogic::setTilePatternNWCorner() {
+void BattlefieldMap::setTilePatternNWCorner() {
     uint8 aboveWest = checkOpenPassage(_cellAbsX, _cellAbsY - 1, 6);
     uint8 leftNorth = checkOpenPassage(_cellAbsX - 1, _cellAbsY, 0);
     bool isCornerOpen = (aboveWest == kCellOpen) && (leftNorth == kCellOpen);
@@ -231,7 +230,7 @@ void BattlefieldTilemapLogic::setTilePatternNWCorner() {
     writeTile(2, 1, tileSE);
 }
 
-void BattlefieldTilemapLogic::setTilePatternNECorner() {
+void BattlefieldMap::setTilePatternNECorner() {
     uint8 aboveEast = checkOpenPassage(_cellAbsX, _cellAbsY - 1, 2);
     uint8 rightNorth = checkOpenPassage(_cellAbsX + 1, _cellAbsY, 0);
     bool isCornerOpen = (aboveEast == kCellOpen) && (rightNorth == kCellOpen);
@@ -298,7 +297,7 @@ void BattlefieldTilemapLogic::setTilePatternNECorner() {
     writeTile(6, 1, tileSE);
 }
 
-void BattlefieldTilemapLogic::generateDungeon(int8 centerX, int8 centerY) {
+void BattlefieldMap::generateDungeon(int8 centerX, int8 centerY) {
     for (_cellOffsetY = -2; _cellOffsetY < 3; ++_cellOffsetY) {
         for (_cellOffsetX = -6; _cellOffsetX < 7; ++_cellOffsetX) {
             _cellAbsX = _cellOffsetX + centerX;
@@ -316,7 +315,7 @@ void BattlefieldTilemapLogic::generateDungeon(int8 centerX, int8 centerY) {
     }
 }
 
-void BattlefieldTilemapLogic::generateWilderness() {
+void BattlefieldMap::generateWilderness() {
     for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
         for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
             _tilemap.setRawTile(col, row, kTileOpenPlain + 1);
@@ -340,7 +339,7 @@ void BattlefieldTilemapLogic::generateWilderness() {
     setTilePatternCover();
 }
 
-uint8 BattlefieldTilemapLogic::getTerrainFlags() const {
+uint8 BattlefieldMap::getTerrainFlags() const {
     uint8 flags;
     int wt = static_cast<int>(_wildCell);
 
@@ -411,7 +410,7 @@ uint8 BattlefieldTilemapLogic::getTerrainFlags() const {
     return flags;
 }
 
-void BattlefieldTilemapLogic::markFordPair(int col, int row, int &pairCount) {
+void BattlefieldMap::markFordPair(int col, int row, int &pairCount) {
     if (col >= 0 && col < Gfx::BattlefieldTilemap::kPlayfieldCols - 1 &&
         row >= 0 && row < Gfx::BattlefieldTilemap::kPlayfieldRows) {
         _tilemap.setRawTile(col, row, kTileFordA + 1);
@@ -420,7 +419,7 @@ void BattlefieldTilemapLogic::markFordPair(int col, int row, int &pairCount) {
     }
 }
 
-void BattlefieldTilemapLogic::setTilePatternRiver() {
+void BattlefieldMap::setTilePatternRiver() {
     uint8 terrainFlags = getTerrainFlags();
     uint8 chanceThreshold = 0;
 
@@ -467,7 +466,7 @@ void BattlefieldTilemapLogic::setTilePatternRiver() {
     }
 }
 
-void BattlefieldTilemapLogic::setTilePatternTrees() {
+void BattlefieldMap::setTilePatternTrees() {
     uint8 terrainFlags = getTerrainFlags();
     uint8 maxDensity = 1;
 
@@ -523,7 +522,7 @@ void BattlefieldTilemapLogic::setTilePatternTrees() {
     }
 }
 
-void BattlefieldTilemapLogic::setTilePatternCover() {
+void BattlefieldMap::setTilePatternCover() {
     uint8 terrainFlags = getTerrainFlags();
     const TilePropertyProvider *tileProps = _tilemap.getTilePropertyProvider();
 
@@ -609,7 +608,7 @@ void BattlefieldTilemapLogic::setTilePatternCover() {
     }
 }
 
-void BattlefieldTilemapLogic::setRandomFloorTiles() {
+void BattlefieldMap::setRandomFloorTiles() {
     const TilePropertyProvider *tileProps = _tilemap.getTilePropertyProvider();
 
     for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {

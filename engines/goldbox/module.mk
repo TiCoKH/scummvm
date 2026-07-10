@@ -62,7 +62,7 @@ MODULE_OBJS = \
 	gfx/walldef_surface_builder.o \
 	gfx/icon.o \
 	gfx/icon_manager.o \
-	gfx/combat_icon_logic.o \
+	gfx/combat_icon.o \
 	gfx/battlefield_tilemap.o \
 	gfx/combat_renderer.o \
 	combat/combat_setup.o \
@@ -70,7 +70,7 @@ MODULE_OBJS = \
 	combat/combatant_table.o \
 	combat/combat_placement.o \
 	combat/combat_viewport.o \
-	combat/battlefield_tilemap_logic.o \
+	combat/battlefield_map.o \
 	gfx/surface.o \
 	sound/sound_driver.o \
 	poolrad/poolrad.o \

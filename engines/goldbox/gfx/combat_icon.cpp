@@ -19,26 +19,25 @@
  *
  */
 
-#include "goldbox/gfx/combat_icon_logic.h"
-
+#include "goldbox/gfx/combat_icon.h"
 #include "goldbox/gfx/dax_renderer.h"
 #include "goldbox/gfx/pic.h"
 
 namespace Goldbox {
 namespace Gfx {
 
-CombatIconLogic::CombatIconLogic(DaxRenderer *renderer)
+CombatIcon::CombatIcon(DaxRenderer *renderer)
     : _renderer(renderer) {
 }
 
-CombatIconLogic::~CombatIconLogic() {
+CombatIcon::~CombatIcon() {
     for (auto it = _iconCache.begin(); it != _iconCache.end(); ++it) {
         delete it->_value;
     }
     _iconCache.clear();
 }
 
-uint32 CombatIconLogic::computeCacheKey(
+uint32 CombatIcon::computeCacheKey(
         const Goldbox::Data::CombatIconData &iconData,
         IconState state,
         IconDirection direction) const {
@@ -49,7 +48,7 @@ uint32 CombatIconLogic::computeCacheKey(
     return key;
 }
 
-Icon *CombatIconLogic::getOrCreateIcon(
+Icon *CombatIcon::getOrCreateIcon(
         const Goldbox::Data::CombatIconData &iconData,
         IconState state,
         IconDirection direction) {
@@ -70,7 +69,7 @@ Icon *CombatIconLogic::getOrCreateIcon(
     return icon;
 }
 
-void CombatIconLogic::drawIcon(
+void CombatIcon::drawIcon(
         const Goldbox::Data::CombatIconData &iconData,
         IconState state,
         IconDirection direction,
@@ -104,7 +103,7 @@ void CombatIconLogic::drawIcon(
     delete effectPic;
 }
 
-void CombatIconLogic::drawIconAtTile(
+void CombatIcon::drawIconAtTile(
         const Goldbox::Data::CombatIconData &iconData,
         IconState state,
         IconDirection direction,
@@ -138,7 +137,7 @@ void CombatIconLogic::drawIconAtTile(
     delete effectPic;
 }
 
-void CombatIconLogic::applyColorFilter(Graphics::ManagedSurface *surface,
+void CombatIcon::applyColorFilter(Graphics::ManagedSurface *surface,
                                        uint8 colorIndex) {
     if (!surface)
         return;

@@ -19,22 +19,21 @@
  */
 
 #include "goldbox/gfx/combat_renderer.h"
-
-#include "goldbox/gfx/combat_icon_logic.h"
+#include "goldbox/gfx/combat_icon.h"
 
 namespace Goldbox {
 namespace Gfx {
 
 CombatRenderer::CombatRenderer() {
-    _logic = new CombatIconLogic(nullptr);
+    _cicon = new CombatIcon(nullptr);
 }
 
 CombatRenderer::CombatRenderer(DaxRenderer *renderer) {
-    _logic = new CombatIconLogic(renderer);
+    _cicon = new CombatIcon(renderer);
 }
 
 CombatRenderer::~CombatRenderer() {
-    delete _logic;
+    delete _cicon;
 }
 
 void CombatRenderer::drawCombatIcon(const IconRenderParams &params,
@@ -52,7 +51,7 @@ void CombatRenderer::drawIcon(const Goldbox::Data::CombatIconData &iconData,
                               int x, int y,
                               Graphics::ManagedSurface *dst,
                               int32 colorOverride) {
-    _logic->drawIcon(iconData, state, direction, x, y, dst, colorOverride);
+    _cicon->drawIcon(iconData, state, direction, x, y, dst, colorOverride);
 }
 
 void CombatRenderer::drawIconAtTile(
@@ -62,13 +61,13 @@ void CombatRenderer::drawIconAtTile(
         int tileX, int tileY,
         Graphics::ManagedSurface *dst,
         int32 colorOverride) {
-    _logic->drawIconAtTile(iconData, state, direction, tileX, tileY,
+    _cicon->drawIconAtTile(iconData, state, direction, tileX, tileY,
                            dst, colorOverride);
 }
 
 void CombatRenderer::applyColorFilter(Graphics::ManagedSurface *surface,
                                       uint8 colorIndex) {
-    CombatIconLogic::applyColorFilter(surface, colorIndex);
+    CombatIcon::applyColorFilter(surface, colorIndex);
 }
 
 } // namespace Gfx
