@@ -22,7 +22,6 @@
 #define GOLDBOX_GFX_COMBAT_RENDERER_H
 
 #include "common/scummsys.h"
-#include "common/hashmap.h"
 #include "graphics/managed_surface.h"
 #include "goldbox/gfx/icon.h"
 #include "goldbox/gfx/dax_renderer.h"
@@ -30,6 +29,8 @@
 
 namespace Goldbox {
 namespace Gfx {
+
+class CombatIconLogic;
 
 /**
  * CombatRenderer is the main dispatcher for rendering character icons in combat.
@@ -105,23 +106,7 @@ public:
 	static void applyColorFilter(Graphics::ManagedSurface *surface, uint8 colorIndex);
 
 private:
-	DaxRenderer *_renderer; // DAX abstraction (may be null; Icon will use VmInterface)
-	Common::HashMap<uint32, Icon *> _iconCache; // Cache by CombatIconData hash + state + flip
-	uint32 _lastIconIndex; // Optimization: track last rendered icon
-
-	/**
-	 * Compute cache key from icon data, state, and orientation.
-	 */
-	uint32 computeCacheKey(const Goldbox::Data::CombatIconData &iconData,
-	                       IconState state,
-	                       IconDirection direction) const;
-
-	/**
-	 * Get or create cached icon.
-	 */
-	Icon *getOrCreateIcon(const Goldbox::Data::CombatIconData &iconData,
-	                      IconState state,
-	                      IconDirection direction);
+	CombatIconLogic *_logic;
 };
 
 } // namespace Gfx
