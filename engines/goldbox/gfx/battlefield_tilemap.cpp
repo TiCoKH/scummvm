@@ -30,6 +30,17 @@
 namespace Goldbox {
 namespace Gfx {
 
+void BattlefieldTilemap::setTilePropertyProvider(
+        const Combat::TilePropertyProvider *provider) {
+    _tileProps = provider;
+    if (_cicon)
+        _cicon->setTilePropertyProvider(provider);
+}
+
+const Combat::TilePropertyProvider *BattlefieldTilemap::getTilePropertyProvider() const {
+    return _cicon ? _cicon->getTilePropertyProvider() : _tileProps;
+}
+
 BattlefieldTilemap::BattlefieldTilemap()
         : _tileProps(nullptr), _cicon(nullptr), _built(false) {
     _surface.create(kSurfaceWidth, kSurfaceHeight);

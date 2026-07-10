@@ -75,15 +75,8 @@ public:
     static const int kBufferSize = kHeaderSize + kPlayfieldCols * kPlayfieldRows;
 
     /** Set the tile property provider (game-specific data). */
-    void setTilePropertyProvider(const Combat::TilePropertyProvider *provider) {
-        _tileProps = provider;
-        if (_cicon)
-            _cicon->setTilePropertyProvider(provider);
-    }
-
-    const Combat::TilePropertyProvider *getTilePropertyProvider() const {
-        return _cicon ? _cicon->getTilePropertyProvider() : _tileProps;
-    }
+    void setTilePropertyProvider(const Combat::TilePropertyProvider *provider);
+    const Combat::TilePropertyProvider *getTilePropertyProvider() const;
 
     BattlefieldTilemap();
     ~BattlefieldTilemap();

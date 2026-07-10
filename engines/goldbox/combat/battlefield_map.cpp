@@ -627,7 +627,6 @@ void BattlefieldMap::setTilePatternTrees() {
 void BattlefieldMap::setTilePatternCover() {
     uint8 terrainFlags = getTerrainFlags();
     const TilePropertyProvider *tileProps = _tileProps;
-    const TilePropertyProvider *tileProps = _tileProps;
 
     uint8 bandBase = 0;
     uint8 bandWidth1 = 15;
