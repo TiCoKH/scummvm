@@ -25,12 +25,15 @@
 #include "common/scummsys.h"
 #include "common/rect.h"
 #include "graphics/managed_surface.h"
-#include "goldbox/core/direction.h"
-#include "goldbox/combat/tile_property_provider.h"
 
 namespace Goldbox {
 
 class RuntimeGeoBlock;
+
+namespace Combat {
+class TilePropertyProvider;
+class BattlefieldTilemapLogic;
+}
 
 namespace Gfx {
 
@@ -72,59 +75,6 @@ public:
     static const int kRowMargin = 10;
     static const int kHeaderSize = 7;
     static const int kBufferSize = kHeaderSize + kPlayfieldCols * kPlayfieldRows;
-    static const int kCellTileCols = 6;
-    static const int kCellTileRows = 5;
-    static const int kSnapshotCols = 13;
-    static const int kSnapshotRows = 5;
-    static const int kMapBoundMin = 0;
-    static const int kMapBoundMax = 15;
-
-    // Icon store slot layout
-    static const int kDungeonSlotStart = 0;
-    static const int kDungeonLoadCount = 24;
-    static const int kWildSlotStart = 0;
-    static const int kWildLoadCount = 33;
-    static const int kRandSlotStart = 34;
-    static const int kRandLoadCount = 6;
-
-    static const uint8 kTileFloor = 22;
-    static const uint8 kTileLightVegetation = 26;
-    static const uint8 kTileDenseShrub = 27;
-    static const uint8 kTileSmallRocks = 28;
-    static const uint8 kTileLargeBoulders = 29;
-
-    // Wilderness tile IDs
-    static const uint8 kTileOpenPlain = 22;
-    static const uint8 kTileStreamA = 50;
-    static const uint8 kTileStreamB = 51;
-    static const uint8 kTileFordA = 52;
-    static const uint8 kTileFordB = 53;
-    static const uint8 kTileTreeTopBase = 0x1F;   // +variant(1..4)
-    static const uint8 kTileTreeBotBase = 0x23;   // +variant(1..6)
-    static const uint8 kTileScrubBase = 0x37;
-    static const uint8 kTileCoverBase = 0x29;
-    static const uint8 kTileCropBase = 0x38;
-    static const uint8 kTileCliffBase = 0x2D;
-    static const uint8 kTileWallBottom = 0x40;
-    static const uint8 kTileWallTop = 0x41;
-    static const uint8 kTileZoneABase = 0x3C;
-
-    // Terrain flag bits
-    static const uint8 kTerrainWater = 0x01;
-    static const uint8 kTerrainRiver = 0x02;
-    static const uint8 kTerrainForest = 0x04;
-    static const uint8 kTerrainMarsh = 0x08;
-    static const uint8 kTerrainHills = 0x10;
-    static const uint8 kTerrainRuins = 0x20;
-    static const uint8 kTerrainDesert = 0x40;
-    static const uint8 kTerrainUnderground = 0x80;
-
-    // Wilderness tilemap dimensions
-    static const int kWildTilemapRows = 36;
-    static const int kWildTilemapCols = 44;
-
-    // Wilderness tilemap stub (TODO: populate from game data)
-    static const uint8 kWildernessTilemap[kWildTilemapRows][kWildTilemapCols];
 
     /** Set the tile property provider (game-specific data). */
     void setTilePropertyProvider(const Combat::TilePropertyProvider *provider) {
@@ -176,45 +126,6 @@ public:
     int8 getCenterX() const { return _centerX; }
     int8 getCenterY() const { return _centerY; }
 
-private:
-    enum CellState {
-        kCellOpen    = 0,
-        kCellBlocked = 1,
-        kCellWall    = 3
-    };
-
-    uint8 _header[kHeaderSize];
-    uint8 _tileBuffer[kPlayfieldRows][kPlayfieldCols];
-    Graphics::ManagedSurface _surface;
-    const RuntimeGeoBlock *_geo;
-    const Combat::TilePropertyProvider *_tileProps;
-    int8 _playerY;
-    bool _built;
-    bool _isDungeon;
-    int8 _centerX;
-    int8 _centerY;
-    uint8 _eclScriptId;
-    uint8 _wildCell;              // wilderness cell type for terrain lookup
-    uint8 _terrainOverrideFlags;  // 0xFF = override active
-    uint8 _mapType;               // VM map type (1=dungeon, 3/4=wilderness variants)
-    uint8 _wildX;                 // wilderness X coordinate
-    uint8 _wildY;                 // wilderness Y coordinate
-
-    // Cell context state (mirrors Amiga global variables)
-    int8  _cellAbsX;
-    int8  _cellAbsY;
-    int   _cellOffsetX;
-    int   _cellOffsetY;
-    uint8 _cellPassWest;
-    uint8 _cellPassNorth;
-    uint8 _cellPassEast;
-
-    void writeTile(int localCol, int localRow, uint8 tileId);
-
-    /** Check cell passage state. wireDir uses direction.h format (0=N,2=E,4=S,6=W). */
-    uint8 checkCell(int8 mapX, int8 mapY, uint8 wireDir) const;
-
-public:
     /**
      * Check bidirectional passability between two adjacent cells.
      * Returns 0 if both directions passable, non-zero if blocked.
@@ -223,22 +134,15 @@ public:
     uint8 checkOpenPassage(int8 mapX, int8 mapY, uint8 wireDir) const;
 
 private:
-
-    void generateDungeon(int8 centerX, int8 centerY);
-    void generateWilderness(int8 centerX, int8 centerY);
-
-    uint8 getTerrainFlags() const;
-    void setTilePatternRiver();
-    void setTilePatternTrees();
-    void setTilePatternCover();
-    void markFordPair(int col, int row, int &pairCount);
-
-    void setTilePatternWestSide();
-    void setTilePatternNorthSide();
-    void setTilePatternNWCorner();
-    void setTilePatternNECorner();
-
-    void setRandomFloorTiles();
+    uint8 _header[kHeaderSize];
+    uint8 _tileBuffer[kPlayfieldRows][kPlayfieldCols];
+    Graphics::ManagedSurface _surface;
+    const Combat::TilePropertyProvider *_tileProps;
+    Combat::BattlefieldTilemapLogic *_logic;
+    bool _built;
+    bool _isDungeon;
+    int8 _centerX;
+    int8 _centerY;
 };
 
 } // namespace Gfx
