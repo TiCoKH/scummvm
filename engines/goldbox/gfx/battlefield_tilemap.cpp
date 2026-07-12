@@ -30,57 +30,19 @@
 namespace Goldbox {
 namespace Gfx {
 
-void BattlefieldTilemap::setTilePropertyProvider(
-        const Combat::TilePropertyProvider *provider) {
-    _tileProps = provider;
-    if (_cicon)
-        _cicon->setTilePropertyProvider(provider);
-}
-
-const Combat::TilePropertyProvider *BattlefieldTilemap::getTilePropertyProvider() const {
-    return _cicon ? _cicon->getTilePropertyProvider() : _tileProps;
-}
-
 BattlefieldTilemap::BattlefieldTilemap()
-        : _tileProps(nullptr), _cicon(nullptr), _built(false) {
+        : _built(false) {
     _surface.create(kSurfaceWidth, kSurfaceHeight);
     _surface.clear(0);
-        _cicon = new Combat::BattlefieldMap();
 }
 
 BattlefieldTilemap::~BattlefieldTilemap() {
-    delete _cicon;
     _surface.free();
 }
 
 void BattlefieldTilemap::clear() {
-    _cicon->clear();
     _surface.clear(0);
     _built = false;
-}
-
-uint8 BattlefieldTilemap::getRawTile(int col, int row) const {
-    return _cicon->getRawTile(col, row);
-}
-
-void BattlefieldTilemap::setRawTile(int col, int row, uint8 rawTile) {
-    _cicon->setRawTile(col, row, rawTile);
-}
-
-uint8 BattlefieldTilemap::getTileId(int col, int row) const {
-    return _cicon->getTileId(col, row);
-}
-
-bool BattlefieldTilemap::isDungeon() const {
-    return _cicon->isDungeon();
-}
-
-int8 BattlefieldTilemap::getCenterX() const {
-    return _cicon->getCenterX();
-}
-
-int8 BattlefieldTilemap::getCenterY() const {
-    return _cicon->getCenterY();
 }
 
 Common::Rect BattlefieldTilemap::tileToPixelRect(int col, int row,
@@ -89,44 +51,20 @@ Common::Rect BattlefieldTilemap::tileToPixelRect(int col, int row,
                         (col + w) * kIconSize, (row + h) * kIconSize);
 }
 
-Common::Rect BattlefieldTilemap::getActiveAreaRect() const {
-    return tileToPixelRect(_cicon->getViewportStartX(), _cicon->getViewportStartY(),
-                           kPlayfieldCols - _cicon->getViewportStartX(),
-                           kPlayfieldRows - _cicon->getViewportStartY());
+Common::Rect BattlefieldTilemap::getActiveAreaRect(
+        const Combat::BattlefieldMap &map) const {
+    return tileToPixelRect(map.getViewportStartX(), map.getViewportStartY(),
+                           kPlayfieldCols - map.getViewportStartX(),
+                           kPlayfieldRows - map.getViewportStartY());
 }
 
-void BattlefieldTilemap::build(const RuntimeGeoBlock &geo,
-                               int8 centerX, int8 centerY, int8 playerY,
-                               bool isDungeon, uint8 eclScriptId,
-                               uint8 wildX, uint8 wildY,
-                               uint8 mapType, uint8 terrainOverride) {
-    clear();
-
-    _cicon->build(geo, centerX, centerY, playerY, isDungeon, eclScriptId,
-                  wildX, wildY, mapType, terrainOverride);
-    _built = true;
-}
-
-void BattlefieldTilemap::regenerate(const RuntimeGeoBlock &geo,
-                                    int8 centerX, int8 centerY, int8 playerY,
-                                    uint8 eclScriptId,
-                                    uint8 wildX, uint8 wildY,
-                                    uint8 mapType, uint8 terrainOverride) {
-    _cicon->regenerate(geo, centerX, centerY, playerY, _cicon->isDungeon(),
-                       eclScriptId, wildX, wildY, mapType, terrainOverride);
-}
-
-uint8 BattlefieldTilemap::checkOpenPassage(int8 mapX, int8 mapY,
-                                           uint8 wireDir) const {
-    return _cicon->checkOpenPassage(mapX, mapY, wireDir);
-}
-
-void BattlefieldTilemap::render(const IconManager &iconMgr) {
+void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
+                                const IconManager &iconMgr) {
     _surface.clear(0);
 
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
-            uint8 raw = _cicon->getRawTile(col, row);
+            uint8 raw = map.getRawTile(col, row);
             if (raw == 0)
                 continue;
 
@@ -140,6 +78,8 @@ void BattlefieldTilemap::render(const IconManager &iconMgr) {
             pic->draw(&_surface, pixX, pixY);
         }
     }
+
+    _built = true;
 }
 
 void BattlefieldTilemap::blitTo(Graphics::ManagedSurface *dst,

@@ -28,6 +28,7 @@
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_placement.h"
 #include "goldbox/combat/combat_viewport.h"
+#include "goldbox/combat/battlefield_map.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/gfx/combat_renderer.h"
 #include "goldbox/gfx/icon_manager.h"
@@ -72,6 +73,7 @@ private:
     // --- Combat state ---
     Combat::CombatParams _params;
     Combat::CombatGlobals _globals;
+    Combat::BattlefieldMap _battlefieldMap;
     Combat::CombatantTable _table;
     Combat::CombatPlacement _placement;
     Combat::CombatViewport _viewport;

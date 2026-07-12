@@ -44,14 +44,14 @@ void CombatView::setup(const Combat::CombatParams &params) {
     _phase = PHASE_SETUP;
 
     // Wire up game-specific tile property provider
-    _tilemap.setTilePropertyProvider(&PoolradTilePropertyProvider::instance());
+    _battlefieldMap.setTilePropertyProvider(&PoolradTilePropertyProvider::instance());
 
     // Run the full COMBAT_Setup sequence
     // TODO: pass actual EffectRuntime* when effect system is wired to combat
-    Combat::setupCombat(_params, _globals, _tilemap, _table,
+    Combat::setupCombat(_params, _globals, _battlefieldMap, _table,
                         _placement, _viewport, nullptr);
 
-    _tilemap.render(_iconManager);
+    _tilemap.render(_battlefieldMap, _iconManager);
 
     _needsFullRedraw = true;
     _phase = PHASE_PLAYER_TURN;

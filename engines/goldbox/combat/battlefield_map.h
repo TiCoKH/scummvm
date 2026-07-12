@@ -28,10 +28,6 @@ namespace Goldbox {
 
 class RuntimeGeoBlock;
 
-namespace Gfx {
-class BattlefieldTilemap;
-}
-
 namespace Combat {
 
 class TilePropertyProvider;

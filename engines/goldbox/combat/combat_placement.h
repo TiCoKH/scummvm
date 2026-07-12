@@ -31,11 +31,9 @@ namespace Data {
 class PlayerCharacter;
 }
 
-namespace Gfx {
-class BattlefieldTilemap;
-}
-
 namespace Combat {
+
+class BattlefieldMap;
 
 /**
  * Combat placement engine implementing the spiral placement algorithm.
@@ -61,16 +59,14 @@ public:
      * @param partyCount   Number of player-controlled characters
      * @param mapDirection Approach direction (0-7 wire format)
      * @param encounterDist Distance between party and enemy origins
-     * @param tilemap      Battlefield terrain (for passability checks)
-     * @param isDungeon    True if dungeon terrain
+    * @param map          Battlefield map data (for passability checks)
      * @param table        Output: combatant positions written here
      */
     void placeAll(Common::Array<Data::PlayerCharacter *> &roster,
                   int partyCount,
                   uint8 mapDirection,
                   int encounterDist,
-                  Gfx::BattlefieldTilemap &tilemap,
-                  bool isDungeon,
+               BattlefieldMap &map,
                   bool combatTriggerActive,
                   CombatantTable &table);
 
@@ -89,7 +85,7 @@ private:
     bool _isDungeon;
     int8 _mapCenterX;
     int8 _mapCenterY;
-    Gfx::BattlefieldTilemap *_tilemap;
+    BattlefieldMap *_map;
     CombatantTable *_table;
 
     // --- Direction tables (from spec) ---

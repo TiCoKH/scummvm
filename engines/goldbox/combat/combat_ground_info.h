@@ -26,13 +26,10 @@
 
 namespace Goldbox {
 
-namespace Gfx {
-class BattlefieldTilemap;
-}
-
 namespace Combat {
 
 class CombatantTable;
+class BattlefieldMap;
 
 /**
  * Special tile values returned by getGroundInfo.
@@ -57,13 +54,13 @@ static const uint8 kTileNeutralDefault = 0x17;
  *
  * @param charIdx     Combatant index in the CombatantTable
  * @param direction   Direction index (0-7), or 8 for stationary check
- * @param tilemap     Battlefield tilemap for raw tile queries
+ * @param map         Battlefield map for raw tile queries
  * @param table       Combatant table for position/occupancy queries
  * @param outTile     Result: best tile found (0=blocked, 0x1E=hazard)
  * @param outOccupant Result: occupant index if found, else 0
  */
 void getGroundInfo(int charIdx, uint8 direction,
-                   const Gfx::BattlefieldTilemap &tilemap,
+                   const BattlefieldMap &map,
                    const CombatantTable &table,
                    uint8 &outTile, uint8 &outOccupant);
 

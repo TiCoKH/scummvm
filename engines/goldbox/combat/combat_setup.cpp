@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/combat/combat_setup.h"
+#include "goldbox/combat/battlefield_map.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combatant_table.h"
@@ -78,7 +79,7 @@ void freeCombatStates(Common::Array<Data::PlayerCharacter *> &combatants) {
 
 void setupCombat(CombatParams &params,
                  CombatGlobals &globals,
-                 Gfx::BattlefieldTilemap &tilemap,
+                 BattlefieldMap &map,
                  CombatantTable &table,
                  CombatPlacement &placement,
                  CombatViewport &viewport,
@@ -90,12 +91,12 @@ void setupCombat(CombatParams &params,
     if (params.moraleThreshold > 100)
         params.moraleThreshold = 100;
 
-    // Step 3: Build playfield (COMBAT_BuildPlayfield)
-    tilemap.build(*params.geo,
-                  params.mapCenterX, params.mapCenterY, params.playerY,
-                  params.isDungeon, params.eclScriptId,
-                  params.wildX, params.wildY,
-                  params.mapType, params.terrainOverride);
+    // Step 3: Build playfield data (COMBAT_BuildPlayfield)
+    map.build(*params.geo,
+              params.mapCenterX, params.mapCenterY, params.playerY,
+              params.isDungeon, params.eclScriptId,
+              params.wildX, params.wildY,
+              params.mapType, params.terrainOverride);
 
     // Step 4: Init combatant states (COMBAT_InitCombatantStates)
     initCombatStates(params.roster, params.partyCount,
@@ -104,8 +105,7 @@ void setupCombat(CombatParams &params,
     // Step 5: Place all combatants (COMBAT_AssignBattlefieldPositions)
     placement.placeAll(params.roster, params.partyCount,
                        params.mapDirection, params.encounterDistance,
-                       tilemap, params.isDungeon,
-                       params.combatTrigger, table);
+                       map, params.combatTrigger, table);
 
     // Step 6: Center viewport on active character (PTR_NEXT_CHAR)
     // Original: _PTR_COMBAT_FIELD[2] = charX - 3; [3] = charY - 3
