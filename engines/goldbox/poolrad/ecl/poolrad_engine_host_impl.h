@@ -40,6 +40,7 @@ class DaxTile;
 }
 
 namespace Data {
+class PlayerCharacter;
 namespace Effects {
 class EffectHostBridge;
 }
@@ -108,6 +109,7 @@ public:
         uint16 highAddr, uint16 lowAddr) override;
     VmResult hasEffect(uint8 effectId, uint16 resultAddr) override;
     bool hasEffectActive(uint8 effectId) const override;
+    VmResult startCombat() override;
     void clearTextBox() override;
     VmResult beginPrintAsync(const Common::String &text,
         bool clearBox) override;
@@ -157,6 +159,10 @@ public:
     }
 
 private:
+    void buildUnifiedCombatRoster(
+        Common::Array<Goldbox::Data::PlayerCharacter *> &roster,
+        int &partyCount) const;
+
     uint8 allocateMonsterIconSlot() const;
 
     // Skybox background layer colors (set by GFX_SetDefaultColors,
@@ -170,6 +176,10 @@ private:
     Common::ScopedPtr<Goldbox::Gfx::DaxTile> _walldefTiles[3];
     WallSetRuntimeState _wallSetStates[3];
     Common::Array<Data::PoolradCharacter *> _loadedMonsters;
+    // Non-owning enemy roster used as modern MONSTER_LOAD_READY signal.
+    // Ownership remains in _loadedMonsters.
+    Common::Array<Goldbox::Data::PlayerCharacter *> _enemy;
+    Common::Array<Goldbox::Data::PlayerCharacter *> _combatRoster;
     Common::Array<uint8> _monsterIconSlots;
     uint8 _nextMonsterIconSlot = 26;
 
@@ -183,6 +193,10 @@ private:
     // Async VM_YIELD state for shop/temple/treasure dialog.
     bool _asyncShopPending = false;
     mutable bool _asyncShopWasActivated = false;
+
+    // Async VM_YIELD state for tactical combat view.
+    bool _asyncCombatPending = false;
+    mutable bool _asyncCombatWasActivated = false;
 
     // Async VM_YIELD state for DELAY opcode.
     bool _asyncDelayPending = false;
