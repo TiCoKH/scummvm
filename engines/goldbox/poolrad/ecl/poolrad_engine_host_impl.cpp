@@ -50,10 +50,12 @@
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
+#include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/ecl/opcode_handlers.h"
+#include "goldbox/ecl/runtime_layout.h"
 
 namespace {
 
@@ -377,6 +379,129 @@ uint8 PoolradEngineHostImpl::allocateMonsterIconSlot() const {
         ? _nextMonsterIconSlot : kMonsterSlotStart;
 }
 
+void PoolradEngineHostImpl::buildUnifiedCombatRoster(
+        Common::Array<Goldbox::Data::PlayerCharacter *> &roster,
+        int &partyCount) const {
+    roster.clear();
+    partyCount = 0;
+
+    if (!_engine)
+        return;
+
+    Common::Array<Goldbox::Data::PlayerCharacter *> &party =
+        _engine->getParty();
+    roster.reserve(party.size() + _enemy.size());
+
+    // Common::Array supports push_back(Array) concatenation.
+    // We keep party as the authoritative prefix of combat order.
+    roster.push_back(party);
+
+    partyCount = static_cast<int>(roster.size());
+
+    for (uint i = 0; i < _enemy.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *ch = _enemy[i];
+        Data::PoolradCharacter *monster =
+            dynamic_cast<Data::PoolradCharacter *>(ch);
+        if (!monster)
+            continue;
+
+        // Preserve legacy combat assumptions:
+        // - one unified roster in party-first order
+        // - monsters are hostile by default
+        monster->hostile = true;
+    }
+
+    roster.push_back(_enemy);
+}
+
+VmResult PoolradEngineHostImpl::startCombat() {
+    if (_asyncCombatPending)
+        return VM_ERROR;
+
+    // Setup safety guard: if no host enemies are loaded, do not enter
+    // tactical combat setup even if legacy VM flags drift.
+    if (_enemy.empty())
+        return VmResult::VM_OK;
+
+    _combatRoster.clear();
+
+    int partyCount = 0;
+    buildUnifiedCombatRoster(_combatRoster, partyCount);
+
+    if (_combatRoster.empty())
+        return VmResult::VM_OK;
+
+    // Keep a stable runtime "next character" anchor for legacy traversal
+    // semantics (party head when available). _combatRoster is non-owning and
+    // aliases Engine::_party entries directly.
+    if (_engine)
+        _engine->_nextCharacter = _combatRoster[0];
+
+    debug(2, "PoolradEngineHostImpl::startCombat unified roster size=%u partyCount=%d enemyCount=%d",
+        (unsigned)_combatRoster.size(), partyCount,
+        (int)_combatRoster.size() - partyCount);
+
+    Poolrad::PoolradEngine *poolEngine =
+        dynamic_cast<Poolrad::PoolradEngine *>(_engine);
+    if (!poolEngine || !_memory || !g_events)
+        return VM_ERROR;
+
+    Views::CombatView *combatView = dynamic_cast<Views::CombatView *>(
+        poolEngine->findView("Combat"));
+    if (!combatView) {
+        warning("PoolradEngineHostImpl::startCombat: Combat view is not registered");
+        return VM_ERROR;
+    }
+
+    Combat::CombatParams params;
+    params.roster = _combatRoster;
+    params.partyCount = partyCount;
+    params.geo = &_engine->getRuntimeGeo();
+    params.nextChar = _engine->_nextCharacter;
+    params.eclMemory = _memory;
+
+    const RuntimeExchange *exchange = _engine->getRuntimeExchange();
+    RuntimeMapSnapshot snapshot;
+    if (exchange && exchange->captureMapSnapshot(snapshot) && snapshot.valid) {
+        params.mapDirection = static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2);
+        params.isDungeon = snapshot.indoorMode;
+        params.mapCenterX = static_cast<int8>(snapshot.dungeonX & 0xFF);
+        params.mapCenterY = static_cast<int8>(snapshot.dungeonY & 0xFF);
+        params.playerY = static_cast<int8>(snapshot.dungeonY & 0xFF);
+        params.eclScriptId = snapshot.mapId;
+        params.wildX = snapshot.wildernessX;
+        params.wildY = snapshot.wildernessY;
+        params.mapType = snapshot.mapType;
+    }
+
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+    params.encounterDistance = static_cast<int>(_memory->read8(
+        layout.vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr));
+    params.moraleThreshold = _memory->read8(
+        layout.vmGlobalField(kVmGlobalFieldMoraleThreshold).vmAddr);
+    params.isAmbush = (_memory->read8(
+        layout.vmGlobalField(kVmGlobalFieldCombatIsAmbush).vmAddr) != 0);
+
+    const uint16 monsterLoadReadyAddr = layout.runtimeField(
+        static_cast<Goldbox::ECL::EclRuntimeFieldId>(16));
+    const uint16 menuCombatStateAddr = layout.runtimeField(
+        static_cast<Goldbox::ECL::EclRuntimeFieldId>(4));
+
+    params.monsterLoadReady = (_memory->read8(
+        monsterLoadReadyAddr) != 0);
+    params.combatTrigger = (_memory->read8(
+        menuCombatStateAddr) != 0);
+
+    combatView->setup(params);
+
+    if (!g_events->isPresent("Combat"))
+        g_events->addView(combatView);
+
+    _asyncCombatPending = true;
+    _asyncCombatWasActivated = false;
+    return VM_YIELD;
+}
+
 VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
         uint8 graphicId) {
     if (!_engine)
@@ -435,6 +560,7 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
         monster->clearEquippedItems();
         monster->resolveEquippedItems();
         _loadedMonsters.push_back(monster);
+        _enemy.push_back(monster);
     }
 
     _monsterIconSlots.push_back(slotId);
@@ -446,6 +572,11 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
 }
 
 VmResult PoolradEngineHostImpl::clearMonsters() {
+    // _combatRoster is a non-owning pointer view over party + loaded monsters.
+    // Drop it before deleting monster instances.
+    _combatRoster.clear();
+    _enemy.clear();
+
     Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
     if (iconMgr) {
         for (uint i = 0; i < _monsterIconSlots.size(); ++i)
@@ -458,6 +589,14 @@ VmResult PoolradEngineHostImpl::clearMonsters() {
     _loadedMonsters.clear();
     _monsterIconSlots.clear();
     _nextMonsterIconSlot = kMonsterSlotStart;
+
+    // Restore traversal anchor to party context.
+    if (_engine) {
+        Common::Array<Goldbox::Data::PlayerCharacter *> &party =
+            _engine->getParty();
+        _engine->_nextCharacter = party.empty() ? nullptr : party[0];
+    }
+
     return VmResult::VM_OK;
 }
 
@@ -1134,7 +1273,8 @@ void PoolradEngineHostImpl::clearTextBox() {
 
 VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
         bool clearBox) {
-    if (_asyncMenuPending || _asyncPrintPending || _asyncDelayPending)
+    if (_asyncMenuPending || _asyncPrintPending || _asyncDelayPending
+            || _asyncCombatPending)
         return VM_ERROR;
 
     if (!g_events) {
@@ -1155,7 +1295,7 @@ VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
 
 bool PoolradEngineHostImpl::hasPendingAsync() const {
     return _asyncMenuPending || _asyncPrintPending || _asyncDelayPending
-        || _asyncShopPending;
+    || _asyncShopPending || _asyncCombatPending;
 }
 
 bool PoolradEngineHostImpl::isPendingAsyncReady() const {
@@ -1194,6 +1334,15 @@ bool PoolradEngineHostImpl::isPendingAsyncReady() const {
             ? _engine->getRuntimeExchange() : nullptr;
         return !exchange || exchange->hasAsync(
             RuntimeExchange::kAsyncShopDone);
+    }
+
+    if (_asyncCombatPending) {
+        if (!_asyncCombatWasActivated) {
+            _asyncCombatWasActivated = true;
+            return false;
+        }
+
+        return !g_events || !g_events->isPresent("Combat");
     }
 
     return false;
@@ -1259,6 +1408,13 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
         }
         _asyncShopPending = false;
         _asyncShopWasActivated = false;
+        return VM_OK;
+    }
+
+    if (_asyncCombatPending) {
+        _asyncCombatPending = false;
+        _asyncCombatWasActivated = false;
+        clearMonsters();
         return VM_OK;
     }
 

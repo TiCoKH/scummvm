@@ -24,10 +24,15 @@
 
 #include "common/scummsys.h"
 #include "common/array.h"
+#include "goldbox/core/vm_layout.h"
 
 namespace Goldbox {
 
 class RuntimeGeoBlock;
+
+namespace ECL {
+class AddressSpace;
+}
 
 namespace Data {
 class PlayerCharacter;
@@ -70,6 +75,8 @@ struct CombatParams {
 
     // --- VM state (read at setup) ---
     uint8 moraleThreshold;   // VMBANK1_PARTY_STATE->D_MoraleThreshold (clamped to 100)
+    ECL::AddressSpace *eclMemory;  // Optional: authoritative VM memory for globals
+    const VmGlobalLayout *vmGlobalLayout; // Optional: global-field VM mapping
     bool magicEnabled;       // COMBAT_MAGIC_ENABLED (reset to false at start)
     bool slowMode;           // BYTE_COMFLAG_SLOW (reset to false at start)
     bool isAmbush;           // D_CombatIsAmbush (cleared each round)
@@ -83,6 +90,7 @@ struct CombatParams {
           mapCenterX(0), mapCenterY(0), playerY(0),
           eclScriptId(0), wildX(0), wildY(0), mapType(1),
           terrainOverride(0), moraleThreshold(100),
+          eclMemory(nullptr), vmGlobalLayout(nullptr),
           magicEnabled(false), slowMode(false), isAmbush(false),
           monsterLoadReady(false), combatTrigger(false),
           nextChar(nullptr) {}

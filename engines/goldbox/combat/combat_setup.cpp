@@ -26,6 +26,7 @@
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_placement.h"
 #include "goldbox/combat/combat_viewport.h"
+#include "goldbox/data/adnd_character.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/combat_state.h"
 #include "goldbox/data/effects/effect_runtime.h"
@@ -34,6 +35,8 @@
 #include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/core/direction.h"
+#include "goldbox/core/vm_layout.h"
+#include "goldbox/ecl/ecl_memory.h"
 
 namespace Goldbox {
 namespace Combat {
@@ -57,6 +60,18 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
         // Mark characters beyond the player party as not in team
         if (partyCount < combatantCount)
             ch->combatState->notInTeam = true;
+
+        // Original morale migration for neutral non-team NPCs:
+        // npcClass = npc & 0x7F
+        // if (!hostile && notInTeam && (npcClass == 0 || npcClass > 0x66))
+        //     npc = moraleThreshold | 0x80
+        if (Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(ch)) {
+            uint8 moraleValue = static_cast<uint8>(adnd->npc) & 0x7F;
+            if (!ch->hostile && ch->combatState->notInTeam &&
+                ((moraleValue == 0) || (moraleValue > 0x66))) {
+                adnd->npc = static_cast<int8>(moraleThreshold | 0x80);
+            }
+        }
 
         // Set initial facing from approach direction table
         uint8 dirIndex = (wayFlag >> 1) & 0x03;
@@ -87,9 +102,25 @@ void setupCombat(CombatParams &params,
     // Step 1: Reset combat globals (mirrors original zeroing of globals)
     globals.reset();
 
-    // Step 2: Clamp morale threshold
-    if (params.moraleThreshold > 100)
-        params.moraleThreshold = 100;
+    // Step 2: Read and clamp morale threshold from VM global memory when
+    // available (authoritative source). Fall back to params field otherwise.
+    uint8 moraleThreshold = params.moraleThreshold;
+    if (params.eclMemory && params.vmGlobalLayout) {
+        const VmFieldLocation moraleField =
+            params.vmGlobalLayout->field(kVmGlobalFieldMoraleThreshold);
+        if (VmLayout::isValid(moraleField)) {
+            moraleThreshold = params.eclMemory->read8(moraleField.vmAddr);
+            if (moraleThreshold > 100) {
+                moraleThreshold = 100;
+                // Mirror original behavior: clamp global value in VM state.
+                params.eclMemory->write8(moraleField.vmAddr, moraleThreshold);
+            }
+            params.moraleThreshold = moraleThreshold;
+        }
+    }
+    if (moraleThreshold > 100)
+        moraleThreshold = 100;
+    params.moraleThreshold = moraleThreshold;
 
     // Step 3: Build playfield data (COMBAT_BuildPlayfield)
     map.build(*params.geo,
@@ -100,7 +131,7 @@ void setupCombat(CombatParams &params,
 
     // Step 4: Init combatant states (COMBAT_InitCombatantStates)
     initCombatStates(params.roster, params.partyCount,
-                     params.mapDirection, params.moraleThreshold);
+                     params.mapDirection, moraleThreshold);
 
     // Step 5: Place all combatants (COMBAT_AssignBattlefieldPositions)
     placement.placeAll(params.roster, params.partyCount,
