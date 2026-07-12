@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/combat/combat_placement.h"
+#include "goldbox/combat/battlefield_map.h"
 #include "goldbox/combat/combat_ground_info.h"
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
@@ -73,7 +74,7 @@ const int8 CombatPlacement::kFormationRange[5][6][2] = {
 
 CombatPlacement::CombatPlacement()
     : _currentSide(0), _isDungeon(false), _mapCenterX(0), _mapCenterY(0),
-      _tilemap(nullptr), _table(nullptr) {
+    _map(nullptr), _table(nullptr) {
     memset(_formationValid, 0, sizeof(_formationValid));
     memset(_originX, 0, sizeof(_originX));
     memset(_originY, 0, sizeof(_originY));
@@ -85,14 +86,13 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
                                int partyCount,
                                uint8 mapDirection,
                                int encounterDist,
-                               Gfx::BattlefieldTilemap &tilemap,
-                               bool isDungeon,
+                               BattlefieldMap &map,
                                bool combatTriggerActive,
                                CombatantTable &table) {
-    _tilemap = &tilemap;
-    _isDungeon = isDungeon;
-    _mapCenterX = tilemap.getCenterX();
-    _mapCenterY = tilemap.getCenterY();
+    _map = &map;
+    _isDungeon = map.isDungeon();
+    _mapCenterX = map.getCenterX();
+    _mapCenterY = map.getCenterY();
     _table = &table;
 
     table.clear();
@@ -144,8 +144,8 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
                 table.setSize(idx, 0);
                 uint8 col = table.getTileCol(idx);
                 uint8 row = table.getTileRow(idx);
-                uint8 savedTile = _tilemap->getRawTile(col, row);
-                _tilemap->setRawTile(col, row, CombatantTable::TILE_DOWNED_MEMBER);
+                uint8 savedTile = _map->getRawTile(col, row);
+                _map->setRawTile(col, row, CombatantTable::TILE_DOWNED_MEMBER);
                 table.addDownedMember(ch, col, row, savedTile);
             }
             table.rebuildOccupancy();
@@ -287,7 +287,7 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
                         if (checkDir >= 8)
                             continue;
                         if (!_isDungeon ||
-                            _tilemap->checkOpenPassage(
+                            _map->checkOpenPassage(
                                 _mapCenterX, _mapCenterY, checkDir) != 1) {
                             anyPassable = true;
                         }
@@ -314,7 +314,7 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
                 // In wilderness (mapType > 1), always passable.
                 // In dungeon, check bidirectional passability != 1.
                 if (!_isDungeon ||
-                    _tilemap->checkOpenPassage(
+                    _map->checkOpenPassage(
                         _mapCenterX, _mapCenterY, testDir) != 1) {
                     originCol = _originX[_currentSide] + kDirDeltaX[testDir];
                     originRow = _originY[_currentSide] + kDirDeltaY[testDir];
@@ -353,9 +353,9 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
     int tileRow = formRow + (originRow * 5) + 10;
 
     // Map bounds check
-    if (tileCol < 0 || tileCol >= Gfx::BattlefieldTilemap::kPlayfieldCols)
+    if (tileCol < 0 || tileCol >= BattlefieldMap::kPlayfieldCols)
         return false;
-    if (tileRow < 0 || tileRow >= Gfx::BattlefieldTilemap::kPlayfieldRows)
+    if (tileRow < 0 || tileRow >= BattlefieldMap::kPlayfieldRows)
         return false;
 
     // Write position temporarily
@@ -364,7 +364,7 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
     // Scan destination using shared ground info utility
     uint8 occupant = 0;
     uint8 groundTile = 0;
-    getGroundInfo(charIdx, 8, *_tilemap, *_table, groundTile, occupant);
+    getGroundInfo(charIdx, 8, *_map, *_table, groundTile, occupant);
 
     if (occupant != 0)
         return false;
@@ -372,7 +372,7 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
         return false;
 
     // Check passability via tile property provider
-    const Combat::TilePropertyProvider *tileProps = _tilemap->getTilePropertyProvider();
+    const Combat::TilePropertyProvider *tileProps = _map->getTilePropertyProvider();
     if (tileProps && tileProps->isImpassable(groundTile))
         return false;
 

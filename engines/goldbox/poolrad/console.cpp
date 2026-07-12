@@ -663,9 +663,8 @@ bool Console::cmdDumpBattlefield(int argc, const char **argv) {
 	if (outFile.open(Common::Path(filename))) {
 		Image::writeBMP(outFile, *surface, kEgaPalette, 16);
 		outFile.close();
-		debugPrintf("Dumped battlefield to %s (%dx%d, %s)\n",
-			filename.c_str(), surface->w, surface->h,
-			bf.isDungeon() ? "dungeon" : "wilderness");
+		debugPrintf("Dumped battlefield to %s (%dx%d)\n",
+			filename.c_str(), surface->w, surface->h);
 	} else {
 		debugPrintf("Failed to open %s for writing\n", filename.c_str());
 	}

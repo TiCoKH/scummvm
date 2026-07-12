@@ -20,9 +20,9 @@
  */
 
 #include "goldbox/combat/combat_ground_info.h"
+#include "goldbox/combat/battlefield_map.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/tile_property_provider.h"
-#include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/core/direction.h"
 
 namespace Goldbox {
@@ -97,7 +97,7 @@ static uint8 getTilePriority(uint8 rawTile,
 }
 
 void getGroundInfo(int charIdx, uint8 direction,
-                   const Gfx::BattlefieldTilemap &tilemap,
+                   const BattlefieldMap &map,
                    const CombatantTable &table,
                    uint8 &outTile, uint8 &outOccupant) {
     outOccupant = 0;
@@ -108,7 +108,7 @@ void getGroundInfo(int charIdx, uint8 direction,
     uint8 baseRow = table.getTileRow(charIdx);
     uint8 iconSize = table.getSize(charIdx) & 7;
 
-    const TilePropertyProvider *tileProps = tilemap.getTilePropertyProvider();
+    const TilePropertyProvider *tileProps = map.getTilePropertyProvider();
 
     int8 dx = (direction < 8) ? kDirDeltaX[direction] : 0;
     int8 dy = (direction < 8) ? kDirDeltaY[direction] : 0;
@@ -126,12 +126,12 @@ void getGroundInfo(int charIdx, uint8 direction,
         uint8 foundTile = 0;
         uint8 foundOccupant = 0;
 
-        if (checkCol < 0 || checkCol >= Gfx::BattlefieldTilemap::kPlayfieldCols ||
-            checkRow < 0 || checkRow >= Gfx::BattlefieldTilemap::kPlayfieldRows) {
+        if (checkCol < 0 || checkCol >= BattlefieldMap::kPlayfieldCols ||
+            checkRow < 0 || checkRow >= BattlefieldMap::kPlayfieldRows) {
             foundTile = 0;
             foundOccupant = 0;
         } else {
-            foundTile = tilemap.getRawTile(checkCol, checkRow);
+            foundTile = map.getRawTile(checkCol, checkRow);
             foundOccupant = table.getOccupant(checkCol, checkRow);
         }
 

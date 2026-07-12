@@ -23,7 +23,6 @@
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/engine.h"
-#include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/runtime/runtime_geo.h"
 
 #include <string.h>
@@ -62,7 +61,6 @@ void BattlefieldMap::resetPlayfieldState() {
 void BattlefieldMap::clear() {
     resetPlayfieldState();
     _geo = nullptr;
-    _tileProps = nullptr;
     _isDungeon = true;
     _centerX = 0;
     _centerY = 0;
@@ -124,8 +122,8 @@ void BattlefieldMap::regenerate(const RuntimeGeoBlock &geo,
     _mapType = mapType;
     _terrainOverrideFlags = terrainOverride;
 
-    for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
-        for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
+    for (int row = 0; row < kPlayfieldRows; row++) {
+        for (int col = 0; col < kPlayfieldCols; col++) {
             setRawTile(col, row, 0);
         }
     }
@@ -144,17 +142,17 @@ void BattlefieldMap::writeTile(int localCol, int localRow, uint8 tileId) {
     int absRow = localRow + (_cellOffsetY * kCellTileRows) +
         _playfield.viewportStartY;
 
-    if (absCol < 0 || absCol >= Gfx::BattlefieldTilemap::kPlayfieldCols)
+    if (absCol < 0 || absCol >= kPlayfieldCols)
         return;
-    if (absRow < 0 || absRow >= Gfx::BattlefieldTilemap::kPlayfieldRows)
+    if (absRow < 0 || absRow >= kPlayfieldRows)
         return;
 
     _playfield.fieldTileMap[absRow][absCol] = tileId + 1;
 }
 
 uint8 BattlefieldMap::getRawTile(int col, int row) const {
-    if (col < 0 || col >= Gfx::BattlefieldTilemap::kPlayfieldCols ||
-        row < 0 || row >= Gfx::BattlefieldTilemap::kPlayfieldRows) {
+    if (col < 0 || col >= kPlayfieldCols ||
+        row < 0 || row >= kPlayfieldRows) {
         return 0;
     }
 
@@ -162,8 +160,8 @@ uint8 BattlefieldMap::getRawTile(int col, int row) const {
 }
 
 void BattlefieldMap::setRawTile(int col, int row, uint8 rawTile) {
-    if (col < 0 || col >= Gfx::BattlefieldTilemap::kPlayfieldCols ||
-        row < 0 || row >= Gfx::BattlefieldTilemap::kPlayfieldRows) {
+    if (col < 0 || col >= kPlayfieldCols ||
+        row < 0 || row >= kPlayfieldRows) {
         return;
     }
 
@@ -419,8 +417,8 @@ void BattlefieldMap::generateDungeon(int8 centerX, int8 centerY) {
 }
 
 void BattlefieldMap::generateWilderness() {
-    for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
-        for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
+    for (int row = 0; row < kPlayfieldRows; row++) {
+        for (int col = 0; col < kPlayfieldCols; col++) {
             setRawTile(col, row, kTileOpenPlain + 1);
         }
     }
@@ -514,8 +512,8 @@ uint8 BattlefieldMap::getTerrainFlags() const {
 }
 
 void BattlefieldMap::markFordPair(int col, int row, int &pairCount) {
-    if (col >= 0 && col < Gfx::BattlefieldTilemap::kPlayfieldCols - 1 &&
-        row >= 0 && row < Gfx::BattlefieldTilemap::kPlayfieldRows) {
+    if (col >= 0 && col < kPlayfieldCols - 1 &&
+        row >= 0 && row < kPlayfieldRows) {
         setRawTile(col, row, kTileFordA + 1);
         setRawTile(col + 1, row, kTileFordB + 1);
         pairCount++;
@@ -544,8 +542,8 @@ void BattlefieldMap::setTilePatternRiver() {
     int streamColStart = streamCol;
     int pairCount = 0;
 
-    for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
-        if (streamCol >= 0 && streamCol < Gfx::BattlefieldTilemap::kPlayfieldCols - 1) {
+    for (int row = 0; row < kPlayfieldRows; row++) {
+        if (streamCol >= 0 && streamCol < kPlayfieldCols - 1) {
             setRawTile(streamCol, row, kTileStreamA + 1);
             setRawTile(streamCol + 1, row, kTileStreamB + 1);
 
@@ -562,7 +560,7 @@ void BattlefieldMap::setTilePatternRiver() {
         int fordsCol = 16 - g_engine->rollDice(1, 9);
         int fordsRow = fordsCol + streamColStart;
         if (fordsRow >= 0 &&
-            fordsRow < Gfx::BattlefieldTilemap::kPlayfieldRows - 1) {
+            fordsRow < kPlayfieldRows - 1) {
             markFordPair(fordsCol, fordsRow, pairCount);
             markFordPair(fordsCol + 1, fordsRow + 1, pairCount);
         }
@@ -584,8 +582,8 @@ void BattlefieldMap::setTilePatternTrees() {
 
     const TilePropertyProvider *tileProps = _tileProps;
 
-    for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
-        for (int row = 1; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
+    for (int col = 0; col < kPlayfieldCols; col++) {
+        for (int row = 1; row < kPlayfieldRows; row++) {
             uint8 rawCur = getRawTile(col, row);
             uint8 rawAbove = getRawTile(col, row - 1);
             if (rawCur == 0 || rawAbove == 0)
@@ -655,8 +653,8 @@ void BattlefieldMap::setTilePatternCover() {
     int threshD = threshC + static_cast<int>(bandWidth2);
     int threshE = threshD + static_cast<int>(bandWidth3);
 
-    for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
-        for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
+    for (int col = 0; col < kPlayfieldCols; col++) {
+        for (int row = 0; row < kPlayfieldRows; row++) {
             uint8 raw = getRawTile(col, row);
             if (raw == 0)
                 continue;
@@ -713,8 +711,8 @@ void BattlefieldMap::setTilePatternCover() {
 void BattlefieldMap::setRandomFloorTiles() {
     const TilePropertyProvider *tileProps = _tileProps;
 
-    for (int row = 0; row < Gfx::BattlefieldTilemap::kPlayfieldRows; row++) {
-        for (int col = 0; col < Gfx::BattlefieldTilemap::kPlayfieldCols; col++) {
+    for (int col = 0; col < kPlayfieldCols; col++) {
+        for (int row = 0; row < kPlayfieldRows; row++) {
             uint8 raw = getRawTile(col, row);
             if (raw == 0)
                 continue;
@@ -730,9 +728,7 @@ void BattlefieldMap::setRandomFloorTiles() {
                 setRawTile(col, row, kTileLightVegetation + 1);
             } else if (roll == 99) {
                 setRawTile(col, row, kTileDenseShrub + 1);
-            } else if (roll == 100) {
-                if (_eclScriptId == 10)
-                    continue;
+            } else if (roll == 100 && _eclScriptId != 10) {
                 if (g_engine->rollDice(1, 100) != 1)
                     continue;
                 int d10 = g_engine->rollDice(1, 10);

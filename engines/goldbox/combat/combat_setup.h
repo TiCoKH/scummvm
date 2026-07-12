@@ -45,6 +45,7 @@ struct CombatParams;
 class CombatantTable;
 class CombatPlacement;
 class CombatViewport;
+class BattlefieldMap;
 
 /**
  * Initialize combat state for all combatants.
@@ -76,7 +77,7 @@ void freeCombatStates(Common::Array<Data::PlayerCharacter *> &combatants);
  * Sequence:
  *   1. Reset combat globals
  *   2. Clamp morale threshold to 100
- *   3. Build playfield (tilemap)
+ *   3. Build battlefield map data (COMBAT_BuildPlayfield)
  *   4. Init combatant states (facing, team flags)
  *   5. Place all combatants on battlefield
  *   6. Center viewport on first party member
@@ -85,7 +86,7 @@ void freeCombatStates(Common::Array<Data::PlayerCharacter *> &combatants);
  *
  * @param params     Combat parameters from VM/caller
  * @param globals    Global combat state (reset here)
- * @param tilemap    Battlefield tilemap (built here)
+ * @param map        Battlefield map data (built here)
  * @param table      Combatant table (populated here)
  * @param placement  Placement engine
  * @param viewport   Camera viewport (centered here)
@@ -93,7 +94,7 @@ void freeCombatStates(Common::Array<Data::PlayerCharacter *> &combatants);
  */
 void setupCombat(CombatParams &params,
                  CombatGlobals &globals,
-                 Gfx::BattlefieldTilemap &tilemap,
+                 BattlefieldMap &map,
                  CombatantTable &table,
                  CombatPlacement &placement,
                  CombatViewport &viewport,

@@ -31,7 +31,6 @@ namespace Goldbox {
 class RuntimeGeoBlock;
 
 namespace Combat {
-class TilePropertyProvider;
 class BattlefieldMap;
 }
 
@@ -74,26 +73,11 @@ public:
     static const int kHeaderSize = 7;
     static const int kBufferSize = kHeaderSize + kPlayfieldCols * kPlayfieldRows;
 
-    /** Set the tile property provider (game-specific data). */
-    void setTilePropertyProvider(const Combat::TilePropertyProvider *provider);
-    const Combat::TilePropertyProvider *getTilePropertyProvider() const;
-
     BattlefieldTilemap();
     ~BattlefieldTilemap();
 
-    void build(const RuntimeGeoBlock &geo,
-               int8 centerX, int8 centerY, int8 playerY,
-               bool isDungeon, uint8 eclScriptId = 0,
-               uint8 wildX = 0, uint8 wildY = 0,
-               uint8 mapType = 1, uint8 terrainOverride = 0);
-
-    void regenerate(const RuntimeGeoBlock &geo,
-                    int8 centerX, int8 centerY, int8 playerY,
-                    uint8 eclScriptId = 0,
-                    uint8 wildX = 0, uint8 wildY = 0,
-                    uint8 mapType = 1, uint8 terrainOverride = 0);
-
-    void render(const IconManager &iconMgr);
+    void render(const Combat::BattlefieldMap &map,
+                const IconManager &iconMgr);
 
     const Graphics::ManagedSurface *getSurface() const { return &_surface; }
     Graphics::ManagedSurface *getSurface() { return &_surface; }
@@ -106,30 +90,13 @@ public:
                 const Common::Point &dstPos) const;
 
     Common::Rect tileToPixelRect(int col, int row, int w, int h) const;
-    Common::Rect getActiveAreaRect() const;
-
-    uint8 getRawTile(int col, int row) const;
-    void setRawTile(int col, int row, uint8 rawTile);
-    uint8 getTileId(int col, int row) const;
+    Common::Rect getActiveAreaRect(const Combat::BattlefieldMap &map) const;
 
     void clear();
     bool isBuilt() const { return _built; }
-    bool isDungeon() const;
-
-    int8 getCenterX() const;
-    int8 getCenterY() const;
-
-    /**
-     * Check bidirectional passability between two adjacent cells.
-     * Returns 0 if both directions passable, non-zero if blocked.
-     * Equivalent to original COMBAT_GetBidirectionalPassability.
-     */
-    uint8 checkOpenPassage(int8 mapX, int8 mapY, uint8 wireDir) const;
 
 private:
     Graphics::ManagedSurface _surface;
-    const Combat::TilePropertyProvider *_tileProps;
-    Combat::BattlefieldMap *_cicon;
     bool _built;
 };
 
