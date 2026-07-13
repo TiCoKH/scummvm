@@ -32,11 +32,13 @@ class RuntimeGeoBlock;
 
 namespace Combat {
 class BattlefieldMap;
+class TilePropertyProvider;
 }
 
 namespace Gfx {
 
 class IconManager;
+class CombatTileCache;
 
 /**
  * Combat battlefield playfield.
@@ -77,7 +79,31 @@ public:
     ~BattlefieldTilemap();
 
     void render(const Combat::BattlefieldMap &map,
+                const CombatTileCache &tileCache,
+                const Combat::TilePropertyProvider *tileProps = nullptr);
+
+    /**
+     * Incrementally re-render only tiles marked dirty in the map.
+     * Much cheaper than a full render() when only a few tiles changed
+     * (e.g. downed-member stamp, spell cloud placement).
+     *
+     * @param map  Battlefield map (dirty tiles are acknowledged after redraw)
+     * @param tileCache  Terrain tile cache for tile graphics
+     * @param tileProps  Tile property provider for blockID lookup (optional)
+     * @return Number of tiles actually redrawn (0 if nothing was dirty)
+     */
+    int renderDirtyTiles(Combat::BattlefieldMap &map,
+                         const CombatTileCache &tileCache,
+                         const Combat::TilePropertyProvider *tileProps = nullptr);
+
+    /**
+     * @deprecated Use CombatTileCache overload instead.
+     * Kept for backward compatibility during transition.
+     */
+    void render(const Combat::BattlefieldMap &map,
                 const IconManager &iconMgr);
+    int renderDirtyTiles(Combat::BattlefieldMap &map,
+                         const IconManager &iconMgr);
 
     const Graphics::ManagedSurface *getSurface() const { return &_surface; }
     Graphics::ManagedSurface *getSurface() { return &_surface; }

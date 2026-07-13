@@ -24,6 +24,7 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/poolrad/data/poolrad_tile_props.h"
+#include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/engine.h"
 #include "goldbox/events.h"
 
@@ -48,6 +49,15 @@ void CombatView::setup(const Combat::CombatParams &params) {
     // VM_LOADED_BODY = 0xFF and SYS_FreeRes calls in original COMBAT_Setup)
     g_engine->getPictureDisplayCache().clear();
 
+    // Load terrain tiles (mirrors DAX_LoadIconBlock in original)
+    if (_params.isDungeon) {
+        _tileCache.loadDungeon(g_engine->getDaxDungcom(),
+                               g_engine->getDaxRandcom());
+    } else {
+        _tileCache.loadWilderness(g_engine->getDaxWildcom(),
+                                   g_engine->getDaxRandcom());
+    }
+
     // Wire up game-specific tile property provider
     _battlefieldMap.setTilePropertyProvider(&PoolradTilePropertyProvider::instance());
 
@@ -56,7 +66,12 @@ void CombatView::setup(const Combat::CombatParams &params) {
     Combat::setupCombat(_params, _globals, _battlefieldMap, _table,
                         _placement, _viewport, nullptr);
 
-    _tilemap.render(_battlefieldMap, _iconManager);
+    _tilemap.render(_battlefieldMap, _tileCache,
+                     _battlefieldMap.getTilePropertyProvider());
+
+    // Set viewport-relative position cache origin
+    _table.setViewportOrigin(_viewport.getTopLeftCol(),
+                             _viewport.getTopLeftRow());
 
     _needsFullRedraw = true;
     _phase = PHASE_PLAYER_TURN;
@@ -91,6 +106,8 @@ bool CombatView::msgKeypress(const KeypressMessage &msg) {
     case Common::KEYCODE_LEFT:
         _viewport.adjustToInclude(_viewport.getCenterCol() - 1,
                                   _viewport.getCenterRow());
+        _table.setViewportOrigin(_viewport.getTopLeftCol(),
+                                 _viewport.getTopLeftRow());
         _needsFullRedraw = true;
         redraw();
         return true;
@@ -98,6 +115,8 @@ bool CombatView::msgKeypress(const KeypressMessage &msg) {
     case Common::KEYCODE_RIGHT:
         _viewport.adjustToInclude(_viewport.getCenterCol() + 1,
                                   _viewport.getCenterRow());
+        _table.setViewportOrigin(_viewport.getTopLeftCol(),
+                                 _viewport.getTopLeftRow());
         _needsFullRedraw = true;
         redraw();
         return true;
@@ -105,6 +124,8 @@ bool CombatView::msgKeypress(const KeypressMessage &msg) {
     case Common::KEYCODE_UP:
         _viewport.adjustToInclude(_viewport.getCenterCol(),
                                   _viewport.getCenterRow() - 1);
+        _table.setViewportOrigin(_viewport.getTopLeftCol(),
+                                 _viewport.getTopLeftRow());
         _needsFullRedraw = true;
         redraw();
         return true;
@@ -112,6 +133,8 @@ bool CombatView::msgKeypress(const KeypressMessage &msg) {
     case Common::KEYCODE_DOWN:
         _viewport.adjustToInclude(_viewport.getCenterCol(),
                                   _viewport.getCenterRow() + 1);
+        _table.setViewportOrigin(_viewport.getTopLeftCol(),
+                                 _viewport.getTopLeftRow());
         _needsFullRedraw = true;
         redraw();
         return true;
@@ -128,6 +151,15 @@ void CombatView::draw() {
         return;
 
     Surface s = getSurface();
+
+    // Incremental tilemap update: re-render only tiles that changed
+    // (downed-member stamps, spell cloud effects, etc.)
+    if (_battlefieldMap.hasDirtyTiles()) {
+        _tilemap.renderDirtyTiles(_battlefieldMap, _tileCache,
+                                  _battlefieldMap.getTilePropertyProvider());
+        _needsFullRedraw = true;
+    }
+
     if (_needsFullRedraw) {
         s.clear(0);
         drawViewport();
@@ -162,11 +194,14 @@ void CombatView::drawCombatants() {
         if (_table.getSize(i) == 0)
             continue;
 
-        int col = _table.getTileCol(i);
-        int row = _table.getTileRow(i);
+        // Use viewport-relative positions (mirrors original
+        // BYTE_ARRAY_COL_DIST / BYTE_ARRAY_ROW_DIST usage in
+        // COMBAT_RedrawViewport)
+        int8 localCol = _table.getColDist(i);
+        int8 localRow = _table.getRowDist(i);
 
-        int localCol, localRow;
-        if (!_viewport.mapToLocal(col, row, localCol, localRow))
+        if (localCol < 0 || localCol >= Combat::CombatViewport::VIEW_COLS ||
+            localRow < 0 || localRow >= Combat::CombatViewport::VIEW_ROWS)
             continue;
 
         Data::PlayerCharacter *ch = _table.getCharacter(i);

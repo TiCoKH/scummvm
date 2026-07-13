@@ -148,14 +148,13 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
                 _map->setRawTile(col, row, CombatantTable::TILE_DOWNED_MEMBER);
                 table.addDownedMember(ch, col, row, savedTile);
             }
-            table.rebuildOccupancy();
+            // Occupancy auto-rebuilds on next getOccupant() call.
         } else {
             const bool notInTeam = ch->combatState && ch->combatState->notInTeam;
             if (notInTeam) {
                 // Failed not-in-team placement should not consume a combatant slot.
                 table.rollbackLastAdd(idx);
                 roster[i] = nullptr;
-                table.rebuildOccupancy();
             } else {
                 table.setSize(idx, 0);
             }
