@@ -30,6 +30,8 @@
 #include "goldbox/gfx/first_person_renderer.h"
 #include "goldbox/gfx/icon_manager.h"
 #include "goldbox/gfx/pic.h"
+#include "goldbox/combat/tile_property_provider.h"
+#include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/vm_interface.h"
 #include "image/bmp.h"
 
@@ -240,6 +242,22 @@ static bool parseUintArg(const char *arg, uint &value) {
 		return false;
 	value = static_cast<uint>(parsed);
 	return true;
+}
+
+static uint32 calcPicSignature(const Goldbox::Gfx::Pic *pic) {
+	if (!pic)
+		return 0;
+
+	// FNV-1a over indexed pixels; stable and cheap for diagnostics.
+	uint32 hash = 2166136261u;
+	for (int y = 0; y < pic->h; ++y) {
+		for (int x = 0; x < pic->w; ++x) {
+			hash ^= static_cast<uint32>(pic->getPixel(x, y));
+			hash *= 16777619u;
+		}
+	}
+
+	return hash;
 }
 
 } // namespace
@@ -649,17 +667,29 @@ bool Console::cmdDumpIconStore(int argc, const char **argv) {
 }
 
 bool Console::cmdDumpBattlefield(int argc, const char **argv) {
-	(void)argc; (void)argv;
+	Common::String baseName = "battlefield_dump";
+	if (argc >= 2 && argv[1] && *argv[1])
+		baseName = argv[1];
 
-	const Gfx::BattlefieldTilemap &bf = g_engine->getBattlefield();
-	if (!bf.isBuilt()) {
-		debugPrintf("No active battlefield. Enter combat first.\n");
+	UIElement *combatElem = g_engine->findView("Combat");
+	Views::CombatView *combatView =
+		dynamic_cast<Views::CombatView *>(combatElem);
+
+	// Prefer live combat view tilemap. Fallback to legacy engine cache.
+	const Gfx::BattlefieldTilemap *tilemap = nullptr;
+	if (combatView)
+		tilemap = &combatView->debugTilemap();
+	else
+		tilemap = &g_engine->getBattlefield();
+
+	if (!tilemap || !tilemap->isBuilt()) {
+		debugPrintf("No active battlefield render. Enter combat first.\n");
 		return true;
 	}
 
-	const Graphics::ManagedSurface *surface = bf.getSurface();
+	const Graphics::ManagedSurface *surface = tilemap->getSurface();
 	Common::DumpFile outFile;
-	Common::String filename("battlefield_dump.bmp");
+	Common::String filename = baseName + ".bmp";
 	if (outFile.open(Common::Path(filename))) {
 		Image::writeBMP(outFile, *surface, kEgaPalette, 16);
 		outFile.close();
@@ -668,6 +698,137 @@ bool Console::cmdDumpBattlefield(int argc, const char **argv) {
 	} else {
 		debugPrintf("Failed to open %s for writing\n", filename.c_str());
 	}
+
+	if (!combatView) {
+		debugPrintf("Combat view not available; skipped map data dump.\n");
+		return true;
+	}
+
+	const Combat::BattlefieldMap &map = combatView->debugBattlefieldMap();
+	const Gfx::CombatTileCache &tileCache = combatView->debugTileCache();
+	const Combat::TilePropertyProvider *tileProps =
+		map.getTilePropertyProvider();
+
+	int gfxRefCount[Gfx::CombatTileCache::MAX_TILES];
+	memset(gfxRefCount, 0, sizeof(gfxRefCount));
+
+	Common::String textName = baseName + ".txt";
+	Common::DumpFile textFile;
+	if (!textFile.open(Common::Path(textName))) {
+		debugPrintf("Failed to open %s for writing\n", textName.c_str());
+		return true;
+	}
+
+	auto writeLine = [&](const Common::String &line) {
+		textFile.write(line.c_str(), line.size());
+		textFile.write("\n", 1);
+	};
+
+	writeLine("Battlefield data dump");
+	writeLine(Common::String::format("size: %dx%d",
+		Combat::BattlefieldMap::kPlayfieldCols,
+		Combat::BattlefieldMap::kPlayfieldRows));
+	writeLine(Common::String::format(
+		"viewportStart: %u,%u  viewportSizeFlag: %u",
+		(unsigned)map.getViewportStartX(),
+		(unsigned)map.getViewportStartY(),
+		(unsigned)map.getSize()));
+	writeLine(Common::String::format(
+		"center: %d,%d  isDungeon: %s  targetCursor: %s  ignoreWalls: %s",
+		(int)map.getCenterX(), (int)map.getCenterY(),
+		map.isDungeon() ? "yes" : "no",
+		map.getTargetCursor() ? "yes" : "no",
+		map.getIgnoreWalls() ? "yes" : "no"));
+	writeLine(Common::String::format("dirtyCount: %d", map.getDirtyCount()));
+	writeLine("");
+
+	writeLine("RAW TILE MAP (00 = empty, values are 1-based raw map bytes)");
+	for (int row = 0; row < Combat::BattlefieldMap::kPlayfieldRows; ++row) {
+		Common::String line = Common::String::format("r%02d:", row);
+		for (int col = 0; col < Combat::BattlefieldMap::kPlayfieldCols; ++col) {
+			const uint8 raw = map.getRawTile(col, row);
+			line += Common::String::format(" %02X", (unsigned)raw);
+		}
+		writeLine(line);
+	}
+
+	writeLine("");
+	writeLine("GFX SLOT MAP (-- = empty, values are icon slot IDs)");
+	for (int row = 0; row < Combat::BattlefieldMap::kPlayfieldRows; ++row) {
+		Common::String line = Common::String::format("r%02d:", row);
+		for (int col = 0; col < Combat::BattlefieldMap::kPlayfieldCols; ++col) {
+			const uint8 raw = map.getRawTile(col, row);
+			if (raw == 0) {
+				line += " --";
+				continue;
+			}
+
+			const uint8 tileId = static_cast<uint8>(raw - 1);
+			uint8 gfxId = tileId;
+			if (tileProps && tileId < tileProps->getTilePropCount())
+				gfxId = tileProps->getGfxID(tileId);
+
+			if (gfxId < Gfx::CombatTileCache::MAX_TILES)
+				gfxRefCount[gfxId]++;
+
+			line += Common::String::format(" %02X", (unsigned)gfxId);
+		}
+		writeLine(line);
+	}
+
+	writeLine("");
+	writeLine("CACHE SLOT SIGNATURES (slot: refs present sig)");
+
+	uint32 slotSig[Gfx::CombatTileCache::MAX_TILES];
+	bool slotHasPic[Gfx::CombatTileCache::MAX_TILES];
+	for (int slot = 0; slot < Gfx::CombatTileCache::MAX_TILES; ++slot) {
+		const Gfx::Pic *pic = tileCache.getTile(static_cast<uint8>(slot));
+		slotHasPic[slot] = (pic != nullptr);
+		slotSig[slot] = calcPicSignature(pic);
+
+		if (!slotHasPic[slot] && gfxRefCount[slot] == 0)
+			continue;
+
+		writeLine(Common::String::format("slot %02d: refs=%3d %s sig=%08X",
+			slot,
+			gfxRefCount[slot],
+			slotHasPic[slot] ? "present" : "missing",
+			(unsigned)slotSig[slot]));
+	}
+
+	int referencedSlots = 0;
+	int referencedPresent = 0;
+	int referencedUnique = 0;
+	uint32 uniqueSig[Gfx::CombatTileCache::MAX_TILES];
+
+	for (int slot = 0; slot < Gfx::CombatTileCache::MAX_TILES; ++slot) {
+		if (gfxRefCount[slot] <= 0)
+			continue;
+
+		referencedSlots++;
+		if (!slotHasPic[slot])
+			continue;
+
+		referencedPresent++;
+		bool seen = false;
+		for (int i = 0; i < referencedUnique; ++i) {
+			if (uniqueSig[i] == slotSig[slot]) {
+				seen = true;
+				break;
+			}
+		}
+		if (!seen)
+			uniqueSig[referencedUnique++] = slotSig[slot];
+	}
+
+	writeLine("");
+	writeLine(Common::String::format(
+		"cache summary: referencedSlots=%d referencedPresent=%d "
+		"uniqueReferencedSignatures=%d",
+		referencedSlots, referencedPresent, referencedUnique));
+
+	textFile.close();
+	debugPrintf("Dumped battlefield data to %s\n", textName.c_str());
 
 	return true;
 }

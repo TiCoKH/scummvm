@@ -64,6 +64,7 @@ MODULE_OBJS = \
 	gfx/icon_manager.o \
 	gfx/combat_icon.o \
 	gfx/battlefield_tilemap.o \
+	gfx/combat_tile_cache.o \
 	gfx/combat_renderer.o \
 	combat/combat_setup.o \
 	combat/combat_ground_info.o \

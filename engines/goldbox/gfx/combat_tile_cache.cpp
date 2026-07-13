@@ -77,31 +77,68 @@ const Pic *CombatTileCache::getTile(uint8 slotId) const {
 void CombatTileCache::loadFromContainer(Data::DaxBlockContainer &container,
                                         int startBlock, int count,
                                         int destSlot) {
-    for (int i = 0; i < count; i++) {
-        int blockId = startBlock + i;
-        int slot = destSlot + i;
+    int loadedCount = 0;
+    int missingStreak = 0;
+
+    // Flatten tile sources into one logical frame stream:
+    // - one block with many frames
+    // - many blocks with one frame each
+    // - many blocks with many frames each
+    for (int blockId = startBlock; blockId <= 255 && loadedCount < count;
+         ++blockId) {
+        const int slot = destSlot + loadedCount;
         if (slot >= MAX_TILES)
             break;
 
         Data::DaxBlock *rawBlock = container.getBlockById(
             static_cast<uint8>(blockId));
-        if (!rawBlock)
-            continue;
-
-        // DUNGCOM/WILDCOM/RANDCOM blocks are DaxBlockPic (via DaxBlock8x8D)
-        Data::DaxBlockPic *picBlock =
-            dynamic_cast<Data::DaxBlockPic *>(rawBlock);
-        if (picBlock) {
-            _tiles[slot] = Pic::read(picBlock);
-            if (!_tiles[slot]) {
-                debug(5, "CombatTileCache: failed to decode tile block %d -> slot %d",
-                    blockId, slot);
-            }
+        if (!rawBlock) {
+            ++missingStreak;
+            if (missingStreak >= 8)
+                break;
             continue;
         }
+        missingStreak = 0;
 
-        debug(5, "CombatTileCache: block %d is not DaxBlockPic type", blockId);
+        Data::DaxBlockPic *picBlock =
+            dynamic_cast<Data::DaxBlockPic *>(rawBlock);
+        if (!picBlock)
+            continue;
+
+        const int frameSize = (picBlock->width * picBlock->height) / 2;
+        if (frameSize <= 0)
+            continue;
+
+        int frameCount = static_cast<int>(picBlock->_data.size()) / frameSize;
+
+        Data::DaxBlock8x8D *tileBlock =
+            dynamic_cast<Data::DaxBlock8x8D *>(picBlock);
+        if (tileBlock && tileBlock->item_count > 0
+            && tileBlock->item_count < frameCount) {
+            frameCount = tileBlock->item_count;
+        } else if (!tileBlock && picBlock->frameCount > 0
+                   && picBlock->frameCount < frameCount) {
+            frameCount = picBlock->frameCount;
+        }
+
+        for (int frame = 0; frame < frameCount && loadedCount < count;
+             ++frame) {
+            int frameSlot = destSlot + loadedCount;
+            if (frameSlot >= MAX_TILES)
+                break;
+
+            Pic *tilePic = Pic::readFrame(picBlock, frame);
+            if (!tilePic)
+                continue;
+
+            _tiles[frameSlot] = tilePic;
+            ++loadedCount;
+        }
     }
+
+    debug(4, "CombatTileCache: loaded %d/%d tiles from container "
+        "(startBlock=%d, destSlot=%d)",
+        loadedCount, count, startBlock, destSlot);
 }
 
 } // namespace Gfx
