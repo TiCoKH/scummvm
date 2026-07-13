@@ -159,10 +159,6 @@ public:
     }
 
 private:
-    void buildUnifiedCombatRoster(
-        Common::Array<Goldbox::Data::PlayerCharacter *> &roster,
-        int &partyCount) const;
-
     uint8 allocateMonsterIconSlot() const;
 
     // Skybox background layer colors (set by GFX_SetDefaultColors,
@@ -179,7 +175,6 @@ private:
     // Non-owning enemy roster used as modern MONSTER_LOAD_READY signal.
     // Ownership remains in _loadedMonsters.
     Common::Array<Goldbox::Data::PlayerCharacter *> _enemy;
-    Common::Array<Goldbox::Data::PlayerCharacter *> _combatRoster;
     Common::Array<uint8> _monsterIconSlots;
     uint8 _nextMonsterIconSlot = 26;
 

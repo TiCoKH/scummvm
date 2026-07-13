@@ -379,41 +379,6 @@ uint8 PoolradEngineHostImpl::allocateMonsterIconSlot() const {
         ? _nextMonsterIconSlot : kMonsterSlotStart;
 }
 
-void PoolradEngineHostImpl::buildUnifiedCombatRoster(
-        Common::Array<Goldbox::Data::PlayerCharacter *> &roster,
-        int &partyCount) const {
-    roster.clear();
-    partyCount = 0;
-
-    if (!_engine)
-        return;
-
-    Common::Array<Goldbox::Data::PlayerCharacter *> &party =
-        _engine->getParty();
-    roster.reserve(party.size() + _enemy.size());
-
-    // Common::Array supports push_back(Array) concatenation.
-    // We keep party as the authoritative prefix of combat order.
-    roster.push_back(party);
-
-    partyCount = static_cast<int>(roster.size());
-
-    for (uint i = 0; i < _enemy.size(); ++i) {
-        Goldbox::Data::PlayerCharacter *ch = _enemy[i];
-        Data::PoolradCharacter *monster =
-            dynamic_cast<Data::PoolradCharacter *>(ch);
-        if (!monster)
-            continue;
-
-        // Preserve legacy combat assumptions:
-        // - one unified roster in party-first order
-        // - monsters are hostile by default
-        monster->hostile = true;
-    }
-
-    roster.push_back(_enemy);
-}
-
 VmResult PoolradEngineHostImpl::startCombat() {
     if (_asyncCombatPending)
         return VM_ERROR;
@@ -423,23 +388,26 @@ VmResult PoolradEngineHostImpl::startCombat() {
     if (_enemy.empty())
         return VmResult::VM_OK;
 
-    _combatRoster.clear();
+    Common::Array<Goldbox::Data::PlayerCharacter *> combatRoster;
+    Common::Array<Goldbox::Data::PlayerCharacter *> &party =
+        _engine->getParty();
+    combatRoster.reserve(party.size() + _enemy.size());
 
-    int partyCount = 0;
-    buildUnifiedCombatRoster(_combatRoster, partyCount);
+    // Common::Array supports push_back(Array) concatenation.
+    // Keep party as the authoritative prefix of combat order.
+    combatRoster.push_back(party);
 
-    if (_combatRoster.empty())
-        return VmResult::VM_OK;
+    const int partyCount = static_cast<int>(combatRoster.size());
+    combatRoster.push_back(_enemy);
 
     // Keep a stable runtime "next character" anchor for legacy traversal
-    // semantics (party head when available). _combatRoster is non-owning and
-    // aliases Engine::_party entries directly.
+    // semantics (party head when available).
     if (_engine)
-        _engine->_nextCharacter = _combatRoster[0];
+        _engine->_nextCharacter = combatRoster[0];
 
     debug(2, "PoolradEngineHostImpl::startCombat unified roster size=%u partyCount=%d enemyCount=%d",
-        (unsigned)_combatRoster.size(), partyCount,
-        (int)_combatRoster.size() - partyCount);
+        (unsigned)combatRoster.size(), partyCount,
+        (int)combatRoster.size() - partyCount);
 
     Poolrad::PoolradEngine *poolEngine =
         dynamic_cast<Poolrad::PoolradEngine *>(_engine);
@@ -454,7 +422,7 @@ VmResult PoolradEngineHostImpl::startCombat() {
     }
 
     Combat::CombatParams params;
-    params.roster = _combatRoster;
+    params.roster = combatRoster;
     params.partyCount = partyCount;
     params.geo = &_engine->getRuntimeGeo();
     params.nextChar = _engine->_nextCharacter;
@@ -556,6 +524,11 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
         Data::PoolradCharacter *monster = (i == 0)
             ? templateMonster
             : new Data::PoolradCharacter(*templateMonster);
+
+        // Preserve legacy combat assumptions: loaded monsters are hostile
+        // by default.
+        monster->hostile = true;
+
         monster->iconData.iconSlotId = slotId;
         monster->clearEquippedItems();
         monster->resolveEquippedItems();
@@ -572,9 +545,6 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
 }
 
 VmResult PoolradEngineHostImpl::clearMonsters() {
-    // _combatRoster is a non-owning pointer view over party + loaded monsters.
-    // Drop it before deleting monster instances.
-    _combatRoster.clear();
     _enemy.clear();
 
     Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
