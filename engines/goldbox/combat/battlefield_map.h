@@ -69,6 +69,30 @@ public:
     int8 getCenterX() const;
     int8 getCenterY() const;
 
+    // --- Dirty tile tracking ---
+
+    /**
+     * Returns true if any tile has been modified since last
+     * acknowledgement. Used by the tilemap renderer to know when
+     * to re-render affected tiles instead of the full surface.
+     */
+    bool hasDirtyTiles() const { return _dirtyCount > 0; }
+
+    /** Number of individually dirty tiles since last ack. */
+    int getDirtyCount() const { return _dirtyCount; }
+
+    /**
+     * Check if a specific tile is dirty.
+     * @return true if tile at (col, row) was modified since last ack.
+     */
+    bool isTileDirty(int col, int row) const;
+
+    /**
+     * Acknowledge all dirty tiles (renderer has redrawn them).
+     * Resets the dirty set to empty.
+     */
+    void acknowledgeDirtyTiles();
+
 private:
     struct PlayfieldState {
         uint8 unknown1;
@@ -149,6 +173,13 @@ private:
 
     void writeTile(int localCol, int localRow, uint8 tileId);
     uint8 checkCell(int8 mapX, int8 mapY, uint8 wireDir) const;
+
+    // --- Dirty tile bitmap (1 bit per tile, 50*25 = 1250 bits = 157 bytes) ---
+    static const int kDirtyBitmapSize = (kPlayfieldCols * kPlayfieldRows + 7) / 8;
+    mutable uint8 _dirtyBitmap[kDirtyBitmapSize];
+    mutable int _dirtyCount;
+
+    void markTileDirty(int col, int row) const;
 
     void generateDungeon(int8 centerX, int8 centerY);
     void generateWilderness();

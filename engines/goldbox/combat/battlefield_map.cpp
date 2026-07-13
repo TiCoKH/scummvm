@@ -56,6 +56,8 @@ void BattlefieldMap::resetPlayfieldState() {
     _playfield.viewportStartX = 21;
     _playfield.viewportStartY = 10;
     _playfield.size = 1;
+    memset(_dirtyBitmap, 0, sizeof(_dirtyBitmap));
+    _dirtyCount = 0;
 }
 
 void BattlefieldMap::clear() {
@@ -165,7 +167,33 @@ void BattlefieldMap::setRawTile(int col, int row, uint8 rawTile) {
         return;
     }
 
-    _playfield.fieldTileMap[row][col] = rawTile;
+    if (_playfield.fieldTileMap[row][col] != rawTile) {
+        _playfield.fieldTileMap[row][col] = rawTile;
+        markTileDirty(col, row);
+    }
+}
+
+void BattlefieldMap::markTileDirty(int col, int row) const {
+    int bitIdx = row * kPlayfieldCols + col;
+    int byteIdx = bitIdx / 8;
+    uint8 mask = 1 << (bitIdx & 7);
+    if (!(_dirtyBitmap[byteIdx] & mask)) {
+        _dirtyBitmap[byteIdx] |= mask;
+        _dirtyCount++;
+    }
+}
+
+bool BattlefieldMap::isTileDirty(int col, int row) const {
+    if (col < 0 || col >= kPlayfieldCols ||
+        row < 0 || row >= kPlayfieldRows)
+        return false;
+    int bitIdx = row * kPlayfieldCols + col;
+    return (_dirtyBitmap[bitIdx / 8] & (1 << (bitIdx & 7))) != 0;
+}
+
+void BattlefieldMap::acknowledgeDirtyTiles() {
+    memset(_dirtyBitmap, 0, sizeof(_dirtyBitmap));
+    _dirtyCount = 0;
 }
 
 uint8 BattlefieldMap::getTileId(int col, int row) const {

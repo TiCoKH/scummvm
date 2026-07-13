@@ -30,6 +30,7 @@
 #include "goldbox/combat/combat_viewport.h"
 #include "goldbox/combat/battlefield_map.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
+#include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/gfx/combat_renderer.h"
 #include "goldbox/gfx/icon_manager.h"
 
@@ -82,6 +83,7 @@ private:
 
     // --- Rendering ---
     Gfx::BattlefieldTilemap _tilemap;
+    Gfx::CombatTileCache _tileCache;
     Gfx::IconManager _iconManager;
     Gfx::CombatRenderer _combatRenderer;
     bool _needsFullRedraw;

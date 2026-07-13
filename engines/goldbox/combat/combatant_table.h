@@ -35,12 +35,19 @@ namespace Combat {
 /**
  * Runtime combatant position and state table for tactical combat.
  *
- * Mirrors original 1-based combatant arrays:
- *   combatant_ptr[], combatant_tile_col[], combatant_tile_row[],
- *   combatant_size[]
+ * Mirrors original parallel arrays:
+ *   gbCombatPosition_ARRAY[] (id, icon_size, tile_col, tile_row)
+ *   C_CH_PTR_TABLE[]         (character pointers)
+ *   C_FIELD_PLACEMENT_MAP[]  (50x25 occupancy grid)
+ *   BYTE_ARRAY_COL_DIST[]    (viewport-relative column position)
+ *   BYTE_ARRAY_ROW_DIST[]    (viewport-relative row position)
+ *
+ * Modernized: single Entry struct as authoritative source, occupancy
+ * grid and viewport-relative positions are derived state rebuilt
+ * lazily on access.
  *
  * Uses 0-based indexing internally; the original 1-based convention
- * is handled at the API boundary where needed.
+ * is handled at the API boundary (occupancy stores index+1).
  */
 class CombatantTable {
 public:
@@ -55,6 +62,7 @@ public:
 
     /**
      * Record for downed/sleeping combatants placed as terrain triggers.
+     * Mirrors original ARRAY_MEMBER_DOWN_ICONS[].
      */
     struct DownedMemberRecord {
         Data::PlayerCharacter *character;
@@ -79,7 +87,7 @@ public:
     /** Roll back the most recently added combatant entry. */
     bool rollbackLastAdd(int idx);
 
-    /** Remove combatant at index (shifts nothing; zeros the slot). */
+    /** Remove combatant at index (zeros the slot). */
     void removeCombatant(int idx);
 
     // --- Index lookup ---
@@ -94,7 +102,10 @@ public:
     uint8 getTileRow(int idx) const;
     uint8 getSize(int idx) const;
 
+    /** Set position and mark occupancy dirty. */
     void setPosition(int idx, uint8 col, uint8 row);
+
+    /** Set size and mark occupancy dirty. */
     void setSize(int idx, uint8 size);
 
     // --- Position access by character pointer ---
@@ -108,27 +119,53 @@ public:
     void addDownedMember(Data::PlayerCharacter *ch, uint8 col, uint8 row, uint8 savedTile);
     const Common::Array<DownedMemberRecord> &getDownedMembers() const { return _downedMembers; }
 
-    // --- Occupancy grid ---
-
-    /** Rebuild occupancy from current positions. */
-    void rebuildOccupancy();
-
-    /** Get occupant index at tile (0 = empty, 1-based combatant index). */
-    uint8 getOccupant(int col, int row) const;
-
-    // --- Distance cache ---
+    // --- Occupancy grid (lazy rebuild) ---
 
     /**
-     * Recompute distance arrays relative to a cursor/origin position.
-     * After calling, getColDist(i) and getRowDist(i) return the signed
-     * offset from (cursorCol, cursorRow) to combatant i's position.
+     * Get occupant index at tile (0 = empty, 1-based combatant index).
+     * Automatically rebuilds occupancy grid if dirty.
      */
-    void rebuildDistances(int cursorCol, int cursorRow);
+    uint8 getOccupant(int col, int row) const;
 
+    /**
+     * Force an immediate occupancy rebuild.
+     * Normally not needed — getOccupant() self-heals. Provided for
+     * callers that need to guarantee the grid is fresh before a batch
+     * of raw grid reads (e.g. rendering loops).
+     */
+    void ensureOccupancy() const;
+
+    /**
+     * Explicitly mark occupancy as dirty.
+     * Called automatically by setPosition/setSize/add/remove, but
+     * exposed for edge cases (e.g. external tile map changes).
+     */
+    void invalidateOccupancy() { _occupancyDirty = true; }
+
+    // --- Viewport-relative position cache (lazy rebuild) ---
+
+    /**
+     * Set the viewport origin for position calculations.
+     *
+     * Mirrors original BYTE_ARRAY_COL_DIST / BYTE_ARRAY_ROW_DIST which
+     * store each combatant's tile position relative to the viewport
+     * top-left corner (PTR_COMBAT_FIELD->viewport_startX/Y).
+     *
+     * Used by the renderer to compute screen-space tile coordinates
+     * and by COMBAT_IsCharacterInBounds to check viewport visibility.
+     *
+     * @param vpCol Viewport top-left column (CombatViewport::getTopLeftCol)
+     * @param vpRow Viewport top-left row (CombatViewport::getTopLeftRow)
+     */
+    void setViewportOrigin(int vpCol, int vpRow);
+
+    /** Column offset from viewport origin for combatant idx. */
     int8 getColDist(int idx) const;
+
+    /** Row offset from viewport origin for combatant idx. */
     int8 getRowDist(int idx) const;
 
-    /** Manhattan distance from cursor to combatant. */
+    /** Manhattan distance from viewport origin to combatant. */
     int getManhattanDist(int idx) const;
 
     // --- Side counts ---
@@ -136,6 +173,19 @@ public:
     int getFriendsCount() const { return _friendsCount; }
     int getFoesCount() const { return _foesCount; }
     void countSides(int partyCount);
+
+    // --- Legacy compatibility ---
+
+    /**
+     * Explicit rebuild calls for code that mirrors original call sites.
+     * These just mark dirty and optionally force immediate rebuild.
+     * Prefer letting lazy rebuild handle it instead.
+     */
+    void rebuildOccupancy() { _occupancyDirty = true; ensureOccupancy(); }
+
+    /** @deprecated Use setViewportOrigin instead. */
+    void setDistanceOrigin(int refCol, int refRow) { setViewportOrigin(refCol, refRow); }
+    void rebuildDistances(int vpCol, int vpRow) { setViewportOrigin(vpCol, vpRow); }
 
 private:
     struct Entry {
@@ -152,12 +202,20 @@ private:
     int _friendsCount;
     int _foesCount;
 
-    // 50x25 occupancy grid: stores 1-based combatant index (0 = empty)
-    uint8 _occupancy[25][50];
+    // --- Lazy occupancy grid (50x25, stores 1-based index, 0=empty) ---
+    mutable uint8 _occupancy[25][50];
+    mutable bool _occupancyDirty;
 
-    // Distance cache: signed offset from cursor to each combatant
-    int8 _colDist[MAX_COMBATANTS];
-    int8 _rowDist[MAX_COMBATANTS];
+    void doRebuildOccupancy() const;
+
+    // --- Lazy viewport-relative position cache ---
+    mutable int8 _colDist[MAX_COMBATANTS];
+    mutable int8 _rowDist[MAX_COMBATANTS];
+    mutable bool _vpPosDirty;
+    mutable int _vpOriginCol;
+    mutable int _vpOriginRow;
+
+    void doRebuildViewportPositions() const;
 
     Common::Array<DownedMemberRecord> _downedMembers;
 };

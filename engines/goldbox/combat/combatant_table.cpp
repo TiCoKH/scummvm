@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/combat/combatant_table.h"
+#include "goldbox/combat/combat_ground_info.h"
 #include "goldbox/data/player_character.h"
 #include <string.h>
 
@@ -27,7 +28,9 @@ namespace Goldbox {
 namespace Combat {
 
 CombatantTable::CombatantTable()
-    : _count(0), _friendsCount(0), _foesCount(0) {
+    : _count(0), _friendsCount(0), _foesCount(0),
+      _occupancyDirty(true), _vpPosDirty(true),
+      _vpOriginCol(0), _vpOriginRow(0) {
     clear();
 }
 
@@ -37,6 +40,10 @@ void CombatantTable::clear() {
     _count = 0;
     _friendsCount = 0;
     _foesCount = 0;
+    _occupancyDirty = true;
+    _vpPosDirty = true;
+    _vpOriginCol = 0;
+    _vpOriginRow = 0;
     memset(_occupancy, 0, sizeof(_occupancy));
     memset(_colDist, 0, sizeof(_colDist));
     memset(_rowDist, 0, sizeof(_rowDist));
@@ -52,6 +59,8 @@ int CombatantTable::addCombatant(Data::PlayerCharacter *ch, uint8 size) {
     _entries[idx].tileCol = 0;
     _entries[idx].tileRow = 0;
     _count++;
+    _occupancyDirty = true;
+    _vpPosDirty = true;
     return idx;
 }
 
@@ -63,6 +72,8 @@ bool CombatantTable::rollbackLastAdd(int idx) {
 
     _entries[idx] = Entry();
     _count--;
+    _occupancyDirty = true;
+    _vpPosDirty = true;
     return true;
 }
 
@@ -71,6 +82,8 @@ void CombatantTable::removeCombatant(int idx) {
         return;
     _entries[idx].size = 0;
     _entries[idx].character = nullptr;
+    _occupancyDirty = true;
+    _vpPosDirty = true;
 }
 
 int CombatantTable::findIndex(const Data::PlayerCharacter *ch) const {
@@ -110,12 +123,15 @@ void CombatantTable::setPosition(int idx, uint8 col, uint8 row) {
         return;
     _entries[idx].tileCol = col;
     _entries[idx].tileRow = row;
+    _occupancyDirty = true;
+    _vpPosDirty = true;
 }
 
 void CombatantTable::setSize(int idx, uint8 size) {
     if (idx < 0 || idx >= MAX_COMBATANTS)
         return;
     _entries[idx].size = size;
+    _occupancyDirty = true;
 }
 
 uint8 CombatantTable::getCharacterCol(const Data::PlayerCharacter *ch) const {
@@ -148,37 +164,98 @@ void CombatantTable::addDownedMember(Data::PlayerCharacter *ch, uint8 col, uint8
     _downedMembers.push_back(rec);
 }
 
-void CombatantTable::rebuildOccupancy() {
+// --- Occupancy grid (lazy) ---
+
+void CombatantTable::ensureOccupancy() const {
+    if (_occupancyDirty)
+        doRebuildOccupancy();
+}
+
+uint8 CombatantTable::getOccupant(int col, int row) const {
+    if (col < 0 || col >= 50 || row < 0 || row >= 25)
+        return 0;
+    ensureOccupancy();
+    return _occupancy[row][col];
+}
+
+void CombatantTable::doRebuildOccupancy() const {
     memset(_occupancy, 0, sizeof(_occupancy));
 
     for (int i = 0; i < _count; i++) {
         if (_entries[i].size == 0)
             continue;
 
-        uint8 col = _entries[i].tileCol;
-        uint8 row = _entries[i].tileRow;
-        uint8 size = _entries[i].size & 7;
+        uint8 baseCol = _entries[i].tileCol;
+        uint8 baseRow = _entries[i].tileRow;
+        uint8 iconSize = _entries[i].size & 7;
 
-        // Size footprint: 0/1 = 1x1, 2 = 2x1, 3 = 1x2, 4+ = 2x2
-        int w = (size >= 2 && size != 3) ? 2 : 1;
-        int h = (size >= 3) ? 2 : 1;
+        // Use the canonical getIconOffsetBySize for footprint — same
+        // lookup table used by getGroundInfo, ensuring consistency.
+        for (uint8 slot = 0; slot < 4; slot++) {
+            int8 colDelta, rowDelta;
+            if (!getIconOffsetBySize(iconSize, slot, colDelta, rowDelta))
+                continue;
 
-        for (int dy = 0; dy < h; dy++) {
-            for (int dx = 0; dx < w; dx++) {
-                int c = col + dx;
-                int r = row + dy;
-                if (c >= 0 && c < 50 && r >= 0 && r < 25)
-                    _occupancy[r][c] = (uint8)(i + 1);
-            }
+            int c = (int)baseCol + colDelta;
+            int r = (int)baseRow + rowDelta;
+            if (c >= 0 && c < 50 && r >= 0 && r < 25)
+                _occupancy[r][c] = (uint8)(i + 1);
         }
+    }
+
+    _occupancyDirty = false;
+}
+
+// --- Viewport-relative position cache (lazy) ---
+
+void CombatantTable::setViewportOrigin(int vpCol, int vpRow) {
+    if (vpCol != _vpOriginCol || vpRow != _vpOriginRow) {
+        _vpOriginCol = vpCol;
+        _vpOriginRow = vpRow;
+        _vpPosDirty = true;
     }
 }
 
-uint8 CombatantTable::getOccupant(int col, int row) const {
-    if (col < 0 || col >= 50 || row < 0 || row >= 25)
+int8 CombatantTable::getColDist(int idx) const {
+    if (idx < 0 || idx >= MAX_COMBATANTS)
         return 0;
-    return _occupancy[row][col];
+    if (_vpPosDirty)
+        doRebuildViewportPositions();
+    return _colDist[idx];
 }
+
+int8 CombatantTable::getRowDist(int idx) const {
+    if (idx < 0 || idx >= MAX_COMBATANTS)
+        return 0;
+    if (_vpPosDirty)
+        doRebuildViewportPositions();
+    return _rowDist[idx];
+}
+
+int CombatantTable::getManhattanDist(int idx) const {
+    if (idx < 0 || idx >= MAX_COMBATANTS)
+        return 127;
+    if (_vpPosDirty)
+        doRebuildViewportPositions();
+    int cd = _colDist[idx] < 0 ? -_colDist[idx] : _colDist[idx];
+    int rd = _rowDist[idx] < 0 ? -_rowDist[idx] : _rowDist[idx];
+    return cd + rd;
+}
+
+void CombatantTable::doRebuildViewportPositions() const {
+    for (int i = 0; i < _count; i++) {
+        if (_entries[i].size == 0) {
+            _colDist[i] = 0;
+            _rowDist[i] = 0;
+            continue;
+        }
+        _colDist[i] = (int8)((int)_entries[i].tileCol - _vpOriginCol);
+        _rowDist[i] = (int8)((int)_entries[i].tileRow - _vpOriginRow);
+    }
+    _vpPosDirty = false;
+}
+
+// --- Side counts ---
 
 void CombatantTable::countSides(int partyCount) {
     _friendsCount = 0;
@@ -191,38 +268,6 @@ void CombatantTable::countSides(int partyCount) {
         else
             _foesCount++;
     }
-}
-
-void CombatantTable::rebuildDistances(int cursorCol, int cursorRow) {
-    for (int i = 0; i < _count; i++) {
-        if (_entries[i].size == 0) {
-            _colDist[i] = 0;
-            _rowDist[i] = 0;
-            continue;
-        }
-        _colDist[i] = (int8)((int)_entries[i].tileCol - cursorCol);
-        _rowDist[i] = (int8)((int)_entries[i].tileRow - cursorRow);
-    }
-}
-
-int8 CombatantTable::getColDist(int idx) const {
-    if (idx < 0 || idx >= MAX_COMBATANTS)
-        return 0;
-    return _colDist[idx];
-}
-
-int8 CombatantTable::getRowDist(int idx) const {
-    if (idx < 0 || idx >= MAX_COMBATANTS)
-        return 0;
-    return _rowDist[idx];
-}
-
-int CombatantTable::getManhattanDist(int idx) const {
-    if (idx < 0 || idx >= MAX_COMBATANTS)
-        return 127;
-    int cd = _colDist[idx] < 0 ? -_colDist[idx] : _colDist[idx];
-    int rd = _rowDist[idx] < 0 ? -_rowDist[idx] : _rowDist[idx];
-    return cd + rd;
 }
 
 } // namespace Combat

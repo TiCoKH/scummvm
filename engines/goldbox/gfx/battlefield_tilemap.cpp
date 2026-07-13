@@ -22,6 +22,8 @@
 #include "goldbox/gfx/battlefield_tilemap.h"
 
 #include "goldbox/combat/battlefield_map.h"
+#include "goldbox/combat/tile_property_provider.h"
+#include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/gfx/icon_manager.h"
 #include "goldbox/gfx/pic.h"
 
@@ -59,6 +61,78 @@ Common::Rect BattlefieldTilemap::getActiveAreaRect(
 }
 
 void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
+                                const CombatTileCache &tileCache,
+                                const Combat::TilePropertyProvider *tileProps) {
+    _surface.clear(0);
+
+    for (int row = 0; row < kPlayfieldRows; row++) {
+        for (int col = 0; col < kPlayfieldCols; col++) {
+            uint8 raw = map.getRawTile(col, row);
+            if (raw == 0)
+                continue;
+
+            uint8 slotId;
+            if (tileProps && (raw - 1) < tileProps->getTilePropCount()) {
+                slotId = tileProps->getGfxID(raw - 1);
+            } else {
+                slotId = raw - 1;
+            }
+
+            const Pic *pic = tileCache.getTile(slotId);
+            if (!pic)
+                continue;
+
+            int pixX = col * kIconSize;
+            int pixY = row * kIconSize;
+            pic->draw(&_surface, pixX, pixY);
+        }
+    }
+
+    _built = true;
+}
+
+int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
+                                         const CombatTileCache &tileCache,
+                                         const Combat::TilePropertyProvider *tileProps) {
+    if (!map.hasDirtyTiles())
+        return 0;
+
+    int redrawn = 0;
+
+    for (int row = 0; row < kPlayfieldRows; row++) {
+        for (int col = 0; col < kPlayfieldCols; col++) {
+            if (!map.isTileDirty(col, row))
+                continue;
+
+            int pixX = col * kIconSize;
+            int pixY = row * kIconSize;
+
+            Common::Rect tileRect(pixX, pixY,
+                                  pixX + kIconSize, pixY + kIconSize);
+            _surface.fillRect(tileRect, 0);
+
+            uint8 raw = map.getRawTile(col, row);
+            if (raw != 0) {
+                uint8 slotId;
+                if (tileProps && (raw - 1) < tileProps->getTilePropCount()) {
+                    slotId = tileProps->getGfxID(raw - 1);
+                } else {
+                    slotId = raw - 1;
+                }
+                const Pic *pic = tileCache.getTile(slotId);
+                if (pic)
+                    pic->draw(&_surface, pixX, pixY);
+            }
+
+            redrawn++;
+        }
+    }
+
+    map.acknowledgeDirtyTiles();
+    return redrawn;
+}
+
+void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
                                 const IconManager &iconMgr) {
     _surface.clear(0);
 
@@ -80,6 +154,42 @@ void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
     }
 
     _built = true;
+}
+
+int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
+                                         const IconManager &iconMgr) {
+    if (!map.hasDirtyTiles())
+        return 0;
+
+    int redrawn = 0;
+
+    for (int row = 0; row < kPlayfieldRows; row++) {
+        for (int col = 0; col < kPlayfieldCols; col++) {
+            if (!map.isTileDirty(col, row))
+                continue;
+
+            int pixX = col * kIconSize;
+            int pixY = row * kIconSize;
+
+            // Clear the tile area first
+            Common::Rect tileRect(pixX, pixY,
+                                  pixX + kIconSize, pixY + kIconSize);
+            _surface.fillRect(tileRect, 0);
+
+            uint8 raw = map.getRawTile(col, row);
+            if (raw != 0) {
+                uint8 slotId = raw - 1;
+                const Pic *pic = iconMgr.getPic(slotId);
+                if (pic)
+                    pic->draw(&_surface, pixX, pixY);
+            }
+
+            redrawn++;
+        }
+    }
+
+    map.acknowledgeDirtyTiles();
+    return redrawn;
 }
 
 void BattlefieldTilemap::blitTo(Graphics::ManagedSurface *dst,
