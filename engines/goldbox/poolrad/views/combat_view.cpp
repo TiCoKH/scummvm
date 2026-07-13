@@ -24,6 +24,7 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/poolrad/data/poolrad_tile_props.h"
+#include "goldbox/engine.h"
 #include "goldbox/events.h"
 
 namespace Goldbox {
@@ -42,6 +43,10 @@ void CombatView::setup(const Combat::CombatParams &params) {
     _params = params;
     _combatRound = 0;
     _phase = PHASE_SETUP;
+
+    // Invalidate cached portrait data (mirrors VM_LOADED_HEAD = 0xFF,
+    // VM_LOADED_BODY = 0xFF and SYS_FreeRes calls in original COMBAT_Setup)
+    g_engine->getPictureDisplayCache().clear();
 
     // Wire up game-specific tile property provider
     _battlefieldMap.setTilePropertyProvider(&PoolradTilePropertyProvider::instance());
