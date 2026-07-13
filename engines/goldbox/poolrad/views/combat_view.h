@@ -61,6 +61,21 @@ public:
     void draw() override;
     bool tick() override;
 
+    /** Debug read-only access for console dumps. */
+    const Combat::BattlefieldMap &debugBattlefieldMap() const {
+        return _battlefieldMap;
+    }
+
+    /** Debug read-only access to the currently rendered tilemap. */
+    const Gfx::BattlefieldTilemap &debugTilemap() const {
+        return _tilemap;
+    }
+
+    /** Debug read-only access to combat terrain tile cache. */
+    const Gfx::CombatTileCache &debugTileCache() const {
+        return _tileCache;
+    }
+
 private:
     enum CombatPhase {
         PHASE_NONE = 0,
