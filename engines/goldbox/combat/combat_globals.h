@@ -23,8 +23,13 @@
 #define GOLDBOX_COMBAT_COMBAT_GLOBALS_H
 
 #include "common/scummsys.h"
+#include "common/array.h"
 
 namespace Goldbox {
+namespace Data {
+class PlayerCharacter;
+}
+
 namespace Combat {
 
 /**
@@ -42,6 +47,7 @@ struct CombatGlobals {
     uint8 membersOnGround;   // C_MEMBERS_ON_GROUND
     bool cloudEffectActive;  // PTR_CLOUD_EFF_HANDLER != 0
     uint8 combatFlag1;       // D_unknownCombatFlag1
+    uint8 sideCount[2];      // ARRAY_HOSTILITY[0]=friendly, [1]=hostile
 
     CombatGlobals() { reset(); }
 
@@ -52,7 +58,11 @@ struct CombatGlobals {
         membersOnGround = 0;
         cloudEffectActive = false;
         combatFlag1 = 0;
+        sideCount[0] = 0;
+        sideCount[1] = 0;
     }
+
+    void updateSideCount(const Common::Array<Data::PlayerCharacter *> &roster);
 };
 
 } // namespace Combat

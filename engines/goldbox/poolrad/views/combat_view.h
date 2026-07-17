@@ -25,6 +25,7 @@
 #include "goldbox/poolrad/views/view.h"
 #include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combat_globals.h"
+#include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_placement.h"
 #include "goldbox/combat/combat_viewport.h"
@@ -111,6 +112,8 @@ private:
     static const int kViewportPixelH = Combat::CombatViewport::VIEW_ROWS * kTileSize;
 
     // --- Internal methods ---
+    Combat::CombatContext makeContext();
+
     void drawViewport();
     void drawCombatants();
     void drawUI();

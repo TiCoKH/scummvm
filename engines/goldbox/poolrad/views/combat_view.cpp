@@ -176,6 +176,10 @@ bool CombatView::tick() {
 
 // --- Internal ---
 
+Combat::CombatContext CombatView::makeContext() {
+    return Combat::CombatContext(_globals, _params, _table, _battlefieldMap, _viewport);
+}
+
 void CombatView::drawViewport() {
     if (!_tilemap.isBuilt())
         return;
