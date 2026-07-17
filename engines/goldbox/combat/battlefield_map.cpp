@@ -753,17 +753,17 @@ void BattlefieldMap::setRandomFloorTiles() {
             int roll = g_engine->rollDice(1, 100);
 
             if (roll == 98) {
-                setRawTile(col, row, kTileLightVegetation + 1);
+                setRawTile(col, row, kTileLightVegetation);
             } else if (roll == 99) {
-                setRawTile(col, row, kTileDenseShrub + 1);
+                setRawTile(col, row, kTileDenseShrub);
             } else if (roll == 100 && _eclScriptId != 10) {
                 if (g_engine->rollDice(1, 100) != 1)
                     continue;
                 int d10 = g_engine->rollDice(1, 10);
                 if (d10 <= 6)
-                    setRawTile(col, row, kTileSmallRocks + 1);
+                    setRawTile(col, row, kTileSmallRocks);
                 else
-                    setRawTile(col, row, kTileLargeBoulders + 1);
+                    setRawTile(col, row, kTileLargeBoulders);
             }
         }
     }
