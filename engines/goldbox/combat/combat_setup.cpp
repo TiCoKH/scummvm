@@ -136,7 +136,7 @@ void setupCombat(CombatParams &params,
     // Step 5: Place all combatants (COMBAT_AssignBattlefieldPositions)
     placement.placeAll(params.roster, params.partyCount,
                        params.mapDirection, params.encounterDistance,
-                       map, params.combatTrigger, table);
+                       map, params.combatTrigger, table, globals);
 
     // Step 6: Center viewport on active character (PTR_NEXT_CHAR)
     // Original: _PTR_COMBAT_FIELD[2] = charX - 3; [3] = charY - 3

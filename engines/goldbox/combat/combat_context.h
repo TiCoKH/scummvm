@@ -82,7 +82,7 @@ struct CombatContext {
      *
      * Always calls updateSideCount() after removal.
      */
-    void removeMember(Data::PlayerCharacter *ch, bool freeIconSlot, bool keepPartyCount);
+    void removeMember(Data::PlayerCharacter *ch, bool keepPartyCount, bool freeIconSlot);
 };
 
 } // namespace Combat

@@ -25,6 +25,7 @@
 #include "common/scummsys.h"
 #include "common/array.h"
 #include "goldbox/combat/combatant_table.h"
+#include "goldbox/combat/combat_globals.h"
 
 namespace Goldbox {
 namespace Data {
@@ -66,18 +67,31 @@ public:
                   int partyCount,
                   uint8 mapDirection,
                   int encounterDist,
-               BattlefieldMap &map,
+                  BattlefieldMap &map,
                   bool combatTriggerActive,
-                  CombatantTable &table);
+                  CombatantTable &table,
+                  CombatGlobals &globals);
 
 private:
-    // Formation validity mask: [side][slot][row][col]
-    uint8 _formationValid[CombatantTable::SIDE_COUNT][FORMATION_SLOTS][FORMATION_ROWS][FORMATION_COLS];
+    /**
+     * Per-side placement state.
+     * Mirrors the original CombatSideData struct:
+     *   origin_x/y   = ORIGIN_X/Y[side]
+     *   dir_idx      = PARTY_DIR_IDX[side]  (way_flag derived half-direction 0-3)
+     *   side_dir     = SIDE_DIR_TABLE[side] = (hostility+1)>>1
+     *   valid_mask   = ARRAY_FORMATION_VALID_MASK[side]
+     */
+    struct CombatSideData {
+        int8  origin_x;
+        int8  origin_y;
+        uint8 dir_idx;
+        uint8 side_dir;
+        uint8 valid_mask[FORMATION_SLOTS][FORMATION_ROWS][FORMATION_COLS];
 
-    // Team state
-    int8 _originX[CombatantTable::SIDE_COUNT];
-    int8 _originY[CombatantTable::SIDE_COUNT];
-    uint8 _teamDir[CombatantTable::SIDE_COUNT];  // half-direction (0-3)
+        CombatSideData();
+    };
+
+    CombatSideData _sides[CombatantTable::SIDE_COUNT];
     int _halfCount[CombatantTable::SIDE_COUNT];
 
     // Current placement context
@@ -90,8 +104,8 @@ private:
 
     // --- Direction tables (from spec) ---
 
-    static const uint8 kDirPrimary[4][4];
-    static const uint8 kDirFallback[4][4];
+    static const uint8 kDirAxisDirection[4][4];  // ARRAY_SPIRAL_AXIS_DIRECTION
+    static const uint8 kDirFormFallback[4][4];   // ARRAY_SPIRAL_FORM_FALLBACK
     static const int8 kBaseX[8];
     static const int8 kBaseY[8];
     static const uint8 kHalfDirToIso[4];
