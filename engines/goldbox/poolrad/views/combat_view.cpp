@@ -25,8 +25,10 @@
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/poolrad/data/poolrad_tile_props.h"
 #include "goldbox/gfx/combat_tile_cache.h"
+#include "goldbox/gfx/icon_manager.h"
 #include "goldbox/engine.h"
 #include "goldbox/events.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -212,9 +214,6 @@ void CombatView::drawCombatants() {
         if (!ch)
             continue;
 
-        int pixX = kViewportX + localCol * kTileSize;
-        int pixY = kViewportY + localRow * kTileSize;
-
         Gfx::IconDirection dir = Gfx::ICON_DIRECTION_RIGHT;
         if (ch->combatState) {
             uint8 facing = ch->combatState->direction;
@@ -222,8 +221,21 @@ void CombatView::drawCombatants() {
                 dir = Gfx::ICON_DIRECTION_LEFT;
         }
 
-        _combatRenderer.drawIcon(ch->iconData, Gfx::ICON_STATE_READY,
-                                 dir, pixX, pixY, &s);
+        // If a pre-built icon slot was assigned (monsters loaded via loadMonster),
+        // use the engine's IconManager's pre-composited Pic drawn at the correct pixel
+        // position. Otherwise fall back to CombatRenderer (player characters).
+        const uint8 slotId = ch->iconData.iconSlotId;
+        int pixX = kViewportX + localCol * kTileSize;
+        int pixY = kViewportY + localRow * kTileSize;
+        Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+        if (slotId != 0 && iconMgr && !iconMgr->isSlotEmpty(slotId)) {
+            const Gfx::Pic *pic = iconMgr->getReadyPic(slotId);
+            if (pic)
+                pic->draw(&s, pixX, pixY);
+        } else {
+            _combatRenderer.drawIcon(ch->iconData, Gfx::ICON_STATE_READY,
+                                     dir, pixX, pixY, &s);
+        }
     }
 }
 

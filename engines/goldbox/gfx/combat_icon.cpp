@@ -41,10 +41,25 @@ uint32 CombatIcon::computeCacheKey(
         const Goldbox::Data::CombatIconData &iconData,
         IconState state,
         IconDirection direction) const {
+    // Must include all color fields to avoid collisions between monsters
+    // that share the same head/body sprites but have different colors.
     uint32 key = iconData.iconHead;
-    key = (key << 5) | iconData.iconBody;
-    key = (key << 1) | static_cast<uint32>(state);
-    key = (key << 1) | static_cast<uint32>(direction);
+    key = (key << 5) ^ iconData.iconBody;
+    key ^= ((uint32)iconData.iconColorBody1   << 0);
+    key ^= ((uint32)iconData.iconColorBody2   << 4);
+    key ^= ((uint32)iconData.iconColorArm1    << 8);
+    key ^= ((uint32)iconData.iconColorArm2    << 12);
+    key ^= ((uint32)iconData.iconColorLeg1    << 16);
+    key ^= ((uint32)iconData.iconColorLeg2    << 20);
+    key ^= ((uint32)iconData.iconColorHair    << 24);
+    key ^= ((uint32)iconData.iconColorFace    << 28);
+    key ^= ((uint32)iconData.iconColorShield1 * 0x1000003u);
+    key ^= ((uint32)iconData.iconColorShield2 * 0x2000003u);
+    key ^= ((uint32)iconData.iconColorWeapon1 * 0x4000003u);
+    key ^= ((uint32)iconData.iconColorWeapon2 * 0x8000003u);
+    key ^= ((uint32)iconData.iconSize         << 2);
+    key ^= (static_cast<uint32>(state)        << 1);
+    key ^= (static_cast<uint32>(direction)    << 0);
     return key;
 }
 
@@ -54,8 +69,12 @@ Icon *CombatIcon::getOrCreateIcon(
         IconDirection direction) {
     uint32 key = computeCacheKey(iconData, state, direction);
 
-    if (_iconCache.contains(key))
-        return _iconCache[key];
+    if (_iconCache.contains(key)) {
+        Icon *cached = _iconCache[key];
+        // Direction is part of the key so the cached icon already has the
+        // correct orientation — no need to call setOrientation again.
+        return cached;
+    }
 
     Icon *icon;
     if (_renderer)
@@ -63,6 +82,7 @@ Icon *CombatIcon::getOrCreateIcon(
     else
         icon = new Icon(iconData, state);
 
+    // Set orientation before caching so the stored composite pointer is correct.
     icon->setOrientation(direction);
 
     _iconCache[key] = icon;
