@@ -39,7 +39,7 @@ static uint8 resolveSpriteId(uint8 storedId, uint8 size) {
 // Icon member functions
 Icon::Icon(const Data::CombatIconData &iconData,
                              IconState state)
-    : _size(static_cast<IconSize>(iconData.iconSize)),
+    : _bodyType(static_cast<BodyType>(iconData.bodyType)),
       _state(state),
       _direction(ICON_DIRECTION_RIGHT),
 	  _renderer(nullptr),
@@ -52,20 +52,20 @@ Icon::Icon(const Data::CombatIconData &iconData,
       _readyBodyPic(nullptr),
       _actionHeadPic(nullptr),
       _actionBodyPic(nullptr) {
-				debug(8, "Icon::Icon(CombatIconData): iconSize=%u head(base)=%u body(base)=%u state=%s",
-				      (unsigned)iconData.iconSize,
+				debug(8, "Icon::Icon(CombatIconData): bodyType=%u head(base)=%u body(base)=%u state=%s",
+				      (unsigned)iconData.bodyType,
 				      (unsigned)iconData.iconHead,
 				      (unsigned)iconData.iconBody,
 				      (state == ICON_STATE_ATTACK ? "ATTACK" : "READY"));
 
-	uint8 readyHeadId = resolveSpriteId(iconData.iconHead, _size);
-	uint8 readyBodyId = resolveSpriteId(iconData.iconBody, _size);
+	uint8 readyHeadId = resolveSpriteId(iconData.iconHead, _bodyType);
+	uint8 readyBodyId = resolveSpriteId(iconData.iconBody, _bodyType);
 	uint8 actionHeadId = static_cast<uint8>(readyHeadId + ACTION_OFFSET);
 	uint8 actionBodyId = static_cast<uint8>(readyBodyId + ACTION_OFFSET);
 				debug(8, "  - Resolved IDs: readyHead=%u readyBody=%u actionHead=%u actionBody=%u (size=%u)",
 				      (unsigned)readyHeadId, (unsigned)readyBodyId,
 				      (unsigned)actionHeadId, (unsigned)actionBodyId,
-				      (unsigned)_size);
+				      (unsigned)_bodyType);
 
 	// Load base sprites from DAX containers (cached)
 	if (!loadBaseSprites(readyHeadId, readyBodyId, actionHeadId, actionBodyId)) {
@@ -94,7 +94,7 @@ Icon::Icon(const Data::CombatIconData &iconData,
 }
 
 Icon::Icon(const Pic *readyPic, const Pic *actionPic)
-	    : _size(ICON_SIZE_SMALL),
+	    : _bodyType(BODY_TYPE_SHORT),
 	      _state(ICON_STATE_READY),
 	      _direction(ICON_DIRECTION_RIGHT),
 	      _renderer(nullptr),
@@ -142,15 +142,15 @@ Icon::Icon(const Pic *readyPic, const Pic *actionPic)
 			VmInterface::getDaxCBody().getBlockById(0 + SIZE_OFFSET_LARGE));
 		if (smallBody && largeBody) {
 			if (readySource->w == (int)largeBody->width && readySource->h == (int)largeBody->height) {
-				_size = ICON_SIZE_LARGE;
+				_bodyType = BODY_TYPE_TALL;
 				debug(8, "  - Classified as LARGE via DAX body dims (%dx%d)", (int)largeBody->width, (int)largeBody->height);
 			} else {
-				_size = ICON_SIZE_SMALL;
+				_bodyType = BODY_TYPE_SHORT;
 				debug(8, "  - Classified as SMALL via DAX body dims (%dx%d)", (int)smallBody->width, (int)smallBody->height);
 			}
 		} else {
 			// If DAX metadata is not available, default to SMALL; pixel dims remain authoritative for rendering.
-			_size = ICON_SIZE_SMALL;
+			_bodyType = BODY_TYPE_SHORT;
 			debug(8, "  - DAX metadata unavailable; defaulting to SMALL category");
 		}
 	}
@@ -178,7 +178,7 @@ Icon::Icon(const Pic *readyPic, const Pic *actionPic)
 }
 
 Icon::Icon(uint16 blockId, IconKind kind)
-	    : _size(ICON_SIZE_SMALL),
+	    : _bodyType(BODY_TYPE_SHORT),
 	      _state(ICON_STATE_READY),
 	      _direction(ICON_DIRECTION_RIGHT),
 	      _renderer(nullptr),
@@ -312,7 +312,7 @@ Icon::Icon(uint16 blockId, IconKind kind)
 	Icon::Icon(const Data::CombatIconData &iconData,
 	                             DaxRenderer *renderer,
 	                             IconState state)
-	    : _size(static_cast<IconSize>(iconData.iconSize)),
+	    : _bodyType(static_cast<BodyType>(iconData.bodyType)),
 	      _state(state),
 	      _direction(ICON_DIRECTION_RIGHT),
 	      _renderer(renderer),
@@ -326,8 +326,8 @@ Icon::Icon(uint16 blockId, IconKind kind)
 	      _actionHeadPic(nullptr),
 	      _actionBodyPic(nullptr) {
 
-		uint8 readyHeadId = resolveSpriteId(iconData.iconHead, _size);
-		uint8 readyBodyId = resolveSpriteId(iconData.iconBody, _size);
+		uint8 readyHeadId = resolveSpriteId(iconData.iconHead, _bodyType);
+		uint8 readyBodyId = resolveSpriteId(iconData.iconBody, _bodyType);
 		uint8 actionHeadId = static_cast<uint8>(readyHeadId + ACTION_OFFSET);
 		uint8 actionBodyId = static_cast<uint8>(readyBodyId + ACTION_OFFSET);
 
@@ -470,7 +470,7 @@ void Icon::remapComposite(Pic *composite, const Data::CombatIconData &iconData) 
 	if (!composite)
 		return;
 	debug(8, "Icon::remapComposite: size=%u colors BODY(%u,%u) ARM(%u,%u) LEG(%u,%u) SHIELD(%u,%u) WEAP(%u,%u) HAIR=%u FACE=%u",
-	      (unsigned)iconData.iconSize,
+	      (unsigned)iconData.bodyType,
 	      (unsigned)iconData.iconColorBody1, (unsigned)iconData.iconColorBody2,
 	      (unsigned)iconData.iconColorArm1, (unsigned)iconData.iconColorArm2,
 	      (unsigned)iconData.iconColorLeg1, (unsigned)iconData.iconColorLeg2,

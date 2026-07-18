@@ -248,14 +248,14 @@ static void applyX86MonsterIconDefaults(Goldbox::Poolrad::Data::PoolradCharacter
     case R_DWARF:
     case R_GNOME:
     case R_HALFLING:
-        monster.iconData.iconSize = 1;
+        monster.iconData.bodyType = 1;
         break;
     case R_ELF:
     case R_HALF_ELF:
     case R_HALF_ORC:
     case R_HUMAN:
     default:
-        monster.iconData.iconSize = 2;
+        monster.iconData.bodyType = 2;
         break;
     }
 
@@ -526,8 +526,9 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
             : new Data::PoolradCharacter(*templateMonster);
 
         // Preserve legacy combat assumptions: loaded monsters are hostile
-        // by default.
+        // and enabled (active in combat) by default.
         monster->hostile = true;
+        monster->enabled = true;
 
         monster->iconData.iconSlotId = slotId;
         monster->clearEquippedItems();

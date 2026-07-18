@@ -231,7 +231,7 @@ void CombatView::drawCombatants() {
         if (slotId != 0 && iconMgr && !iconMgr->isSlotEmpty(slotId)) {
             const Gfx::Pic *pic = iconMgr->getReadyPic(slotId);
             if (pic)
-                pic->draw(&s, pixX, pixY);
+                pic->trDraw(&s, pixX, pixY, pic->getTransparentIndex());
         } else {
             _combatRenderer.drawIcon(ch->iconData, Gfx::ICON_STATE_READY,
                                      dir, pixX, pixY, &s);

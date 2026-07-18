@@ -57,8 +57,9 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
         delete ch->combatState;
         ch->combatState = new Data::CombatState();
 
-        // Mark characters beyond the player party as not in team
-        if (partyCount < combatantCount)
+        // Mark non-hostile characters beyond the player party as not in team.
+        // Hostile monsters are always in the enemy team regardless of roster index.
+        if (partyCount < combatantCount && !ch->hostile)
             ch->combatState->notInTeam = true;
 
         // Original morale migration for neutral non-team NPCs:

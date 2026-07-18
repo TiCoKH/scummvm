@@ -50,9 +50,9 @@ enum IconKind : uint8 {
  * Represents an icon size category.
  * Small icons use different sprite ranges than Large icons.
  */
-enum IconSize {
-	ICON_SIZE_SMALL = 1,
-	ICON_SIZE_LARGE = 2
+enum BodyType {
+	BODY_TYPE_SHORT = 1,
+	BODY_TYPE_TALL  = 2
 };
 
 /**
@@ -173,7 +173,7 @@ public:
 	/**
 	 * Get the icon size category.
 	 */
-	IconSize getSize() const { return _size; }
+	BodyType getBodyType() const { return _bodyType; }
 
 	/**
 	 * Get the ready state icon (normal orientation).
@@ -258,10 +258,10 @@ public:
 		_composite = nullptr;
 
 		// Update size if it changed
-		_size = static_cast<IconSize>(iconData.iconSize);
+		_bodyType = static_cast<BodyType>(iconData.bodyType);
 
 		// Rebuild sprites with new data
-		uint8 sizeOffset = (_size == ICON_SIZE_LARGE) ? 64 : 0;
+		uint8 sizeOffset = (_bodyType == BODY_TYPE_TALL) ? 64 : 0;
 		uint8 readyHeadId = iconData.iconHead + sizeOffset;
 		uint8 readyBodyId = iconData.iconBody + sizeOffset;
 		uint8 actionHeadId = readyHeadId + 128;
@@ -345,7 +345,7 @@ public:
 	static const uint8 TRANSPARENT_COLOR_INDEX = 0;
 
 private:
-	IconSize _size;
+	BodyType _bodyType;  // Short or Tall (affects sprite ranges)
 	IconState _state;
 	IconDirection _direction;
 	DaxRenderer *_renderer; // optional decoding abstraction (nullptr when not used)

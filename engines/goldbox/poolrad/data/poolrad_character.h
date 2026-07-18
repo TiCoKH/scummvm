@@ -122,9 +122,8 @@ public:
     Goldbox::Data::CombatStat acRear;
 
     uint8 healthStatus = Goldbox::Data::S_OKAY;
-    bool enabled = true;
-    bool hostile = false;
-    bool quickfight = false;
+    // NOTE: enabled, hostile, quickfight are inherited from PlayerCharacter.
+    // Do not redeclare them here.
 
     PoolradCharacter();
 

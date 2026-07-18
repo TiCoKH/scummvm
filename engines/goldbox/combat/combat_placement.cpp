@@ -36,7 +36,7 @@ namespace Combat {
 const uint8 CombatPlacement::kHalfDirToIso[4] = { 7, 2, 3, 6 };
 
 // ARRAY_SPIRAL_FORM_FALLBACK[4][4] — form_set direction table (drives dirIndex for anchor/arm axes)
-const uint8 CombatPlacement::kDirFormFallback[4][4] = {
+const uint8 CombatPlacement::kDirAxisDirection[4][4] = {
     { 0, 0, 2, 6 },
     { 2, 2, 0, 4 },
     { 4, 4, 2, 6 },
@@ -44,7 +44,7 @@ const uint8 CombatPlacement::kDirFormFallback[4][4] = {
 };
 
 // ARRAY_SPIRAL_AXIS_DIRECTION[4][4] — fallback approach directions (form_set advance + diagonal check)
-const uint8 CombatPlacement::kDirAxisDirection[4][4] = {
+const uint8 CombatPlacement::kDirFormFallback[4][4] = {
     { 8, 4, 6, 2 },
     { 8, 6, 4, 0 },
     { 8, 0, 6, 2 },
@@ -60,15 +60,15 @@ const int8 CombatPlacement::kBaseY[8] = { 3, 2, 2, 3, 0, 2, 5, 3 };
 // [direction_index][row][0=minCol, 1=maxCol]
 // Rows where min > max have no valid cells.
 const int8 CombatPlacement::kFormationRange[5][6][2] = {
-    // dir 0
+    // dir N
     { {1, 0}, {1, 0}, {1, 0}, {2, 9}, {3, 10}, {4, 10} },
-    // dir 1
+    // dir E
     { {0, 2}, {0, 3}, {1, 4}, {2, 5}, {3, 6}, {4, 7} },
-    // dir 2
+    // dir S
     { {0, 6}, {0, 7}, {1, 8}, {1, 0}, {1, 0}, {1, 0} },
-    // dir 3
+    // dir W
     { {3, 6}, {4, 7}, {5, 8}, {6, 9}, {7, 10}, {8, 10} },
-    // dir 4
+    // dir alaways slot 1
     { {0, 6}, {0, 7}, {1, 8}, {2, 9}, {3, 10}, {4, 10} },
 };
 
@@ -78,9 +78,11 @@ CombatPlacement::CombatSideData::CombatSideData()
 }
 
 CombatPlacement::CombatPlacement()
-    : _currentSide(0), _isDungeon(false), _mapCenterX(0), _mapCenterY(0),
-      _map(nullptr), _table(nullptr) {
+        : _currentSide(0), _isDungeon(false), _mapCenterX(0), _mapCenterY(0),
+            _mapDirection(0), _map(nullptr), _table(nullptr) {
     memset(_halfCount, 0, sizeof(_halfCount));
+    memset(_sideStart, 0, sizeof(_sideStart));
+    memset(_sideEnd, 0, sizeof(_sideEnd));
 }
 
 void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
@@ -95,9 +97,9 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
     _isDungeon = map.isDungeon();
     _mapCenterX = map.getCenterX();
     _mapCenterY = map.getCenterY();
+    _mapDirection = mapDirection;
     _table = &table;
 
-    // updateSideCount first — mirrors COMBAT_AssignBattlefieldPositions call order
     globals.updateSideCount(roster);
 
     table.clear();
@@ -111,6 +113,8 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
     party.dir_idx  = (mapDirection / 2) & 3;
     party.side_dir = (globals.sideCount[CombatantTable::SIDE_PARTY] + 1) >> 1;
 
+    // Enemy origin uses the full 8-way approach direction from the reference
+    // placement logic; team_direction is reserved for facing/formation tables.
     enemy.origin_x = (int8)(encounterDist * kDirDeltaX[mapDirection]);
     enemy.origin_y = (int8)(encounterDist * kDirDeltaY[mapDirection]);
     enemy.dir_idx  = (((mapDirection + 4) % 8) / 2) & 3;
@@ -130,6 +134,16 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
     _halfCount[CombatantTable::SIDE_PARTY] = (friendsCount + 1) / 2;
     _halfCount[CombatantTable::SIDE_ENEMY] = (foesCount + 1) / 2;
 
+    // Record per-side table index ranges for full-scan centroid calculation.
+    // Count non-null party and enemy entries to get table index boundaries.
+    int tablePartyCount = 0;
+    for (int i = 0; i < partyCount && i < (int)roster.size(); i++)
+        if (roster[i]) tablePartyCount++;
+    _sideStart[CombatantTable::SIDE_PARTY] = 0;
+    _sideEnd[CombatantTable::SIDE_PARTY]   = tablePartyCount;
+    _sideStart[CombatantTable::SIDE_ENEMY] = tablePartyCount;
+    _sideEnd[CombatantTable::SIDE_ENEMY]   = tablePartyCount + foesCount;
+
     // Build formation validity masks
     buildFormationMasks();
 
@@ -142,7 +156,9 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
         _currentSide = (i < partyCount) ? CombatantTable::SIDE_PARTY
                                         : CombatantTable::SIDE_ENEMY;
 
-        uint8 size = ch->iconData.iconSize & 7;
+        uint8 size = ch->iconDimension & 7;
+        if (size == 0)
+            size = 1; // default to 1x1 if not set
         int idx = table.addCombatant(ch, size);
         if (idx < 0)
             break;
@@ -150,7 +166,6 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
         if (placeCombatantSpiral(idx)) {
             const bool notInTeam = ch->combatState && ch->combatState->notInTeam;
             if (!ch->enabled && !combatTriggerActive && !notInTeam) {
-                // Disabled team member: hide icon, save tile, stamp downed-member tile
                 table.setSize(idx, 0);
                 uint8 col = table.getTileCol(idx);
                 uint8 row = table.getTileRow(idx);
@@ -159,12 +174,10 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
                 table.addDownedMember(ch, col, row, savedTile);
                 globals.membersOnGround++;
             }
-            // Mirrors COMBAT_RebuildPlacementMap call after each successful placement
             table.rebuildOccupancy();
         } else {
             const bool notInTeam = ch->combatState && ch->combatState->notInTeam;
             if (notInTeam) {
-                // Failed not-in-team placement should not consume a combatant slot.
                 table.rollbackLastAdd(idx);
                 roster[i] = nullptr;
             } else {
@@ -197,151 +210,134 @@ void CombatPlacement::buildFormationMasks() {
 
 bool CombatPlacement::placeCombatantSpiral(int charIdx) {
     int state = 1;
-    int ring = 0;
-    int formSet = 0;
-    bool isFirstRing = true;
+    int rowScale = 0;
+    int var14 = 0;
+    bool firstRow = true;
+    bool totalFail = false;
+
     const CombatSideData &sd = _sides[_currentSide];
-    int8 originCol = sd.origin_x;
-    int8 originRow = sd.origin_y;
-    uint8 dirIdx = sd.dir_idx;
+    int8 teamX = sd.origin_x;
+    int8 teamY = sd.origin_y;
 
-    int8 anchorCol = 0, anchorRow = 0;
-    int8 candCol = 0, candRow = 0;
+    int8 baseCol = 0;
+    int8 baseRow = 0;
+    int8 candCol = 0;
+    int8 candRow = 0;
+    int colScale = 0;
     int stepsTaken = 0;
-    int armLen = 0;
 
-    for (int iterations = 0; iterations < 2000; iterations++) {
-        uint8 dirIndex = (kDirFormFallback[dirIdx][formSet] >> 1) & 3;
+    bool placed = false;
+    do {
+        const uint8 halfDir = (uint8)(kDirAxisDirection[sd.dir_idx][var14] / 2);
 
-        switch (state) {
-        case 1: {
-            // State 1: Initialize ring anchor
-            // Direction = C_BF_DIRECTION_TABLE[(dir_base + 2) % 4]
-            uint8 advDir = kHalfDirToIso[(dirIndex + 2) % 4];
-            int8 dx = kDirDeltaX[advDir];
-            int8 dy = kDirDeltaY[advDir];
+        if (state == 1) {
+            const uint8 backwardIso = kHalfDirToIso[(halfDir + 2) % 4];
+            const int8 dx = kDirDeltaX[backwardIso];
+            const int8 dy = kDirDeltaY[backwardIso];
 
-            int baseIdx = (formSet != 0) ? 1 : 0;
-            anchorCol = kBaseX[baseIdx * 4 + dirIndex] + (int8)(dx * ring);
-            anchorRow = kBaseY[baseIdx * 4 + dirIndex] + (int8)(dy * ring);
+            const int tableIdx = (var14 > 0 ? 4 : 0) + halfDir;
+            baseCol = kBaseX[tableIdx] + (int8)(rowScale * dx);
+            baseRow = kBaseY[tableIdx] + (int8)(rowScale * dy);
 
-            candCol = anchorCol;
-            candRow = anchorRow;
+            candCol = baseCol;
+            candRow = baseRow;
+            colScale = 1;
+            state = 2;
             stepsTaken = 1;
-            armLen = 1;
-            state = 2;
-            break;
-        }
-        case 2: {
-            // State 2: Extend positive arm from anchor
-            // Direction = C_BF_DIRECTION_TABLE[(dir_base + 1) % 4]
-            uint8 axisADir = kHalfDirToIso[(dirIndex + 1) % 4];
-            int8 dx = kDirDeltaX[axisADir];
-            int8 dy = kDirDeltaY[axisADir];
+        } else if (state == 2) {
+            const uint8 rightIso = kHalfDirToIso[(halfDir + 1) % 4];
+            const int8 dx = kDirDeltaX[rightIso];
+            const int8 dy = kDirDeltaY[rightIso];
 
-            candCol = anchorCol + (int8)(dx * armLen);
-            candRow = anchorRow + (int8)(dy * armLen);
-            stepsTaken++;
+            candCol = baseCol + (int8)(dx * colScale);
+            candRow = baseRow + (int8)(dy * colScale);
             state = 3;
-            break;
-        }
-        case 3: {
-            // State 3: Extend negative arm (opposite side)
-            // Direction = C_BF_DIRECTION_TABLE[(dir_base + 3) % 4]
-            uint8 axisBDir = kHalfDirToIso[(dirIndex + 3) % 4];
-            int8 dx = kDirDeltaX[axisBDir];
-            int8 dy = kDirDeltaY[axisBDir];
-
-            candCol = anchorCol + (int8)(dx * armLen);
-            candRow = anchorRow + (int8)(dy * armLen);
-            armLen++;
             stepsTaken++;
+        } else if (state == 3) {
+            const uint8 leftIso = kHalfDirToIso[(halfDir + 3) % 4];
+            const int8 dx = kDirDeltaX[leftIso];
+            const int8 dy = kDirDeltaY[leftIso];
+
+            candCol = baseCol + (int8)(dx * colScale);
+            candRow = baseRow + (int8)(dy * colScale);
             state = 2;
-            break;
-        }
-        default:
-            break;
+            colScale++;
+            stepsTaken++;
         }
 
-        // Bounds check
-        bool outOfBounds = (candCol < 0 || candRow < 0 ||
-                            candCol > 10 || candRow > 5);
+        const bool colOk = (candCol >= 0 && candCol <= 10);
+        const bool rowOk = (candRow >= 0 && candRow <= 5);
+        const bool softOob = !(colOk && rowOk);
+        const bool hardOob = !colOk && !rowOk;
 
-        // Ring advance check
         if (state > 1) {
             bool needAdvance = false;
 
-            if (outOfBounds && !isOutOfFormation(candCol, candRow))
+            if (softOob && !hardOob)
                 needAdvance = true;
-            if (isFirstRing && stepsTaken >= _halfCount[_currentSide])
+            if (firstRow && stepsTaken >= _halfCount[_currentSide])
                 needAdvance = true;
-            if (!isFirstRing && stepsTaken > 11)
+            if (!firstRow && stepsTaken > 11)
                 needAdvance = true;
 
             if (needAdvance) {
-                ring++;
+                rowScale++;
 
-                // Diagonal terrain check: if party facing diagonal,
-                // primary form_set, just entered ring 1
                 if (_currentSide == CombatantTable::SIDE_PARTY &&
-                    (dirIdx % 2 != 0) && formSet == 0 && ring == 1) {
+                    (sd.dir_idx & 1) == 1 && var14 == 0 && rowScale == 1) {
                     bool anyPassable = false;
-                    for (int d = 1; d < 4; d++) {
-                        uint8 checkDir = kDirAxisDirection[dirIdx][d];
-                        if (checkDir >= 8)
+                    const int checkX = _mapCenterX + sd.origin_x;
+                    const int checkY = _mapCenterY + sd.origin_y;
+
+                    for (int d = 1; d <= 3; d++) {
+                        const uint8 testDir = kDirFormFallback[sd.dir_idx][d];
+                        if (testDir >= 8)
                             continue;
-                        int8 checkX = _mapCenterX + _sides[_currentSide].origin_x;
-                        int8 checkY = _mapCenterY + _sides[_currentSide].origin_y;
-                        if (!_isDungeon ||
-                            _map->checkOpenPassage(checkX, checkY, checkDir) != 1) {
+                        if (!_isDungeon || _map->checkOpenPassage(checkX, checkY, testDir) != 1)
                             anyPassable = true;
-                        }
                     }
+
                     if (anyPassable)
-                        ring++;
+                        rowScale++;
                 }
 
                 state = 1;
-                isFirstRing = false;
+                firstRow = false;
             }
         }
 
-        // Formation exhaustion / fallback
-        if (outOfBounds && isOutOfFormation(candCol, candRow)) {
+        if (hardOob) {
             state = 0;
 
-            while (formSet < 3 && state != 1) {
-                formSet++;
-                uint8 testDir = kDirAxisDirection[dirIdx][formSet];
+            while (var14 < 3 && state != 1) {
+                var14++;
+
+                const uint8 testDir = kDirFormFallback[sd.dir_idx][var14];
                 if (testDir >= 8)
                     continue;
 
-                // In wilderness (mapType > 1), always passable.
-                // In dungeon, check bidirectional passability != 1.
-                if (!_isDungeon ||
-                    _map->checkOpenPassage(
-                        _mapCenterX + _sides[_currentSide].origin_x,
-                        _mapCenterY + _sides[_currentSide].origin_y,
-                        testDir) != 1) {
-                    originCol = _sides[_currentSide].origin_x + kDirDeltaX[testDir];
-                    originRow = _sides[_currentSide].origin_y + kDirDeltaY[testDir];
-                    ring = 0;
+                const int checkX = _mapCenterX + sd.origin_x;
+                const int checkY = _mapCenterY + sd.origin_y;
+                if (!_isDungeon || _map->checkOpenPassage(checkX, checkY, testDir) != 1) {
+                    teamX = sd.origin_x + kDirDeltaX[testDir];
+                    teamY = sd.origin_y + kDirDeltaY[testDir];
+                    rowScale = 0;
                     state = 1;
                 }
             }
 
             if (state != 1)
                 return false;
+
             continue;
         }
 
-        // Attempt placement at valid in-bounds position
-        if (!outOfBounds) {
-            if (tryPlaceAt(charIdx, candCol, candRow,
-                           originCol, originRow, formSet))
+        if (!softOob) {
+            placed = tryPlaceAt(charIdx, candCol, candRow, teamX, teamY, var14);
+            if (placed)
                 return true;
         }
-    }
+    } while (!placed && !totalFail);
 
     return false;
 }
@@ -365,27 +361,116 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
     if (tileRow < 0 || tileRow >= BattlefieldMap::kPlayfieldRows)
         return false;
 
-    // Write position temporarily
+    // Prevent duplicate base-tile placement before the temporary write. This
+    // avoids silent overwrites in the dump while still leaving the broader
+    // footprint/terrain validation to the original getGroundInfo path.
+    _table->ensureOccupancy();
+    if (_table->getOccupant(tileCol, tileRow) != 0)
+        return false;
+
     _table->setPosition(charIdx, (uint8)tileCol, (uint8)tileRow);
 
-    // Scan destination using shared ground info utility
     uint8 occupant = 0;
     uint8 groundTile = 0;
     getGroundInfo(charIdx, 8, *_map, *_table, groundTile, occupant);
 
     if (occupant != 0)
         return false;
-    if (groundTile == 0)
-        return false;
 
-    // Check passability via tile property provider
-    const Combat::TilePropertyProvider *tileProps = _map->getTilePropertyProvider();
-    if (tileProps && tileProps->isImpassable(groundTile))
+    if (groundTile == 0 || (_map->getTilePropertyProvider() &&
+            _map->getTilePropertyProvider()->isImpassable(groundTile))) {
+        _sides[_currentSide].valid_mask[slot][formRow][formCol] = 0;
         return false;
+    }
 
-    // Commit: mark formation cell as used
+    // Commit: mark formation cell as used by this combatant
     _sides[_currentSide].valid_mask[slot][formRow][formCol] = 0;
     return true;
+}
+
+bool CombatPlacement::placeCombatantFullScan(int charIdx) {
+    // Scan the entire playfield for any passable unoccupied tile, starting
+    // from the centroid of already-placed same-side combatants and expanding
+    // outward. This keeps overflow enemies near their side's existing cluster.
+    //
+    // Check occupancy BEFORE setPosition so the current combatant is not
+    // yet registered at the candidate tile when we query getOccupant().
+    const TilePropertyProvider *tileProps = _map->getTilePropertyProvider();
+    _table->ensureOccupancy();
+
+    // Compute centroid of already-placed same-side combatants.
+    int sumCol = 0, sumRow = 0, count = 0;
+    for (int i = _sideStart[_currentSide]; i < charIdx; i++) {
+        if (_table->getSize(i) == 0)
+            continue;
+        sumCol += _table->getTileCol(i);
+        sumRow += _table->getTileRow(i);
+        count++;
+    }
+
+    int centerCol, centerRow;
+    if (count > 0) {
+        centerCol = sumCol / count;
+        centerRow = sumRow / count;
+    } else {
+        // No same-side combatants placed yet — fall back to origin formula.
+        const CombatSideData &sd = _sides[_currentSide];
+        centerCol = (sd.origin_x * 6) + (sd.origin_y * 5) + 22;
+        centerRow = (sd.origin_y * 5) + 10;
+        // Clamp to playfield
+        if (centerCol < 0) centerCol = 0;
+        if (centerCol >= BattlefieldMap::kPlayfieldCols) centerCol = BattlefieldMap::kPlayfieldCols - 1;
+        if (centerRow < 0) centerRow = 0;
+        if (centerRow >= BattlefieldMap::kPlayfieldRows) centerRow = BattlefieldMap::kPlayfieldRows - 1;
+    }
+    const int maxRadius = BattlefieldMap::kPlayfieldCols + BattlefieldMap::kPlayfieldRows;
+
+    for (int radius = 0; radius <= maxRadius; radius++) {
+        int rowMin = centerRow - radius;
+        int rowMax = centerRow + radius;
+        int colMin = centerCol - radius;
+        int colMax = centerCol + radius;
+
+        // Clamp to playfield bounds
+        if (rowMin < 0) rowMin = 0;
+        if (rowMax >= BattlefieldMap::kPlayfieldRows) rowMax = BattlefieldMap::kPlayfieldRows - 1;
+        if (colMin < 0) colMin = 0;
+        if (colMax >= BattlefieldMap::kPlayfieldCols) colMax = BattlefieldMap::kPlayfieldCols - 1;
+
+        // Scan only the perimeter ring at this radius
+        for (int row = rowMin; row <= rowMax; row++) {
+            for (int col = colMin; col <= colMax; col++) {
+                // Skip interior cells (already checked at smaller radius)
+                if (radius > 0 &&
+                    row > rowMin && row < rowMax &&
+                    col > colMin && col < colMax)
+                    continue;
+
+                // Skip tiles closer to the opposing side's origin than ours.
+                // Use Manhattan distance to keep overflow on the correct side.
+                const int oppSide = 1 - _currentSide;
+                const CombatSideData &oppSd = _sides[oppSide];
+                const int oppCol = (oppSd.origin_x * 6) + (oppSd.origin_y * 5) + 22;
+                const int oppRow = (oppSd.origin_y * 5) + 10;
+                int distToUs   = ABS(col - centerCol) + ABS(row - centerRow);
+                int distToThem = ABS(col - oppCol)    + ABS(row - oppRow);
+                if (distToUs > distToThem)
+                    continue;
+
+                uint8 raw = _map->getRawTile(col, row);
+                if (raw == 0)
+                    continue;
+                if (tileProps && tileProps->isImpassable(raw))
+                    continue;
+                if (_table->getOccupant(col, row) != 0)
+                    continue;
+
+                _table->setPosition(charIdx, (uint8)col, (uint8)row);
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 bool CombatPlacement::isOutOfFormation(int col, int row) {

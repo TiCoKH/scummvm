@@ -41,7 +41,7 @@ namespace Data {
 struct CombatIconData {
 	uint8 iconHead;
 	uint8 iconBody;
-	uint8 iconSize;
+	uint8 bodyType; // 1=short, 2=tall (affects sprite ranges only, not footprint)
 	uint8 iconSlotId;
 	uint8 iconColorBody1, iconColorBody2;
 	uint8 iconColorArm1,  iconColorArm2;
@@ -51,7 +51,7 @@ struct CombatIconData {
 	uint8 iconColorWeapon1, iconColorWeapon2;
 
 	CombatIconData()
-	    : iconHead(0), iconBody(0), iconSize(0), iconSlotId(0),
+	    : iconHead(0), iconBody(0), bodyType(0), iconSlotId(0),
 	      iconColorBody1(0), iconColorBody2(0),
 	      iconColorArm1(0),  iconColorArm2(0),
 	      iconColorLeg1(0),  iconColorLeg2(0),
@@ -94,7 +94,7 @@ struct CombatIconData {
 	bool operator==(const CombatIconData &o) const {
 		return iconHead         == o.iconHead         &&
 		       iconBody         == o.iconBody         &&
-		       iconSize         == o.iconSize         &&
+		       bodyType         == o.bodyType         &&
 		       iconSlotId       == o.iconSlotId       &&
 		       iconColorBody1   == o.iconColorBody1   &&
 		       iconColorBody2   == o.iconColorBody2   &&
