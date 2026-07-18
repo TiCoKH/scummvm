@@ -76,6 +76,16 @@ public:
         return _tileCache;
     }
 
+    /** Debug read-only access to combatant placement table. */
+    const Combat::CombatantTable &debugCombatantTable() const {
+        return _table;
+    }
+
+    /** Debug: number of player-controlled characters in the roster. */
+    int debugPartyCount() const {
+        return _params.partyCount;
+    }
+
 private:
     enum CombatPhase {
         PHASE_NONE = 0,

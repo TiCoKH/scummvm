@@ -29,7 +29,7 @@ void CombatGlobals::updateSideCount(const Common::Array<Data::PlayerCharacter *>
     sideCount[0] = 0;
     sideCount[1] = 0;
     for (uint i = 0; i < roster.size(); i++) {
-        if (roster[i] && roster[i]->enabled)
+        if (roster[i])
             sideCount[roster[i]->hostile ? 1 : 0]++;
     }
 }

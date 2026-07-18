@@ -29,7 +29,7 @@ namespace Goldbox {
 namespace Combat {
 
 /**
- * Icon footprint offset table: gbIconOffsetPair[icon_size][slot]
+ * Combat footprint offset table: gbIconOffsetPair[footprint_code][slot]
  *
  * Each entry is {col_offset, row_offset}.
  * Invalid slots use col_offset = -1 as sentinel.
@@ -41,12 +41,12 @@ namespace Combat {
  * Size 4: 2x2 — slots 0, 1, 2, 3
  * Size 5+: 3x3 — all 4 slots (approximate)
  */
-struct IconOffsetPair {
+struct FootprintOffsetPair {
     int8 col;
     int8 row;
 };
 
-static const IconOffsetPair kIconOffsets[5][4] = {
+static const FootprintOffsetPair kFootprintOffsets[5][4] = {
     // size 0: invalid
     { {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0} },
     // size 1: 1x1
@@ -68,8 +68,8 @@ bool getIconOffsetBySize(uint8 iconSize, uint8 slot,
     if (slot > 3)
         return false;
 
-    outColDelta = kIconOffsets[iconSize][slot].col;
-    outRowDelta = kIconOffsets[iconSize][slot].row;
+    outColDelta = kFootprintOffsets[iconSize][slot].col;
+    outRowDelta = kFootprintOffsets[iconSize][slot].row;
 
     // Sentinel: col < 0 means slot is unused
     if (outColDelta < 0)
@@ -106,7 +106,7 @@ void getGroundInfo(int charIdx, uint8 direction,
 
     uint8 baseCol = table.getTileCol(charIdx);
     uint8 baseRow = table.getTileRow(charIdx);
-    uint8 iconSize = table.getSize(charIdx) & 7;
+    uint8 footprintCode = table.getSize(charIdx) & 7;
 
     const TilePropertyProvider *tileProps = map.getTilePropertyProvider();
 
@@ -115,7 +115,7 @@ void getGroundInfo(int charIdx, uint8 direction,
 
     for (uint8 slot = 0; slot < 4; slot++) {
         int8 colDelta, rowDelta;
-        if (!getIconOffsetBySize(iconSize, slot, colDelta, rowDelta))
+        if (!getIconOffsetBySize(footprintCode, slot, colDelta, rowDelta))
             continue;
 
         int checkCol = (int)baseCol + colDelta + dx;

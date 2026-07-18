@@ -245,7 +245,7 @@ void SetIcon::buildSizeMenu(bool saveInitialSize) {
         return;
 
     if (saveInitialSize) {
-        _initialSizeByte = _pc->iconData.iconSize;
+        _initialSizeByte = _pc->iconData.bodyType;
         _hasInitialSize = true;
     }
 
@@ -253,7 +253,7 @@ void SetIcon::buildSizeMenu(bool saveInitialSize) {
     {
         // iconmenu.4 = "Keep Exit", prepend size toggle option
         Common::Array<String> labels;
-        labels.push_back((_pc->iconData.iconSize == 2) ? "Small" : "Large");
+        labels.push_back((_pc->iconData.bodyType == 2) ? "Small" : "Large");
         Common::Array<String> tail = VmInterface::getStringTokens("iconmenu.4");
         for (uint i = 0; i < tail.size(); ++i)
             labels.push_back(tail[i]);
@@ -419,10 +419,10 @@ void SetIcon::syncIconManagerSlots() {
     if (!mgr || !_pc)
         return;
     debug(8, "SetIcon::syncIconManagerSlots: backup size=%u head=%u body=%u | working size=%u head=%u body=%u",
-          (unsigned)_backupIconData.iconSize,
+          (unsigned)_backupIconData.bodyType,
           (unsigned)_backupIconData.iconHead,
           (unsigned)_backupIconData.iconBody,
-          (unsigned)_pc->iconData.iconSize,
+          (unsigned)_pc->iconData.bodyType,
           (unsigned)_pc->iconData.iconHead,
           (unsigned)_pc->iconData.iconBody);
     // Publish icons via IconManager
@@ -620,14 +620,14 @@ void SetIcon::handleMenuResult(const MenuResultMessage &result) {
         switch (key) {
         case Common::KEYCODE_l:
             // Set large, redraw, and regenerate first option to opposite.
-            _pc->iconData.iconSize = 2;
+            _pc->iconData.bodyType = 2;
             rebuildNewIcon();
             redrawWorkingIcons();
             buildSizeMenu(false);
             break;
         case Common::KEYCODE_s:
             // Set small, redraw, and regenerate first option to opposite.
-            _pc->iconData.iconSize = 1;
+            _pc->iconData.bodyType = 1;
             rebuildNewIcon();
             redrawWorkingIcons();
             buildSizeMenu(false);
@@ -640,7 +640,7 @@ void SetIcon::handleMenuResult(const MenuResultMessage &result) {
         case Common::KEYCODE_e:
             // Exit without keeping size changes made in this stage.
             if (_hasInitialSize) {
-                _pc->iconData.iconSize = _initialSizeByte;
+                _pc->iconData.bodyType = _initialSizeByte;
                 rebuildNewIcon();
                 redrawWorkingIcons();
             }

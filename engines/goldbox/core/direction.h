@@ -30,15 +30,15 @@ namespace Goldbox {
  * 8-direction movement deltas and helpers.
  *
  * Wire format (legacy ECL/GEO convention):
- *   0=North, 1=NE, 2=East, 3=SE, 4=South, 5=SW, 6=West, 7=NW
+ *   0=North, 1=NE, 2=East, 3=SE, 4=South, 5=SW, 6=West, 7=NW 8=NoMove
  *
  * Cardinal directions use even indices (0/2/4/6).
  * Diagonal directions use odd indices (1/3/5/7) — used by combat tactical map.
  *
  * Y axis: negative = north (up on screen), positive = south (down).
  */
-static const int8 kDirDeltaX[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
-static const int8 kDirDeltaY[8] = { -1, -1, 0, 1, 1, 1, 0, -1 };
+static const int8 kDirDeltaX[9] = { 0, 1, 1, 1, 0, -1, -1, -1, 0 };
+static const int8 kDirDeltaY[9] = { -1, -1, 0, 1, 1, 1, 0, -1, 0 };
 
 /** Turn left (counterclockwise) by one 90-degree step (cardinal only). */
 inline uint8 dirLeft90(uint8 dir) { return (dir + 6) % 8; }

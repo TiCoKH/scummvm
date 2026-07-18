@@ -57,7 +57,7 @@ uint32 CombatIcon::computeCacheKey(
     key ^= ((uint32)iconData.iconColorShield2 * 0x2000003u);
     key ^= ((uint32)iconData.iconColorWeapon1 * 0x4000003u);
     key ^= ((uint32)iconData.iconColorWeapon2 * 0x8000003u);
-    key ^= ((uint32)iconData.iconSize         << 2);
+    key ^= ((uint32)iconData.bodyType         << 2);
     key ^= (static_cast<uint32>(state)        << 1);
     key ^= (static_cast<uint32>(direction)    << 0);
     return key;

@@ -323,7 +323,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	iconData.iconHead = stream.readByte();   // 0x0BD
 	iconData.iconBody = stream.readByte();   // 0x0BE
 	iconData.iconSlotId = stream.readByte(); // 0x0BF
-	iconData.iconSize = stream.readByte();   // 0x0C0
+	iconData.bodyType = stream.readByte();   // 0x0C0
 
 	iconData.setBodyColor(stream.readByte());     // 0x0C1
 	iconData.setArmColor(stream.readByte());      // 0x0C2
@@ -853,7 +853,7 @@ void PoolradCharacter::save(Common::WriteStream &stream) {
 	stream.writeByte(iconData.iconHead);
 	stream.writeByte(iconData.iconBody);
 	stream.writeByte(iconData.iconSlotId);
-	stream.writeByte(iconData.iconSize);
+	stream.writeByte(iconData.bodyType);
 
 	// Icon color data
 	stream.writeByte((iconData.iconColorBody2 << 4) | iconData.iconColorBody1);

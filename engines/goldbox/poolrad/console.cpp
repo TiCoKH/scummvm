@@ -827,6 +827,70 @@ bool Console::cmdDumpBattlefield(int argc, const char **argv) {
 		"uniqueReferencedSignatures=%d",
 		referencedSlots, referencedPresent, referencedUnique));
 
+	// --- Occupation map ---
+	const Combat::CombatantTable &table = combatView->debugCombatantTable();
+	const int partyCount = combatView->debugPartyCount();
+	const int combatantCount = table.getCount();
+
+	static const int OCC_ROWS = 25;
+	static const int OCC_COLS = 50;
+	char occGrid[OCC_ROWS][OCC_COLS][4];
+	for (int r = 0; r < OCC_ROWS; r++)
+		for (int c = 0; c < OCC_COLS; c++)
+			Common::strlcpy(occGrid[r][c], "  ", sizeof(occGrid[r][c]));
+
+	int enemySeq = 0;
+	for (int i = 0; i < combatantCount; i++) {
+		uint8 oCol = table.getTileCol(i);
+		uint8 oRow = table.getTileRow(i);
+		Common::String label;
+		if (i < partyCount)
+			label = Common::String::format("p%d", i + 1);
+		else
+			label = Common::String::format("%02d", ++enemySeq);
+		if (table.getSize(i) == 0) {
+			// Failed/downed placement — log but don't put on map
+			writeLine(Common::String::format(
+				"  %s: placement failed (size=0)", label.c_str()));
+			continue;
+		}
+		if (oCol >= OCC_COLS || oRow >= OCC_ROWS)
+			continue;
+		if (occGrid[oRow][oCol][0] != ' ' || occGrid[oRow][oCol][1] != ' ') {
+			writeLine(Common::String::format(
+				"  BASE TILE COLLISION at (%d,%d): %s overwritten by %s",
+				(int)oCol, (int)oRow, occGrid[oRow][oCol], label.c_str()));
+		}
+		Common::strlcpy(occGrid[oRow][oCol], label.c_str(),
+			sizeof(occGrid[oRow][oCol]));
+	}
+
+	int placedParty = 0, placedEnemy = 0;
+	for (int i = 0; i < combatantCount; i++) {
+		if (table.getSize(i) == 0) continue;
+		if (i < partyCount) placedParty++; else placedEnemy++;
+	}
+	writeLine("");
+	writeLine(Common::String::format(
+		"OCCUPATION MAP (p1..p8=party, 01..63=enemy) "
+		"placed: party=%d/%d enemies=%d/%d total=%d",
+		placedParty, partyCount,
+		placedEnemy, combatantCount - partyCount,
+		combatantCount));
+	writeLine("  (total = table entries added by placeAll = roster size passed to combat)");
+	Common::String occHeader = "     ";
+	for (int c = 0; c < OCC_COLS; c++)
+		occHeader += Common::String::format("%02d ", c);
+	writeLine(occHeader);
+	for (int r = 0; r < OCC_ROWS; r++) {
+		Common::String line = Common::String::format("r%02d: ", r);
+		for (int c = 0; c < OCC_COLS; c++) {
+			line += occGrid[r][c];
+			line += ' ';
+		}
+		writeLine(line);
+	}
+
 	textFile.close();
 	debugPrintf("Dumped battlefield data to %s\n", textName.c_str());
 

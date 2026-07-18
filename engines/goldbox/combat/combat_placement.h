@@ -86,7 +86,13 @@ private:
         int8  origin_y;
         uint8 dir_idx;
         uint8 side_dir;
+        // Formation mask: reset per-combatant, tracks cells available in
+        // the current spiral pass (consumed on success).
         uint8 valid_mask[FORMATION_SLOTS][FORMATION_ROWS][FORMATION_COLS];
+        // Terrain-blocked playfield bitmap: set permanently when a tile is
+        // found impassable, so future combatants skip it immediately.
+        // 50*25 = 1250 bits, 157 bytes.
+        uint8 blocked[25][50];
 
         CombatSideData();
     };
@@ -99,8 +105,12 @@ private:
     bool _isDungeon;
     int8 _mapCenterX;
     int8 _mapCenterY;
+    uint8 _mapDirection;
     BattlefieldMap *_map;
     CombatantTable *_table;
+    // Table index range [start, end) for each side — set in placeAll.
+    int _sideStart[CombatantTable::SIDE_COUNT];
+    int _sideEnd[CombatantTable::SIDE_COUNT];
 
     // --- Direction tables (from spec) ---
 
@@ -114,9 +124,13 @@ private:
     // --- Internal methods ---
 
     void buildFormationMasks();
+    void rebuildFormationMask(int side);  // reset mask for one side before each placement
 
     /** Spiral-place one combatant. Returns true on success. */
     bool placeCombatantSpiral(int charIdx);
+
+    /** Full playfield scan fallback when spiral exhausts all formSets. */
+    bool placeCombatantFullScan(int charIdx);
 
     /** Try placing at a formation cell. Returns true if valid and unoccupied. */
     bool tryPlaceAt(int charIdx, int formCol, int formRow,

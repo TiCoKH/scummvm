@@ -67,8 +67,13 @@ void getGroundInfo(int charIdx, uint8 direction,
 /**
  * Get icon footprint offset for a given slot.
  *
- * Maps icon_size and slot index (0-3) to col/row deltas within
+ * Maps combat footprint code and slot index (0-3) to col/row deltas within
  * the character's multi-tile footprint.
+
+ * IMPORTANT: This footprint code comes from combat icon data and is used only
+ * for tactical placement/occupancy. It is distinct from gfx::IconSize
+ * (ICON_SIZE_SMALL / ICON_SIZE_LARGE), which selects sprite ranges for
+ * rendering.
  *
  * Size classes:
  *   0 = Invalid (no icon)
@@ -79,7 +84,7 @@ void getGroundInfo(int charIdx, uint8 direction,
  *
  * Invalid slots are marked with col_offset = -1 in the lookup table.
  *
- * @param iconSize  Icon size value (from combatant data, masked to 0-7)
+ * @param iconSize  Combat footprint code (from combatant data, masked to 0-7)
  * @param slot      Slot index (0-3)
  * @param outColDelta  Column offset for this slot
  * @param outRowDelta  Row offset for this slot
