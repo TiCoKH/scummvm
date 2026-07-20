@@ -109,7 +109,9 @@ public:
         EF_REGEN_3 = 1 << 26,
         EF_POISONED = 1 << 27,
         EF_SLOW_POISON = 1 << 28,
-        EF_ENTANGLED = 1 << 29
+        EF_ENTANGLED = 1 << 29,
+        EF_BLINKING = 1u << 30,
+        EF_MIRROR_IMAGE = 1u << 31
     };
 
     // Effect modifiers/flags storage is in PlayerCharacter::effectState.
@@ -214,6 +216,8 @@ public:
     void setDamage();
 
     void setEffect(uint8 type, uint16 durationMin, uint8 power, bool immediate) override;
+
+	void onEffectsChanged() override;
 
     // draw methods
     byte getNameColor();

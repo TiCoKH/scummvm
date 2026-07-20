@@ -24,6 +24,7 @@
 
 #include "common/array.h"
 #include "common/scummsys.h"
+#include "goldbox/data/effects/effect.h"
 
 namespace Goldbox {
 namespace Data {
@@ -83,6 +84,16 @@ public:
 
     bool hasAnyInTriggerSet(EffectTriggerSet triggerSet,
             const CharacterEffects &effects) const;
+
+    /**
+     * Return the raw effect ids that participate in a trigger set.
+     *
+     * This mirrors the original m68k-style table-driven effect dispatch
+     * model and keeps the data available to engine code without exposing the
+     * internal storage details.
+     */
+    static const Effects *getTriggerSetEffects(EffectTriggerSet triggerSet,
+            uint &count);
 
     /**
      * Check whether a character is affected by a group-radiating effect

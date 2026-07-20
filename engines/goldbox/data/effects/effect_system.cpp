@@ -113,6 +113,7 @@ void EffectSystem::applyEffect(CharacterEffects &effects,
         const uint8 oldStatus = character.healthStatus;
         const uint32 oldFlags = character.effectState.flags;
         _handler->apply(EFF_ADD, added, character);
+        character.onEffectsChanged();
         notifyBridgeOnEffectApply(_bridge, EFF_ADD, character,
             oldStatus, oldFlags);
     }
@@ -128,6 +129,7 @@ void EffectSystem::tick(CharacterEffects &effects,
         uint8 oldStatus = character.healthStatus;
         uint32 oldFlags = character.effectState.flags;
         _handler->apply(EFF_TICK, effect, character);
+        character.onEffectsChanged();
         notifyBridgeOnEffectApply(_bridge, EFF_TICK, character,
             oldStatus, oldFlags);
 
@@ -138,6 +140,7 @@ void EffectSystem::tick(CharacterEffects &effects,
                 oldStatus = character.healthStatus;
                 oldFlags = character.effectState.flags;
                 _handler->apply(EFF_REMOVE, effect, character);
+                character.onEffectsChanged();
                 notifyBridgeOnEffectApply(_bridge, EFF_REMOVE,
                     character, oldStatus, oldFlags);
                 effects.removeEffectAt(i);
@@ -161,6 +164,7 @@ void EffectSystem::removeEffectsByType(CharacterEffects &effects,
         const uint8 oldStatus = character.healthStatus;
         const uint32 oldFlags = character.effectState.flags;
         _handler->apply(EFF_REMOVE, effects.effectAt(i), character);
+        character.onEffectsChanged();
         notifyBridgeOnEffectApply(_bridge, EFF_REMOVE, character,
             oldStatus, oldFlags);
         effects.removeEffectAt(i);

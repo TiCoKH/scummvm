@@ -42,12 +42,8 @@ public:
     Goldbox::Data::Effects::Effects mapRawEffectId(uint8 rawId) const override;
 
 private:
-    static void handleNoop(Goldbox::Data::Effects::EffectOp op, Goldbox::Data::Effects::Effect &effect,
-                                                     Goldbox::Data::PlayerCharacter &character,
-                                                     const Goldbox::Data::Effects::EffectExecutionContext *ctx);
-    static void handleEffect(Goldbox::Data::Effects::EffectOp op, Goldbox::Data::Effects::Effect &effect,
-                                                         Goldbox::Data::PlayerCharacter &character,
-                                                         const Goldbox::Data::Effects::EffectExecutionContext *ctx);
+    static void handleNoop(const Goldbox::Data::Effects::EffectCall0 &call);
+    static void handleEffect(const Goldbox::Data::Effects::EffectCall0 &call);
 };
 
 } // namespace Poolrad

@@ -40,6 +40,21 @@ struct TriggerSetTable {
     uint size;
 };
 
+static bool isPoisonCycleEffect(uint8 effectType) {
+    switch (effectType) {
+    case E_POISON_DAMAGE:
+    case E_POISON_PLUS_0:
+    case E_POISON_PLUS_2:
+    case E_POISON_PLUS_4:
+    case E_POISON_NEG_2:
+    case E_CAUSE_DISEASE_1:
+    case E_DISEASE_CONFUSED:
+        return true;
+    default:
+        return false;
+    }
+}
+
 #define TS_DEF(name, ...) \
     static const Effects name[] = { __VA_ARGS__ }
 
@@ -185,6 +200,39 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
     if (!_handler)
         return;
 
+    if (triggerSet == ETS_POISON_CYCLE) {
+        bool statusPanelDirty = false;
+        for (uint j = 0; j < effects.effectCount(); ++j) {
+            Effect &effect = effects.effectAt(j);
+            if (!isPoisonCycleEffect(effect.type))
+                continue;
+
+            context.currentEffectType = effect.type;
+            context.currentEffectPower = effect.power;
+            context.currentEffectDuration = effect.durationMin;
+
+            const uint8 oldStatus = character.healthStatus;
+            const uint32 oldFlags = character.effectState.flags;
+            _handler->apply(EFF_TICK, effect, character, &context);
+            character.onEffectsChanged();
+
+            if (_bridge && oldStatus != character.healthStatus) {
+                _bridge->notifyStatusChanged(&character, oldStatus,
+                    character.healthStatus);
+                statusPanelDirty = true;
+            }
+
+            if (oldFlags != character.effectState.flags)
+                statusPanelDirty = true;
+
+            ++context.evaluatedEffects;
+        }
+
+        if (_bridge && statusPanelDirty)
+            _bridge->requestRefresh(EffectHostBridge::RF_STATUS_PANEL);
+        return;
+    }
+
     const TriggerSetTable *table = getTriggerSetTable(triggerSet);
     if (!table)
         return;
@@ -196,10 +244,15 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
             if (effects.effectAt(j).type != static_cast<uint8>(type))
                 continue;
 
+            context.currentEffectType = effects.effectAt(j).type;
+            context.currentEffectPower = effects.effectAt(j).power;
+            context.currentEffectDuration = effects.effectAt(j).durationMin;
+
             const uint8 oldStatus = character.healthStatus;
             const uint32 oldFlags = character.effectState.flags;
             _handler->apply(EFF_EVAL, effects.effectAt(j), character,
                 &context);
+            character.onEffectsChanged();
 
             if (_bridge && oldStatus != character.healthStatus) {
                 _bridge->notifyStatusChanged(&character, oldStatus,
@@ -223,16 +276,35 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
 
 bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,
         const CharacterEffects &effects) const {
-    const TriggerSetTable *table = getTriggerSetTable(triggerSet);
-    if (!table)
+    if (triggerSet == ETS_POISON_CYCLE) {
+        for (uint i = 0; i < effects.effectCount(); ++i) {
+            if (isPoisonCycleEffect(effects.effectAt(i).type))
+                return true;
+        }
+        return false;
+    }
+
+    uint count = 0;
+    const Effects *ids = getTriggerSetEffects(triggerSet, count);
+    if (!ids || count == 0)
         return false;
 
-    for (uint i = 0; i < table->size; ++i) {
-        if (containsEffectType(effects, table->ids[i]))
+    for (uint i = 0; i < count; ++i) {
+        if (containsEffectType(effects, ids[i]))
             return true;
     }
 
     return false;
+}
+
+const Effects *EffectRuntime::getTriggerSetEffects(
+        EffectTriggerSet triggerSet, uint &count) {
+    const TriggerSetTable *table = getTriggerSetTable(triggerSet);
+    if (!table)
+        return nullptr;
+
+    count = table->size;
+    return table->ids;
 }
 
 // Raw effect IDs (Poolrad) that radiate to nearby characters.

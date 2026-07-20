@@ -136,6 +136,7 @@ static void timeApplyTimeStepEffects(
                     // Expired: remove.
                     if (handler)
                         handler->apply(EFF_REMOVE, effect, *party[ci]);
+                    party[ci]->onEffectsChanged();
                     fx->removeEffectAt(ei);
                 }
             }
