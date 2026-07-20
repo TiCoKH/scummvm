@@ -23,6 +23,7 @@
 #define GOLDBOX_DATA_EFFECTS_EFFECT_HANDLER_BASE_H
 
 #include "common/hashmap.h"
+#include "common/scummsys.h"
 #include "goldbox/data/effects/effect.h"
 #include "goldbox/data/player_character.h"
 
@@ -50,11 +51,62 @@ enum EffectOp {
     EFF_EVAL   = 3
 };
 
+struct EffectCall0 {
+    EffectOp op;
+    Effect &effect;
+    Goldbox::Data::PlayerCharacter &character;
+    const EffectExecutionContext *ctx;
+
+    EffectCall0(EffectOp operation, Effect &effectRef,
+            Goldbox::Data::PlayerCharacter &characterRef,
+            const EffectExecutionContext *context = nullptr)
+            : op(operation), effect(effectRef), character(characterRef),
+              ctx(context) {
+    }
+};
+
+struct EffectCall1 : public EffectCall0 {
+    intptr_t arg0;
+
+    EffectCall1(EffectOp operation, Effect &effectRef,
+            Goldbox::Data::PlayerCharacter &characterRef,
+            const EffectExecutionContext *context,
+            intptr_t a0) : EffectCall0(operation, effectRef,
+            characterRef, context), arg0(a0) {
+    }
+};
+
+struct EffectCall2 : public EffectCall0 {
+    intptr_t arg0;
+    intptr_t arg1;
+
+    EffectCall2(EffectOp operation, Effect &effectRef,
+            Goldbox::Data::PlayerCharacter &characterRef,
+            const EffectExecutionContext *context,
+            intptr_t a0, intptr_t a1) : EffectCall0(operation, effectRef,
+            characterRef, context), arg0(a0), arg1(a1) {
+    }
+};
+
+struct EffectCall3 : public EffectCall0 {
+    intptr_t arg0;
+    intptr_t arg1;
+    intptr_t arg2;
+
+    EffectCall3(EffectOp operation, Effect &effectRef,
+            Goldbox::Data::PlayerCharacter &characterRef,
+            const EffectExecutionContext *context,
+            intptr_t a0, intptr_t a1, intptr_t a2) : EffectCall0(operation,
+            effectRef, characterRef, context), arg0(a0), arg1(a1), arg2(a2) {
+    }
+};
+
 class EffectHandlerBase {
 public:
-    using Handler = void (*)(EffectOp op, Effect &effect,
-            Goldbox::Data::PlayerCharacter &character,
-            const EffectExecutionContext *ctx);
+    using Handler0 = void (*)(const EffectCall0 &call);
+    using Handler1 = void (*)(const EffectCall1 &call);
+    using Handler2 = void (*)(const EffectCall2 &call);
+    using Handler3 = void (*)(const EffectCall3 &call);
 
     virtual ~EffectHandlerBase() {}
 
@@ -62,23 +114,62 @@ public:
     void apply(EffectOp op, Effect &effect,
             Goldbox::Data::PlayerCharacter &character,
             const EffectExecutionContext *ctx) const;
+        void apply(EffectOp op, Effect &effect,
+            Goldbox::Data::PlayerCharacter &character,
+            const EffectExecutionContext *ctx, int32 arg0) const;
+        void apply(EffectOp op, Effect &effect,
+            Goldbox::Data::PlayerCharacter &character,
+            const EffectExecutionContext *ctx, int32 arg0,
+            int32 arg1) const;
+        void apply(EffectOp op, Effect &effect,
+            Goldbox::Data::PlayerCharacter &character,
+            const EffectExecutionContext *ctx, int32 arg0,
+            int32 arg1, int32 arg2) const;
+    void apply(const EffectCall0 &call) const;
+    void apply(const EffectCall1 &call) const;
+    void apply(const EffectCall2 &call) const;
+    void apply(const EffectCall3 &call) const;
     bool hasHandler(uint8 effectType) const;
 
 protected:
     EffectHandlerBase();
 
     void clearHandlers();
-    void setHandler(Effects effectId, Handler handler);
-    void setDefaultHandler(Handler handler);
+    void setHandler(Effects effectId, Handler0 handler);
+    void setHandler(Effects effectId, Handler1 handler);
+    void setHandler(Effects effectId, Handler2 handler);
+    void setHandler(Effects effectId, Handler3 handler);
+    void setDefaultHandler(Handler0 handler);
 
     virtual void setupHandlers() = 0;
     virtual Effects mapRawEffectId(uint8 rawId) const = 0;
 
 private:
-    Handler getHandler(uint8 effectType) const;
+    enum HandlerArity : uint8 {
+        kArity0 = 0,
+        kArity1 = 1,
+        kArity2 = 2,
+        kArity3 = 3
+    };
 
-    Common::HashMap<uint8, Handler> _handlers;
-    Handler _defaultHandler;
+    struct HandlerEntry {
+        uint8 arity;
+        union {
+            Handler0 h0;
+            Handler1 h1;
+            Handler2 h2;
+            Handler3 h3;
+        } handler;
+
+        HandlerEntry() : arity(kArity0) {
+            handler.h0 = nullptr;
+        }
+    };
+
+    const HandlerEntry *getHandler(uint8 effectType) const;
+
+    Common::HashMap<uint8, HandlerEntry> _handlers;
+    Handler0 _defaultHandler;
 };
 
 } // namespace Effects

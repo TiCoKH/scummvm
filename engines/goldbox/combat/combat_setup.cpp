@@ -155,6 +155,12 @@ void setupCombat(CombatParams &params,
             Data::Effects::CharacterEffects *effects = ch->getEffects();
             if (effects) {
                 Data::Effects::EffectExecutionContext ctx;
+                ctx.actor = ch;
+                ctx.source = ch;
+                ctx.selectedPlayer = ch;
+                ctx.spellTarget = ch;
+                ctx.gameState = Goldbox::GS_COMBAT;
+                ctx.inCombat = true;
                 effectRuntime->applyTriggerSet(
                     Data::Effects::ETS_COMBAT_AURA,
                     *effects, *ch, ctx);

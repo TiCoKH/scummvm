@@ -23,6 +23,8 @@
 #define GOLDBOX_DATA_EFFECTS_EFFECT_EXECUTION_CONTEXT_H
 
 #include "common/scummsys.h"
+#include "goldbox/core/global.h"
+#include "goldbox/data/spells/spell.h"
 
 namespace Goldbox {
 namespace Data {
@@ -52,25 +54,53 @@ struct EffectExecutionContext {
     uint8 attackCount;
     uint8 incomingDamage;
 
+    // Legacy-compatible combat state used by future effect ports.
+    uint32 damageFlags;
+    uint8 currentEffectType;
+    int currentEffectPower;
+    int currentEffectDuration;
+
     // Legacy-style damage behavior flags (fire/cold/electric/magic/etc.).
     uint8 behaviorFlags;
 
     // Saving throw context.
     uint8 savingThrowCategory;
     int8 savingThrowBonus;
+    bool savingThrowMade;
+    uint16 savingThrowRoll;
+    uint8 saveVerseType;
 
     // Script/action context.
     uint8 activeSpellId;
     bool inCombat;
+    GameState gameState;
+    bool targetInvisible;
+    bool cureSpell;
+    bool byte_1D2C7;
+    int halfActionsLeft;
+    bool resetMovesLeft;
+    int monsterMorale;
+    PlayerCharacter *selectedPlayer;
+    PlayerCharacter *spellTarget;
+    int diceCount;
 
     // Bookkeeping for trigger-run instrumentation.
     uint16 evaluatedEffects;
 
     EffectExecutionContext() : actor(nullptr), target(nullptr),
             source(nullptr), attackRoll(0), attackCount(0),
-            incomingDamage(0), behaviorFlags(0), savingThrowCategory(0),
-            savingThrowBonus(0), activeSpellId(0), inCombat(false),
-            evaluatedEffects(0) {
+            incomingDamage(0), damageFlags(0), currentEffectType(0),
+            currentEffectPower(0), currentEffectDuration(0), behaviorFlags(0),
+            savingThrowCategory(0), savingThrowBonus(0), savingThrowMade(false),
+            savingThrowRoll(0), saveVerseType(0), activeSpellId(0),
+            inCombat(false), gameState(GS_START_MENU), targetInvisible(false),
+            cureSpell(false), byte_1D2C7(false), halfActionsLeft(0),
+            resetMovesLeft(false), monsterMorale(0), selectedPlayer(nullptr),
+            spellTarget(nullptr), diceCount(0), evaluatedEffects(0) {
+    }
+
+    void reset() {
+        *this = EffectExecutionContext();
     }
 };
 

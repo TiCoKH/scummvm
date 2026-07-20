@@ -193,6 +193,9 @@ public:
 	// Optional access to the character's effect list for runtime systems.
 	// Returns nullptr by default; games that support effects should override.
 	virtual Goldbox::Data::Effects::CharacterEffects *getEffects() { return nullptr; }
+	// Notified whenever active effects may have changed and derived stats should
+	// be refreshed.
+	virtual void onEffectsChanged() {}
 
 	//-----------------------------------------------------------
 	// Common logic

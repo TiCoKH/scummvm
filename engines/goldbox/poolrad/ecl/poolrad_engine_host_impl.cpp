@@ -1128,6 +1128,9 @@ VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
         Goldbox::Data::Effects::EffectExecutionContext context;
         context.actor = character;
         context.source = character;
+        context.selectedPlayer = character;
+        context.spellTarget = character;
+        context.gameState = VmInterface::getGameStatus();
         context.inCombat =
             (VmInterface::getGameStatus() == Goldbox::GS_COMBAT);
 

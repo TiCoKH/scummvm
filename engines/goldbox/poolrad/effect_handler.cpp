@@ -212,9 +212,7 @@ Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const
     return kRawEffectMap.mapRaw(rawId);
 }
 
-void EffectHandler::handleNoop(Goldbox::Data::Effects::EffectOp, Goldbox::Data::Effects::Effect &,
-                               Goldbox::Data::PlayerCharacter &,
-                               const Goldbox::Data::Effects::EffectExecutionContext *) {
+void EffectHandler::handleNoop(const Goldbox::Data::Effects::EffectCall0 &) {
 }
 
 namespace {
@@ -273,10 +271,13 @@ static void applyTickDamage(Goldbox::Data::Effects::EffectOp op, Data::PoolradCh
 }
 }
 
-void EffectHandler::handleEffect(Goldbox::Data::Effects::EffectOp op, Goldbox::Data::Effects::Effect &effect,
-                                 Goldbox::Data::PlayerCharacter &character,
-                                 const Goldbox::Data::Effects::EffectExecutionContext *ctx) {
+void EffectHandler::handleEffect(const Goldbox::Data::Effects::EffectCall0 &call) {
     using Goldbox::Data::Effects::Effects;
+    const Goldbox::Data::Effects::EffectOp op = call.op;
+    Goldbox::Data::Effects::Effect &effect = call.effect;
+    Goldbox::Data::PlayerCharacter &character = call.character;
+    const Goldbox::Data::Effects::EffectExecutionContext *ctx = call.ctx;
+
     (void)ctx;
     Data::PoolradCharacter &poolradCharacter = static_cast<Data::PoolradCharacter &>(character);
     Effects internalId = kRawEffectMap.mapRaw(effect.type);

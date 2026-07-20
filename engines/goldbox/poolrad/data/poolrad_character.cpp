@@ -67,6 +67,11 @@ void PoolradCharacter::setEffect(uint8 type, uint16 durationMin,
 		Goldbox::Poolrad::getEffectHostBridge());
 	effectSystem.applyEffect(effects, *this, type, durationMin, power,
 		immediate);
+	recalcCombatStats();
+}
+
+void PoolradCharacter::onEffectsChanged() {
+	recalcCombatStats();
 }
 
 void PoolradCharacter::initialize() {
@@ -621,6 +626,40 @@ void PoolradCharacter::recalcCombatStats() {
 	armorClass.current = 0;
 	armorClass.current = ac.getTotalAC();
 	acRear.current = ac.getRearAC();
+
+	int effectArmorBonus = 0;
+	if ((effectState.flags & EF_INVISIBLE) != 0)
+		effectArmorBonus += 2;
+	if ((effectState.flags & EF_ITEM_INVISIBLE) != 0)
+		effectArmorBonus += 2;
+	if ((effectState.flags & EF_CAMOUFLAGE) != 0)
+		effectArmorBonus += 1;
+	if ((effectState.flags & EF_DISPLACE) != 0)
+		effectArmorBonus += 2;
+	if ((effectState.flags & EF_BLINKING) != 0)
+		effectArmorBonus += 4;
+	if ((effectState.flags & EF_MIRROR_IMAGE) != 0)
+		effectArmorBonus += 2;
+
+	// Fold active effect modifiers into derived combat values.
+	thac0.current = static_cast<uint8>(CLIP<int>(
+		(int)thac0.current + effectState.mods.attackRoll, 0, 255));
+	curPrimaryRoll.action.modifier = static_cast<int8>(CLIP<int>(
+		(int)curPrimaryRoll.action.modifier + effectState.mods.damage,
+		-128, 127));
+	curSecondaryRoll.action.modifier = static_cast<int8>(CLIP<int>(
+		(int)curSecondaryRoll.action.modifier + effectState.mods.damage,
+		-128, 127));
+	saveBonus = static_cast<uint8>(CLIP<int>(
+		(int)saveBonus + effectState.mods.savingThrow, 0, 255));
+	movement.current = static_cast<uint8>(CLIP<int>(
+		(int)movement.current + effectState.mods.movement, 0, 255));
+	armorClass.current = static_cast<uint8>(CLIP<int>(
+		(int)armorClass.current + effectState.mods.armorClass + effectArmorBonus,
+		0, 255));
+	acRear.current = static_cast<uint8>(CLIP<int>(
+		(int)acRear.current + effectState.mods.armorClass + effectArmorBonus,
+		0, 255));
 
 	// Attack level heuristic (legacy used fighter level if race >0)
 	attackLevel = (levels.levels[C_FIGHTER] > 0 && race > 0) ? levels.levels[C_FIGHTER] : 1;
