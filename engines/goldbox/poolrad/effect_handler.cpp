@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/effect_handler.h"
 #include "common/util.h"
+#include "goldbox/data/effects/effect_common_handler.h"
 #include "goldbox/data/effects/effect_execution_context.h"
 #include "goldbox/data/effects/effect_mapping.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
@@ -281,40 +282,13 @@ void EffectHandler::handleEffect(const Goldbox::Data::Effects::EffectCall0 &call
     (void)ctx;
     Data::PoolradCharacter &poolradCharacter = static_cast<Data::PoolradCharacter &>(character);
     Effects internalId = kRawEffectMap.mapRaw(effect.type);
+
+    // Shared defaults first: other games can invert this order (override first,
+    // common fallback) when an effect id has game-specific divergence.
+    if (Goldbox::Data::Effects::tryApplyCommonEffect0(call, internalId))
+        return;
+
     switch (internalId) {
-    case Effects::E_BLESS: {
-        applySimpleModifiers(op, poolradCharacter, 1, 0, 0, 0, 5, 0);
-        break;
-    }
-    case Effects::E_CURSED: {
-        applySimpleModifiers(op, poolradCharacter, -1, 0, 0, 0, -5, 0);
-        break;
-    }
-    case Effects::E_PRAYER:
-    case Effects::E_CHANT: {
-        applySimpleModifiers(op, poolradCharacter, 1, 1, 1, 0, 0, 0);
-        break;
-    }
-    case Effects::E_HASTE: {
-        applySimpleModifiers(op, poolradCharacter, 0, 0, 0, 0, 0, 1);
-        break;
-    }
-    case Effects::E_SLOW: {
-        applySimpleModifiers(op, poolradCharacter, 0, 0, 0, 0, 0, -1);
-        break;
-    }
-    case Effects::E_PARALYZE:
-        applyHeldFlag(op, poolradCharacter, Data::PoolradCharacter::EF_PARALYZED);
-        break;
-    case Effects::E_SLEEP:
-        applyHeldFlag(op, poolradCharacter, Data::PoolradCharacter::EF_SLEEPING);
-        break;
-    case Effects::E_HELPLESS:
-        applyHeldFlag(op, poolradCharacter, Data::PoolradCharacter::EF_HELPLESS);
-        break;
-    case Effects::E_BLINDED:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_BLINDED);
-        break;
     case Effects::E_SILENCE_15_RADIUS:
         applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_SILENCED);
         break;
@@ -328,34 +302,6 @@ void EffectHandler::handleEffect(const Goldbox::Data::Effects::EffectCall0 &call
     case Effects::E_CAMOUFLAGE:
         applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_CAMOUFLAGE);
         break;
-    case Effects::E_FUMBLING: {
-        applySimpleModifiers(op, poolradCharacter, -2, 0, 0, 0, 0, 0);
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_FUMBLING);
-        break;
-    }
-    case Effects::E_CONFUSE:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_CONFUSED);
-        break;
-    case Effects::E_WEAKEN: {
-        applySimpleModifiers(op, poolradCharacter, -1, -1, 0, 0, 0, 0);
-        break;
-    }
-    case Effects::E_FEEBLEMIND: {
-        applySimpleModifiers(op, poolradCharacter, -2, -2, -2, 0, -10, 0);
-        break;
-    }
-    case Effects::E_STRENGTH: {
-        applySimpleModifiers(op, poolradCharacter, 1, 1, 0, 0, 0, 0);
-        break;
-    }
-    case Effects::E_ENLARGE: {
-        applySimpleModifiers(op, poolradCharacter, 0, 1, 0, 0, 0, 0);
-        break;
-    }
-    case Effects::E_REDUCE: {
-        applySimpleModifiers(op, poolradCharacter, 0, -1, 0, 0, 0, 0);
-        break;
-    }
     case Effects::E_IMMUNE_TO_ELECTRICITY:
         applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_IMMUNE_ELEC);
         break;
@@ -383,10 +329,6 @@ void EffectHandler::handleEffect(const Goldbox::Data::Effects::EffectCall0 &call
     case Effects::E_RAKSHASA_RESIST_NORMAL_WEAPONS:
         applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_RAKSHASA_RESIST);
         break;
-    case Effects::E_BERSERK: {
-        applySimpleModifiers(op, poolradCharacter, 2, 2, 0, -2, 10, 0);
-        break;
-    }
     case Effects::E_DISPLACE:
         applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_DISPLACE);
         break;
@@ -408,22 +350,6 @@ void EffectHandler::handleEffect(const Goldbox::Data::Effects::EffectCall0 &call
     case Effects::E_ENTANGLE:
         applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_ENTANGLED);
         break;
-    case Effects::E_POISONED:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_POISONED);
-        break;
-    case Effects::E_REGENERATE_1_HPS:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_REGEN_1);
-        applyRegen(op, poolradCharacter, 1);
-        break;
-    case Effects::E_REGENERATE_3_HPS:
-    case Effects::E_REGEN_3_HP:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_REGEN_3);
-        applyRegen(op, poolradCharacter, 3);
-        break;
-    case Effects::E_CON_SAVING_BONUS: {
-        applySimpleModifiers(op, poolradCharacter, 0, 0, 2, 0, 0, 0);
-        break;
-    }
     case Effects::E_PETRIFYING_GAZE:
     case Effects::E_BEHOLDER_RAYS_AFFECT_57:
     case Effects::E_AFFECT_4A:
@@ -442,31 +368,6 @@ void EffectHandler::handleEffect(const Goldbox::Data::Effects::EffectCall0 &call
     case Effects::E_OWLBEAR_HUG_CHECK:
     case Effects::E_WILD_BOAR_AND_BULLETTE_AFFECT_63: {
         applySimpleModifiers(op, poolradCharacter, 1, 3, 0, 0, 0, 0);
-        break;
-    }
-    case Effects::E_POISON_PLUS_0: {
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_POISONED);
-        if (op == Goldbox::Data::Effects::EFF_TICK)
-            applyTickDamage(op, poolradCharacter, 1);
-        break;
-    }
-    case Effects::E_POISON_PLUS_2: {
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_POISONED);
-        if (op == Goldbox::Data::Effects::EFF_TICK)
-            applyTickDamage(op, poolradCharacter, 2);
-        break;
-    }
-    case Effects::E_POISON_PLUS_4: {
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_POISONED);
-        if (op == Goldbox::Data::Effects::EFF_TICK)
-            applyTickDamage(op, poolradCharacter, 3);
-        break;
-    }
-    case Effects::E_POISON_NEG_2: {
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_POISONED);
-        if (op == Goldbox::Data::Effects::EFF_TICK)
-            applyTickDamage(op, poolradCharacter, 1);
-        applySimpleModifiers(op, poolradCharacter, 0, 0, -2, 0, 0, 0);
         break;
     }
     case Effects::E_THRI_KREEN_MISSILE_EVASION:

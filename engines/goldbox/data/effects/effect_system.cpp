@@ -28,21 +28,14 @@ namespace Effects {
 
 namespace {
 
-enum : uint8 {
-    // Raw effect ids as stored in CharacterEffects::Effect::type.
-    // Keep these aligned with Poolrad raw mapping in poolrad/effect_handler.cpp.
-    kRawEffectMirrorImage = 0x1C, // E_MIRROR_IMAGE
-    kRawEffectHaste = 0x27        // E_HASTE
-};
-
 struct EffectStackingRule {
     uint8 effectType;
     EffectStacking policy;
 };
 
 static const EffectStackingRule kStackingRules[] = {
-    { kRawEffectMirrorImage, STACK_ADD },
-    { kRawEffectHaste, STACK_IGNORE }
+    { static_cast<uint8>(E_MIRROR_IMAGE), STACK_ADD },
+    { static_cast<uint8>(E_HASTE), STACK_IGNORE }
 };
 
 static void notifyBridgeOnEffectApply(EffectHostBridge *bridge,

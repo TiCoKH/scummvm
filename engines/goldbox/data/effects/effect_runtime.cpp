@@ -308,13 +308,11 @@ const Effects *EffectRuntime::getTriggerSetEffects(
 }
 
 // Raw effect IDs (Poolrad) that radiate to nearby characters.
-// From decompile: 0x15 (Silence 15' Radius), 0x2d (Prot from Evil 10' Radius),
-// 0x2e (Prot from Good 10' Radius), 0x31 (Prayer).
 static const uint8 kGroupRadiatingEffects[] = {
-    0x15, // E_SILENCE_15_RADIUS
-    0x2d, // E_PROT_FROM_EVIL_10_RADIUS
-    0x2e, // E_PROT_FROM_GOOD_10_RADIUS
-    0x31  // E_PRAYER
+    static_cast<uint8>(E_SILENCE_15_RADIUS),
+    static_cast<uint8>(E_PROT_FROM_EVIL_10_RADIUS),
+    static_cast<uint8>(E_PROT_FROM_GOOD_10_RADIUS),
+    static_cast<uint8>(E_PRAYER)
 };
 
 bool EffectRuntime::isGroupRadiatingEffect(uint8 effectType) {
@@ -354,7 +352,7 @@ bool EffectRuntime::isAffectedByGroupEffect(uint8 effectType,
 
         // TODO: In combat, check spatial proximity using combat grid.
         // Original logic:
-        //   uint8 range = (effectType == 0x31) ? 6 : 1;
+        //   uint8 range = (effectType == static_cast<uint8>(E_PRAYER)) ? 6 : 1;
         //   uint8 x = COMBAT_GetCharacterX(member);
         //   uint8 y = COMBAT_GetCharacterY(member);
         //   uint8 facing = COMBAT_getCharacterFacing(member);

@@ -60,107 +60,93 @@ void EffectHandlerBase::apply(EffectOp op, Effect &effect,
 
 void EffectHandlerBase::apply(const EffectCall0 &call) const {
     Effects internalId = mapRawEffectId(call.effect.type);
-    const HandlerEntry *entry = getHandler((uint8)internalId);
-    if (!entry) {
-        if (_defaultHandler)
-            _defaultHandler(call);
-        return;
-    }
-
-    if (entry->arity == kArity0 && entry->handler.h0)
-        entry->handler.h0(call);
+    Handler0 handler = getHandler0((uint8)internalId);
+    if (handler)
+        handler(call);
     else if (_defaultHandler)
         _defaultHandler(call);
 }
 
 void EffectHandlerBase::apply(const EffectCall1 &call) const {
     Effects internalId = mapRawEffectId(call.effect.type);
-    const HandlerEntry *entry = getHandler((uint8)internalId);
-    if (!entry) {
-        if (_defaultHandler)
-            _defaultHandler(call);
-        return;
-    }
-
-    if (entry->arity == kArity1 && entry->handler.h1)
-        entry->handler.h1(call);
+    Handler1 handler = getHandler1((uint8)internalId);
+    if (handler)
+        handler(call);
     else if (_defaultHandler)
         _defaultHandler(call);
 }
 
 void EffectHandlerBase::apply(const EffectCall2 &call) const {
     Effects internalId = mapRawEffectId(call.effect.type);
-    const HandlerEntry *entry = getHandler((uint8)internalId);
-    if (!entry) {
-        if (_defaultHandler)
-            _defaultHandler(call);
-        return;
-    }
-
-    if (entry->arity == kArity2 && entry->handler.h2)
-        entry->handler.h2(call);
+    Handler2 handler = getHandler2((uint8)internalId);
+    if (handler)
+        handler(call);
     else if (_defaultHandler)
         _defaultHandler(call);
 }
 
 void EffectHandlerBase::apply(const EffectCall3 &call) const {
     Effects internalId = mapRawEffectId(call.effect.type);
-    const HandlerEntry *entry = getHandler((uint8)internalId);
-    if (!entry) {
-        if (_defaultHandler)
-            _defaultHandler(call);
-        return;
-    }
-
-    if (entry->arity == kArity3 && entry->handler.h3)
-        entry->handler.h3(call);
+    Handler3 handler = getHandler3((uint8)internalId);
+    if (handler)
+        handler(call);
     else if (_defaultHandler)
         _defaultHandler(call);
 }
 
 bool EffectHandlerBase::hasHandler(uint8 effectType) const {
-    return _handlers.contains(effectType);
+    return _handlers0.contains(effectType) || _handlers1.contains(effectType)
+        || _handlers2.contains(effectType) || _handlers3.contains(effectType);
 }
 
 void EffectHandlerBase::clearHandlers() {
-    _handlers.clear();
+    _handlers0.clear();
+    _handlers1.clear();
+    _handlers2.clear();
+    _handlers3.clear();
 }
 
 void EffectHandlerBase::setHandler(Effects effectId, Handler0 handler) {
-    HandlerEntry entry;
-    entry.arity = kArity0;
-    entry.handler.h0 = handler;
-    _handlers.setVal((uint8)effectId, entry);
+    _handlers0.setVal((uint8)effectId, handler);
 }
 
 void EffectHandlerBase::setHandler(Effects effectId, Handler1 handler) {
-    HandlerEntry entry;
-    entry.arity = kArity1;
-    entry.handler.h1 = handler;
-    _handlers.setVal((uint8)effectId, entry);
+    _handlers1.setVal((uint8)effectId, handler);
 }
 
 void EffectHandlerBase::setHandler(Effects effectId, Handler2 handler) {
-    HandlerEntry entry;
-    entry.arity = kArity2;
-    entry.handler.h2 = handler;
-    _handlers.setVal((uint8)effectId, entry);
+    _handlers2.setVal((uint8)effectId, handler);
 }
 
 void EffectHandlerBase::setHandler(Effects effectId, Handler3 handler) {
-    HandlerEntry entry;
-    entry.arity = kArity3;
-    entry.handler.h3 = handler;
-    _handlers.setVal((uint8)effectId, entry);
+    _handlers3.setVal((uint8)effectId, handler);
 }
 
 void EffectHandlerBase::setDefaultHandler(Handler0 handler) {
     _defaultHandler = handler;
 }
 
-const EffectHandlerBase::HandlerEntry *EffectHandlerBase::getHandler(uint8 effectType) const {
-    if (_handlers.contains(effectType))
-        return &_handlers.getVal(effectType);
+EffectHandlerBase::Handler0 EffectHandlerBase::getHandler0(uint8 effectType) const {
+    if (_handlers0.contains(effectType))
+        return _handlers0.getVal(effectType);
+    return nullptr;
+}
+
+EffectHandlerBase::Handler1 EffectHandlerBase::getHandler1(uint8 effectType) const {
+    if (_handlers1.contains(effectType))
+        return _handlers1.getVal(effectType);
+    return nullptr;
+}
+
+EffectHandlerBase::Handler2 EffectHandlerBase::getHandler2(uint8 effectType) const {
+    if (_handlers2.contains(effectType))
+        return _handlers2.getVal(effectType);
+    return nullptr;
+}
+
+EffectHandlerBase::Handler3 EffectHandlerBase::getHandler3(uint8 effectType) const {
+    if (_handlers3.contains(effectType))
+        return _handlers3.getVal(effectType);
     return nullptr;
 }
 
