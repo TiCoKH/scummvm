@@ -68,6 +68,7 @@ struct EffectExecutionContext {
     int8 savingThrowBonus;
     bool savingThrowMade;
     uint16 savingThrowRoll;
+    // Saving throw verse type (e.g. vs. spell, vs. poison, vs. death magic).
     uint8 saveVerseType;
 
     // Script/action context.
@@ -76,7 +77,8 @@ struct EffectExecutionContext {
     GameState gameState;
     bool targetInvisible;
     bool cureSpell;
-    bool byte_1D2C7;
+    // True when the current action targets the caster's own party (friendly).
+    bool friendlyTarget;
     int halfActionsLeft;
     bool resetMovesLeft;
     int monsterMorale;
@@ -94,7 +96,7 @@ struct EffectExecutionContext {
             savingThrowCategory(0), savingThrowBonus(0), savingThrowMade(false),
             savingThrowRoll(0), saveVerseType(0), activeSpellId(0),
             inCombat(false), gameState(GS_START_MENU), targetInvisible(false),
-            cureSpell(false), byte_1D2C7(false), halfActionsLeft(0),
+            cureSpell(false), friendlyTarget(false), halfActionsLeft(0),
             resetMovesLeft(false), monsterMorale(0), selectedPlayer(nullptr),
             spellTarget(nullptr), diceCount(0), evaluatedEffects(0) {
     }

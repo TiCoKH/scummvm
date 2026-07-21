@@ -64,8 +64,7 @@ private:
     EffectHandlerBase *_handler;
     EffectHostBridge *_bridge;
 
-    EffectStacking getStackingPolicy(uint8 type) const;
-    int findEffectIndex(const CharacterEffects &effects, uint8 type) const;
+    EffectStacking getStackingPolicy(uint8 type, uint8 power) const;
 };
 
 } // namespace Effects

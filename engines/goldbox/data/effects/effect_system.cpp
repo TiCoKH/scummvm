@@ -21,6 +21,7 @@
 #include "goldbox/data/effects/effect_system.h"
 
 #include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/data/effects/effect_notify.h"
 
 namespace Goldbox {
 namespace Data {
@@ -38,27 +39,8 @@ static const EffectStackingRule kStackingRules[] = {
     { static_cast<uint8>(E_HASTE), STACK_IGNORE }
 };
 
-static void notifyBridgeOnEffectApply(EffectHostBridge *bridge,
-        EffectOp op, PlayerCharacter &character,
-        uint8 oldStatus, uint32 oldFlags) {
-    if (!bridge)
-        return;
-
-    bool statusPanelDirty = false;
-    if (oldFlags != character.effectState.flags)
-        statusPanelDirty = true;
-
-    if (oldStatus != character.healthStatus) {
-        if (op == EFF_REMOVE) {
-            bridge->notifyStatusChanged(&character, oldStatus,
-                character.healthStatus);
-        }
-        statusPanelDirty = true;
-    }
-
-    if (statusPanelDirty)
-        bridge->requestRefresh(EffectHostBridge::RF_STATUS_PANEL);
-}
+// Permanent effects (power == 0xFF) are never duplicated regardless of type.
+static const uint8 kPermanentPower = 0xFF;
 
 } // namespace
 
@@ -80,9 +62,9 @@ void EffectSystem::applyEffect(CharacterEffects &effects,
     if (!_handler)
         return;
 
-    EffectStacking stacking = getStackingPolicy(type);
+    EffectStacking stacking = getStackingPolicy(type, power);
     if (stacking != STACK_ADD) {
-        int idx = findEffectIndex(effects, type);
+        int idx = effects.findEffectIndexByType(type);
         if (idx >= 0) {
             Effect &existing = effects.effectAt(static_cast<uint>(idx));
             if (stacking == STACK_IGNORE)
@@ -100,15 +82,20 @@ void EffectSystem::applyEffect(CharacterEffects &effects,
         }
     }
 
-    effects.addEffect(type, durationMin, power, immediate ? 1 : 0);
+    Effect newEffect;
+    newEffect.type = type;
+    newEffect.durationMin = durationMin;
+    newEffect.power = power;
+    newEffect.immediate = immediate ? 1 : 0;
+    effects.appendEffect(newEffect);
     Effect &added = effects.lastEffect();
     if (immediate) {
         const uint8 oldStatus = character.healthStatus;
         const uint32 oldFlags = character.effectState.flags;
         _handler->apply(EFF_ADD, added, character);
         character.onEffectsChanged();
-        notifyBridgeOnEffectApply(_bridge, EFF_ADD, character,
-            oldStatus, oldFlags);
+        notifyBridge(_bridge, EFF_ADD, character,
+            oldStatus, oldFlags, false, true);
     }
 }
 
@@ -123,8 +110,8 @@ void EffectSystem::tick(CharacterEffects &effects,
         uint32 oldFlags = character.effectState.flags;
         _handler->apply(EFF_TICK, effect, character);
         character.onEffectsChanged();
-        notifyBridgeOnEffectApply(_bridge, EFF_TICK, character,
-            oldStatus, oldFlags);
+        notifyBridge(_bridge, EFF_TICK, character,
+            oldStatus, oldFlags, false, true);
 
         if (effect.durationMin != 0xFFFF) {
             if (effect.durationMin > 0)
@@ -134,8 +121,8 @@ void EffectSystem::tick(CharacterEffects &effects,
                 oldFlags = character.effectState.flags;
                 _handler->apply(EFF_REMOVE, effect, character);
                 character.onEffectsChanged();
-                notifyBridgeOnEffectApply(_bridge, EFF_REMOVE,
-                    character, oldStatus, oldFlags);
+                notifyBridge(_bridge, EFF_REMOVE,
+                    character, oldStatus, oldFlags, false, true);
                 effects.removeEffectAt(i);
                 continue;
             }
@@ -158,24 +145,23 @@ void EffectSystem::removeEffectsByType(CharacterEffects &effects,
         const uint32 oldFlags = character.effectState.flags;
         _handler->apply(EFF_REMOVE, effects.effectAt(i), character);
         character.onEffectsChanged();
-        notifyBridgeOnEffectApply(_bridge, EFF_REMOVE, character,
-            oldStatus, oldFlags);
+        notifyBridge(_bridge, EFF_REMOVE, character,
+            oldStatus, oldFlags, false, true);
         effects.removeEffectAt(i);
     }
 }
 
-EffectStacking EffectSystem::getStackingPolicy(uint8 type) const {
+EffectStacking EffectSystem::getStackingPolicy(uint8 type, uint8 power) const {
+    // Permanent effects (power == 0xFF) are never duplicated regardless of type.
+    if (power == kPermanentPower)
+        return STACK_IGNORE;
+
     for (uint i = 0; i < ARRAYSIZE(kStackingRules); ++i) {
         if (kStackingRules[i].effectType == type)
             return kStackingRules[i].policy;
     }
 
     return STACK_REFRESH;
-}
-
-int EffectSystem::findEffectIndex(const CharacterEffects &effects,
-        uint8 type) const {
-    return effects.findEffectIndexByType(type);
 }
 
 } // namespace Effects

@@ -200,15 +200,6 @@ void EffectHandler::setupHandlers() {
     setHandler(Goldbox::Data::Effects::E_MISC, &EffectHandler::handleNoop);
 }
 
-void EffectHandler::apply(Goldbox::Data::Effects::EffectOp op, Goldbox::Data::Effects::Effect &effect,
-                          Data::PoolradCharacter &character) const {
-    Goldbox::Data::Effects::EffectHandlerBase::apply(op, effect, character);
-}
-
-bool EffectHandler::hasHandler(uint8 effectType) const {
-    return Goldbox::Data::Effects::EffectHandlerBase::hasHandler(effectType);
-}
-
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
     return kRawEffectMap.mapRaw(rawId);
 }
@@ -217,17 +208,19 @@ void EffectHandler::handleNoop(const Goldbox::Data::Effects::EffectCall0 &) {
 }
 
 namespace {
-static void applyFlag(Goldbox::Data::Effects::EffectOp op, Data::PoolradCharacter &character, uint32 flag) {
+using namespace Goldbox::Data::Effects;
+using Goldbox::Data::EffectModifiers;
+
+static void applyFlag(EffectOp op, Data::PoolradCharacter &character, uint32 flag) {
     if (op == Goldbox::Data::Effects::EFF_ADD)
         character.effectState.flags |= flag;
     else if (op == Goldbox::Data::Effects::EFF_REMOVE)
         character.effectState.flags &= ~flag;
 }
 
-static void applyModifiers(Goldbox::Data::Effects::EffectOp op, Data::PoolradCharacter &character,
-                   const Goldbox::Data::EffectModifiers &delta) {
-    int sign = (op == Goldbox::Data::Effects::EFF_REMOVE) ? -1 :
-               (op == Goldbox::Data::Effects::EFF_ADD ? 1 : 0);
+static void applyModifiers(EffectOp op, Data::PoolradCharacter &character,
+                   const EffectModifiers &delta) {
+    int sign = (op == EFF_REMOVE) ? -1 : (op == EFF_ADD ? 1 : 0);
     if (sign == 0)
         return;
     character.effectState.mods.attackRoll += delta.attackRoll * sign;
@@ -238,10 +231,10 @@ static void applyModifiers(Goldbox::Data::Effects::EffectOp op, Data::PoolradCha
     character.effectState.mods.movement += delta.movement * sign;
 }
 
-static void applySimpleModifiers(Goldbox::Data::Effects::EffectOp op, Data::PoolradCharacter &character,
+static void applySimpleModifiers(EffectOp op, Data::PoolradCharacter &character,
                  int8 attackRoll, int8 damage, int8 savingThrow,
                  int8 armorClass, int8 morale, int8 movement) {
-    Goldbox::Data::EffectModifiers delta;
+    EffectModifiers delta;
     delta.attackRoll = attackRoll;
     delta.damage = damage;
     delta.savingThrow = savingThrow;
@@ -251,20 +244,20 @@ static void applySimpleModifiers(Goldbox::Data::Effects::EffectOp op, Data::Pool
     applyModifiers(op, character, delta);
 }
 
-static void applyHeldFlag(Goldbox::Data::Effects::EffectOp op, Data::PoolradCharacter &character, uint32 flag) {
+static void applyHeldFlag(EffectOp op, Data::PoolradCharacter &character, uint32 flag) {
     applyFlag(op, character, flag | Data::PoolradCharacter::EF_HELD);
 }
 
-static void applyRegen(Goldbox::Data::Effects::EffectOp op, Data::PoolradCharacter &character, uint8 amount) {
-    if (op != Goldbox::Data::Effects::EFF_TICK)
+static void applyRegen(EffectOp op, Data::PoolradCharacter &character, uint8 amount) {
+    if (op != EFF_TICK)
         return;
     if (amount == 0)
         amount = 1;
     character.heal(amount);
 }
 
-static void applyTickDamage(Goldbox::Data::Effects::EffectOp op, Data::PoolradCharacter &character, uint8 amount) {
-    if (op != Goldbox::Data::Effects::EFF_TICK)
+static void applyTickDamage(EffectOp op, Data::PoolradCharacter &character, uint8 amount) {
+    if (op != EFF_TICK)
         return;
     if (amount == 0)
         amount = 1;
@@ -273,11 +266,10 @@ static void applyTickDamage(Goldbox::Data::Effects::EffectOp op, Data::PoolradCh
 }
 
 void EffectHandler::handleEffect(const Goldbox::Data::Effects::EffectCall0 &call) {
-    using Goldbox::Data::Effects::Effects;
-    const Goldbox::Data::Effects::EffectOp op = call.op;
-    Goldbox::Data::Effects::Effect &effect = call.effect;
+    const EffectOp op = call.op;
+    Effect &effect = call.effect;
     Goldbox::Data::PlayerCharacter &character = call.character;
-    const Goldbox::Data::Effects::EffectExecutionContext *ctx = call.ctx;
+    const EffectExecutionContext *ctx = call.ctx;
 
     (void)ctx;
     Data::PoolradCharacter &poolradCharacter = static_cast<Data::PoolradCharacter &>(character);
