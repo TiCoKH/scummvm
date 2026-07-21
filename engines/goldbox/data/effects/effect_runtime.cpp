@@ -27,6 +27,7 @@
 #include "goldbox/data/effects/effect_execution_context.h"
 #include "goldbox/data/effects/effect_handler_base.h"
 #include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/data/effects/effect_notify.h"
 #include "goldbox/data/player_character.h"
 
 namespace Goldbox {
@@ -162,24 +163,6 @@ static bool containsEffectType(const CharacterEffects &effects,
     return false;
 }
 
-static bool isStatusPanelEffect(Effects effectType) {
-    switch (effectType) {
-    case E_PARALYZE:
-    case E_SLEEP:
-    case E_HELPLESS:
-    case E_BLINDED:
-    case E_POISONED:
-    case E_POISON_PLUS_0:
-    case E_POISON_PLUS_2:
-    case E_POISON_PLUS_4:
-    case E_POISON_NEG_2:
-    case E_SLOW_POISON:
-        return true;
-    default:
-        return false;
-    }
-}
-
 } // namespace
 
 EffectRuntime::EffectRuntime(EffectHandlerBase *handler,
@@ -201,7 +184,6 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
         return;
 
     if (triggerSet == ETS_POISON_CYCLE) {
-        bool statusPanelDirty = false;
         for (uint j = 0; j < effects.effectCount(); ++j) {
             Effect &effect = effects.effectAt(j);
             if (!isPoisonCycleEffect(effect.type))
@@ -215,21 +197,11 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
             const uint32 oldFlags = character.effectState.flags;
             _handler->apply(EFF_TICK, effect, character, &context);
             character.onEffectsChanged();
-
-            if (_bridge && oldStatus != character.healthStatus) {
-                _bridge->notifyStatusChanged(&character, oldStatus,
-                    character.healthStatus);
-                statusPanelDirty = true;
-            }
-
-            if (oldFlags != character.effectState.flags)
-                statusPanelDirty = true;
+            notifyBridge(_bridge, EFF_TICK, character,
+                oldStatus, oldFlags, true, true);
 
             ++context.evaluatedEffects;
         }
-
-        if (_bridge && statusPanelDirty)
-            _bridge->requestRefresh(EffectHostBridge::RF_STATUS_PANEL);
         return;
     }
 
@@ -237,7 +209,6 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
     if (!table)
         return;
 
-    bool statusPanelDirty = false;
     for (uint i = 0; i < table->size; ++i) {
         const Effects type = table->ids[i];
         for (uint j = 0; j < effects.effectCount(); ++j) {
@@ -253,25 +224,14 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
             _handler->apply(EFF_EVAL, effects.effectAt(j), character,
                 &context);
             character.onEffectsChanged();
-
-            if (_bridge && oldStatus != character.healthStatus) {
-                _bridge->notifyStatusChanged(&character, oldStatus,
-                    character.healthStatus);
-                statusPanelDirty = true;
-            }
-
-            if (oldFlags != character.effectState.flags
-                    && isStatusPanelEffect(type)) {
-                statusPanelDirty = true;
-            }
+            notifyBridge(_bridge, EFF_EVAL, character,
+                oldStatus, oldFlags, true,
+                isStatusPanelEffect(type));
 
             ++context.evaluatedEffects;
             break;
         }
     }
-
-    if (_bridge && statusPanelDirty)
-        _bridge->requestRefresh(EffectHostBridge::RF_STATUS_PANEL);
 }
 
 bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,

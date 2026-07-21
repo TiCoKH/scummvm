@@ -35,10 +35,6 @@ public:
     EffectHandler();
 
     void setupHandlers() override;
-    void apply(Goldbox::Data::Effects::EffectOp op, Goldbox::Data::Effects::Effect &effect,
-               Data::PoolradCharacter &character) const;
-    bool hasHandler(uint8 effectType) const;
-
     Goldbox::Data::Effects::Effects mapRawEffectId(uint8 rawId) const override;
 
 private:
