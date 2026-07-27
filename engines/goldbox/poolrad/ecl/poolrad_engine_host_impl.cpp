@@ -386,19 +386,35 @@ VmResult PoolradEngineHostImpl::startCombat() {
 
     // Setup safety guard: if no host enemies are loaded, do not enter
     // tactical combat setup even if legacy VM flags drift.
-    if (_enemy.empty())
+    if (_loadedMonsters.empty())
         return VmResult::VM_OK;
 
     Common::Array<Goldbox::Data::PlayerCharacter *> combatRoster;
     Common::List<Goldbox::Data::PlayerCharacter *> &party =
         _engine->getParty();
-    combatRoster.reserve(party.size() + _enemy.size());
+    const uint partySize = party.size();
+    const uint enemySize = _loadedMonsters.size();
+
+    if (_monstersAppendedToParty) {
+        combatRoster.reserve(partySize);
+    } else {
+        combatRoster.reserve(partySize + enemySize);
+    }
 
     for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party.begin(); it != party.end(); ++it)
         combatRoster.push_back(*it);
 
-    const int partyCount = static_cast<int>(combatRoster.size());
-    combatRoster.push_back(_enemy);
+    int partyCount = static_cast<int>(partySize);
+    if (_monstersAppendedToParty) {
+        partyCount = (partySize >= enemySize)
+            ? static_cast<int>(partySize - enemySize)
+            : 0;
+    } else {
+        for (Common::List<Data::PoolradCharacter *>::const_iterator it =
+                _loadedMonsters.begin(); it != _loadedMonsters.end(); ++it) {
+            combatRoster.push_back(*it);
+        }
+    }
 
     // Keep a stable runtime "next character" anchor for legacy traversal
     // semantics (party head when available).
@@ -519,6 +535,9 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
 
     templateMonster->iconData.iconSlotId = slotId;
 
+    Common::List<Goldbox::Data::PlayerCharacter *> &party =
+        _engine->getParty();
+
     const uint8 spawnCount = (count == 0) ? 1 : count;
     for (uint8 i = 0; i < spawnCount; ++i) {
         Data::PoolradCharacter *monster = (i == 0)
@@ -533,9 +552,11 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
         monster->iconData.iconSlotId = slotId;
         monster->clearEquippedItems();
         monster->resolveEquippedItems();
-        _loadedMonsters.push_back(monster);
-        _enemy.push_back(monster);
+        _loadedMonsters.emplace_back(monster);
+        party.push_back(monster);
     }
+
+    _monstersAppendedToParty = true;
 
     _monsterIconSlots.push_back(slotId);
     _nextMonsterIconSlot = (slotId < Goldbox::Gfx::SLOT_DYNAMIC_END)
@@ -546,7 +567,16 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
 }
 
 VmResult PoolradEngineHostImpl::clearMonsters() {
-    _enemy.clear();
+    if (_engine && _monstersAppendedToParty) {
+        Common::List<Goldbox::Data::PlayerCharacter *> &party =
+            _engine->getParty();
+        for (Common::List<Data::PoolradCharacter *>::const_iterator it =
+                _loadedMonsters.begin(); it != _loadedMonsters.end(); ++it) {
+            party.remove(*it);
+        }
+    }
+
+    _monstersAppendedToParty = false;
 
     Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
     if (iconMgr) {
@@ -554,8 +584,10 @@ VmResult PoolradEngineHostImpl::clearMonsters() {
             iconMgr->releaseIcon(_monsterIconSlots[i]);
     }
 
-    for (uint i = 0; i < _loadedMonsters.size(); ++i)
-        delete _loadedMonsters[i];
+    for (Common::List<Data::PoolradCharacter *>::iterator it =
+            _loadedMonsters.begin(); it != _loadedMonsters.end(); ++it) {
+        delete *it;
+    }
 
     _loadedMonsters.clear();
     _monsterIconSlots.clear();
