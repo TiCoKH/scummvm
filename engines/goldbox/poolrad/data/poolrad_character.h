@@ -64,7 +64,9 @@ public:
     // Legacy fields for binary save/load compatibility
     struct {
         uint8 memorizedSpells[21];
-        uint8 knownSpells[55];
+        // 56-byte field in save data: first 55 are mapped player spells,
+        // last byte is preserved legacy/monster data.
+        uint8 knownSpells[56];
     } spells;
 
     // Legacy byte at character offset 0x02C.

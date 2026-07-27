@@ -29,11 +29,16 @@ namespace Data {
 
 // Pool of Radiance spell array sizes
 constexpr int POOLRAD_MEMORIZED_SIZE = 21;
-constexpr int POOLRAD_KNOWN_SIZE = 55;
+// Player-learnable known spell bytes (0x033-0x069).
+constexpr int POOLRAD_PLAYER_KNOWN_SIZE = 55;
+// Legacy known-spell field size in character records (0x033-0x06A).
+// Byte 56 at 0x06A stores monster-only Cleric spell SP_CL7_RESTORATION.
+constexpr int POOLRAD_KNOWN_SIZE = 56;
+constexpr int POOLRAD_KNOWN_FIELD_SIZE = POOLRAD_KNOWN_SIZE;
 
 // Mapping from legacy character file array index to Spells enum
-// Based on Pool of Radiance character format offsets 0x033-0x069 (55 spells total)
-// The Spells enum values (1-55) directly correspond to the PoR spell IDs
+// Based on Pool of Radiance character format offsets 0x033-0x06A.
+// Indices 0..54 are player-usable spells, index 55 is monster-only Restoration.
 static const Goldbox::Data::Spells::Spells kPoolradSpellMapping[POOLRAD_KNOWN_SIZE] = {
     // Cleric Level 1 (0x033-0x03A) - indices 0-7
     Goldbox::Data::Spells::SP_CL1_BLESS,                    // 0  - 0x033 - cleric 1 01
@@ -100,7 +105,10 @@ static const Goldbox::Data::Spells::Spells kPoolradSpellMapping[POOLRAD_KNOWN_SI
     Goldbox::Data::Spells::SP_MUL3_PROT_F_EVIL_10R,         // 51 - 0x066 - mage 3 08
     Goldbox::Data::Spells::SP_MUL3_PROT_F_GOOD_10R,         // 52 - 0x067 - mage 3 09
     Goldbox::Data::Spells::SP_MUL3_PROT_F_NORM_MSL,         // 53 - 0x068 - mage 3 10
-    Goldbox::Data::Spells::SP_MUL3_SLOW                     // 54 - 0x069 - mage 3 11
+    Goldbox::Data::Spells::SP_MUL3_SLOW,                    // 54 - 0x069 - mage 3 11
+
+    // Monster-only known spell byte (0x06A)
+    Goldbox::Data::Spells::SP_CL7_RESTORATION               // 55 - 0x06A
 };
 
 } // namespace Data
