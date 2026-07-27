@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_ECL_POOLRAD_ENGINE_HOST_IMPL_H
 
 #include "common/array.h"
+#include "common/list.h"
 #include "common/scummsys.h"
 #include "common/ptr.h"
 #include "goldbox/ecl/ecl_syscall_impl.h"
@@ -171,10 +172,8 @@ private:
     // Owned DaxTile instances for walldef tile atlases (slots 1-3, 0-based idx)
     Common::ScopedPtr<Goldbox::Gfx::DaxTile> _walldefTiles[3];
     WallSetRuntimeState _wallSetStates[3];
-    Common::Array<Data::PoolradCharacter *> _loadedMonsters;
-    // Non-owning enemy roster used as modern MONSTER_LOAD_READY signal.
-    // Ownership remains in _loadedMonsters.
-    Common::Array<Goldbox::Data::PlayerCharacter *> _enemy;
+    Common::List<Data::PoolradCharacter *> _loadedMonsters;
+    bool _monstersAppendedToParty = false;
     Common::Array<uint8> _monsterIconSlots;
     uint8 _nextMonsterIconSlot = 26;
 
