@@ -20,7 +20,7 @@
  */
 
 // Implementation of runtime character effect list handling.
-// Mirrors original linked list behaviour via a contiguous array.
+// Mirrors original linked-list style behaviour with list-backed storage.
 #include "common/file.h"
 #include "goldbox/data/effects/character_effects.h"
 

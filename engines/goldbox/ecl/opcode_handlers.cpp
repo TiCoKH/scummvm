@@ -109,9 +109,10 @@ static bool hasEffectInParty(uint8 effectId) {
         if (!effects)
             continue;
 
-        const Common::Array<Data::Effects::Effect> &list = effects->effects();
-        for (uint j = 0; j < list.size(); ++j) {
-            if (list[j].type == effectId)
+        const Common::List<Data::Effects::Effect> &list = effects->effects();
+        for (Common::List<Data::Effects::Effect>::const_iterator jt =
+                list.begin(); jt != list.end(); ++jt) {
+            if ((*jt).type == effectId)
                 return true;
         }
     }

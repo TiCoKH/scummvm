@@ -490,7 +490,7 @@ void PoolradCharacter::recalcCombatStats() {
 	numOfItems = static_cast<int8>(inventory.items().size());
 	// Single pass: rebuild equippedItems and compute total/equipped weights and stats
 	equippedItems.clear();
-	const Common::Array<CharacterItem> &items = inventory.items();
+	const Common::List<CharacterItem> &items = inventory.items();
 	uint32 totalWeight = 0; // modern accumulation without 16-bit per-add clamping
 	uint32 equippedOnlyWeight = 0; // track weight of equipped (readied) items (single final clamp)
 	bool specialEncumbranceFlag = false; // bag-of-holding/cursed-like behavior (typeIndex == 0xBA)
@@ -499,8 +499,10 @@ void PoolradCharacter::recalcCombatStats() {
 	uint8 totalProtect = 0;
 
 	// Iterate inventory items
-	for (uint i = 0; i < items.size(); ++i) {
-		const CharacterItem &ci = items[i];
+	uint i = 0;
+	for (Common::List<CharacterItem>::const_iterator it = items.begin();
+			it != items.end(); ++it, ++i) {
+		const CharacterItem &ci = *it;
 		// Weight for this item (respect stack)
 		uint32 w = ci.weight;
 		if (ci.stackSize != 0)
@@ -510,7 +512,7 @@ void PoolradCharacter::recalcCombatStats() {
 		if (!ci.isEquipped())
 			continue;
 
-		CharacterItem *ptr = const_cast<CharacterItem *>(&ci);
+		CharacterItem *ptr = const_cast<CharacterItem *>(&(*it));
 		const ItemProperty &p = ci.prop();
 		bool placed = false;
 		int sid = (int)p.slotID;

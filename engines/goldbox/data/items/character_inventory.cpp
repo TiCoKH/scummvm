@@ -127,8 +127,11 @@ bool CharacterInventory::save(const Common::String &filename) const {
 }
 
 void CharacterInventory::debugPrint() const {
-    for (size_t i = 0; i < _items.size(); ++i)
-        _items[i].debugPrint(i);
+    size_t i = 0;
+    for (Common::List<CharacterItem>::const_iterator it = _items.begin();
+            it != _items.end(); ++it, ++i) {
+        it->debugPrint(i);
+    }
 }
 
 uint16 CharacterInventory::calcItemEncumbrance(const CharacterItem &item) {
@@ -149,8 +152,9 @@ bool CharacterInventory::meetsClassRestriction(const CharacterItem &item,
 
 uint16 CharacterInventory::totalEncumbrance() const {
     uint32 total = 0;
-    for (uint i = 0; i < _items.size(); ++i) {
-        total += calcItemEncumbrance(_items[i]);
+    for (Common::List<CharacterItem>::const_iterator it = _items.begin();
+            it != _items.end(); ++it) {
+        total += calcItemEncumbrance(*it);
         if (total > 0xFFFF)
             return 0xFFFF;
     }
@@ -239,9 +243,10 @@ bool CharacterInventory::removeItem(
         }
     }
 
-    for (uint i = 0; i < _items.size(); ++i) {
-        if (&_items[i] == item) {
-            _items.remove_at(i);
+    for (Common::List<CharacterItem>::iterator it = _items.begin();
+            it != _items.end(); ++it) {
+        if (&(*it) == item) {
+            _items.erase(it);
             if (equippedSlots)
                 remapEquippedByLegacyOffsets(equippedSlots, offsets);
             return true;
@@ -252,18 +257,20 @@ bool CharacterInventory::removeItem(
 }
 
 CharacterItem *CharacterInventory::findByLegacyAddress(uint32 legacyAddr) {
-    for (uint i = 0; i < _items.size(); ++i) {
-        if (_items[i].nextAddress == legacyAddr)
-            return &_items[i];
+    for (Common::List<CharacterItem>::iterator it = _items.begin();
+            it != _items.end(); ++it) {
+        if (it->nextAddress == legacyAddr)
+            return &(*it);
     }
     return nullptr;
 }
 
 const CharacterItem *CharacterInventory::findByLegacyAddress(
     uint32 legacyAddr) const {
-    for (uint i = 0; i < _items.size(); ++i) {
-        if (_items[i].nextAddress == legacyAddr)
-            return &_items[i];
+    for (Common::List<CharacterItem>::const_iterator it = _items.begin();
+            it != _items.end(); ++it) {
+        if (it->nextAddress == legacyAddr)
+            return &(*it);
     }
     return nullptr;
 }
@@ -294,8 +301,9 @@ void CharacterInventory::recomputeEquippedTotals(
 }
 
 void CharacterInventory::clearMemorizedSpellFlagsOnEligibleItems() {
-    for (uint i = 0; i < _items.size(); ++i) {
-        CharacterItem &item = _items[i];
+    for (Common::List<CharacterItem>::iterator it = _items.begin();
+            it != _items.end(); ++it) {
+        CharacterItem &item = *it;
         if (item.shouldClearMemorizedSpellFlags())
             item.clearMemorizedSpellFlags();
     }

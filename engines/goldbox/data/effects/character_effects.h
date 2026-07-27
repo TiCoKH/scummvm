@@ -22,7 +22,7 @@
 #ifndef GOLDBOX_DATA_EFFECTS_CHARACTER_EFFECTS_H
 #define GOLDBOX_DATA_EFFECTS_CHARACTER_EFFECTS_H
 
-#include "common/array.h"
+#include "common/list.h"
 #include "common/str.h"
 #include "goldbox/data/effects/effect.h"
 
@@ -32,37 +32,59 @@ namespace Effects {
 
 class CharacterEffects {
 private:
-    Common::Array<Effect> _effects;
+    Common::List<Effect> _effects;
+
+    Common::List<Effect>::iterator iteratorAt(uint idx) {
+        Common::List<Effect>::iterator it = _effects.begin();
+        for (uint i = 0; i < idx; ++i)
+            ++it;
+        return it;
+    }
+
+    Common::List<Effect>::const_iterator iteratorAt(uint idx) const {
+        Common::List<Effect>::const_iterator it = _effects.begin();
+        for (uint i = 0; i < idx; ++i)
+            ++it;
+        return it;
+    }
 
 public:
     bool load(const Common::String &filename);
     void loadFromStream(Common::SeekableReadStream &stream);
     bool save(const Common::String &filename) const;
 
-    const Common::Array<Effect> &effects() const { return _effects; }
+    const Common::List<Effect> &effects() const { return _effects; }
+    Common::List<Effect> &effects() { return _effects; }
 
     uint effectCount() const { return _effects.size(); }
     bool isEmpty() const { return _effects.empty(); }
 
-    const Effect &effectAt(uint idx) const { return _effects[idx]; }
-    Effect &effectAt(uint idx) { return _effects[idx]; }
+    const Effect &effectAt(uint idx) const { return *iteratorAt(idx); }
+    Effect &effectAt(uint idx) { return *iteratorAt(idx); }
     Effect &lastEffect() { return _effects.back(); }
 
-    void removeEffectAt(uint idx) { _effects.remove_at(idx); }
+    void removeEffectAt(uint idx) {
+        if (idx >= _effects.size())
+            return;
+        _effects.erase(iteratorAt(idx));
+    }
     // Unconditionally appends an effect. Stacking/dedup is the caller's responsibility.
     void appendEffect(const Effect &effect) { _effects.push_back(effect); }
 
     bool hasEffectType(uint8 type) const {
-        for (uint i = 0; i < _effects.size(); ++i) {
-            if (_effects[i].type == type)
+        for (Common::List<Effect>::const_iterator it = _effects.begin();
+                it != _effects.end(); ++it) {
+            if ((*it).type == type)
                 return true;
         }
         return false;
     }
 
     int findEffectIndexByType(uint8 type) const {
-        for (uint i = 0; i < _effects.size(); ++i) {
-            if (_effects[i].type == type)
+        uint i = 0;
+        for (Common::List<Effect>::const_iterator it = _effects.begin();
+                it != _effects.end(); ++it, ++i) {
+            if ((*it).type == type)
                 return static_cast<int>(i);
         }
         return -1;

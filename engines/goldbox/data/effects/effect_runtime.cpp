@@ -156,8 +156,10 @@ static const TriggerSetTable *getTriggerSetTable(EffectTriggerSet setId) {
 
 static bool containsEffectType(const CharacterEffects &effects,
         Effects type) {
-    for (uint i = 0; i < effects.effectCount(); ++i) {
-        if (effects.effectAt(i).type == static_cast<uint8>(type))
+    const Common::List<Effect> &list = effects.effects();
+    for (Common::List<Effect>::const_iterator it = list.begin();
+            it != list.end(); ++it) {
+        if (it->type == static_cast<uint8>(type))
             return true;
     }
     return false;
@@ -184,8 +186,10 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
         return;
 
     if (triggerSet == ETS_POISON_CYCLE) {
-        for (uint j = 0; j < effects.effectCount(); ++j) {
-            Effect &effect = effects.effectAt(j);
+        Common::List<Effect> &list = effects.effects();
+        for (Common::List<Effect>::iterator it = list.begin();
+                it != list.end(); ++it) {
+            Effect &effect = *it;
             if (!isPoisonCycleEffect(effect.type))
                 continue;
 
@@ -211,17 +215,19 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
 
     for (uint i = 0; i < table->size; ++i) {
         const Effects type = table->ids[i];
-        for (uint j = 0; j < effects.effectCount(); ++j) {
-            if (effects.effectAt(j).type != static_cast<uint8>(type))
+        Common::List<Effect> &list = effects.effects();
+        for (Common::List<Effect>::iterator it = list.begin();
+                it != list.end(); ++it) {
+            if (it->type != static_cast<uint8>(type))
                 continue;
 
-            context.currentEffectType = effects.effectAt(j).type;
-            context.currentEffectPower = effects.effectAt(j).power;
-            context.currentEffectDuration = effects.effectAt(j).durationMin;
+            context.currentEffectType = it->type;
+            context.currentEffectPower = it->power;
+            context.currentEffectDuration = it->durationMin;
 
             const uint8 oldStatus = character.healthStatus;
             const uint32 oldFlags = character.effectState.flags;
-            _handler->apply(EFF_EVAL, effects.effectAt(j), character,
+            _handler->apply(EFF_EVAL, *it, character,
                 &context);
             character.onEffectsChanged();
             notifyBridge(_bridge, EFF_EVAL, character,
@@ -237,8 +243,10 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
 bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,
         const CharacterEffects &effects) const {
     if (triggerSet == ETS_POISON_CYCLE) {
-        for (uint i = 0; i < effects.effectCount(); ++i) {
-            if (isPoisonCycleEffect(effects.effectAt(i).type))
+        const Common::List<Effect> &list = effects.effects();
+        for (Common::List<Effect>::const_iterator it = list.begin();
+                it != list.end(); ++it) {
+            if (isPoisonCycleEffect(it->type))
                 return true;
         }
         return false;

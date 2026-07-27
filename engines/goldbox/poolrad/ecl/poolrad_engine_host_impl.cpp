@@ -1202,11 +1202,12 @@ VmResult PoolradEngineHostImpl::checkParty(uint16 attributeAddr,
             if (!effects)
                 continue;
 
-            const Common::Array<Goldbox::Data::Effects::Effect> &list =
+            const Common::List<Goldbox::Data::Effects::Effect> &list =
                 effects->effects();
             bool hasEffect = false;
-            for (uint j = 0; j < list.size(); ++j) {
-                if (list[j].type == static_cast<uint8>(effectId)) {
+            for (Common::List<Goldbox::Data::Effects::Effect>::const_iterator jt =
+                    list.begin(); jt != list.end(); ++jt) {
+                if ((*jt).type == static_cast<uint8>(effectId)) {
                     hasEffect = true;
                     break;
                 }
@@ -1252,10 +1253,11 @@ bool PoolradEngineHostImpl::hasEffectActive(uint8 effectId) const {
         if (!effects)
             continue;
 
-        const Common::Array<Goldbox::Data::Effects::Effect> &list =
+        const Common::List<Goldbox::Data::Effects::Effect> &list =
             effects->effects();
-        for (uint j = 0; j < list.size(); ++j) {
-            if (list[j].type == effectId)
+        for (Common::List<Goldbox::Data::Effects::Effect>::const_iterator jt =
+                list.begin(); jt != list.end(); ++jt) {
+            if ((*jt).type == effectId)
                 return true;
         }
     }
