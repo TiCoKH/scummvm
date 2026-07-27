@@ -233,13 +233,12 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
 	hitPoints.max = stream.readByte(); // 0x032
 
-	// 0x33-0x69: cleric/mage spell knowledge - 55 bytes
-	stream.read(spells.knownSpells, 55);
+	// 0x33-0x6A: known-spell field - 56 bytes
+	stream.read(spells.knownSpells, POOLRAD_KNOWN_FIELD_SIZE);
 
 	// Poolrad memorized array stores spell IDs per slot with pending bit 7.
+	// SpellBook import maps all known-spell entries including monster-only 0x06A.
 	importSpellBookFromLegacyArrays();
-
-	stream.readByte(); // Padding/Unknown at 0x06A
 
 	attackLevel = stream.readByte();   // 0x06B
 	iconDimension = stream.readByte(); // 0x06C
@@ -267,7 +266,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
 	// 0x07F-0x082: effects address (pointer)
 	stream.seek(0x84, SEEK_SET);
-	npc = stream.readSByte();     // 0x084
+	npc = stream.readSByte();     // 0x084 bit 7 = 1 → NPC, bit 6-0 morale (0-127)
 	modified = stream.readByte(); // 0x085
 	// 0x086-0x087: unknown
 	stream.seek(0x88, SEEK_SET);
@@ -804,10 +803,9 @@ void PoolradCharacter::save(Common::WriteStream &stream) {
 
 	stream.writeByte(hitPoints.max);
 
-	// Known spells (55 bytes in Poolrad layout)
-	stream.write(spells.knownSpells, 55);
-
-	stream.writeByte(0); // Padding/Unknown at 0x06A
+	// Known-spell field (56 bytes in Poolrad layout, 0x033-0x06A).
+	// Last byte is preserved legacy/monster data.
+	stream.write(spells.knownSpells, POOLRAD_KNOWN_FIELD_SIZE);
 
 	stream.writeByte(attackLevel);
 	stream.writeByte(iconDimension);
