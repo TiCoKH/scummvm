@@ -23,6 +23,7 @@
 #define GOLDBOX_DATA_ITEMS_CHARACTER_INVENTORY_H
 
 #include "common/array.h"
+#include "common/list.h"
 #include "common/str.h"
 #include "goldbox/data/items/character_item.h"
 
@@ -85,16 +86,22 @@ public:
     void clearMemorizedSpellFlagsOnEligibleItems();
 
     /// Access loaded items.
-    const Common::Array<CharacterItem> &all() const { return _items; }
-    int                                count() const { return _items.size(); }
+    const Common::List<CharacterItem>  &all() const { return _items; }
+    int                                count() const { return (int)_items.size(); }
     CharacterItem                      &operator[](size_t i) {
-        return _items[i];
+        Common::List<CharacterItem>::iterator it = _items.begin();
+        for (size_t idx = 0; idx < i; ++idx)
+            ++it;
+        return *it;
     }
     const CharacterItem                &operator[](size_t i) const {
-        return _items[i];
+        Common::List<CharacterItem>::const_iterator it = _items.begin();
+        for (size_t idx = 0; idx < i; ++idx)
+            ++it;
+        return *it;
     }
-    const Common::Array<CharacterItem> &items() const { return _items; }
-    Common::Array<CharacterItem>       &items() { return _items; }
+    const Common::List<CharacterItem>  &items() const { return _items; }
+    Common::List<CharacterItem>        &items() { return _items; }
 
 private:
     static uint16 calcItemEncumbrance(const CharacterItem &item);
@@ -107,7 +114,7 @@ private:
         Common::Array<CharacterItem *> *equippedSlots,
         const Common::Array<uint32> &offsets);
 
-    Common::Array<CharacterItem> _items;
+    Common::List<CharacterItem> _items;
 };
 
 } // namespace Items

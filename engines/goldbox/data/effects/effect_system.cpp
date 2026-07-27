@@ -106,8 +106,9 @@ void EffectSystem::tick(CharacterEffects &effects,
     if (!_handler)
         return;
 
-    for (uint i = 0; i < effects.effectCount();) {
-        Effect &effect = effects.effectAt(i);
+    Common::List<Effect> &list = effects.effects();
+    for (Common::List<Effect>::iterator it = list.begin(); it != list.end();) {
+        Effect &effect = *it;
         uint8 oldStatus = character.healthStatus;
         uint32 oldFlags = character.effectState.flags;
         _handler->apply(EFF_TICK, effect, character);
@@ -125,11 +126,11 @@ void EffectSystem::tick(CharacterEffects &effects,
                 character.onEffectsChanged();
                 notifyBridge(_bridge, EFF_REMOVE,
                     character, oldStatus, oldFlags, false, true);
-                effects.removeEffectAt(i);
+                it = list.erase(it);
                 continue;
             }
         }
-        ++i;
+        ++it;
     }
 }
 
@@ -138,18 +139,19 @@ void EffectSystem::removeEffectsByType(CharacterEffects &effects,
     if (!_handler)
         return;
 
-    for (uint i = 0; i < effects.effectCount();) {
-        if (effects.effectAt(i).type != type) {
-            ++i;
+    Common::List<Effect> &list = effects.effects();
+    for (Common::List<Effect>::iterator it = list.begin(); it != list.end();) {
+        if (it->type != type) {
+            ++it;
             continue;
         }
         const uint8 oldStatus = character.healthStatus;
         const uint32 oldFlags = character.effectState.flags;
-        _handler->apply(EFF_REMOVE, effects.effectAt(i), character);
+        _handler->apply(EFF_REMOVE, *it, character);
         character.onEffectsChanged();
         notifyBridge(_bridge, EFF_REMOVE, character,
             oldStatus, oldFlags, false, true);
-        effects.removeEffectAt(i);
+        it = list.erase(it);
     }
 }
 
