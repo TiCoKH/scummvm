@@ -324,7 +324,7 @@ void ShopBaseDialog::actionTake() {
 }
 
 void ShopBaseDialog::actionPool() {
-    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
         VmInterface::getParty();
     TreasurePool &pool = VmInterface::getTreasurePool();
     pool.poolMoneyFromParty(*party);
@@ -332,7 +332,7 @@ void ShopBaseDialog::actionPool() {
 }
 
 void ShopBaseDialog::actionShare() {
-    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
         VmInterface::getParty();
     TreasurePool &pool = VmInterface::getTreasurePool();
     pool.shareMoneyToParty(*party);

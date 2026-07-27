@@ -45,7 +45,7 @@ using Common::Array;
 namespace {
 
 static bool hasPartyMembers() {
-    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
         Goldbox::VmInterface::getParty();
     return party && party->size() > 0;
 }

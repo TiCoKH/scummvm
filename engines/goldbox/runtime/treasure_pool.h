@@ -23,6 +23,7 @@
 #define GOLDBOX_RUNTIME_TREASURE_POOL_H
 
 #include "common/array.h"
+#include "common/list.h"
 #include "common/scummsys.h"
 #include "goldbox/data/rules/rules_types.h"
 
@@ -78,7 +79,7 @@ public:
      * and aggregates into pool coins.
      * @return true if pool has coins after operation
      */
-    bool poolMoneyFromParty(Common::Array<Data::PlayerCharacter *> &party);
+    bool poolMoneyFromParty(Common::List<Data::PlayerCharacter *> &party);
 
     /**
      * Divides pool coins evenly among party members (by count, not weight).
@@ -86,7 +87,7 @@ public:
      * Equivalent to ACTION_ShareMoney.
      * @return true if pool still has coins after sharing
      */
-    bool shareMoneyToParty(Common::Array<Data::PlayerCharacter *> &party);
+    bool shareMoneyToParty(Common::List<Data::PlayerCharacter *> &party);
 
 private:
     Data::ValuableItems _coins;

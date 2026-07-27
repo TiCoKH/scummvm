@@ -26,6 +26,7 @@
 #include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/runtime/treasure_pool.h"
 #include "common/array.h"
+#include "common/list.h"
 #include "common/scummsys.h"
 #include "common/tokenizer.h"
 
@@ -63,7 +64,7 @@ public:
     }
 
     // Add getParty method
-    static Common::Array<Data::PlayerCharacter *> *getParty() {
+    static Common::List<Data::PlayerCharacter *> *getParty() {
         return &g_engine->getParty();
     }
 

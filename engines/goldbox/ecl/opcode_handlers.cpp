@@ -23,6 +23,7 @@
 #include "goldbox/ecl/ecl_engine_host.h"
 #include "goldbox/ecl/ecl_vm.h"
 #include "common/hashmap.h"
+#include "common/list.h"
 #include "common/random.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/core/vm_layout.h"
@@ -94,12 +95,12 @@ static bool useM68kWriteMemSemantics() {
 }
 
 static bool hasEffectInParty(uint8 effectId) {
-    Common::Array<Data::PlayerCharacter *> *party = VmInterface::getParty();
+    Common::List<Data::PlayerCharacter *> *party = VmInterface::getParty();
     if (!party)
         return false;
 
-    for (uint i = 0; i < party->size(); ++i) {
-        Data::PlayerCharacter *character = (*party)[i];
+    for (Common::List<Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+        Data::PlayerCharacter *character = *it;
         if (!character)
             continue;
 
@@ -425,10 +426,13 @@ static int handle_0x0A_LOAD_CHARACTER(EclVM &vm, AddressSpace &mem,
         mem.write16LE(getOpcodeLayout().runtimeField(
             kEclRuntimeSelectedCharPtr), getCharacterBlockBase(selectedIndex));
 
-        Common::Array<Data::PlayerCharacter *> *party =
+        Common::List<Data::PlayerCharacter *> *party =
             VmInterface::getParty();
-        if (party && selectedIndex < party->size())
-            VmInterface::setSelectedCharacter((*party)[selectedIndex]);
+        if (party && selectedIndex < (uint8)party->size()) {
+            Common::List<Data::PlayerCharacter *>::const_iterator it = party->begin();
+            for (uint8 k = 0; k < selectedIndex; ++k) ++it;
+            VmInterface::setSelectedCharacter(*it);
+        }
     }
 
     // Poolrad originals (x86/m68k): when bit 7 is set and both redraw flags
@@ -765,11 +769,11 @@ static int handle_0x1D_PARTYSTRENGTH(EclVM &vm, AddressSpace &mem,
     vm.getOperand(1);
 
     uint8 totalScore = 0;
-    Common::Array<Data::PlayerCharacter *> *party = VmInterface::getParty();
+    Common::List<Data::PlayerCharacter *> *party = VmInterface::getParty();
     if (party) {
-        for (uint i = 0; i < party->size(); ++i) {
+        for (Common::List<Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
             Data::ADnDCharacter *ch =
-                dynamic_cast<Data::ADnDCharacter *>((*party)[i]);
+                dynamic_cast<Data::ADnDCharacter *>(*it);
             if (!ch)
                 continue;
 

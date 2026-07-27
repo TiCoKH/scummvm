@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_STORE_DIALOG_H
 
 #include "goldbox/core/menu_item.h"
+#include "common/list.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 
@@ -89,9 +90,9 @@ private:
     void showMessage(const Common::String &msg);
 
     static uint32 sumPartyGoldValue(
-        const Common::Array<Goldbox::Data::PlayerCharacter *> &party);
+        const Common::List<Goldbox::Data::PlayerCharacter *> &party);
     static Goldbox::Data::ValuableItems collectPartyCoins(
-        const Common::Array<Goldbox::Data::PlayerCharacter *> &party);
+        const Common::List<Goldbox::Data::PlayerCharacter *> &party);
 };
 
 } // namespace Dialogs

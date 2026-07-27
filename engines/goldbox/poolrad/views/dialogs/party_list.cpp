@@ -67,9 +67,10 @@ void PartyList::activate() {
     if (_syncVmSelection && _party && !_party->empty()) {
         Goldbox::Data::PlayerCharacter *vmSelected = Goldbox::VmInterface::getSelectedCharacter();
         if (vmSelected) {
-            for (uint i = 0; i < _party->size(); ++i) {
-                if ((*_party)[i] == vmSelected) {
-                    _selectedCharIndex = i + 1;
+            uint i = 1;
+            for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = _party->begin(); it != _party->end(); ++it, ++i) {
+                if (*it == vmSelected) {
+                    _selectedCharIndex = i;
                     break;
                 }
             }
@@ -79,10 +80,12 @@ void PartyList::activate() {
 }
 
 bool PartyList::isSelectableIndex(uint index) const {
-    if (!_party || index < 1 || index > _party->size())
+    if (!_party || index < 1 || index > (uint)_party->size())
         return false;
 
-    Goldbox::Data::PlayerCharacter *candidate = (*_party)[index - 1];
+    Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = _party->begin();
+    for (uint i = 1; i < index; ++i) ++it;
+    Goldbox::Data::PlayerCharacter *candidate = *it;
     if (!candidate)
         return false;
 
@@ -131,7 +134,9 @@ void PartyList::updateSelectedCharacter() {
         _selectedCharIndex = resolvedIndex;
 
     if (_syncVmSelection && isSelectableIndex(_selectedCharIndex)) {
-        Goldbox::VmInterface::setSelectedCharacter((*_party)[_selectedCharIndex - 1]);
+        Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = _party->begin();
+        for (uint i = 1; i < _selectedCharIndex; ++i) ++it;
+        Goldbox::VmInterface::setSelectedCharacter(*it);
     }
 }
 
@@ -153,8 +158,9 @@ void PartyList::draw() {
 	s.writeStringC(_xAC,   y, 15, "AC  HP");
     y += 2;
 
-    for (uint _partyIndex = 0; _partyIndex < _party->size(); _partyIndex++) {
-        Data::PlayerCharacter *pc = (*_party)[_partyIndex];
+    uint _partyIndex = 0;
+    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = _party->begin(); it != _party->end(); ++it, ++_partyIndex) {
+        Data::PlayerCharacter *pc = *it;
         if (pc) {
             // Clear row before redrawing to avoid stale wider values.
             s.clearBox(_xName, y, 0x26, y, 0);

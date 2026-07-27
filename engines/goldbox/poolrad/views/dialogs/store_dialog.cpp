@@ -184,7 +184,7 @@ void StoreDialog::attemptBuy() {
     uint16 cost = _pendingItem->value;
 
     // Check party money first
-    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
         VmInterface::getParty();
     uint32 partyGold = sumPartyGoldValue(*party);
 
@@ -270,7 +270,7 @@ void StoreDialog::handleReceiveResult(const MenuResultMessage &result) {
 
     // Item received — deduct cost
     uint16 cost = itemCopy.value;
-    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
         VmInterface::getParty();
     uint32 partyGold = sumPartyGoldValue(*party);
 
@@ -301,15 +301,15 @@ void StoreDialog::handleReceiveResult(const MenuResultMessage &result) {
 }
 
 void StoreDialog::deductFromParty(uint32 cost) {
-    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
         VmInterface::getParty();
     uint32 partyGold = sumPartyGoldValue(*party);
     uint32 newGold = partyGold - cost;
 
     // Zero all party coins then store remainder on selected character
-    for (uint i = 0; i < party->size(); ++i) {
+    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
         Goldbox::Poolrad::Data::PoolradCharacter *pc =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>((*party)[i]);
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
         if (pc)
             pc->valuableItems.setFromGoldValue(0);
     }
@@ -342,11 +342,11 @@ void StoreDialog::showMessage(const Common::String &msg) {
 }
 
 Goldbox::Data::ValuableItems StoreDialog::collectPartyCoins(
-        const Common::Array<Goldbox::Data::PlayerCharacter *> &party) {
+        const Common::List<Goldbox::Data::PlayerCharacter *> &party) {
     Goldbox::Data::ValuableItems total;
-    for (uint i = 0; i < party.size(); ++i) {
+    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party.begin(); it != party.end(); ++it) {
         Goldbox::Poolrad::Data::PoolradCharacter *ch =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(party[i]);
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
         if (ch && !ch->isNpc())
             total.addCoins(ch->valuableItems);
     }
@@ -354,7 +354,7 @@ Goldbox::Data::ValuableItems StoreDialog::collectPartyCoins(
 }
 
 uint32 StoreDialog::sumPartyGoldValue(
-        const Common::Array<Goldbox::Data::PlayerCharacter *> &party) {
+        const Common::List<Goldbox::Data::PlayerCharacter *> &party) {
     return collectPartyCoins(party).getGoldValue();
 }
 

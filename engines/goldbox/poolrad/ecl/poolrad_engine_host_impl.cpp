@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "common/debug.h"
+#include "common/list.h"
 #include "common/memstream.h"
 #include "common/path.h"
 #include "goldbox/engine.h"
@@ -389,13 +390,12 @@ VmResult PoolradEngineHostImpl::startCombat() {
         return VmResult::VM_OK;
 
     Common::Array<Goldbox::Data::PlayerCharacter *> combatRoster;
-    Common::Array<Goldbox::Data::PlayerCharacter *> &party =
+    Common::List<Goldbox::Data::PlayerCharacter *> &party =
         _engine->getParty();
     combatRoster.reserve(party.size() + _enemy.size());
 
-    // Common::Array supports push_back(Array) concatenation.
-    // Keep party as the authoritative prefix of combat order.
-    combatRoster.push_back(party);
+    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party.begin(); it != party.end(); ++it)
+        combatRoster.push_back(*it);
 
     const int partyCount = static_cast<int>(combatRoster.size());
     combatRoster.push_back(_enemy);
@@ -403,7 +403,7 @@ VmResult PoolradEngineHostImpl::startCombat() {
     // Keep a stable runtime "next character" anchor for legacy traversal
     // semantics (party head when available).
     if (_engine)
-        _engine->_nextCharacter = combatRoster[0];
+        _engine->_nextCharacter = party.empty() ? nullptr : party.front();
 
     debug(2, "PoolradEngineHostImpl::startCombat unified roster size=%u partyCount=%d enemyCount=%d",
         (unsigned)combatRoster.size(), partyCount,
@@ -563,9 +563,9 @@ VmResult PoolradEngineHostImpl::clearMonsters() {
 
     // Restore traversal anchor to party context.
     if (_engine) {
-        Common::Array<Goldbox::Data::PlayerCharacter *> &party =
+        Common::List<Goldbox::Data::PlayerCharacter *> &party =
             _engine->getParty();
-        _engine->_nextCharacter = party.empty() ? nullptr : party[0];
+        _engine->_nextCharacter = party.empty() ? nullptr : party.front();
     }
 
     return VmResult::VM_OK;
@@ -1092,7 +1092,7 @@ VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
     if (!_memory)
         return VmResult::VM_ERROR;
 
-    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
         VmInterface::getParty();
     if (!party)
         return VmResult::VM_ERROR;
@@ -1115,8 +1115,8 @@ VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
     // First runtime trigger-set integration: periodic poison/disease cycle.
     Goldbox::Data::Effects::EffectRuntime runtime(&effectHandler,
         Goldbox::Poolrad::getEffectHostBridge());
-    for (uint i = 0; i < party->size(); ++i) {
-        Goldbox::Data::PlayerCharacter *character = (*party)[i];
+    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+        Goldbox::Data::PlayerCharacter *character = *it;
         if (!character)
             continue;
 
@@ -1150,7 +1150,7 @@ VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
 
 VmResult PoolradEngineHostImpl::checkParty(uint16 attributeAddr,
         uint16 effectId, uint16 highAddr, uint16 lowAddr) {
-    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
         VmInterface::getParty();
     if (!party || !_memory)
         return VmResult::VM_ERROR;
@@ -1160,8 +1160,8 @@ VmResult PoolradEngineHostImpl::checkParty(uint16 attributeAddr,
     // - write count to lowAddr; highAddr is reserved for attribute mode.
     if (attributeAddr == 0 && effectId != 0) {
         uint16 count = 0;
-        for (uint i = 0; i < party->size(); ++i) {
-            Goldbox::Data::PlayerCharacter *character = (*party)[i];
+        for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+            Goldbox::Data::PlayerCharacter *character = *it;
             if (!character)
                 continue;
 
@@ -1205,13 +1205,13 @@ VmResult PoolradEngineHostImpl::checkParty(uint16 attributeAddr,
 }
 
 bool PoolradEngineHostImpl::hasEffectActive(uint8 effectId) const {
-    Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
         VmInterface::getParty();
     if (!party)
         return false;
 
-    for (uint i = 0; i < party->size(); ++i) {
-        Goldbox::Data::PlayerCharacter *character = (*party)[i];
+    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+        Goldbox::Data::PlayerCharacter *character = *it;
         if (!character)
             continue;
 

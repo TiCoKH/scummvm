@@ -597,12 +597,12 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 	memset(characterTable, 0, sizeof(characterTable));
 	Common::Array<Common::String> usedBases;
 
-	for (uint i = 0; i < _party.size(); ++i) {
+	for (auto it = _party.begin(); it != _party.end(); ++it) {
 		if (characterCount >= 8)
 			break;
 
 		Data::PoolradCharacter *pc =
-			dynamic_cast<Data::PoolradCharacter *>(_party[i]);
+			dynamic_cast<Data::PoolradCharacter *>(*it);
 		if (!pc)
 			continue;
 
@@ -786,8 +786,8 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// -------------------------------------------------------------------------
 	// Clear existing party and reload characters from individual save files.
 	// -------------------------------------------------------------------------
-	for (uint i = 0; i < _party.size(); ++i)
-		delete _party[i];
+	for (auto it = _party.begin(); it != _party.end(); ++it)
+		delete *it;
 	_party.clear();
 
 	const uint8 count = MIN<uint8>(characterCount, 8);
@@ -1385,7 +1385,7 @@ void PoolradEngine::dispatchPlayerCommand() {
 
 	// PTR_SELECTED_CHAR = PTR_PARTY_ARRAY (reset to first party member)
 	if (!_party.empty())
-		setSelectedCharacter(_party[0]);
+		setSelectedCharacter(_party.front());
 
 	// G_SaveMapId writeback: kVmFieldSavedEclId is maintained by the
 	// NEWECL handler and initializeMapRuntimeForState. Don't overwrite

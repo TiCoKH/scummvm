@@ -24,6 +24,7 @@
 
 #include "common/str.h"
 #include "common/array.h"
+#include "common/list.h"
 
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/items/base_items.h"
@@ -187,7 +188,7 @@ public:
 
     static uint8 getBaseIconColor(int index);
     static void clearPartyMemorizedSpellState(
-        Common::Array<Goldbox::Data::PlayerCharacter *> &party);
+        Common::List<Goldbox::Data::PlayerCharacter *> &party);
     /**
      * Set platform-dependent default values for a freshly generated character.
      *

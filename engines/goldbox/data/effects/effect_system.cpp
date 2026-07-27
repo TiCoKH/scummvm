@@ -27,6 +27,8 @@ namespace Goldbox {
 namespace Data {
 namespace Effects {
 
+uint8 kStatusEffects[] = { 7, 11, 30, 31, 32, 51, 52, 53, 54, 58, 59, 95, 98, 137, 74, 75 };
+
 namespace {
 
 struct EffectStackingRule {

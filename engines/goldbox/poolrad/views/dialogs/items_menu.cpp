@@ -696,13 +696,15 @@ void ItemsMenu::handleTradeSelectionResult(const MenuResultMessage &result) {
 
 	// Get target character from party
 	const int targetIndex = result._intValue;
-	Common::Array<Goldbox::Data::PlayerCharacter *> *party = VmInterface::getParty();
+	Common::List<Goldbox::Data::PlayerCharacter *> *party = VmInterface::getParty();
 	if (!party || targetIndex < 0 || targetIndex >= (int)party->size()) {
 		return;
 	}
 
+	Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin();
+	for (int k = 0; k < targetIndex; ++k) ++it;
 	Goldbox::Poolrad::Data::PoolradCharacter *tradeTarget =
-		static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>((*party)[targetIndex]);
+		static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
 
 	if (!tradeTarget || tradeTarget == _character) {
 		return;
@@ -734,12 +736,12 @@ bool ItemsMenu::hasTradeTarget() const {
 	if (!_character)
 		return false;
 
-	Common::Array<Goldbox::Data::PlayerCharacter *> *party = VmInterface::getParty();
+	Common::List<Goldbox::Data::PlayerCharacter *> *party = VmInterface::getParty();
 	if (!party)
 		return false;
 
-	for (uint i = 0; i < party->size(); ++i) {
-		Goldbox::Data::PlayerCharacter *pc = (*party)[i];
+	for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+		Goldbox::Data::PlayerCharacter *pc = *it;
 		if (pc && pc != _character)
 			return true;
 	}

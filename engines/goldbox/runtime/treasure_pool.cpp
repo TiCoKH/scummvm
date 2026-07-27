@@ -61,10 +61,10 @@ bool TreasurePool::isEmpty() const {
 }
 
 bool TreasurePool::poolMoneyFromParty(
-        Common::Array<Data::PlayerCharacter *> &party) {
-    for (uint i = 0; i < party.size(); ++i) {
+        Common::List<Data::PlayerCharacter *> &party) {
+    for (Common::List<Data::PlayerCharacter *>::const_iterator it = party.begin(); it != party.end(); ++it) {
         Poolrad::Data::PoolradCharacter *ch =
-            dynamic_cast<Poolrad::Data::PoolradCharacter *>(party[i]);
+            dynamic_cast<Poolrad::Data::PoolradCharacter *>(*it);
         if (!ch || ch->isNpc())
             continue;
         for (int t = 0; t < Data::VALUABLE_COUNT; ++t) {
@@ -77,12 +77,12 @@ bool TreasurePool::poolMoneyFromParty(
 }
 
 bool TreasurePool::shareMoneyToParty(
-        Common::Array<Data::PlayerCharacter *> &party) {
+        Common::List<Data::PlayerCharacter *> &party) {
     // Count eligible party members
     int count = 0;
-    for (uint i = 0; i < party.size(); ++i) {
+    for (Common::List<Data::PlayerCharacter *>::const_iterator it = party.begin(); it != party.end(); ++it) {
         Poolrad::Data::PoolradCharacter *ch =
-            dynamic_cast<Poolrad::Data::PoolradCharacter *>(party[i]);
+            dynamic_cast<Poolrad::Data::PoolradCharacter *>(*it);
         if (ch && !ch->isNpc())
             ++count;
     }
@@ -97,9 +97,9 @@ bool TreasurePool::shareMoneyToParty(
         uint16 share = total / (uint16)count;
         uint16 remainder = total - share * (uint16)count;
 
-        for (uint i = 0; i < party.size(); ++i) {
+        for (Common::List<Data::PlayerCharacter *>::const_iterator it = party.begin(); it != party.end(); ++it) {
             Poolrad::Data::PoolradCharacter *ch =
-                dynamic_cast<Poolrad::Data::PoolradCharacter *>(party[i]);
+                dynamic_cast<Poolrad::Data::PoolradCharacter *>(*it);
             if (!ch || ch->isNpc())
                 continue;
             uint32 v = (uint32)ch->valuableItems.values[t] + share;

@@ -24,6 +24,7 @@
 
 #include "common/scummsys.h"
 #include "common/array.h"
+#include "common/list.h"
 #include "goldbox/core/global.h"
 
 namespace Goldbox {
@@ -93,7 +94,7 @@ struct TimeFieldAddresses {
  * @param amount      How many increments to apply.
  */
 void timeAddUnits(ECL::AddressSpace &mem, const TimeFieldAddresses &clockAddrs,
-                  Common::Array<Data::PlayerCharacter *> &party,
+                  Common::List<Data::PlayerCharacter *> &party,
                   Data::Effects::EffectHandlerBase *handler,
                   GameState gameState,
                   uint8 field, uint8 amount);
