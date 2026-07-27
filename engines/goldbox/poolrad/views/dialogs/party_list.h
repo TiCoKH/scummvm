@@ -24,6 +24,7 @@
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/data/player_character.h"
+#include "common/list.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -59,7 +60,7 @@ public:
 private:
     uint _xName, _xAC, _yStart;
     uint _selectedCharIndex;
-    Common::Array<Goldbox::Data::PlayerCharacter *> *_party;
+    Common::List<Goldbox::Data::PlayerCharacter *> *_party;
     bool _syncVmSelection;
     Goldbox::Data::PlayerCharacter *_excludedCharacter;
     bool _hasCustomLayout;

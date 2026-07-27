@@ -93,7 +93,7 @@ void CampMenuDialog::activate() {
         _spellBookDialog->deactivate();
 
     // Legacy party-camp flow sanitizes memorized spell/item flags on entry.
-    if (Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    if (Common::List<Goldbox::Data::PlayerCharacter *> *party =
             Goldbox::VmInterface::getParty()) {
         Goldbox::Poolrad::Data::PoolradCharacter::
             clearPartyMemorizedSpellState(*party);
@@ -295,7 +295,7 @@ void CampMenuDialog::handleMenuKey(char key) {
 
 void CampMenuDialog::exitCamp() {
     // Legacy party-camp flow sanitizes memorized spell/item flags on exit.
-    if (Common::Array<Goldbox::Data::PlayerCharacter *> *party =
+    if (Common::List<Goldbox::Data::PlayerCharacter *> *party =
             Goldbox::VmInterface::getParty()) {
         Goldbox::Poolrad::Data::PoolradCharacter::
             clearPartyMemorizedSpellState(*party);

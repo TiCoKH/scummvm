@@ -29,6 +29,8 @@ namespace Goldbox {
 namespace Data {
 namespace Effects {
 
+extern uint8 kStatusEffects[];
+
 // Effect identifier the spell applies
 enum Effects : uint8 {
     E_NONE = 0,

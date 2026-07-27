@@ -180,10 +180,10 @@ void PoolradCharacter::clearMemorizedSpellStateLegacy() {
 }
 
 void PoolradCharacter::clearPartyMemorizedSpellState(
-		Common::Array<Goldbox::Data::PlayerCharacter *> &party) {
-	for (uint i = 0; i < party.size(); ++i) {
+		Common::List<Goldbox::Data::PlayerCharacter *> &party) {
+	for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it = party.begin(); it != party.end(); ++it) {
 		PoolradCharacter *character =
-			dynamic_cast<PoolradCharacter *>(party[i]);
+			dynamic_cast<PoolradCharacter *>(*it);
 		if (character)
 			character->clearMemorizedSpellStateLegacy();
 	}

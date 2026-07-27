@@ -51,10 +51,9 @@ Engine::~Engine() {
 	delete _fixedTileCacheSlot0;
 	delete _font;
 	_daxManager.clear();
-	for (uint i = 0; i < _party.size(); ++i) {
-        delete _party[i];
-    }
-    _party.clear();
+	for (Common::List<Data::PlayerCharacter *>::iterator it = _party.begin(); it != _party.end(); ++it)
+		delete *it;
+	_party.clear();
 }
 
 TreasurePool &Engine::getTreasurePool() { return *_treasurePool; }
@@ -190,7 +189,7 @@ Common::Error Engine::run() {
 	return Common::kNoError;
 }
 
-Common::Array<Data::PlayerCharacter *> &Engine::getParty() {
+Common::List<Data::PlayerCharacter *> &Engine::getParty() {
     return _party;
 }
 

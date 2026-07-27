@@ -24,6 +24,7 @@
 
 #include "common/rect.h"
 #include "common/array.h"
+#include "common/list.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/view.h"
@@ -55,7 +56,7 @@ private:
     };
 
     Goldbox::MenuItemList _menuItemList;
-    Common::Array<Goldbox::Data::PlayerCharacter *> *_party = nullptr;
+    Common::List<Goldbox::Data::PlayerCharacter *> *_party = nullptr;
     Dialogs::PartyList *_partyList = nullptr;
     Dialogs::LoadSaveDialog *_loadSaveDialog = nullptr;
     Dialogs::HorizontalYesNo *_exitConfirmDialog = nullptr;

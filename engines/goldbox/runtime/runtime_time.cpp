@@ -21,6 +21,7 @@
 
 #include "goldbox/runtime/runtime_time.h"
 
+#include "common/list.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_handler_base.h"
 #include "goldbox/data/player_character.h"
@@ -33,13 +34,13 @@ namespace {
 // Normalize time fields with carry propagation.
 // On year overflow (field 6), increment age of all party characters.
 static void timeNormalizeFields(uint16 *timeFields,
-        Common::Array<Data::PlayerCharacter *> &party) {
+        Common::List<Data::PlayerCharacter *> &party) {
     for (int i = 0; i < kTimeFieldCount; ++i) {
         if (timeFields[i] >= kTimeFieldLimits[i]) {
             if (i == 6) {
-                for (uint c = 0; c < party.size(); ++c) {
-                    if (party[c])
-                        party[c]->age++;
+                for (Common::List<Data::PlayerCharacter *>::iterator it = party.begin(); it != party.end(); ++it) {
+                    if (*it)
+                        (*it)->age++;
                 }
             } else {
                 timeFields[i + 1]++;
@@ -54,7 +55,7 @@ static void timeNormalizeFields(uint16 *timeFields,
 // effect durations in chunks of <=10. Expired effects are removed via
 // the handler (EFF_REMOVE).
 static void timeApplyTimeStepEffects(
-        Common::Array<Data::PlayerCharacter *> &party,
+        Common::List<Data::PlayerCharacter *> &party,
         Data::Effects::EffectHandlerBase *handler,
         GameState gameState,
         uint8 field, uint8 amount) {
@@ -69,8 +70,9 @@ static void timeApplyTimeStepEffects(
 
     if (gameState == GS_CAMPING) {
         bool anyActive = false;
-        for (uint i = 0; i < partyCount; ++i) {
-            CharacterEffects *fx = party[i] ? party[i]->getEffects() : nullptr;
+        uint i = 0;
+        for (Common::List<Data::PlayerCharacter *>::const_iterator it = party.begin(); it != party.end(); ++it, ++i) {
+            CharacterEffects *fx = *it ? (*it)->getEffects() : nullptr;
             if (!fx)
                 continue;
             for (uint e = 0; e < fx->effectCount(); ++e) {
@@ -100,11 +102,12 @@ static void timeApplyTimeStepEffects(
         uint8 chunkSize = (totalTicks < 11)
             ? static_cast<uint8>(totalTicks) : 10;
 
-        for (uint ci = 0; ci < partyCount; ++ci) {
-            if (!hasActiveEffects[ci] || !party[ci])
+        uint ci = 0;
+        for (Common::List<Data::PlayerCharacter *>::iterator it = party.begin(); it != party.end(); ++it, ++ci) {
+            if (!hasActiveEffects[ci] || !*it)
                 continue;
 
-            CharacterEffects *fx = party[ci]->getEffects();
+            CharacterEffects *fx = (*it)->getEffects();
             if (!fx)
                 continue;
 
@@ -135,8 +138,8 @@ static void timeApplyTimeStepEffects(
                 } else {
                     // Expired: remove.
                     if (handler)
-                        handler->apply(EFF_REMOVE, effect, *party[ci]);
-                    party[ci]->onEffectsChanged();
+                        handler->apply(EFF_REMOVE, effect, **it);
+                    (*it)->onEffectsChanged();
                     fx->removeEffectAt(ei);
                 }
             }
@@ -164,7 +167,7 @@ static void timeApplyTimeStepEffects(
 } // anonymous namespace
 
 void timeAddUnits(ECL::AddressSpace &mem, const TimeFieldAddresses &clockAddrs,
-                  Common::Array<Data::PlayerCharacter *> &party,
+                  Common::List<Data::PlayerCharacter *> &party,
                   Data::Effects::EffectHandlerBase *handler,
                   GameState gameState,
                   uint8 field, uint8 amount) {

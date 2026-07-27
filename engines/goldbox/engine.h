@@ -24,6 +24,7 @@
 
 #include "common/system.h"
 #include "common/error.h"
+#include "common/list.h"
 #include "common/random.h"
 #include "common/serializer.h"
 #include "graphics/font.h"
@@ -99,7 +100,7 @@ public:
 	Gfx::Tile8x8Cache _tileCache;
 	Gfx::DaxTile *_fixedTileCacheSlot0 = nullptr;
 	Data::StringsData _strings;
-	Common::Array<Data::PlayerCharacter *> _party;
+	Common::List<Data::PlayerCharacter *> _party;
 	Data::PlayerCharacter * _selectedCharacter = nullptr;
 	Data::PlayerCharacter * _targetCharacter = nullptr;
 	Data::PlayerCharacter * _nextCharacter = nullptr;
@@ -278,7 +279,7 @@ public:
 		return true;
 	}
 
-	Common::Array<Data::PlayerCharacter *> &getParty();
+	Common::List<Data::PlayerCharacter *> &getParty();
 
 	/**
 	 * DAX File Management - Accessors for all DAX containers
