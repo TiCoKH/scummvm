@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/effect_handler.h"
 #include "common/util.h"
+#include "goldbox/data/combat_state.h"
 #include "goldbox/data/effects/effect_common_handler.h"
 #include "goldbox/data/effects/effect_mapping.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
@@ -32,7 +33,7 @@ namespace {
 
 static const Goldbox::Data::Effects::Effects kRawMap[] = {
         Goldbox::Data::Effects::E_NONE,
-        Goldbox::Data::Effects::E_BLESS,
+        Goldbox::Data::Effects::E_BLESSED,
         Goldbox::Data::Effects::E_CURSED,
         Goldbox::Data::Effects::E_SWORD_VS_UNDEAD,
         Goldbox::Data::Effects::E_DISPEL_EVIL,
@@ -361,14 +362,75 @@ static void handleExtraStrength(const EffectCall &c) {
     c.combat->damage += 2;
 }
 
+static void handleSwordVsUndead(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState || !c.character.combatState->target)
+        return;
+    const Goldbox::Poolrad::Data::PoolradCharacter *target =
+        static_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(c.character.combatState->target);
+    if (target->monsterType == 4) {
+        c.combat->attackRoll += 2;
+        c.combat->damage += 2;
+    }
+}
+
 static void handlePoisonDamage(const EffectCall &c) {
     if (c.op == EFF_TICK)
         c.character.damage(c.effect.power);
 }
 
-static void handleHighConRegen(const EffectCall &c) {
-    if (c.op == EFF_TICK)
+static void handleStudyManualBodilyHealth(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    if (c.bridge)
+        c.bridge->postEffectMessage(&c.character, "starts to train", true);
+}
+
+static void handleTrainingManualBodilyHealth(const EffectCall &c) {
+    if (c.op == EFF_TICK) {
         c.character.heal(1);
+        return;
+    }
+    if (c.op != EFF_ADD)
+        return;
+
+    Data::PoolradCharacter &ch = asPoolrad(c.character);
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(&ch, "is hardier", true);
+
+    ch.abilities.constitution.current += 1;
+
+    if (ch.abilities.constitution.current >= 20) {
+        ch.setEffect(0x3e, 0x3c, 0xff, true);
+        return;
+    }
+
+    if (ch.abilities.constitution.current > 14) {
+        uint8 divisor = 0;
+        for (uint8 i = 0; ; ++i) {
+            const uint8 *slots = &ch.spellSlots.cleric.level1;
+            uint8 slotVal = (i < 6) ? slots[i] : 0;
+            if ((int8)slotVal > 0) {
+                if (i == 2) {
+                    divisor += (ch.abilities.constitution.current - 15) *
+                               ch.levels[Goldbox::Data::C_FIGHTER];
+                } else if (ch.abilities.constitution.current < 16) {
+                    divisor += slotVal;
+                } else {
+                    divisor += slotVal * 2;
+                }
+            }
+            if (i == 7) break;
+        }
+        if (divisor == 0)
+            divisor = 1;
+        uint8 hpBonus = (ch.hitPoints.max - ch.hitPointsRolled) / divisor;
+        if (ch.abilities.constitution.current < 17 ||
+                (int8)ch.levels[Goldbox::Data::C_FIGHTER] > 0) {
+            ch.hitPoints.max     += hpBonus;
+            ch.hitPoints.current += hpBonus;
+        }
+    }
 }
 
 } // namespace
@@ -443,8 +505,10 @@ void EffectHandler::setupHandlers() {
     setHandler(E_VULNERABILITY_FIRE,            handleSavePenalty2);
     setHandler(E_TROLL_FIRE_OR_ACID,            handleSavePenalty2);
     setHandler(E_EXTRA_STRENGTH_130,            handleExtraStrength);
-    setHandler(E_POISON_DAMAGE,                 handlePoisonDamage);
-    setHandler(E_HIGH_CON_REGEN,                handleHighConRegen);
+    setHandler(E_SWORD_VS_UNDEAD,                        handleSwordVsUndead);
+    setHandler(E_POISON_DAMAGE,                          handlePoisonDamage);
+    setHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH,     handleStudyManualBodilyHealth);
+    setHandler(E_POOLRAD_TRAIN_MANUAL_BODILY_HEALTH,     handleTrainingManualBodilyHealth);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {

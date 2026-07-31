@@ -54,7 +54,7 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
 
         // Allocate and zero-fill combat state
         delete ch->combatState;
-        ch->combatState = new Data::CombatState();
+        ch->combatState = new Data::CombatAction();
 
         // Mark non-hostile characters beyond the player party as not in team.
         // Hostile monsters are always in the enemy team regardless of roster index.

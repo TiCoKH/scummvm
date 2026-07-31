@@ -163,7 +163,7 @@ public:
 	EffectState effectState;
 
 	// Combat runtime state (allocated during combat, null otherwise)
-	CombatState *combatState = nullptr;
+	CombatAction *combatState = nullptr;
 
 	//-----------------------------------------------------------
 	// Lifecycle

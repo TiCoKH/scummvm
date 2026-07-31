@@ -26,6 +26,7 @@
 #include "common/scummsys.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/data/effects/effect.h"
+#include "goldbox/data/effects/effect_host_bridge.h"
 #include "goldbox/data/player_character.h"
 
 namespace Goldbox {
@@ -47,12 +48,14 @@ struct EffectCall {
     Effect &effect;
     Goldbox::Data::PlayerCharacter &character;
     Combat::CombatGlobals *combat;
+    EffectHostBridge *bridge;
 
     EffectCall(EffectOp operation, Effect &effectRef,
             Goldbox::Data::PlayerCharacter &characterRef,
-            Combat::CombatGlobals *combatGlobals = nullptr)
+            Combat::CombatGlobals *combatGlobals = nullptr,
+            EffectHostBridge *hostBridge = nullptr)
             : op(operation), effect(effectRef), character(characterRef),
-              combat(combatGlobals) {
+              combat(combatGlobals), bridge(hostBridge) {
     }
 };
 
@@ -65,6 +68,10 @@ public:
     void apply(EffectOp op, Effect &effect,
             Goldbox::Data::PlayerCharacter &character,
             Combat::CombatGlobals *combat = nullptr) const;
+    void apply(EffectOp op, Effect &effect,
+            Goldbox::Data::PlayerCharacter &character,
+            Combat::CombatGlobals *combat,
+            EffectHostBridge *bridge) const;
     void apply(const EffectCall &call) const;
     bool hasHandler(uint8 effectType) const;
 
