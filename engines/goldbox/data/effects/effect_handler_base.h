@@ -78,6 +78,8 @@ protected:
     virtual void setupHandlers() = 0;
     virtual Effects mapRawEffectId(uint8 rawId) const = 0;
 
+    friend void setupCommonHandlers(EffectHandlerBase &base);
+
 private:
     Handler getHandler(uint8 effectType) const;
 

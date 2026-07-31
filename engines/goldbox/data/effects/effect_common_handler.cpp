@@ -29,155 +29,193 @@ namespace Effects {
 
 namespace {
 
-static void applyFlag(EffectOp op, PlayerCharacter &character, uint32 flag) {
+static void applyFlag(EffectOp op, PlayerCharacter &ch, uint32 flag) {
     if (op == EFF_ADD)
-        character.effectState.flags |= flag;
+        ch.effectState.flags |= flag;
     else if (op == EFF_REMOVE)
-        character.effectState.flags &= ~flag;
+        ch.effectState.flags &= ~flag;
 }
 
-static void applyModifiers(EffectOp op, PlayerCharacter &character,
-        const EffectModifiers &delta) {
-    int sign = (op == EFF_REMOVE) ? -1 : (op == EFF_ADD ? 1 : 0);
-    if (sign == 0)
+// --- Individual effect handlers ---
+
+static void handleBless(const EffectCall &c) {
+    if (!c.combat)
         return;
-
-    character.effectState.mods.attackRoll += delta.attackRoll * sign;
-    character.effectState.mods.damage += delta.damage * sign;
-    character.effectState.mods.savingThrow += delta.savingThrow * sign;
-    character.effectState.mods.armorClass += delta.armorClass * sign;
-    character.effectState.mods.morale += delta.morale * sign;
-    character.effectState.mods.movement += delta.movement * sign;
+    c.combat->attackRoll += 1;
+    c.combat->moraleModifier += 5;
 }
 
-static void applySimpleModifiers(EffectOp op, PlayerCharacter &character,
-        int8 attackRoll, int8 damage, int8 savingThrow,
-        int8 armorClass, int8 morale, int8 movement) {
-    EffectModifiers delta;
-    delta.attackRoll = attackRoll;
-    delta.damage = damage;
-    delta.savingThrow = savingThrow;
-    delta.armorClass = armorClass;
-    delta.morale = morale;
-    delta.movement = movement;
-    applyModifiers(op, character, delta);
-}
-
-static void applyHeldFlag(EffectOp op, PlayerCharacter &character, uint32 flag) {
-    applyFlag(op, character, flag | CEF_HELD);
-}
-
-static void applyRegen(EffectOp op, PlayerCharacter &character, uint8 amount) {
-    if (op != EFF_TICK)
+static void handleCursed(const EffectCall &c) {
+    if (!c.combat)
         return;
-    if (amount == 0)
-        amount = 1;
-    character.heal(amount);
+    c.combat->attackRoll -= 1;
+    c.combat->moraleModifier -= 5;
 }
 
-static void applyTickDamage(EffectOp op, PlayerCharacter &character,
-        uint8 amount) {
-    if (op != EFF_TICK)
+static void handlePrayerChant(const EffectCall &c) {
+    if (!c.combat)
         return;
-    if (amount == 0)
-        amount = 1;
-    character.damage(amount);
+    c.combat->attackRoll += 1;
+    c.combat->damage += 1;
+}
+
+static void handleHaste(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 1;
+}
+
+static void handleSlow(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll -= 1;
+}
+
+static void handleParalyze(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_PARALYZED | CEF_HELD);
+}
+
+static void handleSleep(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_SLEEPING | CEF_HELD);
+}
+
+static void handleHelpless(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_HELPLESS | CEF_HELD);
+}
+
+static void handleBlinded(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_BLINDED);
+}
+
+static void handleConfuse(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_CONFUSED);
+}
+
+static void handleFumbling(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_FUMBLING);
+    if (!c.combat)
+        return;
+    c.combat->attackRoll -= 2;
+}
+
+static void handleWeaken(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll -= 1;
+    c.combat->damage -= 1;
+}
+
+static void handleFeeblemind(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll -= 2;
+    c.combat->damage -= 2;
+    c.combat->moraleModifier -= 10;
+}
+
+static void handleStrength(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 1;
+    c.combat->damage += 1;
+}
+
+static void handleEnlarge(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->damage += 1;
+}
+
+static void handleReduce(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->damage -= 1;
+}
+
+static void handleBerserk(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 2;
+    c.combat->damage += 2;
+    c.combat->moraleModifier += 10;
+}
+
+static void handlePoisoned(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_POISONED);
+}
+
+static void handlePoisonPlus0(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_POISONED);
+    if (c.op == EFF_TICK)
+        c.character.damage(1);
+}
+
+static void handlePoisonPlus2(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_POISONED);
+    if (c.op == EFF_TICK)
+        c.character.damage(2);
+}
+
+static void handlePoisonPlus4(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_POISONED);
+    if (c.op == EFF_TICK)
+        c.character.damage(3);
+}
+
+static void handlePoisonNeg2(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_POISONED);
+    if (c.op == EFF_TICK)
+        c.character.damage(1);
+}
+
+static void handleConSavingBonus(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 2;
+}
+
+static void handleRegen1(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_REGEN_1);
+    if (c.op == EFF_TICK)
+        c.character.heal(1);
+}
+
+static void handleRegen3(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_REGEN_3);
+    if (c.op == EFF_TICK)
+        c.character.heal(3);
 }
 
 } // namespace
 
-bool tryApplyCommonEffect0(const EffectCall &call, Effects effectId) {
-    PlayerCharacter &character = call.character;
-
-    switch (effectId) {
-    case E_BLESS:
-        applySimpleModifiers(call.op, character, 1, 0, 0, 0, 5, 0);
-        return true;
-    case E_CURSED:
-        applySimpleModifiers(call.op, character, -1, 0, 0, 0, -5, 0);
-        return true;
-    case E_PRAYER:
-    case E_CHANT:
-        applySimpleModifiers(call.op, character, 1, 1, 1, 0, 0, 0);
-        return true;
-    case E_HASTE:
-        applySimpleModifiers(call.op, character, 0, 0, 0, 0, 0, 1);
-        return true;
-    case E_SLOW:
-        applySimpleModifiers(call.op, character, 0, 0, 0, 0, 0, -1);
-        return true;
-    case E_PARALYZE:
-        applyHeldFlag(call.op, character, CEF_PARALYZED);
-        return true;
-    case E_SLEEP:
-        applyHeldFlag(call.op, character, CEF_SLEEPING);
-        return true;
-    case E_HELPLESS:
-        applyHeldFlag(call.op, character, CEF_HELPLESS);
-        return true;
-    case E_BLINDED:
-        applyFlag(call.op, character, CEF_BLINDED);
-        return true;
-    case E_CONFUSE:
-        applyFlag(call.op, character, CEF_CONFUSED);
-        return true;
-    case E_FUMBLING:
-        applySimpleModifiers(call.op, character, -2, 0, 0, 0, 0, 0);
-        applyFlag(call.op, character, CEF_FUMBLING);
-        return true;
-    case E_WEAKEN:
-        applySimpleModifiers(call.op, character, -1, -1, 0, 0, 0, 0);
-        return true;
-    case E_FEEBLEMIND:
-        applySimpleModifiers(call.op, character, -2, -2, -2, 0, -10, 0);
-        return true;
-    case E_STRENGTH:
-        applySimpleModifiers(call.op, character, 1, 1, 0, 0, 0, 0);
-        return true;
-    case E_ENLARGE:
-        applySimpleModifiers(call.op, character, 0, 1, 0, 0, 0, 0);
-        return true;
-    case E_REDUCE:
-        applySimpleModifiers(call.op, character, 0, -1, 0, 0, 0, 0);
-        return true;
-    case E_BERSERK:
-        applySimpleModifiers(call.op, character, 2, 2, 0, -2, 10, 0);
-        return true;
-    case E_POISONED:
-        applyFlag(call.op, character, CEF_POISONED);
-        return true;
-    case E_POISON_PLUS_0:
-        applyFlag(call.op, character, CEF_POISONED);
-        applyTickDamage(call.op, character, 1);
-        return true;
-    case E_POISON_PLUS_2:
-        applyFlag(call.op, character, CEF_POISONED);
-        applyTickDamage(call.op, character, 2);
-        return true;
-    case E_POISON_PLUS_4:
-        applyFlag(call.op, character, CEF_POISONED);
-        applyTickDamage(call.op, character, 3);
-        return true;
-    case E_POISON_NEG_2:
-        applyFlag(call.op, character, CEF_POISONED);
-        applyTickDamage(call.op, character, 1);
-        applySimpleModifiers(call.op, character, 0, 0, -2, 0, 0, 0);
-        return true;
-    case E_CON_SAVING_BONUS:
-        applySimpleModifiers(call.op, character, 0, 0, 2, 0, 0, 0);
-        return true;
-    case E_REGENERATE_1_HPS:
-        applyFlag(call.op, character, CEF_REGEN_1);
-        applyRegen(call.op, character, 1);
-        return true;
-    case E_REGENERATE_3_HPS:
-    case E_REGEN_3_HP:
-        applyFlag(call.op, character, CEF_REGEN_3);
-        applyRegen(call.op, character, 3);
-        return true;
-    default:
-        return false;
-    }
+void setupCommonHandlers(EffectHandlerBase &base) {
+    base.setHandler(E_BLESS,            handleBless);
+    base.setHandler(E_CURSED,           handleCursed);
+    base.setHandler(E_PRAYER,           handlePrayerChant);
+    base.setHandler(E_CHANT,            handlePrayerChant);
+    base.setHandler(E_HASTE,            handleHaste);
+    base.setHandler(E_SLOW,             handleSlow);
+    base.setHandler(E_PARALYZE,         handleParalyze);
+    base.setHandler(E_SLEEP,            handleSleep);
+    base.setHandler(E_HELPLESS,         handleHelpless);
+    base.setHandler(E_BLINDED,          handleBlinded);
+    base.setHandler(E_CONFUSE,          handleConfuse);
+    base.setHandler(E_FUMBLING,         handleFumbling);
+    base.setHandler(E_WEAKEN,           handleWeaken);
+    base.setHandler(E_FEEBLEMIND,       handleFeeblemind);
+    base.setHandler(E_STRENGTH,         handleStrength);
+    base.setHandler(E_ENLARGE,          handleEnlarge);
+    base.setHandler(E_REDUCE,           handleReduce);
+    base.setHandler(E_BERSERK,          handleBerserk);
+    base.setHandler(E_POISONED,         handlePoisoned);
+    base.setHandler(E_POISON_PLUS_0,    handlePoisonPlus0);
+    base.setHandler(E_POISON_PLUS_2,    handlePoisonPlus2);
+    base.setHandler(E_POISON_PLUS_4,    handlePoisonPlus4);
+    base.setHandler(E_POISON_NEG_2,     handlePoisonNeg2);
+    base.setHandler(E_CON_SAVING_BONUS, handleConSavingBonus);
+    base.setHandler(E_REGENERATE_1_HPS, handleRegen1);
+    base.setHandler(E_REGENERATE_3_HPS, handleRegen3);
+    base.setHandler(E_REGEN_3_HP,       handleRegen3);
 }
 
 } // namespace Effects

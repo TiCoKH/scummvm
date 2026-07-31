@@ -39,7 +39,6 @@ public:
 
 private:
     static void handleNoop(const Goldbox::Data::Effects::EffectCall &call);
-    static void handleEffect(const Goldbox::Data::Effects::EffectCall &call);
 };
 
 } // namespace Poolrad
