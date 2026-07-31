@@ -47,6 +47,8 @@ Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine
 
 Engine::~Engine() {
 	delete _treasurePool;
+	delete _effectHandler;
+	delete _spellCasting;
 	delete _soundDriver;
 	delete _fixedTileCacheSlot0;
 	delete _font;

@@ -24,7 +24,6 @@
 #include "common/array.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect.h"
-#include "goldbox/data/effects/effect_execution_context.h"
 #include "goldbox/data/effects/effect_handler_base.h"
 #include "goldbox/data/effects/effect_host_bridge.h"
 #include "goldbox/data/effects/effect_notify.h"
@@ -181,7 +180,7 @@ void EffectRuntime::setHostBridge(EffectHostBridge *bridge) {
 
 void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
         CharacterEffects &effects, PlayerCharacter &character,
-        EffectExecutionContext &context) const {
+        Combat::CombatGlobals *combat) const {
     if (!_handler)
         return;
 
@@ -192,19 +191,12 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
             Effect &effect = *it;
             if (!isPoisonCycleEffect(effect.type))
                 continue;
-
-            context.currentEffectType = effect.type;
-            context.currentEffectPower = effect.power;
-            context.currentEffectDuration = effect.durationMin;
-
             const uint8 oldStatus = character.healthStatus;
             const uint32 oldFlags = character.effectState.flags;
-            _handler->apply(EFF_TICK, effect, character, &context);
+            _handler->apply(EFF_TICK, effect, character, combat);
             character.onEffectsChanged();
             notifyBridge(_bridge, EFF_TICK, character,
                 oldStatus, oldFlags, true, true);
-
-            ++context.evaluatedEffects;
         }
         return;
     }
@@ -220,21 +212,12 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
                 it != list.end(); ++it) {
             if (it->type != static_cast<uint8>(type))
                 continue;
-
-            context.currentEffectType = it->type;
-            context.currentEffectPower = it->power;
-            context.currentEffectDuration = it->durationMin;
-
             const uint8 oldStatus = character.healthStatus;
             const uint32 oldFlags = character.effectState.flags;
-            _handler->apply(EFF_EVAL, *it, character,
-                &context);
+            _handler->apply(EFF_EVAL, *it, character, combat);
             character.onEffectsChanged();
             notifyBridge(_bridge, EFF_EVAL, character,
-                oldStatus, oldFlags, true,
-                isStatusPanelEffect(type));
-
-            ++context.evaluatedEffects;
+                oldStatus, oldFlags, true, isStatusPanelEffect(type));
             break;
         }
     }

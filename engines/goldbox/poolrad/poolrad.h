@@ -71,7 +71,7 @@ private:
 	Gfx::IconManager *_iconManager = nullptr;
 	Gfx::BattlefieldTilemap _battlefield;
 	uint16 _mapX = 0, _mapY = 0;
-	EffectHandler _effectsRuntime;
+
 
 	// -------------------------------------------------------------------
 	// ECL VM runtime
@@ -145,7 +145,7 @@ public:
 	Gfx::IconManager *getIconManager() const { return _iconManager; }
 	Gfx::BattlefieldTilemap &getBattlefield() { return _battlefield; }
 	const Gfx::BattlefieldTilemap &getBattlefield() const { return _battlefield; }
-	EffectHandler &effectsRuntime() { return _effectsRuntime; }
+	EffectHandler *effectsRuntime() { return static_cast<EffectHandler *>(_effectHandler); }
 	ECL::AddressSpace *getEclMemory();
 	const ECL::AddressSpace *getEclMemory() const;
 	bool captureRuntimeMapSnapshot(::Goldbox::RuntimeMapSnapshot &snapshot) const;

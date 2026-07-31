@@ -22,7 +22,6 @@
 #include "goldbox/poolrad/effect_handler.h"
 #include "common/util.h"
 #include "goldbox/data/effects/effect_common_handler.h"
-#include "goldbox/data/effects/effect_execution_context.h"
 #include "goldbox/data/effects/effect_mapping.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
@@ -204,7 +203,7 @@ Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const
     return kRawEffectMap.mapRaw(rawId);
 }
 
-void EffectHandler::handleNoop(const Goldbox::Data::Effects::EffectCall0 &) {
+void EffectHandler::handleNoop(const Goldbox::Data::Effects::EffectCall &) {
 }
 
 namespace {
@@ -265,13 +264,10 @@ static void applyTickDamage(EffectOp op, Data::PoolradCharacter &character, uint
 }
 }
 
-void EffectHandler::handleEffect(const Goldbox::Data::Effects::EffectCall0 &call) {
+void EffectHandler::handleEffect(const Goldbox::Data::Effects::EffectCall &call) {
     const EffectOp op = call.op;
     Effect &effect = call.effect;
     Goldbox::Data::PlayerCharacter &character = call.character;
-    const EffectExecutionContext *ctx = call.ctx;
-
-    (void)ctx;
     Data::PoolradCharacter &poolradCharacter = static_cast<Data::PoolradCharacter &>(character);
     Effects internalId = kRawEffectMap.mapRaw(effect.type);
 

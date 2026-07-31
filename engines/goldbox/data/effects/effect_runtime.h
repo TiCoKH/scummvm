@@ -24,6 +24,7 @@
 
 #include "common/array.h"
 #include "common/scummsys.h"
+#include "goldbox/combat/combat_globals.h"
 #include "goldbox/data/effects/effect.h"
 
 namespace Goldbox {
@@ -35,7 +36,6 @@ namespace Effects {
 class CharacterEffects;
 class EffectHandlerBase;
 class EffectHostBridge;
-struct EffectExecutionContext;
 
 /**
  * Trigger-set ids mirroring Poolrad m68k EFFECT_applyEffectSet(0..19).
@@ -80,7 +80,7 @@ public:
     void applyTriggerSet(EffectTriggerSet triggerSet,
             CharacterEffects &effects,
             PlayerCharacter &character,
-            EffectExecutionContext &context) const;
+            Combat::CombatGlobals *combat = nullptr) const;
 
     bool hasAnyInTriggerSet(EffectTriggerSet triggerSet,
             const CharacterEffects &effects) const;
