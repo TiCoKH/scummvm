@@ -35,7 +35,7 @@ extern uint8 kStatusEffects[];
 enum Effects : uint8 {
     E_NONE = 0,
     // Specific effects referenced by Poolrad spell table (subset)
-    E_BLESS,
+    E_BLESSED,
     E_CURSED,
     E_DETECT_MAGIC,
     E_IMMUNE_TO_ELECTRICITY,
@@ -61,6 +61,8 @@ enum Effects : uint8 {
     E_SWORD_VS_UNDEAD,
     E_SPIRITUAL_HAMMER,
     E_DISPEL_EVIL,
+    // Poolrad item manual effect alias (raw ID 0x04)
+    E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH = E_DISPEL_EVIL,
     E_SP_DISPEL_EVIL,
     E_DETECT_INVISIBILITY,
     E_INVISIBILITY,
@@ -178,6 +180,8 @@ enum Effects : uint8 {
     E_RESIST_PARALYZE,
     E_ENTANGLE,
     E_FAERIE_FIRE,
+    // Poolrad item manual effect alias (raw ID 0x07)
+    E_POOLRAD_TRAIN_MANUAL_BODILY_HEALTH = E_FAERIE_FIRE,
     // Generic placeholders
     E_DAMAGE,
     E_HEAL,

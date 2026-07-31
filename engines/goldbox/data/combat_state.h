@@ -27,49 +27,72 @@
 namespace Goldbox {
 namespace Data {
 
+class PlayerCharacter;
+
 /**
- * Per-combatant runtime state for the tactical combat system.
+ * Per-combatant runtime action state for the tactical combat system.
  *
- * Mirrors original gbCombatAction (22-byte allocation at combat_address).
- * Allocated at combat start via COMBAT_InitCombatStates and freed at end.
+ * Mirrors original gbCombatAction (allocated at combat_address).
+ * Allocated at combat start and freed at end.
  *
  * Fields are zero-initialized on creation; direction is set from the
  * approach direction table during init.
  */
-struct CombatState {
-    uint8 spellId;       // Active spell being cast (0 = none)
-    uint8 direction;     // Facing direction (0=N,1=NE,2=E,3=SE,4=S,5=SW,6=W,7=NW)
-    bool notInTeam;      // True if combatant is beyond party count (NPC/monster)
-    uint8 targetX;       // Target tile X
-    uint8 targetY;       // Target tile Y
-    uint8 actionType;    // Current action (0=none, attack/move/cast/etc)
-    uint8 movePoints;    // Remaining movement this round
-    uint8 attackCount;   // Attacks remaining this round
-    uint8 status;        // Combat status flags
-    uint8 aiState;       // AI behavior state
-    uint8 delay;         // Initiative/delay counter
+struct CombatAction {
+    uint8 spellId;              // spell_id: active spell being cast (0 = none)
+    bool canCast;               // can_cast
+    bool canUse;                // can_use
+    uint8 delay;                // delay: initiative/delay counter
+    uint8 attackId;             // attack_id
+    uint8 maxTargets;           // max_targets
+    uint8 movePoints;           // move: remaining movement this round
+    bool guarding;              // guarding
+    bool unknownBool;           // unknown_bool
+    uint8 direction;            // direction: facing (0=N,1=NE,2=E,3=SE,4=S,5=SW,6=W,7=NW)
+    PlayerCharacter *target;    // target: current attack target (ch_ptr->combat_address->target)
+    uint8 bleeding;             // bleeding
+    uint8 attackCount;          // get_attack: attacks remaining this round
+    bool fleeing;               // fleeing
+    bool turnedUndead;          // turned_undead
+    uint8 directionChange;      // direction_change
+    bool notInTeam;             // not_in_team: true if beyond party count (NPC/monster)
+    bool moralFailure;          // moral_failure
+    uint8 aiState;              // ai_action: AI behavior state
 
-    CombatState()
-        : spellId(0), direction(0), notInTeam(false),
-          targetX(0), targetY(0), actionType(0),
-          movePoints(0), attackCount(0), status(0),
-          aiState(0), delay(0) {
+    CombatAction()
+        : spellId(0), canCast(false), canUse(false), delay(0),
+          attackId(0), maxTargets(0), movePoints(0),
+          guarding(false), unknownBool(false), direction(0),
+          target(nullptr), bleeding(0), attackCount(0),
+          fleeing(false), turnedUndead(false), directionChange(0),
+          notInTeam(false), moralFailure(false), aiState(0) {
     }
 
     void clear() {
         spellId = 0;
-        direction = 0;
-        notInTeam = false;
-        targetX = 0;
-        targetY = 0;
-        actionType = 0;
-        movePoints = 0;
-        attackCount = 0;
-        status = 0;
-        aiState = 0;
+        canCast = false;
+        canUse = false;
         delay = 0;
+        attackId = 0;
+        maxTargets = 0;
+        movePoints = 0;
+        guarding = false;
+        unknownBool = false;
+        direction = 0;
+        target = nullptr;
+        bleeding = 0;
+        attackCount = 0;
+        fleeing = false;
+        turnedUndead = false;
+        directionChange = 0;
+        notInTeam = false;
+        moralFailure = false;
+        aiState = 0;
     }
 };
+
+// Legacy typedef so existing code using CombatState still compiles during migration.
+typedef CombatAction CombatState;
 
 /**
  * Direction lookup table for converting map cardinal facing (way_flag >> 1)

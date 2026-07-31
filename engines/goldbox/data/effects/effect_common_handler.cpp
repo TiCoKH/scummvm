@@ -38,18 +38,21 @@ static void applyFlag(EffectOp op, PlayerCharacter &ch, uint32 flag) {
 
 // --- Individual effect handlers ---
 
-static void handleBless(const EffectCall &c) {
+static void handleBlessed(const EffectCall &c) {
     if (!c.combat)
         return;
-    c.combat->attackRoll += 1;
     c.combat->moraleModifier += 5;
+    c.combat->attackRoll += 1;
 }
 
 static void handleCursed(const EffectCall &c) {
     if (!c.combat)
         return;
+    if (c.combat->moraleModifier < 5)
+        c.combat->moraleModifier = 0;
+    else
+        c.combat->moraleModifier -= 5;
     c.combat->attackRoll -= 1;
-    c.combat->moraleModifier -= 5;
 }
 
 static void handlePrayerChant(const EffectCall &c) {
@@ -189,7 +192,7 @@ static void handleRegen3(const EffectCall &c) {
 } // namespace
 
 void setupCommonHandlers(EffectHandlerBase &base) {
-    base.setHandler(E_BLESS,            handleBless);
+    base.setHandler(E_BLESSED,          handleBlessed);
     base.setHandler(E_CURSED,           handleCursed);
     base.setHandler(E_PRAYER,           handlePrayerChant);
     base.setHandler(E_CHANT,            handlePrayerChant);

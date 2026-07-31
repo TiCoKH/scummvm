@@ -94,7 +94,7 @@ void EffectSystem::applyEffect(CharacterEffects &effects,
     if (immediate) {
         const uint8 oldStatus = character.healthStatus;
         const uint32 oldFlags = character.effectState.flags;
-        _handler->apply(EFF_ADD, added, character);
+        _handler->apply(EFF_ADD, added, character, nullptr, _bridge);
         character.onEffectsChanged();
         notifyBridge(_bridge, EFF_ADD, character,
             oldStatus, oldFlags, false, true);
@@ -111,7 +111,7 @@ void EffectSystem::tick(CharacterEffects &effects,
         Effect &effect = *it;
         uint8 oldStatus = character.healthStatus;
         uint32 oldFlags = character.effectState.flags;
-        _handler->apply(EFF_TICK, effect, character);
+        _handler->apply(EFF_TICK, effect, character, nullptr, _bridge);
         character.onEffectsChanged();
         notifyBridge(_bridge, EFF_TICK, character,
             oldStatus, oldFlags, false, true);
@@ -122,7 +122,7 @@ void EffectSystem::tick(CharacterEffects &effects,
             if (effect.durationMin == 0) {
                 oldStatus = character.healthStatus;
                 oldFlags = character.effectState.flags;
-                _handler->apply(EFF_REMOVE, effect, character);
+                _handler->apply(EFF_REMOVE, effect, character, nullptr, _bridge);
                 character.onEffectsChanged();
                 notifyBridge(_bridge, EFF_REMOVE,
                     character, oldStatus, oldFlags, false, true);
@@ -147,7 +147,7 @@ void EffectSystem::removeEffectsByType(CharacterEffects &effects,
         }
         const uint8 oldStatus = character.healthStatus;
         const uint32 oldFlags = character.effectState.flags;
-        _handler->apply(EFF_REMOVE, *it, character);
+        _handler->apply(EFF_REMOVE, *it, character, nullptr, _bridge);
         character.onEffectsChanged();
         notifyBridge(_bridge, EFF_REMOVE, character,
             oldStatus, oldFlags, false, true);
