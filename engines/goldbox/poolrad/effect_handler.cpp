@@ -29,11 +29,12 @@ namespace Goldbox {
 namespace Poolrad {
 
 namespace {
+
 static const Goldbox::Data::Effects::Effects kRawMap[] = {
         Goldbox::Data::Effects::E_NONE,
         Goldbox::Data::Effects::E_BLESS,
         Goldbox::Data::Effects::E_CURSED,
-        Goldbox::Data::Effects::E_STICKS_TO_SNAKES,
+        Goldbox::Data::Effects::E_SWORD_VS_UNDEAD,
         Goldbox::Data::Effects::E_DISPEL_EVIL,
         Goldbox::Data::Effects::E_DETECT_MAGIC,
         Goldbox::Data::Effects::E_IMMUNE_TO_ELECTRICITY,
@@ -177,7 +178,200 @@ static const Goldbox::Data::Effects::EffectMapping kRawEffectMap = {
     kRawMap,
     ARRAYSIZE(kRawMap)
 };
+
+// --- Poolrad-specific handler helpers ---
+
+using namespace Goldbox::Data::Effects;
+
+static Data::PoolradCharacter &asPoolrad(Goldbox::Data::PlayerCharacter &ch) {
+    return static_cast<Data::PoolradCharacter &>(ch);
 }
+
+static void applyFlag(EffectOp op, Data::PoolradCharacter &ch, uint32 flag) {
+    if (op == EFF_ADD)
+        ch.effectState.flags |= flag;
+    else if (op == EFF_REMOVE)
+        ch.effectState.flags &= ~flag;
+}
+
+// --- Individual poolrad effect handlers ---
+
+static void handleSilence(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_SILENCED);
+}
+
+static void handleInvisibility(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_INVISIBLE);
+}
+
+static void handleItemInvisibility(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_ITEM_INVISIBLE);
+}
+
+static void handleCamouflage(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_CAMOUFLAGE);
+}
+
+static void handleImmuneElec(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_IMMUNE_ELEC);
+}
+
+static void handleResistCold(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_RESIST_COLD);
+}
+
+static void handleResistFire(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_RESIST_FIRE);
+}
+
+static void handleResistFireAndCold(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_RESIST_FIRE_COLD);
+}
+
+static void handleFireResist(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_FIRE_RESIST);
+}
+
+static void handleProtNormalMissiles(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_PROT_NORMAL_MISSILES);
+}
+
+static void handleProtDragBreath(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_PROT_DRAG_BREATH);
+}
+
+static void handleMinorGlobe(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_MINOR_GLOBE);
+}
+
+static void handleRakshasaResist(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_RAKSHASA_RESIST);
+}
+
+static void handleDisplace(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_DISPLACE);
+}
+
+static void handleHalfDamage(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_HALF_DAMAGE);
+}
+
+static void handleHalfFireDamage(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_HALF_FIRE_DAMAGE);
+}
+
+static void handleDamageReduction(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_DAMAGE_REDUCTION);
+}
+
+static void handleFearImmunity(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_FEAR_IMMUNE);
+}
+
+static void handleSlowPoison(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_SLOW_POISON);
+}
+
+static void handleEntangle(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_ENTANGLED);
+}
+
+static void handleAttackBonus2(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 2;
+}
+
+static void handleAttackDamageBonus(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 1;
+    c.combat->damage += 3;
+}
+
+static void handleSaveBonus1(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 1;
+}
+
+static void handleSaveBonus2(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 2;
+}
+
+static void handleSaveBonus3(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 3;
+}
+
+static void handleSaveBonus5(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 5;
+}
+
+static void handleImmunitySleepCharm(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 6;
+    asPoolrad(c.character).effectState.flags |= Data::PoolradCharacter::EF_FEAR_IMMUNE;
+}
+
+static void handleImmunityCold(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character),
+        Data::PoolradCharacter::EF_RESIST_COLD |
+        Data::PoolradCharacter::EF_HALF_DAMAGE);
+}
+
+static void handleImmunityFire(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character),
+        Data::PoolradCharacter::EF_RESIST_FIRE |
+        Data::PoolradCharacter::EF_FIRE_RESIST |
+        Data::PoolradCharacter::EF_HALF_FIRE_DAMAGE);
+}
+
+static void handleImmunityParalysisPoisonFear(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character),
+        Data::PoolradCharacter::EF_SLOW_POISON |
+        Data::PoolradCharacter::EF_FEAR_IMMUNE);
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 6;
+}
+
+static void handleImmunityNonmagical(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character),
+        Data::PoolradCharacter::EF_RAKSHASA_RESIST |
+        Data::PoolradCharacter::EF_DAMAGE_REDUCTION);
+}
+
+static void handleSavePenalty2(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll -= 2;
+}
+
+static void handleExtraStrength(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 1;
+    c.combat->damage += 2;
+}
+
+static void handlePoisonDamage(const EffectCall &c) {
+    if (c.op == EFF_TICK)
+        c.character.damage(c.effect.power);
+}
+
+static void handleHighConRegen(const EffectCall &c) {
+    if (c.op == EFF_TICK)
+        c.character.heal(1);
+}
+
+} // namespace
 
 EffectHandler::EffectHandler() {
     setupHandlers();
@@ -187,16 +381,70 @@ void EffectHandler::setupHandlers() {
     clearHandlers();
     setDefaultHandler(&EffectHandler::handleNoop);
 
-    for (uint rawId = 0; rawId < kRawEffectMap.size; ++rawId) {
-        setHandler(kRawEffectMap.mapRaw((uint8)rawId), &EffectHandler::handleEffect);
-    }
+    // Register shared common handlers first; game-specific ones below override.
+    setupCommonHandlers(*this);
 
-    setHandler(Goldbox::Data::Effects::E_DAMAGE, &EffectHandler::handleNoop);
-    setHandler(Goldbox::Data::Effects::E_HEAL, &EffectHandler::handleNoop);
-    setHandler(Goldbox::Data::Effects::E_BUFF, &EffectHandler::handleNoop);
-    setHandler(Goldbox::Data::Effects::E_DEBUFF, &EffectHandler::handleNoop);
-    setHandler(Goldbox::Data::Effects::E_SUMMON, &EffectHandler::handleNoop);
-    setHandler(Goldbox::Data::Effects::E_MISC, &EffectHandler::handleNoop);
+    setHandler(E_SILENCE_15_RADIUS,             handleSilence);
+    setHandler(E_INVISIBILITY,                  handleInvisibility);
+    setHandler(E_INVISIBLE,                     handleInvisibility);
+    setHandler(E_ITEM_INVISIBILITY,             handleItemInvisibility);
+    setHandler(E_CAMOUFLAGE,                    handleCamouflage);
+    setHandler(E_IMMUNE_TO_ELECTRICITY,         handleImmuneElec);
+    setHandler(E_RESIST_COLD,                   handleResistCold);
+    setHandler(E_RESIST_FIRE,                   handleResistFire);
+    setHandler(E_RESIST_FIRE_AND_COLD,          handleResistFireAndCold);
+    setHandler(E_FIRE_RESIST,                   handleFireResist);
+    setHandler(E_PROT_FROM_NORMAL_MISSILES,     handleProtNormalMissiles);
+    setHandler(E_PROT_DRAG_BREATH,              handleProtDragBreath);
+    setHandler(E_MINOR_GLOBE_OF_INVULNERABILITY, handleMinorGlobe);
+    setHandler(E_RAKSHASA_RESIST_NORMAL_WEAPONS, handleRakshasaResist);
+    setHandler(E_DISPLACE,                      handleDisplace);
+    setHandler(E_HALF_DAMAGE,                   handleHalfDamage);
+    setHandler(E_HALF_FIRE_DAMAGE,              handleHalfFireDamage);
+    setHandler(E_DAMAGE_REDUCTION,              handleDamageReduction);
+    setHandler(E_FEAR_IMMUNITY,                 handleFearImmunity);
+    setHandler(E_SLOW_POISON,                   handleSlowPoison);
+    setHandler(E_ENTANGLE,                      handleEntangle);
+    setHandler(E_PETRIFYING_GAZE,               handleAttackBonus2);
+    setHandler(E_BEHOLDER_RAYS_AFFECT_57,       handleAttackBonus2);
+    setHandler(E_AFFECT_4A,                     handleAttackBonus2);
+    setHandler(E_AFFECT_4E,                     handleAttackBonus2);
+    setHandler(E_FIRE_ATTACK_2D10,              handleAttackDamageBonus);
+    setHandler(E_ANKHEG_ACID_ATTACK,            handleAttackDamageBonus);
+    setHandler(E_GIANT_SLUG_SPIT_ACID,          handleAttackDamageBonus);
+    setHandler(E_BREATH_ELEC,                   handleAttackDamageBonus);
+    setHandler(E_BREATH_ACID,                   handleAttackDamageBonus);
+    setHandler(E_CLOUD_KILL,                    handleAttackDamageBonus);
+    setHandler(E_ANKHEG_ACID_SQUIRT_ATTACK,     handleAttackDamageBonus);
+    setHandler(E_WILD_BOAR_DIE_AFTER_EXTRA_FIGHT_TIME_AFFECT_5F, handleAttackDamageBonus);
+    setHandler(E_OWLBEAR_HUG_CHECK,             handleAttackDamageBonus);
+    setHandler(E_WILD_BOAR_AND_BULLETTE_AFFECT_63, handleAttackDamageBonus);
+    setHandler(E_THRI_KREEN_MISSILE_EVASION,    handleSaveBonus2);
+    setHandler(E_BOULDER_EVASION,               handleSaveBonus2);
+    setHandler(E_RESIST_MAGIC_15,               handleSaveBonus1);
+    setHandler(E_RESIST_SLEEP_CHARM_30,         handleSaveBonus2);
+    setHandler(E_RESIST_MAGIC_50,               handleSaveBonus3);
+    setHandler(E_RESIST_SLEEP_CHARM_90,         handleSaveBonus5);
+    setHandler(E_IMMUNITY_SLEEP_CHARM,          handleImmunitySleepCharm);
+    setHandler(E_IMMUNITY_PARALYSIS,            handleImmunitySleepCharm);
+    setHandler(E_IMMUNITY_SLEEP_CHARM_PARALYSIS_POISON, handleImmunitySleepCharm);
+    setHandler(E_IMMUNITY_GAZE_ATTACKS,         handleImmunitySleepCharm);
+    setHandler(E_IMMUNITY_COLD,                 handleImmunityCold);
+    setHandler(E_IMMUNITY_FIRE,                 handleImmunityFire);
+    setHandler(E_EFREETI_FIRE_RESISTANCE,       handleImmunityFire);
+    setHandler(E_IMMUNITY_PARALYSIS_POISON,     handleImmunityParalysisPoisonFear);
+    setHandler(E_IMMUNITY_NONMAGICAL_WEAPONS,   handleImmunityNonmagical);
+    setHandler(E_IMMUNITY_NONMAGICAL_HALF_SILVER, handleImmunityNonmagical);
+    setHandler(E_HALF_DAMAGE_ELECTRICITY,       handleHalfDamage);
+    setHandler(E_HALF_DAMAGE_PIERCING_SLASHING, handleHalfDamage);
+    setHandler(E_HALF_DAMAGE_MAGICAL_WEAPONS,   handleHalfDamage);
+    setHandler(E_HALF_DAMAGE_COLD,              handleHalfDamage);
+    setHandler(E_VULNERABILITY_HOLY_WATER,      handleSavePenalty2);
+    setHandler(E_VULNERABILITY_FIRE,            handleSavePenalty2);
+    setHandler(E_TROLL_FIRE_OR_ACID,            handleSavePenalty2);
+    setHandler(E_EXTRA_STRENGTH_130,            handleExtraStrength);
+    setHandler(E_POISON_DAMAGE,                 handlePoisonDamage);
+    setHandler(E_HIGH_CON_REGEN,                handleHighConRegen);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
@@ -204,255 +452,6 @@ Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const
 }
 
 void EffectHandler::handleNoop(const Goldbox::Data::Effects::EffectCall &) {
-}
-
-namespace {
-using namespace Goldbox::Data::Effects;
-using Goldbox::Data::EffectModifiers;
-
-static void applyFlag(EffectOp op, Data::PoolradCharacter &character, uint32 flag) {
-    if (op == Goldbox::Data::Effects::EFF_ADD)
-        character.effectState.flags |= flag;
-    else if (op == Goldbox::Data::Effects::EFF_REMOVE)
-        character.effectState.flags &= ~flag;
-}
-
-static void applyModifiers(EffectOp op, Data::PoolradCharacter &character,
-                   const EffectModifiers &delta) {
-    int sign = (op == EFF_REMOVE) ? -1 : (op == EFF_ADD ? 1 : 0);
-    if (sign == 0)
-        return;
-    character.effectState.mods.attackRoll += delta.attackRoll * sign;
-    character.effectState.mods.damage += delta.damage * sign;
-    character.effectState.mods.savingThrow += delta.savingThrow * sign;
-    character.effectState.mods.armorClass += delta.armorClass * sign;
-    character.effectState.mods.morale += delta.morale * sign;
-    character.effectState.mods.movement += delta.movement * sign;
-}
-
-static void applySimpleModifiers(EffectOp op, Data::PoolradCharacter &character,
-                 int8 attackRoll, int8 damage, int8 savingThrow,
-                 int8 armorClass, int8 morale, int8 movement) {
-    EffectModifiers delta;
-    delta.attackRoll = attackRoll;
-    delta.damage = damage;
-    delta.savingThrow = savingThrow;
-    delta.armorClass = armorClass;
-    delta.morale = morale;
-    delta.movement = movement;
-    applyModifiers(op, character, delta);
-}
-
-static void applyHeldFlag(EffectOp op, Data::PoolradCharacter &character, uint32 flag) {
-    applyFlag(op, character, flag | Data::PoolradCharacter::EF_HELD);
-}
-
-static void applyRegen(EffectOp op, Data::PoolradCharacter &character, uint8 amount) {
-    if (op != EFF_TICK)
-        return;
-    if (amount == 0)
-        amount = 1;
-    character.heal(amount);
-}
-
-static void applyTickDamage(EffectOp op, Data::PoolradCharacter &character, uint8 amount) {
-    if (op != EFF_TICK)
-        return;
-    if (amount == 0)
-        amount = 1;
-    character.damage(amount);
-}
-}
-
-void EffectHandler::handleEffect(const Goldbox::Data::Effects::EffectCall &call) {
-    const EffectOp op = call.op;
-    Effect &effect = call.effect;
-    Goldbox::Data::PlayerCharacter &character = call.character;
-    Data::PoolradCharacter &poolradCharacter = static_cast<Data::PoolradCharacter &>(character);
-    Effects internalId = kRawEffectMap.mapRaw(effect.type);
-
-    // Shared defaults first: other games can invert this order (override first,
-    // common fallback) when an effect id has game-specific divergence.
-    if (Goldbox::Data::Effects::tryApplyCommonEffect0(call, internalId))
-        return;
-
-    switch (internalId) {
-    case Effects::E_SILENCE_15_RADIUS:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_SILENCED);
-        break;
-    case Effects::E_INVISIBILITY:
-    case Effects::E_INVISIBLE:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_INVISIBLE);
-        break;
-    case Effects::E_ITEM_INVISIBILITY:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_ITEM_INVISIBLE);
-        break;
-    case Effects::E_CAMOUFLAGE:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_CAMOUFLAGE);
-        break;
-    case Effects::E_IMMUNE_TO_ELECTRICITY:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_IMMUNE_ELEC);
-        break;
-    case Effects::E_RESIST_COLD:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_RESIST_COLD);
-        break;
-    case Effects::E_RESIST_FIRE:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_RESIST_FIRE);
-        break;
-    case Effects::E_RESIST_FIRE_AND_COLD:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_RESIST_FIRE_COLD);
-        break;
-    case Effects::E_FIRE_RESIST:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_FIRE_RESIST);
-        break;
-    case Effects::E_PROT_FROM_NORMAL_MISSILES:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_PROT_NORMAL_MISSILES);
-        break;
-    case Effects::E_PROT_DRAG_BREATH:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_PROT_DRAG_BREATH);
-        break;
-    case Effects::E_MINOR_GLOBE_OF_INVULNERABILITY:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_MINOR_GLOBE);
-        break;
-    case Effects::E_RAKSHASA_RESIST_NORMAL_WEAPONS:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_RAKSHASA_RESIST);
-        break;
-    case Effects::E_DISPLACE:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_DISPLACE);
-        break;
-    case Effects::E_HALF_DAMAGE:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_HALF_DAMAGE);
-        break;
-    case Effects::E_HALF_FIRE_DAMAGE:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_HALF_FIRE_DAMAGE);
-        break;
-    case Effects::E_DAMAGE_REDUCTION:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_DAMAGE_REDUCTION);
-        break;
-    case Effects::E_FEAR_IMMUNITY:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_FEAR_IMMUNE);
-        break;
-    case Effects::E_SLOW_POISON:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_SLOW_POISON);
-        break;
-    case Effects::E_ENTANGLE:
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_ENTANGLED);
-        break;
-    case Effects::E_PETRIFYING_GAZE:
-    case Effects::E_BEHOLDER_RAYS_AFFECT_57:
-    case Effects::E_AFFECT_4A:
-    case Effects::E_AFFECT_4E: {
-        applySimpleModifiers(op, poolradCharacter, 2, 0, 0, 0, 0, 0);
-        break;
-    }
-    case Effects::E_FIRE_ATTACK_2D10:
-    case Effects::E_ANKHEG_ACID_ATTACK:
-    case Effects::E_GIANT_SLUG_SPIT_ACID:
-    case Effects::E_BREATH_ELEC:
-    case Effects::E_BREATH_ACID:
-    case Effects::E_CLOUD_KILL:
-    case Effects::E_ANKHEG_ACID_SQUIRT_ATTACK:
-    case Effects::E_WILD_BOAR_DIE_AFTER_EXTRA_FIGHT_TIME_AFFECT_5F:
-    case Effects::E_OWLBEAR_HUG_CHECK:
-    case Effects::E_WILD_BOAR_AND_BULLETTE_AFFECT_63: {
-        applySimpleModifiers(op, poolradCharacter, 1, 3, 0, 0, 0, 0);
-        break;
-    }
-    case Effects::E_THRI_KREEN_MISSILE_EVASION:
-    case Effects::E_BOULDER_EVASION: {
-        applySimpleModifiers(op, poolradCharacter, 0, 0, 2, 0, 0, 0);
-        break;
-    }
-    case Effects::E_RESIST_MAGIC_15: {
-        applySimpleModifiers(op, poolradCharacter, 0, 0, 1, 0, 0, 0);
-        break;
-    }
-    case Effects::E_RESIST_SLEEP_CHARM_30: {
-        applySimpleModifiers(op, poolradCharacter, 0, 0, 2, 0, 0, 0);
-        break;
-    }
-    case Effects::E_RESIST_MAGIC_50: {
-        applySimpleModifiers(op, poolradCharacter, 0, 0, 3, 0, 0, 0);
-        break;
-    }
-    case Effects::E_RESIST_SLEEP_CHARM_90: {
-        applySimpleModifiers(op, poolradCharacter, 0, 0, 5, 0, 0, 0);
-        break;
-    }
-    case Effects::E_IMMUNITY_SLEEP_CHARM:
-    case Effects::E_IMMUNITY_PARALYSIS:
-    case Effects::E_IMMUNITY_SLEEP_CHARM_PARALYSIS_POISON:
-    case Effects::E_IMMUNITY_GAZE_ATTACKS: {
-        applySimpleModifiers(op, poolradCharacter, 0, 0, 6, 0, 0, 0);
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_FEAR_IMMUNE);
-        break;
-    }
-    case Effects::E_IMMUNITY_COLD: {
-        applyFlag(op, poolradCharacter,
-            Data::PoolradCharacter::EF_RESIST_COLD |
-            Data::PoolradCharacter::EF_HALF_DAMAGE);
-        break;
-    }
-    case Effects::E_IMMUNITY_FIRE:
-    case Effects::E_EFREETI_FIRE_RESISTANCE: {
-        applyFlag(op, poolradCharacter,
-            Data::PoolradCharacter::EF_RESIST_FIRE |
-            Data::PoolradCharacter::EF_FIRE_RESIST |
-            Data::PoolradCharacter::EF_HALF_FIRE_DAMAGE);
-        break;
-    }
-    case Effects::E_IMMUNITY_PARALYSIS_POISON: {
-        applyFlag(op, poolradCharacter,
-            Data::PoolradCharacter::EF_SLOW_POISON |
-            Data::PoolradCharacter::EF_FEAR_IMMUNE);
-        applySimpleModifiers(op, poolradCharacter, 0, 0, 6, 0, 0, 0);
-        break;
-    }
-    case Effects::E_HALF_DAMAGE_ELECTRICITY:
-    case Effects::E_HALF_DAMAGE_PIERCING_SLASHING:
-    case Effects::E_HALF_DAMAGE_MAGICAL_WEAPONS:
-    case Effects::E_HALF_DAMAGE_COLD: {
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_HALF_DAMAGE);
-        break;
-    }
-    case Effects::E_IMMUNITY_NONMAGICAL_WEAPONS:
-    case Effects::E_IMMUNITY_NONMAGICAL_HALF_SILVER: {
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_RAKSHASA_RESIST);
-        applyFlag(op, poolradCharacter, Data::PoolradCharacter::EF_DAMAGE_REDUCTION);
-        break;
-    }
-    case Effects::E_VULNERABILITY_HOLY_WATER:
-    case Effects::E_VULNERABILITY_FIRE:
-    case Effects::E_TROLL_FIRE_OR_ACID: {
-        applySimpleModifiers(op, poolradCharacter, 0, 0, -2, 0, 0, 0);
-        break;
-    }
-    case Effects::E_UNKNOWN_101:
-    case Effects::E_UNKNOWN_102:
-    case Effects::E_UNIMPLEMENTED_126:
-    case Effects::E_ITEM_EFFECT_127:
-    case Effects::E_ITEM_EFFECT_128:
-    case Effects::E_ITEM_EFFECT_129:
-    case Effects::E_ITEM_131:
-    case Effects::E_UNKNOWN_132:
-    case Effects::E_UNKNOWN_133:
-    case Effects::E_UNKNOWN_134:
-    case Effects::E_UNKNOWN_135:
-    case Effects::E_UNKNOWN_136:
-        break;
-    case Effects::E_EXTRA_STRENGTH_130: {
-        applySimpleModifiers(op, poolradCharacter, 1, 2, 0, 0, 0, 0);
-        break;
-    }
-    case Effects::E_POISON_DAMAGE:
-        applyTickDamage(op, poolradCharacter, effect.power);
-        break;
-    case Effects::E_HIGH_CON_REGEN:
-        applyRegen(op, poolradCharacter, 1);
-        break;
-    default:
-        break;
-    }
 }
 
 } // namespace Poolrad

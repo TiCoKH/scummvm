@@ -41,12 +41,27 @@ namespace Combat {
  *   VMBANK1_PARTY_STATE->D_unknownCombatFlag1
  */
 struct CombatGlobals {
+    /**
+     * Bitmask of the current hit's damage type. Set by the attacker before
+     * effect handlers run; handlers check it to decide immunity/resistance.
+     * Mirrors EFFECT_BEHAVE_FLAG in the original m68k code.
+     */
+    enum DamageTypeMask {
+        DMG_FIRE         = 0x01,
+        DMG_COLD         = 0x02,
+        DMG_ELECTRICITY  = 0x04,
+        DMG_MAGIC        = 0x08,
+        DMG_ACID         = 0x10,
+        DMG_DRAGON_BREATH = 0x20,
+        DMG_UNKNOWN_40   = 0x40
+    };
+
     bool magicEnabled;       // COMBAT_MAGIC_ENABLED
     bool slowMode;           // BYTE_COMFLAG_SLOW
     uint8 attackRoll;        // COMBAT_ATTACKROLL
     uint8 damage;            // BYTE_DAMAGE
     int8 moraleModifier;     // COMBAT_MORALE_MOD
-    uint8 behaviorFlags;     // EFFECT_BEHAVE_FLAG (fire/cold/elec/magic damage type)
+    uint8 behaviorFlags;     // bitmask of DamageTypeMask
     uint8 activeSpellId;     // BYTE_SPELL_INPORCESS
     uint8 membersOnGround;   // C_MEMBERS_ON_GROUND
     bool cloudEffectActive;  // PTR_CLOUD_EFF_HANDLER != 0

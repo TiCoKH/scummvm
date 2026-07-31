@@ -47,9 +47,10 @@ enum CommonEffectFlags : uint32 {
     CEF_POISONED = 1 << 27
 };
 
-// Apply shared/default behavior for common effect ids.
-// Returns true if handled, false if game-specific handler should process.
-bool tryApplyCommonEffect0(const EffectCall &call, Effects effectId);
+// Register all common effect handlers into the given handler base.
+// Call this from a game-specific handler's setupHandlers() before
+// registering any overrides.
+void setupCommonHandlers(EffectHandlerBase &base);
 
 } // namespace Effects
 } // namespace Data
