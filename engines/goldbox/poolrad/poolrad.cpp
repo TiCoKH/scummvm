@@ -34,6 +34,7 @@
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
+#include "goldbox/spells/spell_casting.h"
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/core/direction.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
@@ -329,6 +330,13 @@ bool PoolradEngine::loadGameAssets() {
 
 
 bool PoolradEngine::initializeRuntimeSystems() {
+	// Wire subsystem pointers on base Engine
+	EffectHandler *eh = new EffectHandler();
+	eh->setupHandlers();
+	_effectHandler = eh;
+
+	_spellCasting = new Spells::SpellCastingService();
+
 	// Setup game views
 	_views = new Views::Views();
 	addView("Title");
@@ -1431,7 +1439,7 @@ void PoolradEngine::dispatchPlayerCommand() {
 		// TIME_AddUnits(1, 2) - advance clock by 2 minutes.
 		if (_eclVm) {
 			timeAddUnits(_eclVm->getMemory(), kPoolradClockAddrs,
-				_party, &_effectsRuntime, getGameState(), 1, 2);
+				_party, effectsRuntime(), getGameState(), 1, 2);
 		}
 
 		// Now enter the search-loop path: set flags=1, run ONSEARCH, restore.
@@ -1537,10 +1545,10 @@ void PoolradEngine::dispatchPlayerCommand() {
 		const uint8 searchFlags = mem.read8(searchAddr);
 		if ((searchFlags & 1) == 0)
 			timeAddUnits(mem, kPoolradClockAddrs, _party,
-				&_effectsRuntime, getGameState(), 1, 1);
+				effectsRuntime(), getGameState(), 1, 1);
 		else
 			timeAddUnits(mem, kPoolradClockAddrs, _party,
-				&_effectsRuntime, getGameState(), 2, 1);
+				effectsRuntime(), getGameState(), 2, 1);
 	}
 
 	const VmResult onMove = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);

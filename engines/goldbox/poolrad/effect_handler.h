@@ -38,8 +38,8 @@ public:
     Goldbox::Data::Effects::Effects mapRawEffectId(uint8 rawId) const override;
 
 private:
-    static void handleNoop(const Goldbox::Data::Effects::EffectCall0 &call);
-    static void handleEffect(const Goldbox::Data::Effects::EffectCall0 &call);
+    static void handleNoop(const Goldbox::Data::Effects::EffectCall &call);
+    static void handleEffect(const Goldbox::Data::Effects::EffectCall &call);
 };
 
 } // namespace Poolrad

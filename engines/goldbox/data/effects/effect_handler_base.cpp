@@ -28,66 +28,15 @@ namespace Effects {
 EffectHandlerBase::EffectHandlerBase() : _defaultHandler(nullptr) {
 }
 
-void EffectHandlerBase::apply(EffectOp op, Effect &effect, Goldbox::Data::PlayerCharacter &character) const {
-    apply(op, effect, character, nullptr);
-}
-
 void EffectHandlerBase::apply(EffectOp op, Effect &effect,
         Goldbox::Data::PlayerCharacter &character,
-        const EffectExecutionContext *ctx) const {
-    apply(EffectCall0(op, effect, character, ctx));
+        Combat::CombatGlobals *combat) const {
+    apply(EffectCall(op, effect, character, combat));
 }
 
-void EffectHandlerBase::apply(EffectOp op, Effect &effect,
-        Goldbox::Data::PlayerCharacter &character,
-        const EffectExecutionContext *ctx, int32 arg0) const {
-    apply(EffectCall1(op, effect, character, ctx, arg0));
-}
-
-void EffectHandlerBase::apply(EffectOp op, Effect &effect,
-        Goldbox::Data::PlayerCharacter &character,
-        const EffectExecutionContext *ctx, int32 arg0,
-        int32 arg1) const {
-    apply(EffectCall2(op, effect, character, ctx, arg0, arg1));
-}
-
-void EffectHandlerBase::apply(EffectOp op, Effect &effect,
-        Goldbox::Data::PlayerCharacter &character,
-        const EffectExecutionContext *ctx, int32 arg0,
-        int32 arg1, int32 arg2) const {
-    apply(EffectCall3(op, effect, character, ctx, arg0, arg1, arg2));
-}
-
-void EffectHandlerBase::apply(const EffectCall0 &call) const {
+void EffectHandlerBase::apply(const EffectCall &call) const {
     Effects internalId = mapRawEffectId(call.effect.type);
-    Handler0 handler = getHandler0((uint8)internalId);
-    if (handler)
-        handler(call);
-    else if (_defaultHandler)
-        _defaultHandler(call);
-}
-
-void EffectHandlerBase::apply(const EffectCall1 &call) const {
-    Effects internalId = mapRawEffectId(call.effect.type);
-    Handler1 handler = getHandler1((uint8)internalId);
-    if (handler)
-        handler(call);
-    else if (_defaultHandler)
-        _defaultHandler(call);
-}
-
-void EffectHandlerBase::apply(const EffectCall2 &call) const {
-    Effects internalId = mapRawEffectId(call.effect.type);
-    Handler2 handler = getHandler2((uint8)internalId);
-    if (handler)
-        handler(call);
-    else if (_defaultHandler)
-        _defaultHandler(call);
-}
-
-void EffectHandlerBase::apply(const EffectCall3 &call) const {
-    Effects internalId = mapRawEffectId(call.effect.type);
-    Handler3 handler = getHandler3((uint8)internalId);
+    Handler handler = getHandler((uint8)internalId);
     if (handler)
         handler(call);
     else if (_defaultHandler)
@@ -95,58 +44,24 @@ void EffectHandlerBase::apply(const EffectCall3 &call) const {
 }
 
 bool EffectHandlerBase::hasHandler(uint8 effectType) const {
-    return _handlers0.contains(effectType) || _handlers1.contains(effectType)
-        || _handlers2.contains(effectType) || _handlers3.contains(effectType);
+    return _handlers.contains(effectType);
 }
 
 void EffectHandlerBase::clearHandlers() {
-    _handlers0.clear();
-    _handlers1.clear();
-    _handlers2.clear();
-    _handlers3.clear();
+    _handlers.clear();
 }
 
-void EffectHandlerBase::setHandler(Effects effectId, Handler0 handler) {
-    _handlers0.setVal((uint8)effectId, handler);
+void EffectHandlerBase::setHandler(Effects effectId, Handler handler) {
+    _handlers.setVal((uint8)effectId, handler);
 }
 
-void EffectHandlerBase::setHandler(Effects effectId, Handler1 handler) {
-    _handlers1.setVal((uint8)effectId, handler);
-}
-
-void EffectHandlerBase::setHandler(Effects effectId, Handler2 handler) {
-    _handlers2.setVal((uint8)effectId, handler);
-}
-
-void EffectHandlerBase::setHandler(Effects effectId, Handler3 handler) {
-    _handlers3.setVal((uint8)effectId, handler);
-}
-
-void EffectHandlerBase::setDefaultHandler(Handler0 handler) {
+void EffectHandlerBase::setDefaultHandler(Handler handler) {
     _defaultHandler = handler;
 }
 
-EffectHandlerBase::Handler0 EffectHandlerBase::getHandler0(uint8 effectType) const {
-    if (_handlers0.contains(effectType))
-        return _handlers0.getVal(effectType);
-    return nullptr;
-}
-
-EffectHandlerBase::Handler1 EffectHandlerBase::getHandler1(uint8 effectType) const {
-    if (_handlers1.contains(effectType))
-        return _handlers1.getVal(effectType);
-    return nullptr;
-}
-
-EffectHandlerBase::Handler2 EffectHandlerBase::getHandler2(uint8 effectType) const {
-    if (_handlers2.contains(effectType))
-        return _handlers2.getVal(effectType);
-    return nullptr;
-}
-
-EffectHandlerBase::Handler3 EffectHandlerBase::getHandler3(uint8 effectType) const {
-    if (_handlers3.contains(effectType))
-        return _handlers3.getVal(effectType);
+EffectHandlerBase::Handler EffectHandlerBase::getHandler(uint8 effectType) const {
+    if (_handlers.contains(effectType))
+        return _handlers.getVal(effectType);
     return nullptr;
 }
 

@@ -51,6 +51,9 @@ namespace Goldbox {
 struct GoldboxGameDescription;
 class RuntimeExchange;
 class TreasurePool;
+namespace Data { namespace Effects { class EffectHandlerBase; } }
+namespace Spells { class SpellCastingService; }
+namespace Combat { struct CombatContext; }
 
 class Engine : public ::Engine, public Events {
 private:
@@ -63,7 +66,10 @@ private:
 protected:
 	Data::DaxFileManager _daxManager;
 	RuntimeGeoBlock _runtimeGeo;
-	TreasurePool *_treasurePool;
+	TreasurePool                     *_treasurePool;
+	Data::Effects::EffectHandlerBase *_effectHandler = nullptr;
+	Spells::SpellCastingService      *_spellCasting  = nullptr;
+	Combat::CombatContext            *_combatContext  = nullptr;
 	Gfx::ViewportBackground _viewportBg;
 	Gfx::AreaMapCache _areaMapCache;
 	Gfx::EncounterSpriteCache _encounterSpriteCache;
@@ -349,6 +355,16 @@ public:
 
 	TreasurePool &getTreasurePool();
 	const TreasurePool &getTreasurePool() const;
+
+	Data::Effects::EffectHandlerBase *getEffectHandler() { return _effectHandler; }
+	const Data::Effects::EffectHandlerBase *getEffectHandler() const { return _effectHandler; }
+
+	Spells::SpellCastingService *getSpellCasting() { return _spellCasting; }
+	const Spells::SpellCastingService *getSpellCasting() const { return _spellCasting; }
+
+	/** Nullable - only valid during an active combat session. */
+	Combat::CombatContext *getCombatContext() { return _combatContext; }
+	const Combat::CombatContext *getCombatContext() const { return _combatContext; }
 
 	Gfx::Tile8x8Cache &getTileCache() { return _tileCache; }
 	const Gfx::Tile8x8Cache &getTileCache() const { return _tileCache; }

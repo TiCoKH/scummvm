@@ -30,7 +30,6 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/combat_state.h"
 #include "goldbox/data/effects/effect_runtime.h"
-#include "goldbox/data/effects/effect_execution_context.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/runtime/runtime_geo.h"
@@ -154,16 +153,9 @@ void setupCombat(CombatParams &params,
                 continue;
             Data::Effects::CharacterEffects *effects = ch->getEffects();
             if (effects) {
-                Data::Effects::EffectExecutionContext ctx;
-                ctx.actor = ch;
-                ctx.source = ch;
-                ctx.selectedPlayer = ch;
-                ctx.spellTarget = ch;
-                ctx.gameState = Goldbox::GS_COMBAT;
-                ctx.inCombat = true;
                 effectRuntime->applyTriggerSet(
                     Data::Effects::ETS_COMBAT_AURA,
-                    *effects, *ch, ctx);
+                    *effects, *ch, &globals);
             }
         }
     }

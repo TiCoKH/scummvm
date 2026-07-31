@@ -44,6 +44,10 @@ struct CombatGlobals {
     bool magicEnabled;       // COMBAT_MAGIC_ENABLED
     bool slowMode;           // BYTE_COMFLAG_SLOW
     uint8 attackRoll;        // COMBAT_ATTACKROLL
+    uint8 damage;            // BYTE_DAMAGE
+    int8 moraleModifier;     // COMBAT_MORALE_MOD
+    uint8 behaviorFlags;     // EFFECT_BEHAVE_FLAG (fire/cold/elec/magic damage type)
+    uint8 activeSpellId;     // BYTE_SPELL_INPORCESS
     uint8 membersOnGround;   // C_MEMBERS_ON_GROUND
     bool cloudEffectActive;  // PTR_CLOUD_EFF_HANDLER != 0
     uint8 combatFlag1;       // D_unknownCombatFlag1
@@ -55,6 +59,10 @@ struct CombatGlobals {
         magicEnabled = false;
         slowMode = false;
         attackRoll = 0;
+        damage = 0;
+        moraleModifier = 0;
+        behaviorFlags = 0;
+        activeSpellId = 0;
         membersOnGround = 0;
         cloudEffectActive = false;
         combatFlag1 = 0;

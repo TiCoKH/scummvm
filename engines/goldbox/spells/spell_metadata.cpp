@@ -58,8 +58,9 @@ Common::String getFallbackClassName(
 
 Common::String getStringOrFallback(const Common::String &key,
         const Common::String &fallback) {
-    Common::String value = Goldbox::VmInterface::getString(key);
-    return value.empty() ? fallback : value;
+    if (!Goldbox::g_engine || !Goldbox::g_engine->_strings.contains(key))
+        return fallback;
+    return Goldbox::g_engine->_strings[key];
 }
 
 } // namespace

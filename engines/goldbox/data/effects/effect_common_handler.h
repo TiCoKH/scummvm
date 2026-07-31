@@ -49,7 +49,7 @@ enum CommonEffectFlags : uint32 {
 
 // Apply shared/default behavior for common effect ids.
 // Returns true if handled, false if game-specific handler should process.
-bool tryApplyCommonEffect0(const EffectCall0 &call, Effects effectId);
+bool tryApplyCommonEffect0(const EffectCall &call, Effects effectId);
 
 } // namespace Effects
 } // namespace Data

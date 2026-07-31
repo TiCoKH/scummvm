@@ -38,7 +38,6 @@
 #include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_host_bridge.h"
-#include "goldbox/data/effects/effect_execution_context.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules_types.h"
@@ -1157,17 +1156,8 @@ VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
         if (!effects)
             continue;
 
-        Goldbox::Data::Effects::EffectExecutionContext context;
-        context.actor = character;
-        context.source = character;
-        context.selectedPlayer = character;
-        context.spellTarget = character;
-        context.gameState = VmInterface::getGameStatus();
-        context.inCombat =
-            (VmInterface::getGameStatus() == Goldbox::GS_COMBAT);
-
         runtime.applyTriggerSet(Goldbox::Data::Effects::ETS_POISON_CYCLE,
-            *effects, *character, context);
+            *effects, *character);
     }
 
     if (g_events) {

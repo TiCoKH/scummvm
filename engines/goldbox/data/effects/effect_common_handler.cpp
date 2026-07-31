@@ -86,7 +86,7 @@ static void applyTickDamage(EffectOp op, PlayerCharacter &character,
 
 } // namespace
 
-bool tryApplyCommonEffect0(const EffectCall0 &call, Effects effectId) {
+bool tryApplyCommonEffect0(const EffectCall &call, Effects effectId) {
     PlayerCharacter &character = call.character;
 
     switch (effectId) {
