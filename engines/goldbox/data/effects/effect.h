@@ -38,6 +38,8 @@ enum Effects : uint8 {
     E_BLESSED,
     E_CURSED,
     E_DETECT_MAGIC,
+    // Poolrad flame tongue weapon alias (raw ID 0x06)
+    E_POOLRAD_FLAME_TONGUE_WEAPON = E_DETECT_MAGIC,
     E_IMMUNE_TO_ELECTRICITY,
     E_READ_MAGIC,
     E_PROTECTION_FROM_EVIL,

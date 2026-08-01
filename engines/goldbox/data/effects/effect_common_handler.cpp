@@ -22,6 +22,7 @@
 #include "goldbox/data/effects/effect_common_handler.h"
 
 #include "goldbox/data/player_character.h"
+#include "goldbox/data/rules/rules_types.h"
 
 namespace Goldbox {
 namespace Data {
@@ -177,6 +178,18 @@ static void handleConSavingBonus(const EffectCall &c) {
     c.combat->attackRoll += 2;
 }
 
+static void handleProtectionFromEvil(const EffectCall &c) {
+    if (!c.combat || !c.combat->attacker)
+        return;
+    const uint8 alignment = c.combat->attacker->alignment;
+    if (alignment == Goldbox::Data::A_LAWFUL_EVIL ||
+            alignment == Goldbox::Data::A_NEUTRAL_EVIL ||
+            alignment == Goldbox::Data::A_CHAOTIC_EVIL) {
+        c.combat->savingThrow += 2;
+        c.combat->attackRoll  -= 2;
+    }
+}
+
 static void handleRegen1(const EffectCall &c) {
     applyFlag(c.op, c.character, CEF_REGEN_1);
     if (c.op == EFF_TICK)
@@ -215,8 +228,9 @@ void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_POISON_PLUS_2,    handlePoisonPlus2);
     base.setHandler(E_POISON_PLUS_4,    handlePoisonPlus4);
     base.setHandler(E_POISON_NEG_2,     handlePoisonNeg2);
-    base.setHandler(E_CON_SAVING_BONUS, handleConSavingBonus);
-    base.setHandler(E_REGENERATE_1_HPS, handleRegen1);
+    base.setHandler(E_CON_SAVING_BONUS,       handleConSavingBonus);
+    base.setHandler(E_PROTECTION_FROM_EVIL,    handleProtectionFromEvil);
+    base.setHandler(E_REGENERATE_1_HPS,        handleRegen1);
     base.setHandler(E_REGENERATE_3_HPS, handleRegen3);
     base.setHandler(E_REGEN_3_HP,       handleRegen3);
 }
