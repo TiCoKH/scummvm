@@ -59,14 +59,14 @@ PoolradCharacter::PoolradCharacter() {
 
 void PoolradCharacter::setEffect(uint8 type, uint16 durationMin,
 		uint8 power, bool immediate) {
-	// Route all effect additions through EffectSystem so stacking and
-	// immediate EFF_ADD handler behavior stay consistent across callers
-	// (including script-triggered paths).
+	// The original CHARACTER_setEffect only appends a node to the linked list;
+	// it never fires any handler. Pass immediate=false so applyEffect only
+	// appends without triggering EFF_ADD, matching the original behaviour and
+	// avoiding reentrancy when one handler calls setEffect.
 	Goldbox::Poolrad::EffectHandler effectHandler;
 	Goldbox::Data::Effects::EffectSystem effectSystem(&effectHandler,
 		Goldbox::Poolrad::getEffectHostBridge());
-	effectSystem.applyEffect(effects, *this, type, durationMin, power,
-		immediate);
+	effectSystem.applyEffect(effects, *this, type, durationMin, power, false);
 	recalcCombatStats();
 }
 

@@ -20,165 +20,14 @@
  */
 
 #include "goldbox/poolrad/effect_handler.h"
-#include "common/util.h"
 #include "goldbox/data/combat_state.h"
 #include "goldbox/data/effects/effect_common_handler.h"
-#include "goldbox/data/effects/effect_mapping.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
 namespace Poolrad {
 
 namespace {
-
-static const Goldbox::Data::Effects::Effects kRawMap[] = {
-        Goldbox::Data::Effects::E_NONE,
-        Goldbox::Data::Effects::E_BLESSED,
-        Goldbox::Data::Effects::E_CURSED,
-        Goldbox::Data::Effects::E_SWORD_VS_UNDEAD,
-        Goldbox::Data::Effects::E_DISPEL_EVIL,
-        Goldbox::Data::Effects::E_DETECT_MAGIC,
-        Goldbox::Data::Effects::E_IMMUNE_TO_ELECTRICITY,
-        Goldbox::Data::Effects::E_FAERIE_FIRE,
-        Goldbox::Data::Effects::E_PROTECTION_FROM_EVIL,
-        Goldbox::Data::Effects::E_PROTECTION_FROM_GOOD,
-        Goldbox::Data::Effects::E_RESIST_COLD,
-        Goldbox::Data::Effects::E_CHARM_PERSON,
-        Goldbox::Data::Effects::E_ENLARGE,
-        Goldbox::Data::Effects::E_SUFFOCATE,
-        Goldbox::Data::Effects::E_FRIENDS,
-        Goldbox::Data::Effects::E_POISON_DAMAGE,
-        Goldbox::Data::Effects::E_READ_MAGIC,
-        Goldbox::Data::Effects::E_SHIELD,
-        Goldbox::Data::Effects::E_GNOME_VS_MAN_SIZED_GIANT,
-        Goldbox::Data::Effects::E_FIND_TRAPS,
-        Goldbox::Data::Effects::E_RESIST_FIRE,
-        Goldbox::Data::Effects::E_SILENCE_15_RADIUS,
-        Goldbox::Data::Effects::E_SLOW_POISON,
-        Goldbox::Data::Effects::E_SPIRITUAL_HAMMER,
-        Goldbox::Data::Effects::E_DETECT_INVISIBILITY,
-        Goldbox::Data::Effects::E_INVISIBILITY,
-        Goldbox::Data::Effects::E_DWARF_VS_ORC,
-        Goldbox::Data::Effects::E_FUMBLING,
-        Goldbox::Data::Effects::E_MIRROR_IMAGE,
-        Goldbox::Data::Effects::E_RAY_OF_ENFEEBLEMENT,
-        Goldbox::Data::Effects::E_STINKING_CLOUD,
-        Goldbox::Data::Effects::E_HELPLESS,
-        Goldbox::Data::Effects::E_ANIMATE_DEAD,
-        Goldbox::Data::Effects::E_BLINDED,
-        Goldbox::Data::Effects::E_CAUSE_DISEASE_1,
-        Goldbox::Data::Effects::E_CONFUSE,
-        Goldbox::Data::Effects::E_BESTOW_CURSE,
-        Goldbox::Data::Effects::E_BLINK,
-        Goldbox::Data::Effects::E_STRENGTH,
-        Goldbox::Data::Effects::E_HASTE,
-        Goldbox::Data::Effects::E_COUGHING_FROM_STINKING_CLOUD,
-        Goldbox::Data::Effects::E_PROT_FROM_NORMAL_MISSILES,
-        Goldbox::Data::Effects::E_SLOW,
-        Goldbox::Data::Effects::E_WEAKEN,
-        Goldbox::Data::Effects::E_DISEASE_CONFUSED,
-        Goldbox::Data::Effects::E_PROT_FROM_EVIL_10_RADIUS,
-        Goldbox::Data::Effects::E_PROT_FROM_GOOD_10_RADIUS,
-        Goldbox::Data::Effects::E_DWARF_AND_GNOME_VS_GIANTS,
-        Goldbox::Data::Effects::E_GNOME_LARGE_MONSTER,
-        Goldbox::Data::Effects::E_PRAYER,
-        Goldbox::Data::Effects::E_HOT_FIRE_SHIELD,
-        Goldbox::Data::Effects::E_SNAKE_CHARM,
-        Goldbox::Data::Effects::E_PARALYZE,
-        Goldbox::Data::Effects::E_SLEEP,
-        Goldbox::Data::Effects::E_COLD_FIRE_SHIELD,
-        Goldbox::Data::Effects::E_POISONED,
-        Goldbox::Data::Effects::E_ITEM_INVISIBILITY,
-        Goldbox::Data::Effects::E_ENGULFS,
-        Goldbox::Data::Effects::E_CLEAR_MOVEMENT,
-        Goldbox::Data::Effects::E_REGENERATE_3_HPS,
-        Goldbox::Data::Effects::E_RAKSHASA_RESIST_NORMAL_WEAPONS,
-        Goldbox::Data::Effects::E_FIRE_RESIST,
-        Goldbox::Data::Effects::E_HIGH_CON_REGEN,
-        Goldbox::Data::Effects::E_MINOR_GLOBE_OF_INVULNERABILITY,
-        Goldbox::Data::Effects::E_POISON_PLUS_0,
-        Goldbox::Data::Effects::E_POISON_PLUS_4,
-        Goldbox::Data::Effects::E_POISON_PLUS_2,
-        Goldbox::Data::Effects::E_THRI_KREEN_PARALYZE,
-        Goldbox::Data::Effects::E_FEEBLEMIND,
-        Goldbox::Data::Effects::E_INVISIBLE_TO_ANIMALS,
-        Goldbox::Data::Effects::E_POISON_NEG_2,
-        Goldbox::Data::Effects::E_INVISIBLE,
-        Goldbox::Data::Effects::E_CAMOUFLAGE,
-        Goldbox::Data::Effects::E_PROT_DRAG_BREATH,
-        Goldbox::Data::Effects::E_AFFECT_4A,
-        Goldbox::Data::Effects::E_WEAP_DRAGON_SLAYER,
-        Goldbox::Data::Effects::E_WEAP_FROST_BRAND,
-        Goldbox::Data::Effects::E_BERSERK,
-        Goldbox::Data::Effects::E_AFFECT_4E,
-        Goldbox::Data::Effects::E_FIRE_ATTACK_2D10,
-        Goldbox::Data::Effects::E_ANKHEG_ACID_ATTACK,
-        Goldbox::Data::Effects::E_HALF_DAMAGE,
-        Goldbox::Data::Effects::E_RESIST_FIRE_AND_COLD,
-        Goldbox::Data::Effects::E_PETRIFYING_GAZE,
-        Goldbox::Data::Effects::E_SHAMBLING_ABSORB_LIGHTNING,
-        Goldbox::Data::Effects::E_REDUCE_DAMAGE_TO_ONE_IF_ITEM_FIELD7_AFFECT_55,
-        Goldbox::Data::Effects::E_GIANT_SLUG_SPIT_ACID,
-        Goldbox::Data::Effects::E_BEHOLDER_RAYS_AFFECT_57,
-        Goldbox::Data::Effects::E_BREATH_ELEC,
-        Goldbox::Data::Effects::E_DISPLACE,
-        Goldbox::Data::Effects::E_BREATH_ACID,
-        Goldbox::Data::Effects::E_CLOUD_KILL,
-        Goldbox::Data::Effects::E_FEAR_IMMUNITY,
-        Goldbox::Data::Effects::E_HALF_FIRE_DAMAGE,
-        Goldbox::Data::Effects::E_DAMAGE_REDUCTION,
-        Goldbox::Data::Effects::E_WILD_BOAR_DIE_AFTER_EXTRA_FIGHT_TIME_AFFECT_5F,
-        Goldbox::Data::Effects::E_OWLBEAR_HUG_CHECK,
-        Goldbox::Data::Effects::E_CON_SAVING_BONUS,
-        Goldbox::Data::Effects::E_REGEN_3_HP,
-        Goldbox::Data::Effects::E_WILD_BOAR_AND_BULLETTE_AFFECT_63,
-        Goldbox::Data::Effects::E_TROLL_FIRE_OR_ACID,
-        Goldbox::Data::Effects::E_UNKNOWN_101,
-        Goldbox::Data::Effects::E_UNKNOWN_102,
-        Goldbox::Data::Effects::E_THRI_KREEN_MISSILE_EVASION,
-        Goldbox::Data::Effects::E_RESIST_MAGIC_50,
-        Goldbox::Data::Effects::E_RESIST_MAGIC_15,
-        Goldbox::Data::Effects::E_RESIST_SLEEP_CHARM_90,
-        Goldbox::Data::Effects::E_IMMUNITY_SLEEP_CHARM,
-        Goldbox::Data::Effects::E_IMMUNITY_PARALYSIS,
-        Goldbox::Data::Effects::E_IMMUNITY_COLD,
-        Goldbox::Data::Effects::E_IMMUNITY_PARALYSIS_POISON,
-        Goldbox::Data::Effects::E_IMMUNITY_FIRE,
-        Goldbox::Data::Effects::E_EFREETI_FIRE_RESISTANCE,
-        Goldbox::Data::Effects::E_HALF_DAMAGE_ELECTRICITY,
-        Goldbox::Data::Effects::E_HALF_DAMAGE_PIERCING_SLASHING,
-        Goldbox::Data::Effects::E_HALF_DAMAGE_MAGICAL_WEAPONS,
-        Goldbox::Data::Effects::E_VULNERABILITY_HOLY_WATER,
-        Goldbox::Data::Effects::E_HALF_DAMAGE_COLD,
-        Goldbox::Data::Effects::E_IMMUNITY_NONMAGICAL_WEAPONS,
-        Goldbox::Data::Effects::E_BOULDER_EVASION,
-        Goldbox::Data::Effects::E_ANKHEG_ACID_SQUIRT_ATTACK,
-        Goldbox::Data::Effects::E_VULNERABILITY_FIRE,
-        Goldbox::Data::Effects::E_IMMUNITY_NONMAGICAL_HALF_SILVER,
-        Goldbox::Data::Effects::E_RESIST_SLEEP_CHARM_30,
-        Goldbox::Data::Effects::E_IMMUNITY_SLEEP_CHARM_PARALYSIS_POISON,
-        Goldbox::Data::Effects::E_IMMUNITY_GAZE_ATTACKS,
-        Goldbox::Data::Effects::E_UNIMPLEMENTED_126,
-        Goldbox::Data::Effects::E_ITEM_EFFECT_127,
-        Goldbox::Data::Effects::E_ITEM_EFFECT_128,
-        Goldbox::Data::Effects::E_ITEM_EFFECT_129,
-        Goldbox::Data::Effects::E_EXTRA_STRENGTH_130,
-        Goldbox::Data::Effects::E_ITEM_131,
-        Goldbox::Data::Effects::E_UNKNOWN_132,
-        Goldbox::Data::Effects::E_UNKNOWN_133,
-        Goldbox::Data::Effects::E_UNKNOWN_134,
-        Goldbox::Data::Effects::E_UNKNOWN_135,
-        Goldbox::Data::Effects::E_UNKNOWN_136
-};
-
-static const uint kExpectedRawEffectCount = 0x89;
-static_assert(ARRAYSIZE(kRawMap) == kExpectedRawEffectCount,
-    "kRawMap must remain aligned with expected raw effect id count");
-
-static const Goldbox::Data::Effects::EffectMapping kRawEffectMap = {
-    kRawMap,
-    ARRAYSIZE(kRawMap)
-};
 
 // --- Poolrad-specific handler helpers ---
 
@@ -362,6 +211,24 @@ static void handleExtraStrength(const EffectCall &c) {
     c.combat->damage += 2;
 }
 
+static void handleFlameTongue(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState || !c.character.combatState->target)
+        return;
+    const Goldbox::Poolrad::Data::PoolradCharacter *target =
+        static_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(c.character.combatState->target);
+    int8 bonus = 0;
+    switch (target->monsterType) {
+    case 10: bonus = 1; break;
+    case  9:
+    case 12: bonus = 2; break;
+    case  4: bonus = 3; break;
+    default: break;
+    }
+    c.combat->attackRoll += bonus;
+    c.combat->damage     += bonus;
+    c.combat->behaviorFlags = 9; // DMG_FIRE | DMG_MAGIC
+}
+
 static void handleSwordVsUndead(const EffectCall &c) {
     if (!c.combat || !c.character.combatState || !c.character.combatState->target)
         return;
@@ -383,53 +250,58 @@ static void handleStudyManualBodilyHealth(const EffectCall &c) {
         return;
     if (c.bridge)
         c.bridge->postEffectMessage(&c.character, "starts to train", true);
+    c.character.setEffect(7, 43200, 0xff, true);
 }
 
 static void handleTrainingManualBodilyHealth(const EffectCall &c) {
     if (c.op == EFF_TICK) {
-        c.character.heal(1);
-        return;
-    }
-    if (c.op != EFF_ADD)
-        return;
+        // On the first tick (immediate flag still set), apply the one-time
+        // constitution and HP bonus, matching the original which fired the
+        // handler body on the first game tick after CHARACTER_setEffect.
+        if (c.effect.immediate) {
+            c.effect.immediate = 0;
 
-    Data::PoolradCharacter &ch = asPoolrad(c.character);
+            Data::PoolradCharacter &ch = asPoolrad(c.character);
 
-    if (c.bridge)
-        c.bridge->postEffectMessage(&ch, "is hardier", true);
+            if (c.bridge)
+                c.bridge->postEffectMessage(&ch, "is hardier", true);
 
-    ch.abilities.constitution.current += 1;
+            ch.abilities.constitution.current += 1;
 
-    if (ch.abilities.constitution.current >= 20) {
-        ch.setEffect(0x3e, 0x3c, 0xff, true);
-        return;
-    }
+            if (ch.abilities.constitution.current >= 20) {
+                ch.setEffect(0x3e, 0x3c, 0xff, true);
+                return;
+            }
 
-    if (ch.abilities.constitution.current > 14) {
-        uint8 divisor = 0;
-        for (uint8 i = 0; ; ++i) {
-            const uint8 *slots = &ch.spellSlots.cleric.level1;
-            uint8 slotVal = (i < 6) ? slots[i] : 0;
-            if ((int8)slotVal > 0) {
-                if (i == 2) {
-                    divisor += (ch.abilities.constitution.current - 15) *
-                               ch.levels[Goldbox::Data::C_FIGHTER];
-                } else if (ch.abilities.constitution.current < 16) {
-                    divisor += slotVal;
-                } else {
-                    divisor += slotVal * 2;
+            if (ch.abilities.constitution.current > 14) {
+                uint8 divisor = 0;
+                for (uint8 i = 0; ; ++i) {
+                    const uint8 *slots = &ch.spellSlots.cleric.level1;
+                    uint8 slotVal = (i < 6) ? slots[i] : 0;
+                    if ((int8)slotVal > 0) {
+                        if (i == 2) {
+                            divisor += (ch.abilities.constitution.current - 15) *
+                                       ch.levels[Goldbox::Data::C_FIGHTER];
+                        } else if (ch.abilities.constitution.current < 16) {
+                            divisor += slotVal;
+                        } else {
+                            divisor += slotVal * 2;
+                        }
+                    }
+                    if (i == 7) break;
+                }
+                if (divisor == 0)
+                    divisor = 1;
+                uint8 hpBonus = (ch.hitPoints.max - ch.hitPointsRolled) / divisor;
+                if (ch.abilities.constitution.current < 17 ||
+                        (int8)ch.levels[Goldbox::Data::C_FIGHTER] > 0) {
+                    ch.hitPoints.max     += hpBonus;
+                    ch.hitPoints.current += hpBonus;
                 }
             }
-            if (i == 7) break;
         }
-        if (divisor == 0)
-            divisor = 1;
-        uint8 hpBonus = (ch.hitPoints.max - ch.hitPointsRolled) / divisor;
-        if (ch.abilities.constitution.current < 17 ||
-                (int8)ch.levels[Goldbox::Data::C_FIGHTER] > 0) {
-            ch.hitPoints.max     += hpBonus;
-            ch.hitPoints.current += hpBonus;
-        }
+        c.character.heal(1);
+        return;
     }
 }
 
@@ -505,6 +377,7 @@ void EffectHandler::setupHandlers() {
     setHandler(E_VULNERABILITY_FIRE,            handleSavePenalty2);
     setHandler(E_TROLL_FIRE_OR_ACID,            handleSavePenalty2);
     setHandler(E_EXTRA_STRENGTH_130,            handleExtraStrength);
+    setHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,             handleFlameTongue);
     setHandler(E_SWORD_VS_UNDEAD,                        handleSwordVsUndead);
     setHandler(E_POISON_DAMAGE,                          handlePoisonDamage);
     setHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH,     handleStudyManualBodilyHealth);
@@ -512,7 +385,7 @@ void EffectHandler::setupHandlers() {
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
-    return kRawEffectMap.mapRaw(rawId);
+    return static_cast<Goldbox::Data::Effects::Effects>(rawId);
 }
 
 void EffectHandler::handleNoop(const Goldbox::Data::Effects::EffectCall &) {

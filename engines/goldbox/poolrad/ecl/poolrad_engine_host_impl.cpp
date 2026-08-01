@@ -79,14 +79,19 @@ class PoolradEffectHostBridge : public Goldbox::Data::Effects::EffectHostBridge 
 public:
     void postEffectMessage(Goldbox::Data::PlayerCharacter *character,
             const Common::String &text, bool withDelay) override {
-        (void)character;
         if (!Goldbox::g_events)
             return;
+
+        Common::String msg;
+        if (character && !character->name.empty())
+            msg = character->name + " " + text;
+        else
+            msg = text;
 
         const int16 result = withDelay ? 1 : 0;
         Goldbox::g_events->postEclVmMessage(
             Goldbox::EclVmMessage::makeSyscallWithText(0, 0,
-            Goldbox::EclVmMessage::SC_PRINT_ASYNC, text, result));
+            Goldbox::EclVmMessage::SC_PRINT_ASYNC, msg, result));
     }
 
     void requestRefresh(uint32 refreshFlags) override {

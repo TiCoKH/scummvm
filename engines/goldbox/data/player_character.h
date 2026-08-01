@@ -189,7 +189,7 @@ public:
 	// Effect interface (Pool of Radiance refactor): default no-op so callers can
 	// uniformly invoke setEffect on base character pointers. Derived games that
 	// support status effects should override.
-	virtual void setEffect(uint8 /*type*/, uint16 /*durationMin*/, uint8 /*power*/, bool /*unknown*/) {}
+	virtual void setEffect(uint8 /*type*/, uint16 /*durationMin*/, uint8 /*power*/, bool /*immediate*/) {}
 	// Optional access to the character's effect list for runtime systems.
 	// Returns nullptr by default; games that support effects should override.
 	virtual Goldbox::Data::Effects::CharacterEffects *getEffects() { return nullptr; }
