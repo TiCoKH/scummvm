@@ -21,6 +21,8 @@
 
 #include "goldbox/data/effects/effect_common_handler.h"
 
+#include "goldbox/combat/combat_globals.h"
+#include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/rules_types.h"
 
@@ -117,17 +119,49 @@ static void handleFeeblemind(const EffectCall &c) {
     c.combat->moraleModifier -= 10;
 }
 
-static void handleStrength(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 1;
-    c.combat->damage += 1;
+static void handleFriendly(const EffectCall &c) {
+    c.character.abilities.charisma.current = c.effect.power;
 }
 
-static void handleEnlarge(const EffectCall &c) {
-    if (!c.combat)
+static void handleEnlargeStrengthened(const EffectCall &c) {
+    if (c.effect.power >= 128)
         return;
-    c.combat->damage += 1;
+
+    uint8 newStr, newExt;
+    strengthDecode(c.effect.power, newStr, newExt);
+    c.character.abilities.strength.current    = newStr;
+    c.character.abilities.strException.current = newExt;
+
+    // Find the strongest other active strength/enlarge effect (e_id 12 or 38)
+    // and if it beats the current character strength, promote it.
+    CharacterEffects *fx = c.character.getEffects();
+    if (!fx)
+        return;
+
+    Effect *bestEffect = nullptr;
+    uint8 bestStr = 0, bestExt = 0;
+    Common::List<Effect> &list = fx->effects();
+    for (Common::List<Effect>::iterator it = list.begin(); it != list.end(); ++it) {
+        Effect &e = *it;
+        if (&e == &c.effect)
+            continue;
+        if (e.type != E_STRENGTH && e.type != E_ENLARGE)
+            continue;
+        uint8 eStr, eExt;
+        strengthDecode(e.power, eStr, eExt);
+        if (eStr > bestStr || (eStr == 18 && bestStr == 18 && eExt > bestExt)) {
+            bestEffect = &e;
+            bestStr    = eStr;
+            bestExt    = eExt;
+        }
+    }
+
+    if (bestEffect) {
+        bestEffect->power = strengthEncode(c.character.abilities.strength.current,
+                                           c.character.abilities.strException.current);
+        c.character.abilities.strength.current    = bestStr;
+        c.character.abilities.strException.current = bestExt;
+    }
 }
 
 static void handleReduce(const EffectCall &c) {
@@ -190,6 +224,27 @@ static void handleProtectionFromEvil(const EffectCall &c) {
     }
 }
 
+static void handleProtectionFromGood(const EffectCall &c) {
+    if (!c.combat || !c.combat->attacker)
+        return;
+    const uint8 alignment = c.combat->attacker->alignment;
+    if (alignment == Goldbox::Data::A_LAWFUL_GOOD ||
+            alignment == Goldbox::Data::A_NEUTRAL_GOOD ||
+            alignment == Goldbox::Data::A_CHAOTIC_GOOD) {
+        c.combat->savingThrow += 2;
+        c.combat->attackRoll  -= 2;
+    }
+}
+
+static void handleResistCold(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    if (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_COLD) {
+        c.combat->damage >>= 1;
+        c.combat->savingThrow += 3;
+    }
+}
+
 static void handleRegen1(const EffectCall &c) {
     applyFlag(c.op, c.character, CEF_REGEN_1);
     if (c.op == EFF_TICK)
@@ -200,6 +255,26 @@ static void handleRegen3(const EffectCall &c) {
     applyFlag(c.op, c.character, CEF_REGEN_3);
     if (c.op == EFF_TICK)
         c.character.heal(3);
+}
+
+static void handleCharm(const EffectCall &c) {
+    if (c.op == EFF_REMOVE) {
+        c.character.hostile = (c.effect.power & 0x40) != 0;
+        if (c.character.npc == (int8)0xb3)
+            c.character.npc = 0;
+    } else if (c.op == EFF_ADD) {
+        if (c.effect.power & 0x20)
+            return;
+        c.effect.power = (uint8)(0x20 + (c.character.hostile ? 0x40 : 0x00) + c.effect.power);
+        c.character.hostile = false;
+        c.character.quickfight = true;
+        if (!(c.character.npc & (int8)0x80))
+            c.character.npc = (int8)0xb3;
+        if (c.character.combatState)
+            c.character.combatState->target = nullptr;
+        if (c.combat)
+            c.combat->moraleModifier = 100;
+    }
 }
 
 } // namespace
@@ -219,8 +294,9 @@ void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_FUMBLING,         handleFumbling);
     base.setHandler(E_WEAKEN,           handleWeaken);
     base.setHandler(E_FEEBLEMIND,       handleFeeblemind);
-    base.setHandler(E_STRENGTH,         handleStrength);
-    base.setHandler(E_ENLARGE,          handleEnlarge);
+    base.setHandler(E_FRIENDS,           handleFriendly);
+    base.setHandler(E_STRENGTH,         handleEnlargeStrengthened);
+    base.setHandler(E_ENLARGE,           handleEnlargeStrengthened);
     base.setHandler(E_REDUCE,           handleReduce);
     base.setHandler(E_BERSERK,          handleBerserk);
     base.setHandler(E_POISONED,         handlePoisoned);
@@ -230,9 +306,12 @@ void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_POISON_NEG_2,     handlePoisonNeg2);
     base.setHandler(E_CON_SAVING_BONUS,       handleConSavingBonus);
     base.setHandler(E_PROTECTION_FROM_EVIL,    handleProtectionFromEvil);
-    base.setHandler(E_REGENERATE_1_HPS,        handleRegen1);
+    base.setHandler(E_PROTECTION_FROM_GOOD,    handleProtectionFromGood);
+    base.setHandler(E_RESIST_COLD,              handleResistCold);
+    base.setHandler(E_REGENERATE_1_HPS,         handleRegen1);
     base.setHandler(E_REGENERATE_3_HPS, handleRegen3);
     base.setHandler(E_REGEN_3_HP,       handleRegen3);
+    base.setHandler(E_CHARM_PERSON,     handleCharm);
 }
 
 } // namespace Effects
