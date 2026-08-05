@@ -20,6 +20,8 @@
  */
 
 #include "goldbox/data/player_character.h"
+#include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/effects/effect.h"
 
 namespace Goldbox {
 namespace Data {
@@ -128,6 +130,39 @@ int8 PlayerCharacter::getDexSpeedBonus() const {
     if (dex <= 23) return 4;
     if (dex <= 25) return 5;
     return 0;
+}
+
+bool PlayerCharacter::applyStrengthChange(uint8 newStr, uint8 newExtStr, uint8 &outEncoded) {
+    const uint8 oldStr    = abilities.strength.current;
+    const uint8 oldExtStr = abilities.strException.current;
+
+    // Debuff: new strength is lower
+    if (newStr < oldStr || (newStr == 18 && oldStr == 18 && newExtStr < oldExtStr)) {
+        outEncoded = Effects::strengthEncode(newStr, newExtStr) & 0x7f;
+        return false;
+    }
+
+    // Buff: find first active strength/enlarge effect to store the backup
+    Effects::CharacterEffects *fx = getEffects();
+    if (fx) {
+        Common::List<Effects::Effect> &list = fx->effects();
+        for (Common::List<Effects::Effect>::iterator it = list.begin();
+                it != list.end(); ++it) {
+            Effects::Effect &e = *it;
+            if ((e.type == Effects::E_STRENGTH || e.type == Effects::E_ENLARGE)
+                    && e.power < 0x80) {
+                e.power = Effects::strengthEncode(oldStr, oldExtStr) | 0x80;
+                break;
+            }
+        }
+    }
+
+    abilities.strength.current    = newStr;
+    abilities.strException.current = newExtStr;
+    onEffectsChanged();
+
+    outEncoded = Effects::strengthEncode(newStr, newExtStr);
+    return true;
 }
 
 } // namespace Data

@@ -158,6 +158,8 @@ public:
 	bool enabled = false;
 	bool hostile = false;
 	bool quickfight = false;
+	// Bit 7 = NPC flag; bits 6-0 = morale (0-127).
+	int8 npc = 0;
 
 	// Effects runtime state (flags + modifiers).
 	EffectState effectState;
@@ -196,6 +198,11 @@ public:
 	// Notified whenever active effects may have changed and derived stats should
 	// be refreshed.
 	virtual void onEffectsChanged() {}
+
+	// Apply a strength change (buff or debuff) to this character.
+	// Encodes new_str/new_ext_str into *outEncoded (bit 7 = active marker).
+	// Returns true if a buff was applied, false if a debuff.
+	virtual bool applyStrengthChange(uint8 newStr, uint8 newExtStr, uint8 &outEncoded);
 
 	//-----------------------------------------------------------
 	// Common logic

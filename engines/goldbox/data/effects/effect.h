@@ -235,6 +235,25 @@ struct Effect {
     }
 };
 
+// Pack str/ext_str into an effect power byte.
+// str == 18 : power = ext_str + 1   (values 1-101, ext_str 0-100)
+// str != 18 : power = str + 100     (values 102+)
+inline uint8 strengthEncode(uint8 str, uint8 extStr) {
+    return (str == 18) ? (uint8)(extStr + 1) : (uint8)(str + 100);
+}
+
+// Unpack an effect power byte back into str / ext_str.
+inline void strengthDecode(uint8 power, uint8 &outStr, uint8 &outExtStr) {
+    outExtStr = 0;
+    uint8 v = power & 0x7f;
+    if (v < 102) {
+        outStr    = 18;
+        outExtStr = (uint8)(v - 1);
+    } else {
+        outStr = (uint8)(v + 156); // equivalent to v - 100 in uint8 arithmetic
+    }
+}
+
 } // namespace Effects
 } // namespace Data
 } // namespace Goldbox

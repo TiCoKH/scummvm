@@ -66,10 +66,6 @@ static void handleImmuneElec(const EffectCall &c) {
     applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_IMMUNE_ELEC);
 }
 
-static void handleResistCold(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_RESIST_COLD);
-}
-
 static void handleResistFire(const EffectCall &c) {
     applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_RESIST_FIRE);
 }
@@ -171,9 +167,7 @@ static void handleImmunitySleepCharm(const EffectCall &c) {
 }
 
 static void handleImmunityCold(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character),
-        Data::PoolradCharacter::EF_RESIST_COLD |
-        Data::PoolradCharacter::EF_HALF_DAMAGE);
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_HALF_DAMAGE);
 }
 
 static void handleImmunityFire(const EffectCall &c) {
@@ -324,7 +318,6 @@ void EffectHandler::setupHandlers() {
     setHandler(E_ITEM_INVISIBILITY,             handleItemInvisibility);
     setHandler(E_CAMOUFLAGE,                    handleCamouflage);
     setHandler(E_IMMUNE_TO_ELECTRICITY,         handleImmuneElec);
-    setHandler(E_RESIST_COLD,                   handleResistCold);
     setHandler(E_RESIST_FIRE,                   handleResistFire);
     setHandler(E_RESIST_FIRE_AND_COLD,          handleResistFireAndCold);
     setHandler(E_FIRE_RESIST,                   handleFireResist);
