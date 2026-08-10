@@ -35,7 +35,7 @@
 #include "goldbox/engine.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
-#include "goldbox/data/effects/effect_utils.h"
+#include "goldbox/data/damage_utils.h"
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 
 namespace Goldbox {
@@ -279,7 +279,7 @@ void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
     if (r.finalDamage == 0)
         return;
 
-    const Common::String msg = ::Goldbox::Data::Effects::EffectUtils::buildDamageMessage(
+    const Common::String msg = ::Goldbox::Data::DamageUtils::buildDamageMessage(
             r.finalDamage, r.behaviorFlags);
     const bool isMagic =
             (r.behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) == r.behaviorFlags;

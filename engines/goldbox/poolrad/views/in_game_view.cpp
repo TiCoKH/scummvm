@@ -33,10 +33,9 @@
 #include "goldbox/poolrad/views/dialogs/temple_dialog.h"
 #include "goldbox/poolrad/views/dialogs/treasure_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
-#include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/data/damage_system.h"
-#include "goldbox/data/effects/effect_utils.h"
+#include "goldbox/data/damage_utils.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/runtime/runtime_exchange.h"
@@ -364,9 +363,9 @@ void InGameView::draw() {
 	// Camp dialog takes over left panel + menu when active.
 	if (_campMenuDialog && _campMenuDialog->isActive()) {
 		// Tick campfire animation from the view's draw cycle.
-		if (Poolrad::g_engine) {
+		if (g_engine) {
 			::Goldbox::Gfx::PictureDisplayCache &cache =
-				Poolrad::g_engine->getPictureDisplayCache();
+				g_engine->getPictureDisplayCache();
 			if (cache.tickAnimation())
 				_mainScreenDialog->draw(); // Redraw viewport with new frame.
 		}
@@ -497,7 +496,7 @@ bool InGameView::msgKeypress(const KeypressMessage &msg) {
 	if ((_state == GS_DUNGEON_MAP || _state == GS_WILDERNESS_MAP
 			|| _state == GS_CAMPING || _state == GS_AFTER_COMBAT
 			|| _state == GS_COMBAT)
-			&& !(g_engine && g_engine->getLegacySharedRuntimeState().boolSuspendFlag)
+			&& !VmInterface::isRuntimeSuspended()
 			&& !(_inGameMenuDialog && _inGameMenuDialog->isActive()))
 		if (handleDungeonKeypress(msg))
 			return true;
@@ -581,7 +580,7 @@ void InGameView::applyDamageMessage(Goldbox::Data::PlayerCharacter *ch,
 		? 0xff
 		: static_cast<uint8>(r.applied);
 
-	const Common::String msg = Goldbox::Data::Effects::EffectUtils::buildDamageMessage(
+	const Common::String msg = Goldbox::Data::DamageUtils::buildDamageMessage(
 			finalDamage, 0);
 	if (_textBoxDialog) {
 		if (!_textBoxDialog->isActive())
@@ -635,14 +634,14 @@ void InGameView::handleMenuResult(const MenuResultMessage &result) {
 		if (result._hasIntValue &&
 				result._intValue == Dialogs::DoorDialog::kDoorOpened) {
 			// Door opened — play step sound and advance forward.
-			if (Poolrad::g_engine)
-				Poolrad::g_engine->soundPlay(0x0B);
+			if (g_engine)
+				g_engine->soundPlay(0x0B);
 			stepForward();
 			queueCommand(kCmdMove);
 		} else {
 			// Door blocked — play blocked sound.
-			if (Poolrad::g_engine)
-				Poolrad::g_engine->soundPlay(0x08);
+			if (g_engine)
+				g_engine->soundPlay(0x08);
 		}
 		redraw();
 		return;
@@ -749,16 +748,8 @@ void InGameView::handleInGameMenuKey(char key) {
 void InGameView::syncDirectionAndRedraw() {
 	if (!g_engine)
 		return;
-	// The direction field address can be obtained from the layout,
-	// but since poolrad.h is included we can cast and use getEclMemory.
-	// Simpler: just write cardinal direction at the known offset.
-	// kVmGlobalFieldDungeonDir is at offset within bank 4.
-	// We already have the address from the snapshot system.
-	// Actually just use the Poolrad engine's writeDirection helper.
-	Poolrad::PoolradEngine *pe = Poolrad::g_engine;
-	if (pe) {
-		pe->syncViewDirection(static_cast<uint8>((_mapDir / 2) & 0x03));
-	}
+
+	VmInterface::syncViewDirection(static_cast<uint8>((_mapDir / 2) & 0x03));
 }
 
 void InGameView::setInGameMenuVisible(bool visible) {
@@ -797,8 +788,8 @@ bool InGameView::tick() {
 	_textBoxWasBusy = busy;
 
 	// Keep view dirty while camp animation is active.
-	if (_campMenuDialog && _campMenuDialog->isActive() && Poolrad::g_engine
-			&& Poolrad::g_engine->getPictureDisplayCache().isAnimated())
+	if (_campMenuDialog && _campMenuDialog->isActive() && g_engine
+			&& g_engine->getPictureDisplayCache().isAnimated())
 		redraw();
 
 	return UIElement::tick();
@@ -815,7 +806,7 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 			return;
 		case EclVmMessage::ST_POSITION_DIRTY: {
 			RuntimeMapSnapshot snapshot;
-			if (g_engine->captureRuntimeMapSnapshot(snapshot) && snapshot.valid) {
+			if (VmInterface::captureRuntimeMapSnapshot(snapshot) && snapshot.valid) {
 				setMapPosition(snapshot.dungeonX, snapshot.dungeonY,
 					static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2));
 				_searchMode = snapshot.searchActive;
@@ -979,8 +970,8 @@ void InGameView::exitCamp(bool wasInterrupted) {
 		_campMenuDialog->deactivate();
 
 	// Restore previous dungeon state via engine.
-	if (Poolrad::g_engine) {
-		Poolrad::g_engine->setGameState(GS_DUNGEON_MAP);
+	if (g_engine) {
+		g_engine->setGameState(GS_DUNGEON_MAP);
 		if (g_events) {
 			g_events->postEclStateMessage(EclVmMessage::ST_INGAME_MENU_VISIBLE,
 				1, EclVmMessage::VT_UINT8);
@@ -1041,8 +1032,8 @@ void InGameView::exitShop() {
 		exchange->signalAsync(RuntimeExchange::kAsyncShopDone);
 
 	// Restore previous dungeon state via engine.
-	if (Poolrad::g_engine) {
-		Poolrad::g_engine->setGameState(GS_DUNGEON_MAP);
+	if (g_engine) {
+		g_engine->setGameState(GS_DUNGEON_MAP);
 		if (g_events) {
 			g_events->postEclStateMessage(EclVmMessage::ST_INGAME_MENU_VISIBLE,
 				1, EclVmMessage::VT_UINT8);

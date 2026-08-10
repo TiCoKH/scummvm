@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_DATA_EFFECTS_EFFECT_UTILS_H
-#define GOLDBOX_DATA_EFFECTS_EFFECT_UTILS_H
+#ifndef GOLDBOX_DATA_DAMAGE_UTILS_H
+#define GOLDBOX_DATA_DAMAGE_UTILS_H
 
 #include "common/scummsys.h"
 #include "common/str.h"
@@ -28,16 +28,8 @@
 
 namespace Goldbox {
 namespace Data {
-namespace Effects {
 
-/**
- * Shared formatting helpers for effect-driven damage messages.
- *
- * Keeps the presentation logic close to the effect runtime layer so combat
- * and in-game views can reuse the same wording without depending on a view-
- * specific utility.
- */
-class EffectUtils {
+class DamageUtils {
 public:
     static Common::String buildDamageMessage(uint8 finalDamage,
             uint8 behaviorFlags) {
@@ -69,8 +61,7 @@ public:
     }
 };
 
-} // namespace Effects
 } // namespace Data
 } // namespace Goldbox
 
-#endif // GOLDBOX_DATA_EFFECTS_EFFECT_UTILS_H
+#endif // GOLDBOX_DATA_DAMAGE_UTILS_H

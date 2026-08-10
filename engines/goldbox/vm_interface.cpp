@@ -37,4 +37,23 @@ uint8 VmInterface::getGameSpeed() {
 	return engine ? engine->getGameSpeed() : 1;
 }
 
+void VmInterface::syncViewDirection(uint8 cardinal) {
+	Poolrad::PoolradEngine *engine =
+		dynamic_cast<Poolrad::PoolradEngine *>(g_engine);
+	if (engine)
+		engine->syncViewDirection(cardinal);
+}
+
+bool VmInterface::isRuntimeSuspended() {
+	Poolrad::PoolradEngine *engine =
+		dynamic_cast<Poolrad::PoolradEngine *>(g_engine);
+	return engine ? engine->getLegacySharedRuntimeState().boolSuspendFlag : false;
+}
+
+bool VmInterface::captureRuntimeMapSnapshot(RuntimeMapSnapshot &snapshot) {
+	Poolrad::PoolradEngine *engine =
+		dynamic_cast<Poolrad::PoolradEngine *>(g_engine);
+	return engine ? engine->captureRuntimeMapSnapshot(snapshot) : false;
+}
+
 } // namespace Goldbox
