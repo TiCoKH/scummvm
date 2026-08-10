@@ -52,7 +52,9 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
 
         combatantCount++;
 
-        // Allocate and zero-fill combat state
+        // Allocate and zero-fill combat state.
+        // Contract: combatState is valid only during tactical combat.
+        // This replaces legacy global BYTE_GAME_STATE == GS_COMBAT checks.
         delete ch->combatState;
         ch->combatState = new Data::CombatAction();
 
@@ -86,6 +88,8 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
 void freeCombatStates(Common::Array<Data::PlayerCharacter *> &combatants) {
     for (uint i = 0; i < combatants.size(); i++) {
         if (combatants[i]) {
+            // End of combat lifetime: clear combatState so non-combat code can
+            // reliably use null checks as the combat-context guard.
             delete combatants[i]->combatState;
             combatants[i]->combatState = nullptr;
         }

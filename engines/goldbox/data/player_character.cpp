@@ -22,6 +22,7 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect.h"
+#include "goldbox/data/rules/rules_types.h"
 
 namespace Goldbox {
 namespace Data {
@@ -32,10 +33,51 @@ PlayerCharacter::~PlayerCharacter() {
 }
 
 void PlayerCharacter::damage(uint8 amount) {
-    if (amount >= hitPoints.current)
-        hitPoints.current = 0;
-    else
-        hitPoints.current -= amount;
+    const uint8 currentHp = hitPoints.current;
+    uint8 remainingHp = 0;
+    uint8 damageOverkill = 0;
+
+    if (currentHp < amount) {
+        damageOverkill = amount - currentHp;
+        remainingHp = 0;
+    } else {
+        remainingHp = currentHp - amount;
+    }
+
+    // Legacy status transitions:
+    // - <10 overkill normally avoids immediate death.
+    // - exact zero HP normally becomes unconscious.
+    // - animated at zero HP dies immediately (special case).
+    if ((damageOverkill < 10) &&
+        (remainingHp != 0 || healthStatus != S_ANIMATED)) {
+        if (damageOverkill == 0) {
+            if (remainingHp == 0)
+                healthStatus = S_UNCONSCIOUS;
+        } else {
+            healthStatus = S_DYING;
+            // Original game gated this with a global combat-state check
+            // (BYTE_GAME_STATE == GS_COMBAT). In this engine, combatState
+            // is allocated only during combat and null otherwise.
+            if (combatState)
+                combatState->bleeding = damageOverkill;
+        }
+    } else {
+        healthStatus = S_DEAD;
+    }
+
+    // Only OKAY/ANIMATED remain active with remaining HP.
+    if (healthStatus == S_OKAY || healthStatus == S_ANIMATED) {
+        hitPoints.current = remainingHp;
+        return;
+    }
+
+    // Inactive state handling.
+    enabled = false;
+    hitPoints.current = 0;
+    // Legacy equivalent of the same global combat-state check; delay is a
+    // combat-only field, so guard with combatState lifetime instead.
+    if (combatState)
+        combatState->delay = 0;
 }
 
 void PlayerCharacter::heal(uint8 amount) {
