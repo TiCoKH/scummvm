@@ -84,6 +84,11 @@ DamageResult applyDamage(CombatContext &ctx,
                             ch->healthStatus == Data::S_STONED);
         result.isDying   = (ch->healthStatus == Data::S_DYING);
 
+        // Legacy logic decremented SIDE_MEMBERS immediately.
+        // Here side counts are derived from roster, so refresh once the
+        // character transitions to a disabled state.
+        ctx.updateSideCount();
+
         if (effectRuntime && ch->getEffects()) {
             ch->getEffects()->clear();
             effectRuntime->applyTriggerSet(ETS_ON_DEATH,
