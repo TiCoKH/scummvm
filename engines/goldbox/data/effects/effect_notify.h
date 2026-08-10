@@ -37,6 +37,7 @@ static inline bool isStatusPanelEffect(Effects effectType) {
     case E_SLEEP:
     case E_HELPLESS:
     case E_BLINDED:
+    case E_POISON_DAMAGE:
     case E_POISONED:
     case E_POISON_PLUS_0:
     case E_POISON_PLUS_2:

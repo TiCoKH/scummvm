@@ -23,7 +23,6 @@
 
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/data/effects/character_effects.h"
-#include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/rules_types.h"
 
 namespace Goldbox {
@@ -178,6 +177,24 @@ static void handleBerserk(const EffectCall &c) {
     c.combat->moraleModifier += 10;
 }
 
+static void handlePoisonDamage(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_POISONED);
+    if (c.character.hitPoints.current <= 1)
+        return;
+
+    if (c.op != EFF_ADD && c.op != EFF_TICK)
+        return;
+
+    // The effect layer only declares the damage fact.
+    // DamageSystem routes execution to host combat/map integration.
+    if (c.damage) {
+        c.damage->apply(c.character,
+                Goldbox::Data::DamageRequest(1, false));
+    } else {
+        c.character.damage(1);
+    }
+}
+
 static void handlePoisoned(const EffectCall &c) {
     applyFlag(c.op, c.character, CEF_POISONED);
 }
@@ -299,6 +316,7 @@ void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_ENLARGE,           handleEnlargeStrengthened);
     base.setHandler(E_REDUCE,           handleReduce);
     base.setHandler(E_BERSERK,          handleBerserk);
+    base.setHandler(E_POISON_DAMAGE,    handlePoisonDamage);
     base.setHandler(E_POISONED,         handlePoisoned);
     base.setHandler(E_POISON_PLUS_0,    handlePoisonPlus0);
     base.setHandler(E_POISON_PLUS_2,    handlePoisonPlus2);

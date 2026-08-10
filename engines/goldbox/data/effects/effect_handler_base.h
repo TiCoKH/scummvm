@@ -25,6 +25,7 @@
 #include "common/hashmap.h"
 #include "common/scummsys.h"
 #include "goldbox/combat/combat_globals.h"
+#include "goldbox/data/damage_system.h"
 #include "goldbox/data/effects/effect.h"
 #include "goldbox/data/effects/effect_host_bridge.h"
 #include "goldbox/data/player_character.h"
@@ -49,13 +50,16 @@ struct EffectCall {
     Goldbox::Data::PlayerCharacter &character;
     Combat::CombatGlobals *combat;
     EffectHostBridge *bridge;
+    DamageSystem *damage;
 
     EffectCall(EffectOp operation, Effect &effectRef,
             Goldbox::Data::PlayerCharacter &characterRef,
             Combat::CombatGlobals *combatGlobals = nullptr,
-            EffectHostBridge *hostBridge = nullptr)
+            EffectHostBridge *hostBridge = nullptr,
+            DamageSystem *damageSystem = nullptr)
             : op(operation), effect(effectRef), character(characterRef),
-              combat(combatGlobals), bridge(hostBridge) {
+              combat(combatGlobals), bridge(hostBridge),
+              damage(damageSystem) {
     }
 };
 

@@ -127,6 +127,36 @@ public:
             focused->redraw();
     }
 
+    void applyDamage(Goldbox::Data::PlayerCharacter *character,
+            uint8 baseDamage, Goldbox::Data::DamageModifier modifier,
+            bool applyModifier) override {
+        if (!character)
+            return;
+
+        Goldbox::Poolrad::PoolradEngine *poolEngine =
+            dynamic_cast<Goldbox::Poolrad::PoolradEngine *>(Goldbox::g_engine);
+        if (!poolEngine)
+            return;
+
+        Goldbox::Poolrad::Views::CombatView *combatView =
+            dynamic_cast<Goldbox::Poolrad::Views::CombatView *>(
+                poolEngine->findView("Combat"));
+        if (combatView) {
+            combatView->applyDamageMessage(character, baseDamage,
+                    modifier, applyModifier);
+            return;
+        }
+
+        Goldbox::Poolrad::Views::InGameView *inGameView =
+            dynamic_cast<Goldbox::Poolrad::Views::InGameView *>(
+                poolEngine->findView("InGame"));
+        if (!inGameView)
+            return;
+
+        inGameView->applyDamageMessage(character, baseDamage,
+                modifier, applyModifier);
+    }
+
     void notifyStatusChanged(Goldbox::Data::PlayerCharacter *character,
             uint8 oldStatus, uint8 newStatus) override {
         (void)character;
