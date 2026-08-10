@@ -21,8 +21,13 @@
 
 #include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/combat/combat_setup.h"
+#include "goldbox/combat/combat_damage.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
+#include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/rules/rules_types.h"
+#include "goldbox/gfx/pic.h"
 #include "goldbox/poolrad/data/poolrad_tile_props.h"
 #include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/gfx/icon_manager.h"
@@ -245,6 +250,172 @@ void CombatView::drawUI() {
                         kViewportX + kViewportPixelW + 1,
                         kViewportY + kViewportPixelH + 1);
     s.frameRect(vpRect, 15);
+}
+
+void CombatView::applyDamageMessage(Goldbox::Data::PlayerCharacter *ch,
+        uint8 baseDamage, Combat::DamageModifier modifier, bool applyModifier) {
+    using namespace Data::Effects;
+
+    Combat::CombatContext ctx = makeContext();
+    const Combat::DamageResult r = Combat::applyDamage(
+            ctx, ch, baseDamage, modifier, applyModifier, _effectRuntime);
+
+    if (r.finalDamage == 0)
+        return;
+
+    // Build and post damage message.
+    Common::String msg;
+    if (r.finalDamage == 1) {
+        msg = "takes 1 point of damage";
+    } else {
+        msg = Common::String::format("takes %u points of damage",
+                (unsigned)r.finalDamage);
+    }
+
+    // Elemental source: original masks out DMG_MAGIC (bit 3) with 0xf7
+    // before the switch, so elemental and magic are checked separately.
+    const uint8 elemFlags = r.behaviorFlags & 0xf7;
+    if (elemFlags & Combat::CombatGlobals::DMG_FIRE)
+        msg += " from Fire";
+    else if (elemFlags & Combat::CombatGlobals::DMG_COLD)
+        msg += " from Cold";
+    else if (elemFlags & Combat::CombatGlobals::DMG_ELECTRICITY)
+        msg += " from Electricity";
+    else if (elemFlags & Combat::CombatGlobals::DMG_ACID)
+        msg += " from Acid";
+    // only DMG_MAGIC set and no other bits.
+    const bool isMagic =
+        (r.behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) == r.behaviorFlags;
+    if (isMagic)
+        msg += " from Magic";
+
+    drawDamage(ch, isMagic, msg);
+
+    if (r.spellLost && _bridge)
+        _bridge->postEffectMessage(ch, "lost a spell", true);
+
+    if (r.wentDown) {
+        Common::String downMsg = r.wasKilled ? "is killed" : "Goes Down";
+        if (!r.wasKilled && r.isDying)
+            downMsg += " and is Dying";
+        if (_bridge)
+            _bridge->postEffectMessage(ch, downMsg, false);
+
+        if (!ch->enabled)
+            handleDeathOnMap(ch);
+        else if (_bridge)
+            _bridge->requestRefresh(EffectHostBridge::RF_VIEWPORT);
+    }
+
+    if (_bridge)
+        _bridge->requestRefresh(EffectHostBridge::RF_STATUS_PANEL);
+}
+
+void CombatView::handleDeathOnMap(Data::PlayerCharacter *ch) {
+    // TODO: remove character token from battlefield, update ground state.
+    // Mirrors COMBAT_HandleDeathOnMap.
+    (void)ch;
+    _needsFullRedraw = true;
+    if (_bridge)
+        _bridge->requestRefresh(Data::Effects::EffectHostBridge::RF_VIEWPORT);
+}
+
+void CombatView::drawDamage(Data::PlayerCharacter *ch,
+        bool isMagic, const Common::String &message) {
+    // Outside combat: message only, no animation.
+    if (_phase == PHASE_NONE || _phase == PHASE_ENDED) {
+        if (_bridge)
+            _bridge->postEffectMessage(ch, message, true);
+        return;
+    }
+
+    // Tile IDs: 0x16 = magic damage effect, 0x17 = normal damage effect.
+    // Each is a 4-frame sprite strip in SPRIT.DAX.
+    const uint8 effectTileId = isMagic ? 0x16 : 0x17;
+
+    // Load all 4 effect frames up front.
+    Gfx::Pic *frames[4] = {};
+    Data::DaxBlockContainer &sprit = g_engine->getDaxSprit();
+    Data::DaxBlock *block = sprit.getBlockById(effectTileId);
+    Data::DaxBlockSprit *spritBlock =
+            block ? dynamic_cast<Data::DaxBlockSprit *>(block) : nullptr;
+    if (spritBlock) {
+        for (int f = 0; f < 4; ++f)
+            frames[f] = Gfx::Pic::readSpriteFrame(spritBlock, f);
+    }
+
+    // Ensure character is visible; scroll viewport if needed.
+    const int idx = _table.findIndex(ch);
+    if (idx >= 0) {
+        const uint8 col = _table.getTileCol(idx);
+        const uint8 row = _table.getTileRow(idx);
+        if (!_viewport.isTileVisible(col, row)) {
+            _viewport.adjustToInclude(col, row);
+            _table.setViewportOrigin(_viewport.getTopLeftCol(),
+                                     _viewport.getTopLeftRow());
+            drawViewport();
+            drawCombatants();
+            g_system->updateScreen();
+        }
+    }
+
+    // Sound.
+    // SOUND_ID_MAGIC_DAMAGE = 6, SOUND_ID_NORMAL_DAMAGE = 5 (Poolrad values).
+    g_engine->soundPlay(isMagic ? 6 : 5);
+
+    // Post the damage message.
+    if (_bridge)
+        _bridge->postEffectMessage(ch, message, false);
+
+    // Animation: magic repeats CFG_GAME_SPEED times, normal runs once.
+    // CFG_GAME_SPEED maps to g_engine->getTextDelay() (1-5).
+    const int repeatCount = isMagic ? (int)g_engine->getTextDelay() : 0;
+
+    // Pixel position of the character in the viewport.
+    // colDist/rowDist are viewport-local tile coords (0-based).
+    int pixX = kViewportX;
+    int pixY = kViewportY;
+    if (idx >= 0) {
+        pixX = kViewportX + _table.getColDist(idx) * kTileSize;
+        pixY = kViewportY + _table.getRowDist(idx) * kTileSize;
+    }
+
+    Surface screenSurface = getSurface();
+    Graphics::ManagedSurface *screen = static_cast<Graphics::ManagedSurface *>(&screenSurface);
+
+    for (int rep = 0; rep <= repeatCount; ++rep) {
+        for (int f = 0; f < 4; ++f) {
+            if (frames[f])
+                drawDamageFrame(frames[f], pixX, pixY, screen);
+
+            g_system->updateScreen();
+            g_system->delayMillis(46); // mirrors Wait_cycle(0x46)
+
+            // Restore underlying tile by reblitting the tilemap region.
+            Common::Rect tileRect(pixX, pixY,
+                                  pixX + kTileSize, pixY + kTileSize);
+            Common::Rect srcRect(pixX - kViewportX, pixY - kViewportY,
+                                 pixX - kViewportX + kTileSize,
+                                 pixY - kViewportY + kTileSize);
+            _tilemap.blitTo(screen,
+                            Common::Point(tileRect.left, tileRect.top),
+                            srcRect);
+        }
+    }
+
+    g_system->updateScreen();
+
+    // Normal damage: one extra wait after animation.
+    if (repeatCount == 0)
+        g_system->delayMillis(200);
+
+    for (int f = 0; f < 4; ++f)
+        delete frames[f];
+}
+
+void CombatView::drawDamageFrame(const Gfx::Pic *frame, int pixX, int pixY,
+        Graphics::ManagedSurface *dst) {
+    frame->trDraw(dst, pixX, pixY, frame->getTransparentIndex());
 }
 
 } // namespace Views

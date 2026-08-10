@@ -34,6 +34,21 @@
 #include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/gfx/combat_renderer.h"
 
+// Forward declarations — avoid pulling full headers into the Poolrad::Views
+// namespace where unqualified 'Data::' would resolve to Goldbox::Poolrad::Data.
+namespace Goldbox {
+namespace Data {
+class PlayerCharacter;
+namespace Effects {
+class EffectRuntime;
+class EffectHostBridge;
+} // namespace Effects
+} // namespace Data
+namespace Gfx {
+class Pic;
+} // namespace Gfx
+} // namespace Goldbox
+
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
@@ -54,6 +69,20 @@ public:
 
     /** Initialize combat from params (called before push or in msgFocus). */
     void setup(const Combat::CombatParams &params);
+
+    /**
+     * Apply damage to a character: runs data mutation, plays the damage
+     * tile animation via drawDamage, interrupts spell casting, and
+     * handles death. Mirrors COMBAT_ApplyDamageMessage.
+     */
+    void applyDamageMessage(Goldbox::Data::PlayerCharacter *ch,
+                            uint8 baseDamage,
+                            Combat::DamageModifier modifier,
+                            bool applyModifier);
+
+    void drawDamage(Goldbox::Data::PlayerCharacter *ch,
+                    bool isMagic,
+                    const Common::String &message);
 
     bool msgFocus(const FocusMessage &msg) override;
     bool msgUnfocus(const UnfocusMessage &msg) override;
@@ -106,6 +135,10 @@ private:
     CombatPhase _phase;
     int _combatRound;
 
+    // --- Effect runtime (wired at setup time) ---
+    Goldbox::Data::Effects::EffectRuntime *_effectRuntime = nullptr;
+    Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;
+
     // --- Rendering ---
     Gfx::BattlefieldTilemap _tilemap;
     Gfx::CombatTileCache _tileCache;
@@ -121,6 +154,9 @@ private:
 
     // --- Internal methods ---
     Combat::CombatContext makeContext();
+    void handleDeathOnMap(Goldbox::Data::PlayerCharacter *ch);
+    void drawDamageFrame(const Goldbox::Gfx::Pic *frame, int pixX, int pixY,
+                         Graphics::ManagedSurface *dst);
 
     void drawViewport();
     void drawCombatants();
