@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_IN_GAME_VIEW_H
 
 #include "goldbox/poolrad/views/view.h"
+#include "goldbox/data/damage_system.h"
 #include "goldbox/core/global.h"
 
 namespace Goldbox {
@@ -228,6 +229,15 @@ public:
 
 	/** Show/hide the in-game menu based on map runtime ready state. */
 	void setInGameMenuVisible(bool visible);
+
+	/**
+	 * Apply damage to a character using the same message+textbox flow as the
+	 * original STATS_ApplyDamage / TEXT_drawIntoMsgBox logic.
+	 */
+	void applyDamageMessage(Goldbox::Data::PlayerCharacter *ch,
+			uint8 baseDamage,
+			Goldbox::Data::DamageModifier modifier,
+			bool applyModifier);
 
 	/** React to VM opcode/syscall/state notifications. */
 	void handleEclVmMessage(const EclVmMessage &msg) override;

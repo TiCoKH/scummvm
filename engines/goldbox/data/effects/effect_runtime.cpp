@@ -193,7 +193,7 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
                 continue;
             const uint8 oldStatus = character.healthStatus;
             const uint32 oldFlags = character.effectState.flags;
-            _handler->apply(EFF_TICK, effect, character, combat);
+            _handler->apply(EFF_TICK, effect, character, combat, _bridge);
             character.onEffectsChanged();
             notifyBridge(_bridge, EFF_TICK, character,
                 oldStatus, oldFlags, true, true);
@@ -214,7 +214,7 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
                 continue;
             const uint8 oldStatus = character.healthStatus;
             const uint32 oldFlags = character.effectState.flags;
-            _handler->apply(EFF_EVAL, *it, character, combat);
+            _handler->apply(EFF_EVAL, *it, character, combat, _bridge);
             character.onEffectsChanged();
             notifyBridge(_bridge, EFF_EVAL, character,
                 oldStatus, oldFlags, true, isStatusPanelEffect(type));

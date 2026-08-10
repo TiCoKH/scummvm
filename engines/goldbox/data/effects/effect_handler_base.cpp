@@ -31,14 +31,18 @@ EffectHandlerBase::EffectHandlerBase() : _defaultHandler(nullptr) {
 void EffectHandlerBase::apply(EffectOp op, Effect &effect,
         Goldbox::Data::PlayerCharacter &character,
         Combat::CombatGlobals *combat) const {
-    apply(EffectCall(op, effect, character, combat, nullptr));
+    DamageSystem damageSystem(nullptr);
+    apply(EffectCall(op, effect, character, combat, nullptr,
+        &damageSystem));
 }
 
 void EffectHandlerBase::apply(EffectOp op, Effect &effect,
         Goldbox::Data::PlayerCharacter &character,
         Combat::CombatGlobals *combat,
         EffectHostBridge *bridge) const {
-    apply(EffectCall(op, effect, character, combat, bridge));
+    DamageSystem damageSystem(bridge);
+    apply(EffectCall(op, effect, character, combat, bridge,
+        &damageSystem));
 }
 
 void EffectHandlerBase::apply(const EffectCall &call) const {

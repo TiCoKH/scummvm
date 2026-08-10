@@ -22,8 +22,9 @@
 #include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/combat/combat_setup.h"
 #include "goldbox/combat/combat_damage.h"
+#include "goldbox/data/daxblock.h"
+#include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/data/player_character.h"
-#include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/effect_host_bridge.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/rules/rules_types.h"
@@ -34,10 +35,25 @@
 #include "goldbox/engine.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/data/effects/effect_utils.h"
+#include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
+
+static Combat::DamageModifier toCombatDamageModifier(
+        Goldbox::Data::DamageModifier modifier) {
+    switch (modifier) {
+    case Goldbox::Data::DAMAGE_HALF:
+        return Combat::DAMAGE_HALF;
+    case Goldbox::Data::DAMAGE_NULLIFY:
+        return Combat::DAMAGE_NULLIFY;
+    case Goldbox::Data::DAMAGE_NORMAL:
+    default:
+        return Combat::DAMAGE_NORMAL;
+    }
+}
 
 CombatView::CombatView()
     : View("Combat"), _phase(PHASE_NONE), _combatRound(0),
@@ -51,6 +67,7 @@ void CombatView::setup(const Combat::CombatParams &params) {
     _params = params;
     _combatRound = 0;
     _phase = PHASE_SETUP;
+    _bridge = Goldbox::Poolrad::getEffectHostBridge();
 
     // Invalidate cached portrait data (mirrors VM_LOADED_HEAD = 0xFF,
     // VM_LOADED_BODY = 0xFF and SYS_FreeRes calls in original COMBAT_Setup)
@@ -68,8 +85,7 @@ void CombatView::setup(const Combat::CombatParams &params) {
     // Wire up game-specific tile property provider
     _battlefieldMap.setTilePropertyProvider(&PoolradTilePropertyProvider::instance());
 
-    // Run the full COMBAT_Setup sequence
-    // TODO: pass actual EffectRuntime* when effect system is wired to combat
+    // Run the full COMBAT_Setup sequence.
     Combat::setupCombat(_params, _globals, _battlefieldMap, _table,
                         _placement, _viewport, nullptr);
 
@@ -215,7 +231,7 @@ void CombatView::drawCombatants() {
             localRow < 0 || localRow >= Combat::CombatViewport::VIEW_ROWS)
             continue;
 
-        Data::PlayerCharacter *ch = _table.getCharacter(i);
+        ::Goldbox::Data::PlayerCharacter *ch = _table.getCharacter(i);
         if (!ch)
             continue;
 
@@ -252,42 +268,21 @@ void CombatView::drawUI() {
     s.frameRect(vpRect, 15);
 }
 
-void CombatView::applyDamageMessage(Goldbox::Data::PlayerCharacter *ch,
-        uint8 baseDamage, Combat::DamageModifier modifier, bool applyModifier) {
-    using namespace Data::Effects;
-
+void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
+    uint8 baseDamage, ::Goldbox::Data::DamageModifier modifier,
+    bool applyModifier) {
     Combat::CombatContext ctx = makeContext();
     const Combat::DamageResult r = Combat::applyDamage(
-            ctx, ch, baseDamage, modifier, applyModifier, _effectRuntime);
+        ctx, ch, baseDamage, toCombatDamageModifier(modifier),
+        applyModifier, nullptr);
 
     if (r.finalDamage == 0)
         return;
 
-    // Build and post damage message.
-    Common::String msg;
-    if (r.finalDamage == 1) {
-        msg = "takes 1 point of damage";
-    } else {
-        msg = Common::String::format("takes %u points of damage",
-                (unsigned)r.finalDamage);
-    }
-
-    // Elemental source: original masks out DMG_MAGIC (bit 3) with 0xf7
-    // before the switch, so elemental and magic are checked separately.
-    const uint8 elemFlags = r.behaviorFlags & 0xf7;
-    if (elemFlags & Combat::CombatGlobals::DMG_FIRE)
-        msg += " from Fire";
-    else if (elemFlags & Combat::CombatGlobals::DMG_COLD)
-        msg += " from Cold";
-    else if (elemFlags & Combat::CombatGlobals::DMG_ELECTRICITY)
-        msg += " from Electricity";
-    else if (elemFlags & Combat::CombatGlobals::DMG_ACID)
-        msg += " from Acid";
-    // only DMG_MAGIC set and no other bits.
+    const Common::String msg = ::Goldbox::Data::Effects::EffectUtils::buildDamageMessage(
+            r.finalDamage, r.behaviorFlags);
     const bool isMagic =
-        (r.behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) == r.behaviorFlags;
-    if (isMagic)
-        msg += " from Magic";
+            (r.behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) == r.behaviorFlags;
 
     drawDamage(ch, isMagic, msg);
 
@@ -304,23 +299,26 @@ void CombatView::applyDamageMessage(Goldbox::Data::PlayerCharacter *ch,
         if (!ch->enabled)
             handleDeathOnMap(ch);
         else if (_bridge)
-            _bridge->requestRefresh(EffectHostBridge::RF_VIEWPORT);
+            _bridge->requestRefresh(
+                ::Goldbox::Data::Effects::EffectHostBridge::RF_VIEWPORT);
     }
 
     if (_bridge)
-        _bridge->requestRefresh(EffectHostBridge::RF_STATUS_PANEL);
+        _bridge->requestRefresh(
+            ::Goldbox::Data::Effects::EffectHostBridge::RF_STATUS_PANEL);
 }
 
-void CombatView::handleDeathOnMap(Data::PlayerCharacter *ch) {
+void CombatView::handleDeathOnMap(::Goldbox::Data::PlayerCharacter *ch) {
     // TODO: remove character token from battlefield, update ground state.
     // Mirrors COMBAT_HandleDeathOnMap.
     (void)ch;
     _needsFullRedraw = true;
     if (_bridge)
-        _bridge->requestRefresh(Data::Effects::EffectHostBridge::RF_VIEWPORT);
+        _bridge->requestRefresh(
+            ::Goldbox::Data::Effects::EffectHostBridge::RF_VIEWPORT);
 }
 
-void CombatView::drawDamage(Data::PlayerCharacter *ch,
+    void CombatView::drawDamage(::Goldbox::Data::PlayerCharacter *ch,
         bool isMagic, const Common::String &message) {
     // Outside combat: message only, no animation.
     if (_phase == PHASE_NONE || _phase == PHASE_ENDED) {
@@ -335,10 +333,11 @@ void CombatView::drawDamage(Data::PlayerCharacter *ch,
 
     // Load all 4 effect frames up front.
     Gfx::Pic *frames[4] = {};
-    Data::DaxBlockContainer &sprit = g_engine->getDaxSprit();
-    Data::DaxBlock *block = sprit.getBlockById(effectTileId);
-    Data::DaxBlockSprit *spritBlock =
-            block ? dynamic_cast<Data::DaxBlockSprit *>(block) : nullptr;
+            ::Goldbox::Data::DaxBlockContainer &sprit = g_engine->getDaxSprit();
+            ::Goldbox::Data::DaxBlock *block = sprit.getBlockById(effectTileId);
+            ::Goldbox::Data::DaxBlockSprit *spritBlock =
+                block ? dynamic_cast<::Goldbox::Data::DaxBlockSprit *>(block)
+                  : nullptr;
     if (spritBlock) {
         for (int f = 0; f < 4; ++f)
             frames[f] = Gfx::Pic::readSpriteFrame(spritBlock, f);

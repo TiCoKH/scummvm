@@ -30,6 +30,7 @@
 #include "goldbox/combat/combat_placement.h"
 #include "goldbox/combat/combat_viewport.h"
 #include "goldbox/combat/battlefield_map.h"
+#include "goldbox/data/damage_system.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/gfx/combat_renderer.h"
@@ -77,7 +78,7 @@ public:
      */
     void applyDamageMessage(Goldbox::Data::PlayerCharacter *ch,
                             uint8 baseDamage,
-                            Combat::DamageModifier modifier,
+                            Goldbox::Data::DamageModifier modifier,
                             bool applyModifier);
 
     void drawDamage(Goldbox::Data::PlayerCharacter *ch,
@@ -135,8 +136,7 @@ private:
     CombatPhase _phase;
     int _combatRound;
 
-    // --- Effect runtime (wired at setup time) ---
-    Goldbox::Data::Effects::EffectRuntime *_effectRuntime = nullptr;
+    // --- Effect bridge (wired at setup time) ---
     Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;
 
     // --- Rendering ---

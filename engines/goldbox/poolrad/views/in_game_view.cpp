@@ -35,6 +35,9 @@
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
+#include "goldbox/data/damage_system.h"
+#include "goldbox/data/effects/effect_utils.h"
+#include "goldbox/data/rules/rules_types.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/vm_interface.h"
@@ -561,6 +564,43 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 	return handled;
 }
 
+void InGameView::applyDamageMessage(Goldbox::Data::PlayerCharacter *ch,
+		uint8 baseDamage, Goldbox::Data::DamageModifier modifier,
+		bool applyModifier) {
+	if (!ch)
+		return;
+
+	Goldbox::Data::DamageSystem damageSystem(nullptr);
+	const Goldbox::Data::DamageResult r = damageSystem.applyLegacy(*ch,
+		baseDamage, modifier, applyModifier);
+
+	if (r.applied <= 0)
+		return;
+
+	const uint8 finalDamage = (r.applied > 0xff)
+		? 0xff
+		: static_cast<uint8>(r.applied);
+
+	const Common::String msg = Goldbox::Data::Effects::EffectUtils::buildDamageMessage(
+			finalDamage, 0);
+	if (_textBoxDialog) {
+		if (!_textBoxDialog->isActive())
+			_textBoxDialog->activate();
+		_textBoxDialog->setText(msg, true);
+	}
+
+	if (r.interruptedSpell) {
+		printToTextBox("lost a spell", false);
+	}
+
+	if (!ch->enabled) {
+		Common::String downMsg = r.killed ? "is killed" : "Goes Down";
+		if (!r.killed && ch->healthStatus == Goldbox::Data::S_DYING)
+			downMsg += " and is Dying";
+		printToTextBox(downMsg, false);
+	}
+}
+
 void InGameView::printToTextBox(const Common::String &text, bool clearBox) {
 	if (_textBoxDialog) {
 		if (!_textBoxDialog->isActive())
@@ -708,16 +748,6 @@ void InGameView::handleInGameMenuKey(char key) {
 
 void InGameView::syncDirectionAndRedraw() {
 	if (!g_engine)
-		return;
-	ECL::AddressSpace *mem = g_engine->getEclMemory();
-	if (!mem)
-		return;
-	// Write direction directly to the known VM global field.
-	// DungeonDir is at a fixed offset in bank 4 (global fields).
-	// Use the runtime exchange to get the address.
-	RuntimeMapSnapshot snap;
-	const RuntimeExchange *exchange = g_engine->getRuntimeExchange();
-	if (!exchange)
 		return;
 	// The direction field address can be obtained from the layout,
 	// but since poolrad.h is included we can cast and use getEclMemory.

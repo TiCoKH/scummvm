@@ -34,6 +34,7 @@ MODULE_OBJS = \
 	data/pascal_string_buffer.o \
 	data/strings.o \
 	data/strings_data.o \
+	data/damage_system.o \
 	data/effects/character_effects.o \
 	data/effects/effect_common_handler.o \
 	data/effects/effect_handler_base.o \

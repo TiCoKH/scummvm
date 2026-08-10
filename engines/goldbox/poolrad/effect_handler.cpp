@@ -20,7 +20,6 @@
  */
 
 #include "goldbox/poolrad/effect_handler.h"
-#include "goldbox/data/combat_state.h"
 #include "goldbox/data/effects/effect_common_handler.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
@@ -235,8 +234,24 @@ static void handleSwordVsUndead(const EffectCall &c) {
 }
 
 static void handlePoisonDamage(const EffectCall &c) {
-    if (c.op == EFF_TICK)
-        c.character.damage(c.effect.power);
+    if (c.op == EFF_ADD)
+        c.character.effectState.flags |= CEF_POISONED;
+    else if (c.op == EFF_REMOVE)
+        c.character.effectState.flags &= ~CEF_POISONED;
+
+    if (c.character.hitPoints.current <= 1)
+        return;
+
+    if (c.op != EFF_ADD && c.op != EFF_TICK)
+        return;
+
+    // Effect handlers are context-agnostic: poison deals one point.
+    if (c.damage) {
+        c.damage->apply(c.character,
+                Goldbox::Data::DamageRequest(1, false));
+    } else {
+        c.character.damage(1);
+    }
 }
 
 static void handleStudyManualBodilyHealth(const EffectCall &c) {

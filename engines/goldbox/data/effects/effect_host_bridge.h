@@ -24,6 +24,7 @@
 
 #include "common/scummsys.h"
 #include "common/str.h"
+#include "goldbox/data/damage_system.h"
 
 namespace Goldbox {
 namespace Data {
@@ -56,6 +57,11 @@ public:
 
     // Request redraw/update of UI surfaces impacted by effects.
     virtual void requestRefresh(uint32 refreshFlags) = 0;
+
+    // Apply damage through the host combat UI path when available.
+    virtual void applyDamage(PlayerCharacter *character,
+            uint8 baseDamage, DamageModifier modifier,
+            bool applyModifier) = 0;
 
     // Notify host that a character status changed due to effects.
     virtual void notifyStatusChanged(PlayerCharacter *character,
