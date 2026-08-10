@@ -23,6 +23,7 @@
 #define GOLDBOX_VM_INTERFACE_H
 
 #include "goldbox/engine.h"
+#include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/runtime/treasure_pool.h"
 #include "common/array.h"
@@ -95,6 +96,15 @@ public:
 
     // Get runtime game speed (1-5 scale).
     static uint8 getGameSpeed();
+
+    // Sync the current viewport direction into the VM runtime state.
+    static void syncViewDirection(uint8 cardinal);
+
+    // Check whether the current runtime is suspended.
+    static bool isRuntimeSuspended();
+
+    // Capture the current runtime map snapshot for the active PoolRAD map.
+    static bool captureRuntimeMapSnapshot(RuntimeMapSnapshot &snapshot);
 
     // Add setTextDelay accessor
     static void setTextDelay(uint delay) {
