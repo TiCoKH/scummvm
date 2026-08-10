@@ -69,6 +69,7 @@ MODULE_OBJS = \
 	gfx/combat_renderer.o \
 	combat/combat_globals.o \
 	combat/combat_context.o \
+	combat/combat_damage.o \
 	combat/combat_setup.o \
 	combat/combat_ground_info.o \
 	combat/combatant_table.o \

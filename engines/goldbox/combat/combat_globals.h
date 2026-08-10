@@ -92,6 +92,16 @@ struct CombatGlobals {
     void updateSideCount(const Common::Array<Data::PlayerCharacter *> &roster);
 };
 
+/**
+ * Damage modifier applied to base damage before dealing it.
+ * Mirrors the original DAMAGE_NULLIFY / DAMAGE_HALF constants.
+ */
+enum DamageModifier : uint8 {
+    DAMAGE_NORMAL  = 0,
+    DAMAGE_NULLIFY = 1,
+    DAMAGE_HALF    = 2
+};
+
 } // namespace Combat
 } // namespace Goldbox
 
