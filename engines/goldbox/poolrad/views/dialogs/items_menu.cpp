@@ -701,10 +701,16 @@ void ItemsMenu::handleTradeSelectionResult(const MenuResultMessage &result) {
 		return;
 	}
 
-	Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin();
-	for (int k = 0; k < targetIndex; ++k) ++it;
-	Goldbox::Poolrad::Data::PoolradCharacter *tradeTarget =
-		static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
+	Goldbox::Poolrad::Data::PoolradCharacter *tradeTarget = nullptr;
+	int idx = 0;
+	for (Goldbox::Data::PlayerCharacter *member : *party) {
+		if (idx == targetIndex) {
+			tradeTarget =
+				static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(member);
+			break;
+		}
+		++idx;
+	}
 
 	if (!tradeTarget || tradeTarget == _character) {
 		return;
@@ -740,8 +746,7 @@ bool ItemsMenu::hasTradeTarget() const {
 	if (!party)
 		return false;
 
-	for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
-		Goldbox::Data::PlayerCharacter *pc = *it;
+	for (Goldbox::Data::PlayerCharacter *pc : *party) {
 		if (pc && pc != _character)
 			return true;
 	}

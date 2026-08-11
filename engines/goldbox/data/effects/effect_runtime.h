@@ -24,6 +24,7 @@
 
 #include "common/array.h"
 #include "common/scummsys.h"
+#include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/data/effects/effect.h"
 
@@ -86,6 +87,31 @@ public:
             const CharacterEffects &effects) const;
 
     /**
+     * Simplified legacy apply-effect entry point.
+     *
+     * Uses globally available runtime context to resolve party/combat state,
+     * then executes the same handler-driven logic as the full overload.
+     */
+    bool applyEffect(PlayerCharacter &target,
+            uint8 effectType) const;
+
+    /**
+     * Legacy-style effect resolution and dispatch.
+     *
+     * Mirrors original EFFECT_applyEffect semantics:
+     * - direct hit when target has the effect itself,
+     * - optional party propagation for radiating effects,
+     * - then dispatches EFF_ADD handler against @p target.
+     *
+     * @return true when an effect instance was found and dispatched.
+     */
+    bool applyEffect(PlayerCharacter &target,
+            uint8 effectType,
+            const Common::Array<PlayerCharacter *> &party,
+            Combat::CombatGlobals *combat = nullptr,
+            const Combat::CombatantTable *combatTable = nullptr) const;
+
+    /**
      * Return the raw effect ids that participate in a trigger set.
      *
      * This mirrors the original m68k-style table-driven effect dispatch
@@ -105,13 +131,13 @@ public:
      * @param effectType  Raw effect id to query.
      * @param target      Character being tested.
      * @param party       All characters in the current party/combat list.
-     * @param inCombat    Whether combat spatial check should apply.
+     * Combat mode is inferred from target.combatState != nullptr.
      * @return true if the target is under the effect's influence.
      */
     bool isAffectedByGroupEffect(uint8 effectType,
             PlayerCharacter &target,
             const Common::Array<PlayerCharacter *> &party,
-            bool inCombat) const;
+            const Combat::CombatantTable *combatTable = nullptr) const;
 
     static bool isGroupRadiatingEffect(uint8 effectType);
 

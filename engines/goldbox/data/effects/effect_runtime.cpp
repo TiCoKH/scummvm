@@ -22,12 +22,16 @@
 #include "goldbox/data/effects/effect_runtime.h"
 
 #include "common/array.h"
+#include "goldbox/combat/combat_ground_info.h"
+#include "goldbox/combat/combatant_table.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect.h"
 #include "goldbox/data/effects/effect_handler_base.h"
 #include "goldbox/data/effects/effect_host_bridge.h"
 #include "goldbox/data/effects/effect_notify.h"
 #include "goldbox/data/player_character.h"
+#include "goldbox/combat/combat_context.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Data {
@@ -157,11 +161,115 @@ static bool containsEffectType(const CharacterEffects &effects,
         Effects type) {
     const Common::List<Effect> &list = effects.effects();
     const uint8 effectId = static_cast<uint8>(type);
-    for (Common::List<Effect>::const_iterator it = list.begin();
-            it != list.end(); ++it) {
-    if (it->id == effectId)
+    for (const Effect &effect : list) {
+    if (effect.id == effectId)
             return true;
     }
+    return false;
+}
+
+static bool findEffectInCharacter(PlayerCharacter &character, uint8 effectType,
+        Effect *&foundEffect) {
+    foundEffect = nullptr;
+
+    CharacterEffects *effects = character.getEffects();
+    if (!effects)
+        return false;
+
+    return effects->findEffectById(effectType, &foundEffect);
+}
+
+static bool isWithinPropagationRange(const Combat::CombatantTable &table,
+        const PlayerCharacter &source, const PlayerCharacter &target,
+        uint8 range) {
+    const int sourceIdx = table.findIndex(&source);
+    const int targetIdx = table.findIndex(&target);
+    if (sourceIdx < 0 || targetIdx < 0)
+        return false;
+
+    const uint8 sourceCol = table.getTileCol(sourceIdx);
+    const uint8 sourceRow = table.getTileRow(sourceIdx);
+    const uint8 sourceSize = table.getSize(sourceIdx) & 7;
+
+    const uint8 targetCol = table.getTileCol(targetIdx);
+    const uint8 targetRow = table.getTileRow(targetIdx);
+    const uint8 targetSize = table.getSize(targetIdx) & 7;
+
+    for (uint8 sourceSlot = 0; sourceSlot < 4; ++sourceSlot) {
+        int8 sourceColDelta = 0;
+        int8 sourceRowDelta = 0;
+        if (!Combat::getIconOffsetBySize(sourceSize, sourceSlot,
+                sourceColDelta, sourceRowDelta))
+            continue;
+
+        const int sourceTileCol = static_cast<int>(sourceCol) +
+            static_cast<int>(sourceColDelta);
+        const int sourceTileRow = static_cast<int>(sourceRow) +
+            static_cast<int>(sourceRowDelta);
+
+        for (uint8 targetSlot = 0; targetSlot < 4; ++targetSlot) {
+            int8 targetColDelta = 0;
+            int8 targetRowDelta = 0;
+            if (!Combat::getIconOffsetBySize(targetSize, targetSlot,
+                    targetColDelta, targetRowDelta))
+                continue;
+
+            const int targetTileCol = static_cast<int>(targetCol) +
+                static_cast<int>(targetColDelta);
+            const int targetTileRow = static_cast<int>(targetRow) +
+                static_cast<int>(targetRowDelta);
+
+            const int deltaCol = ABS(targetTileCol - sourceTileCol);
+            const int deltaRow = ABS(targetTileRow - sourceTileRow);
+            if (MAX(deltaCol, deltaRow) <= static_cast<int>(range))
+                return true;
+        }
+    }
+
+    return false;
+}
+
+static bool findApplicableEffect(uint8 effectType, PlayerCharacter &target,
+        const Common::Array<PlayerCharacter *> &party,
+        const Combat::CombatantTable *combatTable, Effect *&foundEffect) {
+    foundEffect = nullptr;
+    const bool inCombat = (target.combatState != nullptr) ||
+        (Goldbox::g_engine && Goldbox::VmInterface::getGameStatus() ==
+            GS_COMBAT);
+
+    // 1. If target has this effect directly, use it.
+    if (findEffectInCharacter(target, effectType, foundEffect))
+        return true;
+
+    // 2. Otherwise, only radiating group effects may propagate.
+    if (!EffectRuntime::isGroupRadiatingEffect(effectType))
+        return false;
+
+    for (uint i = 0; i < party.size(); ++i) {
+        PlayerCharacter *member = party[i];
+        if (!member || member == &target)
+            continue;
+
+        Effect *memberEffect = nullptr;
+        if (!findEffectInCharacter(*member, effectType, memberEffect))
+            continue;
+
+        if (!inCombat) {
+            foundEffect = memberEffect;
+            return true;
+        }
+
+        if (!combatTable)
+            continue;
+
+        const uint8 range =
+            (effectType == static_cast<uint8>(E_PRAYER)) ? 6 : 1;
+        if (isWithinPropagationRange(*combatTable, *member, target, range)) {
+            foundEffect = memberEffect;
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -187,9 +295,7 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
 
     if (triggerSet == ETS_POISON_CYCLE) {
         Common::List<Effect> &list = effects.effects();
-        for (Common::List<Effect>::iterator it = list.begin();
-                it != list.end(); ++it) {
-            Effect &effect = *it;
+        for (Effect &effect : list) {
             if (!isPoisonCycleEffect(effect.id))
                 continue;
             const uint8 oldStatus = character.healthStatus;
@@ -210,13 +316,12 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
         const Effects type = table->ids[i];
         const uint8 effectId = static_cast<uint8>(type);
         Common::List<Effect> &list = effects.effects();
-        for (Common::List<Effect>::iterator it = list.begin();
-                it != list.end(); ++it) {
-            if (it->id != effectId)
+        for (Effect &effect : list) {
+            if (effect.id != effectId)
                 continue;
             const uint8 oldStatus = character.healthStatus;
             const uint32 oldFlags = character.effectState.flags;
-            _handler->apply(EFF_EVAL, *it, character, combat, _bridge);
+            _handler->apply(EFF_EVAL, effect, character, combat, _bridge);
             character.onEffectsChanged();
             notifyBridge(_bridge, EFF_EVAL, character,
                 oldStatus, oldFlags, true, isStatusPanelEffect(type));
@@ -229,9 +334,8 @@ bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,
         const CharacterEffects &effects) const {
     if (triggerSet == ETS_POISON_CYCLE) {
         const Common::List<Effect> &list = effects.effects();
-        for (Common::List<Effect>::const_iterator it = list.begin();
-                it != list.end(); ++it) {
-            if (isPoisonCycleEffect(it->id))
+        for (const Effect &effect : list) {
+            if (isPoisonCycleEffect(effect.id))
                 return true;
         }
         return false;
@@ -250,6 +354,35 @@ bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,
     return false;
 }
 
+bool EffectRuntime::applyEffect(PlayerCharacter &target,
+        uint8 effectType) const {
+    Common::Array<PlayerCharacter *> party;
+    if (Goldbox::g_engine) {
+        Common::List<PlayerCharacter *> *partyList =
+            Goldbox::VmInterface::getParty();
+        if (partyList) {
+            for (PlayerCharacter *member : *partyList) {
+                if (member)
+                    party.push_back(member);
+            }
+        }
+    }
+
+    Combat::CombatGlobals *combatGlobals = nullptr;
+    const Combat::CombatantTable *combatTable = nullptr;
+    if (Goldbox::g_engine) {
+        Combat::CombatContext *combatContext = Goldbox::g_engine->
+            getCombatContext();
+        if (combatContext) {
+            combatGlobals = &combatContext->globals;
+            combatTable = &combatContext->table;
+        }
+    }
+
+    return applyEffect(target, effectType, party,
+        combatGlobals, combatTable);
+}
+
 const Effects *EffectRuntime::getTriggerSetEffects(
         EffectTriggerSet triggerSet, uint &count) {
     const TriggerSetTable *table = getTriggerSetTable(triggerSet);
@@ -258,6 +391,27 @@ const Effects *EffectRuntime::getTriggerSetEffects(
 
     count = table->size;
     return table->ids;
+}
+
+bool EffectRuntime::applyEffect(PlayerCharacter &target, uint8 effectType,
+    const Common::Array<PlayerCharacter *> &party,
+        Combat::CombatGlobals *combat,
+        const Combat::CombatantTable *combatTable) const {
+    if (!_handler)
+        return false;
+
+    Effect *foundEffect = nullptr;
+    if (!findApplicableEffect(effectType, target, party,
+            combatTable, foundEffect) || !foundEffect)
+        return false;
+
+    const uint8 oldStatus = target.healthStatus;
+    const uint32 oldFlags = target.effectState.flags;
+    _handler->apply(EFF_ADD, *foundEffect, target, combat, _bridge);
+    target.onEffectsChanged();
+    notifyBridge(_bridge, EFF_ADD, target,
+        oldStatus, oldFlags, true, true);
+    return true;
 }
 
 // Raw effect IDs (Poolrad) that radiate to nearby characters.
@@ -279,44 +433,10 @@ bool EffectRuntime::isGroupRadiatingEffect(uint8 effectType) {
 bool EffectRuntime::isAffectedByGroupEffect(uint8 effectType,
         PlayerCharacter &target,
         const Common::Array<PlayerCharacter *> &party,
-        bool inCombat) const {
-    // Direct check: target has the effect themselves.
-    CharacterEffects *targetEffects = target.getEffects();
-    if (targetEffects && targetEffects->hasEffect(effectType))
-        return true;
-
-    // Only group-radiating effects propagate from nearby party members.
-    if (!isGroupRadiatingEffect(effectType))
-        return false;
-
-    // Iterate party looking for any member that has the effect.
-    for (uint i = 0; i < party.size(); ++i) {
-        PlayerCharacter *member = party[i];
-        if (!member || member == &target)
-            continue;
-        CharacterEffects *memberEffects = member->getEffects();
-        if (!memberEffects || !memberEffects->hasEffect(effectType))
-            continue;
-
-        if (!inCombat) {
-            // Outside combat: party proximity assumed (original behaviour).
-            return true;
-        }
-
-        // TODO: In combat, check spatial proximity using combat grid.
-        // Original logic:
-        //   uint8 range = (effectType == static_cast<uint8>(E_PRAYER)) ? 6 : 1;
-        //   uint8 x = COMBAT_GetCharacterX(member);
-        //   uint8 y = COMBAT_GetCharacterY(member);
-        //   uint8 facing = COMBAT_getCharacterFacing(member);
-        //   COMBAT_BuildTargetListCore(x, y, range, 0xFF, facing, size);
-        //   if (targetIndex is in generated target list) return true;
-        //
-        // Requires CombatState/grid API not yet available.
-        // For now, fall through to next party member (conservative: no match).
-    }
-
-    return false;
+        const Combat::CombatantTable *combatTable) const {
+    Effect *foundEffect = nullptr;
+    return findApplicableEffect(effectType, target, party,
+        combatTable, foundEffect);
 }
 
 } // namespace Effects

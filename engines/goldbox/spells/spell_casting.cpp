@@ -72,7 +72,7 @@ SpellCastResult SpellCastingService::castSpell(SpellContext &context,
                     target->getEffects();
                 if (!effects)
                     continue;
-                context.effectSystem->applyEffect(*effects, *target,
+                context.effectSystem->addOrRefreshEffect(*effects, *target,
                         definition->entry->effectId, duration, power,
                         immediate);
             }
@@ -80,7 +80,8 @@ SpellCastResult SpellCastingService::castSpell(SpellContext &context,
             Goldbox::Data::Effects::CharacterEffects *effects =
                 context.caster->getEffects();
             if (effects) {
-                context.effectSystem->applyEffect(*effects, *context.caster,
+                context.effectSystem->addOrRefreshEffect(*effects,
+                    *context.caster,
                         definition->entry->effectId, duration, power, immediate);
             }
         }
