@@ -23,6 +23,7 @@
 #define GOLDBOX_DATA_DAMAGE_SYSTEM_H
 
 #include "common/scummsys.h"
+#include "common/str.h"
 
 namespace Goldbox {
 namespace Data {
@@ -44,18 +45,20 @@ struct DamageRequest {
     bool savingThrow;
     DamageModifier modifier;
     bool applyModifier;
+    uint8 behaviorFlags;
 
     DamageRequest()
                 : amount(0), savingThrow(false), modifier(DAMAGE_NORMAL),
-                    applyModifier(false) {
+                    applyModifier(false), behaviorFlags(0) {
     }
 
         DamageRequest(int requestedAmount, bool hasSavingThrow,
                         DamageModifier dmgModifier = DAMAGE_NORMAL,
-                        bool shouldApplyModifier = false)
+                        bool shouldApplyModifier = false,
+                        uint8 damageBehaviorFlags = 0)
                 : amount(requestedAmount), savingThrow(hasSavingThrow),
                     modifier(dmgModifier),
-          applyModifier(shouldApplyModifier) {
+          applyModifier(shouldApplyModifier), behaviorFlags(damageBehaviorFlags) {
     }
 };
 
@@ -65,11 +68,16 @@ struct DamageResult {
 
     bool resisted;
     bool killed;
+    bool wentDown;
     bool interruptedSpell;
+    Common::String message;
+    Common::String spellLostMessage;
+    Common::String downMessage;
 
     DamageResult()
         : requested(0), applied(0), resisted(false), killed(false),
-          interruptedSpell(false) {
+          wentDown(false), interruptedSpell(false), message(),
+          spellLostMessage(), downMessage() {
     }
 };
 
@@ -93,7 +101,8 @@ public:
     DamageResult applyLegacy(PlayerCharacter &target,
             uint8 baseDamage,
             DamageModifier modifier,
-            bool applyModifier) const;
+            bool applyModifier,
+            uint8 behaviorFlags = 0) const;
 
 private:
     Effects::EffectHostBridge *_bridge;

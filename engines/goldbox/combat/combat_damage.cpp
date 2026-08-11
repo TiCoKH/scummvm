@@ -21,6 +21,7 @@
 
 #include "goldbox/combat/combat_damage.h"
 #include "goldbox/combat/combat_context.h"
+#include "goldbox/data/damage_system.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/character_effects.h"
@@ -39,6 +40,9 @@ DamageResult applyDamage(CombatContext &ctx,
 
     DamageResult result;
 
+    if (!ch)
+        return result;
+
     // ETS_ON_DAMAGE_TAKEN (set 6): resistance/immunity checks that may
     // modify globals.behaviorFlags before damage is calculated.
     if (effectRuntime && ch->getEffects())
@@ -47,43 +51,19 @@ DamageResult applyDamage(CombatContext &ctx,
 
     result.behaviorFlags = ctx.globals.behaviorFlags;
 
-    uint8 finalDamage = baseDamage;
-    if (applyModifier) {
-        if (modifier == DAMAGE_NULLIFY)
-            finalDamage = 0;
-        else if (modifier == DAMAGE_HALF)
-            finalDamage >>= 1;
-    }
+    Data::DamageSystem damageSystem(nullptr);
+    const Data::DamageResult dataResult = damageSystem.apply(
+        *ch, Data::DamageRequest(baseDamage, false,
+            static_cast<Data::DamageModifier>(modifier), applyModifier,
+            ctx.globals.behaviorFlags));
 
-    result.finalDamage = finalDamage;
+    result.finalDamage = static_cast<uint8>(MIN<int>(dataResult.applied, 0xff));
+    result.spellLost = dataResult.interruptedSpell;
+    result.wentDown = dataResult.wentDown;
+    result.wasKilled = dataResult.killed;
+    result.isDying = (ch->healthStatus == Data::S_DYING);
 
-    if (finalDamage == 0)
-        return result;
-
-    ch->damage(finalDamage);
-
-    // Interrupt spell casting.
-    if (ch->combatState) {
-        ch->combatState->canCast = false;
-        if (ch->combatState->spellId != 0) {
-            result.spellLost = true;
-            CharacterEffects *fx = ch->getEffects();
-            if (fx) {
-                int idx = fx->findEffectIndexByType(ch->combatState->spellId);
-                if (idx >= 0)
-                    fx->removeEffectAt(static_cast<uint>(idx));
-            }
-            ch->combatState->spellId = 0;
-        }
-    }
-
-    if (!ch->enabled) {
-        result.wentDown = true;
-        result.wasKilled = (ch->healthStatus == Data::S_DEAD ||
-                            ch->healthStatus == Data::S_GONE ||
-                            ch->healthStatus == Data::S_STONED);
-        result.isDying   = (ch->healthStatus == Data::S_DYING);
-
+    if (result.wentDown) {
         // Legacy logic decremented SIDE_MEMBERS immediately.
         // Here side counts are derived from roster, so refresh once the
         // character transitions to a disabled state.

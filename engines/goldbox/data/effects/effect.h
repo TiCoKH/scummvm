@@ -194,10 +194,10 @@ enum Effects : uint8 {
 };
 
 struct Effect {
-    uint8 type;          // Effect ID (original e_id)
+    uint8  id;           // Effect ID (original e_id)
     uint16 durationMin;  // Duration in minutes (original duration word)
-    uint8 power;         // Power (0xFF = permanent)
-    uint8 immediate;
+    uint8  power;        // Power (0xFF = permanent)
+    uint8  immediate;
 
     // Serialization-only compatibility tail (DOS x86 .SPC node bytes 5..8).
     // Runtime effect logic must NOT model a linked list pointer.
@@ -217,7 +217,7 @@ struct Effect {
     //  Our on-disk representation in .SPC mirrors the x86 layout exactly.
 
     void load(Common::SeekableReadStream &s) {
-        type = s.readByte();
+        id = s.readByte();
         durationMin = s.readUint16LE();
         power = s.readByte();
         immediate = s.readByte();
@@ -226,7 +226,7 @@ struct Effect {
     }
 
     void save(Common::WriteStream &s) const {
-        s.writeByte(type);
+        s.writeByte(id);
         s.writeUint16LE(durationMin);
         s.writeByte(power);
         s.writeByte(immediate);

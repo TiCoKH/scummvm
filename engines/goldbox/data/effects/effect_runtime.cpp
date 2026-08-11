@@ -156,9 +156,10 @@ static const TriggerSetTable *getTriggerSetTable(EffectTriggerSet setId) {
 static bool containsEffectType(const CharacterEffects &effects,
         Effects type) {
     const Common::List<Effect> &list = effects.effects();
+    const uint8 effectId = static_cast<uint8>(type);
     for (Common::List<Effect>::const_iterator it = list.begin();
             it != list.end(); ++it) {
-        if (it->type == static_cast<uint8>(type))
+    if (it->id == effectId)
             return true;
     }
     return false;
@@ -189,7 +190,7 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
         for (Common::List<Effect>::iterator it = list.begin();
                 it != list.end(); ++it) {
             Effect &effect = *it;
-            if (!isPoisonCycleEffect(effect.type))
+            if (!isPoisonCycleEffect(effect.id))
                 continue;
             const uint8 oldStatus = character.healthStatus;
             const uint32 oldFlags = character.effectState.flags;
@@ -207,10 +208,11 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
 
     for (uint i = 0; i < table->size; ++i) {
         const Effects type = table->ids[i];
+        const uint8 effectId = static_cast<uint8>(type);
         Common::List<Effect> &list = effects.effects();
         for (Common::List<Effect>::iterator it = list.begin();
                 it != list.end(); ++it) {
-            if (it->type != static_cast<uint8>(type))
+            if (it->id != effectId)
                 continue;
             const uint8 oldStatus = character.healthStatus;
             const uint32 oldFlags = character.effectState.flags;
@@ -229,7 +231,7 @@ bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,
         const Common::List<Effect> &list = effects.effects();
         for (Common::List<Effect>::const_iterator it = list.begin();
                 it != list.end(); ++it) {
-            if (isPoisonCycleEffect(it->type))
+            if (isPoisonCycleEffect(it->id))
                 return true;
         }
         return false;
@@ -280,7 +282,7 @@ bool EffectRuntime::isAffectedByGroupEffect(uint8 effectType,
         bool inCombat) const {
     // Direct check: target has the effect themselves.
     CharacterEffects *targetEffects = target.getEffects();
-    if (targetEffects && targetEffects->hasEffectType(effectType))
+    if (targetEffects && targetEffects->hasEffect(effectType))
         return true;
 
     // Only group-radiating effects propagate from nearby party members.
@@ -293,7 +295,7 @@ bool EffectRuntime::isAffectedByGroupEffect(uint8 effectType,
         if (!member || member == &target)
             continue;
         CharacterEffects *memberEffects = member->getEffects();
-        if (!memberEffects || !memberEffects->hasEffectType(effectType))
+        if (!memberEffects || !memberEffects->hasEffect(effectType))
             continue;
 
         if (!inCombat) {

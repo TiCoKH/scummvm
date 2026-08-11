@@ -56,9 +56,7 @@ public:
     void tick(CharacterEffects &effects,
               Goldbox::Data::PlayerCharacter &character);
 
-    void removeEffectsByType(CharacterEffects &effects,
-                             Goldbox::Data::PlayerCharacter &character,
-                             uint8 type);
+    void removeEffectById(Goldbox::Data::PlayerCharacter &character, CharacterEffects &effects, uint8 id);
 
 private:
     EffectHandlerBase *_handler;

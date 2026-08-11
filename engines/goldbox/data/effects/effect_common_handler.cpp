@@ -144,7 +144,7 @@ static void handleEnlargeStrengthened(const EffectCall &c) {
         Effect &e = *it;
         if (&e == &c.effect)
             continue;
-        if (e.type != E_STRENGTH && e.type != E_ENLARGE)
+        if (e.id != E_STRENGTH && e.id != E_ENLARGE)
             continue;
         uint8 eStr, eExt;
         strengthDecode(e.power, eStr, eExt);

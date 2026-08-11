@@ -1232,7 +1232,7 @@ VmResult PoolradEngineHostImpl::checkParty(uint16 attributeAddr,
             bool hasEffect = false;
             for (Common::List<Goldbox::Data::Effects::Effect>::const_iterator jt =
                     list.begin(); jt != list.end(); ++jt) {
-                if ((*jt).type == static_cast<uint8>(effectId)) {
+                if ((*jt).id == static_cast<uint8>(effectId)) {
                     hasEffect = true;
                     break;
                 }
@@ -1282,7 +1282,7 @@ bool PoolradEngineHostImpl::hasEffectActive(uint8 effectId) const {
             effects->effects();
         for (Common::List<Goldbox::Data::Effects::Effect>::const_iterator jt =
                 list.begin(); jt != list.end(); ++jt) {
-            if ((*jt).type == effectId)
+            if ((*jt).id == effectId)
                 return true;
         }
     }

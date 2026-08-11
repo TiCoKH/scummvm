@@ -46,7 +46,7 @@ void EffectHandlerBase::apply(EffectOp op, Effect &effect,
 }
 
 void EffectHandlerBase::apply(const EffectCall &call) const {
-    Effects internalId = mapRawEffectId(call.effect.type);
+    Effects internalId = mapRawEffectId(call.effect.id);
     Handler handler = getHandler((uint8)internalId);
     if (handler)
         handler(call);

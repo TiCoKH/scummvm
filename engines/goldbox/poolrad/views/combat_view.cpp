@@ -21,12 +21,12 @@
 
 #include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/combat/combat_setup.h"
-#include "goldbox/combat/combat_damage.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/effects/effect_host_bridge.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/damage_system.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/gfx/pic.h"
 #include "goldbox/poolrad/data/poolrad_tile_props.h"
@@ -41,19 +41,6 @@
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
-
-static Combat::DamageModifier toCombatDamageModifier(
-        Goldbox::Data::DamageModifier modifier) {
-    switch (modifier) {
-    case Goldbox::Data::DAMAGE_HALF:
-        return Combat::DAMAGE_HALF;
-    case Goldbox::Data::DAMAGE_NULLIFY:
-        return Combat::DAMAGE_NULLIFY;
-    case Goldbox::Data::DAMAGE_NORMAL:
-    default:
-        return Combat::DAMAGE_NORMAL;
-    }
-}
 
 CombatView::CombatView()
     : View("Combat"), _phase(PHASE_NONE), _combatRound(0),
@@ -271,32 +258,33 @@ void CombatView::drawUI() {
 void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
     uint8 baseDamage, ::Goldbox::Data::DamageModifier modifier,
     bool applyModifier) {
-    Combat::CombatContext ctx = makeContext();
-    const Combat::DamageResult r = Combat::applyDamage(
-        ctx, ch, baseDamage, toCombatDamageModifier(modifier),
-        applyModifier, nullptr);
-
-    if (r.finalDamage == 0)
+    if (!ch)
         return;
 
-    const Common::String msg = ::Goldbox::Data::DamageUtils::buildDamageMessage(
-            r.finalDamage, r.behaviorFlags);
+    Goldbox::Data::DamageSystem damageSystem(nullptr);
+    const Goldbox::Data::DamageResult r = damageSystem.applyLegacy(
+        *ch, baseDamage, modifier, applyModifier, _globals.behaviorFlags);
+
+    if (r.applied <= 0)
+        return;
+
     const bool isMagic =
-            (r.behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) == r.behaviorFlags;
+            (_globals.behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) ==
+            _globals.behaviorFlags;
 
-    drawDamage(ch, isMagic, msg);
+        drawDamage(ch, isMagic, r.message);
 
-    if (r.spellLost && _bridge)
-        _bridge->postEffectMessage(ch, "lost a spell", true);
+    if (ch->combatState)
+        ch->combatState->canCast = false;
+
+    if (r.interruptedSpell && _bridge)
+        _bridge->postEffectMessage(ch, r.spellLostMessage, true);
 
     if (r.wentDown) {
-        Common::String downMsg = r.wasKilled ? "is killed" : "Goes Down";
-        if (!r.wasKilled && r.isDying)
-            downMsg += " and is Dying";
         if (_bridge)
-            _bridge->postEffectMessage(ch, downMsg, false);
+            _bridge->postEffectMessage(ch, r.downMessage, false);
 
-        if (!ch->enabled)
+        if (r.killed)
             handleDeathOnMap(ch);
         else if (_bridge)
             _bridge->requestRefresh(

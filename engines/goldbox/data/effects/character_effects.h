@@ -71,23 +71,37 @@ public:
     // Unconditionally appends an effect. Stacking/dedup is the caller's responsibility.
     void appendEffect(const Effect &effect) { _effects.push_back(effect); }
 
-    bool hasEffectType(uint8 type) const {
+    bool hasEffect(uint8 id) const {
         for (Common::List<Effect>::const_iterator it = _effects.begin();
                 it != _effects.end(); ++it) {
-            if ((*it).type == type)
+            if ((*it).id == id)
                 return true;
         }
         return false;
     }
 
-    int findEffectIndexByType(uint8 type) const {
-        uint i = 0;
+    int findEffectIndexById(uint8 id) const {
+        int idx = 0;
         for (Common::List<Effect>::const_iterator it = _effects.begin();
-                it != _effects.end(); ++it, ++i) {
-            if ((*it).type == type)
-                return static_cast<int>(i);
+                it != _effects.end(); ++it, ++idx) {
+            if (it->id == id)
+                return idx;
         }
         return -1;
+    }
+
+    bool findEffectById(uint8 id, Effect **effect) {
+        if (!effect)
+            return false;
+
+        const int idx = findEffectIndexById(id);
+        if (idx < 0) {
+            *effect = nullptr;
+            return false;
+        }
+
+        *effect = &effectAt(static_cast<uint>(idx));
+        return true;
     }
 
     void clear() { _effects.clear(); }

@@ -348,11 +348,11 @@ void TempleDialog::completeHeal() {
 bool TempleDialog::hasCondition(PoolradCharacter *ch, int index) {
     switch (index) {
     case 0: // Cure Blindness
-        return ch->effects.hasEffectType((uint8)Effects::E_BLINDED);
+        return ch->effects.hasEffect((uint8)Effects::E_BLINDED);
 
     case 1: // Cure Disease
         for (int i = 0; i < kDiseaseEffectCount; ++i) {
-            if (ch->effects.hasEffectType(kDiseaseEffects[i]))
+            if (ch->effects.hasEffect(kDiseaseEffects[i]))
                 return true;
         }
         return false;
@@ -363,7 +363,7 @@ bool TempleDialog::hasCondition(PoolradCharacter *ch, int index) {
         return ch->hitPoints.current < ch->hitPoints.max;
 
     case 5: // Neutralize Poison
-        return ch->effects.hasEffectType((uint8)Effects::E_POISONED);
+        return ch->effects.hasEffect((uint8)Effects::E_POISONED);
 
     case 6: // Raise Dead
         return (ch->healthStatus == Goldbox::Data::S_DEAD) ||
@@ -374,7 +374,7 @@ bool TempleDialog::hasCondition(PoolradCharacter *ch, int index) {
             if (ch->inventory[i].cursed)
                 return true;
         }
-        return ch->effects.hasEffectType((uint8)Effects::E_BESTOW_CURSE);
+        return ch->effects.hasEffect((uint8)Effects::E_BESTOW_CURSE);
 
     case 8: // Stone to Flesh
         return ch->healthStatus == Goldbox::Data::S_STONED;
@@ -491,7 +491,7 @@ void TempleDialog::applyRemoveCurse(PoolradCharacter *ch) {
 
 void TempleDialog::removeAllEffectsOfType(PoolradCharacter *ch, uint8 type) {
     int idx;
-    while ((idx = ch->effects.findEffectIndexByType(type)) >= 0)
+    while ((idx = ch->effects.findEffectIndexById(type)) >= 0)
         ch->effects.removeEffectAt(idx);
 }
 
