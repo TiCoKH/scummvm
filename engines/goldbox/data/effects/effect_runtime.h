@@ -96,22 +96,6 @@ public:
             uint8 effectType) const;
 
     /**
-     * Legacy-style effect resolution and dispatch.
-     *
-     * Mirrors original EFFECT_applyEffect semantics:
-     * - direct hit when target has the effect itself,
-     * - optional party propagation for radiating effects,
-     * - then dispatches EFF_ADD handler against @p target.
-     *
-     * @return true when an effect instance was found and dispatched.
-     */
-    bool applyEffect(PlayerCharacter &target,
-            uint8 effectType,
-            const Common::Array<PlayerCharacter *> &party,
-            Combat::CombatGlobals *combat = nullptr,
-            const Combat::CombatantTable *combatTable = nullptr) const;
-
-    /**
      * Return the raw effect ids that participate in a trigger set.
      *
      * This mirrors the original m68k-style table-driven effect dispatch
