@@ -312,22 +312,8 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
     if (!table)
         return;
 
-    for (uint i = 0; i < table->size; ++i) {
-        const Effects type = table->ids[i];
-        const uint8 effectId = static_cast<uint8>(type);
-        Common::List<Effect> &list = effects.effects();
-        for (Effect &effect : list) {
-            if (effect.id != effectId)
-                continue;
-            const uint8 oldStatus = character.healthStatus;
-            const uint32 oldFlags = character.effectState.flags;
-            _handler->apply(EFF_EVAL, effect, character, combat, _bridge);
-            character.onEffectsChanged();
-            notifyBridge(_bridge, EFF_EVAL, character,
-                oldStatus, oldFlags, true, isStatusPanelEffect(type));
-            break;
-        }
-    }
+    for (uint i = 0; i < table->size; ++i)
+        applyEffect(character, static_cast<uint8>(table->ids[i]));
 }
 
 bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,
@@ -356,6 +342,9 @@ bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,
 
 bool EffectRuntime::applyEffect(PlayerCharacter &target,
         uint8 effectType) const {
+    if (!_handler)
+        return false;
+
     Common::Array<PlayerCharacter *> party;
     if (Goldbox::g_engine) {
         Common::List<PlayerCharacter *> *partyList =
@@ -379,8 +368,18 @@ bool EffectRuntime::applyEffect(PlayerCharacter &target,
         }
     }
 
-    return applyEffect(target, effectType, party,
-        combatGlobals, combatTable);
+    Effect *foundEffect = nullptr;
+    if (!findApplicableEffect(effectType, target, party,
+            combatTable, foundEffect) || !foundEffect)
+        return false;
+
+    const uint8 oldStatus = target.healthStatus;
+    const uint32 oldFlags = target.effectState.flags;
+    _handler->apply(EFF_ADD, *foundEffect, target, combatGlobals, _bridge);
+    target.onEffectsChanged();
+    notifyBridge(_bridge, EFF_ADD, target,
+        oldStatus, oldFlags, true, true);
+    return true;
 }
 
 const Effects *EffectRuntime::getTriggerSetEffects(
@@ -391,27 +390,6 @@ const Effects *EffectRuntime::getTriggerSetEffects(
 
     count = table->size;
     return table->ids;
-}
-
-bool EffectRuntime::applyEffect(PlayerCharacter &target, uint8 effectType,
-    const Common::Array<PlayerCharacter *> &party,
-        Combat::CombatGlobals *combat,
-        const Combat::CombatantTable *combatTable) const {
-    if (!_handler)
-        return false;
-
-    Effect *foundEffect = nullptr;
-    if (!findApplicableEffect(effectType, target, party,
-            combatTable, foundEffect) || !foundEffect)
-        return false;
-
-    const uint8 oldStatus = target.healthStatus;
-    const uint32 oldFlags = target.effectState.flags;
-    _handler->apply(EFF_ADD, *foundEffect, target, combat, _bridge);
-    target.onEffectsChanged();
-    notifyBridge(_bridge, EFF_ADD, target,
-        oldStatus, oldFlags, true, true);
-    return true;
 }
 
 // Raw effect IDs (Poolrad) that radiate to nearby characters.
