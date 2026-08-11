@@ -21,7 +21,9 @@
 
 #include "goldbox/data/damage_system.h"
 
+#include "goldbox/data/damage_utils.h"
 #include "goldbox/data/combat_state.h"
+#include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_host_bridge.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/rules_types.h"
@@ -35,6 +37,22 @@ static bool isKilledStatus(uint8 status) {
     return status == Goldbox::Data::S_DEAD
         || status == Goldbox::Data::S_GONE
         || status == Goldbox::Data::S_STONED;
+}
+
+static uint8 applyDamageModifier(uint8 amount, DamageModifier modifier,
+        bool applyModifier) {
+    if (!applyModifier)
+        return amount;
+
+    switch (modifier) {
+    case DAMAGE_NULLIFY:
+        return 0;
+    case DAMAGE_HALF:
+        return amount >> 1;
+    case DAMAGE_NORMAL:
+    default:
+        return amount;
+    }
 }
 
 } // namespace
@@ -78,16 +96,41 @@ DamageResult DamageSystem::apply(PlayerCharacter &target,
 
         _bridge->applyDamage(&target, rawDamage, modifier, applyModifier);
     } else {
-        target.damage(rawDamage);
+        target.damage(applyDamageModifier(rawDamage, request.modifier,
+            request.applyModifier));
     }
 
     const int afterHp = target.hitPoints.current;
     result.applied = (beforeHp > afterHp) ? (beforeHp - afterHp) : 0;
     result.resisted = result.applied < result.requested;
     result.killed = isKilledStatus(target.healthStatus);
+    result.wentDown = !target.enabled;
 
-    if (hadSpell && target.combatState)
-        result.interruptedSpell = target.combatState->spellId == 0;
+    result.message = DamageUtils::buildDamageMessage(
+        static_cast<uint8>(MIN<int>(result.applied, 0xff)),
+        request.behaviorFlags);
+
+    if (hadSpell && target.combatState) {
+        const uint8 interruptedSpellId = target.combatState->spellId;
+        if (interruptedSpellId != 0) {
+            if (Effects::CharacterEffects *fx = target.getEffects()) {
+                int idx = fx->findEffectIndexById(interruptedSpellId);
+                if (idx >= 0)
+                    fx->removeEffectAt(static_cast<uint>(idx));
+            }
+            target.combatState->spellId = 0;
+        }
+
+        result.interruptedSpell = interruptedSpellId != 0;
+        if (result.interruptedSpell)
+            result.spellLostMessage = "lost a spell";
+    }
+
+    if (result.wentDown) {
+        result.downMessage = result.killed ? "is killed" : "Goes Down";
+        if (!result.killed && target.healthStatus == Goldbox::Data::S_DYING)
+            result.downMessage += " and is Dying";
+    }
 
     // If HP did not change but status collapsed from alive to dead,
     // preserve semantic "damage happened" by mirroring requested amount.
@@ -102,9 +145,10 @@ DamageResult DamageSystem::apply(PlayerCharacter &target,
 DamageResult DamageSystem::applyLegacy(PlayerCharacter &target,
         uint8 baseDamage,
         DamageModifier modifier,
-        bool applyModifier) const {
+        bool applyModifier,
+        uint8 behaviorFlags) const {
     return apply(target, DamageRequest(baseDamage,
-    false, modifier, applyModifier));
+    false, modifier, applyModifier, behaviorFlags));
 }
 
 } // namespace Data

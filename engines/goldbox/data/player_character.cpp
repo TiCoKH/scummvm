@@ -191,7 +191,7 @@ bool PlayerCharacter::applyStrengthChange(uint8 newStr, uint8 newExtStr, uint8 &
         for (Common::List<Effects::Effect>::iterator it = list.begin();
                 it != list.end(); ++it) {
             Effects::Effect &e = *it;
-            if ((e.type == Effects::E_STRENGTH || e.type == Effects::E_ENLARGE)
+            if ((e.id == Effects::E_STRENGTH || e.id == Effects::E_ENLARGE)
                     && e.power < 0x80) {
                 e.power = Effects::strengthEncode(oldStr, oldExtStr) | 0x80;
                 break;

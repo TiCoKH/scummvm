@@ -576,28 +576,17 @@ void InGameView::applyDamageMessage(Goldbox::Data::PlayerCharacter *ch,
 	if (r.applied <= 0)
 		return;
 
-	const uint8 finalDamage = (r.applied > 0xff)
-		? 0xff
-		: static_cast<uint8>(r.applied);
-
-	const Common::String msg = Goldbox::Data::DamageUtils::buildDamageMessage(
-			finalDamage, 0);
 	if (_textBoxDialog) {
 		if (!_textBoxDialog->isActive())
 			_textBoxDialog->activate();
-		_textBoxDialog->setText(msg, true);
+		_textBoxDialog->setText(r.message, true);
 	}
 
-	if (r.interruptedSpell) {
-		printToTextBox("lost a spell", false);
-	}
+	if (r.interruptedSpell)
+		printToTextBox(r.spellLostMessage, false);
 
-	if (!ch->enabled) {
-		Common::String downMsg = r.killed ? "is killed" : "Goes Down";
-		if (!r.killed && ch->healthStatus == Goldbox::Data::S_DYING)
-			downMsg += " and is Dying";
-		printToTextBox(downMsg, false);
-	}
+	if (r.wentDown)
+		printToTextBox(r.downMessage, false);
 }
 
 void InGameView::printToTextBox(const Common::String &text, bool clearBox) {

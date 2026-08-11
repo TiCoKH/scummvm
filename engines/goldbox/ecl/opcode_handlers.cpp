@@ -112,7 +112,7 @@ static bool hasEffectInParty(uint8 effectId) {
         const Common::List<Data::Effects::Effect> &list = effects->effects();
         for (Common::List<Data::Effects::Effect>::const_iterator jt =
                 list.begin(); jt != list.end(); ++jt) {
-            if ((*jt).type == effectId)
+            if ((*jt).id == effectId)
                 return true;
         }
     }

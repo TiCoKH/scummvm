@@ -59,14 +59,14 @@ void EffectSystem::setHostBridge(EffectHostBridge *bridge) {
 }
 
 void EffectSystem::applyEffect(CharacterEffects &effects,
-        Goldbox::Data::PlayerCharacter &character, uint8 type,
+        Goldbox::Data::PlayerCharacter &character, uint8 id,
         uint16 durationMin, uint8 power, bool immediate) {
     if (!_handler)
         return;
 
-    EffectStacking stacking = getStackingPolicy(type, power);
+    EffectStacking stacking = getStackingPolicy(id, power);
     if (stacking != STACK_ADD) {
-        int idx = effects.findEffectIndexByType(type);
+        int idx = effects.findEffectIndexById(id);
         if (idx >= 0) {
             Effect &existing = effects.effectAt(static_cast<uint>(idx));
             if (stacking == STACK_IGNORE)
@@ -85,7 +85,7 @@ void EffectSystem::applyEffect(CharacterEffects &effects,
     }
 
     Effect newEffect;
-    newEffect.type = type;
+    newEffect.id = id;
     newEffect.durationMin = durationMin;
     newEffect.power = power;
     newEffect.immediate = immediate ? 1 : 0;
@@ -134,20 +134,21 @@ void EffectSystem::tick(CharacterEffects &effects,
     }
 }
 
-void EffectSystem::removeEffectsByType(CharacterEffects &effects,
-        Goldbox::Data::PlayerCharacter &character, uint8 type) {
+void EffectSystem::removeEffectById(Goldbox::Data::PlayerCharacter &character, CharacterEffects &effects, uint8 id) {
     if (!_handler)
         return;
 
     Common::List<Effect> &list = effects.effects();
     for (Common::List<Effect>::iterator it = list.begin(); it != list.end();) {
-        if (it->type != type) {
+        if (it->id != id) {
             ++it;
             continue;
         }
         const uint8 oldStatus = character.healthStatus;
         const uint32 oldFlags = character.effectState.flags;
-        _handler->apply(EFF_REMOVE, *it, character, nullptr, _bridge);
+        if (it->immediate) {
+            _handler->apply(EFF_REMOVE, *it, character, nullptr, _bridge);
+        }
         character.onEffectsChanged();
         notifyBridge(_bridge, EFF_REMOVE, character,
             oldStatus, oldFlags, false, true);
@@ -155,13 +156,13 @@ void EffectSystem::removeEffectsByType(CharacterEffects &effects,
     }
 }
 
-EffectStacking EffectSystem::getStackingPolicy(uint8 type, uint8 power) const {
+EffectStacking EffectSystem::getStackingPolicy(uint8 id, uint8 power) const {
     // Permanent effects (power == 0xFF) are never duplicated regardless of type.
     if (power == kPermanentPower)
         return STACK_IGNORE;
 
     for (uint i = 0; i < ARRAYSIZE(kStackingRules); ++i) {
-        if (kStackingRules[i].effectType == type)
+        if (kStackingRules[i].effectType == id)
             return kStackingRules[i].policy;
     }
 
