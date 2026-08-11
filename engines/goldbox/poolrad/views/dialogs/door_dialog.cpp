@@ -80,9 +80,9 @@ bool DoorDialog::partyHasThiefClass() const {
         Goldbox::VmInterface::getParty();
     if (!party)
         return false;
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+    for (Goldbox::Data::PlayerCharacter *member : *party) {
         Goldbox::Poolrad::Data::PoolradCharacter *pc =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(member);
         if (!pc)
             continue;
         if (pc->levels[Goldbox::Data::C_THIEF] > 0)
@@ -96,9 +96,9 @@ bool DoorDialog::partyHasMageClass() const {
         Goldbox::VmInterface::getParty();
     if (!party)
         return false;
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+    for (Goldbox::Data::PlayerCharacter *member : *party) {
         Goldbox::Poolrad::Data::PoolradCharacter *pc =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(member);
         if (!pc)
             continue;
         if (pc->levels[Goldbox::Data::C_MAGICUSER] > 0)
@@ -112,9 +112,9 @@ bool DoorDialog::partyHasKnockSpell() const {
         Goldbox::VmInterface::getParty();
     if (!party)
         return false;
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+    for (Goldbox::Data::PlayerCharacter *member : *party) {
         Goldbox::Poolrad::Data::PoolradCharacter *pc =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(member);
         if (!pc)
             continue;
         for (int s = 0; s < 21; ++s) {
@@ -136,9 +136,9 @@ bool DoorDialog::tryBash() {
     if (!party)
         return false;
 
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+    for (Goldbox::Data::PlayerCharacter *member : *party) {
         Goldbox::Poolrad::Data::PoolradCharacter *pc =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(member);
         if (!pc || pc->healthStatus != Goldbox::Data::S_OKAY)
             continue;
 
@@ -208,9 +208,9 @@ bool DoorDialog::tryLockpick() {
     if (!party)
         return false;
 
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+    for (Goldbox::Data::PlayerCharacter *member : *party) {
         Goldbox::Poolrad::Data::PoolradCharacter *pc =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(member);
         if (!pc || pc->healthStatus != Goldbox::Data::S_OKAY)
             continue;
 
@@ -228,9 +228,9 @@ bool DoorDialog::useKnock() {
     if (!party)
         return false;
 
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it = party->begin(); it != party->end(); ++it) {
+    for (Goldbox::Data::PlayerCharacter *member : *party) {
         Goldbox::Poolrad::Data::PoolradCharacter *pc =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(member);
         if (!pc)
             continue;
         for (int s = 0; s < 21; ++s) {

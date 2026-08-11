@@ -68,11 +68,12 @@ void PartyList::activate() {
         Goldbox::Data::PlayerCharacter *vmSelected = Goldbox::VmInterface::getSelectedCharacter();
         if (vmSelected) {
             uint i = 1;
-            for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = _party->begin(); it != _party->end(); ++it, ++i) {
-                if (*it == vmSelected) {
+            for (Goldbox::Data::PlayerCharacter *member : *_party) {
+                if (member == vmSelected) {
                     _selectedCharIndex = i;
                     break;
                 }
+                ++i;
             }
         }
     }
@@ -83,9 +84,15 @@ bool PartyList::isSelectableIndex(uint index) const {
     if (!_party || index < 1 || index > (uint)_party->size())
         return false;
 
-    Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = _party->begin();
-    for (uint i = 1; i < index; ++i) ++it;
-    Goldbox::Data::PlayerCharacter *candidate = *it;
+    Goldbox::Data::PlayerCharacter *candidate = nullptr;
+    uint i = 1;
+    for (Goldbox::Data::PlayerCharacter *member : *_party) {
+        if (i == index) {
+            candidate = member;
+            break;
+        }
+        ++i;
+    }
     if (!candidate)
         return false;
 
@@ -134,9 +141,16 @@ void PartyList::updateSelectedCharacter() {
         _selectedCharIndex = resolvedIndex;
 
     if (_syncVmSelection && isSelectableIndex(_selectedCharIndex)) {
-        Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = _party->begin();
-        for (uint i = 1; i < _selectedCharIndex; ++i) ++it;
-        Goldbox::VmInterface::setSelectedCharacter(*it);
+        Goldbox::Data::PlayerCharacter *selected = nullptr;
+        uint i = 1;
+        for (Goldbox::Data::PlayerCharacter *member : *_party) {
+            if (i == _selectedCharIndex) {
+                selected = member;
+                break;
+            }
+            ++i;
+        }
+        Goldbox::VmInterface::setSelectedCharacter(selected);
     }
 }
 
@@ -159,8 +173,7 @@ void PartyList::draw() {
     y += 2;
 
     uint _partyIndex = 0;
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = _party->begin(); it != _party->end(); ++it, ++_partyIndex) {
-        Data::PlayerCharacter *pc = *it;
+    for (Data::PlayerCharacter *pc : *_party) {
         if (pc) {
             // Clear row before redrawing to avoid stale wider values.
             s.clearBox(_xName, y, 0x26, y, 0);
@@ -180,6 +193,7 @@ void PartyList::draw() {
             s.writeStringC(hpCol, y, color, Common::String::format("%d", hp));
             y ++;
         }
+        ++_partyIndex;
     }
 
     // Clear one extra line after the list, matching original trailing clear.

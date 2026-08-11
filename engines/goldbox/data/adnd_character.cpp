@@ -89,9 +89,9 @@ void ADnDCharacter::resolveEquippedItems() {
 	// This is the only reliable method for platform-independent save/load.
 	// Legacy DOS segment:offset pointers cannot be restored across platforms.
     uint i = 0;
-    for (Common::List<Goldbox::Data::Items::CharacterItem>::const_iterator it =
-            itemsArr.begin(); it != itemsArr.end(); ++it, ++i) {
-        const Goldbox::Data::Items::CharacterItem &item = *it;
+    for (const Goldbox::Data::Items::CharacterItem &item : itemsArr) {
+		const uint itemIdx = i;
+		++i;
 		if (!item.isEquipped())
 			continue;
         ++readiedCount;
@@ -100,7 +100,7 @@ void ADnDCharacter::resolveEquippedItems() {
 		int slot = (int)prop.slotID;
         Common::String displayName = item.getDisplayName();
         debug(4, "ADnDCharacter::resolveEquippedItems: readied item[%u] displayName='%s' type=%u slot=%d prop.slotID=%u readied=%u nameCode=[%u,%u,%u]",
-              (unsigned)i, displayName.c_str(), (unsigned)item.typeIndex, slot, (unsigned)prop.slotID, (unsigned)item.readied,
+    		      (unsigned)itemIdx, displayName.c_str(), (unsigned)item.typeIndex, slot, (unsigned)prop.slotID, (unsigned)item.readied,
 		      (unsigned)item.nameCode1, (unsigned)item.nameCode2, (unsigned)item.nameCode3);
 		if (slot < 0 || slot >= EQUIPPED_SLOT_COUNT) {
 			debug(4, "WARNING: Equipped item '%s' has invalid slotID %d (corrupted save data?)",
@@ -121,7 +121,7 @@ void ADnDCharacter::resolveEquippedItems() {
                 ++placedCount;
             } else {
                 debug(4, "ADnDCharacter::resolveEquippedItems: extra ring equipped, cannot place item[%u] name='%s'",
-                      (unsigned)i, item.name.c_str());
+			      (unsigned)itemIdx, item.name.c_str());
 			}
 		} else if (!equippedItems.slots[slot]) {
 			// For other slots, direct assignment
@@ -129,7 +129,7 @@ void ADnDCharacter::resolveEquippedItems() {
             ++placedCount;
         } else {
             debug(4, "ADnDCharacter::resolveEquippedItems: slot %d already occupied, item[%u] name='%s' skipped",
-                  slot, (unsigned)i, item.name.c_str());
+		          slot, (unsigned)itemIdx, item.name.c_str());
 		}
 	}
 
@@ -154,14 +154,13 @@ void ADnDCharacter::buildLegacyOffsetsFromEquipped(uint32 *offsetsOut) const {
     }
 
     // If a slot is still 0, infer from readied items
-    for (Common::List<Goldbox::Data::Items::CharacterItem>::const_iterator it =
-            itemsArr.begin(); it != itemsArr.end(); ++it) {
-        if (!it->isEquipped())
+    for (const Goldbox::Data::Items::CharacterItem &item : itemsArr) {
+        if (!item.isEquipped())
             continue;
-        const Goldbox::Data::Items::ItemProperty &prop = it->prop();
+        const Goldbox::Data::Items::ItemProperty &prop = item.prop();
         int slot = (int)prop.slotID;
         if (slot >= 0 && slot < EQUIPPED_SLOT_COUNT && offsetsOut[slot] == 0)
-            offsetsOut[slot] = it->nextAddress;
+            offsetsOut[slot] = item.nextAddress;
     }
 }
 
@@ -194,9 +193,8 @@ void ADnDCharacter::debugValidateEquipped() const {
         bool pointerMatches = false;
         if (ci) {
             // Ensure ci actually exists in inventory array
-            for (Common::List<Goldbox::Data::Items::CharacterItem>::const_iterator it =
-                    itemsArr.begin(); it != itemsArr.end(); ++it) {
-                if (&(*it) == ci) {
+            for (const Goldbox::Data::Items::CharacterItem &item : itemsArr) {
+                if (&item == ci) {
                     pointerMatches = true;
                     break;
                 }
@@ -206,11 +204,10 @@ void ADnDCharacter::debugValidateEquipped() const {
         }
         // Cross-check readied flags: find any item whose prop slotID == s and isEquipped
         bool anyReadiedForSlot = false;
-        for (Common::List<Goldbox::Data::Items::CharacterItem>::const_iterator it =
-                itemsArr.begin(); it != itemsArr.end(); ++it) {
-            if (!it->isEquipped())
+        for (const Goldbox::Data::Items::CharacterItem &item : itemsArr) {
+            if (!item.isEquipped())
                 continue;
-            const Goldbox::Data::Items::ItemProperty &prop = it->prop();
+            const Goldbox::Data::Items::ItemProperty &prop = item.prop();
             if ((int)prop.slotID == s) {
                 anyReadiedForSlot = true;
                 break;

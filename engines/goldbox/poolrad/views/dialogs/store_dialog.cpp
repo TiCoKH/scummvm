@@ -307,9 +307,9 @@ void StoreDialog::deductFromParty(uint32 cost) {
     uint32 newGold = partyGold - cost;
 
     // Zero all party coins then store remainder on selected character
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
+    for (Goldbox::Data::PlayerCharacter *member : *party) {
         Goldbox::Poolrad::Data::PoolradCharacter *pc =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(member);
         if (pc)
             pc->valuableItems.setFromGoldValue(0);
     }
@@ -344,9 +344,9 @@ void StoreDialog::showMessage(const Common::String &msg) {
 Goldbox::Data::ValuableItems StoreDialog::collectPartyCoins(
         const Common::List<Goldbox::Data::PlayerCharacter *> &party) {
     Goldbox::Data::ValuableItems total;
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party.begin(); it != party.end(); ++it) {
+    for (Goldbox::Data::PlayerCharacter *member : party) {
         Goldbox::Poolrad::Data::PoolradCharacter *ch =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(*it);
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(member);
         if (ch && !ch->isNpc())
             total.addCoins(ch->valuableItems);
     }

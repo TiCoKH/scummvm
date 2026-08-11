@@ -58,7 +58,7 @@ void EffectSystem::setHostBridge(EffectHostBridge *bridge) {
     _bridge = bridge;
 }
 
-void EffectSystem::applyEffect(CharacterEffects &effects,
+void EffectSystem::addOrRefreshEffect(CharacterEffects &effects,
         Goldbox::Data::PlayerCharacter &character, uint8 id,
         uint16 durationMin, uint8 power, bool immediate) {
     if (!_handler)

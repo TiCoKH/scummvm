@@ -128,9 +128,9 @@ bool CharacterInventory::save(const Common::String &filename) const {
 
 void CharacterInventory::debugPrint() const {
     size_t i = 0;
-    for (Common::List<CharacterItem>::const_iterator it = _items.begin();
-            it != _items.end(); ++it, ++i) {
-        it->debugPrint(i);
+    for (const CharacterItem &item : _items) {
+        item.debugPrint(i);
+        ++i;
     }
 }
 
@@ -152,9 +152,8 @@ bool CharacterInventory::meetsClassRestriction(const CharacterItem &item,
 
 uint16 CharacterInventory::totalEncumbrance() const {
     uint32 total = 0;
-    for (Common::List<CharacterItem>::const_iterator it = _items.begin();
-            it != _items.end(); ++it) {
-        total += calcItemEncumbrance(*it);
+    for (const CharacterItem &item : _items) {
+        total += calcItemEncumbrance(item);
         if (total > 0xFFFF)
             return 0xFFFF;
     }
@@ -257,20 +256,18 @@ bool CharacterInventory::removeItem(
 }
 
 CharacterItem *CharacterInventory::findByLegacyAddress(uint32 legacyAddr) {
-    for (Common::List<CharacterItem>::iterator it = _items.begin();
-            it != _items.end(); ++it) {
-        if (it->nextAddress == legacyAddr)
-            return &(*it);
+    for (CharacterItem &item : _items) {
+        if (item.nextAddress == legacyAddr)
+            return &item;
     }
     return nullptr;
 }
 
 const CharacterItem *CharacterInventory::findByLegacyAddress(
     uint32 legacyAddr) const {
-    for (Common::List<CharacterItem>::const_iterator it = _items.begin();
-            it != _items.end(); ++it) {
-        if (it->nextAddress == legacyAddr)
-            return &(*it);
+    for (const CharacterItem &item : _items) {
+        if (item.nextAddress == legacyAddr)
+            return &item;
     }
     return nullptr;
 }
@@ -301,9 +298,7 @@ void CharacterInventory::recomputeEquippedTotals(
 }
 
 void CharacterInventory::clearMemorizedSpellFlagsOnEligibleItems() {
-    for (Common::List<CharacterItem>::iterator it = _items.begin();
-            it != _items.end(); ++it) {
-        CharacterItem &item = *it;
+    for (CharacterItem &item : _items) {
         if (item.shouldClearMemorizedSpellFlags())
             item.clearMemorizedSpellFlags();
     }

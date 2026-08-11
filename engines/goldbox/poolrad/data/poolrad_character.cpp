@@ -60,13 +60,14 @@ PoolradCharacter::PoolradCharacter() {
 void PoolradCharacter::setEffect(uint8 type, uint16 durationMin,
 		uint8 power, bool immediate) {
 	// The original CHARACTER_setEffect only appends a node to the linked list;
-	// it never fires any handler. Pass immediate=false so applyEffect only
-	// appends without triggering EFF_ADD, matching the original behaviour and
-	// avoiding reentrancy when one handler calls setEffect.
+	// it never fires any handler. Pass immediate=false so addOrRefreshEffect
+	// only appends without triggering EFF_ADD, matching the original behaviour
+	// and avoiding reentrancy when one handler calls setEffect.
 	Goldbox::Poolrad::EffectHandler effectHandler;
 	Goldbox::Data::Effects::EffectSystem effectSystem(&effectHandler,
 		Goldbox::Poolrad::getEffectHostBridge());
-	effectSystem.applyEffect(effects, *this, type, durationMin, power, false);
+	effectSystem.addOrRefreshEffect(effects, *this, type, durationMin,
+		power, false);
 	recalcCombatStats();
 }
 
@@ -181,9 +182,9 @@ void PoolradCharacter::clearMemorizedSpellStateLegacy() {
 
 void PoolradCharacter::clearPartyMemorizedSpellState(
 		Common::List<Goldbox::Data::PlayerCharacter *> &party) {
-	for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it = party.begin(); it != party.end(); ++it) {
+	for (Goldbox::Data::PlayerCharacter *member : party) {
 		PoolradCharacter *character =
-			dynamic_cast<PoolradCharacter *>(*it);
+			dynamic_cast<PoolradCharacter *>(member);
 		if (character)
 			character->clearMemorizedSpellStateLegacy();
 	}
@@ -499,9 +500,9 @@ void PoolradCharacter::recalcCombatStats() {
 
 	// Iterate inventory items
 	uint i = 0;
-	for (Common::List<CharacterItem>::const_iterator it = items.begin();
-			it != items.end(); ++it, ++i) {
-		const CharacterItem &ci = *it;
+	for (const CharacterItem &ci : items) {
+		const uint itemIdx = i;
+		++i;
 		// Weight for this item (respect stack)
 		uint32 w = ci.weight;
 		if (ci.stackSize != 0)
@@ -511,7 +512,7 @@ void PoolradCharacter::recalcCombatStats() {
 		if (!ci.isEquipped())
 			continue;
 
-		CharacterItem *ptr = const_cast<CharacterItem *>(&(*it));
+		CharacterItem *ptr = const_cast<CharacterItem *>(&ci);
 		const ItemProperty &p = ci.prop();
 		bool placed = false;
 		int sid = (int)p.slotID;
@@ -531,7 +532,7 @@ void PoolradCharacter::recalcCombatStats() {
 				placed = true;
 			} else {
 				// More than two rings with slot id 9 equipped - unexpected
-				debug(4, "PoolradCharacter::recalcCombatStats extra ring (slot id 9) cannot be placed: idx=%u type=%u", (unsigned)i, (unsigned)ci.typeIndex);
+				debug(4, "PoolradCharacter::recalcCombatStats extra ring (slot id 9) cannot be placed: idx=%u type=%u", (unsigned)itemIdx, (unsigned)ci.typeIndex);
 			}
 		}
 		// Arrow / Bolt by type index

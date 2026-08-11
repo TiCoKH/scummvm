@@ -72,9 +72,8 @@ public:
     void appendEffect(const Effect &effect) { _effects.push_back(effect); }
 
     bool hasEffect(uint8 id) const {
-        for (Common::List<Effect>::const_iterator it = _effects.begin();
-                it != _effects.end(); ++it) {
-            if ((*it).id == id)
+        for (const Effect &effect : _effects) {
+            if (effect.id == id)
                 return true;
         }
         return false;
@@ -82,10 +81,10 @@ public:
 
     int findEffectIndexById(uint8 id) const {
         int idx = 0;
-        for (Common::List<Effect>::const_iterator it = _effects.begin();
-                it != _effects.end(); ++it, ++idx) {
-            if (it->id == id)
+        for (const Effect &effect : _effects) {
+            if (effect.id == id)
                 return idx;
+            ++idx;
         }
         return -1;
     }

@@ -140,8 +140,7 @@ static void handleEnlargeStrengthened(const EffectCall &c) {
     Effect *bestEffect = nullptr;
     uint8 bestStr = 0, bestExt = 0;
     Common::List<Effect> &list = fx->effects();
-    for (Common::List<Effect>::iterator it = list.begin(); it != list.end(); ++it) {
-        Effect &e = *it;
+    for (Effect &e : list) {
         if (&e == &c.effect)
             continue;
         if (e.id != E_STRENGTH && e.id != E_ENLARGE)

@@ -46,12 +46,30 @@ public:
     void setHandler(EffectHandlerBase *handler);
     void setHostBridge(EffectHostBridge *bridge);
 
+    /**
+     * Add or refresh a timed effect record on a character.
+     *
+     * This mutates the CharacterEffects list (append/refresh/ignore based on
+     * stacking rules). It does not implement legacy "does this effect apply to
+     * target now (possibly by party propagation)" semantics.
+     */
+    void addOrRefreshEffect(CharacterEffects &effects,
+                            Goldbox::Data::PlayerCharacter &character,
+                            uint8 type,
+                            uint16 durationMin,
+                            uint8 power,
+                            bool immediate);
+
+    // Backward-compatible alias. Prefer addOrRefreshEffect() for new code.
     void applyEffect(CharacterEffects &effects,
                      Goldbox::Data::PlayerCharacter &character,
                      uint8 type,
                      uint16 durationMin,
                      uint8 power,
-                     bool immediate);
+                     bool immediate) {
+        addOrRefreshEffect(effects, character, type, durationMin, power,
+            immediate);
+    }
 
     void tick(CharacterEffects &effects,
               Goldbox::Data::PlayerCharacter &character);

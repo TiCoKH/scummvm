@@ -435,8 +435,8 @@ VmResult PoolradEngineHostImpl::startCombat() {
         combatRoster.reserve(partySize + enemySize);
     }
 
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party.begin(); it != party.end(); ++it)
-        combatRoster.push_back(*it);
+    for (Goldbox::Data::PlayerCharacter *member : party)
+        combatRoster.push_back(member);
 
     int partyCount = static_cast<int>(partySize);
     if (_monstersAppendedToParty) {
@@ -604,9 +604,8 @@ VmResult PoolradEngineHostImpl::clearMonsters() {
     if (_engine && _monstersAppendedToParty) {
         Common::List<Goldbox::Data::PlayerCharacter *> &party =
             _engine->getParty();
-        for (Common::List<Data::PoolradCharacter *>::const_iterator it =
-                _loadedMonsters.begin(); it != _loadedMonsters.end(); ++it) {
-            party.remove(*it);
+        for (Data::PoolradCharacter *monster : _loadedMonsters) {
+            party.remove(monster);
         }
     }
 
@@ -618,9 +617,8 @@ VmResult PoolradEngineHostImpl::clearMonsters() {
             iconMgr->releaseIcon(_monsterIconSlots[i]);
     }
 
-    for (Common::List<Data::PoolradCharacter *>::iterator it =
-            _loadedMonsters.begin(); it != _loadedMonsters.end(); ++it) {
-        delete *it;
+    for (Data::PoolradCharacter *monster : _loadedMonsters) {
+        delete monster;
     }
 
     _loadedMonsters.clear();
@@ -1181,8 +1179,7 @@ VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
     // First runtime trigger-set integration: periodic poison/disease cycle.
     Goldbox::Data::Effects::EffectRuntime runtime(&effectHandler,
         Goldbox::Poolrad::getEffectHostBridge());
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
-        Goldbox::Data::PlayerCharacter *character = *it;
+    for (Goldbox::Data::PlayerCharacter *character : *party) {
         if (!character)
             continue;
 
@@ -1217,8 +1214,7 @@ VmResult PoolradEngineHostImpl::checkParty(uint16 attributeAddr,
     // - write count to lowAddr; highAddr is reserved for attribute mode.
     if (attributeAddr == 0 && effectId != 0) {
         uint16 count = 0;
-        for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
-            Goldbox::Data::PlayerCharacter *character = *it;
+        for (Goldbox::Data::PlayerCharacter *character : *party) {
             if (!character)
                 continue;
 
@@ -1230,9 +1226,8 @@ VmResult PoolradEngineHostImpl::checkParty(uint16 attributeAddr,
             const Common::List<Goldbox::Data::Effects::Effect> &list =
                 effects->effects();
             bool hasEffect = false;
-            for (Common::List<Goldbox::Data::Effects::Effect>::const_iterator jt =
-                    list.begin(); jt != list.end(); ++jt) {
-                if ((*jt).id == static_cast<uint8>(effectId)) {
+            for (const Goldbox::Data::Effects::Effect &effect : list) {
+                if (effect.id == static_cast<uint8>(effectId)) {
                     hasEffect = true;
                     break;
                 }
@@ -1268,8 +1263,7 @@ bool PoolradEngineHostImpl::hasEffectActive(uint8 effectId) const {
     if (!party)
         return false;
 
-    for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it = party->begin(); it != party->end(); ++it) {
-        Goldbox::Data::PlayerCharacter *character = *it;
+    for (Goldbox::Data::PlayerCharacter *character : *party) {
         if (!character)
             continue;
 
@@ -1280,9 +1274,8 @@ bool PoolradEngineHostImpl::hasEffectActive(uint8 effectId) const {
 
         const Common::List<Goldbox::Data::Effects::Effect> &list =
             effects->effects();
-        for (Common::List<Goldbox::Data::Effects::Effect>::const_iterator jt =
-                list.begin(); jt != list.end(); ++jt) {
-            if ((*jt).id == effectId)
+        for (const Goldbox::Data::Effects::Effect &effect : list) {
+            if (effect.id == effectId)
                 return true;
         }
     }
