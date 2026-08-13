@@ -92,7 +92,7 @@ public:
      * Uses globally available runtime context to resolve party/combat state,
      * then executes the same handler-driven logic as the full overload.
      */
-    bool applyEffect(PlayerCharacter &target,
+    bool checkEffect(PlayerCharacter &target,
             uint8 effectType) const;
 
     /**

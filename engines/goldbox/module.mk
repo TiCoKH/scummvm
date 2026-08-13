@@ -89,7 +89,6 @@ MODULE_OBJS = \
 	poolrad/data/poolrad_tile_props.o \
 	poolrad/data/legacy_save_utils.o \
 	poolrad/data/poolrad_vm_layout.o \
-	poolrad/gfx/surface.o \
 	poolrad/views/view.o \
 	poolrad/views/title_view.o \
 	poolrad/views/credits_view.o \

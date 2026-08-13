@@ -313,7 +313,7 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
         return;
 
     for (uint i = 0; i < table->size; ++i)
-        applyEffect(character, static_cast<uint8>(table->ids[i]));
+        checkEffect(character, static_cast<uint8>(table->ids[i]));
 }
 
 bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,
@@ -340,7 +340,7 @@ bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,
     return false;
 }
 
-bool EffectRuntime::applyEffect(PlayerCharacter &target,
+bool EffectRuntime::checkEffect(PlayerCharacter &target,
         uint8 effectType) const {
     if (!_handler)
         return false;
