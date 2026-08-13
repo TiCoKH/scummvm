@@ -24,6 +24,7 @@
 #include "common/str.h"
 #include "common/scummsys.h"
 #include "goldbox/core/global.h"
+#include "goldbox/gfx/surface.h"
 
 namespace Goldbox {
 
@@ -38,17 +39,32 @@ class Engine;
  *
  * This is deliberately independent of a View or Dialog so ECL hosts,
  * combat, map events, and game-specific code can use the same text rules.
- * Interactive paging remains a UI concern; this class renders one message
- * immediately into the current Goldbox screen.
+ * Interactive paging remains a UI concern; this class stores and renders the
+ * current page when asked by a UI adapter.
  */
 class GameText {
 private:
 	Engine *_engine;
-	bool _messageBoxDrawn;
+	Data::PlayerCharacter *_character;
+	Common::String _text;
+	uint _pageStart;
+	uint _renderPos;
+	uint8 _startX;
+	uint8 _startY;
+	uint8 _endX;
+	uint8 _endY;
+	uint8 _nameX;
+	uint8 _nameY;
+	uint8 _cursorX;
+	uint8 _cursorY;
+	int _textColor;
+	bool _combat;
+	bool _waitingForKey;
+	bool _active;
 
-	void drawCharacterName(Data::PlayerCharacter *character, int x, int y);
-	void printBlock(int startX, int startY, int endX, int endY,
-			int color, const Common::String &text);
+	void drawCharacterName(Surface &surface) const;
+	void drawRange(Surface &surface) const;
+	bool advanceWord();
 
 public:
 	explicit GameText(Engine *engine);
@@ -63,8 +79,25 @@ public:
 	void showMessage(Data::PlayerCharacter *character,
 			const Common::String &message, uint8 line, bool withDelay = false);
 
-	/** Render ordinary ECL text in the shared message area. */
+	/** Start ordinary ECL text in the normal message area. */
 	void printText(const Common::String &text, bool clearBox = false);
+
+	/** Start or append text in the normal dialog message area. */
+	void setText(const Common::String &text, bool clearBox);
+
+	/** Advance the message by one word. Returns true while work was done. */
+	bool advance();
+
+	/** Continue after a full page was acknowledged by the UI. */
+	bool nextPage();
+
+	/** Draw the current page and currently rendered words. */
+	void draw(Surface &surface) const;
+
+	bool isActive() const { return _active; }
+	bool isWaitingForKey() const { return _waitingForKey; }
+	bool isComplete() const { return _active && !_waitingForKey && _renderPos >= _text.size(); }
+	bool isBusy() const { return _active && !isComplete(); }
 
 	/** Clear the message area and its prompt line. */
 	void clearMessageArea();

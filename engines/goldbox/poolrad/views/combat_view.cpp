@@ -272,7 +272,19 @@ void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
             (_globals.behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) ==
             _globals.behaviorFlags;
 
-        drawDamage(ch, isMagic, r.message);
+    // Mirrors COMBAT_DrawDamage: render the character-aware message before
+    // playing the hit animation. GameText owns TEXT_BlockPrint-compatible
+    // wrapping and the legacy combat message-box coordinates.
+    if (g_engine) {
+        g_engine->getGameText().showMessage(ch, r.message, 10, false);
+        Surface messageSurface = getSurface();
+        while (g_engine->getGameText().advance())
+            ;
+        g_engine->getGameText().draw(messageSurface);
+        g_system->updateScreen();
+    }
+
+    drawDamage(ch, isMagic, r.message);
 
     if (ch->combatState)
         ch->combatState->canCast = false;
@@ -349,10 +361,6 @@ void CombatView::handleDeathOnMap(::Goldbox::Data::PlayerCharacter *ch) {
     // Sound.
     // SOUND_ID_MAGIC_DAMAGE = 6, SOUND_ID_NORMAL_DAMAGE = 5 (Poolrad values).
     g_engine->soundPlay(isMagic ? 6 : 5);
-
-    // Post the damage message.
-    if (_bridge)
-        _bridge->postEffectMessage(ch, message, false);
 
     // Animation: magic repeats CFG_GAME_SPEED times, normal runs once.
     // CFG_GAME_SPEED maps to g_engine->getTextDelay() (1-5).

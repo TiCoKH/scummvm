@@ -26,59 +26,26 @@
 #include "common/str.h"
 
 namespace Goldbox {
+class GameText;
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
 /**
- * Word-wrapping text renderer for the ECL message area.
+ * UI adapter for the shared GameText message state.
  *
- * Implements the logic of TEXT_boxMessage (x86) / TEXT_BlockPrint (m68k):
- * - Scans source text for word boundaries (break chars: space, -, ., ,, ?, !, :, ;)
- * - Wraps words that would overflow past endX to the next line
- * - On vertical overflow past endY: resets cursor, shows "PRESS ANY KEY",
- *   clears the area, then continues
- * - Per-character draw with optional delay pacing (CFG_GAME_SPEED based)
- *
- * Default text area for PRINT/PRINTCLEAR: (1,17)-(38,22), color 10.
+ * GameText owns TEXT_BlockPrint-compatible wrapping and paging state. This
+ * dialog owns activation, redraws, pacing, and keyboard acknowledgement.
  */
 class TextBoxDialog : public Dialog {
 public:
-    static const uint8 kDefaultStartX = 1;
-    static const uint8 kDefaultStartY = 17;
-    static const uint8 kDefaultEndX = 38;
-    static const uint8 kDefaultEndY = 22;
     static const int kDefaultTextColor = 10;
 
 private:
-    // Text area bounds (character coordinates)
-    uint8 _startX;
-    uint8 _startY;
-    uint8 _endX;
-    uint8 _endY;
-
-    // Cursor position within the text area
-    uint8 _cursorX;
-    uint8 _cursorY;
-
-    // Text color
-    int _textColor;
-
-    // Source text and rendering state
-    Common::String _text;
-    uint _srcIdx;
-    uint _pageStartIdx;
-    bool _rendering;
-    bool _waitingForKey;
-
-    // Per-character pacing
+    GameText *_gameText;
     uint _frameCounter;
     uint _framesPerWord;
     bool _pendingDrawStep = false;
-
-    void redrawCurrentPage();
-    void renderNextWord();
-    void clearArea();
 
 public:
     TextBoxDialog(const Common::String &name = "TextBox");
@@ -99,7 +66,7 @@ public:
     /**
      * Returns true while text is still being rendered or waiting for key.
      */
-    bool isBusy() const { return _rendering || _waitingForKey; }
+    bool isBusy() const;
 
     void activate() override;
     void draw() override;
