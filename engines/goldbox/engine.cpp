@@ -40,7 +40,7 @@ Data::Items::Storage Engine::gItemProps;
 Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine(syst),
 	_gameDescription(gameDesc), _randomSource("Goldbox"),
 	_daxManager(gameDesc->desc.platform),
-	_soundDriver(nullptr), _soundMode(kSoundTandy) {
+	_soundDriver(nullptr), _soundMode(kSoundTandy), _gameText(this) {
 	g_engine = this;
 	_treasurePool = new TreasurePool();
 }

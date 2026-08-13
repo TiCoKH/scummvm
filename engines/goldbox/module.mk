@@ -78,6 +78,7 @@ MODULE_OBJS = \
 	combat/combat_viewport.o \
 	combat/battlefield_map.o \
 	gfx/surface.o \
+	gfx/game_text.o \
 	sound/sound_driver.o \
 	poolrad/poolrad.o \
 	poolrad/poolrad_runtime_exchange.o \

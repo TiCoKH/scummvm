@@ -76,7 +76,6 @@ private:
     uint _framesPerWord;
     bool _pendingDrawStep = false;
 
-    static bool isWordBreak(char c);
     void redrawCurrentPage();
     void renderNextWord();
     void clearArea();
