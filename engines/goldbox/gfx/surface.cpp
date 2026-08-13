@@ -81,11 +81,10 @@ void Surface::writeString(const Common::String &str) {
 }
 
 void Surface::writeString(const unsigned char *str) {
-    for (size_t i = 0; str[i] != '\0'; ++i) {
-        unsigned char mappedIndex = mapCharToIndex(str[i]);
-        _currentFont->drawChar(this, mappedIndex, _textX * FONT_W, _textY * FONT_H, _textColor);
-        ++_textX;
-    }
+	if (!str)
+		return;
+
+	writeString(Common::String((const char *)str));
 }
 
 void Surface::writeStringC(const Common::String &str, int color){

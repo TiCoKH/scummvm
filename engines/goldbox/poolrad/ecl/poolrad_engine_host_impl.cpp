@@ -26,7 +26,7 @@
 #include "common/path.h"
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/poolrad.h"
-#include "goldbox/poolrad/gfx/surface.h"
+#include "goldbox/gfx/surface.h"
 #include "goldbox/gfx/icon.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/gfx/encounter_sprite_cache.h"
@@ -739,7 +739,7 @@ int16 PoolradEngineHostImpl::horizontalMenu(
     // Clear prompt row 24 after menu closes.
     Graphics::Screen *screen = _engine->getScreen();
     if (screen) {
-        Goldbox::Poolrad::Gfx::Surface screenSurface(*screen,
+        Goldbox::Surface screenSurface(*screen,
             Common::Rect(0, 0, screen->w, screen->h));
         screenSurface.clearBox(0, 24, 39, 24, 0);
     }
@@ -1395,7 +1395,7 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
         // Gap #5: Clear prompt row 24 after menu closes.
         Graphics::Screen *screen = _engine ? _engine->getScreen() : nullptr;
         if (screen) {
-            Goldbox::Poolrad::Gfx::Surface screenSurface(*screen,
+            Goldbox::Surface screenSurface(*screen,
                 Common::Rect(0, 0, screen->w, screen->h));
             screenSurface.clearBox(0, 24, 39, 24, 0);
         }

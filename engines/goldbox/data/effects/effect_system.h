@@ -60,17 +60,6 @@ public:
                             uint8 power,
                             bool immediate);
 
-    // Backward-compatible alias. Prefer addOrRefreshEffect() for new code.
-    void applyEffect(CharacterEffects &effects,
-                     Goldbox::Data::PlayerCharacter &character,
-                     uint8 type,
-                     uint16 durationMin,
-                     uint8 power,
-                     bool immediate) {
-        addOrRefreshEffect(effects, character, type, durationMin, power,
-            immediate);
-    }
-
     void tick(CharacterEffects &effects,
               Goldbox::Data::PlayerCharacter &character);
 
