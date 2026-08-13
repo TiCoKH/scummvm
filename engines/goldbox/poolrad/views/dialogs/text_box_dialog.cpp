@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
+#include "goldbox/gfx/game_text.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/events.h"
@@ -38,12 +39,6 @@ TextBoxDialog::TextBoxDialog(const Common::String &name)
             _srcIdx(0), _pageStartIdx(0), _rendering(false), _waitingForKey(false),
       _frameCounter(0), _framesPerWord(0) {
     setBounds(Window(0, 0, 39, 24));
-}
-
-bool TextBoxDialog::isWordBreak(char c) {
-    return c == '\0' || c == ' ' || c == '-' || c == '.'
-        || c == ',' || c == '?' || c == '!' || c == ':'
-        || c == ';';
 }
 
 void TextBoxDialog::clearArea() {
@@ -86,15 +81,7 @@ void TextBoxDialog::redrawCurrentPage() {
 
     while (pos < _srcIdx) {
         uint wordStart = pos;
-        uint wordEnd = pos;
-
-        while (wordEnd < _srcIdx && !isWordBreak(_text[wordEnd])) {
-            ++wordEnd;
-        }
-
-        if (wordEnd < _srcIdx && _text[wordEnd] != '\0') {
-            ++wordEnd;
-        }
+        uint wordEnd = GameText::wordEnd(_text, wordStart, _srcIdx);
 
         const uint wordLen = wordEnd - wordStart;
         if (wordLen > 0 && cursorX + wordLen > static_cast<uint>(_endX) + 1) {
@@ -157,18 +144,8 @@ void TextBoxDialog::renderNextWord() {
         return;
     }
 
-    // Scan forward to find the end of the current word (stop at break char).
     uint wordStart = _srcIdx;
-    uint wordEnd = _srcIdx;
-
-    while (wordEnd < _text.size() && !isWordBreak(_text[wordEnd])) {
-        ++wordEnd;
-    }
-
-    // Include the break character itself in the word (space/punctuation).
-    if (wordEnd < _text.size() && _text[wordEnd] != '\0') {
-        ++wordEnd;
-    }
+    uint wordEnd = GameText::wordEnd(_text, wordStart, _text.size());
 
     uint wordLen = wordEnd - wordStart;
 

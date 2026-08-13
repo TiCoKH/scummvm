@@ -164,15 +164,8 @@ VmResult EclSyscallImpl::loadGeoBlock(uint8 blockId) {
 
 void EclSyscallImpl::_showMessageBox(const Common::String &text, bool clear) {
     if (!_engine) return;
-    
-    // Integrate with message box system
-    // TODO: Route to appropriate message display:
-    // - Print to text buffer at ECL memory 0x84c8
-    // - Update print flags at 0x84de (print ready) and 0x84df (output complete)
-    // - Set text print flag for UI rendering
-    
-    // For now, route through existing message system
-    // Engine's View should poll memory flags to render text
+
+    _engine->getGameText().printText(text, clear);
 }
 
 View *EclSyscallImpl::_getCurrentView() const {

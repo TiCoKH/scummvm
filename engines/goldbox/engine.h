@@ -44,6 +44,7 @@
 #include "goldbox/gfx/area_map_cache.h"
 #include "goldbox/gfx/encounter_sprite_cache.h"
 #include "goldbox/gfx/picture_display_cache.h"
+#include "goldbox/gfx/game_text.h"
 #include "goldbox/runtime/runtime_geo.h"
 
 namespace Goldbox {
@@ -102,6 +103,7 @@ protected:
 
 public:
 	Graphics::Font * _font = nullptr;
+	GameText _gameText;
 	Gfx::WalldefSlotCache _walldefSlotCache;
 	Gfx::Tile8x8Cache _tileCache;
 	Gfx::DaxTile *_fixedTileCacheSlot0 = nullptr;
@@ -198,6 +200,9 @@ public:
 	 * Maps to original BYTE_DELAY: low value = fast, high value = slow
 	 */
 	uint getTextDelay() const { return _textDelay; }
+
+	GameText &getGameText() { return _gameText; }
+	const GameText &getGameText() const { return _gameText; }
 
 	/**
 	 * Sets the text display delay (1-5 range).
