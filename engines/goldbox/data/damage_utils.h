@@ -52,9 +52,7 @@ public:
             msg += " from Acid";
         }
 
-        const bool isMagic =
-                (behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) == behaviorFlags;
-        if (isMagic)
+        if (behaviorFlags == Combat::CombatGlobals::DMG_MAGIC)
             msg += " from Magic";
 
         return msg;
