@@ -42,7 +42,7 @@ struct CombatContext;
  * build messages without re-querying character state after mutation.
  */
 struct DamageResult {
-    uint8 finalDamage;      // actual damage dealt (0 = nullified)
+    uint8 finalDamage;      // resolved damage amount (0 = nullified)
     bool spellLost;         // true if an in-progress spell was interrupted
     bool wentDown;          // true if character became disabled
     bool wasKilled;         // true if status is DEAD / GONE / STONED

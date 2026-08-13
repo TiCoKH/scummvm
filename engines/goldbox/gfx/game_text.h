@@ -45,7 +45,8 @@ class Engine;
 class GameText {
 private:
 	Engine *_engine;
-	Data::PlayerCharacter *_character;
+	Common::String _characterName;
+	int _characterNameColor;
 	Common::String _text;
 	uint _pageStart;
 	uint _renderPos;

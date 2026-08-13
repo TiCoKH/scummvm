@@ -27,6 +27,7 @@
 #include "goldbox/data/effects/effect_host_bridge.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/rules_types.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Data {
@@ -68,75 +69,78 @@ void DamageSystem::setHostBridge(Effects::EffectHostBridge *bridge) {
 DamageResult DamageSystem::apply(PlayerCharacter &target,
         const DamageRequest &request) const {
     DamageResult result;
-
-    if (request.amount <= 0)
-        return result;
-
     result.requested = request.amount;
 
-    const int beforeHp = target.hitPoints.current;
-    const uint8 beforeStatus = target.healthStatus;
+    int damage = request.amount;
+    if (request.savingThrow && request.applyModifier) {
+        switch (request.modifier) {
+        case DAMAGE_NULLIFY:
+            damage = 0;
+            break;
 
-    bool hadSpell = false;
-    if (target.combatState)
-        hadSpell = target.combatState->spellId != 0;
+        case DAMAGE_HALF:
+            damage /= 2;
+            break;
 
-    const uint8 rawDamage = request.amount > 0xff
+        case DAMAGE_NORMAL:
+        default:
+            break;
+        }
+    } else if (!request.savingThrow) {
+        const uint8 baseDamage = request.amount > 0xff
+            ? 0xff
+            : static_cast<uint8>(request.amount);
+        damage = applyDamageModifier(baseDamage, request.modifier,
+            request.applyModifier);
+    }
+    const uint8 rawDamage = damage <= 0
+        ? 0
+        : damage > 0xff
         ? 0xff
-        : static_cast<uint8>(request.amount);
+        : static_cast<uint8>(damage);
+    result.applied = rawDamage;
+    result.resisted = request.amount > 0 && rawDamage == 0;
+
+    if (rawDamage == 0)
+        return result;
+
+    // Build the gameplay message before applying HP/status changes. The UI
+    // layer decides when and where result.message is displayed.
+    result.message = DamageUtils::buildDamageMessage(
+        rawDamage, request.behaviorFlags);
 
     if (_bridge) {
-        DamageModifier modifier = request.modifier;
-        bool applyModifier = request.applyModifier;
-
-        // TODO: Wire saving throw outcomes to damage modifiers.
-        if (request.savingThrow) {
-            applyModifier = false;
-        }
-
-        _bridge->applyDamage(&target, rawDamage, modifier, applyModifier);
+        // All modifiers have already been resolved above. Passing the original
+        // modifier here would apply it a second time in the host.
+        _bridge->applyDamage(&target, rawDamage, DAMAGE_NORMAL, false);
     } else {
-        target.damage(applyDamageModifier(rawDamage, request.modifier,
-            request.applyModifier));
+        target.damage(rawDamage);
     }
 
-    const int afterHp = target.hitPoints.current;
-    result.applied = (beforeHp > afterHp) ? (beforeHp - afterHp) : 0;
-    result.resisted = result.applied < result.requested;
     result.killed = isKilledStatus(target.healthStatus);
     result.wentDown = !target.enabled;
 
-    result.message = DamageUtils::buildDamageMessage(
-        static_cast<uint8>(MIN<int>(result.applied, 0xff)),
-        request.behaviorFlags);
-
-    if (hadSpell && target.combatState) {
+    // The original only interrupts an active spell during GS_COMBAT.
+    if (g_engine && VmInterface::getGameStatus() == GS_COMBAT
+            && target.combatState
+            && target.combatState->spellId != 0) {
+        target.combatState->canCast = false;
         const uint8 interruptedSpellId = target.combatState->spellId;
-        if (interruptedSpellId != 0) {
-            if (Effects::CharacterEffects *fx = target.getEffects()) {
-                int idx = fx->findEffectIndexById(interruptedSpellId);
-                if (idx >= 0)
-                    fx->removeEffectAt(static_cast<uint>(idx));
-            }
-            target.combatState->spellId = 0;
+        if (Effects::CharacterEffects *fx = target.getEffects()) {
+            int idx = fx->findEffectIndexById(interruptedSpellId);
+            if (idx >= 0)
+                fx->removeEffectAt(static_cast<uint>(idx));
         }
+        target.combatState->spellId = 0;
 
-        result.interruptedSpell = interruptedSpellId != 0;
-        if (result.interruptedSpell)
-            result.spellLostMessage = "lost a spell";
+        result.interruptedSpell = true;
+        result.spellLostMessage = "lost a spell";
     }
 
     if (result.wentDown) {
         result.downMessage = result.killed ? "is killed" : "Goes Down";
         if (!result.killed && target.healthStatus == Goldbox::Data::S_DYING)
             result.downMessage += " and is Dying";
-    }
-
-    // If HP did not change but status collapsed from alive to dead,
-    // preserve semantic "damage happened" by mirroring requested amount.
-    if (result.applied == 0 && beforeStatus == Goldbox::Data::S_OKAY
-            && isKilledStatus(target.healthStatus)) {
-        result.applied = result.requested;
     }
 
     return result;

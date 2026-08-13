@@ -64,7 +64,7 @@ struct DamageRequest {
 
 struct DamageResult {
     int requested;
-    int applied;
+    int applied;            // resolved damage applied to the character
 
     bool resisted;
     bool killed;

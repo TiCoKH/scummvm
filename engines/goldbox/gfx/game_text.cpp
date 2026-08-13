@@ -35,7 +35,8 @@ static const int kPartyNameColor = 0x1C;
 
 } // namespace
 
-GameText::GameText(Engine *engine) : _engine(engine), _character(nullptr),
+GameText::GameText(Engine *engine) : _engine(engine), _characterName(),
+		_characterNameColor(kPartyNameColor),
 		_pageStart(0), _renderPos(0), _startX(1), _startY(17),
 		_endX(38), _endY(22), _nameX(1), _nameY(17), _cursorX(1), _cursorY(17),
 		_textColor(kTextColor),
@@ -57,16 +58,11 @@ uint GameText::wordEnd(const Common::String &text, uint start, uint limit) {
 }
 
 void GameText::drawCharacterName(Surface &surface) const {
-	if (!_character)
+	if (_characterName.empty())
 		return;
 
-	int color = kPartyNameColor;
-	if (!_character->enabled)
-		color = kDisabledNameColor;
-	else if (_character->hostile)
-		color = kEnemyNameColor;
-
-	surface.writeStringC(_nameX, _nameY, color, _character->name);
+	surface.writeStringC(_nameX, _nameY, _characterNameColor,
+			_characterName);
 }
 
 void GameText::drawRange(Surface &surface) const {
@@ -114,7 +110,15 @@ bool GameText::advanceWord() {
 
 void GameText::showMessage(Data::PlayerCharacter *character,
 		const Common::String &message, uint8 line, bool withDelay) {
-	_character = character;
+	_characterName.clear();
+	_characterNameColor = kPartyNameColor;
+	if (character) {
+		_characterName = character->name;
+		if (!character->enabled)
+			_characterNameColor = kDisabledNameColor;
+		else if (character->hostile)
+			_characterNameColor = kEnemyNameColor;
+	}
 	_text = message;
 	_pageStart = 0;
 	_renderPos = 0;
@@ -139,7 +143,8 @@ void GameText::printText(const Common::String &text, bool clearBox) {
 
 void GameText::setText(const Common::String &text, bool clearBox) {
 	if (clearBox || !_active) {
-		_character = nullptr;
+		_characterName.clear();
+		_characterNameColor = kPartyNameColor;
 		_text = text;
 		_pageStart = 0;
 		_renderPos = 0;
@@ -195,6 +200,7 @@ void GameText::draw(Surface &surface) const {
 void GameText::clearMessageArea() {
 	_active = false;
 	_waitingForKey = false;
+	_characterName.clear();
 	_text.clear();
 	_pageStart = 0;
 	_renderPos = 0;
