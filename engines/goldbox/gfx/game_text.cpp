@@ -35,7 +35,11 @@ static const int kPartyNameColor = 0x1C;
 
 } // namespace
 
-GameText::GameText(Engine *engine) : _engine(engine), _messageBoxDrawn(false) {
+GameText::GameText(Engine *engine) : _engine(engine), _character(nullptr),
+		_pageStart(0), _renderPos(0), _startX(1), _startY(17),
+		_endX(38), _endY(22), _nameX(1), _nameY(17), _cursorX(1), _cursorY(17),
+		_textColor(kTextColor),
+		_combat(false), _waitingForKey(false), _active(false) {
 }
 
 bool GameText::isWordBreak(char c) {
@@ -52,95 +56,155 @@ uint GameText::wordEnd(const Common::String &text, uint start, uint limit) {
 	return end;
 }
 
-void GameText::drawCharacterName(Data::PlayerCharacter *character,
-		int x, int y) {
-	if (!character)
+void GameText::drawCharacterName(Surface &surface) const {
+	if (!_character)
 		return;
 
 	int color = kPartyNameColor;
-	if (!character->enabled)
+	if (!_character->enabled)
 		color = kDisabledNameColor;
-	else if (character->hostile)
+	else if (_character->hostile)
 		color = kEnemyNameColor;
 
-	Surface surface(*_engine->getScreen(), Common::Rect(0, 0,
-			_engine->getScreen()->w, _engine->getScreen()->h));
-	surface.writeStringC(x, y, color, character->name);
+	surface.writeStringC(_nameX, _nameY, color, _character->name);
 }
 
-void GameText::printBlock(int startX, int startY, int endX, int endY,
-		int color, const Common::String &text) {
-	Surface surface(*_engine->getScreen(), Common::Rect(0, 0,
-			_engine->getScreen()->w, _engine->getScreen()->h));
-	int cursorX = startX;
-	int cursorY = startY;
-	uint pos = 0;
-
-	while (pos < text.size() && cursorY <= endY) {
+void GameText::drawRange(Surface &surface) const {
+	uint cursorX = _startX;
+	uint cursorY = _startY;
+	uint pos = _pageStart;
+	while (pos < _renderPos && cursorY <= _endY) {
 		const uint wordStart = pos;
-		pos = wordEnd(text, wordStart, text.size());
-
+		pos = wordEnd(_text, wordStart, _renderPos);
 		const uint wordLength = pos - wordStart;
-		if (cursorX != startX && cursorX + wordLength > endX + 1) {
+		if (cursorX != _startX && cursorX + wordLength > _endX + 1) {
 			++cursorY;
-			cursorX = startX;
-			if (cursorY > endY)
-				break;
+			cursorX = _startX;
 		}
-
+		if (cursorY > _endY)
+			break;
 		for (uint i = wordStart; i < pos; ++i) {
-			if (text[i] == ' ' && cursorX > endX)
+			if (_text[i] == ' ' && cursorX > _endX)
 				continue;
-			surface.writeCharC(cursorX++, cursorY, color, text[i]);
+			surface.writeCharC(cursorX++, cursorY, _textColor, _text[i]);
 		}
 	}
+}
+
+bool GameText::advanceWord() {
+	if (!_active || _waitingForKey || _renderPos >= _text.size())
+		return false;
+
+	const uint wordStart = _renderPos;
+	const uint wordEndPos = wordEnd(_text, wordStart, _text.size());
+	const uint wordLength = wordEndPos - wordStart;
+	if (_cursorX != _startX && _cursorX + wordLength > _endX + 1) {
+		++_cursorY;
+		_cursorX = _startX;
+	}
+	if (_cursorY > _endY) {
+		_waitingForKey = true;
+		return false;
+	}
+
+	_renderPos = wordEndPos;
+	_cursorX += wordLength;
+	return true;
 }
 
 void GameText::showMessage(Data::PlayerCharacter *character,
 		const Common::String &message, uint8 line, bool withDelay) {
-	if (!_engine || !_engine->getScreen())
-		return;
-
-	Surface surface(*_engine->getScreen(), Common::Rect(0, 0,
-			_engine->getScreen()->w, _engine->getScreen()->h));
-	if (_engine->getGameState() == GS_COMBAT) {
-		surface.clearBox(23, line, 38, 21, 0);
-		drawCharacterName(character, 23, line);
-		printBlock(23, line + 1, 38, 21, 28, message);
-	} else {
-		const int startY = _messageBoxDrawn ? 18 : 17;
-		if (!_messageBoxDrawn) {
-			surface.drawWindow(1, 17, 38, 22, 0);
-			_messageBoxDrawn = true;
-		}
-
-		surface.clearBox(1, startY, 38, 22, 0);
-		drawCharacterName(character, 1, startY + 1);
-		printBlock(1, startY + 2, 38, 22, 28, message);
-	}
-
-	// Delay/prompt handling is asynchronous in the View layer. The flag is
-	// accepted here to preserve the legacy call contract without blocking the
-	// engine thread.
+	_character = character;
+	_text = message;
+	_pageStart = 0;
+	_renderPos = 0;
+	_combat = _engine && _engine->getGameState() == GS_COMBAT;
+	_startX = _combat ? 23 : 1;
+	_startY = _combat ? line + 1 : line + 2;
+	_nameX = _combat ? 23 : 1;
+	_nameY = line;
+	_endX = 38;
+	_endY = _combat ? 21 : 22;
+	_cursorX = _startX;
+	_cursorY = _startY;
+	_textColor = _combat ? 28 : kTextColor;
+	_waitingForKey = false;
+	_active = true;
 	(void)withDelay;
 }
 
 void GameText::printText(const Common::String &text, bool clearBox) {
-	if (clearBox)
-		clearMessageArea();
+	setText(text, clearBox);
+}
 
-	showMessage(nullptr, text, 17, false);
+void GameText::setText(const Common::String &text, bool clearBox) {
+	if (clearBox || !_active) {
+		_character = nullptr;
+		_text = text;
+		_pageStart = 0;
+		_renderPos = 0;
+		_startX = 1;
+		_startY = 17;
+		_endX = 38;
+		_endY = 22;
+		_nameX = 1;
+		_nameY = 17;
+		_cursorX = _startX;
+		_cursorY = _startY;
+		_textColor = kTextColor;
+		_combat = false;
+		_waitingForKey = false;
+		_active = true;
+		return;
+	}
+
+	if (_waitingForKey) {
+		_pageStart = _renderPos;
+		_cursorX = _startX;
+		_cursorY = _startY;
+		_waitingForKey = false;
+	}
+	_text += text;
+}
+
+bool GameText::advance() {
+	return advanceWord();
+}
+
+bool GameText::nextPage() {
+	if (!_waitingForKey)
+		return false;
+	_pageStart = _renderPos;
+	_cursorX = _startX;
+	_cursorY = _startY;
+	_waitingForKey = false;
+	return true;
+}
+
+void GameText::draw(Surface &surface) const {
+	if (!_active)
+		return;
+	if (_combat)
+		surface.clearBox(_nameX, _nameY, _endX, _endY, 0);
+	else
+		surface.clearBox(_startX, _startY, _endX, _endY, 0);
+	drawCharacterName(surface);
+	drawRange(surface);
 }
 
 void GameText::clearMessageArea() {
-	if (!_engine || !_engine->getScreen())
-		return;
+	_active = false;
+	_waitingForKey = false;
+	_text.clear();
+	_pageStart = 0;
+	_renderPos = 0;
 
-	Surface surface(*_engine->getScreen(), Common::Rect(0, 0,
-			_engine->getScreen()->w, _engine->getScreen()->h));
-	surface.clearBox(1, 17, 38, 22, 0);
-	surface.clearBox(0, 24, 39, 24, 0);
-	_messageBoxDrawn = false;
+	if (_engine && _engine->getScreen()) {
+		Surface surface(*_engine->getScreen(), Common::Rect(0, 0,
+				_engine->getScreen()->w, _engine->getScreen()->h));
+		surface.clearBox(1, 17, 38, 22, 0);
+		surface.clearBox(0, 24, 39, 24, 0);
+	}
 }
 
 } // namespace Goldbox

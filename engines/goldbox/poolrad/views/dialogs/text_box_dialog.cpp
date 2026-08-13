@@ -20,10 +20,11 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
+#include "goldbox/engine.h"
+#include "goldbox/events.h"
 #include "goldbox/gfx/game_text.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/vm_interface.h"
-#include "goldbox/events.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -31,233 +32,92 @@ namespace Views {
 namespace Dialogs {
 
 TextBoxDialog::TextBoxDialog(const Common::String &name)
-    : Dialog(name),
-      _startX(kDefaultStartX), _startY(kDefaultStartY),
-      _endX(kDefaultEndX), _endY(kDefaultEndY),
-      _cursorX(kDefaultStartX), _cursorY(kDefaultStartY),
-      _textColor(kDefaultTextColor),
-            _srcIdx(0), _pageStartIdx(0), _rendering(false), _waitingForKey(false),
-      _frameCounter(0), _framesPerWord(0) {
-    setBounds(Window(0, 0, 39, 24));
-}
-
-void TextBoxDialog::clearArea() {
-    Surface s = getSurface();
-    s.clearBox(_startX, _startY, _endX, _endY, 0);
+		: Dialog(name),
+		  _gameText(g_engine ? &g_engine->getGameText() : nullptr),
+		  _frameCounter(0), _framesPerWord(0) {
+	setBounds(Window(0, 0, 39, 24));
 }
 
 void TextBoxDialog::activate() {
-    Dialog::activate();
-    _rendering = false;
-    _waitingForKey = false;
-    _pendingDrawStep = false;
+	Dialog::activate();
+	_pendingDrawStep = false;
 }
 
 void TextBoxDialog::clearText() {
-    _text.clear();
-    _srcIdx = 0;
-    _pageStartIdx = 0;
-    _rendering = false;
-    _waitingForKey = false;
-    _frameCounter = 0;
-    _framesPerWord = 0;
-    _pendingDrawStep = false;
-    _cursorX = _startX;
-    _cursorY = _startY;
-
-    clearArea();
-    Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 0);
-    redraw();
-}
-
-void TextBoxDialog::redrawCurrentPage() {
-    clearArea();
-
-    uint cursorX = _startX;
-    uint cursorY = _startY;
-    uint pos = _pageStartIdx;
-    Surface s = getSurface();
-
-    while (pos < _srcIdx) {
-        uint wordStart = pos;
-        uint wordEnd = GameText::wordEnd(_text, wordStart, _srcIdx);
-
-        const uint wordLen = wordEnd - wordStart;
-        if (wordLen > 0 && cursorX + wordLen > static_cast<uint>(_endX) + 1) {
-            if (cursorX != _startX) {
-                cursorY++;
-                cursorX = _startX;
-            }
-        }
-
-        if (cursorY > _endY)
-            break;
-
-        for (uint i = wordStart; i < wordEnd; ++i) {
-            const char c = _text[i];
-            if (c == '\0')
-                break;
-            if (c == ' ' && cursorX > _endX)
-                continue;
-            s.writeCharC(cursorX, cursorY, _textColor, c);
-            cursorX++;
-        }
-
-        pos = wordEnd;
-    }
+	_frameCounter = 0;
+	_framesPerWord = 0;
+	_pendingDrawStep = false;
+	if (_gameText)
+		_gameText->clearMessageArea();
+	redraw();
 }
 
 void TextBoxDialog::setText(const Common::String &text, bool clearBox) {
-    _rendering = true;
-    _waitingForKey = false;
-    _frameCounter = 0;
-    _pendingDrawStep = false;
-
-    // Pacing: frames per word based on game speed (1-5 scale).
-    uint speed = VmInterface::getTextDelay();
-    _framesPerWord = (speed == 0) ? 0 : speed;
-
-    if (clearBox) {
-        _text = text;
-        _srcIdx = 0;
-        _pageStartIdx = 0;
-        clearArea();
-        // PRINTCLEAR semantics: also clear the prompt/status row and fully
-        // reset cursor to the text-box origin before rendering new text.
-        Surface s = getSurface();
-        s.clearBox(0, 24, 39, 24, 0);
-        _cursorX = _startX;
-        _cursorY = _startY;
-    } else {
-        // PRINT (non-clear): append to existing text buffer and continue
-        // rendering from the current position.
-        _text += text;
-    }
-
-    redraw();
-}
-
-void TextBoxDialog::renderNextWord() {
-    if (_srcIdx >= _text.size()) {
-        _rendering = false;
-        return;
-    }
-
-    uint wordStart = _srcIdx;
-    uint wordEnd = GameText::wordEnd(_text, wordStart, _text.size());
-
-    uint wordLen = wordEnd - wordStart;
-
-    // Check if word fits on current line.
-    // If it would overflow past endX, wrap to next line first.
-    if (wordLen > 0 && (uint)_cursorX + wordLen > (uint)_endX + 1) {
-        // Don't wrap if we're already at the start of a line (word is wider
-        // than the entire line — just print it anyway to avoid infinite loop).
-        if (_cursorX != _startX) {
-            _cursorY++;
-            _cursorX = _startX;
-        }
-    }
-
-    // Check vertical overflow.
-    if (_cursorY > _endY) {
-        _cursorX = _startX;
-        _cursorY = _startY;
-        _pageStartIdx = wordStart;
-        _waitingForKey = true;
-        _rendering = false;
-        // Draw "PRESS ANY KEY" on row 24.
-        Surface s = getSurface();
-        s.clearBox(0, 24, 39, 24, 0);
-        s.writeStringC(0, 24, _textColor, "PRESS ANY KEY");
-        return;
-    }
-
-    // Draw the word character by character.
-    Surface s = getSurface();
-    for (uint i = wordStart; i < wordEnd; ++i) {
-        char c = _text[i];
-        if (c == '\0')
-            break;
-        // Skip trailing space at end of line to avoid visual overflow.
-        if (c == ' ' && _cursorX > _endX)
-            continue;
-        s.writeCharC(_cursorX, _cursorY, _textColor, c);
-        _cursorX++;
-    }
-
-    _srcIdx = wordEnd;
-
-    // If we've consumed all text, stop rendering.
-    if (_srcIdx >= _text.size()) {
-        _rendering = false;
-    }
+	_frameCounter = 0;
+	_pendingDrawStep = false;
+	const uint speed = VmInterface::getTextDelay();
+	_framesPerWord = speed;
+	if (_gameText)
+		_gameText->setText(text, clearBox);
+	redraw();
 }
 
 void TextBoxDialog::draw() {
-    if (!_isVisible)
-        return;
-    // Render during draw, not tick, so later background/window redraws in the
-    // same frame do not erase already-emitted words from the text area.
-    if (_rendering && _framesPerWord == 0) {
-        while (_rendering) {
-            renderNextWord();
-        }
-    } else if (_rendering && _pendingDrawStep) {
-        _pendingDrawStep = false;
-        renderNextWord();
-    }
+	if (!_isVisible || !_gameText)
+		return;
 
-    redrawCurrentPage();
+	if (_pendingDrawStep) {
+		_pendingDrawStep = false;
+		_gameText->advance();
+	}
 
-    if (_waitingForKey) {
-        Surface s = getSurface();
-        s.clearBox(0, 24, 39, 24, 0);
-        s.writeStringC(0, 24, _textColor, "PRESS ANY KEY");
-    }
+	if (_framesPerWord == 0) {
+		while (_gameText->advance())
+			;
+	}
+
+	Surface surface = getSurface();
+	_gameText->draw(surface);
+	if (_gameText->isWaitingForKey()) {
+		surface.clearBox(0, 24, 39, 24, 0);
+		surface.writeStringC(0, 24, kDefaultTextColor, "PRESS ANY KEY");
+	}
 }
 
 bool TextBoxDialog::tick() {
-    if (_waitingForKey)
-        return false;
+	if (!_gameText || _gameText->isWaitingForKey()
+			|| !_gameText->isBusy())
+		return false;
 
-    if (!_rendering)
-        return false;
+	if (_framesPerWord == 0) {
+		redraw();
+		return true;
+	}
 
-    if (_framesPerWord == 0) {
-        redraw();
-        return true;
-    }
-
-    // Frame-paced rendering: queue one word for the next draw pass.
-    ++_frameCounter;
-    if (_frameCounter >= _framesPerWord) {
-        _frameCounter = 0;
-        _pendingDrawStep = true;
-        redraw();
-    }
-    return true;
+	++_frameCounter;
+	if (_frameCounter >= _framesPerWord) {
+		_frameCounter = 0;
+		_pendingDrawStep = true;
+		redraw();
+	}
+	return true;
 }
 
 bool TextBoxDialog::msgKeypress(const KeypressMessage &msg) {
-    if (_waitingForKey) {
-        (void)msg;
-        // Any key resumes: clear area and continue rendering.
-        _waitingForKey = false;
-        _rendering = true;
-        _pendingDrawStep = false;
-        _pageStartIdx = _srcIdx;
-        clearArea();
-        _cursorX = _startX;
-        _cursorY = _startY;
-        // Clear the prompt row.
-        Surface s = getSurface();
-        s.clearBox(0, 24, 39, 24, 0);
-        redraw();
-        return true;
-    }
-    return false;
+	if (!_gameText || !_gameText->isWaitingForKey())
+		return false;
+
+	(void)msg;
+	_gameText->nextPage();
+	_pendingDrawStep = false;
+	Surface surface = getSurface();
+	surface.clearBox(0, 24, 39, 24, 0);
+	redraw();
+	return true;
+}
+
+bool TextBoxDialog::isBusy() const {
+	return _gameText && _gameText->isBusy();
 }
 
 } // namespace Dialogs
