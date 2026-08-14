@@ -47,6 +47,18 @@ static void applyFlag(EffectOp op, Data::PoolradCharacter &ch, uint32 flag) {
 
 static void handleSilence(const EffectCall &c) {
     applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_SILENCED);
+
+    if (c.op != EFF_ADD || !c.character.combatState)
+        return;
+
+    // canUse covers magic items and scrolls; canCast covers memorized spells.
+    // The legacy routine only displayed the message when item/spell use was
+    // still available, then disabled both action categories.
+    if (c.character.combatState->canUse && c.bridge)
+        c.bridge->postEffectMessage(&c.character, "is silenced", true);
+
+    c.character.combatState->canUse = false;
+    c.character.combatState->canCast = false;
 }
 
 static void handleInvisibility(const EffectCall &c) {
@@ -75,6 +87,15 @@ static void handleResistFireAndCold(const EffectCall &c) {
 
 static void handleFireResist(const EffectCall &c) {
     applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_FIRE_RESIST);
+
+    // EFFECT_20 operates on the current hit, not by applying damage itself.
+    // DamageSystem consumes these resolved combat values afterward.
+    if (c.op != EFF_ADD || !c.combat || !(c.combat->behaviorFlags &
+            Goldbox::Combat::CombatGlobals::DMG_FIRE))
+        return;
+
+    c.combat->damage >>= 1;
+    c.combat->savingThrow += 3;
 }
 
 static void handleProtNormalMissiles(const EffectCall &c) {
@@ -204,6 +225,32 @@ static void handleExtraStrength(const EffectCall &c) {
     c.combat->damage += 2;
 }
 
+static void handleBonusVsSmall(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState
+            || !c.character.combatState->target)
+        return;
+
+    const Goldbox::Poolrad::Data::PoolradCharacter *target =
+        static_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(
+            c.character.combatState->target);
+    if (target->monsterType != 1 || target->iconDimension != 1)
+        return;
+
+    static const char *const kSmallCreatures[] = {
+        "KOBOLD",
+        "KOBOLD LEADER",
+        "GOBLIN",
+        "GOBLIN LEADER"
+    };
+
+    for (uint i = 0; i < ARRAYSIZE(kSmallCreatures); ++i) {
+        if (target->name == kSmallCreatures[i]) {
+            ++c.combat->attackRoll;
+            return;
+        }
+    }
+}
+
 static void handleFlameTongue(const EffectCall &c) {
     if (!c.combat || !c.character.combatState || !c.character.combatState->target)
         return;
@@ -239,19 +286,23 @@ static void handlePoisonDamage(const EffectCall &c) {
     else if (c.op == EFF_REMOVE)
         c.character.effectState.flags &= ~CEF_POISONED;
 
+    // The original EFFECT_add path applies poison damage once when the
+    // effect is successfully added, not on every poison-cycle tick.
+    if (c.op != EFF_ADD)
+        return;
+
     if (c.character.hitPoints.current <= 1)
         return;
 
-    if (c.op != EFF_ADD && c.op != EFF_TICK)
+    if (!c.damage)
         return;
 
-    // Effect handlers are context-agnostic: poison deals one point.
-    if (c.damage) {
-        c.damage->apply(c.character,
-                Goldbox::Data::DamageRequest(1, false));
-    } else {
-        c.character.damage(1);
-    }
+    c.damage->apply(c.character,
+            Goldbox::Data::DamageRequest(1, false));
+
+    if (!c.combat && c.bridge)
+        c.bridge->requestRefresh(
+                Goldbox::Data::Effects::EffectHostBridge::RF_CHARACTER_PANEL);
 }
 
 static void handleStudyManualBodilyHealth(const EffectCall &c) {
@@ -385,6 +436,7 @@ void EffectHandler::setupHandlers() {
     setHandler(E_VULNERABILITY_FIRE,            handleSavePenalty2);
     setHandler(E_TROLL_FIRE_OR_ACID,            handleSavePenalty2);
     setHandler(E_EXTRA_STRENGTH_130,            handleExtraStrength);
+    setHandler(E_HUMAN_VS_SMALL,                handleBonusVsSmall);
     setHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,             handleFlameTongue);
     setHandler(E_SWORD_VS_UNDEAD,                        handleSwordVsUndead);
     setHandler(E_POISON_DAMAGE,                          handlePoisonDamage);
