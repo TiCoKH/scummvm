@@ -19,26 +19,54 @@
  *
  */
 
-#ifndef GOLDBOX_DATA_EFFECTS_EFFECT_NOTIFY_H
-#define GOLDBOX_DATA_EFFECTS_EFFECT_NOTIFY_H
-
-#include "goldbox/data/effects/effect_handler_base.h"
-#include "goldbox/data/effects/effect_host_bridge.h"
-#include "goldbox/data/player_character.h"
+#include "goldbox/data/effects/effect_notify.h"
 
 namespace Goldbox {
 namespace Data {
 namespace Effects {
 
-bool isStatusPanelEffect(Effects effectType);
+bool isStatusPanelEffect(Effects effectType) {
+    switch (effectType) {
+    case E_PARALYZE:
+    case E_SLEEP:
+    case E_HELPLESS:
+    case E_BLINDED:
+    case E_POISON_DAMAGE:
+    case E_POISONED:
+    case E_POISON_PLUS_0:
+    case E_POISON_PLUS_2:
+    case E_POISON_PLUS_4:
+    case E_POISON_NEG_2:
+    case E_SLOW_POISON:
+        return true;
+    default:
+        return false;
+    }
+}
 
 void notifyBridge(EffectHostBridge *bridge,
         EffectOp op, PlayerCharacter &character,
         uint8 oldStatus, uint32 oldFlags,
-        bool notifyStatus, bool flagsDirty);
+        bool notifyStatus, bool flagsDirty) {
+    if (!bridge)
+        return;
+
+    bool statusPanelDirty = false;
+
+    if (oldFlags != character.effectState.flags && flagsDirty)
+        statusPanelDirty = true;
+
+    if (oldStatus != character.healthStatus) {
+        if (notifyStatus || op == EFF_REMOVE)
+            bridge->notifyStatusChanged(&character, oldStatus,
+                character.healthStatus);
+        statusPanelDirty = true;
+    }
+
+    if (statusPanelDirty)
+        bridge->requestRefresh(EffectHostBridge::RF_STATUS_PANEL);
+}
 
 } // namespace Effects
 } // namespace Data
 } // namespace Goldbox
-
-#endif // GOLDBOX_DATA_EFFECTS_EFFECT_NOTIFY_H

@@ -40,6 +40,9 @@ enum EffectStacking {
 
 class EffectSystem {
 public:
+    // Raw effect IDs that affect character status display.
+    static uint8 kStatusEffects[];
+
     explicit EffectSystem(EffectHandlerBase *handler,
             EffectHostBridge *bridge = nullptr);
 
@@ -63,11 +66,20 @@ public:
     void tick(CharacterEffects &effects,
               Goldbox::Data::PlayerCharacter &character);
 
-    void removeEffectById(Goldbox::Data::PlayerCharacter &character, CharacterEffects &effects, uint8 id);
+    // Remove the first effect matching id, calling EFF_REMOVE if immediate.
+    bool removeEffectById(Goldbox::Data::PlayerCharacter &character,
+            CharacterEffects &effects, uint8 id);
+
+    // Remove a specific effect instance, calling EFF_REMOVE if immediate.
+    bool removeEffect(Goldbox::Data::PlayerCharacter &character,
+            CharacterEffects &effects, Effect &effect);
 
 private:
     EffectHandlerBase *_handler;
     EffectHostBridge *_bridge;
+
+    bool removeEffectImpl(Goldbox::Data::PlayerCharacter &character,
+            CharacterEffects &effects, Effect &effect);
 
     EffectStacking getStackingPolicy(uint8 type, uint8 power) const;
 };

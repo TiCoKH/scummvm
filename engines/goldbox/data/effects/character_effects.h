@@ -31,23 +31,6 @@ namespace Data {
 namespace Effects {
 
 class CharacterEffects {
-private:
-    Common::List<Effect> _effects;
-
-    Common::List<Effect>::iterator iteratorAt(uint idx) {
-        Common::List<Effect>::iterator it = _effects.begin();
-        for (uint i = 0; i < idx; ++i)
-            ++it;
-        return it;
-    }
-
-    Common::List<Effect>::const_iterator iteratorAt(uint idx) const {
-        Common::List<Effect>::const_iterator it = _effects.begin();
-        for (uint i = 0; i < idx; ++i)
-            ++it;
-        return it;
-    }
-
 public:
     bool load(const Common::String &filename);
     void loadFromStream(Common::SeekableReadStream &stream);
@@ -59,51 +42,43 @@ public:
     uint effectCount() const { return _effects.size(); }
     bool isEmpty() const { return _effects.empty(); }
 
-    const Effect &effectAt(uint idx) const { return *iteratorAt(idx); }
-    Effect &effectAt(uint idx) { return *iteratorAt(idx); }
     Effect &lastEffect() { return _effects.back(); }
 
-    void removeEffectAt(uint idx) {
-        if (idx >= _effects.size())
-            return;
-        _effects.erase(iteratorAt(idx));
-    }
-    // Unconditionally appends an effect. Stacking/dedup is the caller's responsibility.
     void appendEffect(const Effect &effect) { _effects.push_back(effect); }
 
-    bool hasEffect(uint8 id) const {
-        for (const Effect &effect : _effects) {
-            if (effect.id == id)
-                return true;
-        }
-        return false;
+    // Returns a pointer to the first effect with the given id, or nullptr.
+    Effect *findEffectById(uint8 id) {
+        for (Effect &e : _effects)
+            if (e.id == id)
+                return &e;
+        return nullptr;
     }
 
-    int findEffectIndexById(uint8 id) const {
-        int idx = 0;
-        for (const Effect &effect : _effects) {
-            if (effect.id == id)
-                return idx;
-            ++idx;
-        }
-        return -1;
+    const Effect *findEffectById(uint8 id) const {
+        for (const Effect &e : _effects)
+            if (e.id == id)
+                return &e;
+        return nullptr;
     }
 
-    bool findEffectById(uint8 id, Effect **effect) {
-        if (!effect)
-            return false;
+    bool hasEffect(uint8 id) const { return findEffectById(id) != nullptr; }
 
-        const int idx = findEffectIndexById(id);
-        if (idx < 0) {
-            *effect = nullptr;
-            return false;
+    // Raw erase with no handler callback. Use only when handler notification
+    // is intentionally bypassed (e.g. spell interrupt on damage).
+    void eraseEffectById(uint8 id) {
+        for (Common::List<Effect>::iterator it = _effects.begin();
+                it != _effects.end(); ++it) {
+            if (it->id == id) {
+                _effects.erase(it);
+                return;
+            }
         }
-
-        *effect = &effectAt(static_cast<uint>(idx));
-        return true;
     }
 
     void clear() { _effects.clear(); }
+
+private:
+    Common::List<Effect> _effects;
 };
 
 } // namespace Effects

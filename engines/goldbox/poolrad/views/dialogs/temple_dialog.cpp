@@ -490,9 +490,8 @@ void TempleDialog::applyRemoveCurse(PoolradCharacter *ch) {
 }
 
 void TempleDialog::removeAllEffectsOfType(PoolradCharacter *ch, uint8 type) {
-    int idx;
-    while ((idx = ch->effects.findEffectIndexById(type)) >= 0)
-        ch->effects.removeEffectAt(idx);
+    while (ch->effects.hasEffect(type))
+        ch->effects.eraseEffectById(type);
 }
 
 // --- UI helpers ---

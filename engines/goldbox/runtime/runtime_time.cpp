@@ -75,9 +75,8 @@ static void timeApplyTimeStepEffects(
             CharacterEffects *fx = *it ? (*it)->getEffects() : nullptr;
             if (!fx)
                 continue;
-            for (uint e = 0; e < fx->effectCount(); ++e) {
-                const Effect &effect = fx->effectAt(e);
-                if (effect.durationMin != 0 && effect.durationMin != 0xFFFF) {
+            for (const Effect &e : fx->effects()) {
+                if (e.durationMin != 0 && e.durationMin != 0xFFFF) {
                     anyActive = true;
                     hasActiveEffects[i] = true;
                     break;
@@ -113,19 +112,28 @@ static void timeApplyTimeStepEffects(
 
             hasActiveEffects[ci] = false;
 
-            // Tail sentinel: only process effects present at chunk start.
-            const uint tailIdx = fx->isEmpty() ? 0 : (fx->effectCount() - 1);
+            Common::List<Effect> &list = fx->effects();
+
+            // Snapshot the iterator to the last effect present at chunk start
+            // so we don't process effects appended during this chunk.
+            Common::List<Effect>::iterator tail = list.end();
+            if (!list.empty()) {
+                --tail;
+            }
+            const bool hasTail = !list.empty();
             bool reachedTail = false;
 
-            for (uint ei = 0; ei < fx->effectCount();) {
-                if (reachedTail && ei > tailIdx)
+            for (Common::List<Effect>::iterator ei = list.begin();
+                    ei != list.end();) {
+                if (hasTail && reachedTail && ei != tail) {
+                    // We already processed tail; stop.
                     break;
-                if (ei == tailIdx)
+                }
+                if (hasTail && ei == tail)
                     reachedTail = true;
 
-                Effect &effect = fx->effectAt(ei);
+                Effect &effect = *ei;
 
-                // Permanent (0xFFFF) or zero-duration: skip.
                 if (effect.durationMin == 0 || effect.durationMin == 0xFFFF) {
                     ++ei;
                     continue;
@@ -136,20 +144,17 @@ static void timeApplyTimeStepEffects(
                     hasActiveEffects[ci] = true;
                     ++ei;
                 } else {
-                    // Expired: remove.
                     if (handler)
                         handler->apply(EFF_REMOVE, effect, **it);
                     (*it)->onEffectsChanged();
-                    fx->removeEffectAt(ei);
+                    ei = list.erase(ei);
                 }
             }
 
             // Check remaining effects for timed entries.
             if (!hasActiveEffects[ci]) {
-                for (uint ei = 0; ei < fx->effectCount(); ++ei) {
-                    const Effect &effect = fx->effectAt(ei);
-                    if (effect.durationMin != 0 &&
-                            effect.durationMin != 0xFFFF) {
+                for (const Effect &e : fx->effects()) {
+                    if (e.durationMin != 0 && e.durationMin != 0xFFFF) {
                         hasActiveEffects[ci] = true;
                         break;
                     }

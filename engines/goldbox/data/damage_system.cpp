@@ -127,9 +127,8 @@ DamageResult DamageSystem::apply(PlayerCharacter &target,
         target.combatState->canCast = false;
         const uint8 interruptedSpellId = target.combatState->spellId;
         if (Effects::CharacterEffects *fx = target.getEffects()) {
-            int idx = fx->findEffectIndexById(interruptedSpellId);
-            if (idx >= 0)
-                fx->removeEffectAt(static_cast<uint>(idx));
+            if (fx->findEffectById(interruptedSpellId))
+                fx->eraseEffectById(interruptedSpellId);
         }
         target.combatState->spellId = 0;
 
