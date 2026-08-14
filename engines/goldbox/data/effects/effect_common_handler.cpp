@@ -122,6 +122,29 @@ static void handleFriendly(const EffectCall &c) {
     c.character.abilities.charisma.current = c.effect.power;
 }
 
+static void handleNotImplemented(const EffectCall &c) {
+    // The active E_READ_MAGIC effect itself is the current source of truth.
+    // No separate derived capability exists in the character model yet.
+    (void)c;
+}
+
+static void handleShield(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    // Armor class is stored encoded as 60 - AC. The legacy Shield handler
+    // clamps the stored value to 0x39, which corresponds to AC 3.
+    if (c.character.armorClass.current < 0x39)
+        c.character.armorClass.current = 0x39;
+
+    if (!c.combat)
+        return;
+
+    ++c.combat->savingThrow;
+    if (c.combat->activeSpellId == 0x0F)
+        c.combat->damage = 0;
+}
+
 static void handleEnlargeStrengthened(const EffectCall &c) {
     if (c.effect.power >= 128)
         return;
@@ -177,21 +200,28 @@ static void handleBerserk(const EffectCall &c) {
 }
 
 static void handlePoisonDamage(const EffectCall &c) {
-    applyFlag(c.op, c.character, CEF_POISONED);
+    if (c.op == EFF_ADD)
+        c.character.effectState.flags |= CEF_POISONED;
+    else if (c.op == EFF_REMOVE)
+        c.character.effectState.flags &= ~CEF_POISONED;
+
+    // EFFECT_add() succeeded before the handler is called with EFF_ADD.
+    // The original effect deals damage only for that successful application,
+    // not on every poison-cycle evaluation.
+    if (c.op != EFF_ADD)
+        return;
+
     if (c.character.hitPoints.current <= 1)
         return;
 
-    if (c.op != EFF_ADD && c.op != EFF_TICK)
+    if (!c.damage)
         return;
 
-    // The effect layer only declares the damage fact.
-    // DamageSystem routes execution to host combat/map integration.
-    if (c.damage) {
-        c.damage->apply(c.character,
-                Goldbox::Data::DamageRequest(1, false));
-    } else {
-        c.character.damage(1);
-    }
+    c.damage->apply(c.character,
+        Goldbox::Data::DamageRequest(1, false));
+
+    if (!c.combat && c.bridge)
+        c.bridge->requestRefresh(EffectHostBridge::RF_CHARACTER_PANEL);
 }
 
 static void handlePoisoned(const EffectCall &c) {
@@ -310,9 +340,11 @@ void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_FUMBLING,         handleFumbling);
     base.setHandler(E_WEAKEN,           handleWeaken);
     base.setHandler(E_FEEBLEMIND,       handleFeeblemind);
-    base.setHandler(E_FRIENDS,           handleFriendly);
+    base.setHandler(E_FRIENDS,          handleFriendly);
+    base.setHandler(E_READ_MAGIC,       handleNotImplemented);
+    base.setHandler(E_SHIELD,           handleShield);
     base.setHandler(E_STRENGTH,         handleEnlargeStrengthened);
-    base.setHandler(E_ENLARGE,           handleEnlargeStrengthened);
+    base.setHandler(E_ENLARGE,          handleEnlargeStrengthened);
     base.setHandler(E_REDUCE,           handleReduce);
     base.setHandler(E_BERSERK,          handleBerserk);
     base.setHandler(E_POISON_DAMAGE,    handlePoisonDamage);

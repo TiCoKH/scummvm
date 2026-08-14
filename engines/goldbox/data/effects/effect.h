@@ -52,7 +52,7 @@ enum Effects : uint8 {
     E_FRIENDS,
     E_POISON_DAMAGE,
     E_SHIELD,
-    E_GNOME_VS_MAN_SIZED_GIANT,
+    E_HUMAN_VS_SMALL,
     E_SLEEP,
     E_FIND_TRAPS,
     E_PARALYZE,

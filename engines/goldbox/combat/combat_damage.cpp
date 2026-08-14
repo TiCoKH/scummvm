@@ -43,6 +43,11 @@ DamageResult applyDamage(CombatContext &ctx,
     if (!ch)
         return result;
 
+    // BYTE_DAMAGE is the mutable current-hit damage value in the original
+    // runtime. Resistance/effect handlers modify this before DamageSystem
+    // applies the character damage.
+    ctx.globals.damage = baseDamage;
+
     // ETS_ON_DAMAGE_TAKEN (set 6): resistance/immunity checks that may
     // modify globals.behaviorFlags before damage is calculated.
     if (effectRuntime && ch->getEffects())
@@ -53,7 +58,7 @@ DamageResult applyDamage(CombatContext &ctx,
 
     Data::DamageSystem damageSystem(nullptr);
     const Data::DamageResult dataResult = damageSystem.apply(
-        *ch, Data::DamageRequest(baseDamage, false,
+        *ch, Data::DamageRequest(ctx.globals.damage, false,
             static_cast<Data::DamageModifier>(modifier), applyModifier,
             ctx.globals.behaviorFlags));
 
