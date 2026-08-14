@@ -157,26 +157,19 @@ static const TriggerSetTable *getTriggerSetTable(EffectTriggerSet setId) {
     return &kTriggerSets[idx];
 }
 
-static bool containsEffectType(const CharacterEffects &effects,
-        Effects type) {
-    const Common::List<Effect> &list = effects.effects();
-    const uint8 effectId = static_cast<uint8>(type);
-    for (const Effect &effect : list) {
-    if (effect.id == effectId)
-            return true;
-    }
-    return false;
+static bool containsEffectType(const CharacterEffects &effects, Effects type) {
+    return effects.hasEffect(static_cast<uint8>(type));
 }
 
 static bool findEffectInCharacter(PlayerCharacter &character, uint8 effectType,
         Effect *&foundEffect) {
-    foundEffect = nullptr;
-
     CharacterEffects *effects = character.getEffects();
-    if (!effects)
+    if (!effects) {
+        foundEffect = nullptr;
         return false;
-
-    return effects->findEffectById(effectType, &foundEffect);
+    }
+    foundEffect = effects->findEffectById(effectType);
+    return foundEffect != nullptr;
 }
 
 static bool isWithinPropagationRange(const Combat::CombatantTable &table,

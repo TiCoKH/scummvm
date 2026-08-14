@@ -27,7 +27,7 @@ namespace Goldbox {
 namespace Data {
 namespace Effects {
 
-uint8 kStatusEffects[] = { 7, 11, 30, 31, 32, 51, 52, 53, 54, 58, 59, 95, 98, 137, 74, 75 };
+uint8 EffectSystem::kStatusEffects[] = { 7, 11, 30, 31, 32, 51, 52, 53, 54, 58, 59, 95, 98, 137, 74, 75 };
 
 namespace {
 
@@ -66,20 +66,19 @@ void EffectSystem::addOrRefreshEffect(CharacterEffects &effects,
 
     EffectStacking stacking = getStackingPolicy(id, power);
     if (stacking != STACK_ADD) {
-        int idx = effects.findEffectIndexById(id);
-        if (idx >= 0) {
-            Effect &existing = effects.effectAt(static_cast<uint>(idx));
+        Effect *existing = effects.findEffectById(id);
+        if (existing) {
             if (stacking == STACK_IGNORE)
                 return;
             if (durationMin != 0xFFFF) {
-                if (existing.durationMin == 0xFFFF)
-                    existing.durationMin = durationMin;
-                else if (durationMin > existing.durationMin)
-                    existing.durationMin = durationMin;
+                if (existing->durationMin == 0xFFFF)
+                    existing->durationMin = durationMin;
+                else if (durationMin > existing->durationMin)
+                    existing->durationMin = durationMin;
             }
             if (power != 0xFF)
-                existing.power = power;
-            existing.immediate = immediate ? 1 : 0;
+                existing->power = power;
+            existing->immediate = immediate ? 1 : 0;
             return;
         }
     }
@@ -134,26 +133,41 @@ void EffectSystem::tick(CharacterEffects &effects,
     }
 }
 
-void EffectSystem::removeEffectById(Goldbox::Data::PlayerCharacter &character, CharacterEffects &effects, uint8 id) {
+bool EffectSystem::removeEffectById(Goldbox::Data::PlayerCharacter &character,
+        CharacterEffects &effects, uint8 id) {
+    Effect *e = effects.findEffectById(id);
+    if (e)
+        return removeEffectImpl(character, effects, *e);
+    return false;
+}
+
+bool EffectSystem::removeEffect(Goldbox::Data::PlayerCharacter &character,
+        CharacterEffects &effects, Effect &effect) {
+    return removeEffectImpl(character, effects, effect);
+}
+
+bool EffectSystem::removeEffectImpl(Goldbox::Data::PlayerCharacter &character,
+        CharacterEffects &effects, Effect &effect) {
     if (!_handler)
-        return;
+        return false;
+
+    const uint8 oldStatus = character.healthStatus;
+    const uint32 oldFlags = character.effectState.flags;
+    if (effect.immediate)
+        _handler->apply(EFF_REMOVE, effect, character, nullptr, _bridge);
+    character.onEffectsChanged();
+    notifyBridge(_bridge, EFF_REMOVE, character,
+        oldStatus, oldFlags, false, true);
 
     Common::List<Effect> &list = effects.effects();
-    for (Common::List<Effect>::iterator it = list.begin(); it != list.end();) {
-        if (it->id != id) {
-            ++it;
-            continue;
+    for (Common::List<Effect>::iterator it = list.begin();
+            it != list.end(); ++it) {
+        if (&*it == &effect) {
+            list.erase(it);
+            break;
         }
-        const uint8 oldStatus = character.healthStatus;
-        const uint32 oldFlags = character.effectState.flags;
-        if (it->immediate) {
-            _handler->apply(EFF_REMOVE, *it, character, nullptr, _bridge);
-        }
-        character.onEffectsChanged();
-        notifyBridge(_bridge, EFF_REMOVE, character,
-            oldStatus, oldFlags, false, true);
-        it = list.erase(it);
     }
+    return true;
 }
 
 EffectStacking EffectSystem::getStackingPolicy(uint8 id, uint8 power) const {

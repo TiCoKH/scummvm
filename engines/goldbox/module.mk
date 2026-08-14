@@ -38,6 +38,7 @@ MODULE_OBJS = \
 	data/effects/character_effects.o \
 	data/effects/effect_common_handler.o \
 	data/effects/effect_handler_base.o \
+	data/effects/effect_notify.o \
 	data/effects/effect_runtime.o \
 	data/effects/effect_system.o \
 	data/items/base_items.o \

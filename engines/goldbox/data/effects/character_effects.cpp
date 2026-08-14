@@ -42,7 +42,7 @@ void CharacterEffects::loadFromStream(Common::SeekableReadStream &f) {
             fileSize);
     }
 
-    const int count = fileSize / 9; // truncate remainder if any
+    const int count = fileSize / 9;
     for (int i = 0; i < count; ++i) {
         Effect e;
         e.load(f);
