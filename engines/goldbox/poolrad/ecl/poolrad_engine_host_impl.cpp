@@ -188,6 +188,30 @@ public:
         Goldbox::g_events->postEclStateMessage(tag, value,
             static_cast<Goldbox::EclVmMessage::ValueType>(valueType));
     }
+
+    void onCharacterDied(Goldbox::Data::PlayerCharacter *character) override {
+        if (!character || !Goldbox::g_events)
+            return;
+
+        // Remove from combat map if in combat.
+        Goldbox::Poolrad::PoolradEngine *poolEngine =
+            dynamic_cast<Goldbox::Poolrad::PoolradEngine *>(Goldbox::g_engine);
+        if (poolEngine) {
+            Goldbox::Poolrad::Views::CombatView *combatView =
+                dynamic_cast<Goldbox::Poolrad::Views::CombatView *>(
+                    poolEngine->findView("Combat"));
+            if (combatView)
+                combatView->handleDeathOnMap(character);
+        }
+
+        // Timing delay: post dirty flags so the UI refreshes.
+        Goldbox::g_events->postEclStateMessage(
+            Goldbox::EclVmMessage::ST_STATUS_DIRTY, 1,
+            Goldbox::EclVmMessage::VT_UINT8);
+        Goldbox::g_events->postEclStateMessage(
+            Goldbox::EclVmMessage::ST_CHARACTER_DIRTY, 1,
+            Goldbox::EclVmMessage::VT_UINT8);
+    }
 };
 
 static bool isAsciiAlphaNum(char c) {

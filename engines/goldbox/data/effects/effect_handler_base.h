@@ -84,6 +84,7 @@ protected:
 
     void clearHandlers();
     void setHandler(Effects effectId, Handler handler);
+    void setSpecHandler(uint8 rawId, Handler handler);
     void setDefaultHandler(Handler handler);
 
     virtual void setupHandlers() = 0;
@@ -93,8 +94,10 @@ protected:
 
 private:
     Handler getHandler(uint8 effectType) const;
+    Handler getRawHandler(uint8 rawId) const;
 
     Common::HashMap<uint8, Handler> _handlers;
+    Common::HashMap<uint8, Handler> _rawHandlers;
     Handler _defaultHandler;
 };
 

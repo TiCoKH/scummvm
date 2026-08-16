@@ -21,9 +21,11 @@
 #ifndef GOLDBOX_DATA_EFFECTS_EFFECT_SYSTEM_H
 #define GOLDBOX_DATA_EFFECTS_EFFECT_SYSTEM_H
 
+#include "common/str.h"
 #include "common/types.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_handler_base.h"
+#include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/player_character.h"
 
 namespace Goldbox {
@@ -40,14 +42,13 @@ enum EffectStacking {
 
 class EffectSystem {
 public:
-    // Raw effect IDs that affect character status display.
-    static uint8 kStatusEffects[];
-
     explicit EffectSystem(EffectHandlerBase *handler,
-            EffectHostBridge *bridge = nullptr);
+            EffectHostBridge *bridge = nullptr,
+            EffectRuntime *runtime = nullptr);
 
     void setHandler(EffectHandlerBase *handler);
     void setHostBridge(EffectHostBridge *bridge);
+    void setRuntime(EffectRuntime *runtime);
 
     /**
      * Add or refresh a timed effect record on a character.
@@ -74,9 +75,16 @@ public:
     bool removeEffect(Goldbox::Data::PlayerCharacter &character,
             CharacterEffects &effects, Effect &effect);
 
+    // Apply a terminal status to a character, mirroring EFFECT_setStatus.
+    // Posts the message, mutates character state, clears status effects,
+    // fires ETS_ON_DEATH trigger set, then notifies the host.
+    void setStatus(Goldbox::Data::PlayerCharacter &character,
+            uint8 newStatus, const Common::String &message);
+
 private:
     EffectHandlerBase *_handler;
-    EffectHostBridge *_bridge;
+    EffectHostBridge  *_bridge;
+    EffectRuntime     *_runtime;
 
     bool removeEffectImpl(Goldbox::Data::PlayerCharacter &character,
             CharacterEffects &effects, Effect &effect);

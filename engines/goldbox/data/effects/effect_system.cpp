@@ -22,12 +22,12 @@
 
 #include "goldbox/data/effects/effect_host_bridge.h"
 #include "goldbox/data/effects/effect_notify.h"
+#include "goldbox/data/effects/effect_runtime.h"
+#include "goldbox/data/rules/rules_types.h"
 
 namespace Goldbox {
 namespace Data {
 namespace Effects {
-
-uint8 EffectSystem::kStatusEffects[] = { 7, 11, 30, 31, 32, 51, 52, 53, 54, 58, 59, 95, 98, 137, 74, 75 };
 
 namespace {
 
@@ -47,7 +47,8 @@ static const uint8 kPermanentPower = 0xFF;
 } // namespace
 
 EffectSystem::EffectSystem(EffectHandlerBase *handler,
-        EffectHostBridge *bridge) : _handler(handler), _bridge(bridge) {
+        EffectHostBridge *bridge, EffectRuntime *runtime)
+        : _handler(handler), _bridge(bridge), _runtime(runtime) {
 }
 
 void EffectSystem::setHandler(EffectHandlerBase *handler) {
@@ -56,6 +57,10 @@ void EffectSystem::setHandler(EffectHandlerBase *handler) {
 
 void EffectSystem::setHostBridge(EffectHostBridge *bridge) {
     _bridge = bridge;
+}
+
+void EffectSystem::setRuntime(EffectRuntime *runtime) {
+    _runtime = runtime;
 }
 
 void EffectSystem::addOrRefreshEffect(CharacterEffects &effects,
@@ -169,6 +174,37 @@ bool EffectSystem::removeEffectImpl(Goldbox::Data::PlayerCharacter &character,
     }
     return true;
 }
+
+void EffectSystem::setStatus(Goldbox::Data::PlayerCharacter &character,
+        uint8 newStatus, const Common::String &message) {
+    // 1. Display the message before any state change.
+    if (_bridge && !message.empty())
+        _bridge->postEffectMessage(&character, message, true);
+
+    // 2. Guard: already in a terminal state, nothing more to do.
+    if (character.healthStatus == Goldbox::Data::S_DEAD ||
+            character.healthStatus == Goldbox::Data::S_GONE ||
+            character.healthStatus == Goldbox::Data::S_STONED)
+        return;
+
+    // 3. Mutate character state.
+    character.healthStatus = newStatus;
+    character.enabled = false;
+    character.hitPoints.current = 0;
+
+    // 4. Strip status effects without firing EFF_REMOVE handlers.
+    CharacterEffects *fx = character.getEffects();
+    character.clearStatusEffects();
+
+    // 5. Fire ETS_ON_DEATH trigger set (on-death passive effects).
+    if (_runtime && fx)
+        _runtime->applyTriggerSet(ETS_ON_DEATH, *fx, character);
+
+    // 6. Notify host: combat map removal, timing delay, UI refresh.
+    if (_bridge)
+        _bridge->onCharacterDied(&character);
+}
+
 
 EffectStacking EffectSystem::getStackingPolicy(uint8 id, uint8 power) const {
     // Permanent effects (power == 0xFF) are never duplicated regardless of type.

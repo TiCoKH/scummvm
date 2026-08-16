@@ -198,6 +198,8 @@ public:
 	// Notified whenever active effects may have changed and derived stats should
 	// be refreshed.
 	virtual void onEffectsChanged() {}
+	// Remove status effects without firing effect handlers.
+	void clearStatusEffects();
 
 	// Apply a strength change (buff or debuff) to this character.
 	// Encodes new_str/new_ext_str into *outEncoded (bit 7 = active marker).

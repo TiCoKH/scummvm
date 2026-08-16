@@ -27,6 +27,14 @@
 namespace Goldbox {
 namespace Data {
 
+namespace {
+
+static const uint8 kStatusEffects[] = {
+    7, 11, 30, 31, 32, 51, 52, 53, 54, 58, 59, 95, 98, 137, 74, 75
+};
+
+} // namespace
+
 PlayerCharacter::~PlayerCharacter() {
     delete combatState;
     combatState = nullptr;
@@ -78,6 +86,15 @@ void PlayerCharacter::damage(uint8 amount) {
     // combat-only field, so guard with combatState lifetime instead.
     if (combatState)
         combatState->delay = 0;
+}
+
+void PlayerCharacter::clearStatusEffects() {
+    Effects::CharacterEffects *fx = getEffects();
+    if (!fx)
+        return;
+
+    for (uint i = 0; i < ARRAYSIZE(kStatusEffects); ++i)
+        fx->eraseEffectById(kStatusEffects[i]);
 }
 
 void PlayerCharacter::heal(uint8 amount) {
