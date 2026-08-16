@@ -1212,7 +1212,7 @@ VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
         if (!effects)
             continue;
 
-        runtime.applyTriggerSet(Goldbox::Data::Effects::ETS_POISON_CYCLE,
+        runtime.checkEffectSet(Goldbox::Data::Effects::ES_POISON_CYCLE,
             *effects, *character);
     }
 

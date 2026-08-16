@@ -51,7 +51,7 @@ DamageResult applyDamage(CombatContext &ctx,
     // ETS_ON_DAMAGE_TAKEN (set 6): resistance/immunity checks that may
     // modify globals.behaviorFlags before damage is calculated.
     if (effectRuntime && ch->getEffects())
-        effectRuntime->applyTriggerSet(ETS_ON_DAMAGE_TAKEN,
+        effectRuntime->checkEffectSet(ES_ON_DAMAGE_TAKEN,
                 *ch->getEffects(), *ch, &ctx.globals);
 
     result.behaviorFlags = ctx.globals.behaviorFlags;
@@ -76,7 +76,7 @@ DamageResult applyDamage(CombatContext &ctx,
 
         if (effectRuntime && ch->getEffects()) {
             ch->getEffects()->clear();
-            effectRuntime->applyTriggerSet(ETS_ON_DEATH,
+            effectRuntime->checkEffectSet(ES_ON_DEATH,
                     *ch->getEffects(), *ch, &ctx.globals);
         }
     }

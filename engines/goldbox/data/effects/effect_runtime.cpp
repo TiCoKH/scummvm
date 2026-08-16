@@ -147,10 +147,10 @@ static const TriggerSetTable kTriggerSets[] = {
     { kSet19, ARRAYSIZE(kSet19) }
 };
 
-static_assert(ARRAYSIZE(kTriggerSets) == ETS_SPELL_POST_PROCESS + 1,
-    "Trigger-set table must match EffectTriggerSet enum layout");
+static_assert(ARRAYSIZE(kTriggerSets) == ES_SPELL_POST_PROCESS + 1,
+    "Trigger-set table must match EffectSet enum layout");
 
-static const TriggerSetTable *getTriggerSetTable(EffectTriggerSet setId) {
+static const TriggerSetTable *getTriggerSetTable(EffectSet setId) {
     const uint idx = static_cast<uint>(setId);
     if (idx >= ARRAYSIZE(kTriggerSets))
         return nullptr;
@@ -280,13 +280,13 @@ void EffectRuntime::setHostBridge(EffectHostBridge *bridge) {
     _bridge = bridge;
 }
 
-void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
+void EffectRuntime::checkEffectSet(EffectSet triggerSet,
         CharacterEffects &effects, PlayerCharacter &character,
         Combat::CombatGlobals *combat) const {
     if (!_handler)
         return;
 
-    if (triggerSet == ETS_POISON_CYCLE) {
+    if (triggerSet == ES_POISON_CYCLE) {
         Common::List<Effect> &list = effects.effects();
         for (Effect &effect : list) {
             if (!isPoisonCycleEffect(effect.id))
@@ -307,30 +307,6 @@ void EffectRuntime::applyTriggerSet(EffectTriggerSet triggerSet,
 
     for (uint i = 0; i < table->size; ++i)
         checkEffect(character, static_cast<uint8>(table->ids[i]));
-}
-
-bool EffectRuntime::hasAnyInTriggerSet(EffectTriggerSet triggerSet,
-        const CharacterEffects &effects) const {
-    if (triggerSet == ETS_POISON_CYCLE) {
-        const Common::List<Effect> &list = effects.effects();
-        for (const Effect &effect : list) {
-            if (isPoisonCycleEffect(effect.id))
-                return true;
-        }
-        return false;
-    }
-
-    uint count = 0;
-    const Effects *ids = getTriggerSetEffects(triggerSet, count);
-    if (!ids || count == 0)
-        return false;
-
-    for (uint i = 0; i < count; ++i) {
-        if (containsEffectType(effects, ids[i]))
-            return true;
-    }
-
-    return false;
 }
 
 bool EffectRuntime::checkEffect(PlayerCharacter &target,
@@ -373,16 +349,6 @@ bool EffectRuntime::checkEffect(PlayerCharacter &target,
     notifyBridge(_bridge, EFF_ADD, target,
         oldStatus, oldFlags, true, true);
     return true;
-}
-
-const Effects *EffectRuntime::getTriggerSetEffects(
-        EffectTriggerSet triggerSet, uint &count) {
-    const TriggerSetTable *table = getTriggerSetTable(triggerSet);
-    if (!table)
-        return nullptr;
-
-    count = table->size;
-    return table->ids;
 }
 
 // Raw effect IDs (Poolrad) that radiate to nearby characters.

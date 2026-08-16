@@ -198,7 +198,7 @@ void EffectSystem::setStatus(Goldbox::Data::PlayerCharacter &character,
 
     // 5. Fire ETS_ON_DEATH trigger set (on-death passive effects).
     if (_runtime && fx)
-        _runtime->applyTriggerSet(ETS_ON_DEATH, *fx, character);
+        _runtime->checkEffectSet(ES_ON_DEATH, *fx, character);
 
     // 6. Notify host: combat map removal, timing delay, UI refresh.
     if (_bridge)
