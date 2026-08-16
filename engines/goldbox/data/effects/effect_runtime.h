@@ -44,27 +44,27 @@ class EffectHostBridge;
  * Names are intentionally semantic aliases for integration points. The numeric
  * values remain stable to preserve decompile traceability.
  */
-enum EffectTriggerSet : uint8 {
-    ETS_PRE_ACTION = 0,
-    ETS_START_OF_COMBAT_ROUND = 1,
-    ETS_IMMUNITY_STRIP = 2,
-    ETS_DEFENSIVE_PASSIVE = 3,
-    ETS_ATTACKER_OFFENSE = 4,
-    ETS_DEFENDER_REACTIVE = 5,
-    ETS_ON_DAMAGE_TAKEN = 6,
-    ETS_POST_MOVEMENT_TILE = 7,
-    ETS_COMBAT_AURA = 8,
-    ETS_APPLY_WITH_MESSAGE_GUARDS = 9,
-    ETS_ATTACKER_TO_HIT = 10,
-    ETS_ALIGN_PROTECTION = 11,
-    ETS_SAVING_THROW_MODS = 12,
-    ETS_ON_DEATH = 13,
-    ETS_ON_SPECIAL_ATTACK = 14,
-    ETS_POISON_CYCLE = 15,
-    ETS_DEFENDER_TO_HIT = 16,
-    ETS_SIMPLE_BLESS_CURSE = 17,
-    ETS_TARGET_SELECTION_FILTER = 18,
-    ETS_SPELL_POST_PROCESS = 19
+enum EffectSet : uint8 {
+    ES_PRE_ACTION = 0,
+    ES_START_OF_COMBAT_ROUND = 1,
+    ES_IMMUNITY_STRIP = 2,
+    ES_DEFENSIVE_PASSIVE = 3,
+    ES_ATTACKER_OFFENSE = 4,
+    ES_DEFENDER_REACTIVE = 5,
+    ES_ON_DAMAGE_TAKEN = 6,
+    ES_POST_MOVEMENT_TILE = 7,
+    ES_COMBAT_AURA = 8,
+    ES_APPLY_WITH_MESSAGE_GUARDS = 9,
+    ES_ATTACKER_TO_HIT = 10,
+    ES_ALIGN_PROTECTION = 11,
+    ES_SAVING_THROW_MODS = 12,
+    ES_ON_DEATH = 13,
+    ES_ON_SPECIAL_ATTACK = 14,
+    ES_POISON_CYCLE = 15,
+    ES_DEFENDER_TO_HIT = 16,
+    ES_SIMPLE_BLESS_CURSE = 17,
+    ES_TARGET_SELECTION_FILTER = 18,
+    ES_SPELL_POST_PROCESS = 19
 };
 
 /**
@@ -78,13 +78,10 @@ public:
     void setHandler(EffectHandlerBase *handler);
     void setHostBridge(EffectHostBridge *bridge);
 
-    void applyTriggerSet(EffectTriggerSet triggerSet,
+    void checkEffectSet(EffectSet triggerSet,
             CharacterEffects &effects,
             PlayerCharacter &character,
             Combat::CombatGlobals *combat = nullptr) const;
-
-    bool hasAnyInTriggerSet(EffectTriggerSet triggerSet,
-            const CharacterEffects &effects) const;
 
     /**
      * Simplified legacy apply-effect entry point.
@@ -94,16 +91,6 @@ public:
      */
     bool checkEffect(PlayerCharacter &target,
             uint8 effectType) const;
-
-    /**
-     * Return the raw effect ids that participate in a trigger set.
-     *
-     * This mirrors the original m68k-style table-driven effect dispatch
-     * model and keeps the data available to engine code without exposing the
-     * internal storage details.
-     */
-    static const Effects *getTriggerSetEffects(EffectTriggerSet triggerSet,
-            uint &count);
 
     /**
      * Check whether a character is affected by a group-radiating effect

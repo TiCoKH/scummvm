@@ -157,8 +157,8 @@ void setupCombat(CombatParams &params,
                 continue;
             Data::Effects::CharacterEffects *effects = ch->getEffects();
             if (effects) {
-                effectRuntime->applyTriggerSet(
-                    Data::Effects::ETS_COMBAT_AURA,
+                effectRuntime->checkEffectSet(
+                    Data::Effects::ES_COMBAT_AURA,
                     *effects, *ch, &globals);
             }
         }

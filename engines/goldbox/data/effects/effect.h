@@ -175,13 +175,6 @@ enum Effects : uint8 {
     E_RESIST_PARALYZE = 141,
     E_ENTANGLE = 142,
     E_FAERIE_FIRE = 143,
-    // Generic placeholders
-    E_DAMAGE = 144,
-    E_HEAL = 145,
-    E_BUFF = 146,
-    E_DEBUFF = 147,
-    E_SUMMON = 148,
-    E_MISC = 149
 };
 
 // Pool of Radiance uses a separate raw effect table. These values must not be
