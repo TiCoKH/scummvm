@@ -67,6 +67,10 @@ public:
     virtual void notifyStatusChanged(PlayerCharacter *character,
             uint8 oldStatus, uint8 newStatus) = 0;
 
+    // Full death/incapacitation sequence: remove from combat map, wait,
+    // clear message area, refresh party UI. Called after status is set.
+    virtual void onCharacterDied(PlayerCharacter *character) = 0;
+
     // Optional VM-state signal channel (for ECL/event bus integration).
     virtual void postVmState(uint16 tag, uint16 value,
             uint8 valueType) = 0;

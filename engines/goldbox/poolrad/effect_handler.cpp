@@ -20,7 +20,9 @@
  */
 
 #include "goldbox/poolrad/effect_handler.h"
+#include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_common_handler.h"
+#include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
@@ -136,6 +138,38 @@ static void handleFearImmunity(const EffectCall &c) {
 
 static void handleSlowPoison(const EffectCall &c) {
     applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_SLOW_POISON);
+
+    // On wear-off: if the character is still poisoned, they die from poison.
+    // Then remove E_POISON_DAMAGE without triggering its EFF_REMOVE handler
+    // (original clears IN_SPELL_PROCESS guard around UTIL_removeEffect).
+    // We replicate that by clearing the immediate flag before removal so
+    // removeEffectImpl skips the handler call.
+    if (c.op != EFF_REMOVE)
+        return;
+
+    CharacterEffects *fx = c.character.getEffects();
+    if (!fx)
+        return;
+
+    if (fx->hasEffect(static_cast<uint8>(E_POISONED))) {
+        // Delegate to the host bridge for the full death sequence.
+        // EffectSystem::setStatus is not reachable from a handler directly,
+        // so we use the bridge message + status fields, matching what
+        // setStatus does before calling onCharacterDied.
+        if (c.bridge)
+            c.bridge->postEffectMessage(&c.character, "dies from poison", true);
+        c.character.healthStatus = Goldbox::Data::S_DEAD;
+        c.character.enabled = false;
+        c.character.hitPoints.current = 0;
+        if (c.bridge)
+            c.bridge->onCharacterDied(&c.character);
+    }
+
+    Effect *poisonDmg = fx->findEffectById(static_cast<uint8>(E_POISON_DAMAGE));
+    if (poisonDmg) {
+        poisonDmg->immediate = 0;
+        fx->eraseEffectById(static_cast<uint8>(E_POISON_DAMAGE));
+    }
 }
 
 static void handleEntangle(const EffectCall &c) {
@@ -437,15 +471,36 @@ void EffectHandler::setupHandlers() {
     setHandler(E_TROLL_FIRE_OR_ACID,            handleSavePenalty2);
     setHandler(E_EXTRA_STRENGTH_130,            handleExtraStrength);
     setHandler(E_HUMAN_VS_SMALL,                handleBonusVsSmall);
-    setHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,             handleFlameTongue);
-    setHandler(E_SWORD_VS_UNDEAD,                        handleSwordVsUndead);
+    setSpecHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,    handleFlameTongue);
+    setSpecHandler(E_POOLRAD_SWORD_VS_UNDEAD,    handleSwordVsUndead);
     setHandler(E_POISON_DAMAGE,                          handlePoisonDamage);
-    setHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH,     handleStudyManualBodilyHealth);
-    setHandler(E_POOLRAD_TRAIN_MANUAL_BODILY_HEALTH,     handleTrainingManualBodilyHealth);
+    setSpecHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH,       handleStudyManualBodilyHealth);
+    setSpecHandler(E_POOLRAD_TRAIN_MANUAL_BODILY_HEALTH,    handleTrainingManualBodilyHealth);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
-    return static_cast<Goldbox::Data::Effects::Effects>(rawId);
+    using namespace Goldbox::Data::Effects;
+
+    switch (rawId) {
+    case E_POOLRAD_BLESSED:
+        return E_BLESSED;
+    case E_POOLRAD_CURSED:
+        return E_CURSED;
+    case E_POOLRAD_DETECT_MAGIC:
+        return E_DETECT_MAGIC;
+    case E_POOLRAD_PROTECTION_FROM_EVIL:
+        return E_PROTECTION_FROM_EVIL;
+    case E_POOLRAD_PROTECTION_FROM_GOOD:
+        return E_PROTECTION_FROM_GOOD;
+    case E_POOLRAD_RESIST_COLD:
+        return E_RESIST_COLD;
+    case E_POOLRAD_CHARM_PERSON:
+        return E_CHARM_PERSON;
+    default:
+        // Most Poolrad effect IDs share the common table. Keep identity
+        // mapping for those IDs; exceptions are listed explicitly above.
+        return static_cast<Effects>(rawId);
+    }
 }
 
 void EffectHandler::handleNoop(const Goldbox::Data::Effects::EffectCall &) {

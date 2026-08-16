@@ -85,6 +85,10 @@ public:
                     bool isMagic,
                     const Common::String &message);
 
+    // Called when a character dies outside the normal damage path
+    // (e.g. poison wear-off via EffectHostBridge::onCharacterDied).
+    void handleDeathOnMap(Goldbox::Data::PlayerCharacter *ch);
+
     bool msgFocus(const FocusMessage &msg) override;
     bool msgUnfocus(const UnfocusMessage &msg) override;
     bool msgKeypress(const KeypressMessage &msg) override;
@@ -154,7 +158,6 @@ private:
 
     // --- Internal methods ---
     Combat::CombatContext makeContext();
-    void handleDeathOnMap(Goldbox::Data::PlayerCharacter *ch);
     void drawDamageFrame(const Goldbox::Gfx::Pic *frame, int pixX, int pixY,
                          Graphics::ManagedSurface *dst);
 
