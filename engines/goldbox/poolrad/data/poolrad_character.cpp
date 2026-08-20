@@ -112,7 +112,7 @@ void PoolradCharacter::initialize() {
 	healthStatus = Goldbox::Data::S_OKAY;
 	enabled = true;
 	hostile = false;
-	quickfight = false;
+	ai_control = false;
 
 	npc = 0;
 	modified = 0;
@@ -354,7 +354,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	healthStatus = stream.readByte();        // 0x10C
 	enabled      = (stream.readByte() != 0); // 0x10D
 	hostile      = (stream.readByte() != 0); // 0x10E
-	quickfight   = (stream.readByte() != 0); // 0x10F
+	ai_control   = (stream.readByte() != 0); // 0x10F
 
 	thac0.current        = stream.readByte(); // 0x110
 	armorClass.current   = stream.readByte(); // 0x111
@@ -402,7 +402,7 @@ uint8 PoolradCharacter::getReadyAllowedClassMask() const {
 }
 
 bool PoolradCharacter::ignoreHandsLimitForReady() const {
-	return Goldbox::VmInterface::getGameStatus() == GS_COMBAT && quickfight;
+	return Goldbox::VmInterface::getGameStatus() == GS_COMBAT && ai_control;
 }
 
 const Goldbox::Data::Items::CharacterItem *
@@ -924,7 +924,7 @@ void PoolradCharacter::save(Common::WriteStream &stream) {
 	stream.writeByte(healthStatus);
 	stream.writeByte(enabled ? 1 : 0);
 	stream.writeByte(hostile ? 1 : 0);
-	stream.writeByte(quickfight ? 1 : 0);
+	stream.writeByte(ai_control ? 1 : 0);
 
 	stream.writeByte(thac0.current);
 	stream.writeByte(armorClass.current);

@@ -848,16 +848,16 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
     case 0x8001: {
         // SPECIAL_COMBAT_MODE on/off. Original behavior modifies a linked
         // encounter list and may synthesize an extra hostile NPC entry.
-        // Current safe subset: toggle selected character quickfight/hostile.
+        // Current safe subset: toggle selected character ai_control/hostile.
         Poolrad::Data::PoolradCharacter *selected =
             dynamic_cast<Poolrad::Data::PoolradCharacter *>(
                 VmInterface::getSelectedCharacter());
         if (selected) {
             if (callId == 0x8000) {
-                selected->quickfight = true;
+                selected->ai_control = true;
                 selected->hostile = false;
             } else {
-                selected->quickfight = false;
+                selected->ai_control = false;
                 selected->hostile = false;
             }
         }

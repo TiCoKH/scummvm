@@ -157,7 +157,7 @@ public:
 	uint8 healthStatus = 0;
 	bool enabled = false;
 	bool hostile = false;
-	bool quickfight = false;
+	bool ai_control = false;
 	// Bit 7 = NPC flag; bits 6-0 = morale (0-127).
 	int8 npc = 0;
 
