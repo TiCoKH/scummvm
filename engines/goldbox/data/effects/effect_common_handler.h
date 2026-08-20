@@ -52,6 +52,11 @@ enum CommonEffectFlags : uint32 {
 // registering any overrides.
 void setupCommonHandlers(EffectHandlerBase &base);
 
+// Shared helper for effects granting a chance to fully avoid the current
+// hit (e.g. EFFECT_rollAvoid). Returns true if the attack was avoided.
+bool rollAvoid(Goldbox::Data::PlayerCharacter &targetChar,
+        Combat::CombatGlobals &combat, EffectHostBridge *bridge, uint8 percent);
+
 } // namespace Effects
 } // namespace Data
 } // namespace Goldbox

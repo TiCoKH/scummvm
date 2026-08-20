@@ -26,6 +26,7 @@
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules_types.h"
+#include "goldbox/engine.h"
 
 namespace Goldbox {
 namespace Data {
@@ -96,6 +97,10 @@ static void handleSlow(const EffectCall &c) {
     if (!c.combat)
         return;
     c.combat->attackRoll -= 1;
+
+    // EFFECT_42_Slowed: halves the current hit's attack multiplier,
+    // mirroring Haste's doubling.
+    c.combat->attackMultiplier >>= 1;
 }
 
 static void handleParalyze(const EffectCall &c) {
@@ -320,6 +325,18 @@ static void handleResistCold(const EffectCall &c) {
     }
 }
 
+// EFFECT_41_ProtectionFromNormalWeapons: fully avoids hits from a
+// non-magical weapon or ammo.
+static void handleProtNormalWeapons(const EffectCall &c) {
+    if (c.op != EFF_ADD || !c.combat || !c.combat->attacker)
+        return;
+
+    ADnDCharacter *attacker = static_cast<ADnDCharacter *>(c.combat->attacker);
+    Items::CharacterItem *attackItem = attacker->getWeaponOrAmmo();
+    if (attackItem && attackItem->bonus == 0)
+        rollAvoid(c.character, *c.combat, c.bridge, 100);
+}
+
 static void handleRegen1(const EffectCall &c) {
     applyFlag(c.op, c.character, CEF_REGEN_1);
     if (c.op == EFF_TICK)
@@ -389,6 +406,36 @@ static void handleSpiritualHammer(const EffectCall &c) {
 
 } // namespace
 
+// EFFECT_rollAvoid: chance to fully avoid the current hit. Returns true
+// if the attack was avoided. Requires the attacker to be wielding a
+// weapon or ammo (unarmed/spell hits are unaffected).
+bool rollAvoid(Goldbox::Data::PlayerCharacter &targetChar,
+        Combat::CombatGlobals &combat, EffectHostBridge *bridge, uint8 percent) {
+    if (!combat.attacker)
+        return false;
+
+    ADnDCharacter *attacker = static_cast<ADnDCharacter *>(combat.attacker);
+    if (!attacker->getEquippedItem(Items::Slot::S_MAIN_HAND))
+        return false;
+
+    // TODO: port COMBAT_FindTargetFacing (melee facing-arc gate); this
+    // helper currently fires regardless of attacker facing.
+
+    if (!Goldbox::g_engine || Goldbox::g_engine->rollDice(1, 100) > percent)
+        return false;
+
+    if (bridge)
+        bridge->postEffectMessage(&targetChar, "Avoids it.", true);
+
+    combat.damage = 0;
+    combat.attackRoll = 0xff;
+
+    // The avoided attack still consumes one of the attacker's attacks.
+    --combat.attacksLeft;
+
+    return true;
+}
+
 void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_BLESSED,          handleBlessed);
     base.setHandler(E_CURSED,           handleCursed);
@@ -423,6 +470,7 @@ void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_PROTECTION_FROM_EVIL,    handleProtectionFromEvil);
     base.setHandler(E_PROTECTION_FROM_GOOD,    handleProtectionFromGood);
     base.setHandler(E_RESIST_COLD,              handleResistCold);
+    base.setHandler(E_IMMUNITY_NONMAGICAL_WEAPONS, handleProtNormalWeapons);
     base.setHandler(E_SPIRITUAL_HAMMER, handleSpiritualHammer);
     base.setHandler(E_REGENERATE_1_HPS,         handleRegen1);
     base.setHandler(E_REGENERATE_3_HPS, handleRegen3);

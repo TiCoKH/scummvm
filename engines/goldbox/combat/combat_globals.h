@@ -71,6 +71,7 @@ struct CombatGlobals {
     Data::PlayerCharacter *attacker; // PTR_SELECTED_CHAR — current attacking character
     bool targetUnavailable;   // Target cannot be selected
     uint8 attackMultiplier;   // BYTE_ATTACK_MULTIPLIER
+    uint8 attacksLeft;        // COMBAT_ATTACKS_LEFT — attacker's remaining attacks this turn
     CloudEffectManager clouds; // PTR_CLOUD_EFF_HANDLER
 
     CombatGlobals() { reset(); }
@@ -91,6 +92,7 @@ struct CombatGlobals {
         attacker = nullptr;
         targetUnavailable = false;
         attackMultiplier = 0;
+        attacksLeft = 0;
         clouds.reset();
     }
 
