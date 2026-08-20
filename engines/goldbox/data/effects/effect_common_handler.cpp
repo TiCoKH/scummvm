@@ -32,16 +32,17 @@ namespace Goldbox {
 namespace Data {
 namespace Effects {
 
+// File-local helper, not exposed.
 namespace {
 
-static void applyFlag(EffectOp op, PlayerCharacter &ch, uint32 flag) {
+void applyFlag(EffectOp op, PlayerCharacter &ch, uint32 flag) {
     if (op == EFF_ADD)
         ch.effectState.flags |= flag;
     else if (op == EFF_REMOVE)
         ch.effectState.flags &= ~flag;
 }
 
-// --- Individual effect handlers ---
+// Handlers used only within this file (not reused by game-specific handlers).
 
 static void handleBlessed(const EffectCall &c) {
     if (!c.combat)
@@ -60,20 +61,6 @@ static void handleCursed(const EffectCall &c) {
     c.combat->attackRoll -= 1;
 }
 
-static void handleAccursed(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll -= 4;
-    c.combat->savingThrow -= 4;
-}
-
-static void handlePrayer(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 1;
-    c.combat->savingThrow += 1;
-}
-
 static void handleChant(const EffectCall &c) {
     if (!c.combat)
         return;
@@ -88,35 +75,12 @@ static void handleHaste(const EffectCall &c) {
         if (c.bridge)
             c.bridge->postEffectMessage(&c.character, "ages", true);
     }
-
     if (c.combat)
         c.combat->attackMultiplier *= 2;
 }
 
-static void handleSlow(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll -= 1;
-
-    // EFFECT_42_Slowed: halves the current hit's attack multiplier,
-    // mirroring Haste's doubling.
-    c.combat->attackMultiplier >>= 1;
-}
-
-static void handleParalyze(const EffectCall &c) {
-    applyFlag(c.op, c.character, CEF_PARALYZED | CEF_HELD);
-}
-
 static void handleSleep(const EffectCall &c) {
     applyFlag(c.op, c.character, CEF_SLEEPING | CEF_HELD);
-}
-
-static void handleHelpless(const EffectCall &c) {
-    applyFlag(c.op, c.character, CEF_HELPLESS | CEF_HELD);
-}
-
-static void handleBlinded(const EffectCall &c) {
-    applyFlag(c.op, c.character, CEF_BLINDED);
 }
 
 static void handleConfuse(const EffectCall &c) {
@@ -137,6 +101,47 @@ static void handleWeaken(const EffectCall &c) {
     c.combat->damage -= 1;
 }
 
+// Effect 43 (Weakened): on EFF_ADD, drains one point of strength permanently.
+// If strength is already below 4, applies terminal disease (E_CAUSE_DISEASE_1)
+// instead. On EFF_REMOVE, restores the drained strength point.
+static void handleWeakened(const EffectCall &c) {
+    if (c.op == EFF_REMOVE) {
+        c.character.abilities.strength.current++;
+        return;
+    }
+    if (c.op != EFF_ADD)
+        return;
+    if (c.character.abilities.strength.current < 4) {
+        CharacterEffects *fx = c.character.getEffects();
+        if (fx && !fx->hasEffect(static_cast<uint8>(E_CAUSE_DISEASE_1)))
+            c.character.setEffect(static_cast<uint8>(E_CAUSE_DISEASE_1),
+                0, 0xff, false);
+        return;
+    }
+    if (c.bridge)
+        c.bridge->postEffectMessage(&c.character, "is weakened", true);
+    c.character.abilities.strength.current--;
+}
+
+// Effect 44 (CauseWound): on EFF_ADD, deals 1 HP damage. If the character is
+// already at 1 HP or below, applies terminal disease (E_CAUSE_DISEASE_1)
+// instead. Outside combat, requests a character panel refresh.
+static void handleCauseWound(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    if (c.character.hitPoints.current < 2) {
+        CharacterEffects *fx = c.character.getEffects();
+        if (fx && !fx->hasEffect(static_cast<uint8>(E_CAUSE_DISEASE_1)))
+            c.character.setEffect(static_cast<uint8>(E_CAUSE_DISEASE_1),
+                0, 0xff, false);
+        return;
+    }
+    if (c.damage)
+        c.damage->apply(c.character, Goldbox::Data::DamageRequest(1, false));
+    if (!c.combat && c.bridge)
+        c.bridge->requestRefresh(EffectHostBridge::RF_CHARACTER_PANEL);
+}
+
 static void handleFeeblemind(const EffectCall &c) {
     if (!c.combat)
         return;
@@ -145,71 +150,8 @@ static void handleFeeblemind(const EffectCall &c) {
     c.combat->moraleModifier -= 10;
 }
 
-static void handleFriendly(const EffectCall &c) {
-    c.character.abilities.charisma.current = c.effect.power;
-}
-
 static void handleNotImplemented(const EffectCall &c) {
-    // The active E_READ_MAGIC effect itself is the current source of truth.
-    // No separate derived capability exists in the character model yet.
     (void)c;
-}
-
-static void handleShield(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    // Armor class is stored encoded as 60 - AC. The legacy Shield handler
-    // clamps the stored value to 0x39, which corresponds to AC 3.
-    if (c.character.armorClass.current < 0x39)
-        c.character.armorClass.current = 0x39;
-
-    if (!c.combat)
-        return;
-
-    ++c.combat->savingThrow;
-    if (c.combat->activeSpellId == 0x0F)
-        c.combat->damage = 0;
-}
-
-static void handleEnlargeStrengthened(const EffectCall &c) {
-    if (c.effect.power >= 128)
-        return;
-
-    uint8 newStr, newExt;
-    strengthDecode(c.effect.power, newStr, newExt);
-    c.character.abilities.strength.current    = newStr;
-    c.character.abilities.strException.current = newExt;
-
-    // Find the strongest other active strength/enlarge effect (e_id 12 or 38)
-    // and if it beats the current character strength, promote it.
-    CharacterEffects *fx = c.character.getEffects();
-    if (!fx)
-        return;
-
-    Effect *bestEffect = nullptr;
-    uint8 bestStr = 0, bestExt = 0;
-    Common::List<Effect> &list = fx->effects();
-    for (Effect &e : list) {
-        if (&e == &c.effect)
-            continue;
-        if (e.id != E_STRENGTH && e.id != E_ENLARGE)
-            continue;
-        uint8 eStr, eExt;
-        strengthDecode(e.power, eStr, eExt);
-        if (eStr > bestStr || (eStr == 18 && bestStr == 18 && eExt > bestExt)) {
-            bestEffect = &e;
-            bestStr    = eStr;
-            bestExt    = eExt;
-        }
-    }
-
-    if (bestEffect) {
-        bestEffect->power = strengthEncode(c.character.abilities.strength.current,
-                                           c.character.abilities.strException.current);
-        c.character.abilities.strength.current    = bestStr;
-        c.character.abilities.strException.current = bestExt;
-    }
 }
 
 static void handleReduce(const EffectCall &c) {
@@ -231,31 +173,6 @@ static void handleBerserk(const EffectCall &c) {
     c.combat->attackRoll += 2;
     c.combat->damage += 2;
     c.combat->moraleModifier += 10;
-}
-
-static void handlePoisonDamage(const EffectCall &c) {
-    if (c.op == EFF_ADD)
-        c.character.effectState.flags |= CEF_POISONED;
-    else if (c.op == EFF_REMOVE)
-        c.character.effectState.flags &= ~CEF_POISONED;
-
-    // EFFECT_add() succeeded before the handler is called with EFF_ADD.
-    // The original effect deals damage only for that successful application,
-    // not on every poison-cycle evaluation.
-    if (c.op != EFF_ADD)
-        return;
-
-    if (c.character.hitPoints.current <= 1)
-        return;
-
-    if (!c.damage)
-        return;
-
-    c.damage->apply(c.character,
-        Goldbox::Data::DamageRequest(1, false));
-
-    if (!c.combat && c.bridge)
-        c.bridge->requestRefresh(EffectHostBridge::RF_CHARACTER_PANEL);
 }
 
 static void handlePoisoned(const EffectCall &c) {
@@ -292,30 +209,6 @@ static void handleConSavingBonus(const EffectCall &c) {
     c.combat->attackRoll += 2;
 }
 
-static void handleProtectionFromEvil(const EffectCall &c) {
-    if (!c.combat || !c.combat->attacker)
-        return;
-    const uint8 alignment = c.combat->attacker->alignment;
-    if (alignment == Goldbox::Data::A_LAWFUL_EVIL ||
-            alignment == Goldbox::Data::A_NEUTRAL_EVIL ||
-            alignment == Goldbox::Data::A_CHAOTIC_EVIL) {
-        c.combat->savingThrow += 2;
-        c.combat->attackRoll  -= 2;
-    }
-}
-
-static void handleProtectionFromGood(const EffectCall &c) {
-    if (!c.combat || !c.combat->attacker)
-        return;
-    const uint8 alignment = c.combat->attacker->alignment;
-    if (alignment == Goldbox::Data::A_LAWFUL_GOOD ||
-            alignment == Goldbox::Data::A_NEUTRAL_GOOD ||
-            alignment == Goldbox::Data::A_CHAOTIC_GOOD) {
-        c.combat->savingThrow += 2;
-        c.combat->attackRoll  -= 2;
-    }
-}
-
 static void handleResistCold(const EffectCall &c) {
     if (!c.combat)
         return;
@@ -325,28 +218,10 @@ static void handleResistCold(const EffectCall &c) {
     }
 }
 
-// EFFECT_41_ProtectionFromNormalWeapons: fully avoids hits from a
-// non-magical weapon or ammo.
-static void handleProtNormalWeapons(const EffectCall &c) {
-    if (c.op != EFF_ADD || !c.combat || !c.combat->attacker)
-        return;
-
-    ADnDCharacter *attacker = static_cast<ADnDCharacter *>(c.combat->attacker);
-    Items::CharacterItem *attackItem = attacker->getWeaponOrAmmo();
-    if (attackItem && attackItem->bonus == 0)
-        rollAvoid(c.character, *c.combat, c.bridge, 100);
-}
-
 static void handleRegen1(const EffectCall &c) {
     applyFlag(c.op, c.character, CEF_REGEN_1);
     if (c.op == EFF_TICK)
         c.character.heal(1);
-}
-
-static void handleRegen3(const EffectCall &c) {
-    applyFlag(c.op, c.character, CEF_REGEN_3);
-    if (c.op == EFF_TICK)
-        c.character.heal(3);
 }
 
 static void handleCharm(const EffectCall &c) {
@@ -372,9 +247,157 @@ static void handleCharm(const EffectCall &c) {
     }
 }
 
-static void handleSpiritualHammer(const EffectCall &c) {
-    // Spiritual Hammer creates a temporary +1 hammer item rather than a
-    // combat modifier. The common handler is used by AD&D-based games.
+} // namespace
+
+// ---------------------------------------------------------------------------
+// Handlers exposed for reuse by game-specific handler files.
+// ---------------------------------------------------------------------------
+
+void handleAccursed(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll -= 4;
+    c.combat->savingThrow -= 4;
+}
+
+void handlePrayer(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 1;
+    c.combat->savingThrow += 1;
+}
+
+void handleHelpless(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_HELPLESS | CEF_HELD);
+}
+
+void handleBlinded(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_BLINDED);
+}
+
+void handleSlow(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll -= 1;
+    c.combat->attackMultiplier >>= 1;
+}
+
+void handleParalyze(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_PARALYZED | CEF_HELD);
+}
+
+void handleShield(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    if (c.character.armorClass.current < 0x39)
+        c.character.armorClass.current = 0x39;
+    if (!c.combat)
+        return;
+    ++c.combat->savingThrow;
+    if (c.combat->activeSpellId == 0x0F)
+        c.combat->damage = 0;
+}
+
+void handleFriendly(const EffectCall &c) {
+    c.character.abilities.charisma.current = c.effect.power;
+}
+
+void handleEnlargeStrengthened(const EffectCall &c) {
+    if (c.effect.power >= 128)
+        return;
+
+    uint8 newStr, newExt;
+    strengthDecode(c.effect.power, newStr, newExt);
+    c.character.abilities.strength.current     = newStr;
+    c.character.abilities.strException.current = newExt;
+
+    CharacterEffects *fx = c.character.getEffects();
+    if (!fx)
+        return;
+
+    Effect *bestEffect = nullptr;
+    uint8 bestStr = 0, bestExt = 0;
+    for (Effect &e : fx->effects()) {
+        if (&e == &c.effect)
+            continue;
+        if (e.id != E_STRENGTH && e.id != E_ENLARGE)
+            continue;
+        uint8 eStr, eExt;
+        strengthDecode(e.power, eStr, eExt);
+        if (eStr > bestStr || (eStr == 18 && bestStr == 18 && eExt > bestExt)) {
+            bestEffect = &e;
+            bestStr    = eStr;
+            bestExt    = eExt;
+        }
+    }
+
+    if (bestEffect) {
+        bestEffect->power = strengthEncode(c.character.abilities.strength.current,
+                                           c.character.abilities.strException.current);
+        c.character.abilities.strength.current     = bestStr;
+        c.character.abilities.strException.current = bestExt;
+    }
+}
+
+void handlePoisonDamage(const EffectCall &c) {
+    if (c.op == EFF_ADD)
+        c.character.effectState.flags |= CEF_POISONED;
+    else if (c.op == EFF_REMOVE)
+        c.character.effectState.flags &= ~CEF_POISONED;
+
+    if (c.op != EFF_ADD)
+        return;
+    if (c.character.hitPoints.current <= 1)
+        return;
+    if (!c.damage)
+        return;
+
+    c.damage->apply(c.character, Goldbox::Data::DamageRequest(1, false));
+
+    if (!c.combat && c.bridge)
+        c.bridge->requestRefresh(EffectHostBridge::RF_CHARACTER_PANEL);
+}
+
+void handleProtNormalWeapons(const EffectCall &c) {
+    if (c.op != EFF_ADD || !c.combat || !c.combat->attacker)
+        return;
+    ADnDCharacter *attacker = static_cast<ADnDCharacter *>(c.combat->attacker);
+    Items::CharacterItem *attackItem = attacker->getWeaponOrAmmo();
+    if (attackItem && attackItem->bonus == 0)
+        rollAvoid(c.character, *c.combat, c.bridge, 100);
+}
+
+void handleRegen3(const EffectCall &c) {
+    applyFlag(c.op, c.character, CEF_REGEN_3);
+    if (c.op == EFF_TICK)
+        c.character.heal(3);
+}
+
+void handleProtectionFromEvil(const EffectCall &c) {
+    if (!c.combat || !c.combat->attacker)
+        return;
+    const uint8 alignment = c.combat->attacker->alignment;
+    if (alignment == Goldbox::Data::A_LAWFUL_EVIL ||
+            alignment == Goldbox::Data::A_NEUTRAL_EVIL ||
+            alignment == Goldbox::Data::A_CHAOTIC_EVIL) {
+        c.combat->savingThrow += 2;
+        c.combat->attackRoll  -= 2;
+    }
+}
+
+void handleProtectionFromGood(const EffectCall &c) {
+    if (!c.combat || !c.combat->attacker)
+        return;
+    const uint8 alignment = c.combat->attacker->alignment;
+    if (alignment == Goldbox::Data::A_LAWFUL_GOOD ||
+            alignment == Goldbox::Data::A_NEUTRAL_GOOD ||
+            alignment == Goldbox::Data::A_CHAOTIC_GOOD) {
+        c.combat->savingThrow += 2;
+        c.combat->attackRoll  -= 2;
+    }
+}
+
+void handleSpiritualHammer(const EffectCall &c) {
     ADnDCharacter &character = static_cast<ADnDCharacter &>(c.character);
     Items::CharacterItem *hammer = nullptr;
 
@@ -404,11 +427,16 @@ static void handleSpiritualHammer(const EffectCall &c) {
     character.onEffectsChanged();
 }
 
-} // namespace
+void handleBonusVsSmall(const EffectCall &c) {
+    // Base implementation: no-op. Game-specific handlers override via
+    // setSpecHandler or setHandler after setupCommonHandlers().
+    (void)c;
+}
+
+// ---------------------------------------------------------------------------
 
 // EFFECT_rollAvoid: chance to fully avoid the current hit. Returns true
-// if the attack was avoided. Requires the attacker to be wielding a
-// weapon or ammo (unarmed/spell hits are unaffected).
+// if the attack was avoided.
 bool rollAvoid(Goldbox::Data::PlayerCharacter &targetChar,
         Combat::CombatGlobals &combat, EffectHostBridge *bridge, uint8 percent) {
     if (!combat.attacker)
@@ -418,9 +446,6 @@ bool rollAvoid(Goldbox::Data::PlayerCharacter &targetChar,
     if (!attacker->getEquippedItem(Items::Slot::S_MAIN_HAND))
         return false;
 
-    // TODO: port COMBAT_FindTargetFacing (melee facing-arc gate); this
-    // helper currently fires regardless of attacker facing.
-
     if (!Goldbox::g_engine || Goldbox::g_engine->rollDice(1, 100) > percent)
         return false;
 
@@ -429,53 +454,54 @@ bool rollAvoid(Goldbox::Data::PlayerCharacter &targetChar,
 
     combat.damage = 0;
     combat.attackRoll = 0xff;
-
-    // The avoided attack still consumes one of the attacker's attacks.
     --combat.attacksLeft;
 
     return true;
 }
 
 void setupCommonHandlers(EffectHandlerBase &base) {
-    base.setHandler(E_BLESSED,          handleBlessed);
-    base.setHandler(E_CURSED,           handleCursed);
-    base.setHandler(E_BESTOW_CURSE,     handleAccursed);
-    base.setHandler(E_PRAYER,           handlePrayer);
-    base.setHandler(E_CHANT,            handleChant);
-    base.setHandler(E_HASTE,            handleHaste);
-    base.setHandler(E_SLOW,             handleSlow);
-    base.setHandler(E_PARALYZE,         handleParalyze);
-    base.setHandler(E_SLEEP,            handleSleep);
-    base.setHandler(E_HELPLESS,         handleHelpless);
-    base.setHandler(E_BLINDED,          handleBlinded);
-    base.setHandler(E_CONFUSE,          handleConfuse);
-    base.setHandler(E_FUMBLING,         handleFumbling);
-    base.setHandler(E_WEAKEN,           handleWeaken);
-    base.setHandler(E_FEEBLEMIND,       handleFeeblemind);
-    base.setHandler(E_FRIENDS,          handleFriendly);
-    base.setHandler(E_READ_MAGIC,       handleNotImplemented);
-    base.setHandler(E_SHIELD,           handleShield);
-    base.setHandler(E_STRENGTH,         handleEnlargeStrengthened);
-    base.setHandler(E_ENLARGE,          handleEnlargeStrengthened);
-    base.setHandler(E_REDUCE,           handleReduce);
-    base.setHandler(E_BLINK,            handleBlink);
-    base.setHandler(E_BERSERK,          handleBerserk);
-    base.setHandler(E_POISON_DAMAGE,    handlePoisonDamage);
-    base.setHandler(E_POISONED,         handlePoisoned);
-    base.setHandler(E_POISON_PLUS_0,    handlePoisonPlus0);
-    base.setHandler(E_POISON_PLUS_2,    handlePoisonPlus2);
-    base.setHandler(E_POISON_PLUS_4,    handlePoisonPlus4);
-    base.setHandler(E_POISON_NEG_2,     handlePoisonNeg2);
-    base.setHandler(E_CON_SAVING_BONUS,       handleConSavingBonus);
-    base.setHandler(E_PROTECTION_FROM_EVIL,    handleProtectionFromEvil);
-    base.setHandler(E_PROTECTION_FROM_GOOD,    handleProtectionFromGood);
+    base.setHandler(E_BLESSED,                  handleBlessed);
+    base.setHandler(E_CURSED,                   handleCursed);
+    base.setHandler(E_BESTOW_CURSE,             handleAccursed);
+    base.setHandler(E_PRAYER,                   handlePrayer);
+    base.setHandler(E_CHANT,                    handleChant);
+    base.setHandler(E_HASTE,                    handleHaste);
+    base.setHandler(E_SLOW,                     handleSlow);
+    base.setHandler(E_PARALYZE,                 handleParalyze);
+    base.setHandler(E_SLEEP,                    handleSleep);
+    base.setHandler(E_HELPLESS,                 handleHelpless);
+    base.setHandler(E_BLINDED,                  handleBlinded);
+    base.setHandler(E_CONFUSE,                  handleConfuse);
+    base.setHandler(E_FUMBLING,                 handleFumbling);
+    base.setHandler(E_WEAKEN,                   handleWeaken);
+    base.setHandler(E_WEAKENED,                 handleWeakened);
+    base.setHandler(E_CAUSE_WOUND,              handleCauseWound);
+    base.setHandler(E_FEEBLEMIND,               handleFeeblemind);
+    base.setHandler(E_FRIENDS,                  handleFriendly);
+    base.setHandler(E_READ_MAGIC,               handleNotImplemented);
+    base.setHandler(E_SHIELD,                   handleShield);
+    base.setHandler(E_STRENGTH,                 handleEnlargeStrengthened);
+    base.setHandler(E_ENLARGE,                  handleEnlargeStrengthened);
+    base.setHandler(E_BLINK,                    handleBlink);
+    base.setHandler(E_REDUCE,                   handleReduce);
+    base.setHandler(E_BERSERK,                  handleBerserk);
+    base.setHandler(E_POISON_DAMAGE,            handlePoisonDamage);
+    base.setHandler(E_POISONED,                 handlePoisoned);
+    base.setHandler(E_POISON_PLUS_0,            handlePoisonPlus0);
+    base.setHandler(E_POISON_PLUS_2,            handlePoisonPlus2);
+    base.setHandler(E_POISON_PLUS_4,            handlePoisonPlus4);
+    base.setHandler(E_POISON_NEG_2,             handlePoisonNeg2);
+    base.setHandler(E_CON_SAVING_BONUS,         handleConSavingBonus);
+    base.setHandler(E_PROTECTION_FROM_EVIL,     handleProtectionFromEvil);
+    base.setHandler(E_PROTECTION_FROM_GOOD,     handleProtectionFromGood);
     base.setHandler(E_RESIST_COLD,              handleResistCold);
     base.setHandler(E_IMMUNITY_NONMAGICAL_WEAPONS, handleProtNormalWeapons);
-    base.setHandler(E_SPIRITUAL_HAMMER, handleSpiritualHammer);
+    base.setHandler(E_SPIRITUAL_HAMMER,         handleSpiritualHammer);
+    base.setHandler(E_HUMAN_VS_SMALL,           handleBonusVsSmall);
     base.setHandler(E_REGENERATE_1_HPS,         handleRegen1);
-    base.setHandler(E_REGENERATE_3_HPS, handleRegen3);
-    base.setHandler(E_REGEN_3_HP,       handleRegen3);
-    base.setHandler(E_CHARM_PERSON,     handleCharm);
+    base.setHandler(E_REGENERATE_3_HPS,         handleRegen3);
+    base.setHandler(E_REGEN_3_HP,               handleRegen3);
+    base.setHandler(E_CHARM_PERSON,             handleCharm);
 }
 
 } // namespace Effects
