@@ -59,7 +59,21 @@ static void handleCursed(const EffectCall &c) {
     c.combat->attackRoll -= 1;
 }
 
-static void handlePrayerChant(const EffectCall &c) {
+static void handleAccursed(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll -= 4;
+    c.combat->savingThrow -= 4;
+}
+
+static void handlePrayer(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll += 1;
+    c.combat->savingThrow += 1;
+}
+
+static void handleChant(const EffectCall &c) {
     if (!c.combat)
         return;
     c.combat->attackRoll += 1;
@@ -67,9 +81,15 @@ static void handlePrayerChant(const EffectCall &c) {
 }
 
 static void handleHaste(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 1;
+    if (!(c.effect.power & 0x10)) {
+        c.effect.power |= 0x10;
+        c.character.age++;
+        if (c.bridge)
+            c.bridge->postEffectMessage(&c.character, "ages", true);
+    }
+
+    if (c.combat)
+        c.combat->attackMultiplier *= 2;
 }
 
 static void handleSlow(const EffectCall &c) {
@@ -193,6 +213,13 @@ static void handleReduce(const EffectCall &c) {
     c.combat->damage -= 1;
 }
 
+static void handleBlink(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState || c.character.combatState->delay == 0)
+        return;
+    c.combat->targetUnavailable = true;
+    c.combat->attackRoll = 0xff;
+}
+
 static void handleBerserk(const EffectCall &c) {
     if (!c.combat)
         return;
@@ -307,7 +334,7 @@ static void handleRegen3(const EffectCall &c) {
 
 static void handleCharm(const EffectCall &c) {
     if (c.op == EFF_REMOVE) {
-		c.character.combatSide = (c.effect.power & 0x40)
+        c.character.combatSide = (c.effect.power & 0x40)
             ? Goldbox::Data::CS_ENEMY : Goldbox::Data::CS_PARTY;
         if (c.character.npc == (int8)0xb3)
             c.character.npc = 0;
@@ -317,7 +344,7 @@ static void handleCharm(const EffectCall &c) {
         c.effect.power = (uint8)(0x20 +
             (c.character.combatSide == Goldbox::Data::CS_ENEMY ? 0x40 : 0x00) +
             c.effect.power);
-		c.character.combatSide = Goldbox::Data::CS_PARTY;
+        c.character.combatSide = Goldbox::Data::CS_PARTY;
         c.character.ai_control = true;
         if (!(c.character.npc & (int8)0x80))
             c.character.npc = (int8)0xb3;
@@ -365,8 +392,9 @@ static void handleSpiritualHammer(const EffectCall &c) {
 void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_BLESSED,          handleBlessed);
     base.setHandler(E_CURSED,           handleCursed);
-    base.setHandler(E_PRAYER,           handlePrayerChant);
-    base.setHandler(E_CHANT,            handlePrayerChant);
+    base.setHandler(E_BESTOW_CURSE,     handleAccursed);
+    base.setHandler(E_PRAYER,           handlePrayer);
+    base.setHandler(E_CHANT,            handleChant);
     base.setHandler(E_HASTE,            handleHaste);
     base.setHandler(E_SLOW,             handleSlow);
     base.setHandler(E_PARALYZE,         handleParalyze);
@@ -383,6 +411,7 @@ void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_STRENGTH,         handleEnlargeStrengthened);
     base.setHandler(E_ENLARGE,          handleEnlargeStrengthened);
     base.setHandler(E_REDUCE,           handleReduce);
+    base.setHandler(E_BLINK,            handleBlink);
     base.setHandler(E_BERSERK,          handleBerserk);
     base.setHandler(E_POISON_DAMAGE,    handlePoisonDamage);
     base.setHandler(E_POISONED,         handlePoisoned);

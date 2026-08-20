@@ -20,10 +20,13 @@
  */
 
 #include "goldbox/poolrad/effect_handler.h"
+#include "goldbox/combat/cloud_effect_manager.h"
+#include "goldbox/combat/combat_context.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_common_handler.h"
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/rules/rules_types.h"
+#include "goldbox/engine.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
@@ -204,6 +207,17 @@ static void handleEnfeebled(const EffectCall &c) {
     c.combat->damage -= c.combat->damage / 4;
 }
 
+static void handleInStinkingCloudExpire(const EffectCall &c) {
+    if (c.op != EFF_REMOVE)
+        return;
+    // TODO: investigate UTIL_setEffect / EffectSystem tick integration
+    Combat::CombatContext *ctx = Goldbox::g_engine->getCombatContext();
+    if (!ctx)
+        return;
+    const uint8 cloudIndex = c.effect.power >> 4;
+    ctx->clouds.expire(&c.character, cloudIndex, c.bridge);
+}
+
 static void handleNauseated(const EffectCall &c) {
     if (c.op == EFF_REMOVE) {
         c.character.effectState.mods.armorClass = 0;
@@ -229,6 +243,26 @@ static void handleNauseated(const EffectCall &c) {
 
     c.character.combatState->canUse = false;
     c.character.combatState->canCast = false;
+}
+
+static void callChildEffectHandler(const EffectCall &parent, uint8 effectId) {
+    if (!parent.handler)
+        return;
+
+    // UTIL_CallEffectHandler dispatches the same operation and effect data
+    // to another handler. Use a copy so a child cannot replace the composite
+    // effect's id or mutate the effect-list node being iterated by EffectSystem.
+    Effect child = parent.effect;
+    child.id = effectId;
+    parent.handler->apply(EffectCall(parent.op, child, parent.character,
+        parent.combat, parent.bridge, parent.damage, parent.handler));
+}
+
+static void handleDiseased(const EffectCall &c) {
+    // EFFECT_34_Diseased is a composite legacy effect. The original invokes
+    // handlers 0x2B and 0x2C for every operation (add/remove/tick/eval).
+    callChildEffectHandler(c, 0x2B);
+    callChildEffectHandler(c, 0x2C);
 }
 
 static void handleAnimatingDead(const EffectCall &c) {
@@ -622,7 +656,9 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_DUPLICATED,         handleDuplicated);
     setSpecHandler(E_POOLRAD_ENFEEBLED,          handleEnfeebled);
     setSpecHandler(E_POOLRAD_NAUSEATED,          handleNauseated);
+    setHandler(E_STINKING_CLOUD_EXPAIR,          handleInStinkingCloudExpire);
     setSpecHandler(E_POOLRAD_ANIMATING_DEAD,     handleAnimatingDead);
+    setSpecHandler(E_CAUSE_DISEASE_1,            handleDiseased);
     setHandler(E_POISON_DAMAGE,                          handlePoisonDamage);
     setSpecHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH,       handleStudyManualBodilyHealth);
     setSpecHandler(E_POOLRAD_TRAIN_MANUAL_BODILY_HEALTH,    handleTrainingManualBodilyHealth);

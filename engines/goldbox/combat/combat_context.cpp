@@ -20,7 +20,6 @@
  */
 
 #include "goldbox/combat/combat_context.h"
-#include "goldbox/combat/combat_globals.h"
 #include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_viewport.h"
@@ -35,7 +34,7 @@ CombatContext::CombatContext(CombatGlobals &globals_,
                              BattlefieldMap &map_,
                              CombatViewport &viewport_)
     : globals(globals_), params(params_), table(table_),
-      map(map_), viewport(viewport_) {}
+      map(map_), viewport(viewport_), clouds(globals_.clouds) {}
 
 void CombatContext::updateSideCount() {
     globals.updateSideCount(params.roster);

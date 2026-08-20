@@ -78,6 +78,7 @@ MODULE_OBJS = \
 	combat/combat_placement.o \
 	combat/combat_viewport.o \
 	combat/battlefield_map.o \
+	combat/cloud_effect_manager.o \
 	gfx/surface.o \
 	gfx/game_text.o \
 	sound/sound_driver.o \
