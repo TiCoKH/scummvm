@@ -116,7 +116,7 @@ void GameText::showMessage(Data::PlayerCharacter *character,
 		_characterName = character->name;
 		if (!character->enabled)
 			_characterNameColor = kDisabledNameColor;
-		else if (character->hostile)
+		else if (character->combatSide == Data::CS_ENEMY)
 			_characterNameColor = kEnemyNameColor;
 	}
 	_text = message;

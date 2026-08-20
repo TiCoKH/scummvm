@@ -58,18 +58,19 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
         delete ch->combatState;
         ch->combatState = new Data::CombatAction();
 
-        // Mark non-hostile characters beyond the player party as not in team.
-        // Hostile monsters are always in the enemy team regardless of roster index.
-        if (partyCount < combatantCount && !ch->hostile)
+        // Mark party-side characters beyond the player party as not in team.
+        // Enemy monsters are always in the enemy team regardless of roster index.
+        if (partyCount < combatantCount && ch->combatSide == Data::CS_PARTY)
             ch->combatState->notInTeam = true;
 
         // Original morale migration for neutral non-team NPCs:
         // npcClass = npc & 0x7F
-        // if (!hostile && notInTeam && (npcClass == 0 || npcClass > 0x66))
+        // if (party side && notInTeam && (npcClass == 0 || npcClass > 0x66))
         //     npc = moraleThreshold | 0x80
         if (Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(ch)) {
             uint8 moraleValue = static_cast<uint8>(adnd->npc) & 0x7F;
-            if (!ch->hostile && ch->combatState->notInTeam &&
+            if (ch->combatSide == Data::CS_PARTY &&
+                ch->combatState->notInTeam &&
                 ((moraleValue == 0) || (moraleValue > 0x66))) {
                 adnd->npc = static_cast<int8>(moraleThreshold | 0x80);
             }
@@ -79,8 +80,8 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
         uint8 dirIndex = (wayFlag >> 1) & 0x03;
         ch->combatState->direction = Data::kCombatDirectionTable[dirIndex];
 
-        // Hostile characters face the opposite direction
-        if (ch->hostile)
+        // Enemy characters face the opposite direction
+        if (ch->combatSide == Data::CS_ENEMY)
             ch->combatState->direction = dirReverse(ch->combatState->direction);
     }
 }
@@ -173,7 +174,7 @@ void updateHostileHealthPercent(const CombatantTable &table) {
         if (table.getSize(i) == 0)
             continue;
         Data::PlayerCharacter *ch = table.getCharacter(i);
-        if (!ch || !ch->hostile || !ch->combatState)
+        if (!ch || ch->combatSide != Data::CS_ENEMY || !ch->combatState)
             continue;
         if (ch->hitPoints.max == 0)
             continue;

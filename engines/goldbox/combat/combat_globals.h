@@ -66,7 +66,7 @@ struct CombatGlobals {
     uint8 membersOnGround;   // C_MEMBERS_ON_GROUND
     bool cloudEffectActive;  // PTR_CLOUD_EFF_HANDLER != 0
     uint8 combatFlag1;       // D_unknownCombatFlag1
-    uint8 sideCount[2];      // ARRAY_HOSTILITY[0]=friendly, [1]=hostile
+    uint8 sideCount[2];      // ARRAY_HOSTILITY[CS_PARTY/CS_ENEMY]
     int8 savingThrow;        // SAVING_THROW per-hit modifier
     Data::PlayerCharacter *attacker; // PTR_SELECTED_CHAR — current attacking character
     bool targetUnavailable;   // Target cannot be selected
