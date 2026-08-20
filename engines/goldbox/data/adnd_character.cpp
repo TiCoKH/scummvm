@@ -249,6 +249,52 @@ const Goldbox::Data::Items::ItemProperty *ADnDCharacter::mainWeaponProp() const 
     return getEquippedProp(Slot::S_MAIN_HAND);
 }
 
+bool ADnDCharacter::getRangedAttackItem(
+        Goldbox::Data::Items::CharacterItem **attackItem) {
+    using namespace Goldbox::Data::Items;
+
+    if (!attackItem)
+        return false;
+
+    *attackItem = nullptr;
+    CharacterItem *weapon = getEquippedItem(Slot::S_MAIN_HAND);
+    uint8 missileType = 0;
+
+    if (weapon) {
+        missileType = weapon->prop().missileType;
+
+        // The weapon itself is the projectile (for example, a thrown dart).
+        if (missileType & static_cast<uint8>(MissileFlag::MF_DART))
+            *attackItem = weapon;
+
+        // Bow/crossbow weapons use a separate arrow/bolt item.
+        if (missileType & static_cast<uint8>(MissileFlag::MF_BOW)) {
+            if (missileType & static_cast<uint8>(MissileFlag::MF_RANGED_MELEE))
+                *attackItem = getEquippedItem(Slot::S_ARROW);
+
+            if (missileType & static_cast<uint8>(MissileFlag::MF_CROSSBOW))
+                *attackItem = getEquippedItem(Slot::S_BOLT);
+        }
+    }
+
+    // Legacy missile type 10 is valid even without a separate projectile.
+    return *attackItem != nullptr || missileType == 10;
+}
+
+Goldbox::Data::Items::CharacterItem *ADnDCharacter::getWeaponOrAmmo() {
+    using namespace Goldbox::Data::Items;
+
+    CharacterItem *weapon = getEquippedItem(Slot::S_MAIN_HAND);
+    if (!weapon)
+        return nullptr;
+
+    CharacterItem *attackItem = nullptr;
+    if (!getRangedAttackItem(&attackItem) || !attackItem)
+        return weapon;
+
+    return attackItem;
+}
+
 void ADnDCharacter::armorMovementEffect(const Goldbox::Data::Items::CharacterItem *armorItem) {
     using Slot = Goldbox::Data::Items::Slot;
     if (!armorItem) return; // No armor equipped, no effect
