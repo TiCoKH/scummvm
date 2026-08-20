@@ -51,15 +51,17 @@ struct EffectCall {
     Combat::CombatGlobals *combat;
     EffectHostBridge *bridge;
     DamageSystem *damage;
+        const EffectHandlerBase *handler;
 
     EffectCall(EffectOp operation, Effect &effectRef,
             Goldbox::Data::PlayerCharacter &characterRef,
             Combat::CombatGlobals *combatGlobals = nullptr,
             EffectHostBridge *hostBridge = nullptr,
-            DamageSystem *damageSystem = nullptr)
+                        DamageSystem *damageSystem = nullptr,
+                        const EffectHandlerBase *handlerRef = nullptr)
             : op(operation), effect(effectRef), character(characterRef),
               combat(combatGlobals), bridge(hostBridge),
-              damage(damageSystem) {
+                            damage(damageSystem), handler(handlerRef) {
     }
 };
 

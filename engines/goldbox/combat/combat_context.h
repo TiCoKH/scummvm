@@ -23,6 +23,7 @@
 #define GOLDBOX_COMBAT_COMBAT_CONTEXT_H
 
 #include "common/scummsys.h"
+#include "goldbox/combat/combat_globals.h"
 
 namespace Goldbox {
 namespace Data {
@@ -31,7 +32,6 @@ class PlayerCharacter;
 
 namespace Combat {
 
-struct CombatGlobals;
 struct CombatParams;
 class CombatantTable;
 class BattlefieldMap;
@@ -42,18 +42,19 @@ class CombatViewport;
  *
  * Passed to any combat subsystem (AI, movement, spells, etc.) that needs
  * to read or mutate global combat state during the combat phase.
- * CombatView owns all members; this struct just provides access.
+ * CombatGlobals owns all members; this struct just provides access.
  *
  * Mirrors the original pattern where COMBAT_* functions accessed scattered
  * globals (ARRAY_HOSTILITY, C_FIELD_PLACEMENT_MAP, BYTE_ARRAY_COL_DIST, etc.)
  * directly. Here those are reached through the owning objects.
  */
 struct CombatContext {
-    CombatGlobals  &globals;
-    CombatParams   &params;
-    CombatantTable &table;
-    BattlefieldMap &map;
-    CombatViewport &viewport;
+    CombatGlobals       &globals;
+    CombatParams        &params;
+    CombatantTable      &table;
+    BattlefieldMap      &map;
+    CombatViewport      &viewport;
+    CloudEffectManager  &clouds;  // alias for globals.clouds
 
     CombatContext(CombatGlobals &globals_,
                   CombatParams &params_,

@@ -71,7 +71,7 @@ enum Effects : uint8 {
     E_BESTOW_CURSE = 37,
     E_BLINK = 38,
     E_HASTE = 39,
-    E_COUGHING_FROM_STINKING_CLOUD = 40,
+    E_STINKING_CLOUD_EXPAIR = 40,  // per-character marker: currently inside an active Stinking Cloud area
     E_PROT_FROM_EVIL_10_RADIUS = 41,
     E_PROT_FROM_GOOD_10_RADIUS = 42,
     E_PROT_FROM_NORMAL_MISSILES = 43,

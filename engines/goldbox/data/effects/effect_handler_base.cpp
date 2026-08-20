@@ -33,7 +33,7 @@ void EffectHandlerBase::apply(EffectOp op, Effect &effect,
         Combat::CombatGlobals *combat) const {
     DamageSystem damageSystem(nullptr);
     apply(EffectCall(op, effect, character, combat, nullptr,
-        &damageSystem));
+        &damageSystem, this));
 }
 
 void EffectHandlerBase::apply(EffectOp op, Effect &effect,
@@ -42,7 +42,7 @@ void EffectHandlerBase::apply(EffectOp op, Effect &effect,
         EffectHostBridge *bridge) const {
     DamageSystem damageSystem(bridge);
     apply(EffectCall(op, effect, character, combat, bridge,
-        &damageSystem));
+        &damageSystem, this));
 }
 
 void EffectHandlerBase::apply(const EffectCall &call) const {
