@@ -134,6 +134,12 @@ public:
 	bool isDualWielding() const;        // Main hand + off hand weapon (off hand not a shield)
 	const Goldbox::Data::Items::ItemProperty *mainWeaponProp() const; // Shorthand
 
+	// Return the projectile used by the equipped ranged weapon. The special
+	// missile type 10 is valid without a separate projectile item.
+	bool getRangedAttackItem(Goldbox::Data::Items::CharacterItem **attackItem);
+	// Return the ranged projectile when available, otherwise the equipped weapon.
+	Goldbox::Data::Items::CharacterItem *getWeaponOrAmmo();
+
 	// AC component structure for cumulative AC calculation
 	struct AcComponents {
 		int8 dexAdj;     // Dex AC adjustment (DexAcBonus)
