@@ -307,14 +307,17 @@ static void handleRegen3(const EffectCall &c) {
 
 static void handleCharm(const EffectCall &c) {
     if (c.op == EFF_REMOVE) {
-        c.character.hostile = (c.effect.power & 0x40) != 0;
+		c.character.combatSide = (c.effect.power & 0x40)
+            ? Goldbox::Data::CS_ENEMY : Goldbox::Data::CS_PARTY;
         if (c.character.npc == (int8)0xb3)
             c.character.npc = 0;
     } else if (c.op == EFF_ADD) {
         if (c.effect.power & 0x20)
             return;
-        c.effect.power = (uint8)(0x20 + (c.character.hostile ? 0x40 : 0x00) + c.effect.power);
-        c.character.hostile = false;
+        c.effect.power = (uint8)(0x20 +
+            (c.character.combatSide == Goldbox::Data::CS_ENEMY ? 0x40 : 0x00) +
+            c.effect.power);
+		c.character.combatSide = Goldbox::Data::CS_PARTY;
         c.character.ai_control = true;
         if (!(c.character.npc & (int8)0x80))
             c.character.npc = (int8)0xb3;

@@ -877,15 +877,15 @@ void EclVM::onDatBankWrite(uint16 vmAddr, uint16 value,
         break;
     }
     case 0x10C: {
-        // Combat mode: hostile/ai_control
+        // Combat mode: combat side/ai_control
         if (value == 0) {
-            pc->hostile = false;
+            pc->combatSide = Data::CS_PARTY;
             pc->ai_control = false;
         } else if (value == 0x80) {
-            pc->hostile = false;
+            pc->combatSide = Data::CS_PARTY;
             pc->ai_control = true;
         } else if (value == 0x81) {
-            pc->hostile = true;
+            pc->combatSide = Data::CS_ENEMY;
             pc->ai_control = true;
         }
         break;

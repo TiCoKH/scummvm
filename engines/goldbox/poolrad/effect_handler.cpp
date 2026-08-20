@@ -22,6 +22,7 @@
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_common_handler.h"
+#include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 
@@ -228,6 +229,38 @@ static void handleNauseated(const EffectCall &c) {
 
     c.character.combatState->canUse = false;
     c.character.combatState->canCast = false;
+}
+
+static void handleAnimatingDead(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    // The legacy handler clears the immediate flag before doing anything
+    // else. This also prevents a later removal from re-entering this logic.
+    c.effect.immediate = 0;
+    const uint8 combatSide = c.effect.power >> 4;
+
+    // There is no separate IN_SPELL_PROCESS global in the modern runtime.
+    // An active combat spell is the corresponding deferred-status case.
+    const bool spellProcessing = c.combat && c.combat->activeSpellId != 0;
+    if (!spellProcessing) {
+        Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
+        effectSystem.setStatus(c.character, Goldbox::Data::S_DEAD, "collapses");
+    }
+
+    Data::PoolradCharacter &character = asPoolrad(c.character);
+    character.combatSide = static_cast<Goldbox::Data::CombatSide>(combatSide);
+    character.ai_control = true;
+    character.levelUndead = 0;
+    character.attackLevel = character.levels[Goldbox::Data::C_FIGHTER];
+    character.movement.base = 12;
+
+    if (character.npc == (int8)0xB3)
+        character.npc = 0;
+
+    // Poolrad uses monsterType as its character/monster type discriminator;
+    // zero is the normal character type restored by the original handler.
+    character.monsterType = 0;
 }
 
 static void handleHalfDamage(const EffectCall &c) {
@@ -589,6 +622,7 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_DUPLICATED,         handleDuplicated);
     setSpecHandler(E_POOLRAD_ENFEEBLED,          handleEnfeebled);
     setSpecHandler(E_POOLRAD_NAUSEATED,          handleNauseated);
+    setSpecHandler(E_POOLRAD_ANIMATING_DEAD,     handleAnimatingDead);
     setHandler(E_POISON_DAMAGE,                          handlePoisonDamage);
     setSpecHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH,       handleStudyManualBodilyHealth);
     setSpecHandler(E_POOLRAD_TRAIN_MANUAL_BODILY_HEALTH,    handleTrainingManualBodilyHealth);

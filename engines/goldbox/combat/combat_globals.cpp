@@ -30,7 +30,7 @@ void CombatGlobals::updateSideCount(const Common::Array<Data::PlayerCharacter *>
     sideCount[1] = 0;
     for (uint i = 0; i < roster.size(); i++) {
         if (roster[i])
-            sideCount[roster[i]->hostile ? 1 : 0]++;
+            sideCount[roster[i]->combatSide]++;
     }
 }
 

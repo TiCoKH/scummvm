@@ -602,9 +602,9 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
             ? templateMonster
             : new Data::PoolradCharacter(*templateMonster);
 
-        // Preserve legacy combat assumptions: loaded monsters are hostile
+        // Preserve legacy combat assumptions: loaded monsters are enemies
         // and enabled (active in combat) by default.
-        monster->hostile = true;
+        monster->combatSide = Goldbox::Data::CS_ENEMY;
         monster->enabled = true;
 
         monster->iconData.iconSlotId = slotId;
@@ -847,18 +847,18 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
     case 0x8000:
     case 0x8001: {
         // SPECIAL_COMBAT_MODE on/off. Original behavior modifies a linked
-        // encounter list and may synthesize an extra hostile NPC entry.
-        // Current safe subset: toggle selected character ai_control/hostile.
+        // encounter list and may synthesize an extra enemy NPC entry.
+        // Current safe subset: toggle selected character ai_control/combatSide.
         Poolrad::Data::PoolradCharacter *selected =
             dynamic_cast<Poolrad::Data::PoolradCharacter *>(
                 VmInterface::getSelectedCharacter());
         if (selected) {
             if (callId == 0x8000) {
                 selected->ai_control = true;
-                selected->hostile = false;
+                selected->combatSide = Goldbox::Data::CS_PARTY;
             } else {
                 selected->ai_control = false;
-                selected->hostile = false;
+                selected->combatSide = Goldbox::Data::CS_PARTY;
             }
         }
         return VM_OK;

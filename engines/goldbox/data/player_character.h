@@ -41,6 +41,11 @@ enum Gender {
 	G_FEMALE = 1
 };
 
+enum CombatSide {
+	CS_PARTY = 0,
+	CS_ENEMY = 1
+};
+
 struct Stat {
 	uint8 base;    // Original stat
 	uint8 current; // Modified stat
@@ -156,8 +161,8 @@ public:
 	// State
 	uint8 healthStatus = 0;
 	bool enabled = false;
-	bool hostile = false;
 	bool ai_control = false;
+	CombatSide combatSide = CS_PARTY;
 	// Bit 7 = NPC flag; bits 6-0 = morale (0-127).
 	int8 npc = 0;
 

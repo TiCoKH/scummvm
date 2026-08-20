@@ -109,9 +109,9 @@ void PoolradCharacter::initialize() {
 
 	effectState.clear();
 	effectState.flags = EF_NONE;
+	combatSide = Goldbox::Data::CS_PARTY;
 	healthStatus = Goldbox::Data::S_OKAY;
 	enabled = true;
-	hostile = false;
 	ai_control = false;
 
 	npc = 0;
@@ -353,7 +353,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
 	healthStatus = stream.readByte();        // 0x10C
 	enabled      = (stream.readByte() != 0); // 0x10D
-	hostile      = (stream.readByte() != 0); // 0x10E
+	combatSide  = static_cast<Goldbox::Data::CombatSide>(stream.readByte()); // 0x10E
 	ai_control   = (stream.readByte() != 0); // 0x10F
 
 	thac0.current        = stream.readByte(); // 0x110
@@ -923,8 +923,8 @@ void PoolradCharacter::save(Common::WriteStream &stream) {
 
 	stream.writeByte(healthStatus);
 	stream.writeByte(enabled ? 1 : 0);
-	stream.writeByte(hostile ? 1 : 0);
-	stream.writeByte(ai_control ? 1 : 0);
+	stream.writeByte(static_cast<uint8>(combatSide)); // 0x10E
+	stream.writeByte(ai_control ? 1 : 0);    // 0x10F
 
 	stream.writeByte(thac0.current);
 	stream.writeByte(armorClass.current);
@@ -959,7 +959,7 @@ byte PoolradCharacter::getNameColor() {
 	int txtColor = 15;
 	if (!enabled) {
 		txtColor = 12;
-	} else if (hostile) {
+	} else if (combatSide == Goldbox::Data::CS_ENEMY) {
 		txtColor = 14;
 	} else {
 		txtColor = 11;
