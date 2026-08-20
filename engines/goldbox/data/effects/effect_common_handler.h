@@ -52,6 +52,24 @@ enum CommonEffectFlags : uint32 {
 // registering any overrides.
 void setupCommonHandlers(EffectHandlerBase &base);
 
+// Individual common handlers exposed for reuse by game-specific handler files.
+void handleEnlargeStrengthened(const EffectCall &c);
+void handleFriendly(const EffectCall &c);
+void handlePoisonDamage(const EffectCall &c);
+void handleShield(const EffectCall &c);
+void handleHelpless(const EffectCall &c);
+void handleBlinded(const EffectCall &c);
+void handlePrayer(const EffectCall &c);
+void handleAccursed(const EffectCall &c);
+void handleProtNormalWeapons(const EffectCall &c);
+void handleSlow(const EffectCall &c);
+void handleProtectionFromEvil(const EffectCall &c);
+void handleProtectionFromGood(const EffectCall &c);
+void handleParalyze(const EffectCall &c);
+void handleRegen3(const EffectCall &c);
+void handleSpiritualHammer(const EffectCall &c);
+void handleBonusVsSmall(const EffectCall &c);
+
 // Shared helper for effects granting a chance to fully avoid the current
 // hit (e.g. EFFECT_rollAvoid). Returns true if the attack was avoided.
 bool rollAvoid(Goldbox::Data::PlayerCharacter &targetChar,

@@ -491,29 +491,55 @@ static void handleSwordVsUndead(const EffectCall &c) {
     }
 }
 
-static void handlePoisonDamage(const EffectCall &c) {
-    if (c.op == EFF_ADD)
-        c.character.effectState.flags |= CEF_POISONED;
-    else if (c.op == EFF_REMOVE)
-        c.character.effectState.flags &= ~CEF_POISONED;
+static void handleDiseasedMummy(const EffectCall &c) {
+    // EFFECT_50_DiseasedMummy: composite effect invoking handlers 0x2B and 0x2C,
+    // same as EFFECT_34_Diseased.
+    callChildEffectHandler(c, E_WEAKENED);
+    callChildEffectHandler(c, E_CAUSE_WOUND);
+}
 
-    // The original EFFECT_add path applies poison damage once when the
-    // effect is successfully added, not on every poison-cycle tick.
-    if (c.op != EFF_ADD)
+static void handleDwarfVsGiant(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState
+            || !c.character.combatState->target)
         return;
 
-    if (c.character.hitPoints.current <= 1)
+    const Data::PoolradCharacter *target =
+        static_cast<const Data::PoolradCharacter *>(
+            c.character.combatState->target);
+    if (target->monsterType != 1 || target->iconDimension != 2)
         return;
 
-    if (!c.damage)
+    static const char *const kGiantNames[] = {
+        "HILL GIANT",
+        "STONE GIANT",
+        "FROST GIANT",
+        "FIRE GIANT",
+        "CLOUD GIANT",
+        "STORM GIANT",
+        "OGRE",
+        "OGRE MAGE"
+    };
+
+    for (uint i = 0; i < ARRAYSIZE(kGiantNames); ++i) {
+        if (target->name == kGiantNames[i]) {
+            ++c.combat->attackRoll;
+            return;
+        }
+    }
+}
+
+static void handleGnomeVsLarge(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState
+            || !c.character.combatState->target)
         return;
 
-    c.damage->apply(c.character,
-            Goldbox::Data::DamageRequest(1, false));
+    const Data::PoolradCharacter *target =
+        static_cast<const Data::PoolradCharacter *>(
+            c.character.combatState->target);
+    if (target->monsterType != 1 || target->iconDimension != 2)
+        return;
 
-    if (!c.combat && c.bridge)
-        c.bridge->requestRefresh(
-                Goldbox::Data::Effects::EffectHostBridge::RF_CHARACTER_PANEL);
+    ++c.combat->attackRoll;
 }
 
 static void handleStudyManualBodilyHealth(const EffectCall &c) {
@@ -589,79 +615,108 @@ void EffectHandler::setupHandlers() {
     // Register shared common handlers first; game-specific ones below override.
     setupCommonHandlers(*this);
 
-    setHandler(E_SILENCE_15_RADIUS,             handleSilence);
-    setHandler(E_INVISIBILITY,                  handleInvisibility);
-    setHandler(E_INVISIBLE,                     handleInvisibility);
-    setHandler(E_ITEM_INVISIBILITY,             handleItemInvisibility);
-    setHandler(E_CAMOUFLAGE,                    handleCamouflage);
-    setHandler(E_IMMUNE_TO_ELECTRICITY,         handleImmuneElec);
-    setHandler(E_RESIST_FIRE,                   handleResistFire);
-    setHandler(E_RESIST_FIRE_AND_COLD,          handleResistFireAndCold);
-    setHandler(E_FIRE_RESIST,                   handleFireResist);
-    setHandler(E_PROT_FROM_NORMAL_MISSILES,     handleProtNormalMissiles);
-    setHandler(E_PROT_DRAG_BREATH,              handleProtDragBreath);
-    setHandler(E_MINOR_GLOBE_OF_INVULNERABILITY, handleMinorGlobe);
-    setHandler(E_RAKSHASA_RESIST_NORMAL_WEAPONS, handleRakshasaResist);
-    setHandler(E_DISPLACE,                      handleDisplace);
-    setHandler(E_HALF_DAMAGE,                   handleHalfDamage);
-    setHandler(E_HALF_FIRE_DAMAGE,              handleHalfFireDamage);
-    setHandler(E_DAMAGE_REDUCTION,              handleDamageReduction);
-    setHandler(E_FEAR_IMMUNITY,                 handleFearImmunity);
-    setHandler(E_SLOW_POISON,                   handleSlowPoison);
-    setHandler(E_ENTANGLE,                      handleEntangle);
-    setHandler(E_PETRIFYING_GAZE,               handleAttackBonus2);
-    setHandler(E_BEHOLDER_RAYS_AFFECT_57,       handleAttackBonus2);
-    setHandler(E_AFFECT_4A,                     handleAttackBonus2);
-    setHandler(E_AFFECT_4E,                     handleAttackBonus2);
-    setHandler(E_FIRE_ATTACK_2D10,              handleAttackDamageBonus);
-    setHandler(E_ANKHEG_ACID_ATTACK,            handleAttackDamageBonus);
-    setHandler(E_GIANT_SLUG_SPIT_ACID,          handleAttackDamageBonus);
-    setHandler(E_BREATH_ELEC,                   handleAttackDamageBonus);
-    setHandler(E_BREATH_ACID,                   handleAttackDamageBonus);
-    setHandler(E_CLOUD_KILL,                    handleAttackDamageBonus);
-    setHandler(E_ANKHEG_ACID_SQUIRT_ATTACK,     handleAttackDamageBonus);
+    // Poolrad-specific raw ID registrations.
+    // IDs that identity-map correctly to a common handler are omitted:
+    //   0x14 (20=E_RESIST_FIRE), 0x15 (21=E_SILENCE_15_RADIUS),
+    //   0x16 (22=E_SLOW_POISON), 0x3B (59=E_REGENERATE_3_HPS).
+    setSpecHandler(E_POOLRAD_DETECT_MAGIC,          handleNotImplemented);
+    setSpecHandler(E_POOLRAD_ENLARGE_STRENGTHEN,    handleEnlargeStrengthened);
+    setSpecHandler(E_POOLRAD_UNIMPLEMENTED_0D,      handleNotImplemented);
+    setSpecHandler(E_POOLRAD_FRIENDLY,              handleFriendly);
+    setSpecHandler(E_POOLRAD_POISON_DAMAGE,         handlePoisonDamage);
+    setSpecHandler(E_POOLRAD_READ_MAGIC,            handleNotImplemented);
+    setSpecHandler(E_POOLRAD_SHIELD,                handleShield);
+    setSpecHandler(E_POOLRAD_SMALL_VS_NORMAL,       handleBonusVsSmall);
+    setSpecHandler(E_POOLRAD_UNIMPLEMENTED_13,      handleNotImplemented);
+    setSpecHandler(E_POOLRAD_SPIRITUAL_HAMMER,      handleSpiritualHammer);
+    setSpecHandler(E_POOLRAD_TRUE_SEEING,           handleNotImplemented);
+    setSpecHandler(E_POOLRAD_BLUR,                  handleBlur);
+    setSpecHandler(E_POOLRAD_DWARF_TARGET_BONUS,    handleDwarfTargetBonus);
+    setSpecHandler(E_POOLRAD_DUPLICATED,            handleDuplicated);
+    setSpecHandler(E_POOLRAD_ENFEEBLED,             handleEnfeebled);
+    setSpecHandler(E_POOLRAD_NAUSEATED,             handleNauseated);
+    setSpecHandler(E_POOLRAD_HELPLESS,              handleHelpless);
+    setSpecHandler(E_POOLRAD_ANIMATING_DEAD,        handleAnimatingDead);
+    setSpecHandler(E_POOLRAD_BLINDED,               handleBlinded);
+    setSpecHandler(E_POOLRAD_DISEASED,              handleDiseased);
+    setSpecHandler(E_POOLRAD_PRAYER,                handlePrayer);
+    setSpecHandler(E_POOLRAD_ACCURSED,              handleAccursed);
+    setSpecHandler(E_POOLRAD_PROT_NORMAL_WEAPONS,   handleProtNormalWeapons);
+    setSpecHandler(E_POOLRAD_SLOWED,                handleSlow);
+    setSpecHandler(E_POOLRAD_PROT_FROM_EVIL_10,     handleProtectionFromEvil);
+    setSpecHandler(E_POOLRAD_PROT_FROM_GOOD_10,     handleProtectionFromGood);
+    setSpecHandler(E_POOLRAD_DWARF_VS_GIANT,        handleDwarfVsGiant);
+    setSpecHandler(E_POOLRAD_GNOME_VS_LARGE,        handleGnomeVsLarge);
+    setSpecHandler(E_POOLRAD_PRAYER_2,              handlePrayer);
+    setSpecHandler(E_POOLRAD_DISEASED_MUMMY,        handleDiseasedMummy);
+    setSpecHandler(E_POOLRAD_HELPLESS_33,           handleHelpless);
+    setSpecHandler(E_POOLRAD_HELPLESS_34,           handleHelpless);
+    setSpecHandler(E_POOLRAD_HELPLESS_35,           handleHelpless);
+    setSpecHandler(E_POOLRAD_PARALYZED,             handleParalyze);
+    setSpecHandler(E_POOLRAD_REGEN_3_HP,            handleRegen3);
+    setSpecHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,   handleFlameTongue);
+    setSpecHandler(E_POOLRAD_SWORD_VS_UNDEAD,       handleSwordVsUndead);
+    setSpecHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH, handleStudyManualBodilyHealth);
+    setSpecHandler(E_POOLRAD_TRAIN_MANUAL_BODILY_HEALTH, handleTrainingManualBodilyHealth);
+    setHandler(E_STINKING_CLOUD_EXPAIR,             handleInStinkingCloudExpire);
+    setHandler(E_SILENCE_15_RADIUS,                 handleSilence);
+    setHandler(E_INVISIBILITY,                      handleInvisibility);
+    setHandler(E_INVISIBLE,                         handleInvisibility);
+    setHandler(E_ITEM_INVISIBILITY,                 handleItemInvisibility);
+    setHandler(E_CAMOUFLAGE,                        handleCamouflage);
+    setHandler(E_IMMUNE_TO_ELECTRICITY,             handleImmuneElec);
+    setHandler(E_RESIST_FIRE,                       handleResistFire);
+    setHandler(E_RESIST_FIRE_AND_COLD,              handleResistFireAndCold);
+    setHandler(E_FIRE_RESIST,                       handleFireResist);
+    setHandler(E_PROT_FROM_NORMAL_MISSILES,         handleProtNormalMissiles);
+    setHandler(E_PROT_DRAG_BREATH,                  handleProtDragBreath);
+    setHandler(E_MINOR_GLOBE_OF_INVULNERABILITY,    handleMinorGlobe);
+    setHandler(E_RAKSHASA_RESIST_NORMAL_WEAPONS,    handleRakshasaResist);
+    setHandler(E_DISPLACE,                          handleDisplace);
+    setHandler(E_HALF_DAMAGE,                       handleHalfDamage);
+    setHandler(E_HALF_FIRE_DAMAGE,                  handleHalfFireDamage);
+    setHandler(E_DAMAGE_REDUCTION,                  handleDamageReduction);
+    setHandler(E_FEAR_IMMUNITY,                     handleFearImmunity);
+    setHandler(E_SLOW_POISON,                       handleSlowPoison);
+    setHandler(E_ENTANGLE,                          handleEntangle);
+    setHandler(E_PETRIFYING_GAZE,                   handleAttackBonus2);
+    setHandler(E_BEHOLDER_RAYS_AFFECT_57,           handleAttackBonus2);
+    setHandler(E_AFFECT_4A,                         handleAttackBonus2);
+    setHandler(E_AFFECT_4E,                         handleAttackBonus2);
+    setHandler(E_FIRE_ATTACK_2D10,                  handleAttackDamageBonus);
+    setHandler(E_ANKHEG_ACID_ATTACK,                handleAttackDamageBonus);
+    setHandler(E_GIANT_SLUG_SPIT_ACID,              handleAttackDamageBonus);
+    setHandler(E_BREATH_ELEC,                       handleAttackDamageBonus);
+    setHandler(E_BREATH_ACID,                       handleAttackDamageBonus);
+    setHandler(E_CLOUD_KILL,                        handleAttackDamageBonus);
+    setHandler(E_ANKHEG_ACID_SQUIRT_ATTACK,         handleAttackDamageBonus);
     setHandler(E_WILD_BOAR_DIE_AFTER_EXTRA_FIGHT_TIME_AFFECT_5F, handleAttackDamageBonus);
-    setHandler(E_OWLBEAR_HUG_CHECK,             handleAttackDamageBonus);
-    setHandler(E_WILD_BOAR_AND_BULLETTE_AFFECT_63, handleAttackDamageBonus);
-    setHandler(E_THRI_KREEN_MISSILE_EVASION,    handleSaveBonus2);
-    setHandler(E_BOULDER_EVASION,               handleSaveBonus2);
-    setHandler(E_RESIST_MAGIC_15,               handleSaveBonus1);
-    setHandler(E_RESIST_SLEEP_CHARM_30,         handleSaveBonus2);
-    setHandler(E_RESIST_MAGIC_50,               handleSaveBonus3);
-    setHandler(E_RESIST_SLEEP_CHARM_90,         handleSaveBonus5);
-    setHandler(E_IMMUNITY_SLEEP_CHARM,          handleImmunitySleepCharm);
-    setHandler(E_IMMUNITY_PARALYSIS,            handleImmunitySleepCharm);
+    setHandler(E_OWLBEAR_HUG_CHECK,                 handleAttackDamageBonus);
+    setHandler(E_WILD_BOAR_AND_BULLETTE_AFFECT_63,  handleAttackDamageBonus);
+    setHandler(E_THRI_KREEN_MISSILE_EVASION,        handleSaveBonus2);
+    setHandler(E_BOULDER_EVASION,                   handleSaveBonus2);
+    setHandler(E_RESIST_MAGIC_15,                   handleSaveBonus1);
+    setHandler(E_RESIST_SLEEP_CHARM_30,             handleSaveBonus2);
+    setHandler(E_RESIST_MAGIC_50,                   handleSaveBonus3);
+    setHandler(E_RESIST_SLEEP_CHARM_90,             handleSaveBonus5);
+    setHandler(E_IMMUNITY_SLEEP_CHARM,              handleImmunitySleepCharm);
+    setHandler(E_IMMUNITY_PARALYSIS,                handleImmunitySleepCharm);
     setHandler(E_IMMUNITY_SLEEP_CHARM_PARALYSIS_POISON, handleImmunitySleepCharm);
-    setHandler(E_IMMUNITY_GAZE_ATTACKS,         handleImmunitySleepCharm);
-    setHandler(E_IMMUNITY_COLD,                 handleImmunityCold);
-    setHandler(E_IMMUNITY_FIRE,                 handleImmunityFire);
-    setHandler(E_EFREETI_FIRE_RESISTANCE,       handleImmunityFire);
-    setHandler(E_IMMUNITY_PARALYSIS_POISON,     handleImmunityParalysisPoisonFear);
-    setHandler(E_IMMUNITY_NONMAGICAL_WEAPONS,   handleImmunityNonmagical);
-    setHandler(E_IMMUNITY_NONMAGICAL_HALF_SILVER, handleImmunityNonmagical);
-    setHandler(E_HALF_DAMAGE_ELECTRICITY,       handleHalfDamage);
-    setHandler(E_HALF_DAMAGE_PIERCING_SLASHING, handleHalfDamage);
-    setHandler(E_HALF_DAMAGE_MAGICAL_WEAPONS,   handleHalfDamage);
-    setHandler(E_HALF_DAMAGE_COLD,              handleHalfDamage);
-    setHandler(E_VULNERABILITY_HOLY_WATER,      handleSavePenalty2);
-    setHandler(E_VULNERABILITY_FIRE,            handleSavePenalty2);
-    setHandler(E_TROLL_FIRE_OR_ACID,            handleSavePenalty2);
-    setHandler(E_EXTRA_STRENGTH_130,            handleExtraStrength);
-    setHandler(E_HUMAN_VS_SMALL,                handleBonusVsSmall);
-    setSpecHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,    handleFlameTongue);
-    setSpecHandler(E_POOLRAD_SWORD_VS_UNDEAD,    handleSwordVsUndead);
-    setSpecHandler(E_POOLRAD_TRUE_SEEING,        handleNotImplemented);
-    setSpecHandler(E_POOLRAD_BLUR,               handleBlur);
-    setSpecHandler(E_POOLRAD_DWARF_TARGET_BONUS, handleDwarfTargetBonus);
-    setSpecHandler(E_POOLRAD_DUPLICATED,         handleDuplicated);
-    setSpecHandler(E_POOLRAD_ENFEEBLED,          handleEnfeebled);
-    setSpecHandler(E_POOLRAD_NAUSEATED,          handleNauseated);
-    setHandler(E_STINKING_CLOUD_EXPAIR,          handleInStinkingCloudExpire);
-    setSpecHandler(E_POOLRAD_ANIMATING_DEAD,     handleAnimatingDead);
-    setSpecHandler(E_CAUSE_DISEASE_1,            handleDiseased);
-    setHandler(E_POISON_DAMAGE,                          handlePoisonDamage);
-    setSpecHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH,       handleStudyManualBodilyHealth);
-    setSpecHandler(E_POOLRAD_TRAIN_MANUAL_BODILY_HEALTH,    handleTrainingManualBodilyHealth);
+    setHandler(E_IMMUNITY_GAZE_ATTACKS,             handleImmunitySleepCharm);
+    setHandler(E_IMMUNITY_COLD,                     handleImmunityCold);
+    setHandler(E_IMMUNITY_FIRE,                     handleImmunityFire);
+    setHandler(E_EFREETI_FIRE_RESISTANCE,           handleImmunityFire);
+    setHandler(E_IMMUNITY_PARALYSIS_POISON,         handleImmunityParalysisPoisonFear);
+    setHandler(E_IMMUNITY_NONMAGICAL_WEAPONS,       handleImmunityNonmagical);
+    setHandler(E_IMMUNITY_NONMAGICAL_HALF_SILVER,   handleImmunityNonmagical);
+    setHandler(E_HALF_DAMAGE_ELECTRICITY,           handleHalfDamage);
+    setHandler(E_HALF_DAMAGE_PIERCING_SLASHING,     handleHalfDamage);
+    setHandler(E_HALF_DAMAGE_MAGICAL_WEAPONS,       handleHalfDamage);
+    setHandler(E_HALF_DAMAGE_COLD,                  handleHalfDamage);
+    setHandler(E_VULNERABILITY_HOLY_WATER,          handleSavePenalty2);
+    setHandler(E_VULNERABILITY_FIRE,                handleSavePenalty2);
+    setHandler(E_TROLL_FIRE_OR_ACID,                handleSavePenalty2);
+    setHandler(E_EXTRA_STRENGTH_130,                handleExtraStrength);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
@@ -672,8 +727,6 @@ Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const
         return E_BLESSED;
     case E_POOLRAD_CURSED:
         return E_CURSED;
-    case E_POOLRAD_DETECT_MAGIC:
-        return E_DETECT_MAGIC;
     case E_POOLRAD_PROTECTION_FROM_EVIL:
         return E_PROTECTION_FROM_EVIL;
     case E_POOLRAD_PROTECTION_FROM_GOOD:
@@ -683,8 +736,6 @@ Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const
     case E_POOLRAD_CHARM_PERSON:
         return E_CHARM_PERSON;
     default:
-        // Most Poolrad effect IDs share the common table. Keep identity
-        // mapping for those IDs; exceptions are listed explicitly above.
         return static_cast<Effects>(rawId);
     }
 }
