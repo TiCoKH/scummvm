@@ -69,6 +69,7 @@ struct CombatGlobals {
     uint8 sideCount[2];      // ARRAY_HOSTILITY[0]=friendly, [1]=hostile
     int8 savingThrow;        // SAVING_THROW per-hit modifier
     Data::PlayerCharacter *attacker; // PTR_SELECTED_CHAR — current attacking character
+    bool targetUnavailable;   // Target cannot be selected
 
     CombatGlobals() { reset(); }
 
@@ -87,6 +88,7 @@ struct CombatGlobals {
         sideCount[1] = 0;
         savingThrow = 0;
         attacker = nullptr;
+        targetUnavailable = false;
     }
 
     void updateSideCount(const Common::Array<Data::PlayerCharacter *> &roster);

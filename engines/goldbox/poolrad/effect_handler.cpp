@@ -47,6 +47,10 @@ static void applyFlag(EffectOp op, Data::PoolradCharacter &ch, uint32 flag) {
 
 // --- Individual poolrad effect handlers ---
 
+static void handleNotImplemented(const EffectCall &) {
+    // The original Poolrad handler exists but intentionally does nothing.
+}
+
 static void handleSilence(const EffectCall &c) {
     applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_SILENCED);
 
@@ -118,6 +122,112 @@ static void handleRakshasaResist(const EffectCall &c) {
 
 static void handleDisplace(const EffectCall &c) {
     applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_DISPLACE);
+}
+
+static void handleBlur(const EffectCall &c) {
+    if (c.op != EFF_ADD || !c.combat)
+        return;
+
+    const CharacterEffects *effects = c.character.getEffects();
+    if (!effects || !effects->hasEffect(E_POOLRAD_TRUE_SEEING))
+        c.combat->targetUnavailable = true;
+
+    // Blur always imposes a -4 attack-roll penalty, including when True
+    // Seeing suppresses its targeting penalty.
+    c.combat->attackRoll -= 4;
+}
+
+static void handleDwarfTargetBonus(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState ||
+            !c.character.combatState->target)
+        return;
+
+    const Data::PoolradCharacter *target =
+        static_cast<const Data::PoolradCharacter *>(
+            c.character.combatState->target);
+    if (target->monsterType != 1 || target->iconDimension != 1)
+        return;
+
+    static const char *const kTargetNames[] = {
+        "ORC",
+        "ORC LEADER",
+        "GOBLIN",
+        "GOBLIN LEADER",
+        "HOBGOBLIN",
+        "HOBGOBLIN CHIEF",
+        "GAGOOL",
+        "MACE"
+    };
+
+    for (uint i = 0; i < ARRAYSIZE(kTargetNames); ++i) {
+        if (target->name == kTargetNames[i]) {
+            ++c.combat->attackRoll;
+            return;
+        }
+    }
+}
+
+static void handleDuplicated(const EffectCall &c) {
+    if (c.op != EFF_ADD || !c.combat || c.effect.power == 0)
+        return;
+
+    // The legacy roll is 1..power+1; only rolls above 1 consume an image.
+    const uint8 roll = static_cast<uint8>(Goldbox::g_engine ?
+        Goldbox::g_engine->rollDice(1, c.effect.power + 1) : 1);
+    const bool spellInProgress = c.combat->activeSpellId != 0;
+    const bool spellMultiTarget = c.character.combatState &&
+        c.character.combatState->maxTargets > 1;
+    if (roll <= 1 || !spellInProgress || spellMultiTarget)
+        return;
+
+    // EFFECT_protectionIf(0): the consumed image protects the target from
+    // the current spell effect.
+    c.combat->damage = 0;
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(&c.character, "lost an image", true);
+
+    --c.effect.power;
+    if (c.effect.power == 0) {
+        CharacterEffects *effects = c.character.getEffects();
+        if (effects)
+            effects->eraseEffectById(c.effect.id);
+    }
+}
+
+static void handleEnfeebled(const EffectCall &c) {
+    if (!c.combat)
+        return;
+
+    // BYTE_DAMAGE -= BYTE_DAMAGE / 4.
+    c.combat->damage -= c.combat->damage / 4;
+}
+
+static void handleNauseated(const EffectCall &c) {
+    if (c.op == EFF_REMOVE) {
+        c.character.effectState.mods.armorClass = 0;
+        return;
+    }
+
+    if (c.op != EFF_ADD)
+        return;
+
+    // Armor class is encoded as 60 - AC. Keep the adjustment in the effect
+    // state so the normal stat rebuild applies it without knowing effect 30.
+    const uint8 currentAC = c.character.armorClass.current;
+    const uint8 targetAC = currentAC < 53 ? 50 : currentAC - 2;
+    c.character.effectState.mods.armorClass =
+        static_cast<int8>(targetAC - currentAC);
+
+    if (!c.character.combatState)
+        return;
+
+    // The original only displayed this when item use was still available.
+    if (c.character.combatState->canUse && c.bridge)
+        c.bridge->postEffectMessage(&c.character, "is coughing", true);
+
+    c.character.combatState->canUse = false;
+    c.character.combatState->canCast = false;
 }
 
 static void handleHalfDamage(const EffectCall &c) {
@@ -473,6 +583,12 @@ void EffectHandler::setupHandlers() {
     setHandler(E_HUMAN_VS_SMALL,                handleBonusVsSmall);
     setSpecHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,    handleFlameTongue);
     setSpecHandler(E_POOLRAD_SWORD_VS_UNDEAD,    handleSwordVsUndead);
+    setSpecHandler(E_POOLRAD_TRUE_SEEING,        handleNotImplemented);
+    setSpecHandler(E_POOLRAD_BLUR,               handleBlur);
+    setSpecHandler(E_POOLRAD_DWARF_TARGET_BONUS, handleDwarfTargetBonus);
+    setSpecHandler(E_POOLRAD_DUPLICATED,         handleDuplicated);
+    setSpecHandler(E_POOLRAD_ENFEEBLED,          handleEnfeebled);
+    setSpecHandler(E_POOLRAD_NAUSEATED,          handleNauseated);
     setHandler(E_POISON_DAMAGE,                          handlePoisonDamage);
     setSpecHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH,       handleStudyManualBodilyHealth);
     setSpecHandler(E_POOLRAD_TRAIN_MANUAL_BODILY_HEALTH,    handleTrainingManualBodilyHealth);

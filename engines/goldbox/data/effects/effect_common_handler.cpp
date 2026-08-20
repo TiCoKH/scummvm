@@ -22,7 +22,9 @@
 #include "goldbox/data/effects/effect_common_handler.h"
 
 #include "goldbox/combat/combat_globals.h"
+#include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules_types.h"
 
 namespace Goldbox {
@@ -313,7 +315,7 @@ static void handleCharm(const EffectCall &c) {
             return;
         c.effect.power = (uint8)(0x20 + (c.character.hostile ? 0x40 : 0x00) + c.effect.power);
         c.character.hostile = false;
-        c.character.quickfight = true;
+        c.character.ai_control = true;
         if (!(c.character.npc & (int8)0x80))
             c.character.npc = (int8)0xb3;
         if (c.character.combatState)
@@ -321,6 +323,38 @@ static void handleCharm(const EffectCall &c) {
         if (c.combat)
             c.combat->moraleModifier = 100;
     }
+}
+
+static void handleSpiritualHammer(const EffectCall &c) {
+    // Spiritual Hammer creates a temporary +1 hammer item rather than a
+    // combat modifier. The common handler is used by AD&D-based games.
+    ADnDCharacter &character = static_cast<ADnDCharacter &>(c.character);
+    Items::CharacterItem *hammer = nullptr;
+
+    for (Items::CharacterItem &item : character.inventory.items()) {
+        if (item.typeIndex == 20 && item.nameCode3 == 243) {
+            hammer = &item;
+            break;
+        }
+    }
+
+    if (c.op != EFF_ADD) {
+        if (hammer)
+            character.removeItem(hammer);
+    } else if (!hammer && character.inventory.count() < 16) {
+        Items::CharacterItem item = {};
+        item.typeIndex = 20;
+        item.nameCode2 = 20;
+        item.nameCode3 = 243;
+        item.bonus = 1;
+        item.effect2 = 23;
+        item.effect3 = 137;
+
+        if (character.addItem(item) && c.bridge)
+            c.bridge->postEffectMessage(&c.character, "Gains an item...", true);
+    }
+
+    character.onEffectsChanged();
 }
 
 } // namespace
@@ -357,6 +391,7 @@ void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_PROTECTION_FROM_EVIL,    handleProtectionFromEvil);
     base.setHandler(E_PROTECTION_FROM_GOOD,    handleProtectionFromGood);
     base.setHandler(E_RESIST_COLD,              handleResistCold);
+    base.setHandler(E_SPIRITUAL_HAMMER, handleSpiritualHammer);
     base.setHandler(E_REGENERATE_1_HPS,         handleRegen1);
     base.setHandler(E_REGENERATE_3_HPS, handleRegen3);
     base.setHandler(E_REGEN_3_HP,       handleRegen3);

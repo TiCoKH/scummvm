@@ -877,16 +877,16 @@ void EclVM::onDatBankWrite(uint16 vmAddr, uint16 value,
         break;
     }
     case 0x10C: {
-        // Combat mode: hostile/quickfight
+        // Combat mode: hostile/ai_control
         if (value == 0) {
             pc->hostile = false;
-            pc->quickfight = false;
+            pc->ai_control = false;
         } else if (value == 0x80) {
             pc->hostile = false;
-            pc->quickfight = true;
+            pc->ai_control = true;
         } else if (value == 0x81) {
             pc->hostile = true;
-            pc->quickfight = true;
+            pc->ai_control = true;
         }
         break;
     }
