@@ -577,6 +577,39 @@ static void handleGnomeVsLarge(const EffectCall &c) {
     ++c.combat->attackRoll;
 }
 
+static void handleEfreetiFireResistance(const EffectCall &c) {
+    if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
+        return;
+    const uint8 count = c.combat->attackCount;
+    if (count == 0)
+        return;
+    uint8 dmg = c.combat->damage;
+    for (uint8 i = 0; i < count; ++i) {
+        dmg = (dmg < 1) ? 0 : dmg - 1;
+        if (dmg < count)
+            dmg = count;
+    }
+    c.combat->damage = dmg;
+}
+
+static void handleFireResistance(const EffectCall &c) {
+    if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
+        return;
+
+    const uint8 count = c.combat->attackCount;
+    uint8 dmg = c.combat->damage;
+    for (uint8 i = 0; i < count; ++i) {
+        dmg = (dmg < 2) ? 0 : dmg - 2;
+        if (dmg < count)
+            dmg = count;
+    }
+    c.combat->damage = dmg;
+    c.combat->savingThrow += 4;
+
+    if (!(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_MAGIC))
+        c.combat->damage = 0;
+}
+
 static void handleRegenerating(const EffectCall &c) {
     if (c.op != EFF_ADD)
         return;
@@ -744,6 +777,7 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_HELPLESS_33,           handleHelpless);
     setSpecHandler(E_POOLRAD_HELPLESS_34,           handleHelpless);
     setSpecHandler(E_POOLRAD_HELPLESS_35,           handleHelpless);
+    setSpecHandler(E_POOLRAD_FIRE_RESISTANCE,        handleFireResistance);
     setSpecHandler(E_POOLRAD_REGENERATING,          handleRegenerating);
     setSpecHandler(E_POOLRAD_ROT,                   handleRot);
     setSpecHandler(E_POOLRAD_PARALYZED,             handleParalyzed);
@@ -799,7 +833,7 @@ void EffectHandler::setupHandlers() {
     setHandler(E_IMMUNITY_GAZE_ATTACKS,             handleImmunitySleepCharm);
     setHandler(E_IMMUNITY_COLD,                     handleImmunityCold);
     setHandler(E_IMMUNITY_FIRE,                     handleImmunityFire);
-    setHandler(E_EFREETI_FIRE_RESISTANCE,           handleImmunityFire);
+    setHandler(E_EFREETI_FIRE_RESISTANCE,           handleEfreetiFireResistance);
     setHandler(E_IMMUNITY_PARALYSIS_POISON,         handleImmunityParalysisPoisonFear);
     setHandler(E_IMMUNITY_NONMAGICAL_WEAPONS,       handleImmunityNonmagical);
     setHandler(E_IMMUNITY_NONMAGICAL_HALF_SILVER,   handleImmunityNonmagical);
