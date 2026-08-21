@@ -24,6 +24,7 @@
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_common_handler.h"
+#include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/engine.h"
@@ -577,6 +578,14 @@ static void handleGnomeVsLarge(const EffectCall &c) {
     ++c.combat->attackRoll;
 }
 
+static void handleRegeneration(const EffectCall &c) {
+    if (c.op != EFF_TICK)
+        return;
+    c.character.setEffect(E_POOLRAD_REGEN_3_HP, 60, c.effect.power, true);
+    if (c.character.healHp(1, true) && c.bridge)
+        c.bridge->showHealResult(&c.character);
+}
+
 static void handleEfreetiFireResistance(const EffectCall &c) {
     if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
         return;
@@ -662,6 +671,186 @@ static void handleEndlessRegen(const EffectCall &c) {
         return;
     if (c.character.healHp(1, true) && c.bridge)
         c.bridge->showHealResult(&c.character);
+}
+
+// Mirrors UTIL_CheckSavingThrow: rolls d20, auto-fail on 1, auto-pass on 20,
+// otherwise accumulates saveBonus + modifier + ES_SAVING_THROW_MODS effect
+// set mods, then compares against savingThrows[savingThrowType].
+// savingThrowType: 0=vsParalysis, 1=vsPetrification, 2=vsRodStaffWand,
+//                 3=vsBreathWeapon, 4=vsSpell
+static bool checkSavingThrow(const EffectCall &c, uint8 savingThrowType,
+        int8 saveModifier) {
+    if (!Goldbox::g_engine)
+        return false;
+
+    const int roll = Goldbox::g_engine->rollDice(1, 20);
+    if (roll == 1)
+        return false;
+    if (roll == 20)
+        return true;
+
+    const Goldbox::Data::ADnDCharacter &adnd =
+        static_cast<const Goldbox::Data::ADnDCharacter &>(c.character);
+
+    // Accumulate saving throw modifiers from ES_SAVING_THROW_MODS (set 12)
+    // via a temporary combat globals (mirrors UTIL_checkEffectSet(12, char)).
+    Combat::CombatGlobals tempCombat;
+    if (c.combat)
+        tempCombat = *c.combat;
+
+    CharacterEffects *fx = c.character.getEffects();
+    if (fx && c.handler) {
+        EffectRuntime runtime(const_cast<EffectHandlerBase *>(c.handler), c.bridge);
+        runtime.checkEffectSet(ES_SAVING_THROW_MODS, *fx, c.character, &tempCombat);
+    }
+
+    // SavingThrows fields are laid out in order matching savingThrowType 0-4.
+    const uint8 target = (&adnd.savingThrows.vsParalysis)[savingThrowType];
+    const int total = roll + adnd.saveBonus + saveModifier + tempCombat.savingThrow;
+    return total >= target;
+}
+
+static void applyPoisonAttack(const EffectCall &c, int8 saveModifier) {
+    if (!c.bridge)
+        return;
+    c.bridge->postEffectMessage(&c.character, "is Poisoned", true);
+
+    // Remove the poisoned status effect (E_POISONED = 55).
+    CharacterEffects *fx = c.character.getEffects();
+    if (fx)
+        fx->eraseEffectById(static_cast<uint8>(E_POISONED));
+    c.character.effectState.flags &= ~CEF_POISONED;
+
+    if (checkSavingThrow(c, 0, saveModifier))
+        return;
+
+    Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
+    effectSystem.setStatus(c.character, Goldbox::Data::S_DEAD, "is killed");
+}
+
+static void handlePoisonAttack(const EffectCall &c) {
+    if (c.op == EFF_ADD)
+        applyPoisonAttack(c, 0);
+}
+
+static void handlePoisonAttackSaveBonus4(const EffectCall &c) {
+    if (c.op == EFF_ADD)
+        applyPoisonAttack(c, +4);
+}
+
+static void handlePoisonAttackSaveBonus2(const EffectCall &c) {
+    if (c.op == EFF_ADD)
+        applyPoisonAttack(c, +2);
+}
+
+static void handlePoisonMeleeSavePenalty2(const EffectCall &c) {
+    if (c.op == EFF_ADD)
+        applyPoisonAttack(c, -2);
+}
+
+// Mirrors EFFECT_ApplyParalysis: on a failed save vs paralysis, shows
+// combat feedback and applies the paralyzed status (effect param 12).
+static void applyParalysisAttack(const EffectCall &c, uint8 duration) {
+    if (checkSavingThrow(c, 0, 0))
+        return;
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(&c.character, "is Paralyzed", true);
+
+    c.character.setEffect(E_POOLRAD_PARALYZED, duration, 12, false);
+}
+
+static void handleParalysisMeleeAttack(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    const uint8 duration = Goldbox::g_engine ?
+        Goldbox::g_engine->rollDice(2, 8) : 2;   // 2d8
+    applyParalysisAttack(c, duration);
+}
+
+static void handleParalysisMeleeAttackNoElves(const EffectCall &c) {
+    // Elves are immune to this particular paralysis attack.
+    if (c.op != EFF_ADD || c.character.race == Goldbox::Data::R_ELF)
+        return;
+    applyParalysisAttack(c, 63);
+}
+
+static void handleParalysisMeleeAttackStrong(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    const uint8 duration = (Goldbox::g_engine ?
+        Goldbox::g_engine->rollDice(1, 9) : 1) + 10;   // 1d9 + 10
+    applyParalysisAttack(c, duration);
+}
+
+static void handleInvisibleAttack(const EffectCall &c) {
+    if (c.op != EFF_ADD || !c.combat)
+        return;
+    c.combat->targetUnavailable = true;
+    c.combat->attackRoll -= 4;
+}
+
+static void handleCamouflagedAttack(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    // 95% chance to gain camouflage; fails (and stays uncamouflaged) on a
+    // roll of 96-100. Raw effect id 25 per the decompiled table (not
+    // E_CAMOUFLAGE, which is a different id in this port's Effects enum).
+    const uint8 roll = Goldbox::g_engine ?
+        Goldbox::g_engine->rollDice(1, 100) : 100;
+    if (roll < 96)
+        c.character.setEffect(25, 1, 12, false);
+}
+
+// Vampiric attack: drains HP from the combat target each round the effect
+// stays active, and the accumulated power (1/16-unit increments) caps how
+// much more it can drain before it exhausts itself.
+static void handleSucksBlood(const EffectCall &c) {
+    Goldbox::Data::PlayerCharacter *target =
+        c.character.combatState ? c.character.combatState->target : nullptr;
+
+    if (c.op == EFF_ADD && c.character.enabled && target && target->enabled) {
+        if (c.bridge)
+            c.bridge->postEffectMessage(&c.character, "Sucks some Blood", true);
+
+        const uint8 damage = Goldbox::g_engine ?
+            Goldbox::g_engine->rollDice(1, 4) : 1;
+
+        if (c.combat)
+            c.combat->behaviorFlags = 0;
+        if (c.damage)
+            c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_NORMAL, false);
+
+        c.character.resetCombatAction();
+
+        if (target->enabled && damage < c.effect.power / 16) {
+            c.effect.power -= damage * 16;
+        } else {
+            CharacterEffects *fx = c.character.getEffects();
+            if (fx)
+                fx->eraseEffectById(c.effect.id);
+        }
+        return;
+    }
+
+    // Drain interrupted (or naturally removed): release the target's
+    // paralysis hold.
+    if (target) {
+        CharacterEffects *targetFx = target->getEffects();
+        if (targetFx)
+            targetFx->eraseEffectById(static_cast<uint8>(E_POOLRAD_PARALYZED));
+    }
+
+    if (c.op == EFF_ADD) {
+        c.effect.immediate = 0;
+        CharacterEffects *fx = c.character.getEffects();
+        if (fx)
+            fx->eraseEffectById(c.effect.id);
+    }
+
+    if (c.character.enabled && target && target->enabled && c.character.combatState)
+        c.character.combatState->fleeing = true;
 }
 
 static void handleStudyManualBodilyHealth(const EffectCall &c) {
@@ -781,7 +970,7 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_REGENERATING,          handleRegenerating);
     setSpecHandler(E_POOLRAD_ROT,                   handleRot);
     setSpecHandler(E_POOLRAD_PARALYZED,             handleParalyzed);
-    setSpecHandler(E_POOLRAD_REGEN_3_HP,            handleNotImplemented);
+    setSpecHandler(E_POOLRAD_REGEN_3_HP,            handleRegeneration);
     setSpecHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,   handleFlameTongue);
     setSpecHandler(E_POOLRAD_SWORD_VS_UNDEAD,       handleSwordVsUndead);
     setSpecHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH, handleStudyManualBodilyHealth);
@@ -845,6 +1034,21 @@ void EffectHandler::setupHandlers() {
     setHandler(E_VULNERABILITY_FIRE,                handleSavePenalty2);
     setHandler(E_TROLL_FIRE_OR_ACID,                handleSavePenalty2);
     setHandler(E_EXTRA_STRENGTH_130,                handleExtraStrength);
+    // Poolrad raw IDs 64/65/66/70: poison attack effects with varying save modifiers.
+    setSpecHandler(0x40,                            handlePoisonAttack);
+    setSpecHandler(0x41,                            handlePoisonAttackSaveBonus4);
+    setSpecHandler(0x42,                            handlePoisonAttackSaveBonus2);
+    setSpecHandler(0x46,                            handlePoisonMeleeSavePenalty2);
+    // Poolrad raw IDs 67/68/69: paralysis melee attack effects.
+    setSpecHandler(0x43,                            handleParalysisMeleeAttack);
+    setSpecHandler(0x44,                            handleParalysisMeleeAttackNoElves);
+    setSpecHandler(0x45,                            handleParalysisMeleeAttackStrong);
+    // Poolrad raw ID 71: invisible attacker, target unavailable + attack penalty.
+    setSpecHandler(0x47,                            handleInvisibleAttack);
+    // Poolrad raw ID 72: chance to camouflage on attack.
+    setSpecHandler(0x48,                            handleCamouflagedAttack);
+    // Poolrad raw ID 75: vampiric blood-drain attack.
+    setSpecHandler(0x4b,                            handleSucksBlood);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
