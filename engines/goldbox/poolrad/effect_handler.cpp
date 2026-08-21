@@ -22,6 +22,7 @@
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/combat/cloud_effect_manager.h"
 #include "goldbox/combat/combat_context.h"
+#include "goldbox/combat/combat_params.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_common_handler.h"
 #include "goldbox/data/effects/effect_runtime.h"
@@ -625,7 +626,7 @@ static void handleRegenerating(const EffectCall &c) {
     c.character.setEffect(static_cast<uint8>(E_DAMAGE_REDUCTION), 0, 0xff, false);
 }
 
-static void handleParalyzed(const EffectCall &c) {
+static void handleImmobilized(const EffectCall &c) {
     handleParalyze(c);
     if (c.op != EFF_EVAL || !c.character.combatState)
         return;
@@ -757,7 +758,7 @@ static void applyParalysisAttack(const EffectCall &c, uint8 duration) {
     if (c.bridge)
         c.bridge->postEffectMessage(&c.character, "is Paralyzed", true);
 
-    c.character.setEffect(E_POOLRAD_PARALYZED, duration, 12, false);
+    c.character.setEffect(E_IMMOBILIZED, duration, 12, false);
 }
 
 static void handleParalysisMeleeAttack(const EffectCall &c) {
@@ -803,12 +804,82 @@ static void handleCamouflagedAttack(const EffectCall &c) {
         c.character.setEffect(25, 1, 12, false);
 }
 
-// Vampiric attack: drains HP from the combat target each round the effect
-// stays active, and the accumulated power (1/16-unit increments) caps how
-// much more it can drain before it exhausts itself.
-static void handleSucksBlood(const EffectCall &c) {
+// Rear-claw rake: bonus 2d4 attack that fires mid-attack-sequence, only on
+// the resolution where exactly two attacks remain this round (e.g. a
+// claw/claw/bite monster raking with a rear claw after its first attack).
+// TODO: applies damage directly since there is no ported to-hit resolver
+// equivalent to COMBAT_ResolveAttack; the original re-rolls to-hit here too.
+static void handleRearClawRake(const EffectCall &c) {
+    if (c.op != EFF_ADD || !c.combat || c.combat->attacksLeft != 2)
+        return;
+
     Goldbox::Data::PlayerCharacter *target =
         c.character.combatState ? c.character.combatState->target : nullptr;
+    if (!target || !target->enabled)
+        return;
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(&c.character, "Rakes...", true);
+
+    const uint8 damage = Goldbox::g_engine ?
+        Goldbox::g_engine->rollDice(2, 4) : 2;
+    if (c.damage)
+        c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_NORMAL, false);
+
+    c.character.resetCombatAction();
+}
+
+// Grapple/rear attack: one-shot 3d4 hit against a roster-indexed target
+// (effect.power holds the target's roster index, not the current combat
+// target). Ends itself once the target goes down; otherwise, on interrupt
+// or removal, releases the target's immobilized status
+// (E_IMMOBILIZED, effect 58).
+// TODO: applies damage directly, see handleRearClawRake's to-hit note above.
+static void handleGrappleAttack(const EffectCall &c) {
+    Combat::CombatContext *ctx = Goldbox::g_engine ?
+        Goldbox::g_engine->getCombatContext() : nullptr;
+    Goldbox::Data::PlayerCharacter *target =
+        (ctx && c.effect.power < ctx->params.roster.size()) ?
+        ctx->params.roster[c.effect.power] : nullptr;
+
+    if (c.op == EFF_ADD && c.character.enabled && target && target->enabled) {
+        const uint8 damage = Goldbox::g_engine ?
+            Goldbox::g_engine->rollDice(3, 4) : 3;
+        if (c.damage)
+            c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_NORMAL, false);
+
+        c.character.resetCombatAction();
+
+        if (!target->enabled) {
+            CharacterEffects *fx = c.character.getEffects();
+            if (fx)
+                fx->eraseEffectById(c.effect.id);
+        }
+        return;
+    }
+
+    if (target) {
+        CharacterEffects *targetFx = target->getEffects();
+        if (targetFx)
+            targetFx->eraseEffectById(static_cast<uint8>(E_IMMOBILIZED));
+    }
+
+    if (c.op == EFF_ADD) {
+        c.effect.immediate = 0;
+        CharacterEffects *fx = c.character.getEffects();
+        if (fx)
+            fx->eraseEffectById(c.effect.id);
+    }
+}
+
+// Vampiric attack: effect.power is the target's roster index.
+// Duration is measured in 16-unit ticks; each drain consumes damage*16 ticks.
+static void handleSucksBlood(const EffectCall &c) {
+    Combat::CombatContext *ctx = Goldbox::g_engine ?
+        Goldbox::g_engine->getCombatContext() : nullptr;
+    Goldbox::Data::PlayerCharacter *target =
+        (ctx && c.effect.power < ctx->params.roster.size()) ?
+        ctx->params.roster[c.effect.power] : nullptr;
 
     if (c.op == EFF_ADD && c.character.enabled && target && target->enabled) {
         if (c.bridge)
@@ -824,8 +895,8 @@ static void handleSucksBlood(const EffectCall &c) {
 
         c.character.resetCombatAction();
 
-        if (target->enabled && damage < c.effect.power / 16) {
-            c.effect.power -= damage * 16;
+        if (target->enabled && (c.effect.durationMin / 16) > damage) {
+            c.effect.durationMin -= damage * 16;
         } else {
             CharacterEffects *fx = c.character.getEffects();
             if (fx)
@@ -834,12 +905,11 @@ static void handleSucksBlood(const EffectCall &c) {
         return;
     }
 
-    // Drain interrupted (or naturally removed): release the target's
-    // paralysis hold.
+    // Drain interrupted (or naturally removed): release the target's immobilization.
     if (target) {
         CharacterEffects *targetFx = target->getEffects();
         if (targetFx)
-            targetFx->eraseEffectById(static_cast<uint8>(E_POOLRAD_PARALYZED));
+            targetFx->eraseEffectById(static_cast<uint8>(E_IMMOBILIZED));
     }
 
     if (c.op == EFF_ADD) {
@@ -851,6 +921,43 @@ static void handleSucksBlood(const EffectCall &c) {
 
     if (c.character.enabled && target && target->enabled && c.character.combatState)
         c.character.combatState->fleeing = true;
+}
+
+// Triggers the blood-drain attack: starts effect 75 (vampiric drain) on the
+// attacker with duration=207 ticks and power=target roster index, then sets
+// and immediately fires effect 58 (E_IMMOBILIZED) on the target.
+static void handleBloodDrainingAttack(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    Goldbox::Data::PlayerCharacter *target =
+        c.character.combatState ? c.character.combatState->target : nullptr;
+    if (!target)
+        return;
+
+    Combat::CombatContext *ctx = Goldbox::g_engine ?
+        Goldbox::g_engine->getCombatContext() : nullptr;
+    uint8 targetIndex = 0xff;
+    if (ctx) {
+        for (uint i = 0; i < ctx->params.roster.size(); ++i) {
+            if (ctx->params.roster[i] == target) {
+                targetIndex = (uint8)i;
+                break;
+            }
+        }
+    }
+
+    c.character.setEffect(0x4b, 207, targetIndex, true);
+    target->setEffect(static_cast<uint8>(E_IMMOBILIZED), 0, 0xff, false);
+
+    if (c.handler) {
+        Effect immobilize;
+        immobilize.id = static_cast<uint8>(E_IMMOBILIZED);
+        immobilize.durationMin = 0;
+        immobilize.power = 0xff;
+        immobilize.immediate = false;
+        c.handler->apply(EFF_ADD, immobilize, *target, c.combat, c.bridge);
+    }
 }
 
 static void handleStudyManualBodilyHealth(const EffectCall &c) {
@@ -966,10 +1073,13 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_HELPLESS_33,           handleHelpless);
     setSpecHandler(E_POOLRAD_HELPLESS_34,           handleHelpless);
     setSpecHandler(E_POOLRAD_HELPLESS_35,           handleHelpless);
+    setSpecHandler(0x36,                            handleNotImplemented);
+    setSpecHandler(0x37,                            handleNotImplemented);
     setSpecHandler(E_POOLRAD_FIRE_RESISTANCE,        handleFireResistance);
     setSpecHandler(E_POOLRAD_REGENERATING,          handleRegenerating);
     setSpecHandler(E_POOLRAD_ROT,                   handleRot);
-    setSpecHandler(E_POOLRAD_PARALYZED,             handleParalyzed);
+    // Raw 0x3A identity-maps to E_IMMOBILIZED=58; no Poolrad-specific alias needed.
+    setSpecHandler(E_IMMOBILIZED,                   handleImmobilized);
     setSpecHandler(E_POOLRAD_REGEN_3_HP,            handleRegeneration);
     setSpecHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,   handleFlameTongue);
     setSpecHandler(E_POOLRAD_SWORD_VS_UNDEAD,       handleSwordVsUndead);
@@ -1047,8 +1157,14 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(0x47,                            handleInvisibleAttack);
     // Poolrad raw ID 72: chance to camouflage on attack.
     setSpecHandler(0x48,                            handleCamouflagedAttack);
+    // Poolrad raw ID 73: rear-claw rake bonus attack.
+    setSpecHandler(0x49,                            handleRearClawRake);
+    // Poolrad raw ID 74: grapple attack against a roster-indexed target.
+    setSpecHandler(0x4a,                            handleGrappleAttack);
     // Poolrad raw ID 75: vampiric blood-drain attack.
     setSpecHandler(0x4b,                            handleSucksBlood);
+    // Poolrad raw ID 76: blood-drain attack trigger; sets up effects 75/58.
+    setSpecHandler(0x4c,                            handleBloodDrainingAttack);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {

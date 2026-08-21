@@ -91,7 +91,7 @@ enum Effects : uint8 {
     E_POISONED = 55,
     E_ITEM_INVISIBILITY = 56,
     E_ENGULFS = 57,
-    E_CLEAR_MOVEMENT = 58,
+    E_IMMOBILIZED = 58,
     E_REGENERATE_3_HPS = 59,
     E_REGENERATE_1_HPS = 60,
     E_RAKSHASA_RESIST_NORMAL_WEAPONS = 61,
@@ -231,7 +231,7 @@ enum PoolradEffects : uint8 {
     E_POOLRAD_HELPLESS_34 = 0x34,
     E_POOLRAD_HELPLESS_35 = 0x35,
     E_POOLRAD_ROT = 0x39,
-    E_POOLRAD_PARALYZED = 0x3A,
+    // 0x3A identity-maps to E_IMMOBILIZED=58; use that directly.
     E_POOLRAD_REGENERATING = 0x3B,
     E_POOLRAD_FIRE_RESISTANCE = 0x3D,
     E_POOLRAD_REGEN_3_HP = 0x3E,
