@@ -143,6 +143,15 @@ bool PlayerCharacter::isAlive() const {
     return hitPoints.current > 0;
 }
 
+void PlayerCharacter::resetCombatAction() {
+    if (!combatState)
+        return;
+    combatState->delay = 0;
+    combatState->spellId = 0;
+    combatState->guarding = false;
+    combatState->movePoints = 0;
+}
+
 int8 PlayerCharacter::getReactionAdjustment() const {
     uint8 dex = abilities.dexterity.current;
     if (dex <= 3) return -4;

@@ -70,7 +70,8 @@ struct CombatGlobals {
     int8 savingThrow;        // SAVING_THROW per-hit modifier
     Data::PlayerCharacter *attacker; // PTR_SELECTED_CHAR — current attacking character
     bool targetUnavailable;   // Target cannot be selected
-    uint8 attackMultiplier;   // BYTE_ATTACK_MULTIPLIER
+    uint8 attackCount;        // BYTE_ATTACK_COUNT : resolved attacks this turn
+    bool attackCountAdjusting;
     uint8 attacksLeft;        // COMBAT_ATTACKS_LEFT — attacker's remaining attacks this turn
     CloudEffectManager clouds; // PTR_CLOUD_EFF_HANDLER
 
@@ -91,7 +92,7 @@ struct CombatGlobals {
         savingThrow = 0;
         attacker = nullptr;
         targetUnavailable = false;
-        attackMultiplier = 0;
+        attackCount = 0;
         attacksLeft = 0;
         clouds.reset();
     }

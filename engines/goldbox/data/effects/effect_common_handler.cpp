@@ -82,7 +82,7 @@ static void handleHaste(const EffectCall &c) {
             c.bridge->postEffectMessage(&c.character, "ages", true);
     }
     if (c.combat)
-        c.combat->attackMultiplier *= 2;
+        c.combat->attackCount += c.combat->attackCount;
 }
 
 static void handleSleep(const EffectCall &c) {
@@ -285,7 +285,7 @@ void handleSlow(const EffectCall &c) {
     if (!c.combat)
         return;
     c.combat->attackRoll -= 1;
-    c.combat->attackMultiplier >>= 1;
+    c.combat->attackCount >>= 1;
 }
 
 void handleParalyze(const EffectCall &c) {
