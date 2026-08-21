@@ -69,6 +69,7 @@ void handleParalyze(const EffectCall &c);
 void handleRegen3(const EffectCall &c);
 void handleSpiritualHammer(const EffectCall &c);
 void handleBonusVsSmall(const EffectCall &c);
+void handleDwarfVsGiant(const EffectCall &c);
 
 // Shared helper for effects granting a chance to fully avoid the current
 // hit (e.g. EFFECT_rollAvoid). Returns true if the attack was avoided.

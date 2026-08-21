@@ -189,6 +189,19 @@ public:
             static_cast<Goldbox::EclVmMessage::ValueType>(valueType));
     }
 
+    void showHealResult(Goldbox::Data::PlayerCharacter *character) override {
+        if (!character)
+            return;
+
+        const char *msg = (character->hitPoints.current >= character->hitPoints.max)
+            ? "is fully healed"
+            : "is partially healed";
+        postEffectMessage(character, msg, true);
+
+        if (!character->combatState)
+            requestRefresh(RF_CHARACTER_PANEL | RF_STATUS_PANEL);
+    }
+
     void onCharacterDied(Goldbox::Data::PlayerCharacter *character) override {
         if (!character || !Goldbox::g_events)
             return;

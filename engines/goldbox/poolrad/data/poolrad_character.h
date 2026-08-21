@@ -256,6 +256,7 @@ public:
     }
 
 protected:
+    void removeUnconsciousEffect() override;
     uint8 getReadyAllowedClassMask() const override;
     bool ignoreHandsLimitForReady() const override;
     const Goldbox::Data::Items::CharacterItem *getExtraReadyConflictItem(

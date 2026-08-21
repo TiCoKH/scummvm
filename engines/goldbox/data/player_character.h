@@ -216,6 +216,7 @@ public:
 
 	virtual void damage(uint8 amount);
 	virtual void heal(uint8 amount);
+	virtual bool healHp(uint8 amount, bool normalHealing);
 	virtual bool isAlive() const;
 	int8 getReactionAdjustment() const;
 	uint8 getStrengthTier() const;
@@ -223,6 +224,10 @@ public:
 	int8 getMeleeDamageBonus() const;
 	int8 getDexDefenceBonus() const;
 	int8 getDexSpeedBonus() const;
+
+protected:
+	virtual bool canReceiveHealing() const;
+	virtual void removeUnconsciousEffect() {}
 
 };
 
