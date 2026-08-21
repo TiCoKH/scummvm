@@ -74,6 +74,10 @@ public:
     // Optional VM-state signal channel (for ECL/event bus integration).
     virtual void postVmState(uint16 tag, uint16 value,
             uint8 valueType) = 0;
+
+    // Show heal result message for a character and refresh party display
+    // if outside combat. Mirrors CHARACTER_ShowHealResult.
+    virtual void showHealResult(PlayerCharacter *character) = 0;
 };
 
 } // namespace Effects

@@ -75,6 +75,14 @@ void PoolradCharacter::onEffectsChanged() {
 	recalcCombatStats();
 }
 
+void PoolradCharacter::removeUnconsciousEffect() {
+	Goldbox::Poolrad::EffectHandler effectHandler;
+	Goldbox::Data::Effects::EffectSystem effectSystem(&effectHandler,
+		Goldbox::Poolrad::getEffectHostBridge());
+	effectSystem.removeEffectById(*this, effects,
+		Goldbox::Data::Effects::E_POOLRAD_HELPLESS_33);
+}
+
 void PoolradCharacter::initialize() {
 	highestLevel = 0;
 	creatureSize = 1;

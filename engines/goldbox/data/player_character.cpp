@@ -101,6 +101,44 @@ void PlayerCharacter::heal(uint8 amount) {
     hitPoints.current = MIN<uint8>(hitPoints.max, hitPoints.current + amount);
 }
 
+bool PlayerCharacter::canReceiveHealing() const {
+    switch (healthStatus) {
+    case S_OKAY:
+    case S_ANIMATED:
+    case S_UNCONSCIOUS:
+    case S_DYING:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool PlayerCharacter::healHp(uint8 amount, bool normalHealing) {
+    if (!canReceiveHealing())
+        return false;
+
+    if (normalHealing) {
+        if (hitPoints.current >= hitPoints.max)
+            return false;
+    } else {
+        Effects::CharacterEffects *fx = getEffects();
+        if (fx && fx->hasEffect(Effects::E_POOLRAD_ENDLESS_REGEN))
+            return false;
+    }
+
+    hitPoints.current = MIN<uint8>(hitPoints.max, hitPoints.current + amount);
+
+    if (!enabled) {
+        if (healthStatus == S_DYING)
+            healthStatus = S_UNCONSCIOUS;
+
+        if (healthStatus == S_UNCONSCIOUS && !combatState)
+            removeUnconsciousEffect();
+    }
+
+    return true;
+}
+
 bool PlayerCharacter::isAlive() const {
     return hitPoints.current > 0;
 }

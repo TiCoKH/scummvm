@@ -491,13 +491,6 @@ static void handleSwordVsUndead(const EffectCall &c) {
     }
 }
 
-static void handleDiseasedMummy(const EffectCall &c) {
-    // EFFECT_50_DiseasedMummy: composite effect invoking handlers 0x2B and 0x2C,
-    // same as EFFECT_34_Diseased.
-    callChildEffectHandler(c, E_WEAKENED);
-    callChildEffectHandler(c, E_CAUSE_WOUND);
-}
-
 static void handleDwarfVsGiant(const EffectCall &c) {
     if (!c.combat || !c.character.combatState
             || !c.character.combatState->target)
@@ -528,6 +521,48 @@ static void handleDwarfVsGiant(const EffectCall &c) {
     }
 }
 
+static void handleDwarfVsLargeMonster(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState
+            || !c.character.combatState->target)
+        return;
+
+    const Data::PoolradCharacter *target =
+        static_cast<const Data::PoolradCharacter *>(
+            c.character.combatState->target);
+    if (target->monsterType != 1 || (target->iconDimension & 0x7f) != 2)
+        return;
+
+    static const char *const kLargeMonsters[] = {
+        "OGRE",
+        "OGRE LEADER",
+        "TROLL",
+        "FIRE GIANT",
+        "HILL GIANT"
+    };
+
+    for (uint i = 0; i < ARRAYSIZE(kLargeMonsters); ++i) {
+        if (target->name == kLargeMonsters[i]) {
+            c.combat->attackRoll -= 4;
+            return;
+        }
+    }
+}
+
+static void handleGnomeVsBugbearGnoll(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState
+            || !c.character.combatState->target)
+        return;
+
+    const Data::PoolradCharacter *target =
+        static_cast<const Data::PoolradCharacter *>(
+            c.character.combatState->target);
+    if (target->monsterType != 1)
+        return;
+
+    if (target->name == "BUGBEAR" || target->name == "GNOLL")
+        c.combat->attackRoll -= 4;
+}
+
 static void handleGnomeVsLarge(const EffectCall &c) {
     if (!c.combat || !c.character.combatState
             || !c.character.combatState->target)
@@ -540,6 +575,14 @@ static void handleGnomeVsLarge(const EffectCall &c) {
         return;
 
     ++c.combat->attackRoll;
+}
+
+static void handleEndlessRegen(const EffectCall &c) {
+    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_REGEN_3);
+    if (c.op != EFF_TICK)
+        return;
+    if (c.character.healHp(1, true) && c.bridge)
+        c.bridge->showHealResult(&c.character);
 }
 
 static void handleStudyManualBodilyHealth(const EffectCall &c) {
@@ -646,14 +689,16 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_PROT_FROM_EVIL_10,     handleProtectionFromEvil);
     setSpecHandler(E_POOLRAD_PROT_FROM_GOOD_10,     handleProtectionFromGood);
     setSpecHandler(E_POOLRAD_DWARF_VS_GIANT,        handleDwarfVsGiant);
+    setHandler(E_DWARF_AND_GNOME_VS_GIANTS,          handleDwarfVsLargeMonster);
+    setHandler(E_GNOME_LARGE_MONSTER,                 handleGnomeVsBugbearGnoll);
     setSpecHandler(E_POOLRAD_GNOME_VS_LARGE,        handleGnomeVsLarge);
     setSpecHandler(E_POOLRAD_PRAYER_2,              handlePrayer);
-    setSpecHandler(E_POOLRAD_DISEASED_MUMMY,        handleDiseasedMummy);
+    setSpecHandler(E_POOLRAD_ENDLESS_REGEN,         handleEndlessRegen);
     setSpecHandler(E_POOLRAD_HELPLESS_33,           handleHelpless);
     setSpecHandler(E_POOLRAD_HELPLESS_34,           handleHelpless);
     setSpecHandler(E_POOLRAD_HELPLESS_35,           handleHelpless);
     setSpecHandler(E_POOLRAD_PARALYZED,             handleParalyze);
-    setSpecHandler(E_POOLRAD_REGEN_3_HP,            handleRegen3);
+    setSpecHandler(E_POOLRAD_REGEN_3_HP,            handleNotImplemented);
     setSpecHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,   handleFlameTongue);
     setSpecHandler(E_POOLRAD_SWORD_VS_UNDEAD,       handleSwordVsUndead);
     setSpecHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH, handleStudyManualBodilyHealth);

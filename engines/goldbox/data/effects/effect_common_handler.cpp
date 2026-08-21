@@ -64,8 +64,14 @@ static void handleCursed(const EffectCall &c) {
 static void handleChant(const EffectCall &c) {
     if (!c.combat)
         return;
-    c.combat->attackRoll += 1;
-    c.combat->damage += 1;
+    const CombatSide prayerSide = static_cast<CombatSide>((c.effect.power & 0x10) >> 4);
+    if (c.character.combatSide == prayerSide) {
+        c.combat->attackRoll  += 1;
+        c.combat->savingThrow += 1;
+    } else {
+        c.combat->attackRoll  -= 1;
+        c.combat->savingThrow -= 1;
+    }
 }
 
 static void handleHaste(const EffectCall &c) {
@@ -433,6 +439,12 @@ void handleBonusVsSmall(const EffectCall &c) {
     (void)c;
 }
 
+void handleDwarfVsGiant(const EffectCall &c) {
+    // Base implementation: no-op. Game-specific handlers override via
+    // setSpecHandler or setHandler after setupCommonHandlers().
+    (void)c;
+}
+
 // ---------------------------------------------------------------------------
 
 // EFFECT_rollAvoid: chance to fully avoid the current hit. Returns true
@@ -498,6 +510,7 @@ void setupCommonHandlers(EffectHandlerBase &base) {
     base.setHandler(E_IMMUNITY_NONMAGICAL_WEAPONS, handleProtNormalWeapons);
     base.setHandler(E_SPIRITUAL_HAMMER,         handleSpiritualHammer);
     base.setHandler(E_HUMAN_VS_SMALL,           handleBonusVsSmall);
+    base.setHandler(E_DWARF_AND_GNOME_VS_GIANTS, handleDwarfVsGiant);
     base.setHandler(E_REGENERATE_1_HPS,         handleRegen1);
     base.setHandler(E_REGENERATE_3_HPS,         handleRegen3);
     base.setHandler(E_REGEN_3_HP,               handleRegen3);
