@@ -72,8 +72,10 @@ struct CombatGlobals {
     bool targetUnavailable;   // Target cannot be selected
     uint8 attackCount;        // BYTE_ATTACK_COUNT : resolved attacks this turn
     bool attackCountAdjusting;
+    uint8 attackRollCount;
     uint8 attacksLeft;        // COMBAT_ATTACKS_LEFT — attacker's remaining attacks this turn
     CloudEffectManager clouds; // PTR_CLOUD_EFF_HANDLER
+
 
     CombatGlobals() { reset(); }
 
