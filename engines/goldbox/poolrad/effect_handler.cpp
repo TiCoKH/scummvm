@@ -577,6 +577,52 @@ static void handleGnomeVsLarge(const EffectCall &c) {
     ++c.combat->attackRoll;
 }
 
+static void handleRegenerating(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    c.character.setEffect(static_cast<uint8>(E_DAMAGE_REDUCTION), 0, 0xff, false);
+}
+
+static void handleParalyzed(const EffectCall &c) {
+    handleParalyze(c);
+    if (c.op != EFF_EVAL || !c.character.combatState)
+        return;
+    c.character.combatState->movePoints = 0;
+    if (c.combat && c.combat->attackCountAdjusting)
+        c.combat->attackCount = 0;
+}
+
+static void handleRot(const EffectCall &c) {
+    if (c.op != EFF_TICK)
+        return;
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(&c.character, "Rots...", true);
+
+    c.character.abilities.charisma.current =
+        MAX<uint8>(3, c.character.abilities.charisma.current - 2);
+
+    if (c.effect.power / 16 < 2) {
+        Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
+        effectSystem.setStatus(c.character, Goldbox::Data::S_GONE,
+            "Dies rots away");
+    } else {
+        c.effect.power -= 16;
+        c.character.setEffect(E_POOLRAD_ROT, 43200, c.effect.power, true);
+    }
+}
+
+static void handleInvisibleRing(const EffectCall &c) {
+    if (c.op == EFF_ADD)
+        c.character.setEffect(E_POOLRAD_BLUR, 12, 1, false);
+}
+
+static void handleHelplessPoolrad(const EffectCall &c) {
+    handleHelpless(c);
+    if (c.op == EFF_ADD)
+        c.character.resetCombatAction();
+}
+
 static void handleEndlessRegen(const EffectCall &c) {
     applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_REGEN_3);
     if (c.op != EFF_TICK)
@@ -678,7 +724,7 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_DUPLICATED,            handleDuplicated);
     setSpecHandler(E_POOLRAD_ENFEEBLED,             handleEnfeebled);
     setSpecHandler(E_POOLRAD_NAUSEATED,             handleNauseated);
-    setSpecHandler(E_POOLRAD_HELPLESS,              handleHelpless);
+    setSpecHandler(E_POOLRAD_HELPLESS,              handleHelplessPoolrad);
     setSpecHandler(E_POOLRAD_ANIMATING_DEAD,        handleAnimatingDead);
     setSpecHandler(E_POOLRAD_BLINDED,               handleBlinded);
     setSpecHandler(E_POOLRAD_DISEASED,              handleDiseased);
@@ -694,10 +740,13 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_GNOME_VS_LARGE,        handleGnomeVsLarge);
     setSpecHandler(E_POOLRAD_PRAYER_2,              handlePrayer);
     setSpecHandler(E_POOLRAD_ENDLESS_REGEN,         handleEndlessRegen);
+    setSpecHandler(E_POOLRAD_INVISIBLE_RING,         handleInvisibleRing);
     setSpecHandler(E_POOLRAD_HELPLESS_33,           handleHelpless);
     setSpecHandler(E_POOLRAD_HELPLESS_34,           handleHelpless);
     setSpecHandler(E_POOLRAD_HELPLESS_35,           handleHelpless);
-    setSpecHandler(E_POOLRAD_PARALYZED,             handleParalyze);
+    setSpecHandler(E_POOLRAD_REGENERATING,          handleRegenerating);
+    setSpecHandler(E_POOLRAD_ROT,                   handleRot);
+    setSpecHandler(E_POOLRAD_PARALYZED,             handleParalyzed);
     setSpecHandler(E_POOLRAD_REGEN_3_HP,            handleNotImplemented);
     setSpecHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,   handleFlameTongue);
     setSpecHandler(E_POOLRAD_SWORD_VS_UNDEAD,       handleSwordVsUndead);

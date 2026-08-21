@@ -218,6 +218,7 @@ public:
 	virtual void heal(uint8 amount);
 	virtual bool healHp(uint8 amount, bool normalHealing);
 	virtual bool isAlive() const;
+	void resetCombatAction();
 	int8 getReactionAdjustment() const;
 	uint8 getStrengthTier() const;
 	int8 getStrengthBonus() const;
