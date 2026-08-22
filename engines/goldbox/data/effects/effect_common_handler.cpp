@@ -120,8 +120,7 @@ static void handleWeakened(const EffectCall &c) {
     if (c.character.abilities.strength.current < 4) {
         CharacterEffects *fx = c.character.getEffects();
         if (fx && !fx->hasEffect(static_cast<uint8>(E_CAUSE_DISEASE_1)))
-            c.character.setEffect(static_cast<uint8>(E_CAUSE_DISEASE_1),
-                0, 0xff, false);
+            tryAddEffect(c.character, static_cast<uint8>(E_CAUSE_DISEASE_1), 0xff, 0);
         return;
     }
     if (c.bridge)
@@ -138,8 +137,7 @@ static void handleCauseWound(const EffectCall &c) {
     if (c.character.hitPoints.current < 2) {
         CharacterEffects *fx = c.character.getEffects();
         if (fx && !fx->hasEffect(static_cast<uint8>(E_CAUSE_DISEASE_1)))
-            c.character.setEffect(static_cast<uint8>(E_CAUSE_DISEASE_1),
-                0, 0xff, false);
+            tryAddEffect(c.character, static_cast<uint8>(E_CAUSE_DISEASE_1), 0xff, 0);
         return;
     }
     if (c.damage)
@@ -254,6 +252,18 @@ static void handleCharm(const EffectCall &c) {
 }
 
 } // namespace
+
+// ---------------------------------------------------------------------------
+// Shared helpers.
+// ---------------------------------------------------------------------------
+
+bool tryAddEffect(Goldbox::Data::PlayerCharacter &ch,
+        uint8 effectId, uint8 power, uint16 duration) {
+    if (Goldbox::g_engine && Goldbox::g_engine->isInSpellProcess())
+        return false;
+    ch.addEffect(effectId, duration, power, true);
+    return true;
+}
 
 // ---------------------------------------------------------------------------
 // Handlers exposed for reuse by game-specific handler files.

@@ -214,7 +214,7 @@ public:
 	virtual void rollAbilityScores() = 0;
 
 	// Provide base forwarding hook for effects (optional override in concrete game classes)
-	virtual void setEffect(uint8 /*type*/, uint16 /*durationMin*/, uint8 /*power*/, bool /*immediate*/) override {}
+	virtual void addEffect(uint8 /*type*/, uint16 /*durationMin*/, uint8 /*power*/, bool /*immediate*/) override {}
 
 	// --------------------------------------------------------------------
 	// Common utility methods

@@ -47,6 +47,9 @@ enum CommonEffectFlags : uint32 {
     CEF_POISONED = 1 << 27
 };
 
+bool tryAddEffect(Goldbox::Data::PlayerCharacter &ch,
+        uint8 effectId, uint8 power, uint16 duration);
+
 // Register all common effect handlers into the given handler base.
 // Call this from a game-specific handler's setupHandlers() before
 // registering any overrides.

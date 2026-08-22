@@ -57,12 +57,12 @@ PoolradCharacter::PoolradCharacter() {
 	initialize();
 }
 
-void PoolradCharacter::setEffect(uint8 type, uint16 durationMin,
+void PoolradCharacter::addEffect(uint8 type, uint16 durationMin,
 		uint8 power, bool immediate) {
-	// The original CHARACTER_setEffect only appends a node to the linked list;
+	// The original CHARACTER_addEffect only appends a node to the linked list;
 	// it never fires any handler. Pass immediate=false so addOrRefreshEffect
 	// only appends without triggering EFF_ADD, matching the original behaviour
-	// and avoiding reentrancy when one handler calls setEffect.
+	// and avoiding reentrancy when one handler calls addEffect.
 	Goldbox::Poolrad::EffectHandler effectHandler;
 	Goldbox::Data::Effects::EffectSystem effectSystem(&effectHandler,
 		Goldbox::Poolrad::getEffectHostBridge());
