@@ -41,9 +41,6 @@ static const EffectStackingRule kStackingRules[] = {
     { static_cast<uint8>(E_HASTE), STACK_IGNORE }
 };
 
-// Permanent effects (power == 0xFF) are never duplicated regardless of type.
-static const uint8 kPermanentPower = 0xFF;
-
 } // namespace
 
 EffectSystem::EffectSystem(EffectHandlerBase *handler,
@@ -156,22 +153,22 @@ bool EffectSystem::removeEffectImpl(Goldbox::Data::PlayerCharacter &character,
     if (!_handler)
         return false;
 
+    // Snapshot id and immediate flag before calling the handler: the handler
+    // (or a bridge callback it triggers) may call eraseEffectById on the same
+    // node, invalidating the reference. We erase by id afterward so the node
+    // is always cleaned up regardless of what the handler does.
+    const uint8 savedId = effect.id;
+    const uint8 wasImmediate = effect.immediate;
+
     const uint8 oldStatus = character.healthStatus;
     const uint32 oldFlags = character.effectState.flags;
-    if (effect.immediate)
+    if (wasImmediate)
         _handler->apply(EFF_REMOVE, effect, character, nullptr, _bridge);
     character.onEffectsChanged();
     notifyBridge(_bridge, EFF_REMOVE, character,
         oldStatus, oldFlags, false, true);
 
-    Common::List<Effect> &list = effects.effects();
-    for (Common::List<Effect>::iterator it = list.begin();
-            it != list.end(); ++it) {
-        if (&*it == &effect) {
-            list.erase(it);
-            break;
-        }
-    }
+    effects.eraseEffectById(savedId);
     return true;
 }
 
@@ -192,8 +189,18 @@ void EffectSystem::setStatus(Goldbox::Data::PlayerCharacter &character,
     character.enabled = false;
     character.hitPoints.current = 0;
 
-    // 4. Strip status effects without firing EFF_REMOVE handlers.
+    // 4. Fire EFF_REMOVE for every immediate effect, then strip the list.
+    // The original removeEffect loop called the handler for each immediate
+    // effect (e.g. handleCharm restores combatSide on EFF_REMOVE). We
+    // replicate that here before the raw clear so cleanup handlers run.
     CharacterEffects *fx = character.getEffects();
+    if (_handler && fx) {
+        Common::List<Effect> &list = fx->effects();
+        for (Effect &e : list) {
+            if (e.immediate)
+                _handler->apply(EFF_REMOVE, e, character, nullptr, _bridge);
+        }
+    }
     character.clearStatusEffects();
 
     // 5. Fire ETS_ON_DEATH trigger set (on-death passive effects).
@@ -207,10 +214,7 @@ void EffectSystem::setStatus(Goldbox::Data::PlayerCharacter &character,
 
 
 EffectStacking EffectSystem::getStackingPolicy(uint8 id, uint8 power) const {
-    // Permanent effects (power == 0xFF) are never duplicated regardless of type.
-    if (power == kPermanentPower)
-        return STACK_IGNORE;
-
+    (void)power;
     for (uint i = 0; i < ARRAYSIZE(kStackingRules); ++i) {
         if (kStackingRules[i].effectType == id)
             return kStackingRules[i].policy;

@@ -212,7 +212,7 @@ static void handleEnfeebled(const EffectCall &c) {
 static void handleInStinkingCloudExpire(const EffectCall &c) {
     if (c.op != EFF_REMOVE)
         return;
-    // TODO: investigate UTIL_setEffect / EffectSystem tick integration
+    // TODO: investigate UTIL_addEffect / EffectSystem tick integration
     Combat::CombatContext *ctx = Goldbox::g_engine->getCombatContext();
     if (!ctx)
         return;
@@ -582,7 +582,7 @@ static void handleGnomeVsLarge(const EffectCall &c) {
 static void handleRegeneration(const EffectCall &c) {
     if (c.op != EFF_TICK)
         return;
-    c.character.setEffect(E_POOLRAD_REGEN_3_HP, 60, c.effect.power, true);
+    tryAddEffect(c.character, E_POOLRAD_REGEN_3_HP, c.effect.power, 60);
     if (c.character.healHp(1, true) && c.bridge)
         c.bridge->showHealResult(&c.character);
 }
@@ -623,7 +623,7 @@ static void handleFireResistance(const EffectCall &c) {
 static void handleRegenerating(const EffectCall &c) {
     if (c.op != EFF_ADD)
         return;
-    c.character.setEffect(static_cast<uint8>(E_DAMAGE_REDUCTION), 0, 0xff, false);
+    c.character.addEffect(static_cast<uint8>(E_DAMAGE_REDUCTION), 0, 0xff, false);
 }
 
 static void handleImmobilized(const EffectCall &c) {
@@ -651,13 +651,13 @@ static void handleRot(const EffectCall &c) {
             "Dies rots away");
     } else {
         c.effect.power -= 16;
-        c.character.setEffect(E_POOLRAD_ROT, 43200, c.effect.power, true);
+        tryAddEffect(c.character, E_POOLRAD_ROT, c.effect.power, 43200);
     }
 }
 
 static void handleInvisibleRing(const EffectCall &c) {
     if (c.op == EFF_ADD)
-        c.character.setEffect(E_POOLRAD_BLUR, 12, 1, false);
+        c.character.addEffect(E_POOLRAD_BLUR, 12, 1, false);
 }
 
 static void handleHelplessPoolrad(const EffectCall &c) {
@@ -758,7 +758,7 @@ static void applyParalysisAttack(const EffectCall &c, uint8 duration) {
     if (c.bridge)
         c.bridge->postEffectMessage(&c.character, "is Paralyzed", true);
 
-    c.character.setEffect(E_IMMOBILIZED, duration, 12, false);
+    c.character.addEffect(E_IMMOBILIZED, duration, 12, false);
 }
 
 static void handleParalysisMeleeAttack(const EffectCall &c) {
@@ -801,7 +801,7 @@ static void handleCamouflagedAttack(const EffectCall &c) {
     const uint8 roll = Goldbox::g_engine ?
         Goldbox::g_engine->rollDice(1, 100) : 100;
     if (roll < 96)
-        c.character.setEffect(25, 1, 12, false);
+        c.character.addEffect(25, 1, 12, false);
 }
 
 // Rear-claw rake: bonus 2d4 attack that fires mid-attack-sequence, only on
@@ -923,6 +923,100 @@ static void handleSucksBlood(const EffectCall &c) {
         c.character.combatState->fleeing = true;
 }
 
+// Revive: re-places the character on the combat map at their last known tile
+// position. On success, restores status/enabled and posts a revival message,
+// then calls updateSideCount. On failure (tile blocked), reschedules effect 78
+// itself using effect.power as the retry duration.
+static void handleRevive(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    Combat::CombatContext *ctx = Goldbox::g_engine ?
+        Goldbox::g_engine->getCombatContext() : nullptr;
+    if (!ctx)
+        return;
+
+    // Read last known position from the downed-member records, falling back
+    // to the live table entry if the character was never recorded as downed.
+    uint8 col = 0, row = 0;
+    bool found = false;
+    for (const auto &rec : ctx->table.getDownedMembers()) {
+        if (rec.character == &c.character) {
+            col = rec.tileCol;
+            row = rec.tileRow;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        col = ctx->table.getCharacterCol(&c.character);
+        row = ctx->table.getCharacterRow(&c.character);
+    }
+
+    const uint8 size = MAX<uint8>(1, ctx->table.getCharacterSize(&c.character));
+    const uint8 hp = c.character.hitPoints.current;
+
+    const int idx = ctx->table.addCombatant(&c.character, size);
+    if (idx < 0) {
+        // Tile blocked: retry next turn.
+        tryAddEffect(c.character, 0x4e, c.effect.power, 1);
+        return;
+    }
+    ctx->table.setPosition(idx, col, row);
+
+    c.character.healthStatus = Goldbox::Data::S_OKAY;
+    c.character.enabled = true;
+    c.character.hitPoints.current = hp;
+
+    if (c.bridge) {
+        const char *msg = (c.character.combatSide == Goldbox::Data::CS_ENEMY) ?
+            "stands up and grins" : "gets back up";
+        c.bridge->postEffectMessage(&c.character, msg, true);
+    }
+
+    ctx->updateSideCount();
+}
+
+// Bite-and-hold attack: only works against targets with strength < 19.
+// Starts effect 74 (grapple) on the attacker with the target's roster index,
+// then sets and immediately fires effect 58 (E_IMMOBILIZED) on the target.
+static void handleBiteAndHold(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    Goldbox::Data::PlayerCharacter *target =
+        c.character.combatState ? c.character.combatState->target : nullptr;
+    if (!target || target->abilities.strength.current >= 19)
+        return;
+
+    Combat::CombatContext *ctx = Goldbox::g_engine ?
+        Goldbox::g_engine->getCombatContext() : nullptr;
+    uint8 targetIndex = 0xff;
+    if (ctx) {
+        for (uint i = 0; i < ctx->params.roster.size(); ++i) {
+            if (ctx->params.roster[i] == target) {
+                targetIndex = (uint8)i;
+                break;
+            }
+        }
+    }
+
+    c.character.addEffect(0x4a, 0, targetIndex, true);
+    target->addEffect(static_cast<uint8>(E_IMMOBILIZED), 0, 0xff, false);
+
+    if (c.handler) {
+        Effect immobilize;
+        immobilize.id = static_cast<uint8>(E_IMMOBILIZED);
+        immobilize.durationMin = 0;
+        immobilize.power = 0xff;
+        immobilize.immediate = false;
+        c.handler->apply(EFF_ADD, immobilize, *target, c.combat, c.bridge);
+    }
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(target, "is held fast", true);
+}
+
 // Triggers the blood-drain attack: starts effect 75 (vampiric drain) on the
 // attacker with duration=207 ticks and power=target roster index, then sets
 // and immediately fires effect 58 (E_IMMOBILIZED) on the target.
@@ -947,8 +1041,8 @@ static void handleBloodDrainingAttack(const EffectCall &c) {
         }
     }
 
-    c.character.setEffect(0x4b, 207, targetIndex, true);
-    target->setEffect(static_cast<uint8>(E_IMMOBILIZED), 0, 0xff, false);
+    c.character.addEffect(0x4b, 207, targetIndex, true);
+    target->addEffect(static_cast<uint8>(E_IMMOBILIZED), 0, 0xff, false);
 
     if (c.handler) {
         Effect immobilize;
@@ -960,19 +1054,53 @@ static void handleBloodDrainingAttack(const EffectCall &c) {
     }
 }
 
+static void handleAnkhegAcidMeleeAttack(const EffectCall &c) {
+    if (c.op != EFF_ADD || !c.combat)
+        return;
+
+    Goldbox::Data::PlayerCharacter *target =
+        c.character.combatState ? c.character.combatState->target : nullptr;
+    if (!target || !target->enabled)
+        return;
+
+    c.combat->behaviorFlags = Combat::CombatGlobals::DMG_ACID;
+
+    const uint8 damage = Goldbox::g_engine ?
+        Goldbox::g_engine->rollDice(1, 4) : 1;
+    if (c.damage)
+        c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_NORMAL, false);
+}
+
+static void handleFireTouchAttack(const EffectCall &c) {
+    if (c.op != EFF_ADD || !c.combat)
+        return;
+
+    Goldbox::Data::PlayerCharacter *target =
+        c.character.combatState ? c.character.combatState->target : nullptr;
+    if (!target || !target->enabled)
+        return;
+
+    c.combat->behaviorFlags = 9; // DMG_FIRE | DMG_MAGIC
+
+    const uint8 damage = Goldbox::g_engine ?
+        Goldbox::g_engine->rollDice(2, 10) : 2;
+    if (c.damage)
+        c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_NORMAL, false);
+}
+
 static void handleStudyManualBodilyHealth(const EffectCall &c) {
     if (c.op != EFF_ADD)
         return;
     if (c.bridge)
         c.bridge->postEffectMessage(&c.character, "starts to train", true);
-    c.character.setEffect(7, 43200, 0xff, true);
+    c.character.addEffect(7, 43200, 0xff, true);
 }
 
 static void handleTrainingManualBodilyHealth(const EffectCall &c) {
     if (c.op == EFF_TICK) {
         // On the first tick (immediate flag still set), apply the one-time
         // constitution and HP bonus, matching the original which fired the
-        // handler body on the first game tick after CHARACTER_setEffect.
+        // handler body on the first game tick after CHARACTER_addEffect.
         if (c.effect.immediate) {
             c.effect.immediate = 0;
 
@@ -984,7 +1112,7 @@ static void handleTrainingManualBodilyHealth(const EffectCall &c) {
             ch.abilities.constitution.current += 1;
 
             if (ch.abilities.constitution.current >= 20) {
-                ch.setEffect(0x3e, 0x3c, 0xff, true);
+                ch.addEffect(0x3e, 0x3c, 0xff, true);
                 return;
             }
 
@@ -1165,6 +1293,14 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(0x4b,                            handleSucksBlood);
     // Poolrad raw ID 76: blood-drain attack trigger; sets up effects 75/58.
     setSpecHandler(0x4c,                            handleBloodDrainingAttack);
+    // Poolrad raw ID 77: bite-and-hold attack; sets up effects 74/58.
+    setSpecHandler(0x4d,                            handleBiteAndHold);
+    // Poolrad raw ID 78: revive — re-place on combat map, retry via effect.power on failure.
+    setSpecHandler(0x4e,                            handleRevive);
+    // Poolrad raw ID 79: fire-touch attack — 2d10 fire+magic damage, no saving throw.
+    setSpecHandler(0x4f,                            handleFireTouchAttack);
+    // Poolrad raw ID 80: ankheg acid melee attack — 1d4 acid damage, no saving throw.
+    setSpecHandler(0x50,                            handleAnkhegAcidMeleeAttack);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {

@@ -115,6 +115,10 @@ public:
 	uint _textDelay = 3; // 1-5 range (1=fastest, 5=slowest), maps to original BYTE_DELAY
 	static Goldbox::Data::Items::Storage gItemProps;
 
+	// Mirrors IN_SPELL_PROCESS: set true while a spell or effect-triggered
+	// action is being resolved, to suppress re-entrant EFFECT_add calls.
+	bool _inSpellProcess = false;
+
 	uint8 _skyColor = 0;
 	uint8 _skylineColor = 0;
 	uint8 _horizonColor = 0;
@@ -128,6 +132,9 @@ public:
 	 *   0xFF = stop songs, keep speaker enabled
 	 *   2+   = play song (1-based index)
 	 */
+	bool isInSpellProcess() const { return _inSpellProcess; }
+	void setInSpellProcess(bool active) { _inSpellProcess = active; }
+
 	void soundPlay(uint8 songId);
 
 	/**

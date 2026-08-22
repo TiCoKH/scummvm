@@ -608,30 +608,30 @@ void CreateCharacterView::handleMenuResult(const MenuResultMessage &result) {
 					switch (_newCharacter->race) {
 					case Goldbox::Data::R_DWARF:
 						_newCharacter->iconData.bodyType = 1;
-						_newCharacter->setEffect(90, 0, 0xFF, false);
-						_newCharacter->setEffect(97, 0, 0xFF, false);
-						_newCharacter->setEffect(26, 0, 0xFF, false);
-						_newCharacter->setEffect(47, 0, 0xFF, false);
+						_newCharacter->addEffect(90, 0, 0xFF, false);
+						_newCharacter->addEffect(97, 0, 0xFF, false);
+						_newCharacter->addEffect(26, 0, 0xFF, false);
+						_newCharacter->addEffect(47, 0, 0xFF, false);
 						break;
 					case Goldbox::Data::R_ELF:
 						_newCharacter->iconData.bodyType = 2;
-						_newCharacter->setEffect(107, 0, 0xFF, false);
+						_newCharacter->addEffect(107, 0, 0xFF, false);
 						break;
 					case Goldbox::Data::R_GNOME:
 						_newCharacter->iconData.bodyType = 1;
-						_newCharacter->setEffect(97, 0, 0xFF, false);
-						_newCharacter->setEffect(18, 0, 0xFF, false);
-						_newCharacter->setEffect(47, 0, 0xFF, false);
-						_newCharacter->setEffect(48, 0, 0xFF, false);
+						_newCharacter->addEffect(97, 0, 0xFF, false);
+						_newCharacter->addEffect(18, 0, 0xFF, false);
+						_newCharacter->addEffect(47, 0, 0xFF, false);
+						_newCharacter->addEffect(48, 0, 0xFF, false);
 						break;
 					case Goldbox::Data::R_HALF_ELF:
 						_newCharacter->iconData.bodyType = 2;
-						_newCharacter->setEffect(124, 0, 0xFF, false);
+						_newCharacter->addEffect(124, 0, 0xFF, false);
 						break;
 					case Goldbox::Data::R_HALFLING:
 						_newCharacter->iconData.bodyType = 1;
-						_newCharacter->setEffect(90, 0, 0xFF, false);
-						_newCharacter->setEffect(97, 0, 0xFF, false);
+						_newCharacter->addEffect(90, 0, 0xFF, false);
+						_newCharacter->addEffect(97, 0, 0xFF, false);
 						break;
 					default: // Monster / Human / Half-Orc or any other
 						_newCharacter->iconData.bodyType = 2;
