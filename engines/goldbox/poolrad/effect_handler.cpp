@@ -1842,6 +1842,88 @@ static void handleImmuneToGazeAttacks(const EffectCall &c) {
     }
 }
 
+// Mirrors EFFECT_128_ItemEffects and its aliases (effects 128-130, 133, 134, 136, 138, 139).
+// The item's effect2 field is stored in c.effect.power by the item-ready dispatch path.
+// On EFF_ADD: add the sub-effect (power=12, duration=0) then fire its EFF_ADD handler.
+// On EFF_REMOVE: erase the sub-effect from the character's effect list.
+static void handleItemEffect(const EffectCall &c) {
+    const uint8 subEffectId = c.effect.power;
+    if (subEffectId == 0)
+        return;
+
+    CharacterEffects *fx = c.character.getEffects();
+    if (!fx)
+        return;
+
+    if (c.op == EFF_ADD) {
+        c.character.addEffect(subEffectId, 0, 12, false);
+        if (c.handler) {
+            Effect sub;
+            sub.id = subEffectId;
+            sub.durationMin = 0;
+            sub.power = 12;
+            sub.immediate = 0;
+            c.handler->apply(EFF_ADD, sub, c.character, c.combat, c.bridge);
+        }
+    } else if (c.op == EFF_REMOVE) {
+        fx->eraseEffectById(subEffectId);
+    }
+}
+
+static void handleExtraStrengthItem(const EffectCall &c) {
+    if (c.op == EFF_ADD) {
+        uint8 enc = 0;
+        const bool applied = c.character.applyStrengthChange(18, 100, enc);
+        if (applied) {
+            if (c.bridge)
+                c.bridge->postEffectMessage(&c.character, "is stronger", true);
+            Data::PoolradCharacter &ch = asPoolrad(c.character);
+            ch.recalcCombatStats();
+        }
+        c.character.addEffect(E_STRENGTH, 0, enc, true);
+    } else if (c.op == EFF_REMOVE) {
+        CharacterEffects *fx = c.character.getEffects();
+        if (!fx)
+            return;
+        const bool atExtra = (c.character.abilities.strength.current == 18 &&
+                              c.character.abilities.strException.current == 100);
+        for (Effect &e : fx->effects()) {
+            if (e.id != static_cast<uint8>(E_STRENGTH))
+                continue;
+            uint8 str = 0, ext = 0;
+            strengthDecode(e.power & 0x7f, str, ext);
+            if ((atExtra && e.power < 0x80) ||
+                    (!atExtra && str == 18 && ext == 100)) {
+                fx->eraseEffectById(e.id);
+                return;
+            }
+        }
+    }
+}
+
+static void handleRequiresGiantStrength(const EffectCall &c) {
+    if (c.op != EFF_ADD || c.character.abilities.strength.current >= 19)
+        return;
+    Goldbox::Data::ADnDCharacter &adnd =
+        static_cast<Goldbox::Data::ADnDCharacter &>(c.character);
+    for (Goldbox::Data::Items::CharacterItem &item : adnd.inventory.items()) {
+        if (item.readied && item.effect3 == 0x87) {
+            item.readied = 0;
+            if (c.bridge)
+                c.bridge->postEffectMessage(&c.character, "Must have Giant Strength", true);
+            return;
+        }
+    }
+}
+
+static void handleRemoveEffect23OnRemove(const EffectCall &c) {
+    if (c.op == EFF_REMOVE) {
+        CharacterEffects *fx = c.character.getEffects();
+        if (fx)
+            fx->eraseEffectById(23);
+    }
+}
+
 static void handleTrollFireAcidVulnerability(const EffectCall &c) {
     if (!c.combat)
         return;
@@ -2284,6 +2366,20 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(0x7d,                                             handleImmunitySleepCharmParalysisPoison);
     // Poolrad raw ID 126: gaze immunity — set targetUnavailable if target carries a mirror/anti-gaze item.
     setSpecHandler(0x7e,                                             handleImmuneToGazeAttacks);
+    // Poolrad raw ID 127: not implemented.
+    setSpecHandler(0x7f,                                             handleNotImplemented);
+    // Poolrad raw IDs 128-130, 131, 133, 134, 135, 136, 137, 138, 139: item-granted sub-effect (effect2 in power).
+    setSpecHandler(0x80,                                             handleItemEffect);
+    setSpecHandler(0x81,                                             handleItemEffect);
+    setSpecHandler(0x82,                                             handleItemEffect);
+    setSpecHandler(0x83,                                             handleExtraStrengthItem);
+    setSpecHandler(0x85,                                             handleItemEffect);
+    setSpecHandler(0x86,                                             handleItemEffect);
+    setSpecHandler(0x87,                                             handleRequiresGiantStrength);
+    setSpecHandler(0x88,                                             handleItemEffect);
+    setSpecHandler(0x89,                                             handleRemoveEffect23OnRemove);
+    setSpecHandler(0x8a,                                             handleItemEffect);
+    setSpecHandler(0x8b,                                             handleItemEffect);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
