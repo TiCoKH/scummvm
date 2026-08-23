@@ -1560,6 +1560,45 @@ static void handleHalflingPoisonBonus(const EffectCall &c) {
     }
 }
 
+static void handleRegen3HpRound(const EffectCall &c) {
+    if (c.op != EFF_TICK)
+        return;
+    if (c.character.healHp(3, true) && c.bridge)
+        c.bridge->showHealResult(&c.character);
+}
+
+static void handleKeepFightingAfterUnconscious(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    uint8 reviveAmount = 0;
+    if (c.character.healthStatus == Goldbox::Data::S_DYING &&
+            c.character.combatState &&
+            c.character.combatState->bleeding < 6)
+        reviveAmount = 6 - c.character.combatState->bleeding;
+    else if (c.character.healthStatus == Goldbox::Data::S_UNCONSCIOUS)
+        reviveAmount = 6;
+
+    if (reviveAmount == 0)
+        return;
+
+    // Revive: restore HP, status, and enabled flag.
+    c.character.hitPoints.current =
+        MIN<uint8>(c.character.hitPoints.max,
+                   c.character.hitPoints.current + reviveAmount);
+    c.character.healthStatus = Goldbox::Data::S_OKAY;
+    c.character.enabled = true;
+
+    const uint8 duration = static_cast<uint8>(
+        (Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 4) : 1) + 1);
+    c.character.addEffect(E_POOLRAD_FIGHT_ON_AT_ZERO_HP, duration, 0xff, true);
+
+    c.effect.immediate = 0;
+    CharacterEffects *fx = c.character.getEffects();
+    if (fx)
+        fx->eraseEffectById(c.effect.id);
+}
+
 static void handleHalfDamageFromFire(const EffectCall &c) {
     if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
         return;
@@ -1578,6 +1617,19 @@ static void handleHalfDamageBluntPiercing(const EffectCall &c) {
     const Goldbox::Data::Items::ItemProperty &prop = weapon->prop();
     if (prop.wpnType & 0x81)
         c.combat->damage >>= 1;
+}
+
+static void handleImmunityNonSilverNonMagical(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const Goldbox::Data::ADnDCharacter *attacker =
+        c.combat->attacker ?
+        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
+    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
+        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo() : nullptr;
+    if (weapon == nullptr ||
+            (weapon->bonus == 0 && weapon->nameCode3 != 0xB1))
+        c.combat->damage = 0;
 }
 
 static void handleFightOnAtZeroHp(const EffectCall &c) {
@@ -1836,8 +1888,14 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_HALF_DAMAGE_BLUNT_PIERCING, handleHalfDamageBluntPiercing);
     // Poolrad raw ID 95: fight on after being reduced to 0 HP; clears immediate, then kills if enabled.
     setSpecHandler(E_POOLRAD_FIGHT_ON_AT_ZERO_HP,        handleFightOnAtZeroHp);
+    // Poolrad raw ID 96: immunity to non-silver, non-magical weapons.
+    setSpecHandler(E_POOLRAD_IMMUNITY_NON_SILVER_NON_MAGICAL, handleImmunityNonSilverNonMagical);
     // Poolrad raw ID 97: dwarf constitution saving throw bonus (vs. rod/staff/wand and vs. spell).
     setSpecHandler(E_POOLRAD_DWARF_SAVE_BONUS,           handleDwarfSaveBonus);
+    // Poolrad raw ID 98: regenerate 3 HP per round.
+    setSpecHandler(E_POOLRAD_REGEN_3_HP_ROUND,           handleRegen3HpRound);
+    // Poolrad raw ID 99: keep fighting after becoming unconscious/dying; revives and adds fight-on effect.
+    setSpecHandler(E_POOLRAD_KEEP_FIGHTING_AFTER_UNCONSCIOUS, handleKeepFightingAfterUnconscious);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
