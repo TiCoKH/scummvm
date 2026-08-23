@@ -1723,6 +1723,125 @@ static void handleBoulderEvasion(const EffectCall &c) {
         rollAvoid(c.character, *c.combat, c.bridge, 50);
 }
 
+static void handleAnkhegAcidSquirtAttack(const EffectCall &c) {
+    if (c.op != EFF_ADD || !c.character.combatState)
+        return;
+
+    Goldbox::Data::PlayerCharacter *target = c.character.combatState->target;
+    if (!target || !target->enabled)
+        return;
+
+    // 25% chance to perform the acid squirt.
+    const int roll = Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 100) : 100;
+    if (roll > 25)
+        return;
+
+    // TODO: COMBAT_FindTargetFacing(char_ptr, target) < 4 — facing arc check not yet ported.
+    // TODO: COMBAT_resetActionState(char_ptr)
+    // TODO: GFX_LoadEffectTileQuad(23); COMBAT_AnimateMissilePath(...)
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(&c.character, "Spits Acid", true);
+
+    const uint8 damage = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(4, 8)) : 4;
+
+    // Build a target-side EffectCall for checkSavingThrow (type 3 = vs. breath weapon).
+    Effect dummy = c.effect;
+    EffectCall tc(EFF_ADD, dummy, *target, c.combat, c.bridge, c.damage, c.handler);
+    const bool saved = checkSavingThrow(tc, 3, 0);
+
+    if (c.damage)
+        c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_HALF, saved);
+
+    // Consume this effect (121) and the related acid-melee setup effect (raw 0x50).
+    CharacterEffects *fx = c.character.getEffects();
+    if (fx) {
+        c.effect.immediate = 0;
+        fx->eraseEffectById(c.effect.id);
+        fx->eraseEffectById(0x50);
+    }
+}
+
+static void handleVulnerabilityToFire(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const Goldbox::Data::ADnDCharacter *attacker =
+        c.combat->attacker ?
+        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
+    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
+        attacker->getEquippedItem(Goldbox::Data::Items::Slot::S_MAIN_HAND) : nullptr;
+    if (weapon && weapon->typeIndex == 86)
+        c.combat->damage = static_cast<uint8>(
+            Goldbox::g_engine ? Goldbox::g_engine->rollDice(3, 8) : 3);
+    if (c.combat->behaviorFlags & (Combat::CombatGlobals::DMG_FIRE |
+                                   Combat::CombatGlobals::DMG_MAGIC))
+        c.combat->damage += c.combat->attackCount;
+}
+
+static void handleImmunityNonMagicalHalfSilver(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const Goldbox::Data::ADnDCharacter *attacker =
+        c.combat->attacker ?
+        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
+    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
+        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo() : nullptr;
+    if (weapon == nullptr) {
+        c.combat->damage = 0;
+    } else if (weapon->bonus == 0 && weapon->nameCode3 == 177) {
+        c.combat->damage >>= 1;
+    } else if (weapon->bonus == 0) {
+        c.combat->damage = 0;
+    }
+}
+
+static void handleResistSleepCharm30(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const int roll = Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 100) : 100;
+    if (roll < 31) {
+        protectionIf(c, 11);
+        protectionIf(c, 53);
+    }
+}
+
+static void handleImmunitySleepCharmParalysisPoison(const EffectCall &c) {
+    protectionIf(c, 11);
+    protectionIf(c, 53);
+    protectionIf(c, 52);
+    protectionIf(c, 55);
+    if (c.combat && c.combat->savingThrowType == 0)
+        c.combat->savingThrow = 100;
+}
+
+static void handleImmuneToGazeAttacks(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState)
+        return;
+
+    Goldbox::Data::PlayerCharacter *target = c.character.combatState->target;
+    if (!target)
+        return;
+
+    const Goldbox::Data::ADnDCharacter *adndTarget =
+        static_cast<const Goldbox::Data::ADnDCharacter *>(target);
+
+    for (const Goldbox::Data::Items::CharacterItem &item :
+            adndTarget->inventory.items()) {
+        if (!item.readied)
+            continue;
+        if ((item.nameCode1 == 0x98 && item.nameCode3 == 0xFC) ||
+                (item.nameCode2 == 0x98 && item.nameCode3 == 0xFC) ||
+                (item.nameCode3 == 0x98) ||
+                item.nameCode1 == 0x76 ||
+                item.nameCode2 == 0x76 ||
+                item.nameCode3 == 0x76) {
+            c.combat->targetUnavailable = true;
+            return;
+        }
+    }
+}
+
 static void handleTrollFireAcidVulnerability(const EffectCall &c) {
     if (!c.combat)
         return;
@@ -2153,6 +2272,18 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(0x77,                                             handleImmunityNonMagicalWeaponsSpell);
     // Poolrad raw ID 120: boulder evasion — 50% avoid chance when attacker wields typeIndex 87 or 88.
     setSpecHandler(0x78,                                             handleBoulderEvasion);
+    // Poolrad raw ID 121: ankheg acid squirt — 25% chance, 4d8 acid, save vs. breath for half, self-removes.
+    setSpecHandler(0x79,                                             handleAnkhegAcidSquirtAttack);
+    // Poolrad raw ID 122: vulnerability to fire — typeIndex 86 replaces damage with 3d8; DMG_FIRE|DMG_MAGIC adds attackCount.
+    setSpecHandler(0x7a,                                             handleVulnerabilityToFire);
+    // Poolrad raw ID 123: immunity to non-magical weapons; silver weapons deal half damage.
+    setSpecHandler(0x7b,                                             handleImmunityNonMagicalHalfSilver);
+    // Poolrad raw ID 124: 30% resistance to sleep/charm spells.
+    setSpecHandler(0x7c,                                             handleResistSleepCharm30);
+    // Poolrad raw ID 125: immunity to sleep, charm, paralysis, and poison; auto-pass vs. paralysis saves.
+    setSpecHandler(0x7d,                                             handleImmunitySleepCharmParalysisPoison);
+    // Poolrad raw ID 126: gaze immunity — set targetUnavailable if target carries a mirror/anti-gaze item.
+    setSpecHandler(0x7e,                                             handleImmuneToGazeAttacks);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
