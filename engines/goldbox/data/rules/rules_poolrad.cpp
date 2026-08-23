@@ -594,6 +594,16 @@ ThiefSkills Rules::computeThiefSkills(uint8 race, uint8 dexterity, uint8 thiefLe
 
 	return out;
 }
+int32 Rules::xpForClassAtLevel(uint8 baseClassIndex, uint8 level) {
+	if (baseClassIndex >= kExperienceByClassAndLevel.size() || level == 0)
+		return -1;
+	const NeededExperience &ne = kExperienceByClassAndLevel[baseClassIndex].experience;
+	const int idx = (int)level - 1;
+	if (idx < 0 || idx >= 8)
+		return -1;
+	return ne.toLevel[idx];
+}
+
 int8 conHPModifier(uint8 constitution) {
 	// Table defined in this compilation unit
 	extern const int8 kConHPModifier[];
