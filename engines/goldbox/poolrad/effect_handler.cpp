@@ -1560,6 +1560,64 @@ static void handleHalflingPoisonBonus(const EffectCall &c) {
     }
 }
 
+static void handleThriKreenMissileEvasion60(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    rollAvoid(c.character, *c.combat, c.bridge, 60);
+}
+
+static void handleTrollFireAcidVulnerability(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    if (c.combat->behaviorFlags & (Combat::CombatGlobals::DMG_FIRE |
+                                   Combat::CombatGlobals::DMG_ACID))
+        return;
+    const uint8 duration = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(3, 6)) : 3;
+    c.character.addEffect(E_POOLRAD_RETURN_FROM_DEATH, duration, 0xff, true);
+}
+
+static void handleApplyDeathRecovery(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    CharacterEffects *fx = c.character.getEffects();
+    if (!fx)
+        return;
+    if (fx->hasEffect(static_cast<uint8>(E_POOLRAD_REGEN_3_HP_ROUND)))
+        return;
+    if (!fx->hasEffect(static_cast<uint8>(E_REGENERATE_3_HPS)))
+        c.character.addEffect(static_cast<uint8>(E_REGENERATE_3_HPS), 3, 0xff, true);
+}
+
+static void handleReturnFromDeath(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    // UTIL_Revive heals hp_max and restores status. It fails (returns false)
+    // when the character cannot receive healing (S_DEAD, S_GONE, S_STONED, etc.).
+    const uint8 status = c.character.healthStatus;
+    const bool canRevive = (status == Goldbox::Data::S_OKAY ||
+                            status == Goldbox::Data::S_ANIMATED ||
+                            status == Goldbox::Data::S_UNCONSCIOUS ||
+                            status == Goldbox::Data::S_DYING);
+    if (!canRevive) {
+        tryAddEffect(c.character, c.effect.id, c.effect.power, 1);
+        return;
+    }
+    c.character.hitPoints.current = c.character.hitPoints.max;
+    c.character.healthStatus = Goldbox::Data::S_OKAY;
+    c.character.enabled = true;
+}
+
+static void handleGaseousEscape(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    c.effect.immediate = 0;
+    // TODO: COMBAT_FocusCharacter(char_ptr, 3, 0) — viewport focus not yet ported.
+    Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
+    effectSystem.setStatus(c.character, Goldbox::Data::S_RUNNING,
+        "Turns gaseous and escapes");
+}
+
 static void handleRegen3HpRound(const EffectCall &c) {
     if (c.op != EFF_TICK)
         return;
@@ -1896,6 +1954,16 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_REGEN_3_HP_ROUND,           handleRegen3HpRound);
     // Poolrad raw ID 99: keep fighting after becoming unconscious/dying; revives and adds fight-on effect.
     setSpecHandler(E_POOLRAD_KEEP_FIGHTING_AFTER_UNCONSCIOUS, handleKeepFightingAfterUnconscious);
+    // Poolrad raw ID 100: troll fire/acid vulnerability — adds return-from-death effect if not fire/acid hit.
+    setSpecHandler(E_POOLRAD_TROLL_FIRE_ACID_VULNERABILITY,  handleTrollFireAcidVulnerability);
+    // Poolrad raw ID 101: apply death recovery — bootstraps E_REGENERATE_3_HPS if not already regenerating.
+    setSpecHandler(E_POOLRAD_APPLY_DEATH_RECOVERY,           handleApplyDeathRecovery);
+    // Poolrad raw ID 102: return from death — revive with full HP, retry next tick on failure.
+    setSpecHandler(E_POOLRAD_RETURN_FROM_DEATH,              handleReturnFromDeath);
+    // Poolrad raw ID 103: running — clears immediate, sets S_RUNNING status (gaseous escape).
+    setSpecHandler(E_POOLRAD_GASEOUS_ESCAPE,                        handleGaseousEscape);
+    // Poolrad raw ID 104: thri-kreen missile evasion at 60% — reuses rollAvoid helper.
+    setSpecHandler(E_POOLRAD_THRI_KREEN_MISSILE_EVASION_60,         handleThriKreenMissileEvasion60);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
