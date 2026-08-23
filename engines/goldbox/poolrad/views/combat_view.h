@@ -138,7 +138,6 @@ private:
     Combat::CombatPlacement _placement;
     Combat::CombatViewport _viewport;
     CombatPhase _phase;
-    int _combatRound;
 
     // --- Effect bridge (wired at setup time) ---
     Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;
