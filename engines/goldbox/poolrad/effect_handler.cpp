@@ -1566,6 +1566,163 @@ static void handleThriKreenMissileEvasion60(const EffectCall &c) {
     rollAvoid(c.character, *c.combat, c.bridge, 60);
 }
 
+static void applyMagicResistance(const EffectCall &c, uint8 baseChance) {
+    if (!c.combat)
+        return;
+    if (c.combat->activeSpellId == 0 &&
+            !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_MAGIC))
+        return;
+    const Data::PoolradCharacter *attacker =
+        c.combat->attacker ?
+        static_cast<const Data::PoolradCharacter *>(c.combat->attacker) : nullptr;
+    const uint8 castingLevel = attacker ? attacker->highestLevel : 0;
+    const int resistanceChance = baseChance + (castingLevel - 11) * 5;
+    const int roll = Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 100) : 1;
+    if (roll <= resistanceChance)
+        c.combat->damage = 0;
+}
+
+static void handleResistMagic50(const EffectCall &c) {
+    applyMagicResistance(c, 50);
+}
+
+static void handleResistMagic15(const EffectCall &c) {
+    applyMagicResistance(c, 15);
+}
+
+static void protectionIf(const EffectCall &c, uint8 spellId) {
+    if (!c.combat)
+        return;
+    if (spellId == 0 || c.combat->activeSpellId == spellId)
+        c.combat->damage = 0;
+}
+
+static void handleResistSleepCharm90(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const int roll = Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 100) : 1;
+    if (roll < 91) {
+        protectionIf(c, 53);
+        protectionIf(c, 11);
+    }
+}
+
+static void handleImmunitySleepCharmSpell(const EffectCall &c) {
+    protectionIf(c, 11);
+    protectionIf(c, 53);
+}
+
+static void handleImmunityParalysisSpell(const EffectCall &c) {
+    protectionIf(c, 52);
+}
+
+static void handleImmunityColdSpell(const EffectCall &c) {
+    if (c.combat && (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_COLD))
+        c.combat->damage = 0;
+}
+
+static void handleImmunityParalysisPoisonSpell(const EffectCall &c) {
+    protectionIf(c, 55);
+    protectionIf(c, 52);
+    if (c.combat && c.combat->savingThrowType == 0)
+        c.combat->savingThrow = 100;
+}
+
+static void handleImmunityFireSpell(const EffectCall &c) {
+    if (c.combat && (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
+        c.combat->damage = 0;
+}
+
+static void handleEfreetiFireResistanceSpell(const EffectCall &c) {
+    if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
+        return;
+    const uint8 count = c.combat->attackCount;
+    uint8 dmg = c.combat->damage;
+    for (uint8 i = 0; i < count; ++i) {
+        dmg = (dmg < 1) ? 0 : dmg - 1;
+        if (dmg < count)
+            dmg = count;
+    }
+    c.combat->damage = dmg;
+}
+
+static void handleHalfDamageFromElectricity(const EffectCall &c) {
+    if (c.combat && (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_ELECTRICITY))
+        c.combat->damage >>= 1;
+}
+
+static void handleHalfDamageFromPiercingSlashing(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const Goldbox::Data::ADnDCharacter *attacker =
+        c.combat->attacker ?
+        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
+    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
+        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo() : nullptr;
+    if (!weapon)
+        return;
+    const uint8 wpnType = weapon->prop().wpnType;
+    if (wpnType == 0 || (wpnType & 0x01))
+        c.combat->damage >>= 1;
+}
+
+static void handleHalfDamageFromMagicalWeapons(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const Goldbox::Data::ADnDCharacter *attacker =
+        c.combat->attacker ?
+        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
+    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
+        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo() : nullptr;
+    if (weapon && weapon->bonus > 0)
+        c.combat->damage >>= 1;
+}
+
+static void handleVulnerabilityToHolyWater(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const Goldbox::Data::ADnDCharacter *attacker =
+        c.combat->attacker ?
+        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
+    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
+        attacker->getEquippedItem(Goldbox::Data::Items::Slot::S_MAIN_HAND) : nullptr;
+    if (weapon && weapon->typeIndex == 85) {
+        c.combat->damage = static_cast<uint8>(
+            (Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 6) : 1) + 1);
+    }
+}
+
+static void handleHalfDamageFromCold(const EffectCall &c) {
+    if (c.combat && (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_COLD))
+        c.combat->damage >>= 1;
+}
+
+static void handleImmunityNonMagicalWeaponsSpell(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const Goldbox::Data::ADnDCharacter *attacker =
+        c.combat->attacker ?
+        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
+    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
+        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo() : nullptr;
+    if ((weapon == nullptr || weapon->bonus == 0) &&
+            (c.combat->attacker->race != 0 ||
+             static_cast<const Data::PoolradCharacter *>(c.combat->attacker)->highestLevel < 4))
+        c.combat->damage = 0;
+}
+
+static void handleBoulderEvasion(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const Goldbox::Data::ADnDCharacter *attacker =
+        c.combat->attacker ?
+        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
+    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
+        attacker->getEquippedItem(Goldbox::Data::Items::Slot::S_MAIN_HAND) : nullptr;
+    if (weapon && (weapon->typeIndex == 87 || weapon->typeIndex == 88))
+        rollAvoid(c.character, *c.combat, c.bridge, 50);
+}
+
 static void handleTrollFireAcidVulnerability(const EffectCall &c) {
     if (!c.combat)
         return;
@@ -1964,6 +2121,38 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(E_POOLRAD_GASEOUS_ESCAPE,                        handleGaseousEscape);
     // Poolrad raw ID 104: thri-kreen missile evasion at 60% — reuses rollAvoid helper.
     setSpecHandler(E_POOLRAD_THRI_KREEN_MISSILE_EVASION_60,         handleThriKreenMissileEvasion60);
+    // Poolrad raw ID 105: resist magic 50% — base 50% chance scaled by caster level.
+    setSpecHandler(0x69,                                             handleResistMagic50);
+    // Poolrad raw ID 106: resist magic 15% — base 15% chance scaled by caster level.
+    setSpecHandler(0x6a,                                             handleResistMagic15);
+    // Poolrad raw ID 107: 90% resistance to sleep/charm spells.
+    setSpecHandler(0x6b,                                             handleResistSleepCharm90);
+    // Poolrad raw ID 108: full immunity to sleep and charm spells.
+    setSpecHandler(0x6c,                                             handleImmunitySleepCharmSpell);
+    // Poolrad raw ID 109: full immunity to paralysis spells.
+    setSpecHandler(0x6d,                                             handleImmunityParalysisSpell);
+    // Poolrad raw ID 110: full immunity to cold damage.
+    setSpecHandler(0x6e,                                             handleImmunityColdSpell);
+    // Poolrad raw ID 111: immunity to paralysis and poison saving throws.
+    setSpecHandler(0x6f,                                             handleImmunityParalysisPoisonSpell);
+    // Poolrad raw ID 112: full immunity to fire damage.
+    setSpecHandler(0x70,                                             handleImmunityFireSpell);
+    // Poolrad raw ID 113: Efreeti fire resistance — reduce damage by 1 per attack count.
+    setSpecHandler(0x71,                                             handleEfreetiFireResistanceSpell);
+    // Poolrad raw ID 114: half damage from electricity.
+    setSpecHandler(0x72,                                             handleHalfDamageFromElectricity);
+    // Poolrad raw ID 115: half damage from piercing/slashing weapons (wpnType==0 or bit 0 set).
+    setSpecHandler(0x73,                                             handleHalfDamageFromPiercingSlashing);
+    // Poolrad raw ID 116: half damage from magical weapons (bonus > 0).
+    setSpecHandler(0x74,                                             handleHalfDamageFromMagicalWeapons);
+    // Poolrad raw ID 117: vulnerability to holy water (typeIndex==85) — replace damage with 1d6+1.
+    setSpecHandler(0x75,                                             handleVulnerabilityToHolyWater);
+    // Poolrad raw ID 118: half damage from cold.
+    setSpecHandler(0x76,                                             handleHalfDamageFromCold);
+    // Poolrad raw ID 119: immunity to non-magical weapons; bypassed by non-human or level >= 4 attacker.
+    setSpecHandler(0x77,                                             handleImmunityNonMagicalWeaponsSpell);
+    // Poolrad raw ID 120: boulder evasion — 50% avoid chance when attacker wields typeIndex 87 or 88.
+    setSpecHandler(0x78,                                             handleBoulderEvasion);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
