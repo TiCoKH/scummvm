@@ -30,6 +30,7 @@
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -674,6 +675,70 @@ static void handleEndlessRegen(const EffectCall &c) {
         c.bridge->showHealResult(&c.character);
 }
 
+// Mirrors UTIL_CheckUnaffected: runs the ES_APPLY_WITH_MESSAGE_GUARDS immunity
+// set (set 9) against effectId. If the effect is blocked by an immunity, or if
+// checkSave is true and the save succeeded, posts "is Unaffected" and returns
+// false. Otherwise refreshes or adds the effect and posts message.
+// duration == 0 has refresh-always semantics (matches original).
+static bool checkUnaffected(const EffectCall &c, uint8 effectId,
+        uint16 duration, uint8 power, bool immediate,
+        bool checkSave, bool saved,
+        const char *message) {
+    // Run immunity/protection set. The original stores the current effect id
+    // in a global (BYTE_CURRENT_EFFECT) so immunity handlers can zero it.
+    // We replicate by running the set and checking whether the character
+    // already has a blocking immunity effect for this id.
+    // Simplified: check ES_APPLY_WITH_MESSAGE_GUARDS via EffectRuntime.
+    CharacterEffects *fx = c.character.getEffects();
+
+    // Immunity check: run set 9 handlers to let them cancel the effect.
+    // We detect cancellation by checking if any set-9 effect for this id
+    // is present and would block it. The original used a mutable global;
+    // here we use the EffectRuntime path which calls handlers in-place.
+    bool blocked = false;
+    if (c.handler && fx) {
+        // Build a temporary combat context to capture set-9 modifier output.
+        Combat::CombatGlobals tempCombat;
+        if (c.combat)
+            tempCombat = *c.combat;
+        EffectRuntime runtime(const_cast<EffectHandlerBase *>(c.handler), c.bridge);
+        runtime.checkEffectSet(ES_APPLY_WITH_MESSAGE_GUARDS, *fx, c.character, &tempCombat);
+        // If the set zeroed the damage (canonical immunity signal), treat as blocked.
+        blocked = (tempCombat.damage == 0 && c.combat && c.combat->damage != 0);
+    }
+
+    if (blocked || (checkSave && saved)) {
+        if (c.bridge)
+            c.bridge->postEffectMessage(&c.character, "is Unaffected", true);
+        return false;
+    }
+
+    // Refresh or add the effect, mirroring CHARACTER_findEffect /
+    // CHARACTER_removeEffect / CHARACTER_addEffect sequence.
+    if (fx) {
+        Effect *existing = fx->findEffectById(effectId);
+        if (existing) {
+            const bool shouldRefresh = (duration == 0) ||
+                (existing->durationMin != 0 && existing->durationMin < duration);
+            if (shouldRefresh) {
+                // Remove with handler notification, then re-add below.
+                existing->immediate = 0; // suppress EFF_REMOVE on refresh
+                fx->eraseEffectById(effectId);
+            } else {
+                // Existing effect is at least as long; nothing to do.
+                return false;
+            }
+        }
+    }
+
+    c.character.addEffect(effectId, duration, power, immediate);
+
+    if (message && message[0] != '\0' && c.bridge)
+        c.bridge->postEffectMessage(&c.character, message, true);
+
+    return true;
+}
+
 // Mirrors UTIL_CheckSavingThrow: rolls d20, auto-fail on 1, auto-pass on 20,
 // otherwise accumulates saveBonus + modifier + ES_SAVING_THROW_MODS effect
 // set mods, then compares against savingThrows[savingThrowType].
@@ -1054,6 +1119,228 @@ static void handleBloodDrainingAttack(const EffectCall &c) {
     }
 }
 
+// Mirrors EFFECT_81_DragonFearAura: iterates the party and applies a
+// fear effect to each enabled character on the opposite combat side.
+// Level 0-3: paralyzed with fear (E_POOLRAD_HELPLESS_34, power=12).
+// Level 4-5: weakened by fear (E_POOLRAD_CURSED, power=12).
+// Level 6+: unaffected.
+// Saving throw vs. spell (type 4) blocks the effect.
+// Mirrors EFFECT_82_MummyFearAura: iterates the party, first stripping any
+// prior mummy-fear-aura instance from every character, then applying a
+// paralysis-fear effect to enabled characters on the opposite side.
+// Save bonus = (sideCount[target->combatSide] > 5) + (race == human ? 2 : 0).
+// Duration is 1d4 minutes. Save vs. paralysis (type 0) blocks the effect.
+// Mirrors EFFECT_83_PetrifyingGaze.
+// Announces the gaze, checks for a reflective item on the target (redirecting
+// the gaze back at the attacker when found), then rolls save vs. petrification
+// (type 1). On failure, sets the final target's status to S_STONED.
+//
+// TODO: GFX_LoadEffectTileQuad(18) and AnimateGaze() are not yet implemented;
+//       the visual gaze animation is skipped until the gfx effect system is ported.
+// Mirrors EFFECT_84_CharmingGaze.
+// Requires a valid combat target. Guards on canEngageTarget and line-of-sight
+// (both TODO: not yet ported). Announces the gaze, sets activeSpellId=10,
+// rolls save vs. spell (type 4, modifier -2), then applies charm effect (0x0B)
+// via checkUnaffected. If the effect was accepted, fires its EFF_ADD handler
+// directly to trigger the charm side-effects (combatSide swap, ai_control, etc.).
+//
+// TODO: COMBAT_canEngageTarget and COMBAT_checkLineOfSight are not yet ported;
+//       the engagement and LOS guards are skipped until the combat system
+//       provides these queries.
+// TODO: GFX_LoadEffectTileQuad(18) and COMBAT_AnimateMissilePath are not yet
+//       implemented; the visual gaze animation is skipped.
+static void handleCharmingGaze(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    if (!c.character.combatState || !c.character.combatState->target)
+        return;
+
+    Goldbox::Data::PlayerCharacter *target = c.character.combatState->target;
+
+    // TODO: if (!COMBAT_canEngageTarget(attacker, target)) return;
+    // TODO: if (!COMBAT_checkLineOfSight(attackerCol, attackerRow,
+    //                                    targetCol, targetRow)) return;
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(&c.character, "Gazes...", false);
+
+    // TODO: GFX_LoadEffectTileQuad(18);
+    // TODO: COMBAT_AnimateMissilePath(attackerCol, attackerRow,
+    //                                 targetCol, targetRow, 4, 4);
+
+    if (c.combat)
+        c.combat->activeSpellId = 10;
+
+    // power = attacker's combat side * 0x80 + 12
+    const uint8 power = static_cast<uint8>(
+        static_cast<uint8>(c.character.combatSide) * 0x80 + 12);
+
+    Effect dummy = c.effect;
+    EffectCall tc(EFF_ADD, dummy, *target, c.combat, c.bridge,
+        c.damage, c.handler);
+
+    const bool saved = checkSavingThrow(tc, 4, -2);
+
+    checkUnaffected(tc, E_POOLRAD_CHARM_PERSON, 0, power, true,
+        true, saved, "is charmed");
+
+    // If the charm effect was accepted, fire its EFF_ADD handler directly.
+    // This mirrors UTIL_CallEffectHandler(target, effect, EO_ADD, 11) which
+    // triggers the combatSide swap and ai_control logic in handleCharm.
+    if (c.handler) {
+        CharacterEffects *fx = target->getEffects();
+        Effect *charmEffect = fx ?
+            fx->findEffectById(E_POOLRAD_CHARM_PERSON) : nullptr;
+        if (charmEffect)
+            c.handler->apply(EFF_ADD, *charmEffect, *target,
+                c.combat, c.bridge);
+    }
+}
+
+static void handlePetrifyingGaze(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    if (!c.character.combatState || !c.character.combatState->target)
+        return;
+
+    Goldbox::Data::PlayerCharacter *target = c.character.combatState->target;
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(&c.character, "gazes...", false);
+
+    // TODO: GFX_LoadEffectTileQuad(18); AnimateGaze(attacker, target);
+
+    // If the attacker carries the reflective-gaze marker (raw 0x7F), check
+    // whether the target has a readied item with nameCode 'v' (0x76).
+    // If found, reflect the gaze back at the attacker.
+    CharacterEffects *attackerFx = c.character.getEffects();
+    if (attackerFx && attackerFx->hasEffect(E_POOLRAD_REFLECTIVE_GAZE_MARKER)) {
+        const Goldbox::Data::ADnDCharacter *adndTarget =
+            static_cast<const Goldbox::Data::ADnDCharacter *>(target);
+        for (const Goldbox::Data::Items::CharacterItem &item :
+                adndTarget->inventory.items()) {
+            if (!item.readied)
+                continue;
+            if (item.nameCode1 == 'v' ||
+                    item.nameCode2 == 'v' ||
+                    item.nameCode3 == 'v') {
+                if (c.bridge)
+                    c.bridge->postEffectMessage(target, "reflects it!", false);
+                // TODO: AnimateGaze(target, attacker);
+                target = &c.character;
+                break;
+            }
+        }
+    }
+
+    Effect dummy = c.effect;
+    EffectCall tc(EFF_ADD, dummy, *target, c.combat, c.bridge,
+        c.damage, c.handler);
+
+    if (!checkSavingThrow(tc, 1, 0)) {
+        Goldbox::Data::Effects::EffectSystem effectSystem(
+            const_cast<EffectHandlerBase *>(c.handler), c.bridge);
+        effectSystem.setStatus(*target, Goldbox::Data::S_STONED, "is Stoned");
+    }
+}
+
+static void handleMummyFearAura(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
+        Goldbox::VmInterface::getParty();
+    if (!party)
+        return;
+
+    const Goldbox::Data::CombatSide sourceSide = c.character.combatSide;
+
+    for (Goldbox::Data::PlayerCharacter *ch : *party) {
+        if (!ch)
+            continue;
+
+        // Always strip any prior mummy fear aura instance first.
+        CharacterEffects *fx = ch->getEffects();
+        if (fx)
+            fx->eraseEffectById(E_POOLRAD_MUMMY_FEAR_AURA);
+
+        if (!ch->enabled)
+            continue;
+
+        // Only affect characters on the opposite side from the mummy.
+        if (ch->combatSide == sourceSide)
+            continue;
+
+        // saveBonus = 1 if the target's side has more than 5 members, else 0.
+        // Humans receive an additional +2.
+        int8 saveBonus = 0;
+        if (c.combat && c.combat->sideCount[ch->combatSide] > 5)
+            saveBonus = 1;
+        if (ch->race == Goldbox::Data::R_HUMAN)
+            saveBonus += 2;
+
+        const uint16 duration = Goldbox::g_engine ?
+            static_cast<uint16>(Goldbox::g_engine->rollDice(1, 4)) : 1;
+
+        Effect dummy = c.effect;
+        EffectCall tc(EFF_ADD, dummy, *ch, c.combat, c.bridge,
+            c.damage, c.handler);
+
+        const bool saved = checkSavingThrow(tc, 0, saveBonus);
+
+        checkUnaffected(tc, E_POOLRAD_HELPLESS_34, duration, 12, false,
+            true, saved, "is paralyzed with fear");
+    }
+}
+
+static void handleDragonFearAura(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
+        Goldbox::VmInterface::getParty();
+    if (!party)
+        return;
+
+    const Goldbox::Data::CombatSide dragonSide = c.character.combatSide;
+
+    for (Goldbox::Data::PlayerCharacter *ch : *party) {
+        if (!ch || !ch->enabled)
+            continue;
+
+        // Only affect characters on the opposite side from the dragon.
+        if (ch->combatSide == dragonSide)
+            continue;
+
+        const Data::PoolradCharacter *pch =
+            static_cast<const Data::PoolradCharacter *>(ch);
+        const uint8 level = pch->highestLevel;
+
+        // Level 6+ are immune to dragon fear.
+        if (level >= 6)
+            continue;
+
+        // Build a minimal EffectCall for the target so checkUnaffected and
+        // checkSavingThrow operate on the correct character.
+        Effect dummy = c.effect;
+        EffectCall tc(EFF_ADD, dummy, *ch, c.combat, c.bridge,
+            c.damage, c.handler);
+
+        const bool saved = checkSavingThrow(tc, 4, 0);
+
+        if (level <= 3) {
+            checkUnaffected(tc, E_POOLRAD_HELPLESS_34, 0, 12, false,
+                true, saved, "is paralyzed with fear");
+        } else {
+            // level == 4 or 5
+            checkUnaffected(tc, E_POOLRAD_CURSED, 0, 12, false,
+                true, saved, "is weakened by fear");
+        }
+    }
+}
+
 static void handleAnkhegAcidMeleeAttack(const EffectCall &c) {
     if (c.op != EFF_ADD || !c.combat)
         return;
@@ -1301,6 +1588,14 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(0x4f,                            handleFireTouchAttack);
     // Poolrad raw ID 80: ankheg acid melee attack — 1d4 acid damage, no saving throw.
     setSpecHandler(0x50,                            handleAnkhegAcidMeleeAttack);
+    // Poolrad raw ID 81: dragon fear aura — fear effect on all opposite-side party members.
+    setSpecHandler(0x51,                            handleDragonFearAura);
+    // Poolrad raw ID 82: mummy fear aura — strips prior aura, then paralysis-fear on opposite side.
+    setSpecHandler(0x52,                            handleMummyFearAura);
+    // Poolrad raw ID 83: petrifying gaze — save vs. petrification or stoned; reflective item check.
+    setSpecHandler(0x53,                            handlePetrifyingGaze);
+    // Poolrad raw ID 84: charming gaze — save vs. spell or charmed; LOS + engage guards (TODO).
+    setSpecHandler(0x54,                            handleCharmingGaze);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
