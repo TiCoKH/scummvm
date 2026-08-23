@@ -43,7 +43,7 @@ namespace Poolrad {
 namespace Views {
 
 CombatView::CombatView()
-    : View("Combat"), _phase(PHASE_NONE), _combatRound(0),
+    : View("Combat"), _phase(PHASE_NONE),
       _needsFullRedraw(true) {
 }
 
@@ -52,7 +52,7 @@ CombatView::~CombatView() {
 
 void CombatView::setup(const Combat::CombatParams &params) {
     _params = params;
-    _combatRound = 0;
+    _globals.turnCounter = 0;
     _phase = PHASE_SETUP;
     _bridge = Goldbox::Poolrad::getEffectHostBridge();
 
@@ -180,7 +180,11 @@ void CombatView::draw() {
 }
 
 bool CombatView::tick() {
-    // TODO: AI turn execution, animation stepping
+    // TODO: AI turn execution, animation stepping.
+    // At the end of each full combat turn, increment the turn counter:
+    //   _globals.turnCounter++;
+    // This mirrors COMBAT_TURN_COUNTER = COMBAT_TURN_COUNTER + 1 in
+    // DIALOG_CombatEnd, which fires once per turn after all characters act.
     return false;
 }
 

@@ -1529,6 +1529,45 @@ static void applyLevelDrain(Data::PoolradCharacter &ch, uint8 levelCount,
     }
 }
 
+// Mirrors EFFECT_89_CombatTurnTrigger: gates the electricity breath attack
+// on the combat turn counter. When both attackRollCount and attackRoll are
+// zero the trigger flag is cleared (effect ready to fire again next turn).
+// Otherwise, if the trigger has not yet fired this turn, sets attackRoll to
+// 0xFF (attack blocked/redirected) and marks the trigger as fired.
+static void handleCombatTurnTrigger(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    if (c.combat->turnCounter == 0 && c.combat->attackRoll == 0) {
+        c.effect.power &= 0x0F;
+    } else if (!(c.effect.power & 0x10)) {
+        c.combat->attackRoll = 0xFF;
+        c.effect.power |= 0x10;
+    }
+}
+
+static void handleDiseaseMeleeAttack(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    Goldbox::Data::PlayerCharacter *target =
+        c.character.combatState ? c.character.combatState->target : nullptr;
+    if (!target || !target->enabled)
+        return;
+
+    CharacterEffects *fx = target->getEffects();
+    if (fx && fx->hasEffect(E_POOLRAD_DISEASED))
+        return;
+
+    target->addEffect(E_POOLRAD_DISEASED, 14400, 0xff, true);
+
+    const uint8 roll = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(1, 6)) : 1;
+    target->addEffect(E_POOLRAD_ROT, 43200, roll * 16 + 15, true);
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(target, "is Diseased", true);
+}
+
 static void handleDrain1Level(const EffectCall &c) {
     if (c.op != EFF_ADD)
         return;
@@ -1713,6 +1752,10 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(0x55,                            handleDrain1Level);
     // Poolrad raw ID 86: drain 2 levels from combat target.
     setSpecHandler(0x56,                            handleDrain2Levels);
+    // Poolrad raw ID 87: disease melee attack — applies disease + disease damage to target.
+    setSpecHandler(0x57,                            handleDiseaseMeleeAttack);
+    // Poolrad raw ID 89: combat turn trigger — gates electricity breath on turn counter.
+    setSpecHandler(0x59,                            handleCombatTurnTrigger);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
