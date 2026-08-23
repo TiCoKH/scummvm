@@ -764,6 +764,7 @@ static bool checkSavingThrow(const EffectCall &c, uint8 savingThrowType,
     Combat::CombatGlobals tempCombat;
     if (c.combat)
         tempCombat = *c.combat;
+    tempCombat.savingThrowType = savingThrowType;
 
     CharacterEffects *fx = c.character.getEffects();
     if (fx && c.handler) {
@@ -1534,6 +1535,77 @@ static void applyLevelDrain(Data::PoolradCharacter &ch, uint8 levelCount,
 // zero the trigger flag is cleared (effect ready to fire again next turn).
 // Otherwise, if the trigger has not yet fired this turn, sets attackRoll to
 // 0xFF (attack blocked/redirected) and marks the trigger as fired.
+static void handleConstitutionSavingBonus(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const uint8 con = c.character.abilities.constitution.current;
+    uint8 bonus = 0;
+    if      (con >= 18) bonus = 5;
+    else if (con >= 14) bonus = 4;
+    else if (con >= 11) bonus = 3;
+    else if (con >=  7) bonus = 2;
+    else if (con >=  4) bonus = 1;
+    c.combat->savingThrow += bonus;
+}
+
+static void handleHalflingPoisonBonus(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    if (c.combat->activeSpellId == 0x0F) {
+        rollAvoid(c.character, *c.combat, c.bridge, 100);
+        if (c.bridge)
+            c.bridge->postEffectMessage(&c.character, "is unaffected", true);
+    } else if (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_ELECTRICITY) {
+        rollAvoid(c.character, *c.combat, c.bridge, 100);
+    }
+}
+
+static void handleHalfDamageFromFire(const EffectCall &c) {
+    if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
+        return;
+    c.combat->damage >>= 1;
+}
+
+static void handleHalfDamageBluntPiercing(const EffectCall &c) {
+    if (!c.combat || !c.combat->attacker)
+        return;
+    const Goldbox::Data::ADnDCharacter *attacker =
+        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker);
+    const Goldbox::Data::Items::CharacterItem *weapon =
+        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo();
+    if (weapon == nullptr)
+        return;
+    const Goldbox::Data::Items::ItemProperty &prop = weapon->prop();
+    if (prop.wpnType & 0x81)
+        c.combat->damage >>= 1;
+}
+
+static void handleFightOnAtZeroHp(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    c.effect.immediate = 0;
+    if (!c.character.enabled)
+        return;
+    Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
+    effectSystem.setStatus(c.character, Goldbox::Data::S_DEAD, "Falls dead");
+}
+
+static void handleDwarfSaveBonus(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    const uint8 type = c.combat->savingThrowType;
+    if (type != 2 && type != 4)
+        return;
+    const uint8 con = c.character.abilities.constitution.current;
+    uint8 bonus = 0;
+    if      (con >= 18) bonus = 5;
+    else if (con >= 14) bonus = 4;
+    else if (con >= 11) bonus = 3;
+    else if (con >=  7) bonus = 2;
+    else if (con >=  4) bonus = 1;
+    c.combat->savingThrow += bonus;
+}
+
 static void handleCombatTurnTrigger(const EffectCall &c) {
     if (!c.combat)
         return;
@@ -1674,12 +1746,10 @@ void EffectHandler::setupHandlers() {
     setHandler(E_SLOW_POISON,                       handleSlowPoison);
     setHandler(E_ENTANGLE,                          handleEntangle);
     setHandler(E_PETRIFYING_GAZE,                   handleAttackBonus2);
-    setHandler(E_BEHOLDER_RAYS_AFFECT_57,           handleAttackBonus2);
     setHandler(E_AFFECT_4A,                         handleAttackBonus2);
     setHandler(E_AFFECT_4E,                         handleAttackBonus2);
     setHandler(E_FIRE_ATTACK_2D10,                  handleAttackDamageBonus);
     setHandler(E_ANKHEG_ACID_ATTACK,                handleAttackDamageBonus);
-    setHandler(E_GIANT_SLUG_SPIT_ACID,              handleAttackDamageBonus);
     setHandler(E_BREATH_ELEC,                       handleAttackDamageBonus);
     setHandler(E_BREATH_ACID,                       handleAttackDamageBonus);
     setHandler(E_CLOUD_KILL,                        handleAttackDamageBonus);
@@ -1756,6 +1826,18 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(0x57,                            handleDiseaseMeleeAttack);
     // Poolrad raw ID 89: combat turn trigger — gates electricity breath on turn counter.
     setSpecHandler(0x59,                            handleCombatTurnTrigger);
+    // Poolrad raw ID 90: constitution saving throw bonus (racial).
+    setSpecHandler(E_POOLRAD_CON_SAVING_BONUS,      handleConstitutionSavingBonus);
+    // Poolrad raw ID 91: halfling poison/electricity immunity (racial).
+    setSpecHandler(E_POOLRAD_HALFLING_POISON_BONUS, handleHalflingPoisonBonus);
+    // Poolrad raw ID 93: half damage from fire attacks.
+    setSpecHandler(E_POOLRAD_HALF_DAMAGE_FROM_FIRE,      handleHalfDamageFromFire);
+    // Poolrad raw ID 94: half damage from blunt/piercing weapons (wpnType & 0x81).
+    setSpecHandler(E_POOLRAD_HALF_DAMAGE_BLUNT_PIERCING, handleHalfDamageBluntPiercing);
+    // Poolrad raw ID 95: fight on after being reduced to 0 HP; clears immediate, then kills if enabled.
+    setSpecHandler(E_POOLRAD_FIGHT_ON_AT_ZERO_HP,        handleFightOnAtZeroHp);
+    // Poolrad raw ID 97: dwarf constitution saving throw bonus (vs. rod/staff/wand and vs. spell).
+    setSpecHandler(E_POOLRAD_DWARF_SAVE_BONUS,           handleDwarfSaveBonus);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
