@@ -127,6 +127,11 @@ uint8 computeItemLimitMask(const Common::Array<uint8> &levels);
 // Saving throws accessor: baseClassIndex 0..7, level 1..9 (clamped)
 const SavingThrows &savingThrowsAt(uint8 baseClassIndex, uint8 level);
 
+// XP required to reach the next level for a given base class (0..7) and
+// current level (1-based). Returns -1 if the class has no further progression
+// or the level is out of range.
+int32 xpForClassAtLevel(uint8 baseClassIndex, uint8 level);
+
 // Multiclass age mapping helper: returns forced base class index to use for age roll
 // for specific composite class types, or 0xFF if not forced.
 uint8 forcedBaseIndexForMulticlass(uint8 classId);

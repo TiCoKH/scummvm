@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -27,6 +27,7 @@
 #include "goldbox/data/effects/effect_common_handler.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/effect_system.h"
+#include "goldbox/data/rules/rules.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
@@ -1435,6 +1436,118 @@ static void handleTrainingManualBodilyHealth(const EffectCall &c) {
     }
 }
 
+static uint8 selectLevelDrainClass(const Data::PoolradCharacter &ch, int32 &outXp) {
+    int32 bestXp = 0;
+    uint8 bestClass = 0;
+    uint8 bestLevel = 0;
+
+    for (uint8 classId = 0; classId < BASE_CLASS_NUM; ++classId) {
+        uint8 classLevel = ch.levels[static_cast<Goldbox::Data::ClassADnD>(classId)];
+        if (classLevel < 2)
+            continue;
+
+        int32 xp = Goldbox::Data::Rules::xpForClassAtLevel(classId, classLevel);
+
+        if (bestLevel <= classLevel) {
+            if (bestXp <= xp || xp == -1) {
+                bestXp = xp;
+                bestLevel = classLevel;
+                bestClass = classId;
+            }
+        }
+    }
+
+    outXp = bestXp;
+    return bestClass;
+}
+
+static void applyLevelDrain(Data::PoolradCharacter &ch, uint8 levelCount,
+        EffectHostBridge *bridge) {
+    if (bridge)
+        bridge->postEffectMessage(&ch, "loses a level", true);
+
+    if (ch.healthStatus == Goldbox::Data::S_ANIMATED) {
+        Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, bridge);
+        effectSystem.setStatus(ch, Goldbox::Data::S_GONE, "is dead forever");
+        ch.hitPoints.max = 0;
+        return;
+    }
+
+    for (uint8 drain = 0; drain < levelCount; ++drain) {
+        if (ch.healthStatus == Goldbox::Data::S_GONE)
+            break;
+
+        ch.drainedLevels++;
+
+        uint8 totalLevels = 0;
+        for (uint8 i = 0; i < BASE_CLASS_NUM; ++i)
+            totalLevels += ch.levels[static_cast<Goldbox::Data::ClassADnD>(i)];
+        if (totalLevels == 0)
+            totalLevels = 1;
+
+        uint8 hpLoss = ch.hitPoints.max / totalLevels;
+
+        for (uint8 i = 0; i < hpLoss; ++i) {
+            if (ch.hitPoints.max > 0)      ch.hitPoints.max--;
+            if (ch.hitPointsRolled > 0)    ch.hitPointsRolled--;
+            if (ch.hitPoints.current > 0)  ch.hitPoints.current--;
+            ch.drainedHPs++;
+        }
+
+        int32 newXp = 0;
+        uint8 classId = selectLevelDrainClass(ch, newXp);
+
+        if (ch.highestLevel < 2) {
+            Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, bridge);
+            effectSystem.setStatus(ch, Goldbox::Data::S_GONE, "is dead forever");
+            ch.hitPoints.max = 0;
+
+            if (ch.levels[static_cast<Goldbox::Data::ClassADnD>(classId)] > 0 &&
+                    levelCount == 2) {
+                int32 dummy = 0;
+                classId = selectLevelDrainClass(ch, dummy);
+                ch.levels[static_cast<Goldbox::Data::ClassADnD>(classId)] = 0;
+            }
+        } else {
+            ch.levels[static_cast<Goldbox::Data::ClassADnD>(classId)]--;
+
+            if (ch.hitPoints.current == 0 &&
+                    ch.healthStatus != Goldbox::Data::S_DEAD) {
+                Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, bridge);
+                effectSystem.setStatus(ch, Goldbox::Data::S_DEAD, "is killed");
+            }
+
+            ch.recalcCombatStats();
+        }
+
+        int32 updatedXp = 0;
+        classId = selectLevelDrainClass(ch, updatedXp);
+        ch.highestLevel = ch.levels[static_cast<Goldbox::Data::ClassADnD>(classId)];
+        ch.experiencePoints = static_cast<uint32>(updatedXp > 0 ? updatedXp : 0);
+
+        ch.recalcCombatStats();
+    }
+}
+
+static void handleDrain1Level(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    Data::PoolradCharacter *target = c.character.combatState
+        ? static_cast<Data::PoolradCharacter *>(c.character.combatState->target)
+        : nullptr;
+    if (target)
+        applyLevelDrain(*target, 1, c.bridge);
+}
+
+static void handleDrain2Levels(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+    Data::PoolradCharacter *target = c.character.combatState
+        ? static_cast<Data::PoolradCharacter *>(c.character.combatState->target)
+        : nullptr;
+    if (target)
+        applyLevelDrain(*target, 2, c.bridge);
+}
 } // namespace
 
 EffectHandler::EffectHandler() {
@@ -1596,6 +1709,10 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(0x53,                            handlePetrifyingGaze);
     // Poolrad raw ID 84: charming gaze — save vs. spell or charmed; LOS + engage guards (TODO).
     setSpecHandler(0x54,                            handleCharmingGaze);
+    // Poolrad raw ID 85: drain 1 level from combat target.
+    setSpecHandler(0x55,                            handleDrain1Level);
+    // Poolrad raw ID 86: drain 2 levels from combat target.
+    setSpecHandler(0x56,                            handleDrain2Levels);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
