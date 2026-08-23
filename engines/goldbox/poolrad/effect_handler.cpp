@@ -1924,6 +1924,53 @@ static void handleRemoveEffect23OnRemove(const EffectCall &c) {
     }
 }
 
+static void handleLingeringBreath(const EffectCall &c) {
+    if (c.op != EFF_ADD)
+        return;
+
+    // 50% chance to skip unless the turn counter is zero (always fires then).
+    if (c.combat && c.combat->turnCounter != 0) {
+        const int roll = Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 100) : 51;
+        if (roll <= 50)
+            return;
+    }
+
+    (void)(Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr); // ctx reserved for GFX/spell path
+
+
+    // TODO: COMBAT_GetCharacterX/Y — position lookup not yet used by unported GFX/spell path.
+    // uint8 ax = ctx ? ctx->table.getCharacterCol(&c.character) : 0;
+    // uint8 ay = ctx ? ctx->table.getCharacterRow(&c.character) : 0;
+
+    if (c.bridge)
+        c.bridge->postEffectMessage(&c.character, "Breathes!", true);
+
+    // TODO: SPELL_HANDLER_0 — platform-specific spell dispatch not yet ported.
+    // TODO: GFX_LoadEffectTileQuad(19)
+    // TODO: COMBAT_AnimateMissilePath(ax, ay, targetX, targetY, ...)
+    // TODO: SPELL_ResolveAoEHitAtTile(targetX, targetY, char_ptr->hp_max, 3, ...)
+    // TODO: SPELL_TraceBoltPath(...)
+
+    // Remove the poison status that the breath attack inflicts on the attacker.
+    CharacterEffects *fx = c.character.getEffects();
+    if (fx) {
+        fx->eraseEffectById(static_cast<uint8>(E_POISONED));
+        asPoolrad(c.character).effectState.flags &= ~Data::PoolradCharacter::EF_POISONED;
+    }
+
+    // power >= 0xFE: persistent state — decrement and keep the effect.
+    // Otherwise: consume the effect.
+    if (c.effect.power >= 0xfe) {
+        --c.effect.power;
+    } else {
+        c.effect.immediate = 0;
+        if (fx)
+            fx->eraseEffectById(c.effect.id);
+    }
+
+    c.character.resetCombatAction();
+}
+
 static void handleTrollFireAcidVulnerability(const EffectCall &c) {
     if (!c.combat)
         return;
@@ -2292,6 +2339,8 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(0x56,                            handleDrain2Levels);
     // Poolrad raw ID 87: disease melee attack — applies disease + disease damage to target.
     setSpecHandler(0x57,                            handleDiseaseMeleeAttack);
+    // Poolrad raw ID 88: lingering breath - fires breath attack each turn; power>=0xFE persists.
+    setSpecHandler(0x58,                            handleLingeringBreath);
     // Poolrad raw ID 89: combat turn trigger — gates electricity breath on turn counter.
     setSpecHandler(0x59,                            handleCombatTurnTrigger);
     // Poolrad raw ID 90: constitution saving throw bonus (racial).
