@@ -63,7 +63,7 @@ void StoreDialog::onShopActivate() {
 }
 
 void StoreDialog::getShopFlags(bool &hasItems, bool &hasMoney) {
-    const TreasurePool &pool = VmInterface::getTreasurePool();
+    const Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     hasItems = pool.hasItems();
     hasMoney = pool.hasAnyCoin();
 }
@@ -76,7 +76,7 @@ void StoreDialog::buildShopItemList() {
     _shopMenuItems.items.clear();
     _shopMenuItems.currentSelection = 0;
 
-    TreasurePool &pool = VmInterface::getTreasurePool();
+    Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     Common::Array<Goldbox::Data::Items::CharacterItem> &items = pool.items();
 
     // Original uses a prepend-to-head linked list, so iteration order is
@@ -170,7 +170,7 @@ void StoreDialog::closeBuySelector() {
 }
 
 void StoreDialog::attemptBuy() {
-    TreasurePool &pool = VmInterface::getTreasurePool();
+    Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     Common::Array<Goldbox::Data::Items::CharacterItem> &items = pool.items();
     int sel = _shopMenuItems.currentSelection;
     // Menu is in reverse order relative to pool array
@@ -208,7 +208,7 @@ void StoreDialog::attemptBuy() {
         redraw();
     } else {
         // Check pool money
-        TreasurePool &poolRef = VmInterface::getTreasurePool();
+        Runtime::TreasurePool &poolRef = VmInterface::getTreasurePool();
         uint32 poolGold = poolRef.coins().getGoldValue();
         if (poolGold >= cost) {
             // Pool can afford — open party selector for receive
@@ -281,7 +281,7 @@ void StoreDialog::handleReceiveResult(const MenuResultMessage &result) {
     }
 
     // Remove item from pool
-    TreasurePool &pool = VmInterface::getTreasurePool();
+    Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     Common::Array<Goldbox::Data::Items::CharacterItem> &items = pool.items();
     int sel = _shopMenuItems.currentSelection;
     int poolIdx = (int)items.size() - 1 - sel;
@@ -322,7 +322,7 @@ void StoreDialog::deductFromParty(uint32 cost) {
 }
 
 void StoreDialog::deductFromPool(uint32 cost) {
-    TreasurePool &pool = VmInterface::getTreasurePool();
+    Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     uint32 poolGold = pool.coins().getGoldValue();
     pool.coins().setFromGoldValue(poolGold - cost);
 }

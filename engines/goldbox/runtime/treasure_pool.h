@@ -35,6 +35,8 @@ struct CharacterItem;
 } // namespace Items
 } // namespace Data
 
+namespace Runtime {
+
 /**
  * Shared runtime treasure pool.
  *
@@ -94,6 +96,7 @@ private:
     Common::Array<Data::Items::CharacterItem> *_items;
 };
 
+} // namespace Runtime
 } // namespace Goldbox
 
 #endif // GOLDBOX_RUNTIME_TREASURE_POOL_H

@@ -76,7 +76,7 @@ void TreasureDialog::actionDetect() {
 }
 
 void TreasureDialog::getShopFlags(bool &hasItems, bool &hasMoney) {
-    const TreasurePool &pool = VmInterface::getTreasurePool();
+    const Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     hasItems = pool.hasItems();
     hasMoney = pool.hasAnyCoin();
 }

@@ -23,7 +23,7 @@
 
 #include "goldbox/spells/spell_context.h"
 #include "goldbox/spells/spell_registry.h"
-#include "goldbox/spells/spell_resolver.h"
+#include "goldbox/spells/spell_generic_handler.h"
 #include "goldbox/spells/spell_targeter.h"
 
 namespace Goldbox {

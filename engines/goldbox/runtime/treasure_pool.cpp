@@ -25,6 +25,7 @@
 #include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
+namespace Runtime {
 
 TreasurePool::TreasurePool() {
     _items = new Common::Array<Data::Items::CharacterItem>();
@@ -111,4 +112,5 @@ bool TreasurePool::shareMoneyToParty(
     return hasAnyCoin();
 }
 
+} // namespace Runtime
 } // namespace Goldbox

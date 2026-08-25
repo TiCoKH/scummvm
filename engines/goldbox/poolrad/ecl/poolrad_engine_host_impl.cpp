@@ -1900,7 +1900,7 @@ VmResult PoolradEngineHostImpl::setupTreasure(uint8 copper, uint8 silver,
     if (!_engine)
         return VM_ERROR;
 
-    TreasurePool &pool = _engine->getTreasurePool();
+    Runtime::TreasurePool &pool = _engine->getTreasurePool();
     pool.clear();
 
     pool.setCoin(Goldbox::Data::VAL_COPPER,   copper);

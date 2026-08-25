@@ -16,50 +16,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
 
-#ifndef GOLDBOX_DATA_DAMAGE_UTILS_H
-#define GOLDBOX_DATA_DAMAGE_UTILS_H
-
-#include "common/scummsys.h"
-#include "common/str.h"
-#include "goldbox/combat/combat_globals.h"
-
-namespace Goldbox {
-namespace Data {
-
-class DamageUtils {
-public:
-    static Common::String buildDamageMessage(uint8 finalDamage,
-            uint8 behaviorFlags) {
-        Common::String msg;
-        if (finalDamage == 1) {
-            msg = "takes 1 point of damage";
-        } else {
-            msg = Common::String::format("takes %u points of damage",
-                    (unsigned)finalDamage);
-        }
-
-        const uint8 elemFlags = behaviorFlags & 0xf7;
-        if (elemFlags & Combat::CombatGlobals::DMG_FIRE) {
-            msg += " from Fire";
-        } else if (elemFlags & Combat::CombatGlobals::DMG_COLD) {
-            msg += " from Cold";
-        } else if (elemFlags & Combat::CombatGlobals::DMG_ELECTRICITY) {
-            msg += " from Electricity";
-        } else if (elemFlags & Combat::CombatGlobals::DMG_ACID) {
-            msg += " from Acid";
-        }
-
-        if (behaviorFlags == Combat::CombatGlobals::DMG_MAGIC)
-            msg += " from Magic";
-
-        return msg;
-    }
-};
-
-} // namespace Data
-} // namespace Goldbox
-
-#endif // GOLDBOX_DATA_DAMAGE_UTILS_H
+// Forwarding header — DamageUtils has moved to combat/damage_utils.h
+#include "goldbox/combat/damage_utils.h"

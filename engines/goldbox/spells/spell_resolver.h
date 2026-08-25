@@ -18,37 +18,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GOLDBOX_SPELLS_SPELL_RESOLVER_H
-#define GOLDBOX_SPELLS_SPELL_RESOLVER_H
-
-#include "goldbox/spells/spell_handlers.h"
-
-namespace Goldbox {
-namespace Spells {
-
-/**
- * Default spell handler used whenever a SpellDefinition has no game- or
- * spell-specific HandlerId (kHandlerGeneric).
- *
- * Mirrors the original SPELL_ApplyOnTargets generic resolution path for
- * pure status-effect spells: per target, roll a saving throw if the spell
- * allows one, then add/refresh the SpellEntry::effectId with a duration
- * computed from fixedDuration + perLvlDuration * casterLevel.
- *
- * Spells that also need an attack roll, direct damage, or other special
- * casing (e.g. Magic Missile, Fireball, Hold Person's HD limit) should be
- * registered with a dedicated HandlerId/ISpellHandler instead; this class
- * intentionally does not deal damage since SpellEntry carries no damage
- * dice data.
- */
-class GenericSpellHandler : public ISpellHandler {
-public:
-    SpellCastResult execute(const SpellContext &context,
-                            const SpellDefinition &definition,
-                            const TargetSelection &targets) const override;
-};
-
-} // namespace Spells
-} // namespace Goldbox
-
-#endif // GOLDBOX_SPELLS_SPELL_RESOLVER_H
+// Forwarding header — GenericSpellHandler has moved to spell_generic_handler.h
+#include "goldbox/spells/spell_generic_handler.h"

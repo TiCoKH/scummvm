@@ -326,7 +326,7 @@ void ShopBaseDialog::actionTake() {
 void ShopBaseDialog::actionPool() {
     Common::List<Goldbox::Data::PlayerCharacter *> *party =
         VmInterface::getParty();
-    TreasurePool &pool = VmInterface::getTreasurePool();
+    Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     pool.poolMoneyFromParty(*party);
     refreshScreen();
 }
@@ -334,7 +334,7 @@ void ShopBaseDialog::actionPool() {
 void ShopBaseDialog::actionShare() {
     Common::List<Goldbox::Data::PlayerCharacter *> *party =
         VmInterface::getParty();
-    TreasurePool &pool = VmInterface::getTreasurePool();
+    Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     pool.shareMoneyToParty(*party);
     refreshScreen();
 }
@@ -412,7 +412,7 @@ const char *ShopBaseDialog::kValuableNames[Goldbox::Data::VALUABLE_COUNT] = {
 };
 
 bool ShopBaseDialog::poolHasValuables() const {
-    const TreasurePool &pool = VmInterface::getTreasurePool();
+    const Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     const Goldbox::Data::ValuableItems &coins = pool.coins();
     for (int i = 0; i < Goldbox::Data::VALUABLE_COUNT; ++i) {
         if (coins.values[i] != 0)
@@ -426,7 +426,7 @@ void ShopBaseDialog::buildTakeMenuItems() {
     _takeMenuItems.currentSelection = 0;
     _takeSlotMap.clear();
 
-    const TreasurePool &pool = VmInterface::getTreasurePool();
+    const Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     const Goldbox::Data::ValuableItems &coins = pool.coins();
 
     // Iterate 6 downto 0 (Jewelry first) matching original build order
@@ -569,7 +569,7 @@ void ShopBaseDialog::handleTakeAmountResult(const MenuResultMessage &result) {
 
     // Parse amount and clamp to available
     uint32 amount = (uint32)atoi(inputStr.c_str());
-    TreasurePool &pool = VmInterface::getTreasurePool();
+    Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     Goldbox::Data::ValuableItems &poolCoins = pool.coins();
     uint16 available = poolCoins.values[_takeSelectedType];
 

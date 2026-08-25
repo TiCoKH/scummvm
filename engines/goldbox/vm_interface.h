@@ -150,7 +150,7 @@ public:
     static RuntimeGeoBlock &getRuntimeGeo() { return g_engine->getRuntimeGeo(); }
 
     // Shared treasure pool (populated by TREASURE opcode, read by shop/treasure dialogs)
-    static TreasurePool &getTreasurePool() { return g_engine->getTreasurePool(); }
+    static Runtime::TreasurePool &getTreasurePool() { return g_engine->getTreasurePool(); }
 
     // Icon Manager accessor
     static Gfx::IconManager *getIconManager();
