@@ -742,11 +742,9 @@ static bool checkUnaffected(const EffectCall &c, uint8 effectId,
 
 // Mirrors UTIL_CheckSavingThrow: rolls d20, auto-fail on 1, auto-pass on 20,
 // otherwise accumulates saveBonus + modifier + ES_SAVING_THROW_MODS effect
-// set mods, then compares against savingThrows[savingThrowType].
-// savingThrowType: 0=vsParalysis, 1=vsPetrification, 2=vsRodStaffWand,
-//                 3=vsBreathWeapon, 4=vsSpell
-static bool checkSavingThrow(const EffectCall &c, uint8 savingThrowType,
-        int8 saveModifier) {
+// set mods, then compares against the matching SavingThrows field.
+static bool checkSavingThrow(const EffectCall &c,
+        Goldbox::Data::Spells::SaveVerseType saveType, int8 saveModifier) {
     if (!Goldbox::g_engine)
         return false;
 
@@ -764,7 +762,7 @@ static bool checkSavingThrow(const EffectCall &c, uint8 savingThrowType,
     Combat::CombatGlobals tempCombat;
     if (c.combat)
         tempCombat = *c.combat;
-    tempCombat.savingThrowType = savingThrowType;
+    tempCombat.savingThrowType = saveType;
 
     CharacterEffects *fx = c.character.getEffects();
     if (fx && c.handler) {
@@ -773,7 +771,7 @@ static bool checkSavingThrow(const EffectCall &c, uint8 savingThrowType,
     }
 
     // SavingThrows fields are laid out in order matching savingThrowType 0-4.
-    const uint8 target = (&adnd.savingThrows.vsParalysis)[savingThrowType];
+    const uint8 target = (&adnd.savingThrows.vsParalysis)[static_cast<uint8>(saveType)];
     const int total = roll + adnd.saveBonus + saveModifier + tempCombat.savingThrow;
     return total >= target;
 }
@@ -789,7 +787,7 @@ static void applyPoisonAttack(const EffectCall &c, int8 saveModifier) {
         fx->eraseEffectById(static_cast<uint8>(E_POISONED));
     c.character.effectState.flags &= ~CEF_POISONED;
 
-    if (checkSavingThrow(c, 0, saveModifier))
+    if (checkSavingThrow(c, Goldbox::Data::Spells::SVS_POISON, saveModifier))
         return;
 
     Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
@@ -819,7 +817,7 @@ static void handlePoisonMeleeSavePenalty2(const EffectCall &c) {
 // Mirrors EFFECT_ApplyParalysis: on a failed save vs paralysis, shows
 // combat feedback and applies the paralyzed status (effect param 12).
 static void applyParalysisAttack(const EffectCall &c, uint8 duration) {
-    if (checkSavingThrow(c, 0, 0))
+    if (checkSavingThrow(c, Goldbox::Data::Spells::SVS_POISON, 0))
         return;
 
     if (c.bridge)
@@ -1182,7 +1180,7 @@ static void handleCharmingGaze(const EffectCall &c) {
     EffectCall tc(EFF_ADD, dummy, *target, c.combat, c.bridge,
         c.damage, c.handler);
 
-    const bool saved = checkSavingThrow(tc, 4, -2);
+    const bool saved = checkSavingThrow(tc, Goldbox::Data::Spells::SVS_SPELL, -2);
 
     checkUnaffected(tc, E_POOLRAD_CHARM_PERSON, 0, power, true,
         true, saved, "is charmed");
@@ -1241,7 +1239,7 @@ static void handlePetrifyingGaze(const EffectCall &c) {
     EffectCall tc(EFF_ADD, dummy, *target, c.combat, c.bridge,
         c.damage, c.handler);
 
-    if (!checkSavingThrow(tc, 1, 0)) {
+    if (!checkSavingThrow(tc, Goldbox::Data::Spells::SVS_PETRIFICATION, 0)) {
         Goldbox::Data::Effects::EffectSystem effectSystem(
             const_cast<EffectHandlerBase *>(c.handler), c.bridge);
         effectSystem.setStatus(*target, Goldbox::Data::S_STONED, "is Stoned");
@@ -1290,7 +1288,7 @@ static void handleMummyFearAura(const EffectCall &c) {
         EffectCall tc(EFF_ADD, dummy, *ch, c.combat, c.bridge,
             c.damage, c.handler);
 
-        const bool saved = checkSavingThrow(tc, 0, saveBonus);
+        const bool saved = checkSavingThrow(tc, Goldbox::Data::Spells::SVS_POISON, saveBonus);
 
         checkUnaffected(tc, E_POOLRAD_HELPLESS_34, duration, 12, false,
             true, saved, "is paralyzed with fear");
@@ -1330,7 +1328,7 @@ static void handleDragonFearAura(const EffectCall &c) {
         EffectCall tc(EFF_ADD, dummy, *ch, c.combat, c.bridge,
             c.damage, c.handler);
 
-        const bool saved = checkSavingThrow(tc, 4, 0);
+        const bool saved = checkSavingThrow(tc, Goldbox::Data::Spells::SVS_SPELL, 0);
 
         if (level <= 3) {
             checkUnaffected(tc, E_POOLRAD_HELPLESS_34, 0, 12, false,
@@ -1624,7 +1622,7 @@ static void handleImmunityColdSpell(const EffectCall &c) {
 static void handleImmunityParalysisPoisonSpell(const EffectCall &c) {
     protectionIf(c, 55);
     protectionIf(c, 52);
-    if (c.combat && c.combat->savingThrowType == 0)
+    if (c.combat && c.combat->savingThrowType == Goldbox::Data::Spells::SVS_POISON)
         c.combat->savingThrow = 100;
 }
 
@@ -1749,7 +1747,7 @@ static void handleAnkhegAcidSquirtAttack(const EffectCall &c) {
     // Build a target-side EffectCall for checkSavingThrow (type 3 = vs. breath weapon).
     Effect dummy = c.effect;
     EffectCall tc(EFF_ADD, dummy, *target, c.combat, c.bridge, c.damage, c.handler);
-    const bool saved = checkSavingThrow(tc, 3, 0);
+    const bool saved = checkSavingThrow(tc, Goldbox::Data::Spells::SVS_BREATH, 0);
 
     if (c.damage)
         c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_HALF, saved);
@@ -1811,7 +1809,7 @@ static void handleImmunitySleepCharmParalysisPoison(const EffectCall &c) {
     protectionIf(c, 53);
     protectionIf(c, 52);
     protectionIf(c, 55);
-    if (c.combat && c.combat->savingThrowType == 0)
+    if (c.combat && c.combat->savingThrowType == Goldbox::Data::Spells::SVS_POISON)
         c.combat->savingThrow = 100;
 }
 
@@ -2108,8 +2106,9 @@ static void handleFightOnAtZeroHp(const EffectCall &c) {
 static void handleDwarfSaveBonus(const EffectCall &c) {
     if (!c.combat)
         return;
-    const uint8 type = c.combat->savingThrowType;
-    if (type != 2 && type != 4)
+    const uint8 type = static_cast<uint8>(c.combat->savingThrowType);
+    if (type != static_cast<uint8>(Goldbox::Data::Spells::SVS_ROD_STAFF_WAND) &&
+            type != static_cast<uint8>(Goldbox::Data::Spells::SVS_SPELL))
         return;
     const uint8 con = c.character.abilities.constitution.current;
     uint8 bonus = 0;

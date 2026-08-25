@@ -25,6 +25,7 @@
 #include "common/scummsys.h"
 #include "common/array.h"
 #include "goldbox/combat/cloud_effect_manager.h"
+#include "goldbox/data/spells/spell.h"
 
 namespace Goldbox {
 namespace Data {
@@ -68,7 +69,7 @@ struct CombatGlobals {
     uint8 combatFlag1;       // D_unknownCombatFlag1
     uint8 sideCount[2];      // ARRAY_HOSTILITY[CS_PARTY/CS_ENEMY]
     int8 savingThrow;        // SAVING_THROW per-hit modifier
-    uint8 savingThrowType;    // SAVING_THROW_TYPE: 0=vsParalysis,1=vsPetrification,2=vsRodStaffWand,3=vsBreathWeapon,4=vsSpell
+    Goldbox::Data::Spells::SaveVerseType savingThrowType; // SAVING_THROW_TYPE
     Data::PlayerCharacter *attacker; // PTR_SELECTED_CHAR — current attacking character
     bool targetUnavailable;   // Target cannot be selected
     uint8 attackCount;        // BYTE_ATTACK_COUNT : resolved attacks this turn
@@ -93,7 +94,7 @@ struct CombatGlobals {
         sideCount[0] = 0;
         sideCount[1] = 0;
         savingThrow = 0;
-        savingThrowType = 0;
+        savingThrowType = Goldbox::Data::Spells::SVS_POISON;
         attacker = nullptr;
         targetUnavailable = false;
         attackCount = 0;
