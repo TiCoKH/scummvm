@@ -21,10 +21,10 @@
 
 #include "goldbox/data/damage_system.h"
 
-#include "goldbox/data/damage_utils.h"
-#include "goldbox/data/combat_state.h"
+#include "goldbox/combat/damage_utils.h"
+#include "goldbox/combat/combat_state.h"
 #include "goldbox/data/effects/character_effects.h"
-#include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/vm_interface.h"

@@ -35,7 +35,7 @@
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/data/damage_system.h"
-#include "goldbox/data/damage_utils.h"
+#include "goldbox/combat/damage_utils.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/runtime/runtime_exchange.h"

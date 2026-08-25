@@ -28,7 +28,7 @@
 #include "goldbox/combat/combat_viewport.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/player_character.h"
-#include "goldbox/data/combat_state.h"
+#include "goldbox/combat/combat_state.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/gfx/battlefield_tilemap.h"

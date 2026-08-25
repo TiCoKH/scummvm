@@ -25,7 +25,7 @@
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/data/poolrad_spell_mapping.h"
-#include "goldbox/spells/spell_metadata.h"
+#include "goldbox/data/spells/spell_metadata.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {

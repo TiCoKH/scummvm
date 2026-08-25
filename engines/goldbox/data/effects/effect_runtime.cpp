@@ -27,7 +27,7 @@
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect.h"
 #include "goldbox/data/effects/effect_handler_base.h"
-#include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/effects/effect_notify.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/combat/combat_context.h"

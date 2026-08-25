@@ -24,7 +24,7 @@
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/data/player_character.h"
-#include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/data/rules/rules_types.h"
@@ -35,7 +35,7 @@
 #include "goldbox/engine.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
-#include "goldbox/data/damage_utils.h"
+#include "goldbox/combat/damage_utils.h"
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 
 namespace Goldbox {
