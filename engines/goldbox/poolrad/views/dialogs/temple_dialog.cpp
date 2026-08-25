@@ -94,7 +94,7 @@ TempleDialog::~TempleDialog() {
 }
 
 void TempleDialog::getShopFlags(bool &hasItems, bool &hasMoney) {
-    const TreasurePool &pool = VmInterface::getTreasurePool();
+    const Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     hasItems = pool.hasItems();
     hasMoney = pool.hasAnyCoin();
 }
@@ -307,7 +307,7 @@ void TempleDialog::handlePayConfirmResult(const MenuResultMessage &result) {
     if (charGold >= cost) {
         deductGoldFromCharacter(ch, cost);
     } else {
-        TreasurePool &pool = VmInterface::getTreasurePool();
+    Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
         uint32 poolGold = pool.coins().getGoldValue();
         if (poolGold < cost) {
             showHealMessage("Not enough money");
@@ -527,7 +527,7 @@ void TempleDialog::deductGoldFromCharacter(
 }
 
 void TempleDialog::deductGoldFromPool(uint32 cost) {
-    TreasurePool &pool = VmInterface::getTreasurePool();
+    Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     uint32 poolGold = pool.coins().getGoldValue();
     pool.coins().setFromGoldValue(poolGold - cost);
 }

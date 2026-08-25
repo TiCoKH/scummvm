@@ -48,12 +48,12 @@ MODULE_OBJS = \
 	data/rules/rules_poolrad.o \
 	data/rules/saving_throw.o \
 	data/spells/spell_book.o \
-	spells/spell_metadata.o \
+	data/spells/spell_metadata.o \
 	spells/spell_casting.o \
 	spells/spell_handlers.o \
 	spells/spell_registry.o \
 	spells/spell_targeter.o \
-	spells/spell_resolver.o \
+	spells/spell_generic_handler.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/dax_renderer.o \

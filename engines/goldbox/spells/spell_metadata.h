@@ -16,39 +16,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
 
-#ifndef GOLDBOX_SPELLS_SPELL_METADATA_H
-#define GOLDBOX_SPELLS_SPELL_METADATA_H
-
-#include "common/str.h"
-#include "goldbox/data/spells/spell.h"
-
-namespace Goldbox {
-namespace Spells {
-
-struct SpellMetadata {
-    Common::String name;
-    Common::String spellClass;
-    Common::String level;
-
-    SpellMetadata() {
-    }
-
-    SpellMetadata(const Common::String &spellName,
-            const Common::String &spellClassName,
-            const Common::String &spellLevel)
-        : name(spellName), spellClass(spellClassName), level(spellLevel) {
-    }
-};
-
-SpellMetadata getSpellMetadata(Goldbox::Data::Spells::Spells spell);
-Common::String getSpellName(Goldbox::Data::Spells::Spells spell);
-Common::String getSpellClassName(Goldbox::Data::Spells::Spells spell);
-Common::String getSpellLevelText(Goldbox::Data::Spells::Spells spell);
-
-} // namespace Spells
-} // namespace Goldbox
-
-#endif // GOLDBOX_SPELLS_SPELL_METADATA_H
+// Forwarding header — SpellMetadata has moved to data/spells/spell_metadata.h
+#include "goldbox/data/spells/spell_metadata.h"

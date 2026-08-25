@@ -51,7 +51,7 @@ namespace Goldbox {
 
 struct GoldboxGameDescription;
 class RuntimeExchange;
-class TreasurePool;
+namespace Runtime { class TreasurePool; }
 namespace Data { namespace Effects { class EffectHandlerBase; } }
 namespace Spells { class SpellCastingService; }
 namespace Combat { struct CombatContext; }
@@ -67,7 +67,7 @@ private:
 protected:
 	Data::DaxFileManager _daxManager;
 	RuntimeGeoBlock _runtimeGeo;
-	TreasurePool                     *_treasurePool;
+	Runtime::TreasurePool            *_treasurePool;
 	Data::Effects::EffectHandlerBase *_effectHandler = nullptr;
 	Spells::SpellCastingService      *_spellCasting  = nullptr;
 	Combat::CombatContext            *_combatContext  = nullptr;
@@ -365,8 +365,8 @@ public:
 	RuntimeGeoBlock &getRuntimeGeo() { return _runtimeGeo; }
 	const RuntimeGeoBlock &getRuntimeGeo() const { return _runtimeGeo; }
 
-	TreasurePool &getTreasurePool();
-	const TreasurePool &getTreasurePool() const;
+	Runtime::TreasurePool &getTreasurePool();
+	const Runtime::TreasurePool &getTreasurePool() const;
 
 	Data::Effects::EffectHandlerBase *getEffectHandler() { return _effectHandler; }
 	const Data::Effects::EffectHandlerBase *getEffectHandler() const { return _effectHandler; }

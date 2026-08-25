@@ -42,7 +42,7 @@ Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine
 	_daxManager(gameDesc->desc.platform),
 	_soundDriver(nullptr), _soundMode(kSoundTandy), _gameText(this) {
 	g_engine = this;
-	_treasurePool = new TreasurePool();
+	_treasurePool = new Runtime::TreasurePool();
 }
 
 Engine::~Engine() {
@@ -58,8 +58,8 @@ Engine::~Engine() {
 	_party.clear();
 }
 
-TreasurePool &Engine::getTreasurePool() { return *_treasurePool; }
-const TreasurePool &Engine::getTreasurePool() const { return *_treasurePool; }
+Runtime::TreasurePool &Engine::getTreasurePool() { return *_treasurePool; }
+const Runtime::TreasurePool &Engine::getTreasurePool() const { return *_treasurePool; }
 
 void Engine::setup() {
 	// Read sound mode from config: "tandy" (default), "speaker", or "off"
