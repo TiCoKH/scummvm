@@ -280,7 +280,7 @@ static const Common::Array<DiceRoll> kHPRolls = {
 static const Common::Array<Spells::SpellEntry> kSpellEntries = {
 	//spellClass, spellLevel, fixedRange, perLvlRange, fixedDuration, perLvlDuration, areaOfEffect, targetType, damageOnSave, saveVerse, effectId, whenCast, castTime, priority, isOffensive, minAITargets
 	Spells::SpellEntry(Spells::SC_CLERIC,    0, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_POISON, 0, Spells::IN_CAMP, 0, 0, 0, 0),    // Dummy spell indexing start at 1
-	Spells::SpellEntry(Spells::SC_CLERIC,    1, 6,              0, 6, 0, Spells::AREA_DIAMETER_5, Spells::ST_WHOLE_PARTY,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 1,  Spells::IN_BOTH, 10, 2, 0, 0),   // Bless
+	Spells::SpellEntry(Spells::SC_CLERIC,    1, 6,              0, 6, 0, Spells::AREA_DIAMETER_5, Spells::ST_TARGET_LIST,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 1,  Spells::IN_BOTH, 10, 2, 0, 0),   // Bless
 	Spells::SpellEntry(Spells::SC_CLERIC,    1, 6,              0, 6, 0, Spells::AREA_DIAMETER_5, Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 2,  Spells::IN_COMBAT, 10, 3, 1, 0), // Curse
 	Spells::SpellEntry(Spells::SC_CLERIC,    1, 0,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_BOTH, 5, 1, 0, 0),    // Cure Light Wounds
 	Spells::SpellEntry(Spells::SC_CLERIC,    1, SP_ATTACK_ROLL, 0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 5, 2, 1, 0),  // Cause Light Wounds
@@ -315,7 +315,7 @@ static const Common::Array<Spells::SpellEntry> kSpellEntries = {
 	Spells::SpellEntry(Spells::SC_MAGICUSER, 2, 1,              1, 0, 1, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 29, Spells::IN_COMBAT, 2, 2, 1, 0),  // Stinking Cloud
 	Spells::SpellEntry(Spells::SC_MAGICUSER, 2, 3,              0, 0, 1, Spells::AREA_SPECIAL,    Spells::ST_COMBAT,       Spells::DMG_UNKNOWN_3, Spells::SVS_POISON, 30, Spells::IN_COMBAT, 2, 7, 1, 1), // Strength
 	Spells::SpellEntry(Spells::SC_MAGICUSER, 2, 0,              0, 0, 60, Spells::AREA_CASTER,    Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 38, Spells::IN_CAMP, 10, 0, 0, 0),   // Animate Dead
-	Spells::SpellEntry(Spells::SC_CLERIC,    3, 1,              0, 0, 0, Spells::AREA_LVL_SCALE,  Spells::ST_WHOLE_PARTY,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 32, Spells::IN_BOTH, 10, 2, 0, 0),   // Cure Blindness
+	Spells::SpellEntry(Spells::SC_CLERIC,    3, 1,              0, 0, 0, Spells::AREA_LVL_SCALE,  Spells::ST_TARGET_LIST,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 32, Spells::IN_BOTH, 10, 2, 0, 0),   // Cure Blindness
 	Spells::SpellEntry(Spells::SC_CLERIC,    3, 0,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_BOTH, 10, 0, 0, 0),   // Cause Blindness
 	Spells::SpellEntry(Spells::SC_CLERIC,    3, SP_ATTACK_ROLL, 0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 33, Spells::IN_COMBAT, 10, 3, 1, 0), // Cure Disease
 	Spells::SpellEntry(Spells::SC_CLERIC,    3, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_CAMP, 100, 0, 0, 0),  // Cause Disease
@@ -327,9 +327,9 @@ static const Common::Array<Spells::SpellEntry> kSpellEntries = {
 	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 0,              0, 0, 1, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 37, Spells::IN_COMBAT, 1, 2, 0, 0),  // Dispel Magic
 	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 12,             0, 0, 1, Spells::AREA_SPECIAL,    Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_BOTH, 3, 2, 1, 1),    // Fireball
 	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 10,             1, 0, 0, Spells::AREA_DIAMETER_7, Spells::ST_COMBAT,       Spells::DMG_HALF,      Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 3, 7, 1, 3),  // Haste
-	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 6,              0, 3, 1, Spells::AREA_DIAMETER_5, Spells::ST_WHOLE_PARTY,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 39, Spells::IN_BOTH, 3, 3, 0, 0),    // Hold Person
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 6,              0, 3, 1, Spells::AREA_DIAMETER_5, Spells::ST_TARGET_LIST,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 39, Spells::IN_BOTH, 3, 3, 0, 0),    // Hold Person
 	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 12,             0, 0, 2, Spells::AREA_TARGET_4,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_SPELL, 52, Spells::IN_COMBAT, 3, 6, 1, 0),  // Invisibility 10' Radius
-	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 0,              0, 0, 0, Spells::AREA_SPECIAL,    Spells::ST_WHOLE_PARTY,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 25, Spells::IN_BOTH, 3, 1, 0, 0),    // Lightning Bolt
+	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 0,              0, 0, 0, Spells::AREA_SPECIAL,    Spells::ST_TARGET_LIST,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 25, Spells::IN_BOTH, 3, 1, 0, 0),    // Lightning Bolt
 	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 4,              1, 0, 0, Spells::AREA_LOS_TILE,   Spells::ST_COMBAT,       Spells::DMG_HALF,      Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 3, 7, 1, 0),  // Protection From Evil 10' Radius
 	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 0,              0, 0, 2, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 45, Spells::IN_BOTH, 3, 1, 0, 0),    // Protection From Good 10' Radius
 	Spells::SpellEntry(Spells::SC_MAGICUSER, 3, 0,              0, 0, 2, Spells::AREA_TARGET_1,   Spells::ST_PARTY_MEMBER, Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 46, Spells::IN_BOTH, 3, 2, 0, 0),    // Protection From Normal Missiles
@@ -342,7 +342,7 @@ static const Common::Array<Spells::SpellEntry> kSpellEntries = {
 	Spells::SpellEntry(Spells::SC_ITEM,      6, 4,              4, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_HALF,      Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 0, 7, 1, 0),
 	Spells::SpellEntry(Spells::SC_ITEM,      6, 6,              0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NEGATES,   Spells::SVS_POISON, 52, Spells::IN_COMBAT, 0, 7, 1, 0),
 	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 39, Spells::IN_BOTH, 0, 1, 0, 0),
-	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_TARGET_4,   Spells::ST_WHOLE_PARTY,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 71, Spells::IN_BOTH, 0, 2, 0, 0),
+	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_TARGET_4,   Spells::ST_TARGET_LIST,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 71, Spells::IN_BOTH, 0, 2, 0, 0),
 	Spells::SpellEntry(Spells::SC_ITEM,      6, 7,              0, 0, 0, Spells::AREA_DIAMETER_7, Spells::ST_COMBAT,       Spells::DMG_HALF,      Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 0, 7, 1, 3),
 	Spells::SpellEntry(Spells::SC_ITEM,      6, 12,             0, 0, 0, Spells::AREA_TARGET_1,   Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 0,  Spells::IN_COMBAT, 0, 6, 1, 0),
 	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 39, Spells::IN_BOTH, 0, 1, 0, 0),

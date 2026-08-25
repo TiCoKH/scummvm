@@ -126,13 +126,13 @@ enum AreaOfEffect : uint8 {
 };
 
 // Target (Offset 0x07):
-// 0 combat, 1 caster, 2 any party member, 4 whole party
+// 0 combat, 1 caster, 2 any party member, 4 target list
 // Backed by uint8 for save/load stability; values match engine format.
 enum SpellTargets : uint8 {
     ST_COMBAT       = 0,
     ST_CASTER       = 1,
     ST_PARTY_MEMBER = 2,
-    ST_WHOLE_PARTY  = 4
+    ST_TARGET_LIST  = 4
 };
 
 // Saving throw effect (Offset 0x08)
@@ -174,8 +174,8 @@ struct SpellEntry {
     uint8         perLvlDuration; // 0x05 per level duration
     AreaOfEffect  areaOfEffect;   // 0x06 area of effect code
     SpellTargets  targetType;     // 0x07 target code
-    DamageOnSave  damageOnSave;   // 0x08 saving throw effect
-    SaveVerseType saveVerse;      // 0x09 saving throw type
+    DamageOnSave  savingEffect;   // 0x08 saving throw effect
+    SaveVerseType saveType;       // 0x09 saving throw type
     uint8         effectId;       // 0x0A effect identifier (0: no temp or perament effect from effect tabel)
     SpellWhen     whenCast;       // 0x0B when spell can be cast
     uint8         castTime;       // 0x0C spellcasting time
@@ -186,7 +186,7 @@ struct SpellEntry {
     SpellEntry()
             : spellClass(SC_UNKNOWN), spellLevel(0),
         fixedRange(0), perLvlRange(0), fixedDuration(0), perLvlDuration(0),
-        areaOfEffect(AREA_CASTER), targetType(ST_COMBAT), damageOnSave(DMG_NO_SAVE), saveVerse(SVS_POISON),
+        areaOfEffect(AREA_CASTER), targetType(ST_COMBAT), savingEffect(DMG_NO_SAVE), saveType(SVS_POISON),
         effectId(0), whenCast(IN_BOTH),
         castTime(0), priority(0), isOffensive(0), minAITargets(0) {}
 
@@ -201,7 +201,7 @@ struct SpellEntry {
         fixedRange(_fixedRange), perLvlRange(_perLvlRange),
     fixedDuration(_fixedDuration), perLvlDuration(_perLvlDuration),
     areaOfEffect(_area), targetType(_targets),
-        damageOnSave(_damageOnSave), saveVerse(_saveVerse),
+        savingEffect(_damageOnSave), saveType(_saveVerse),
         effectId(_affectId), whenCast(_whenCast),
     castTime(_castingDelay), priority(_priority),
     isOffensive(fe), minAITargets(ff) {}
