@@ -47,45 +47,14 @@ SpellCastResult SpellCastingService::castSpell(SpellContext &context,
     if (!targeter->selectTarget(context, *definition, targets))
         return SpellCastResult(CAST_INVALID_TARGET);
 
+    // kHandlerGeneric spells (the vast majority) have no dedicated
+    // handler registered; GenericSpellHandler drives their saving throw +
+    // effect apply directly from SpellEntry data (see spell_resolver.cpp).
     const ISpellHandler *handler = _registry.getHandler(definition->handlerId);
     if (!handler)
         handler = &_fallbackHandler;
 
     SpellCastResult result = handler->execute(context, *definition, targets);
-    if (result.status == CAST_OK && context.effectSystem &&
-            definition->entry->effectId != 0) {
-        uint16 duration = definition->entry->fixedDuration;
-        if (definition->entry->perLvlDuration != 0 && context.casterLevel > 0) {
-            duration += (uint16)(definition->entry->perLvlDuration *
-                    context.casterLevel);
-        }
-        uint8 power = 0xFF;
-        bool immediate = true;
-
-        if (!targets.targetCharacters.empty()) {
-            for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
-                Goldbox::Data::PlayerCharacter *target =
-                    targets.targetCharacters[i];
-                if (!target)
-                    continue;
-                Goldbox::Data::Effects::CharacterEffects *effects =
-                    target->getEffects();
-                if (!effects)
-                    continue;
-                context.effectSystem->addOrRefreshEffect(*effects, *target,
-                        definition->entry->effectId, duration, power,
-                        immediate);
-            }
-        } else if (context.caster) {
-            Goldbox::Data::Effects::CharacterEffects *effects =
-                context.caster->getEffects();
-            if (effects) {
-                context.effectSystem->addOrRefreshEffect(*effects,
-                    *context.caster,
-                        definition->entry->effectId, duration, power, immediate);
-            }
-        }
-    }
     if (result.status == CAST_OK && context.spellBook) {
         uint8 count = context.spellBook->getMemorized(spell);
         if (count > 0)

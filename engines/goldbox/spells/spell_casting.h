@@ -23,6 +23,7 @@
 
 #include "goldbox/spells/spell_context.h"
 #include "goldbox/spells/spell_registry.h"
+#include "goldbox/spells/spell_resolver.h"
 #include "goldbox/spells/spell_targeter.h"
 
 namespace Goldbox {
@@ -49,7 +50,7 @@ private:
     SpellRegistry _registry;
     ISpellTargeter *_combatTargeter;
     ISpellTargeter *_nonCombatTargeter;
-    UnimplementedSpellHandler _fallbackHandler;
+    GenericSpellHandler _fallbackHandler;
 };
 
 } // namespace Spells

@@ -27,8 +27,11 @@
 namespace Goldbox {
 namespace Spells {
 
+// A spell only needs a HandlerId beyond kHandlerGeneric when its behaviour
+// cannot be derived purely from SpellEntry (saving throw + effectId),
+// e.g. damage dice, HD-limited targeting, or non-effect side output.
 enum HandlerId {
-    kHandlerUnimplemented = 0,
+    kHandlerGeneric = 0,        // generic saving-throw + effect apply (default)
     kHandlerDetectMagicShared,
     kHandlerProtectionShared,
     kHandlerHoldPersonShared,
@@ -41,17 +44,21 @@ struct SpellDefinition {
     const Goldbox::Data::Spells::SpellEntry *entry;
     HandlerId handlerId;
     Common::String name;
+    // Message posted to the host bridge when the effect lands on a target,
+    // e.g. "is Blessed", "is Cursed". Empty string suppresses the message.
+    Common::String effectMessage;
 
     SpellDefinition()
         : id(Goldbox::Data::Spells::SP_NONE), entry(nullptr),
-        handlerId(kHandlerUnimplemented) {}
+        handlerId(kHandlerGeneric) {}
 
     SpellDefinition(Goldbox::Data::Spells::Spells spellId,
                     const Goldbox::Data::Spells::SpellEntry *spellEntry,
                     HandlerId handler,
-                    const Common::String &spellName)
+                    const Common::String &spellName,
+                    const Common::String &message = Common::String())
         : id(spellId), entry(spellEntry), handlerId(handler),
-        name(spellName) {}
+        name(spellName), effectMessage(message) {}
 };
 
 } // namespace Spells
