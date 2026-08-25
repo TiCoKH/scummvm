@@ -27,7 +27,7 @@
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/data/effects/effect.h"
-#include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/player_character.h"
 
 namespace Goldbox {

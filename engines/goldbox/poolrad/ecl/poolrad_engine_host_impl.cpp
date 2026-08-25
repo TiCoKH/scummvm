@@ -37,7 +37,7 @@
 #include "goldbox/core/menu_item.h"
 #include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/data/effects/character_effects.h"
-#include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules_types.h"

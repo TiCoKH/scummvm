@@ -26,7 +26,7 @@
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/core/direction.h"
-#include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/engine.h"
 
 namespace Goldbox {

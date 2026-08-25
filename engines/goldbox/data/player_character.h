@@ -27,8 +27,8 @@
 #include "common/array.h"
 #include "common/util.h"
 #include "common/scummsys.h"
-#include "goldbox/data/combat_icon_data.h"
-#include "goldbox/data/combat_state.h"
+#include "goldbox/combat/combat_icon_data.h"
+#include "goldbox/combat/combat_state.h"
 
 namespace Goldbox {
 namespace Data {

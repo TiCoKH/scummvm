@@ -20,7 +20,7 @@
 
 #include "goldbox/spells/spell_registry.h"
 #include "goldbox/data/rules/rules.h"
-#include "goldbox/spells/spell_metadata.h"
+#include "goldbox/data/spells/spell_metadata.h"
 
 namespace Goldbox {
 namespace Spells {

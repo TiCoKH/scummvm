@@ -20,7 +20,7 @@
 
 #include "goldbox/data/effects/effect_system.h"
 
-#include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/effects/effect_notify.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/rules/rules_types.h"

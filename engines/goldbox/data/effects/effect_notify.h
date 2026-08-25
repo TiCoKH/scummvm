@@ -23,7 +23,7 @@
 #define GOLDBOX_DATA_EFFECTS_EFFECT_NOTIFY_H
 
 #include "goldbox/data/effects/effect_handler_base.h"
-#include "goldbox/data/effects/effect_host_bridge.h"
+#include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/player_character.h"
 
 namespace Goldbox {
