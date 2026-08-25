@@ -22,6 +22,7 @@
 #define GOLDBOX_SPELLS_SPELL_REGISTRY_H
 
 #include "common/hashmap.h"
+#include "common/str.h"
 #include "goldbox/spells/spell_definition.h"
 #include "goldbox/spells/spell_handlers.h"
 
@@ -40,6 +41,7 @@ public:
 
 private:
     void buildDefinitions();
+    static Common::String effectMessageForSpell(Goldbox::Data::Spells::Spells id);
 
     Common::HashMap<int, SpellDefinition> _definitions;
     Common::HashMap<int, ISpellHandler *> _handlers;

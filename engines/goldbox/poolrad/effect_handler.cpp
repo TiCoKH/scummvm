@@ -29,6 +29,7 @@
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/data/rules/rules_types.h"
+#include "goldbox/data/rules/saving_throw.h"
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/vm_interface.h"
@@ -740,40 +741,14 @@ static bool checkUnaffected(const EffectCall &c, uint8 effectId,
     return true;
 }
 
-// Mirrors UTIL_CheckSavingThrow: rolls d20, auto-fail on 1, auto-pass on 20,
-// otherwise accumulates saveBonus + modifier + ES_SAVING_THROW_MODS effect
-// set mods, then compares against the matching SavingThrows field.
+// Thin adapter over the shared Rules::checkSavingThrow (mirrors the
+// original UTIL_CheckSavingThrow), bound to this handler's EffectCall.
 static bool checkSavingThrow(const EffectCall &c,
         Goldbox::Data::Spells::SaveVerseType saveType, int8 saveModifier) {
-    if (!Goldbox::g_engine)
-        return false;
-
-    const int roll = Goldbox::g_engine->rollDice(1, 20);
-    if (roll == 1)
-        return false;
-    if (roll == 20)
-        return true;
-
-    const Goldbox::Data::ADnDCharacter &adnd =
-        static_cast<const Goldbox::Data::ADnDCharacter &>(c.character);
-
-    // Accumulate saving throw modifiers from ES_SAVING_THROW_MODS (set 12)
-    // via a temporary combat globals (mirrors UTIL_checkEffectSet(12, char)).
-    Combat::CombatGlobals tempCombat;
-    if (c.combat)
-        tempCombat = *c.combat;
-    tempCombat.savingThrowType = saveType;
-
-    CharacterEffects *fx = c.character.getEffects();
-    if (fx && c.handler) {
-        EffectRuntime runtime(const_cast<EffectHandlerBase *>(c.handler), c.bridge);
-        runtime.checkEffectSet(ES_SAVING_THROW_MODS, *fx, c.character, &tempCombat);
-    }
-
-    // SavingThrows fields are laid out in order matching savingThrowType 0-4.
-    const uint8 target = (&adnd.savingThrows.vsParalysis)[static_cast<uint8>(saveType)];
-    const int total = roll + adnd.saveBonus + saveModifier + tempCombat.savingThrow;
-    return total >= target;
+    Goldbox::Data::ADnDCharacter &adnd =
+        static_cast<Goldbox::Data::ADnDCharacter &>(c.character);
+    return Goldbox::Data::Rules::checkSavingThrow(adnd, c.combat, c.handler,
+            c.bridge, saveType, saveModifier);
 }
 
 static void applyPoisonAttack(const EffectCall &c, int8 saveModifier) {

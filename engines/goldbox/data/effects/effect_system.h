@@ -50,6 +50,10 @@ public:
     void setHostBridge(EffectHostBridge *bridge);
     void setRuntime(EffectRuntime *runtime);
 
+    EffectHandlerBase *getHandler() const { return _handler; }
+    EffectHostBridge *getHostBridge() const { return _bridge; }
+    EffectRuntime *getRuntime() const { return _runtime; }
+
     /**
      * Add or refresh a timed effect record on a character.
      *

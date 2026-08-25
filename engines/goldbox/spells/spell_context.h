@@ -22,11 +22,14 @@
 #define GOLDBOX_SPELLS_SPELL_CONTEXT_H
 
 #include "common/array.h"
+#include "common/str.h"
 #include "common/types.h"
+#include "goldbox/data/damage_system.h"
 
 namespace Goldbox {
 namespace Data {
 class PlayerCharacter;
+class DamageSystem;
 }
 
 namespace Data {
@@ -38,6 +41,9 @@ namespace Data {
 namespace Effects {
 class EffectSystem;
 }
+}
+namespace Combat {
+struct CombatGlobals;
 }
 
 namespace Spells {
@@ -51,6 +57,17 @@ struct TargetSelection {
     TargetSelection() : tileX(-1), tileY(-1) {}
 };
 
+class ISpellTargetPicker {
+public:
+    virtual ~ISpellTargetPicker() {}
+
+    // Ask the host to pick one target from candidates (mirrors
+    // DIALOG_CharacterSelect). Returns false if the player cancelled.
+    virtual bool pickSingleTarget(
+            const Common::Array<Goldbox::Data::PlayerCharacter *> &candidates,
+            Goldbox::Data::PlayerCharacter *&picked) = 0;
+};
+
 struct SpellContext {
     Goldbox::Data::PlayerCharacter *caster;
     Goldbox::Data::Spells::SpellBook *spellBook;
@@ -58,8 +75,28 @@ struct SpellContext {
     bool inCombat;
     uint8 casterLevel;
 
+    // Candidate pools for target selection, populated by the caller before
+    // castSpell(): caster's side (or whole party outside combat) and the
+    // opposing side (empty outside combat). Kept decoupled from the combat/
+    // module so spells/ has no dependency on it.
+    Common::Array<Goldbox::Data::PlayerCharacter *> allies;
+    Common::Array<Goldbox::Data::PlayerCharacter *> enemies;
+
+    // Optional UI hook for ST_PARTY_MEMBER-style manual single-target spells.
+    // May be null; selection then fails with CAST_INVALID_TARGET.
+    ISpellTargetPicker *targetPicker;
+
+    // Optional — non-null only during combat. Passed to GenericSpellHandler
+    // for attack-roll checks and effect-set evaluation.
+    Goldbox::Combat::CombatGlobals *combat;
+
+    // Optional — used by GenericSpellHandler to apply direct damage for
+    // spells whose fixedRange == SP_ATTACK_ROLL (need_ar path).
+    Goldbox::Data::DamageSystem *damageSystem;
+
     SpellContext() : caster(nullptr), spellBook(nullptr),
-        effectSystem(nullptr), inCombat(false), casterLevel(0) {}
+        effectSystem(nullptr), inCombat(false), casterLevel(0),
+        targetPicker(nullptr), combat(nullptr), damageSystem(nullptr) {}
 };
 
 } // namespace Spells

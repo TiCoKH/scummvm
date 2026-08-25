@@ -126,7 +126,7 @@ enum AreaOfEffect : uint8 {
 };
 
 // Target (Offset 0x07):
-// 0 combat, 1 caster, 2 any party member, 4 target list
+// 0 combat, 1 caster, 2 one target/or other party member, 4 target list
 // Backed by uint8 for save/load stability; values match engine format.
 enum SpellTargets : uint8 {
     ST_COMBAT       = 0,

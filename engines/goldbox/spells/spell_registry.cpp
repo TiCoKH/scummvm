@@ -66,9 +66,32 @@ void SpellRegistry::buildDefinitions() {
     for (uint i = 0; i < entries.size(); ++i) {
         Goldbox::Data::Spells::Spells spellId =
             static_cast<Goldbox::Data::Spells::Spells>(i);
-        SpellDefinition def(spellId, &entries[i], kHandlerUnimplemented,
-                            getSpellName(spellId));
+        SpellDefinition def(spellId, &entries[i], kHandlerGeneric,
+                            getSpellName(spellId),
+                            effectMessageForSpell(spellId));
         _definitions[static_cast<int>(spellId)] = def;
+    }
+}
+
+// static
+Common::String SpellRegistry::effectMessageForSpell(
+        Goldbox::Data::Spells::Spells id) {
+    using namespace Goldbox::Data::Spells;
+    switch (id) {
+    case SP_CL1_BLESS:           return "is Blessed";
+    case SP_CL1_CURSE:           return "is Cursed";
+    case SP_CL1_PROT_FROM_EVIL:  return "is Protected from Evil";
+    case SP_CL1_PROT_FROM_GOOD:  return "is Protected from Good";
+    case SP_MUL1_PROT_FROM_EVIL: return "is Protected from Evil";
+    case SP_MUL1_PROT_FROM_GOOD: return "is Protected from Good";
+    case SP_CL1_RESIST_COLD:     return "Resists Cold";
+    case SP_CL2_RESIST_FIRE:     return "Resists Fire";
+    case SP_CL2_SLOW_POISON:     return "Slow Poison";
+    case SP_CL3_PRAYER:          return "is Praying";
+    case SP_MUL2_INVISIBILITY:   return "is Invisible";
+    case SP_MUL3_HASTE:          return "is Hasted";
+    case SP_MUL3_SLOW:           return "is Slowed";
+    default:                     return Common::String();
     }
 }
 
