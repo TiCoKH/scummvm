@@ -107,9 +107,10 @@ struct EffectModifiers {
 	int8 armorClass;
 	int8 morale;
 	int8 movement;
+	int16 encumbrance; // sum of spell/effect encumbrance modifiers (7 slots in original)
 
 	EffectModifiers() : attackRoll(0), damage(0), savingThrow(0), armorClass(0),
-				  morale(0), movement(0) {
+				  morale(0), movement(0), encumbrance(0) {
 	}
 };
 

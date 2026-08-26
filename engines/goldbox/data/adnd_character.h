@@ -159,19 +159,16 @@ public:
 			int rearAc = misc + ring + armorBase - 2;
 			return CLIP<int>(rearAc, 0, 255);
 		}
-
-
 	};
 
+	// Recalculate all derived combat stats from inventory and base values.
+	// Called after any change that affects equipment, encumbrance, or effects.
+	void recalcCombatStats();
+
 	// Apply an item's defensive bonuses and protections to character.
-	// Returns true if the item provides protection (protection flag is set).
 	void setItemProtection(const Goldbox::Data::Items::CharacterItem *item,
 						  AcComponents *acComponents,
 						  bool *magicArmorWorn);
-
-	// Apply movement modifier based on equipped body armor weight and magical bonus.
-	// Uses `movement.base` as input and writes the result to `movement.current`.
-	void armorMovementEffect(const Goldbox::Data::Items::CharacterItem *armorItem);
 
 	// Inventory accessors (generic for all AD&D-based characters)
 	Goldbox::Data::Items::CharacterInventory &getInventory() { return inventory; }
@@ -252,8 +249,28 @@ protected:
 	virtual void onReadyItemEffect(Goldbox::Data::Items::CharacterItem *item,
 						 bool equipping);
 
+	// Called by recalcCombatStats to apply weapon/ability modifiers to current
+	// attack rolls. Override in game-specific subclasses if weapon stat rules differ.
+	virtual void applyWeaponAndAbilityModifiers();
+
+	// Called by recalcCombatStats after AC is finalised to fold in active
+	// spell/effect modifiers. Default is a no-op; override per game.
+	virtual void applyEffectStateModifiers(AcComponents &ac);
+
 private:
 	static uint8 getClassMaskForClassType(uint8 classType);
+
+	struct EquipScanResult {
+		uint32 totalWeight;
+		uint32 equippedWeight;
+		bool   bagOfHolding;
+	};
+	EquipScanResult rebuildEquipmentSlots();
+	void recalculateEncumbrance(const EquipScanResult &scan);
+	void resetCombatModifiers();
+	void applyEquippedItemModifiers(AcComponents &ac);
+	void armorMovementEffect(const Goldbox::Data::Items::CharacterItem *item);
+	void finalizeArmorClass(AcComponents &ac);
 
 };
 

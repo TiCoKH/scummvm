@@ -490,197 +490,36 @@ bool PoolradCharacter::receiveItem(
 	return true; // success
 }
 
-void PoolradCharacter::recalcCombatStats() {
-	using namespace Goldbox::Data::Items;
-
-	handsEquipped = 0;
-	encumbrance = 0;
-	numOfItems = static_cast<int8>(inventory.items().size());
-	// Single pass: rebuild equippedItems and compute total/equipped weights and stats
-	equippedItems.clear();
-	const Common::List<CharacterItem> &items = inventory.items();
-	uint32 totalWeight = 0; // modern accumulation without 16-bit per-add clamping
-	uint32 equippedOnlyWeight = 0; // track weight of equipped (readied) items (single final clamp)
-	bool specialEncumbranceFlag = false; // bag-of-holding/cursed-like behavior (typeIndex == 0xBA)
-	bool mainHandEquipped = false;
-	bool hasMagicArmor = false;
-	uint8 totalProtect = 0;
-
-	// Iterate inventory items
-	uint i = 0;
-	for (const CharacterItem &ci : items) {
-		const uint itemIdx = i;
-		++i;
-		// Weight for this item (respect stack)
-		uint32 w = ci.weight;
-		if (ci.stackSize != 0)
-			w *= ci.stackSize;
-		totalWeight += w;
-
-		if (!ci.isEquipped())
-			continue;
-
-		CharacterItem *ptr = const_cast<CharacterItem *>(&ci);
-		const ItemProperty &p = ci.prop();
-		bool placed = false;
-		int sid = (int)p.slotID;
-
-		// Place by slot when within range
-		if (sid >= 0 && sid < 9) {
-			if (!equippedItems.slots[sid]) {
-				equippedItems.slots[sid] = ptr;
-				placed = true;
-			}
-		} else if (sid == 9) {
-			if (!equippedItems.slots[(int)Slot::S_RING1]) {
-				equippedItems.slots[(int)Slot::S_RING1] = ptr;
-				placed = true;
-			} else if (!equippedItems.slots[(int)Slot::S_RING2]) {
-				equippedItems.slots[(int)Slot::S_RING2] = ptr;
-				placed = true;
-			} else {
-				// More than two rings with slot id 9 equipped - unexpected
-				debug(4, "PoolradCharacter::recalcCombatStats extra ring (slot id 9) cannot be placed: idx=%u type=%u", (unsigned)itemIdx, (unsigned)ci.typeIndex);
-			}
-		}
-		// Arrow / Bolt by type index
-		if (!placed && ci.typeIndex == 73) {
-			if ( !equippedItems.slots[(int)Slot::S_ARROW] ) {
-				equippedItems.slots[(int)Slot::S_ARROW] = ptr;
-				placed = true;
-			}
-		}
-		if (!placed && ci.typeIndex == 28) {
-			if ( !equippedItems.slots[(int)Slot::S_BOLT]) {
-				equippedItems.slots[(int)Slot::S_BOLT] = ptr;
-				placed = true;
-			}
-		}
-
-		// If successfully placed in any slot, contribute to equipped-only aggregates
-		if (placed) {
-			equippedOnlyWeight += w;
-			// Count hands used (defer final clamp)
-			handsEquipped = static_cast<uint8>(handsEquipped + p.hands);
-			// Detect main-hand weapon presence
-			if (p.slotID == (uint8)Slot::S_MAIN_HAND) {
-				mainHandEquipped = true;
-			}
-			if (p.protect > 0) {
-				totalProtect = static_cast<uint8>(CLIP<int>(totalProtect + p.protect, 0, 255));
-			}
-			if (ci.nameCode1 == 186) { // 0xBA name component indicates special encumbrance behavior
-				specialEncumbranceFlag = true;
-			}
-		}
-	}
-
-	// Final clamp for handsEquipped
-	handsEquipped = static_cast<uint8>(MIN<uint32>(0xFFu, handsEquipped));
-
-	// Add weight of valuables (coins, gems, jewelry): assume 1 unit weight each
-	totalWeight += valuableItems.getTotalWeight();
-
-	// Build AC components from equipped items and dexterity
-	Goldbox::Data::ADnDCharacter::AcComponents ac;
-
-	// Ensure current combat rolls are reset to base before applying equipment effects
-	resetCurrentRollsFromBase();
-	saveBonus = 0;
-	armorClass.resetToBase();
-	movement.resetToBase();
-	thac0.resetToBase();
-
-	ac.dexAdj = getDexDefenceBonus();
-
-	// Strength and melee damage bonuses apply when unarmed (no main-hand weapon)
-	if (!mainHandEquipped) {
-		// To-hit: add Strength bonus to stored THAC0 (60-THAC0 space)
-		thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
-		// Damage: add melee damage bonus to current primary damage modifier
-		curPrimaryRoll.action.modifier = static_cast<int8>(CLIP<int>((int)curPrimaryRoll.action.modifier + (int)getMeleeDamageBonus(), -128, 127));
-	}
-
-	// Compute current to-hit and damage rolls from equipped weapon and stats
+void PoolradCharacter::applyWeaponAndAbilityModifiers() {
 	setDamage();
+}
 
-	for (int slot = 0; slot < EQUIPPED_SLOT_COUNT; ++slot) {
-		auto *item = equippedItems.slots[slot];
-		if (item) {
-			armorMovementEffect(item);
-			setItemProtection(item, &ac, &hasMagicArmor);
-		}
-	}
-	if (hasMagicArmor) {
-		ac.ring = 0; // no ring bonus if magic armor is worn
-	}
+void PoolradCharacter::applyEffectStateModifiers(AcComponents &ac) {
+	int acBonus = 0;
+	if (effectState.flags & EF_INVISIBLE)      acBonus += 2;
+	if (effectState.flags & EF_ITEM_INVISIBLE)  acBonus += 2;
+	if (effectState.flags & EF_CAMOUFLAGE)      acBonus += 1;
+	if (effectState.flags & EF_DISPLACE)        acBonus += 2;
+	if (effectState.flags & EF_BLINKING)        acBonus += 4;
+	if (effectState.flags & EF_MIRROR_IMAGE)    acBonus += 2;
 
-	// Compute final encumbrance using modern 32-bit totals, then clamp once
-	if (specialEncumbranceFlag) {
-		uint32 enc = totalWeight;
-		if (enc < 5000)
-			enc = 0;
-		else
-			enc -= 5000;
-		if (enc < equippedOnlyWeight)
-			enc = equippedOnlyWeight;
-		encumbrance = static_cast<uint16>(MIN<uint32>(0xFFFFu, enc));
-	} else {
-		encumbrance = static_cast<uint16>(MIN<uint32>(0xFFFFu, totalWeight));
-	}
-	setMovement();
-	// Finalize AC
-	if (ac.armorBase < armorClass.current) {
-		ac.armorBase = armorClass.current;
-	}
-	armorClass.current = 0;
-	armorClass.current = ac.getTotalAC();
-	acRear.current = ac.getRearAC();
-
-	int effectArmorBonus = 0;
-	if ((effectState.flags & EF_INVISIBLE) != 0)
-		effectArmorBonus += 2;
-	if ((effectState.flags & EF_ITEM_INVISIBLE) != 0)
-		effectArmorBonus += 2;
-	if ((effectState.flags & EF_CAMOUFLAGE) != 0)
-		effectArmorBonus += 1;
-	if ((effectState.flags & EF_DISPLACE) != 0)
-		effectArmorBonus += 2;
-	if ((effectState.flags & EF_BLINKING) != 0)
-		effectArmorBonus += 4;
-	if ((effectState.flags & EF_MIRROR_IMAGE) != 0)
-		effectArmorBonus += 2;
-
-	// Fold active effect modifiers into derived combat values.
 	thac0.current = static_cast<uint8>(CLIP<int>(
 		(int)thac0.current + effectState.mods.attackRoll, 0, 255));
 	curPrimaryRoll.action.modifier = static_cast<int8>(CLIP<int>(
-		(int)curPrimaryRoll.action.modifier + effectState.mods.damage,
-		-128, 127));
+		(int)curPrimaryRoll.action.modifier + effectState.mods.damage, -128, 127));
 	curSecondaryRoll.action.modifier = static_cast<int8>(CLIP<int>(
-		(int)curSecondaryRoll.action.modifier + effectState.mods.damage,
-		-128, 127));
+		(int)curSecondaryRoll.action.modifier + effectState.mods.damage, -128, 127));
 	saveBonus = static_cast<uint8>(CLIP<int>(
 		(int)saveBonus + effectState.mods.savingThrow, 0, 255));
 	movement.current = static_cast<uint8>(CLIP<int>(
 		(int)movement.current + effectState.mods.movement, 0, 255));
-	armorClass.current = static_cast<uint8>(CLIP<int>(
-		(int)armorClass.current + effectState.mods.armorClass + effectArmorBonus,
-		0, 255));
-	acRear.current = static_cast<uint8>(CLIP<int>(
-		(int)acRear.current + effectState.mods.armorClass + effectArmorBonus,
-		0, 255));
+	ac.armorBase = static_cast<uint8>(CLIP<int>(
+		(int)ac.armorBase + effectState.mods.armorClass + acBonus, 0, 255));
 
-	// Attack level heuristic (legacy used fighter level if race >0)
-	attackLevel = (levels.levels[C_FIGHTER] > 0 && race > 0) ? levels.levels[C_FIGHTER] : 1;
-
-	debug(4, "PoolradCharacter::recalcCombatStats -> handsEquipped=%u enc=%u ac=%d thac0=%d rearAC=%d items=%u",
-			(unsigned)handsEquipped,
-			(unsigned)encumbrance,
-			60 - (int)armorClass.current,
-			60 - (int)thac0.current,
-			60 - (int)acRear.current,
-			(unsigned)items.size());
+	debug(4, "PoolradCharacter::recalcCombatStats -> handsEquipped=%u enc=%u ac=%d thac0=%d items=%u",
+			(unsigned)handsEquipped, (unsigned)encumbrance,
+			60 - (int)armorClass.current, 60 - (int)thac0.current,
+			(unsigned)inventory.items().size());
 }
 
 void PoolradCharacter::rollAbilityScores() {
@@ -977,54 +816,57 @@ byte PoolradCharacter::getNameColor() {
 
 void PoolradCharacter::setDamage() {
 	using namespace Goldbox::Data::Items;
-	thac0.resetToBase();
-
-	// Ensure current rolls mirror base (unarmed) unless we override for a weapon
-	// Caller already invokes resetCurrentRollsFromBase() earlier in recompute
+	// thac0 is already reset to base by recalcCombatStats before this call.
 
 	const CharacterItem *mainIt = getEquippedItem(Slot::S_MAIN_HAND);
 	if (!mainIt) {
-		// Unarmed: apply STR bonuses to hit and damage
+		// Unarmed: STR bonuses to hit and damage
 		thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
-		int8 bonus = static_cast<int8>(CLIP<int>((int)curPrimaryRoll.action.modifier + (int)getMeleeDamageBonus(), -128, 127));
-		curPrimaryRoll.action.modifier = bonus;
+		curPrimaryRoll.action.modifier = static_cast<int8>(CLIP<int>(
+			(int)curPrimaryRoll.action.modifier + getMeleeDamageBonus(), -128, 127));
 		return;
 	}
 
 	const ItemProperty &wp = mainIt->prop();
+	const uint8 msType = wp.missileType;
 
-	// Weapon-equipped: set current damage dice from weapon (small/medium target)
-	curPrimaryRoll.action.roll.diceNum = wp.dmgSmallMed.dices;
+	// Set damage dice from weapon (small/medium target)
+	curPrimaryRoll.action.roll.diceNum   = wp.dmgSmallMed.dices;
 	curPrimaryRoll.action.roll.diceSides = wp.dmgSmallMed.sides;
-	curPrimaryRoll.action.modifier = wp.dmgSmallMed.bonus;
+	curPrimaryRoll.action.modifier       = wp.dmgSmallMed.bonus;
 
-	// Ranged vs melee: apply appropriate ability-based bonuses
-	if (wp.missileType != 0) {
-		// Ranged: DEX speed bonus to hit
+	// msType & 2 (MF_MISSILE): ranged weapon — DEX speed bonus to hit
+	if (msType & static_cast<uint8>(MissileFlag::MF_MISSILE)) {
 		thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getDexSpeedBonus(), 0, 255));
-	} else {
-		// Melee: STR bonuses to hit and damage
-		thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
-		int8 bonus = static_cast<int8>(CLIP<int>((int)curPrimaryRoll.action.modifier + (int)getMeleeDamageBonus(), -128, 127));
-		curPrimaryRoll.action.modifier = bonus;
 	}
 
-	// Enchantment bonuses: weapon + matching ammo (for ranged)
+	// msType & 4 (MF_THROWING): STR bonuses to hit and damage
+	if (msType & static_cast<uint8>(MissileFlag::MF_THROWING)) {
+		thac0.current = static_cast<uint8>(CLIP<int>(thac0.current + getStrengthBonus(), 0, 255));
+		curPrimaryRoll.action.modifier = static_cast<int8>(CLIP<int>(
+			(int)curPrimaryRoll.action.modifier + getMeleeDamageBonus(), -128, 127));
+	}
+
+	// Enchantment: weapon bonus + ammo bonus
 	int enchant = (int)mainIt->bonus;
-	if (wp.missileType != 0) {
-		const CharacterItem *bolt  = getEquippedItem(Slot::S_BOLT);
-		const CharacterItem *arrow = getEquippedItem(Slot::S_ARROW);
+	if (msType > 0x7F) {
+		// Crossbow: add bolt bonus
+		const CharacterItem *bolt = getEquippedItem(Slot::S_BOLT);
 		if (bolt)
 			enchant += bolt->bonus;
-		else if (arrow)
+	}
+	if (msType & static_cast<uint8>(MissileFlag::MF_RANGED_MELEE)) {
+		// Bow: add arrow bonus
+		const CharacterItem *arrow = getEquippedItem(Slot::S_ARROW);
+		if (arrow)
 			enchant += arrow->bonus;
 	}
 
-	// Apply enchantment to damage modifier first
-	int8 bonus = static_cast<int8>(CLIP<int>((int)curPrimaryRoll.action.modifier + enchant, -128, 127));
-	curPrimaryRoll.action.modifier = bonus;
+	// Enchantment bonus to damage
+	curPrimaryRoll.action.modifier = static_cast<int8>(CLIP<int>(
+		(int)curPrimaryRoll.action.modifier + enchant, -128, 127));
 
-	// Elf racial to-hit +1 for specific weapons (typeIndex: 0x24,0x25,0x29..0x2C)
+	// Elf racial +1 to hit with specific weapons (propID 36,37,41-44)
 	int toHitAdd = enchant;
 	if (race == Goldbox::Data::R_ELF) {
 		uint8 tid = mainIt->typeIndex;
