@@ -295,34 +295,6 @@ Goldbox::Data::Items::CharacterItem *ADnDCharacter::getWeaponOrAmmo() {
     return attackItem;
 }
 
-void ADnDCharacter::armorMovementEffect(const Goldbox::Data::Items::CharacterItem *armorItem) {
-    using Slot = Goldbox::Data::Items::Slot;
-    if (!armorItem) return; // No armor equipped, no effect
-
-    const auto &prop = armorItem->prop();
-    // Verify this is actually body armor
-    if (prop.slotID == (uint8)Slot::S_BODY_ARMOR) {
-        // Apply movement effect based on weight and magical bonus
-        const uint16 armorWeight = armorItem->weight;
-
-        // Calculate movement penalty based on weight brackets
-        if (armorWeight < 151) {
-            // Light armor: no penalty
-            movement.current = movement.base;
-        } else if (armorWeight <= 399) {
-            // Medium armor: fixed movement of 9
-            movement.current = 9;
-        } else {
-            // Heavy armor: fixed movement of 6
-            movement.current = 6;
-        }
-        // Magical bonus: if armor is enchanted and movement was reduced, grant +3
-        if (armorItem->bonus != 0 && movement.current < 10)
-            movement.current += 3;
-    }
-    return;
-}
-
 void ADnDCharacter::setItemProtection(const Goldbox::Data::Items::CharacterItem *item,
                                       AcComponents *acComponents,
                                       bool *magicArmorWorn) {
@@ -384,9 +356,152 @@ void ADnDCharacter::setItemProtection(const Goldbox::Data::Items::CharacterItem 
     }
 }
 
+void ADnDCharacter::recalcCombatStats() {
+	AcComponents ac;
+	const EquipScanResult scan = rebuildEquipmentSlots();
+	recalculateEncumbrance(scan);
+	resetCombatModifiers();
+	applyWeaponAndAbilityModifiers();
+	applyEquippedItemModifiers(ac);
+	applyEffectStateModifiers(ac);
+	finalizeArmorClass(ac);
+	attackLevel = (levels.levels[C_FIGHTER] > 0 && race > 0) ? levels.levels[C_FIGHTER] : 1;
+}
+
+ADnDCharacter::EquipScanResult ADnDCharacter::rebuildEquipmentSlots() {
+	using namespace Goldbox::Data::Items;
+
+	handsEquipped = 0;
+	numOfItems = static_cast<int8>(inventory.items().size());
+	equippedItems.clear();
+
+	EquipScanResult result = {0, 0, false};
+	uint i = 0;
+	for (const CharacterItem &ci : inventory.items()) {
+		const uint itemIdx = i++;
+		uint32 w = ci.weight;
+		if (ci.stackSize != 0)
+			w *= ci.stackSize;
+		result.totalWeight += w;
+
+		if (!ci.isEquipped())
+			continue;
+
+		CharacterItem *ptr = const_cast<CharacterItem *>(&ci);
+		const ItemProperty &p = ci.prop();
+		bool placed = false;
+		const int sid = (int)p.slotID;
+
+		if (sid >= 0 && sid < 9) {
+			if (!equippedItems.slots[sid]) {
+				equippedItems.slots[sid] = ptr;
+				placed = true;
+			}
+		} else if (sid == 9) {
+			if (!equippedItems.slots[(int)Slot::S_RING1]) {
+				equippedItems.slots[(int)Slot::S_RING1] = ptr;
+				placed = true;
+			} else if (!equippedItems.slots[(int)Slot::S_RING2]) {
+				equippedItems.slots[(int)Slot::S_RING2] = ptr;
+				placed = true;
+			} else {
+				debug(4, "ADnDCharacter::rebuildEquipmentSlots: extra ring cannot be placed idx=%u type=%u",
+					  (unsigned)itemIdx, (unsigned)ci.typeIndex);
+			}
+		}
+		if (!placed && ci.typeIndex == 73 && !equippedItems.slots[(int)Slot::S_ARROW]) {
+			equippedItems.slots[(int)Slot::S_ARROW] = ptr;
+			placed = true;
+		}
+		if (!placed && ci.typeIndex == 28 && !equippedItems.slots[(int)Slot::S_BOLT]) {
+			equippedItems.slots[(int)Slot::S_BOLT] = ptr;
+			placed = true;
+		}
+
+		if (placed) {
+			result.equippedWeight += w;
+			handsEquipped = static_cast<uint8>(handsEquipped + p.hands);
+			if (ci.nameCode1 == 186)
+				result.bagOfHolding = true;
+		}
+	}
+
+	handsEquipped = static_cast<uint8>(MIN<uint32>(0xFFu, handsEquipped));
+	result.totalWeight += valuableItems.getTotalWeight();
+	return result;
+}
+
+void ADnDCharacter::recalculateEncumbrance(const EquipScanResult &scan) {
+	uint32 total = static_cast<uint32>(CLIP<int32>(
+		(int32)scan.totalWeight + (int32)effectState.mods.encumbrance, 0, 0x7FFFFFFF));
+
+	if (scan.bagOfHolding) {
+		if (total < 5000)
+			total = 0;
+		else
+			total -= 5000;
+		if (total < scan.equippedWeight)
+			total = scan.equippedWeight;
+	}
+	encumbrance = static_cast<uint16>(MIN<uint32>(0xFFFFu, total));
+}
+
 void ADnDCharacter::resetCurrentRollsFromBase() {
-    curPrimaryRoll   = basePrimaryRoll;
-    curSecondaryRoll = baseSecondaryRoll;
+	curPrimaryRoll   = basePrimaryRoll;
+	curSecondaryRoll = baseSecondaryRoll;
+}
+
+void ADnDCharacter::resetCombatModifiers() {
+	resetCurrentRollsFromBase();
+	saveBonus = 0;
+	armorClass.resetToBase();
+	movement.resetToBase();
+	thac0.resetToBase();
+}
+
+void ADnDCharacter::applyWeaponAndAbilityModifiers() {
+	// Default: no weapon modifiers. Game-specific subclasses override.
+}
+
+void ADnDCharacter::applyEquippedItemModifiers(AcComponents &ac) {
+	ac.dexAdj = getDexDefenceBonus();
+	bool hasMagicArmor = false;
+	for (int slot = 0; slot < EQUIPPED_SLOT_COUNT; ++slot) {
+		if (auto *item = equippedItems.slots[slot]) {
+			armorMovementEffect(item);
+			setItemProtection(item, &ac, &hasMagicArmor);
+		}
+	}
+	if (hasMagicArmor)
+		ac.ring = 0;
+}
+
+void ADnDCharacter::applyEffectStateModifiers(AcComponents & /*ac*/) {
+	// Default: no effect state modifiers. Game-specific subclasses override.
+}
+
+void ADnDCharacter::armorMovementEffect(const Goldbox::Data::Items::CharacterItem *item) {
+	using Slot = Goldbox::Data::Items::Slot;
+	if (!item || item->prop().slotID != (uint8)Slot::S_BODY_ARMOR)
+		return;
+
+	const uint16 w = item->weight;
+	if (w < 151)
+		movement.current = movement.base;
+	else if (w <= 399)
+		movement.current = 6;
+	else
+		movement.current = 9;
+
+	if (item->bonus != 0 && movement.current < 10)
+		movement.current += 3;
+}
+
+void ADnDCharacter::finalizeArmorClass(AcComponents &ac) {
+	setMovement();
+	if (ac.armorBase < armorClass.current)
+		ac.armorBase = armorClass.current;
+	armorClass.current = static_cast<uint8>(ac.getTotalAC());
 }
 
 int ADnDCharacter::getCapacityModifier() const {

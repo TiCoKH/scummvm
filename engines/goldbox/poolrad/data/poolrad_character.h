@@ -204,7 +204,6 @@ public:
     void resolveEquippedItems();
     void clearInvalidMemorizedSpellsLegacy();
     void clearMemorizedSpellStateLegacy();
-    void recalcCombatStats();
     // Legacy Pool of Radiance receive-item fit check (CHARACTER_checkItemFit).
     // Returns true when the character can receive/carry the item.
     // Rules: max 16 items total (0..15 valid before add), and
@@ -214,10 +213,6 @@ public:
 	// Combines fit-check + add + recalc in one atomic operation.
 	// Returns true on success (item added), false on failure (overloaded).
 	bool receiveItem(const Goldbox::Data::Items::CharacterItem &item);
-    // Set current damage and to-hit based on equipped weapon and stats.
-    // Sets current primary dice/sides/modifier and applies STR/DEX, ammo enchantment and racial adjustments.
-    void setDamage();
-
     void addEffect(uint8 type, uint16 durationMin, uint8 power, bool immediate) override;
 
 	void onEffectsChanged() override;
@@ -229,31 +224,11 @@ public:
         return &effects;
     }
 
-    // Implementing pure virtual functions from PlayerCharacter
-    const char *getRaceName() const override {
-        // Provide implementation
-        return "RaceName";
-    }
-
-    const char *getClassName() const override {
-        // Provide implementation
-        return "ClassName";
-    }
-
-    const char *getGenderName() const override {
-        // Provide implementation
-        return "GenderName";
-    }
-
-    const char *getAlignmentName() const override {
-        // Provide implementation
-        return "AlignmentName";
-    }
-
-    const char *getStatusName() const override {
-        // Provide implementation
-        return "StatusName";
-    }
+    const char *getRaceName() const override { return "RaceName"; }
+    const char *getClassName() const override { return "ClassName"; }
+    const char *getGenderName() const override { return "GenderName"; }
+    const char *getAlignmentName() const override { return "AlignmentName"; }
+    const char *getStatusName() const override { return "StatusName"; }
 
 protected:
     void removeUnconsciousEffect() override;
@@ -263,10 +238,13 @@ protected:
             const Goldbox::Data::Items::CharacterItem *item) const override;
     void onReadyItemEffect(Goldbox::Data::Items::CharacterItem *item,
                      bool equipping) override;
+    void applyWeaponAndAbilityModifiers() override;
+    void applyEffectStateModifiers(Goldbox::Data::ADnDCharacter::AcComponents &ac) override;
 
 private:
     void importSpellBookFromLegacyArrays();
     void exportSpellBookToLegacyArrays();
+    void setDamage();
 };
 
 } // namespace Data
