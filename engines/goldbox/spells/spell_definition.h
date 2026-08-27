@@ -40,7 +40,9 @@ enum HandlerId {
     kHandlerCureLightWounds,    // ID03: heal 1d8 HP
     kHandlerBurningHands,       // ID09: damage = caster level
     kHandlerCharmPerson,        // ID10: type/size check + charm effect
-    kHandlerEnlarge             // ID12: strength buff by caster level
+    kHandlerEnlarge,             // ID12: strength buff by caster level
+    kHandlerReduce,              // ID13: saving throw; remove E_POOLRAD_ENLARGE_STRENGTHEN
+    kHandlerFriends              // ID14: charisma buff 2d4; power = old charisma
 };
 
 struct SpellDefinition {

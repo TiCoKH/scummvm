@@ -91,6 +91,22 @@ public:
                             const TargetSelection &targets) const override;
 };
 
+// ID13 Reduce: saving throw vs spell; removes E_POOLRAD_ENLARGE_STRENGTHEN.
+class ReduceHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID14 Friends: buffs charisma by 2d4 (max 25); effect power stores old charisma.
+class FriendsHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
 } // namespace Spells
 } // namespace Goldbox
 

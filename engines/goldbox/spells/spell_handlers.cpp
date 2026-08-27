@@ -25,9 +25,10 @@
 #include "goldbox/data/effects/effect.h"
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/player_character.h"
+#include "goldbox/data/rules/saving_throw.h"
 #include "goldbox/engine.h"
 #include "goldbox/runtime/effect_host_bridge.h"
-#include "goldbox/spells/spell_casting.h"
+#include "goldbox/spells/spell_generic_handler.h"
 
 namespace Goldbox {
 namespace Spells {
@@ -171,8 +172,8 @@ SpellCastResult CharmPersonHandler::execute(const SpellContext &context,
 
 // --- Enlarge (ID12) ---
 // Strength buff scaled by caster level (table: 1->0, 2->1, 3->51, 4->76, 5->91, 6->100).
-// Calls applyStrengthChange; on success posts "is stronger" and adds E_ENLARGE
-// with duration from computeSpellDuration and the encoded previous-strength power.
+// Mutates strength first, then delegates effect application to applyToTargets
+// with the encoded previous-strength as the power override.
 SpellCastResult EnlargeHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -187,10 +188,6 @@ SpellCastResult EnlargeHandler::execute(const SpellContext &context,
     Goldbox::Data::Effects::EffectHostBridge *bridge =
         context.effectSystem ? context.effectSystem->getHostBridge() : nullptr;
 
-    const uint8 spellId = definition.id;
-    const uint8 duration = computeSpellDuration(
-        spellId, context.casterLevel, context.inCombat);
-
     for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
         Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
         if (!target)
@@ -202,14 +199,79 @@ SpellCastResult EnlargeHandler::execute(const SpellContext &context,
                 bridge->postEffectMessage(target, "is stronger", true);
         }
 
-        // Always add the E_ENLARGE effect (raw 0x0C) with the encoded
-        // previous-strength power, regardless of whether the buff applied.
-        target->addEffect(
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE_STRENGTHEN),
-            duration, effectValue, true);
+        // Delegate effect record creation to applyToTargets with the encoded
+        // previous-strength as the power override, mirroring Friends pattern.
+        TargetSelection single;
+        single.targetCharacters.push_back(target);
+        GenericSpellHandler::applyToTargets(context, definition, single, effectValue);
     }
 
     return SpellCastResult(CAST_OK);
+}
+
+// --- Reduce (ID13) ---
+// Saving throw vs spell negates. If save fails, removes E_POOLRAD_ENLARGE_STRENGTHEN
+// (0x0C) from the target and posts "has been reduced".
+SpellCastResult ReduceHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+    Goldbox::Data::Effects::EffectHandlerBase *handler =
+        context.effectSystem->getHandler();
+
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+
+        Goldbox::Data::ADnDCharacter *adnd =
+            dynamic_cast<Goldbox::Data::ADnDCharacter *>(target);
+        if (adnd && Goldbox::Data::Rules::checkSavingThrow(
+                *adnd, context.combat, handler, bridge,
+                Goldbox::Data::Spells::SVS_SPELL, 0))
+            continue;
+
+        Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+        if (!fx)
+            continue;
+
+        if (context.effectSystem->removeEffectById(
+                *target, *fx,
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE_STRENGTHEN))) {
+            if (bridge)
+                bridge->postEffectMessage(target, "has been reduced", true);
+        }
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Friends (ID14) ---
+// Buffs caster's charisma by 2d4 (capped at 25), then applies the generic
+// effect path with oldCharisma as the power so the effect handler can
+// restore the original value on expiry.
+SpellCastResult FriendsHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (!context.caster)
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    const uint8 oldCharisma = context.caster->abilities.charisma.current;
+    const uint8 roll = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(2, 4)) : 4;
+    const uint8 newCharisma = static_cast<uint8>(
+        MIN<uint16>(oldCharisma + roll, 25));
+    context.caster->abilities.charisma.current = newCharisma;
+
+    return GenericSpellHandler::applyToTargets(context, definition, targets, oldCharisma);
 }
 
 } // namespace Spells

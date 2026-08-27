@@ -46,6 +46,13 @@ public:
 	SpellCastResult execute(const SpellContext &context,
 	                        const SpellDefinition &definition,
 	                        const TargetSelection &targets) const override;
+
+	// Shared apply path used by specialised handlers that need a non-default
+	// effect power. effectPowerOverride == 0 -> use casterLevel as power.
+	static SpellCastResult applyToTargets(const SpellContext &context,
+	                                      const SpellDefinition &definition,
+	                                      const TargetSelection &targets,
+	                                      uint8 effectPowerOverride);
 };
 
 } // namespace Spells
