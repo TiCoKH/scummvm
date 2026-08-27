@@ -80,16 +80,23 @@ Common::String SpellRegistry::effectMessageForSpell(
     switch (id) {
     case SP_CL1_BLESS:           return "is Blessed";
     case SP_CL1_CURSE:           return "is Cursed";
+    case SP_CL1_DETECT_MAGIC:    return "is affected";
+    case SP_MUL1_DETECT_MAGIC:   return "is affected";
     case SP_CL1_PROT_FROM_EVIL:  return "is Protected from Evil";
     case SP_CL1_PROT_FROM_GOOD:  return "is Protected from Good";
     case SP_MUL1_PROT_FROM_EVIL: return "is Protected from Evil";
     case SP_MUL1_PROT_FROM_GOOD: return "is Protected from Good";
-    case SP_CL1_RESIST_COLD:     return "Resists Cold";
+    case SP_CL1_RESIST_COLD:     return "is cold-resistant";
+    case SP_CL2_FIND_TRAPS:      return "is affected";
     case SP_CL2_RESIST_FIRE:     return "Resists Fire";
     case SP_CL2_SLOW_POISON:     return "Slow Poison";
     case SP_CL3_PRAYER:          return "is Praying";
+    case SP_MUL2_DETECT_INVISIB: return "is affected";
     case SP_MUL2_INVISIBILITY:   return "is Invisible";
     case SP_MUL3_HASTE:          return "is Hasted";
+    case SP_MUL3_PROT_F_EVIL_10R: return "is Protected from Evil";
+    case SP_MUL3_PROT_F_GOOD_10R: return "is Protected from Good";
+    case SP_MUL3_PROT_F_NORM_MSL: return "is protected";
     case SP_MUL3_SLOW:           return "is Slowed";
     default:                     return Common::String();
     }
