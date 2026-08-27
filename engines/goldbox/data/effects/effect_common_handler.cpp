@@ -319,40 +319,16 @@ void handleFriendly(const EffectCall &c) {
 }
 
 void handleEnlargeStrengthened(const EffectCall &c) {
-    if (c.effect.power >= 128)
+    // power >= 0x80 means this effect is storing a saved-off old strength
+    // value (set by applyStrengthChange); skip it during normal eval.
+    if (c.effect.power >= 0x80)
         return;
 
     uint8 newStr, newExt;
     strengthDecode(c.effect.power, newStr, newExt);
-    c.character.abilities.strength.current     = newStr;
-    c.character.abilities.strException.current = newExt;
 
-    CharacterEffects *fx = c.character.getEffects();
-    if (!fx)
-        return;
-
-    Effect *bestEffect = nullptr;
-    uint8 bestStr = 0, bestExt = 0;
-    for (Effect &e : fx->effects()) {
-        if (&e == &c.effect)
-            continue;
-        if (e.id != E_STRENGTH && e.id != E_ENLARGE)
-            continue;
-        uint8 eStr, eExt;
-        strengthDecode(e.power, eStr, eExt);
-        if (eStr > bestStr || (eStr == 18 && bestStr == 18 && eExt > bestExt)) {
-            bestEffect = &e;
-            bestStr    = eStr;
-            bestExt    = eExt;
-        }
-    }
-
-    if (bestEffect) {
-        bestEffect->power = strengthEncode(c.character.abilities.strength.current,
-                                           c.character.abilities.strException.current);
-        c.character.abilities.strength.current     = bestStr;
-        c.character.abilities.strException.current = bestExt;
-    }
+    uint8 outEncoded;
+    c.character.applyStrengthChange(newStr, newExt, outEncoded);
 }
 
 void handlePoisonDamage(const EffectCall &c) {

@@ -242,19 +242,17 @@ bool PlayerCharacter::applyStrengthChange(uint8 newStr, uint8 newExtStr, uint8 &
     const uint8 oldStr    = abilities.strength.current;
     const uint8 oldExtStr = abilities.strException.current;
 
-    // Debuff: new strength is lower
+    // Debuff: new strength is lower — reject and return encoded new (debuffed) value.
     if (newStr < oldStr || (newStr == 18 && oldStr == 18 && newExtStr < oldExtStr)) {
         outEncoded = Effects::strengthEncode(newStr, newExtStr) & 0x7f;
         return false;
     }
 
-    // Buff: find first active strength/enlarge effect to store the backup
+    // Buff: find first active strength/enlarge effect (power < 0x80 = not yet
+    // storing a backup) and preserve the character's current strength in it.
     Effects::CharacterEffects *fx = getEffects();
     if (fx) {
-        Common::List<Effects::Effect> &list = fx->effects();
-        for (Common::List<Effects::Effect>::iterator it = list.begin();
-                it != list.end(); ++it) {
-            Effects::Effect &e = *it;
+        for (Effects::Effect &e : fx->effects()) {
             if ((e.id == Effects::E_STRENGTH || e.id == Effects::E_ENLARGE)
                     && e.power < 0x80) {
                 e.power = Effects::strengthEncode(oldStr, oldExtStr) | 0x80;
@@ -263,11 +261,12 @@ bool PlayerCharacter::applyStrengthChange(uint8 newStr, uint8 newExtStr, uint8 &
         }
     }
 
-    abilities.strength.current    = newStr;
+    abilities.strength.current     = newStr;
     abilities.strException.current = newExtStr;
     onEffectsChanged();
 
-    outEncoded = Effects::strengthEncode(newStr, newExtStr);
+    // Return the previous strength as the output value (matches original).
+    outEncoded = Effects::strengthEncode(oldStr, oldExtStr);
     return true;
 }
 
