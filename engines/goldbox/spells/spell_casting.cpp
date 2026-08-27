@@ -74,6 +74,8 @@ SpellCastingService::SpellCastingService()
     _registry.setHandler(kHandlerBurningHands,    &_burningHandsHandler);
     _registry.setHandler(kHandlerCharmPerson,     &_charmPersonHandler);
     _registry.setHandler(kHandlerEnlarge,         &_enlargeHandler);
+    _registry.setHandler(kHandlerReduce,          &_reduceHandler);
+    _registry.setHandler(kHandlerFriends,         &_friendsHandler);
 
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CURE_LT_WOUNDS,
         kHandlerCureLightWounds);
@@ -83,6 +85,10 @@ SpellCastingService::SpellCastingService()
         kHandlerCharmPerson);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_ENLARGE,
         kHandlerEnlarge);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_REDUCE,
+        kHandlerReduce);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_FRIENDS,
+        kHandlerFriends);
 }
 
 SpellCastResult SpellCastingService::castSpell(SpellContext &context,

@@ -35,6 +35,13 @@ namespace Spells {
 SpellCastResult GenericSpellHandler::execute(const SpellContext &context,
 		const SpellDefinition &definition,
 		const TargetSelection &targets) const {
+	return applyToTargets(context, definition, targets, 0);
+}
+
+SpellCastResult GenericSpellHandler::applyToTargets(const SpellContext &context,
+		const SpellDefinition &definition,
+		const TargetSelection &targets,
+		uint8 effectPowerOverride) {
 	if (!definition.entry || !context.effectSystem)
 		return SpellCastResult(CAST_ERROR);
 
@@ -113,7 +120,9 @@ SpellCastResult GenericSpellHandler::execute(const SpellContext &context,
 			continue;
 
 		context.effectSystem->addOrRefreshEffect(*fx, *target,
-				entry.effectId, duration, 0xFF, true);
+				entry.effectId, duration,
+				effectPowerOverride != 0 ? effectPowerOverride : context.casterLevel,
+				true);
 
 		if (!definition.effectMessage.empty() && bridge)
 			bridge->postEffectMessage(target, definition.effectMessage, true);

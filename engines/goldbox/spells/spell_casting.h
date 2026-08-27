@@ -62,6 +62,8 @@ private:
     BurningHandsHandler _burningHandsHandler;
     CharmPersonHandler _charmPersonHandler;
     EnlargeHandler _enlargeHandler;
+    ReduceHandler _reduceHandler;
+    FriendsHandler _friendsHandler;
 };
 
 } // namespace Spells
