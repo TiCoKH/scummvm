@@ -341,26 +341,22 @@ void ADnDCharacter::setItemProtection(const Goldbox::Data::Items::CharacterItem 
 
     // Case 3: Item is Body Armor with a base AC value
     {
-        int8 totalArmorAC = baseAC + item->bonus;
-        // Update the character's armor value only if this piece is better.
-        if (totalArmorAC > acComponents->armorBase) {
-            acComponents->armorBase = totalArmorAC;
-
-            // If this is magical body armor, set the 'is_magic_armor_worn' flag.
-            // This flag might be used elsewhere to negate other bonuses (e.g., from a Ring of Protection).
-            if (itemSlot == Slot::S_BODY_ARMOR && item->bonus > 0) {
+        int armorProtection = (int)baseAC + (int)item->bonus;
+        if (armorProtection > (int)acComponents->armorBase) {
+            acComponents->armorBase = static_cast<uint8>(CLIP<int>(armorProtection, 0, 255));
+            if (item->bonus > 0 && itemSlot == Slot::S_BODY_ARMOR)
                 *magicArmorWorn = true;
-            }
         }
         return;
     }
 }
 
 void ADnDCharacter::recalcCombatStats() {
-	AcComponents ac;
 	const EquipScanResult scan = rebuildEquipmentSlots();
 	recalculateEncumbrance(scan);
 	resetCombatModifiers();
+	AcComponents ac;
+	ac.dexAdj = getDexDefenceBonus();
 	applyWeaponAndAbilityModifiers();
 	applyEquippedItemModifiers(ac);
 	applyEffectStateModifiers(ac);
@@ -464,7 +460,6 @@ void ADnDCharacter::applyWeaponAndAbilityModifiers() {
 }
 
 void ADnDCharacter::applyEquippedItemModifiers(AcComponents &ac) {
-	ac.dexAdj = getDexDefenceBonus();
 	bool hasMagicArmor = false;
 	for (int slot = 0; slot < EQUIPPED_SLOT_COUNT; ++slot) {
 		if (auto *item = equippedItems.slots[slot]) {
@@ -505,46 +500,19 @@ void ADnDCharacter::finalizeArmorClass(AcComponents &ac) {
 }
 
 int ADnDCharacter::getCapacityModifier() const {
-    int t = getStrengthTier();
-
-    if (t == 0) {
-        return 0; // not possible
-    }
-    if (t >= 1 && t <= 3) {
-        return -350;
-    }
-    if (t >= 4 && t <= 5) {
-        return -250;
-    }
-    if (t >= 6 && t <= 7) {
-        return -150;
-    }
-    if (t >= 8 && t <= 11) {
-        return 0;
-    }
-    if (t == 12 || t == 13) {
-        return 100;
-    }
-    if (t == 14 || t == 15) {
-        return 200;
-    }
-    if (t == 16) {
-        return 350;
-    }
-    if (t >= 17 && t <= 21) {
-        return 500 + (t - 17) * 250;
-    }
-    if (t >= 22 && t <= 26) {
-        return 2000 + (t - 22) * 1000;
-    }
-    if (t == 27) {
-        return 7500;
-    }
-    if (t >= 28 && t <= 30) {
-        return 9000 + (t - 28) * 3000;
-    }
-    debug(4, "ADnDCharacter::getCapacityModifier: invalid strength tier %d", t);
-    return 0;
+	int t = getStrengthTier();
+	if (t <= 3)  return -350;
+	if (t <= 5)  return -250;
+	if (t <= 7)  return -150;
+	if (t <= 11) return 0;
+	if (t <= 13) return 100;
+	if (t <= 15) return 200;
+	if (t == 16) return 350;
+	if (t <= 21) return 500 + (t - 17) * 250;
+	if (t <= 26) return 2000 + (t - 22) * 1000;
+	if (t == 27) return 7500;
+	if (t <= 30) return 9000 + (t - 28) * 3000;
+	return 0;
 }
 
 void ADnDCharacter::setMovement() {
@@ -559,9 +527,9 @@ void ADnDCharacter::setMovement() {
     uint8 cap = movement.current; // no cap if within the lowest tier
     if (effectiveEnc > 1024) {
         cap = 3;
-    } else if (effectiveEnc >= 769) {
+    } else if (effectiveEnc > 768) {
         cap = 6;
-    } else if (effectiveEnc >= 513) {
+    } else if (effectiveEnc > 512) {
         cap = 9;
     }
 
