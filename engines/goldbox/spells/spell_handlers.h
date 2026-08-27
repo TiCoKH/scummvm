@@ -59,6 +59,38 @@ public:
                             const TargetSelection &targets) const override;
 };
 
+// ID03 Cure Light Wounds: heals 1d8 HP on each target.
+class CureLightWoundsHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID09 Burning Hands: deals casterLevel points of fire damage to all targets.
+class BurningHandsHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID10 Charm Person: affects normal/small targets; adjusts power by combat side.
+class CharmPersonHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID12 Enlarge: strength buff scaled by caster level; adds E_ENLARGE effect.
+class EnlargeHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
 } // namespace Spells
 } // namespace Goldbox
 

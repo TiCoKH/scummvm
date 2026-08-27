@@ -36,7 +36,11 @@ enum HandlerId {
     kHandlerProtectionShared,
     kHandlerHoldPersonShared,
     kHandlerDispelMagicShared,
-    kHandlerInvisibilityShared
+    kHandlerInvisibilityShared,
+    kHandlerCureLightWounds,    // ID03: heal 1d8 HP
+    kHandlerBurningHands,       // ID09: damage = caster level
+    kHandlerCharmPerson,        // ID10: type/size check + charm effect
+    kHandlerEnlarge             // ID12: strength buff by caster level
 };
 
 struct SpellDefinition {

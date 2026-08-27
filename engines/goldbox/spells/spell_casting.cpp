@@ -21,12 +21,68 @@
 #include "goldbox/spells/spell_casting.h"
 #include "goldbox/data/spells/spell_book.h"
 #include "goldbox/data/effects/effect_system.h"
+#include "goldbox/data/rules/rules.h"
+#include "goldbox/engine.h"
 
 namespace Goldbox {
 namespace Spells {
 
+// Mirrors SPELL_ComputeDuration. Returns an 8-bit duration value.
+// Six spell IDs use special dice formulas; all others use the table.
+uint8 computeSpellDuration(uint8 spellId, uint8 casterLevel, bool inCombat) {
+    switch (spellId) {
+    case 0x28: // 40: 1d6 * 10
+        return static_cast<uint8>(
+            (Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 6) : 3) * 10);
+
+    case 0x39: // 57: 5d4
+    case 0x3D: // 61: 5d4
+        return static_cast<uint8>(
+            Goldbox::g_engine ? Goldbox::g_engine->rollDice(5, 4) : 10);
+
+    case 0x3B: // 59: 1d4 * 10 + 40
+        return static_cast<uint8>(
+            (Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 4) : 2) * 10 + 40);
+
+    case 0x3F: // 63: combat = 2d10*10, non-combat = (1d10+10)*10
+        if (inCombat)
+            return static_cast<uint8>(
+                (Goldbox::g_engine ? Goldbox::g_engine->rollDice(2, 10) : 10) * 10);
+        else
+            return static_cast<uint8>(
+                ((Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 10) : 5) + 10) * 10);
+
+    case 0x43: // 67: fixed
+        return 160;
+
+    default: {
+        const Common::Array<Goldbox::Data::Spells::SpellEntry> &entries =
+            Goldbox::Data::Rules::getSpellEntries();
+        if (spellId >= entries.size())
+            return 0;
+        const Goldbox::Data::Spells::SpellEntry &entry = entries[spellId];
+        // Preserve 8-bit wrap semantics of the original.
+        return static_cast<uint8>(entry.fixedDuration +
+            entry.perLvlDuration * casterLevel);
+    }
+    }
+}
+
 SpellCastingService::SpellCastingService()
     : _combatTargeter(nullptr), _nonCombatTargeter(nullptr) {
+    _registry.setHandler(kHandlerCureLightWounds, &_cureLightWoundsHandler);
+    _registry.setHandler(kHandlerBurningHands,    &_burningHandsHandler);
+    _registry.setHandler(kHandlerCharmPerson,     &_charmPersonHandler);
+    _registry.setHandler(kHandlerEnlarge,         &_enlargeHandler);
+
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CURE_LT_WOUNDS,
+        kHandlerCureLightWounds);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_BURNING_HANDS,
+        kHandlerBurningHands);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_CHARM_PERSON,
+        kHandlerCharmPerson);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_ENLARGE,
+        kHandlerEnlarge);
 }
 
 SpellCastResult SpellCastingService::castSpell(SpellContext &context,
