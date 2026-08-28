@@ -53,7 +53,10 @@ enum HandlerId {
     kHandlerSlowPoison,          // ID26: status/effect gate; HP floor; effect transition
     kHandlerSnakeCharm,          // ID27: filters enemies by monsterType==0x0E and HP budget
     kHandlerSpiritualHammer,     // ID28: generic effect path + EFF_ADD on E_POOLRAD_SPIRITUAL_HAMMER
-    kHandlerMirrorImage          // ID32: effectPowerOverride = 1d4
+    kHandlerMirrorImage,         // ID32: effectPowerOverride = 1d4
+    kHandlerStinkingCloud,       // ID34: creates persistent cloud object; applies E_STINKING_CLOUD_EXPAIR
+    kHandlerStrength,            // ID35: bonus by class; exceptional str for fighters
+    kHandlerAnimateDead          // ID36: converts dead allies to undead combatants
 };
 
 struct SpellDefinition {

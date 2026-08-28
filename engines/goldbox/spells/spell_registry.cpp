@@ -102,6 +102,8 @@ Common::String SpellRegistry::effectMessageForSpell(
     case SP_MUL3_PROT_F_GOOD_10R: return "is Protected from Good";
     case SP_MUL3_PROT_F_NORM_MSL: return "is protected";
     case SP_MUL3_SLOW:           return "is Slowed";
+    case SP_MUL2_STRENGTH:       return "is stronger";
+    case SP_CL3_ANIMATE_DEAD:    return "is animated";
     default:                     return Common::String();
     }
 }

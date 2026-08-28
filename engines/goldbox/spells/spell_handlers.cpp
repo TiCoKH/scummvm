@@ -20,6 +20,10 @@
 
 #include "goldbox/spells/spell_handlers.h"
 
+#include "goldbox/combat/cloud_effect_manager.h"
+#include "goldbox/combat/combat_context.h"
+#include "goldbox/combat/combatant_table.h"
+#include "goldbox/core/direction.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect.h"
@@ -626,6 +630,257 @@ SpellCastResult MirrorImageHandler::execute(const SpellContext &context,
     const uint8 images = Goldbox::g_engine ?
         static_cast<uint8>(Goldbox::g_engine->rollDice(1, 4)) : 2;
     return GenericSpellHandler::applyToTargets(context, definition, targets, images);
+}
+
+// --- Stinking Cloud (ID34) ---
+// Creates a persistent cloud object on the battlefield centered on targets.tileX/Y.
+// power byte = castingLevel (low nibble) | cloudIndex (high nibble), matching
+// CloudEffectManager's encoding: cloudIndex = countOwnedBy(caster) before insert.
+// Adds E_STINKING_CLOUD_EXPAIR (raw 40) to the caster so the cloud expires when
+// the effect ticks out. Then applies initial nausea to all combatants currently
+// occupying the four cloud cells.
+//
+// TODO: presentation layer not yet implemented.
+//   Original sequence after cloud creation:
+//     TEXT_drawIntoMsgBox(caster, "Creates a noxious cloud", 10, false)
+//     COMBAT_RedrawViewport(centerX, centerY, 0xFF, 8)
+//     GAME_waitDelayTime()
+//     SCREEN_clearMsgArea()
+//   Wire this up once the viewport/message subsystems are available.
+SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (!context.caster || !context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Combat::CombatContext *ctx =
+        Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr;
+    if (!ctx)
+        return SpellCastResult(CAST_ERROR);
+
+    const uint8 centerX = static_cast<uint8>(targets.tileX);
+    const uint8 centerY = static_cast<uint8>(targets.tileY);
+
+    // Allocate the cloud record, paint tiles, and get the owner-relative index.
+    const uint8 cloudIndex = ctx->clouds.create(context.caster, centerX, centerY);
+
+    // power = castingLevel in low nibble, cloudIndex in high nibble.
+    const uint8 power = static_cast<uint8>(
+        (context.casterLevel & 0x0F) | ((cloudIndex & 0x0F) << 4));
+
+    // Add the persistent cloud effect to the caster.
+    // Duration = castingLevel rounds (mirrors original CHARACTER_addEffect call).
+    Goldbox::Data::Effects::CharacterEffects *casterFx = context.caster->getEffects();
+    if (casterFx) {
+        context.effectSystem->addOrRefreshEffect(
+            *casterFx, *context.caster,
+            static_cast<uint8>(Goldbox::Data::Effects::E_STINKING_CLOUD_EXPAIR),
+            context.casterLevel, power, true);
+    }
+
+    // Apply initial nausea to all combatants currently in the four cloud cells.
+    // CloudEffectManager::kCloudDirections = {8, 2, 3, 4}.
+    static const uint8 kCloudDirs[4] = { 8, 2, 3, 4 };
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+
+    for (int dir = 0; dir < 4; ++dir) {
+        const uint8 wireDir = kCloudDirs[dir];
+        const uint8 cx = static_cast<uint8>(centerX + kDirDeltaX[wireDir]);
+        const uint8 cy = static_cast<uint8>(centerY + kDirDeltaY[wireDir]);
+
+        // Look up the combatant at this cell (1-based index, 0 = empty).
+        const uint8 occupantIdx = ctx->table.getOccupant(cx, cy);
+        if (occupantIdx == 0)
+            continue;
+
+        Goldbox::Data::PlayerCharacter *occupant =
+            ctx->table.getCharacter(occupantIdx - 1);
+        if (!occupant)
+            continue;
+
+        Goldbox::Data::Effects::CharacterEffects *fx = occupant->getEffects();
+        if (!fx)
+            continue;
+
+        // Apply the in-cloud nausea marker (E_STINKING_CLOUD_EXPAIR = 40).
+        // The effect handler decides whether the character is nauseated.
+        context.effectSystem->addOrRefreshEffect(
+            *fx, *occupant,
+            static_cast<uint8>(Goldbox::Data::Effects::E_STINKING_CLOUD_EXPAIR),
+            1, power, true);
+
+        if (bridge)
+            bridge->postEffectMessage(occupant, "is nauseated", false);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Strength (ID35) ---
+// Bonus dice by class (highest priority wins): fighter=1d8, cleric/thief=1d6, mage=1d4.
+// Excess over 18 converts to exceptional strength for fighters (capped at 100).
+// Adds E_POOLRAD_ENLARGE_STRENGTHEN (0x0C) with duration from computeSpellDuration.
+SpellCastResult StrengthHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+
+        Goldbox::Data::ADnDCharacter *adnd =
+            dynamic_cast<Goldbox::Data::ADnDCharacter *>(target);
+
+        // Determine bonus dice by class (priority: fighter > cleric/thief > mage).
+        uint8 bonus = 0;
+        if (adnd) {
+            if (adnd->levels[Goldbox::Data::C_MAGICUSER] > 0)
+                bonus = static_cast<uint8>(
+                    Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 4) : 2);
+            if (adnd->levels[Goldbox::Data::C_CLERIC] > 0 ||
+                    adnd->levels[Goldbox::Data::C_THIEF] > 0)
+                bonus = static_cast<uint8>(
+                    Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 6) : 3);
+            if (adnd->levels[Goldbox::Data::C_FIGHTER] > 0)
+                bonus = static_cast<uint8>(
+                    Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 8) : 4);
+        }
+
+        uint8 newStr = static_cast<uint8>(target->abilities.strength.current + bonus);
+        uint8 newExtStr = 0;
+
+        if (newStr > 18) {
+            if (adnd && adnd->levels[Goldbox::Data::C_FIGHTER] > 0) {
+                newExtStr = static_cast<uint8>(
+                    MIN<uint16>(target->abilities.strException.current +
+                        (newStr - 18) * 10, 100));
+            }
+            newStr = 18;
+        }
+
+        uint8 effectPower = 0;
+        const bool changed = target->applyStrengthChange(newStr, newExtStr, effectPower);
+        if (changed && bridge)
+            bridge->postEffectMessage(target, "is stronger", true);
+
+        const uint8 duration = computeSpellDuration(
+            static_cast<uint8>(Goldbox::Data::Spells::SP_MUL2_STRENGTH),
+            context.casterLevel, context.inCombat);
+
+        context.effectSystem->addOrRefreshEffect(
+            *target->getEffects(), *target,
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE_STRENGTHEN),
+            duration, effectPower, true);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Animate Dead (ID36) ---
+// Iterates context.allies filtered by S_DEAD + classType==0 (normal party member).
+// Re-places each on the combat map at their stored position; converts to undead
+// (combatSide from caster, ai_control=true, levelUndead=2, npc=0xB2/0xB3, classType=4).
+// Clears memorized spells and combat target. Revives at max HP.
+// Adds E_POOLRAD_ANIMATING_DEAD (0x20) with power = originalSide*16 + casterLevel.
+// Budget = casterLevel animations.
+SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)targets;
+    if (!context.caster || !context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Combat::CombatContext *ctx =
+        Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr;
+    if (!ctx)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+
+    uint8 remaining = context.casterLevel;
+
+    for (uint i = 0; i < context.allies.size() && remaining > 0; ++i) {
+        Goldbox::Data::PlayerCharacter *ch = context.allies[i];
+        if (!ch)
+            continue;
+
+        // Only dead normal party members (classType==0 mirrors original type!=0 skip).
+        const Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
+            dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(ch);
+        if (!poolrad ||
+                poolrad->healthStatus != static_cast<uint8>(Goldbox::Data::S_DEAD) ||
+                ch->classType != 0)
+            continue;
+
+        // Re-place on combat map at stored position.
+        const uint8 col = ctx->table.getCharacterCol(ch);
+        const uint8 row = ctx->table.getCharacterRow(ch);
+        const int slot = ctx->table.addCombatant(ch, ch->iconDimension);
+        if (slot < 0)
+            continue;
+        ctx->table.setPosition(slot, col, row);
+
+        // Capture original side before mutation.
+        const uint8 originalSide = static_cast<uint8>(ch->combatSide);
+        const uint8 effectPower = static_cast<uint8>(originalSide * 16 + context.casterLevel);
+
+        // Convert to undead combatant.
+        ch->combatSide = context.caster->combatSide;
+        ch->ai_control = true;
+
+        Goldbox::Data::ADnDCharacter *adnd =
+            dynamic_cast<Goldbox::Data::ADnDCharacter *>(ch);
+        if (adnd) {
+            adnd->levelUndead = 2;
+            adnd->attackLevel = 0;
+            for (int j = 0; j <= 20; ++j)
+                adnd->spells.memorizedSpells[j] = 0;
+            adnd->npc = (adnd->npc < static_cast<int8>(0x80)) ?
+                static_cast<int8>(0xB3) : static_cast<int8>(0xB2);
+        }
+
+        ch->movement.current = 6;
+        ch->classType = 4;
+
+        // Clear combat target.
+        if (ch->combatState)
+            ch->combatState->target = nullptr;
+
+        --remaining;
+
+        // Revive at max HP.
+        ch->hitPoints.current = ch->hitPoints.max;
+
+        // Apply animated effect and set status.
+        Goldbox::Data::Effects::CharacterEffects *fx = ch->getEffects();
+        if (fx) {
+            context.effectSystem->addOrRefreshEffect(
+                *fx, *ch,
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ANIMATING_DEAD),
+                0, effectPower, true);
+        }
+
+        Goldbox::Poolrad::Data::PoolradCharacter *poolradMut =
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(ch);
+        if (poolradMut)
+            poolradMut->healthStatus = static_cast<uint8>(Goldbox::Data::S_ANIMATED);
+
+        if (bridge)
+            bridge->postEffectMessage(ch, "is animated", true);
+    }
+
+    return SpellCastResult(CAST_OK);
 }
 
 } // namespace Spells
