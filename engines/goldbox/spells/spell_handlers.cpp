@@ -27,6 +27,7 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/saving_throw.h"
 #include "goldbox/engine.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/spells/spell_generic_handler.h"
 
@@ -272,6 +273,118 @@ SpellCastResult FriendsHandler::execute(const SpellContext &context,
     context.caster->abilities.charisma.current = newCharisma;
 
     return GenericSpellHandler::applyToTargets(context, definition, targets, oldCharisma);
+}
+
+// --- Magic Missile (ID15) ---
+// damageLevel = (casterLevel + 1) >> 1
+// damage = damageLevel + rollDice(damageLevel, 4)
+// Applies damage with behavior flag 8 via DamageSystem::applyLegacy.
+SpellCastResult MagicMissileHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    const uint8 damageLevel = static_cast<uint8>((context.casterLevel + 1) >> 1);
+    const uint8 roll = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(damageLevel, 4)) : damageLevel;
+    const uint8 baseDamage = static_cast<uint8>(damageLevel + roll);
+
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+        if (context.damageSystem)
+            context.damageSystem->applyLegacy(*target, baseDamage,
+                Goldbox::Data::DAMAGE_NORMAL, false, 8);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Shield (ID19) ---
+// Pure effect spell; no damage. Delegates entirely to GenericSpellHandler.
+SpellCastResult ShieldHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    return GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+}
+
+// --- Shocking Grasp (ID20) ---
+// damage = casterLevel + 1d8; applies with behavior flag 12.
+SpellCastResult ShockingGraspHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    const uint8 roll = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(1, 8)) : 4;
+    const uint8 baseDamage = static_cast<uint8>(context.casterLevel + roll);
+
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+        if (context.damageSystem)
+            context.damageSystem->applyLegacy(*target, baseDamage,
+                Goldbox::Data::DAMAGE_NORMAL, false, 12);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Sleep (ID21) ---
+// Rolls 4d4 as a shared budget. Each target consumes a level-based cost;
+// targets already carrying E_POOLRAD_HELPLESS_35 or whose cost exceeds the
+// remaining budget are removed from the list before the generic effect path.
+SpellCastResult SleepHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    uint8 sleepPower = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(4, 4)) : 8;
+
+    TargetSelection filtered;
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+
+        // Already sleeping — skip.
+        Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+        if (fx && fx->hasEffect(
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_HELPLESS_35)))
+            continue;
+
+        // Derive level cost from highestLevel (PoolradCharacter field).
+        const Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
+            dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(target);
+        const uint8 highestLevel = poolrad ? poolrad->highestLevel : 1;
+
+        uint8 consume;
+        if (highestLevel <= 1)       consume = 1;
+        else if (highestLevel == 2)  consume = 2;
+        else if (highestLevel == 3)  consume = 4;
+        else if (highestLevel == 4)  consume = 6;
+        else if (highestLevel == 5)  consume = (target->race != 0) ? 20 : 10;
+        else                         consume = 20;
+
+        if (sleepPower < consume)
+            continue;
+
+        sleepPower -= consume;
+        filtered.targetCharacters.push_back(target);
+    }
+
+    if (filtered.targetCharacters.empty())
+        return SpellCastResult(CAST_OK);
+
+    return GenericSpellHandler::applyToTargets(context, definition, filtered, 0);
 }
 
 } // namespace Spells

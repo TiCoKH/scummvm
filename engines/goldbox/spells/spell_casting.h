@@ -64,6 +64,10 @@ private:
     EnlargeHandler _enlargeHandler;
     ReduceHandler _reduceHandler;
     FriendsHandler _friendsHandler;
+    MagicMissileHandler _magicMissileHandler;
+    ShieldHandler _shieldHandler;
+    ShockingGraspHandler _shockingGraspHandler;
+    SleepHandler _sleepHandler;
 };
 
 } // namespace Spells

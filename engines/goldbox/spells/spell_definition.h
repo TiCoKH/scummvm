@@ -42,7 +42,11 @@ enum HandlerId {
     kHandlerCharmPerson,        // ID10: type/size check + charm effect
     kHandlerEnlarge,             // ID12: strength buff by caster level
     kHandlerReduce,              // ID13: saving throw; remove E_POOLRAD_ENLARGE_STRENGTHEN
-    kHandlerFriends              // ID14: charisma buff 2d4; power = old charisma
+    kHandlerFriends,             // ID14: charisma buff 2d4; power = old charisma
+    kHandlerMagicMissile,        // ID15: damage = damageLevel + damageLevel*d4; behavior 8
+    kHandlerShield,              // ID19: pure effect; no damage
+    kHandlerShockingGrasp,       // ID20: damage = casterLevel + 1d8; behavior 12
+    kHandlerSleep                // ID21: shared 4d4 budget; filters targets by level cost
 };
 
 struct SpellDefinition {
