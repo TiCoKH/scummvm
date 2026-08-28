@@ -80,6 +80,10 @@ SpellCastingService::SpellCastingService()
     _registry.setHandler(kHandlerShield,          &_shieldHandler);
     _registry.setHandler(kHandlerShockingGrasp,   &_shockingGraspHandler);
     _registry.setHandler(kHandlerSleep,           &_sleepHandler);
+    _registry.setHandler(kHandlerHoldPerson,      &_holdPersonHandler);
+    _registry.setHandler(kHandlerResistFire,      &_resistFireHandler);
+    _registry.setHandler(kHandlerSilence15Radius, &_silence15RadiusHandler);
+    _registry.setHandler(kHandlerSlowPoison,      &_slowPoisonHandler);
 
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CURE_LT_WOUNDS,
         kHandlerCureLightWounds);
@@ -101,6 +105,16 @@ SpellCastingService::SpellCastingService()
         kHandlerShockingGrasp);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_SLEEP,
         kHandlerSleep);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL2_HOLD_PERSON,
+        kHandlerHoldPerson);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_HOLD_PERSON,
+        kHandlerHoldPerson);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL2_RESIST_FIRE,
+        kHandlerResistFire);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL2_SILENCE_15R,
+        kHandlerSilence15Radius);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL2_SLOW_POISON,
+        kHandlerSlowPoison);
 }
 
 SpellCastResult SpellCastingService::castSpell(SpellContext &context,

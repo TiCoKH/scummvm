@@ -46,7 +46,11 @@ enum HandlerId {
     kHandlerMagicMissile,        // ID15: damage = damageLevel + damageLevel*d4; behavior 8
     kHandlerShield,              // ID19: pure effect; no damage
     kHandlerShockingGrasp,       // ID20: damage = casterLevel + 1d8; behavior 12
-    kHandlerSleep                // ID21: shared 4d4 budget; filters targets by level cost
+    kHandlerSleep,              // ID21: shared 4d4 budget; filters targets by level cost
+    kHandlerHoldPerson,          // ID23/ID49: save adjustment by target count; type/size check
+    kHandlerResistFire,          // ID24: pure effect; delegates to generic path
+    kHandlerSilence15Radius,     // ID25: pure effect; delegates to generic path
+    kHandlerSlowPoison           // ID26: status/effect gate; HP floor; effect transition
 };
 
 struct SpellDefinition {
