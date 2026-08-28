@@ -139,6 +139,40 @@ public:
                             const TargetSelection &targets) const override;
 };
 
+// ID23/ID49 Hold Person: save modifier by target count (-2/-3 for 1, -1 for 2, 0 for 3-4);
+// type/size check gates eligibility; shared handler for cleric and mage variants.
+class HoldPersonHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID24 Resist Fire: pure effect; delegates entirely to GenericSpellHandler.
+class ResistFireHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID25 Silence 15' Radius: pure effect; delegates entirely to GenericSpellHandler.
+class Silence15RadiusHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID26 Slow Poison: status/effect gate; HP floor; applies effect then transitions
+// raw effect 0x4E (EFF_REMOVE) and adds E_POOLRAD_POISON_DAMAGE (0x0F, dur=10, power=0xFF).
+class SlowPoisonHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
 } // namespace Spells
 } // namespace Goldbox
 

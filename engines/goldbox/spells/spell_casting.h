@@ -68,6 +68,10 @@ private:
     ShieldHandler _shieldHandler;
     ShockingGraspHandler _shockingGraspHandler;
     SleepHandler _sleepHandler;
+    HoldPersonHandler _holdPersonHandler;
+    ResistFireHandler _resistFireHandler;
+    Silence15RadiusHandler _silence15RadiusHandler;
+    SlowPoisonHandler _slowPoisonHandler;
 };
 
 } // namespace Spells

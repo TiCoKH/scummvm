@@ -387,5 +387,165 @@ SpellCastResult SleepHandler::execute(const SpellContext &context,
     return GenericSpellHandler::applyToTargets(context, definition, filtered, 0);
 }
 
+// --- Hold Person (ID23 / ID49) ---
+// Save modifier depends on target count: 1 target -> -2 (cleric) or -3 (mage),
+// 2 targets -> -1, 3-4 targets -> 0.
+// Targets with monsterType > 1 or iconDimension > 1 automatically save.
+// Processes targets in reverse order to match original iteration.
+//
+// TODO: presentation layer not yet implemented.
+//   Original sequence per secondary target (targetIndex < targetCount):
+//     SOUND_Setup(0)
+//     SOUND_Play(ARRAY_SOUND_MAP[3])  // m68k: SOUND_Play(SOUND_ID_0x03)
+//     GFX_LoadEffectTileQuad(0x12)
+//     COMBAT_AnimateMissilePath(caster, target)
+//     SOUND_Setup(10)
+//   The first target receives no projectile animation.
+//   Wire this up once the sound/GFX subsystems are available.
+SpellCastResult HoldPersonHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (!definition.entry || !context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    const uint count = targets.targetCharacters.size();
+    if (count == 0)
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    // Save modifier: cleric (ID23) vs mage (ID49) differ only at count == 1.
+    const bool isCleric =
+        (definition.id == Goldbox::Data::Spells::SP_CL2_HOLD_PERSON);
+    int8 saveAdj;
+    if (count == 1)       saveAdj = isCleric ? -2 : -3;
+    else if (count == 2)  saveAdj = -1;
+    else                  saveAdj = 0;   // 3 or 4 targets
+
+    const uint16 duration = static_cast<uint16>(
+        definition.entry->fixedDuration +
+        definition.entry->perLvlDuration * context.casterLevel);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+    Goldbox::Data::Effects::EffectHandlerBase *handler =
+        context.effectSystem->getHandler();
+
+    // Iterate in reverse to match original target-list traversal order.
+    for (uint i = count; i-- > 0;) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+
+        // Non-standard size/type targets are immune.
+        const Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
+            dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(target);
+        const uint8 monsterType = poolrad ? poolrad->monsterType : 0;
+        if (monsterType > 1 || target->iconDimension > 1) {
+            if (bridge)
+                bridge->postEffectMessage(target, "is unaffected", true);
+            continue;
+        }
+
+        // Saving throw.
+        Goldbox::Data::ADnDCharacter *adnd =
+            dynamic_cast<Goldbox::Data::ADnDCharacter *>(target);
+        const bool saved = adnd && Goldbox::Data::Rules::checkSavingThrow(
+            *adnd, context.combat, handler, bridge,
+            definition.entry->saveType, saveAdj);
+
+        if (saved)
+            continue;
+
+        context.effectSystem->addOrRefreshEffect(
+            *target->getEffects(), *target,
+            definition.entry->effectId, duration,
+            context.casterLevel, true);
+
+        if (bridge)
+            bridge->postEffectMessage(target, "is held", true);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Resist Fire (ID24) ---
+// Pure effect spell; delegates entirely to GenericSpellHandler.
+SpellCastResult ResistFireHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    return GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+}
+
+// --- Silence 15' Radius (ID25) ---
+// Pure effect spell; delegates entirely to GenericSpellHandler.
+SpellCastResult Silence15RadiusHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    return GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+}
+
+// --- Slow Poison (ID26) ---
+// Single-target spell with precondition checks:
+//   1. Target must not be STATUS_ANIMATED.
+//   2. Target must carry raw effect 0x37 (active poison).
+//   3. Target HP is floored to 1 before effect application.
+// After the generic effect path (effectPowerOverride=0xFF), fires EFF_REMOVE
+// on raw effect 0x4E, then adds E_POOLRAD_POISON_DAMAGE (0x0F) with
+// duration=10 and power=0xFF.
+SpellCastResult SlowPoisonHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+    Goldbox::Data::Effects::EffectHandlerBase *handler =
+        context.effectSystem->getHandler();
+
+    // Slow Poison operates on a single target (first in list).
+    Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[0];
+    if (!target)
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    // Animated targets cannot be affected.
+    const Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
+        dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(target);
+    if (poolrad && poolrad->healthStatus == static_cast<uint8>(Goldbox::Data::S_ANIMATED))
+        return SpellCastResult(CAST_NOT_ALLOWED);
+
+    // Target must carry the active poison effect (raw 0x37).
+    Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+    if (!fx || !fx->hasEffect(0x37))
+        return SpellCastResult(CAST_NOT_ALLOWED);
+
+    // Ensure target is not left at zero HP.
+    if (target->hitPoints.current == 0)
+        target->hitPoints.current = 1;
+
+    // Apply the Slow Poison effect (effectPowerOverride=0xFF mirrors level override 0xFF).
+    TargetSelection single;
+    single.targetCharacters.push_back(target);
+    GenericSpellHandler::applyToTargets(context, definition, single, 0xFF);
+
+    // Fire EFF_REMOVE on raw effect 0x4E to perform the poison-state transition.
+    if (handler) {
+        Goldbox::Data::Effects::Effect *rawEffect = fx->findEffectById(0x4E);
+        if (rawEffect)
+            handler->apply(Goldbox::Data::Effects::EFF_REMOVE, *rawEffect,
+                *target, context.combat, bridge);
+    }
+
+    // Add the resulting slow-poison marker: effect 0x0F, duration 10, power 0xFF.
+    context.effectSystem->addOrRefreshEffect(
+        *fx, *target,
+        static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_POISON_DAMAGE),
+        10, 0xFF, true);
+
+    return SpellCastResult(CAST_OK);
+}
+
 } // namespace Spells
 } // namespace Goldbox
