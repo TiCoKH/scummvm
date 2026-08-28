@@ -72,6 +72,9 @@ private:
     ResistFireHandler _resistFireHandler;
     Silence15RadiusHandler _silence15RadiusHandler;
     SlowPoisonHandler _slowPoisonHandler;
+    SnakeCharmHandler _snakeCharmHandler;
+    SpiritualHammerHandler _spiritualHammerHandler;
+    MirrorImageHandler _mirrorImageHandler;
 };
 
 } // namespace Spells

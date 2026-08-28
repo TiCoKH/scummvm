@@ -173,6 +173,32 @@ public:
                             const TargetSelection &targets) const override;
 };
 
+// ID27 Snake Charm: builds target list from context.enemies filtered by
+// monsterType==0x0E and hp_current <= remaining HP budget (caster's current HP).
+class SnakeCharmHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID28 Spiritual Hammer: generic effect path then EFF_ADD on E_POOLRAD_SPIRITUAL_HAMMER
+// (0x17) fired on the caster.
+class SpiritualHammerHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID32 Mirror Image: effectPowerOverride = 1d4 (number of images).
+class MirrorImageHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
 } // namespace Spells
 } // namespace Goldbox
 

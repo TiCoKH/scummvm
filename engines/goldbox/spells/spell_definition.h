@@ -50,7 +50,10 @@ enum HandlerId {
     kHandlerHoldPerson,          // ID23/ID49: save adjustment by target count; type/size check
     kHandlerResistFire,          // ID24: pure effect; delegates to generic path
     kHandlerSilence15Radius,     // ID25: pure effect; delegates to generic path
-    kHandlerSlowPoison           // ID26: status/effect gate; HP floor; effect transition
+    kHandlerSlowPoison,          // ID26: status/effect gate; HP floor; effect transition
+    kHandlerSnakeCharm,          // ID27: filters enemies by monsterType==0x0E and HP budget
+    kHandlerSpiritualHammer,     // ID28: generic effect path + EFF_ADD on E_POOLRAD_SPIRITUAL_HAMMER
+    kHandlerMirrorImage          // ID32: effectPowerOverride = 1d4
 };
 
 struct SpellDefinition {
