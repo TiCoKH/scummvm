@@ -90,6 +90,7 @@ SpellCastingService::SpellCastingService()
     _registry.setHandler(kHandlerStinkingCloud,   &_stinkingCloudHandler);
     _registry.setHandler(kHandlerStrength,        &_strengthHandler);
     _registry.setHandler(kHandlerAnimateDead,     &_animateDeadHandler);
+    _registry.setHandler(kHandlerCureBlindness,   &_cureBlindnessHandler);
 
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CURE_LT_WOUNDS,
         kHandlerCureLightWounds);
@@ -133,6 +134,8 @@ SpellCastingService::SpellCastingService()
         kHandlerStrength);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_ANIMATE_DEAD,
         kHandlerAnimateDead);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_CURE_BLINDNESS,
+        kHandlerCureBlindness);
 }
 
 SpellCastResult SpellCastingService::castSpell(SpellContext &context,

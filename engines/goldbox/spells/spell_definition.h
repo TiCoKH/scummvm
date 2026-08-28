@@ -56,7 +56,8 @@ enum HandlerId {
     kHandlerMirrorImage,         // ID32: effectPowerOverride = 1d4
     kHandlerStinkingCloud,       // ID34: creates persistent cloud object; applies E_STINKING_CLOUD_EXPAIR
     kHandlerStrength,            // ID35: bonus by class; exceptional str for fighters
-    kHandlerAnimateDead          // ID36: converts dead allies to undead combatants
+    kHandlerAnimateDead,         // ID36: converts dead allies to undead combatants
+    kHandlerCureBlindness        // ID37: removes E_POOLRAD_BLINDED; posts "can see" if removed
 };
 
 struct SpellDefinition {
