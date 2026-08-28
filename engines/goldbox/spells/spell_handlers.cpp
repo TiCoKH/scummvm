@@ -20,6 +20,7 @@
 
 #include "goldbox/spells/spell_handlers.h"
 
+#include "goldbox/spells/spell_duration.h"
 #include "goldbox/combat/cloud_effect_manager.h"
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combatant_table.h"
@@ -878,6 +879,44 @@ SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
 
         if (bridge)
             bridge->postEffectMessage(ch, "is animated", true);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Cure Blindness (ID37) ---
+// Removes E_POOLRAD_BLINDED (0x21) from the target via removeEffectById,
+// which fires EFF_REMOVE on the effect handler before erasing the record.
+// Posts "can see" only when the effect was actually present and removed.
+// COMBAT_DrawDamage in the original maps entirely to postEffectMessage here;
+// the bridge implementation handles any visual/audio presentation.
+SpellCastResult CureBlindnessHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+
+        Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+        if (!fx)
+            continue;
+
+        const bool removed = context.effectSystem->removeEffectById(
+            *target, *fx,
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_BLINDED));
+
+        if (removed && bridge)
+            bridge->postEffectMessage(target, "can see", true);
     }
 
     return SpellCastResult(CAST_OK);

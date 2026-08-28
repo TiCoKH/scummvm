@@ -22,6 +22,7 @@
 #define GOLDBOX_SPELLS_SPELL_CASTING_H
 
 #include "goldbox/spells/spell_context.h"
+#include "goldbox/spells/spell_duration.h"
 #include "goldbox/spells/spell_registry.h"
 #include "goldbox/spells/spell_generic_handler.h"
 #include "goldbox/spells/spell_handlers.h"
@@ -29,12 +30,6 @@
 
 namespace Goldbox {
 namespace Spells {
-
-// Mirrors SPELL_ComputeDuration: returns the 8-bit duration for a spell.
-// Uses special-case overrides for six spell IDs; all others use the
-// SpellEntry table formula: fixedDuration + perLvlDuration * casterLevel.
-// inCombat is only relevant for spell ID 0x3F (63).
-uint8 computeSpellDuration(uint8 spellId, uint8 casterLevel, bool inCombat);
 
 class SpellCastingService {
 public:
@@ -78,6 +73,7 @@ private:
     StinkingCloudHandler _stinkingCloudHandler;
     StrengthHandler _strengthHandler;
     AnimateDeadHandler _animateDeadHandler;
+    CureBlindnessHandler _cureBlindnessHandler;
 };
 
 } // namespace Spells

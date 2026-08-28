@@ -231,6 +231,15 @@ public:
                             const TargetSelection &targets) const override;
 };
 
+// ID37 Cure Blindness: removes E_POOLRAD_BLINDED (0x21) from target;
+// posts "can see" only when the effect was actually present and removed.
+class CureBlindnessHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
 } // namespace Spells
 } // namespace Goldbox
 
