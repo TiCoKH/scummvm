@@ -547,5 +547,86 @@ SpellCastResult SlowPoisonHandler::execute(const SpellContext &context,
     return SpellCastResult(CAST_OK);
 }
 
+// --- Snake Charm (ID27) ---
+// Ignores the pre-selected target list. Builds its own from context.enemies:
+// only characters with monsterType == 0x0E (snake) whose hp_current fits
+// within the remaining HP budget (starting at caster's hp_current) are kept.
+// Each accepted snake consumes its hp_current from the budget.
+// The filtered list is then passed to GenericSpellHandler for effect application.
+SpellCastResult SnakeCharmHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)targets;
+    if (!context.caster || !context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    uint8 remainingHp = context.caster->hitPoints.current;
+
+    TargetSelection filtered;
+    for (uint i = 0; i < context.enemies.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *candidate = context.enemies[i];
+        if (!candidate)
+            continue;
+
+        const Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
+            dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(candidate);
+        if (!poolrad || poolrad->monsterType != 0x0E)
+            continue;
+
+        if (candidate->hitPoints.current > remainingHp)
+            continue;
+
+        remainingHp -= candidate->hitPoints.current;
+        filtered.targetCharacters.push_back(candidate);
+    }
+
+    if (filtered.targetCharacters.empty())
+        return SpellCastResult(CAST_OK);
+
+    return GenericSpellHandler::applyToTargets(context, definition, filtered, 0);
+}
+
+// --- Spiritual Hammer (ID28) ---
+// Applies the generic effect path on the caster, then fires EFF_ADD on
+// E_POOLRAD_SPIRITUAL_HAMMER (0x17) to activate the weapon-creation side effect.
+SpellCastResult SpiritualHammerHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    SpellCastResult result =
+        GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+    if (result.status != CAST_OK)
+        return result;
+
+    // Fire EFF_ADD on the spiritual hammer effect to trigger weapon creation.
+    Goldbox::Data::Effects::EffectHandlerBase *handler =
+        context.effectSystem->getHandler();
+    if (handler && context.caster) {
+        Goldbox::Data::Effects::CharacterEffects *fx = context.caster->getEffects();
+        Goldbox::Data::Effects::Effect *hammerEffect = fx ?
+            fx->findEffectById(
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_SPIRITUAL_HAMMER))
+            : nullptr;
+        if (hammerEffect)
+            handler->apply(Goldbox::Data::Effects::EFF_ADD, *hammerEffect,
+                *context.caster, context.combat,
+                context.effectSystem->getHostBridge());
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Mirror Image (ID32) ---
+// effectPowerOverride = 1d4 (number of duplicate images created).
+SpellCastResult MirrorImageHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    const uint8 images = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(1, 4)) : 2;
+    return GenericSpellHandler::applyToTargets(context, definition, targets, images);
+}
+
 } // namespace Spells
 } // namespace Goldbox

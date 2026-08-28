@@ -93,6 +93,10 @@ Common::String SpellRegistry::effectMessageForSpell(
     case SP_CL3_PRAYER:          return "is Praying";
     case SP_MUL2_DETECT_INVISIB: return "is affected";
     case SP_MUL2_INVISIBILITY:   return "is Invisible";
+    case SP_MUL2_KNOCK:          return "Knock-Knock";
+    case SP_MUL2_MIRROR_IMAGE:   return "is duplicated";
+    case SP_MUL2_RAY_ENFEEBLE:   return "is weakened";
+    case SP_MUL3_INVIS_10R:      return "is invisible";
     case SP_MUL3_HASTE:          return "is Hasted";
     case SP_MUL3_PROT_F_EVIL_10R: return "is Protected from Evil";
     case SP_MUL3_PROT_F_GOOD_10R: return "is Protected from Good";
