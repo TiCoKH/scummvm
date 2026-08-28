@@ -76,6 +76,10 @@ SpellCastingService::SpellCastingService()
     _registry.setHandler(kHandlerEnlarge,         &_enlargeHandler);
     _registry.setHandler(kHandlerReduce,          &_reduceHandler);
     _registry.setHandler(kHandlerFriends,         &_friendsHandler);
+    _registry.setHandler(kHandlerMagicMissile,    &_magicMissileHandler);
+    _registry.setHandler(kHandlerShield,          &_shieldHandler);
+    _registry.setHandler(kHandlerShockingGrasp,   &_shockingGraspHandler);
+    _registry.setHandler(kHandlerSleep,           &_sleepHandler);
 
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CURE_LT_WOUNDS,
         kHandlerCureLightWounds);
@@ -89,6 +93,14 @@ SpellCastingService::SpellCastingService()
         kHandlerReduce);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_FRIENDS,
         kHandlerFriends);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_MAGIC_MISSILE,
+        kHandlerMagicMissile);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_SHIELD,
+        kHandlerShield);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_SHOCKING_GRASP,
+        kHandlerShockingGrasp);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_SLEEP,
+        kHandlerSleep);
 }
 
 SpellCastResult SpellCastingService::castSpell(SpellContext &context,

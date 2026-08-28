@@ -107,6 +107,38 @@ public:
                             const TargetSelection &targets) const override;
 };
 
+// ID15 Magic Missile: damage = damageLevel + rollDice(damageLevel, 4); behavior 8.
+class MagicMissileHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID19 Shield: pure effect spell; delegates to GenericSpellHandler with no damage.
+class ShieldHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID20 Shocking Grasp: damage = casterLevel + 1d8; behavior 12.
+class ShockingGraspHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID21 Sleep: shared 4d4 budget consumed per target by level cost; pure effect.
+class SleepHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
 } // namespace Spells
 } // namespace Goldbox
 
