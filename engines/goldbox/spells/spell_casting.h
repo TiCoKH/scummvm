@@ -75,6 +75,9 @@ private:
     SnakeCharmHandler _snakeCharmHandler;
     SpiritualHammerHandler _spiritualHammerHandler;
     MirrorImageHandler _mirrorImageHandler;
+    StinkingCloudHandler _stinkingCloudHandler;
+    StrengthHandler _strengthHandler;
+    AnimateDeadHandler _animateDeadHandler;
 };
 
 } // namespace Spells

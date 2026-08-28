@@ -199,6 +199,38 @@ public:
                             const TargetSelection &targets) const override;
 };
 
+// ID34 Stinking Cloud: allocates a CloudEffect record, paints the battlefield,
+// adds E_STINKING_CLOUD_EXPAIR (raw 40) to the caster, then applies initial
+// nausea status to all combatants occupying the four cloud cells.
+// power byte = castingLevel | (cloudIndex << 4).
+class StinkingCloudHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID35 Strength: bonus dice by class (mage=1d4, cleric/thief=1d6, fighter=1d8);
+// excess over 18 converts to exceptional strength for fighters (capped at 100);
+// adds E_POOLRAD_ENLARGE_STRENGTHEN (0x0C) with duration from computeSpellDuration.
+class StrengthHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID36 Animate Dead: iterates allies filtered by S_DEAD + classType==0;
+// re-places on combat map; converts to undead (combatSide, ai_control,
+// levelUndead=2, npc=0xB2/0xB3, classType=4); revives at max HP;
+// adds E_POOLRAD_ANIMATING_DEAD (0x20) with power = originalSide*16 + casterLevel.
+class AnimateDeadHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
 } // namespace Spells
 } // namespace Goldbox
 
