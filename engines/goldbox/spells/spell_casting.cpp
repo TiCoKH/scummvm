@@ -90,7 +90,15 @@ SpellCastingService::SpellCastingService()
     _registry.setHandler(kHandlerStinkingCloud,   &_stinkingCloudHandler);
     _registry.setHandler(kHandlerStrength,        &_strengthHandler);
     _registry.setHandler(kHandlerAnimateDead,     &_animateDeadHandler);
-    _registry.setHandler(kHandlerCureBlindness,   &_cureBlindnessHandler);
+    _registry.setHandler(kHandlerCureBlindness,    &_cureBlindnessHandler);
+    _registry.setHandler(kHandlerDispelMagicShared, &_dispelMagicHandler);
+    _registry.setHandler(kHandlerPrayer,            &_prayerHandler);
+    _registry.setHandler(kHandlerRemoveCurse,       &_removeCurseHandler);
+    _registry.setHandler(kHandlerBestowCurse,       &_bestowCurseHandler);
+    _registry.setHandler(kHandlerBlink,             &_blinkHandler);
+    _registry.setHandler(kHandlerFireball,           &_fireballHandler);
+    _registry.setHandler(kHandlerHaste,              &_hasteHandler);
+    _registry.setHandler(kHandlerSlow,               &_slowHandler);
 
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CURE_LT_WOUNDS,
         kHandlerCureLightWounds);
@@ -136,6 +144,24 @@ SpellCastingService::SpellCastingService()
         kHandlerAnimateDead);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_CURE_BLINDNESS,
         kHandlerCureBlindness);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_DISPEL_MAGIC,
+        kHandlerDispelMagicShared);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_DISPEL_MAGIC,
+        kHandlerDispelMagicShared);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_PRAYER,
+        kHandlerPrayer);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_REMOVE_CURSE,
+        kHandlerRemoveCurse);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_BESTOW_CURSE,
+        kHandlerBestowCurse);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_BLINK,
+        kHandlerBlink);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_FIREBALL,
+        kHandlerFireball);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_HASTE,
+        kHandlerHaste);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_SLOW,
+        kHandlerSlow);
 }
 
 SpellCastResult SpellCastingService::castSpell(SpellContext &context,

@@ -240,6 +240,101 @@ public:
                             const TargetSelection &targets) const override;
 };
 
+// ID39 Cure Disease: removes disease/affliction effects (0x22, 0x2B+0x2C+0x1F, 0x32+0x39).
+class CureDiseaseHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID42 Prayer: effectPowerOverride = casterLevel + combatSide * 16.
+class PrayerHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID43 Remove Curse: removes E_POOLRAD_ACCURSED (0x24) from target; if absent,
+// clears the cursed flag on the first cursed inventory item found.
+class RemoveCurseHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID44 Bestow Curse: pure generic delegate.
+class BestowCurseHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID47 Fireball: damage = casterLevel d6 (or 1d3*2+1 d6 for magic item ID 0x40).
+// Outdoor combat rebuilds the target list from all combatants within
+// Chebyshev distance 2 of targets.tileX/Y before applying damage.
+class FireballHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID48 Haste / ID55 Slow: shared helper that filters the target list to
+// casterLevel targets on the given side, removes a prerequisite effect from
+// each, applies the spell to those that succeeded, then fires
+// ES_SAVING_THROW_MODS on each retained target.
+// Haste (ID48): removes E_POOLRAD_SLOWED (0x2A) from allies.
+// Slow  (ID55): removes raw haste effect (0x27) from enemies.
+class HasteSlowHandler : public ISpellHandler {
+public:
+    explicit HasteSlowHandler(uint8 removeEffectId, bool targetEnemies)
+        : _removeEffectId(removeEffectId), _targetEnemies(targetEnemies) {}
+
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+private:
+    uint8 _removeEffectId;
+    bool  _targetEnemies;
+};
+
+// ID45 Blink: pure generic delegate.
+class BlinkHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID41/ID46 Dispel Magic: iterates all effects on each target; removes those whose
+// power nibble (& 0x0F) loses a level-based % roll. Power 0xFF is never dispelled.
+class DispelMagicHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID40 Cause Disease: applies disease effect via generic SPELL_ApplyOnTargets path.
+class CauseDiseaseHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID58 (SP_MI2): cures effect 0x37+0x16, or afflictions, or heals 1d4+8 HP.
+class SpellID58Handler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
 } // namespace Spells
 } // namespace Goldbox
 

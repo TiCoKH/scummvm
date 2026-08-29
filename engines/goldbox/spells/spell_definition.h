@@ -36,6 +36,13 @@ enum HandlerId {
     kHandlerProtectionShared,
     kHandlerHoldPersonShared,
     kHandlerDispelMagicShared,
+    kHandlerPrayer,              // ID42: effectPower = casterLevel + combatSide * 16
+    kHandlerRemoveCurse,         // ID43: remove E_POOLRAD_ACCURSED or first cursed item
+    kHandlerBestowCurse,         // ID44: pure generic delegate
+    kHandlerBlink,               // ID45: pure generic delegate
+    kHandlerFireball,            // ID47: damageDice d6; outdoor AoE from tileX/Y radius 2
+    kHandlerHaste,               // ID48: remove E_POOLRAD_SLOWED from casterLevel allies
+    kHandlerSlow,                // ID55: remove raw haste (0x27) from casterLevel enemies
     kHandlerInvisibilityShared,
     kHandlerCureLightWounds,    // ID03: heal 1d8 HP
     kHandlerBurningHands,       // ID09: damage = caster level
@@ -57,7 +64,10 @@ enum HandlerId {
     kHandlerStinkingCloud,       // ID34: creates persistent cloud object; applies E_STINKING_CLOUD_EXPAIR
     kHandlerStrength,            // ID35: bonus by class; exceptional str for fighters
     kHandlerAnimateDead,         // ID36: converts dead allies to undead combatants
-    kHandlerCureBlindness        // ID37: removes E_POOLRAD_BLINDED; posts "can see" if removed
+    kHandlerCureBlindness,       // ID37: removes E_POOLRAD_BLINDED; posts "can see" if removed
+    kHandlerCureDisease,         // ID39: removes disease/affliction effects
+    kHandlerCauseDisease,        // ID40: applies disease effect via generic path
+    kHandlerSpellID58            // ID58: cures 0x37+0x16, or afflictions, or heals 1d4+8
 };
 
 struct SpellDefinition {
