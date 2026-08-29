@@ -26,12 +26,15 @@
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/data/adnd_character.h"
+#include "goldbox/data/items/character_inventory.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect.h"
 #include "goldbox/data/effects/effect_system.h"
+#include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/saving_throw.h"
 #include "goldbox/engine.h"
+#include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/spells/spell_generic_handler.h"
@@ -888,8 +891,6 @@ SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
 // Removes E_POOLRAD_BLINDED (0x21) from the target via removeEffectById,
 // which fires EFF_REMOVE on the effect handler before erasing the record.
 // Posts "can see" only when the effect was actually present and removed.
-// COMBAT_DrawDamage in the original maps entirely to postEffectMessage here;
-// the bridge implementation handles any visual/audio presentation.
 SpellCastResult CureBlindnessHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -911,12 +912,404 @@ SpellCastResult CureBlindnessHandler::execute(const SpellContext &context,
         if (!fx)
             continue;
 
-        const bool removed = context.effectSystem->removeEffectById(
-            *target, *fx,
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_BLINDED));
-
-        if (removed && bridge)
+        if (context.effectSystem->removeEffectById(
+                *target, *fx,
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_BLINDED)) && bridge)
             bridge->postEffectMessage(target, "can see", true);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- removeAfflictions helper ---
+// Removes disease/affliction effect groups from a single target.
+// Mirrors SPELL_RemoveAfflictions: removes 0x22, 0x2B+{0x2C,0x1F}, 0x32+{0x39}.
+// Returns true if any effect was removed.
+static bool removeAfflictions(Goldbox::Data::Effects::EffectSystem *effectSystem,
+        Goldbox::Data::PlayerCharacter *target) {
+    if (!effectSystem || !target)
+        return false;
+
+    Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+    if (!fx)
+        return false;
+
+    bool removed = false;
+
+    if (effectSystem->removeEffectById(*target, *fx, 0x22))
+        removed = true;
+
+    if (effectSystem->removeEffectById(*target, *fx, 0x2B)) {
+        removed = true;
+        fx->eraseEffectById(0x2C);
+        fx->eraseEffectById(
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_HELPLESS));
+    }
+
+    if (effectSystem->removeEffectById(*target, *fx,
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENDLESS_REGEN))) {
+        removed = true;
+        fx->eraseEffectById(
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ROT));
+    }
+
+    return removed;
+}
+
+// --- Cure Disease (ID39) ---
+SpellCastResult CureDiseaseHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i)
+        removeAfflictions(context.effectSystem, targets.targetCharacters[i]);
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Prayer (ID42) ---
+// effectPowerOverride = casterLevel + caster's combatSide * 16.
+SpellCastResult PrayerHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    const uint8 power = static_cast<uint8>(
+        context.casterLevel +
+        static_cast<uint8>(context.caster ? context.caster->combatSide : 0) * 16);
+    return GenericSpellHandler::applyToTargets(context, definition, targets, power);
+}
+
+// --- Remove Curse (ID43) ---
+// 1. Try to remove E_POOLRAD_ACCURSED (0x24) from the target; post "is un-cursed" if removed.
+// 2. Otherwise scan inventory for the first cursed item, clear its flag, post "'s item is un-cursed".
+SpellCastResult RemoveCurseHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[0];
+    if (!target)
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+    Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+
+    if (fx && context.effectSystem->removeEffectById(
+            *target, *fx,
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ACCURSED))) {
+        if (bridge)
+            bridge->postEffectMessage(target, "is un-cursed", true);
+        return SpellCastResult(CAST_OK);
+    }
+
+    Goldbox::Data::ADnDCharacter *adnd =
+        dynamic_cast<Goldbox::Data::ADnDCharacter *>(target);
+    if (adnd) {
+        for (Goldbox::Data::Items::CharacterItem &item : adnd->inventory.items()) {
+            if (item.cursed) {
+                item.cursed = 0;
+                if (bridge)
+                    bridge->postEffectMessage(target, "'s item is un-cursed", true);
+                return SpellCastResult(CAST_OK);
+            }
+        }
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Bestow Curse (ID44) ---
+// Pure generic delegate.
+SpellCastResult BestowCurseHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    return GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+}
+
+// --- Haste (ID48) / Slow (ID55) shared helper ---
+// Filters targets to casterLevel slots on the requested side.
+// A target is retained only when removeEffectById succeeds (prerequisite
+// removal). The spell is then applied to retained targets via
+// GenericSpellHandler::applyToTargets, followed by ES_SAVING_THROW_MODS
+// on each retained target.
+SpellCastResult HasteSlowHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    const Goldbox::Data::CombatSide wantedSide =
+        _targetEnemies ? Goldbox::Data::CS_ENEMY : Goldbox::Data::CS_PARTY;
+
+    uint8 remaining = context.casterLevel > 0 ? context.casterLevel : 1;
+
+    TargetSelection filtered;
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target || target->combatSide != wantedSide || remaining == 0)
+            continue;
+
+        --remaining;
+
+        Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+        if (fx && context.effectSystem->removeEffectById(
+                *target, *fx, _removeEffectId))
+            filtered.targetCharacters.push_back(target);
+    }
+
+    if (filtered.targetCharacters.empty())
+        return SpellCastResult(CAST_OK);
+
+    SpellCastResult result =
+        GenericSpellHandler::applyToTargets(context, definition, filtered, 0);
+
+    // Post-application: fire ES_SAVING_THROW_MODS on each retained target.
+    Goldbox::Data::Effects::EffectRuntime *runtime =
+        context.effectSystem->getRuntime();
+    if (runtime) {
+        for (uint i = 0; i < filtered.targetCharacters.size(); ++i) {
+            Goldbox::Data::PlayerCharacter *target = filtered.targetCharacters[i];
+            if (!target)
+                continue;
+            Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+            if (fx)
+                runtime->checkEffectSet(
+                    Goldbox::Data::Effects::ES_SAVING_THROW_MODS,
+                    *fx, *target, context.combat);
+        }
+    }
+
+    return result;
+}
+
+// --- Blink (ID45) ---
+// Pure generic delegate.
+SpellCastResult BlinkHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    return GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+}
+
+// --- Fireball (ID47) ---
+// Damage dice:
+//   spell ID 0x40 (magic item): 1d3*2+1 d6
+//   otherwise: casterLevel d6
+// Outdoor combat: rebuild target list from all combatants within
+// Chebyshev distance 2 of targets.tileX/Y (mirrors COMBAT_BuildTargetListCore
+// with radius 2, side 0xFF = all sides).
+// Stores damageDice in combat->attackCount (mirrors UTIL_RollDiceAttack).
+// Applies damage with behaviorFlags = 9 (fire=0x01 | magic=0x08).
+SpellCastResult FireballHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (!context.damageSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    // Determine damage dice count.
+    uint8 damageDice;
+    if (context.combat &&
+            context.combat->activeSpellId == 0x40) {
+        const uint8 roll = Goldbox::g_engine ?
+            static_cast<uint8>(Goldbox::g_engine->rollDice(1, 3)) : 2;
+        damageDice = static_cast<uint8>(roll * 2 + 1);
+    } else {
+        damageDice = context.casterLevel > 0 ? context.casterLevel : 1;
+    }
+
+    // Mirror UTIL_RollDiceAttack: store dice count then roll.
+    if (context.combat)
+        context.combat->attackCount = damageDice;
+    const uint8 baseDamage = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(damageDice, 6)) : damageDice;
+
+    // Query indoor/outdoor mode from the ECL runtime state.
+    bool isIndoor = true;
+    if (Goldbox::g_engine) {
+        RuntimeExchange *rx = Goldbox::g_engine->getRuntimeExchange();
+        if (rx) {
+            RuntimeMapSnapshot snap;
+            if (rx->captureMapSnapshot(snap))
+                isIndoor = snap.indoorMode;
+        }
+    }
+
+    // Build AoE target list for outdoor combat.
+    TargetSelection aoeTargets;
+    if (!isIndoor && context.combat) {
+        Goldbox::Combat::CombatContext *ctx =
+            Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr;
+        if (ctx) {
+            const int cx = targets.tileX;
+            const int cy = targets.tileY;
+            for (int i = 0; i < Goldbox::Combat::CombatantTable::MAX_COMBATANTS; ++i) {
+                Goldbox::Data::PlayerCharacter *ch = ctx->table.getCharacter(i);
+                if (!ch || !ch->isAlive())
+                    continue;
+                const int dx = ctx->table.getTileCol(i) - cx;
+                const int dy = ctx->table.getTileRow(i) - cy;
+                // Chebyshev distance <= 2 (radius 2 matches original).
+                if (ABS(dx) <= 2 && ABS(dy) <= 2)
+                    aoeTargets.targetCharacters.push_back(ch);
+            }
+        }
+    }
+
+    const TargetSelection &effectiveTargets =
+        (!isIndoor && !aoeTargets.targetCharacters.empty())
+        ? aoeTargets : targets;
+
+    if (effectiveTargets.targetCharacters.empty())
+        return SpellCastResult(CAST_OK);
+
+    for (uint i = 0; i < effectiveTargets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = effectiveTargets.targetCharacters[i];
+        if (!target)
+            continue;
+
+        // Saving throw vs spell: success halves damage.
+        bool saved = false;
+        Goldbox::Data::ADnDCharacter *adnd =
+            dynamic_cast<Goldbox::Data::ADnDCharacter *>(target);
+        if (adnd && context.effectSystem)
+            saved = Goldbox::Data::Rules::checkSavingThrow(
+                *adnd, context.combat,
+                context.effectSystem->getHandler(),
+                context.effectSystem->getHostBridge(),
+                Goldbox::Data::Spells::SVS_SPELL, 0);
+
+        const Goldbox::Data::DamageModifier mod =
+            saved ? Goldbox::Data::DAMAGE_HALF : Goldbox::Data::DAMAGE_NORMAL;
+        context.damageSystem->applyLegacy(*target, baseDamage, mod, saved, 9);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Dispel Magic (ID41 / ID46) ---
+// Multi-target. For each effect on the target (except power==0xFF):
+//   chance = 50 + (castingLevel - effectPowerNibble) * 5  if caster level > effect level
+//   chance = 50 - (effectPowerNibble - castingLevel) * 2  if effect level > caster level
+//   chance = 50                                           if equal
+// Rolls 1d100; removes effect on success. Posts "is affected" if any effect was removed.
+SpellCastResult DispelMagicHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+
+        Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+        if (!fx)
+            continue;
+
+        // Collect effect IDs first to avoid iterator invalidation during removal.
+        Common::Array<uint8> ids;
+        Common::Array<uint8> powers;
+        for (const Goldbox::Data::Effects::Effect &e : fx->effects()) {
+            ids.push_back(e.id);
+            powers.push_back(e.power);
+        }
+
+        bool effectRemoved = false;
+        for (uint j = 0; j < ids.size(); ++j) {
+            if (powers[j] == 0xFF)
+                continue;
+
+            const uint8 effectPowerNibble = powers[j] & 0x0F;
+            int chance;
+            if (context.casterLevel > effectPowerNibble)
+                chance = 50 + (context.casterLevel - effectPowerNibble) * 5;
+            else if (effectPowerNibble > context.casterLevel)
+                chance = 50 - (effectPowerNibble - context.casterLevel) * 2;
+            else
+                chance = 50;
+
+            const uint8 roll = Goldbox::g_engine ?
+                static_cast<uint8>(Goldbox::g_engine->rollDice(1, 100)) : 50;
+
+            if (roll <= static_cast<uint8>(chance)) {
+                context.effectSystem->removeEffectById(*target, *fx, ids[j]);
+                effectRemoved = true;
+            }
+        }
+
+        if (effectRemoved && bridge)
+            bridge->postEffectMessage(target, "is affected", true);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Cause Disease (ID40) ---
+// Delegates entirely to GenericSpellHandler (mirrors SPELL_ApplyOnTargets).
+SpellCastResult CauseDiseaseHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    return GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+}
+
+// --- Spell ID58 (SP_MI2) ---
+// 1. If effect 0x37 is present: remove it, silently erase 0x16, return.
+// 2. Else if afflictions present: remove them, return.
+// 3. Else: heal 1d4+8 HP and post "is Healed".
+SpellCastResult SpellID58Handler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+
+        Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+        if (!fx)
+            continue;
+
+        // Step 1: cure primary condition (raw 0x37) and its associated 0x16.
+        if (context.effectSystem->removeEffectById(*target, *fx, 0x37)) {
+            fx->eraseEffectById(
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_SLOW_POISON));
+            continue;
+        }
+
+        // Step 2: cure disease/afflictions.
+        if (removeAfflictions(context.effectSystem, target))
+            continue;
+
+        // Step 3: heal 1d4+8 HP.
+        const uint8 amount = static_cast<uint8>(8 +
+            (Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 4) : 2));
+
+        if (target->healHp(amount, false) && bridge)
+            bridge->postEffectMessage(target, "is Healed", true);
     }
 
     return SpellCastResult(CAST_OK);

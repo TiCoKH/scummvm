@@ -90,7 +90,10 @@ Common::String SpellRegistry::effectMessageForSpell(
     case SP_CL2_FIND_TRAPS:      return "is affected";
     case SP_CL2_RESIST_FIRE:     return "Resists Fire";
     case SP_CL2_SLOW_POISON:     return "Slow Poison";
-    case SP_CL3_PRAYER:          return "is Praying";
+    case SP_CL3_PRAYER:          return "is praying";
+    case SP_CL3_REMOVE_CURSE:    return Common::String();
+    case SP_CL3_BESTOW_CURSE:    return "has been cursed!";
+    case SP_MUL3_BLINK:          return "is blinking";
     case SP_MUL2_DETECT_INVISIB: return "is affected";
     case SP_MUL2_INVISIBILITY:   return "is Invisible";
     case SP_MUL2_KNOCK:          return "Knock-Knock";
@@ -105,6 +108,8 @@ Common::String SpellRegistry::effectMessageForSpell(
     case SP_MUL2_STRENGTH:       return "is stronger";
     case SP_CL3_ANIMATE_DEAD:    return "is animated";
     case SP_CL3_CAUSE_BLINDNESS: return "is blind";
+    case SP_CL3_CURE_DISEASE:    return "is cured";
+    case SP_CL3_CAUSE_DISEASE:   return "is diseased";
     default:                     return Common::String();
     }
 }

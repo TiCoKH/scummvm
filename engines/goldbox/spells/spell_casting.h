@@ -74,6 +74,16 @@ private:
     StrengthHandler _strengthHandler;
     AnimateDeadHandler _animateDeadHandler;
     CureBlindnessHandler _cureBlindnessHandler;
+    DispelMagicHandler _dispelMagicHandler;
+    PrayerHandler _prayerHandler;
+    RemoveCurseHandler _removeCurseHandler;
+    BestowCurseHandler _bestowCurseHandler;
+    BlinkHandler _blinkHandler;
+    FireballHandler _fireballHandler;
+    // Haste removes E_POOLRAD_SLOWED (0x2A) from allies; Slow removes raw
+    // haste effect (0x27) from enemies.
+    HasteSlowHandler _hasteHandler{0x2A, false};
+    HasteSlowHandler _slowHandler{0x27, true};
 };
 
 } // namespace Spells
