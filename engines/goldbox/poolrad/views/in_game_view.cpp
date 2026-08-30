@@ -39,6 +39,7 @@
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/runtime/runtime_exchange.h"
+#include "goldbox/core/tile_pos.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -796,7 +797,7 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 		case EclVmMessage::ST_POSITION_DIRTY: {
 			RuntimeMapSnapshot snapshot;
 			if (VmInterface::captureRuntimeMapSnapshot(snapshot) && snapshot.valid) {
-				setMapPosition(snapshot.dungeonX, snapshot.dungeonY,
+				setMapPosition(snapshot.dungeonPos.x, snapshot.dungeonPos.y,
 					static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2));
 				_searchMode = snapshot.searchActive;
 				if (snapshot.gameState != _state)
@@ -929,7 +930,7 @@ void InGameView::openDoor() {
 
 	const uint8 wireDir = _mapDir & 0x06;
 	uint8 doorFlag = rtGeo.getWallFlag(
-		(int)_mapX, (int)_mapY, wireDir);
+		MapPos(static_cast<int8>(_mapX), static_cast<int8>(_mapY)), wireDir);
 
 	if (doorFlag < 2)
 		return; // No locked door (0=wall, 1=open).
@@ -1042,7 +1043,7 @@ void InGameView::stepForward() {
 	if (rtGeo.isLoaded()) {
 		const uint8 wireDir = _mapDir & 0x06;
 		const uint8 wallFlag = rtGeo.getWallFlag(
-			(int)_mapX, (int)_mapY, wireDir);
+			MapPos(static_cast<int8>(_mapX), static_cast<int8>(_mapY)), wireDir);
 		if (wallFlag == 0)
 			return; // Solid wall blocks movement.
 	}

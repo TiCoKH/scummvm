@@ -666,7 +666,7 @@ SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
     const uint8 centerY = static_cast<uint8>(targets.tileY);
 
     // Allocate the cloud record, paint tiles, and get the owner-relative index.
-    const uint8 cloudIndex = ctx->clouds.create(context.caster, centerX, centerY);
+    const uint8 cloudIndex = ctx->clouds.create(context.caster, TilePos(centerX, centerY));
 
     // power = castingLevel in low nibble, cloudIndex in high nibble.
     const uint8 power = static_cast<uint8>(
@@ -833,7 +833,7 @@ SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
         const int slot = ctx->table.addCombatant(ch, ch->iconDimension);
         if (slot < 0)
             continue;
-        ctx->table.setPosition(slot, col, row);
+        ctx->table.setPosition(slot, TilePos(col, row));
 
         // Capture original side before mutation.
         const uint8 originalSide = static_cast<uint8>(ch->combatSide);

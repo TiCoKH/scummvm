@@ -37,6 +37,7 @@
 #include "goldbox/spells/spell_casting.h"
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/core/direction.h"
+#include "goldbox/core/tile_pos.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
 
 #include "goldbox/poolrad/console.h"
@@ -497,8 +498,8 @@ bool PoolradEngine::getActiveMapPosition(uint16 &x, uint16 &y,
 	if (!captureRuntimeMapSnapshot(snapshot))
 		return false;
 
-	x = snapshot.dungeonX;
-	y = snapshot.dungeonY;
+	x = snapshot.dungeonPos.x;
+	y = snapshot.dungeonPos.y;
 	dir = snapshot.dungeonDir;
 	return true;
 }
@@ -595,8 +596,8 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		return false;
 	}
 
-	const uint16 posX = snapshot.dungeonX;
-	const uint16 posY = snapshot.dungeonY;
+	const uint16 posX = snapshot.dungeonPos.x;
+	const uint16 posY = snapshot.dungeonPos.y;
 	const uint8 posDir = static_cast<uint8>(snapshot.dungeonDir & 0x03);
 	const uint8 vmMapType = snapshot.mapType;
 
@@ -1231,11 +1232,11 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 		const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
 		const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
 		const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
-		mem.write8(xAddr, snapshot.dungeonX & 0xFF);
-		mem.write8(yAddr, snapshot.dungeonY & 0xFF);
+		mem.write8(xAddr, snapshot.dungeonPos.x & 0xFF);
+		mem.write8(yAddr, snapshot.dungeonPos.y & 0xFF);
 		mem.write8(dirAddr, snapshot.dungeonDir & 0x03);
 		debug(3, "PoolradEngine::initializeMapRuntimeForState POST-ONINIT restored pos x=%u y=%u dir=%u",
-			(unsigned)snapshot.dungeonX, (unsigned)snapshot.dungeonY,
+			(unsigned)snapshot.dungeonPos.x, (unsigned)snapshot.dungeonPos.y,
 			(unsigned)snapshot.dungeonDir);
 	}
 
@@ -1496,7 +1497,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 		if (rtGeo.isLoaded()) {
 			const int cx = static_cast<int>(mem.read8(xAddr));
 			const int cy = static_cast<int>(mem.read8(yAddr));
-			const uint8 wallFlag = rtGeo.getWallFlag(cx, cy, wireDir);
+		const uint8 wallFlag = rtGeo.getWallFlag(
+				MapPos(static_cast<int8>(cx), static_cast<int8>(cy)), wireDir);
 			if (wallFlag == 0 || wallFlag >= 2) {
 				// wallFlag 0 = solid wall, 2/3 = locked door.
 				// For locked doors, tryOpenDoor() handles the dialog.
@@ -1572,8 +1574,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 		// Legacy post-ONMOVE branch: save position, try door, check bump.
 		RuntimeMapSnapshot snap;
 		captureRuntimeMapSnapshot(snap);
-		const uint16 savedX = snap.dungeonX;
-		const uint16 savedY = snap.dungeonY;
+		const uint16 savedX = snap.dungeonPos.x;
+		const uint16 savedY = snap.dungeonPos.y;
 
 		// DIALOG_OpenDoor: attempt to open door in facing direction.
 		if (_eclHost)
@@ -1581,7 +1583,7 @@ void PoolradEngine::dispatchPlayerCommand() {
 
 		// Re-read position after door logic (position may have changed).
 		captureRuntimeMapSnapshot(snap);
-		if (snap.dungeonX != savedX || snap.dungeonY != savedY) {
+		if (snap.dungeonPos.x != savedX || snap.dungeonPos.y != savedY) {
 			// PlaySound(SOUND_ID_BLOCKED) - sound index 0x0B
 			if (_eclHost)
 				_eclHost->playSound(0x0B);

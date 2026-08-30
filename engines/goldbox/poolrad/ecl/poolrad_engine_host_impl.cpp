@@ -24,6 +24,7 @@
 #include "common/list.h"
 #include "common/memstream.h"
 #include "common/path.h"
+#include "goldbox/core/tile_pos.h"
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/gfx/surface.h"
@@ -520,12 +521,11 @@ VmResult PoolradEngineHostImpl::startCombat() {
     if (exchange && exchange->captureMapSnapshot(snapshot) && snapshot.valid) {
         params.mapDirection = static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2);
         params.isDungeon = snapshot.indoorMode;
-        params.mapCenterX = static_cast<int8>(snapshot.dungeonX & 0xFF);
-        params.mapCenterY = static_cast<int8>(snapshot.dungeonY & 0xFF);
-        params.playerY = static_cast<int8>(snapshot.dungeonY & 0xFF);
+        params.mapCenter = MapPos(static_cast<int8>(snapshot.dungeonPos.x & 0xFF),
+                                  static_cast<int8>(snapshot.dungeonPos.y & 0xFF));
+        params.playerY = static_cast<int8>(snapshot.dungeonPos.y & 0xFF);
         params.eclScriptId = snapshot.mapId;
-        params.wildX = snapshot.wildernessX;
-        params.wildY = snapshot.wildernessY;
+        params.wild = snapshot.wildernessPos;
         params.mapType = snapshot.mapType;
     }
 
@@ -801,8 +801,9 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
     const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
     const int x = static_cast<int>(_memory->read8(xAddr));
     const int y = static_cast<int>(_memory->read8(yAddr));
+    const MapPos geoPos(static_cast<int8>(x), static_cast<int8>(y));
 
-    const uint8 geoId = rtGeo.getGeoData(x, y);
+    const uint8 geoId = rtGeo.getGeoData(geoPos);
     debug(1, "readGeoAtPosition: pos=(%d,%d) geoId=0x%02X eventId=%u indoor=%s skyColor=%u ceilColor=%u",
         x, y, (unsigned)geoId, (unsigned)(geoId & 0x7F),
         (geoId & 0x80) ? "yes" : "no",
@@ -811,10 +812,8 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
     const uint16 geoFieldAddr = layout.vmGlobalField(kVmGlobalFieldMapSquareInfo).vmAddr;
     _memory->write8(geoFieldAddr, geoId);
 
-    // Sample wall nibble in facing direction into MapWallType.
-    // Original CALL 0x2C90 does this as part of MAP_getGEOData flow.
     const uint8 wireDir = static_cast<uint8>((_memory->read8(dirAddr) & 0x03) * 2);
-    const uint8 wallNibble = rtGeo.getMapNibble(x, y, wireDir);
+    const uint8 wallNibble = rtGeo.getMapNibble(geoPos, wireDir);
     const uint16 wallTypeAddr = layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr;
     _memory->write8(wallTypeAddr, wallNibble);
 
@@ -899,23 +898,18 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
 
         const int x = static_cast<int>(_memory->read8(xAddr));
         const int y = static_cast<int>(_memory->read8(yAddr));
-        // Direction stored as cardinal index (0=N, 1=E, 2=S, 3=W).
         const uint8 cardinalDir = static_cast<uint8>(_memory->read8(dirAddr) & 0x03);
-        // Wire direction for geo lookups: 0=N, 2=E, 4=S, 6=W.
         const uint8 wireDir = static_cast<uint8>(cardinalDir * 2);
-        // 8-direction index for delta tables: 0=N, 2=E, 4=S, 6=W.
         const uint8 dir8 = wireDir;
 
-        // Clear TriedToLeaveMap.
         _memory->write16LE(leaveAddr, 0);
 
-        // Check wall passability. getWallFlag returns 0 if blocked.
+        const MapPos curPos(static_cast<int8>(x), static_cast<int8>(y));
         const uint8 wallFlag = rtGeo.isLoaded()
-            ? rtGeo.getWallFlag(x, y, wireDir) : 1;
+            ? rtGeo.getWallFlag(curPos, wireDir) : 1;
         if (wallFlag == 0)
-            return VM_OK; // Wall blocks movement.
+            return VM_OK;
 
-        // Compute new position.
         int newX = x + kDirDeltaX[dir8];
         int newY = y + kDirDeltaY[dir8];
 
@@ -957,11 +951,10 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
 
         const int x = static_cast<int>(_memory->read8(xAddr));
         const int y = static_cast<int>(_memory->read8(yAddr));
-        // Direction is stored as cardinal (0=N,1=E,2=S,3=W); convert to
-        // wire format (0=N, 2=E, 4=S, 6=W) for nibble lookup.
         const uint8 wireDir = static_cast<uint8>((_memory->read8(dirAddr) & 0x03) * 2);
 
-        const uint8 nibble = rtGeo.getMapNibble(x, y, wireDir);
+        const MapPos curPos(static_cast<int8>(x), static_cast<int8>(y));
+        const uint8 nibble = rtGeo.getMapNibble(curPos, wireDir);
 
         const uint16 wallTypeAddr =
             layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr;
@@ -980,7 +973,7 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
  * Returns step count (0-2). For outdoor maps always returns 2.
  */
 static uint8 countStepsUntilWall(const RuntimeGeoBlock &rtGeo, uint8 wireDir,
-        int x, int y, bool indoorMode) {
+        MapPos pos, bool indoorMode) {
     if (!indoorMode)
         return 2;
 
@@ -989,12 +982,12 @@ static uint8 countStepsUntilWall(const RuntimeGeoBlock &rtGeo, uint8 wireDir,
 
     uint8 steps = 0;
     for (uint8 i = 0; i < 2; ++i) {
-        uint8 nibble = rtGeo.getMapNibble(x, y, wireDir);
+        uint8 nibble = rtGeo.getMapNibble(pos, wireDir);
         if (nibble != 0)
             break;
         steps++;
-        x += kDx[wireDir & 7];
-        y += kDy[wireDir & 7];
+        pos.x = static_cast<int8>(pos.x + kDx[wireDir & 7]);
+        pos.y = static_cast<int8>(pos.y + kDy[wireDir & 7]);
     }
     return steps;
 }
@@ -1012,13 +1005,14 @@ VmResult PoolradEngineHostImpl::drawEncounterStage(uint8 resourceId,
     const int x = static_cast<int>(_memory->read8(xAddr));
     const int y = static_cast<int>(_memory->read8(yAddr));
     const uint8 wireDir = static_cast<uint8>((_memory->read8(dirAddr) & 0x03) * 2);
+    const MapPos geoPos(static_cast<int8>(x), static_cast<int8>(y));
 
     const bool indoorMode = (_memory->read8(
         layout.vmField(kVmFieldIndoorModeFlag).vmAddr) != 0);
 
     RuntimeGeoBlock &rtGeo = _engine->getRuntimeGeo();
     uint8 distance = rtGeo.isLoaded()
-        ? countStepsUntilWall(rtGeo, wireDir, x, y, indoorMode)
+        ? countStepsUntilWall(rtGeo, wireDir, geoPos, indoorMode)
         : 2;
 
     // Clamp to distance cap (D_DistanceCap < D_MonsterDistance).
@@ -1734,11 +1728,11 @@ bool PoolradEngineHostImpl::tryOpenDoor() {
     if (!exchange->captureMapSnapshot(snapshot) || !snapshot.valid)
         return false;
 
-    const int x = static_cast<int>(snapshot.dungeonX);
-    const int y = static_cast<int>(snapshot.dungeonY);
+    const int x = static_cast<int>(snapshot.dungeonPos.x);
+    const int y = static_cast<int>(snapshot.dungeonPos.y);
     const uint8 wireDir = static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2);
 
-    const uint8 doorFlag = rtGeo.getWallFlag(x, y, wireDir);
+    const uint8 doorFlag = rtGeo.getWallFlag(MapPos(static_cast<int8>(x), static_cast<int8>(y)), wireDir);
 
     // doorFlag 0 = solid wall (no door), 1 = open door (already passable).
     if (doorFlag < 2)

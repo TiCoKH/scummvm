@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/effect_handler.h"
+#include "goldbox/core/tile_pos.h"
 #include "goldbox/combat/cloud_effect_manager.h"
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combat_params.h"
@@ -982,8 +983,8 @@ static void handleRevive(const EffectCall &c) {
     bool found = false;
     for (const auto &rec : ctx->table.getDownedMembers()) {
         if (rec.character == &c.character) {
-            col = rec.tileCol;
-            row = rec.tileRow;
+            col = rec.pos.col;
+            row = rec.pos.row;
             found = true;
             break;
         }
@@ -1002,7 +1003,7 @@ static void handleRevive(const EffectCall &c) {
         tryAddEffect(c.character, 0x4e, c.effect.power, 1);
         return;
     }
-    ctx->table.setPosition(idx, col, row);
+    ctx->table.setPosition(idx, TilePos(col, row));
 
     c.character.healthStatus = Goldbox::Data::S_OKAY;
     c.character.enabled = true;

@@ -25,6 +25,7 @@
 #include "common/scummsys.h"
 #include "common/rect.h"
 #include "graphics/managed_surface.h"
+#include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
 
@@ -115,7 +116,7 @@ public:
     void blitTo(Graphics::ManagedSurface *dst,
                 const Common::Point &dstPos) const;
 
-    Common::Rect tileToPixelRect(int col, int row, int w, int h) const;
+    Common::Rect tileToPixelRect(TilePos pos, int w, int h) const;
     Common::Rect getActiveAreaRect(const Combat::BattlefieldMap &map) const;
 
     void clear();

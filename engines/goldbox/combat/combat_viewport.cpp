@@ -28,39 +28,33 @@ namespace Combat {
 CombatViewport::CombatViewport() : _topLeftCol(0), _topLeftRow(0) {
 }
 
-void CombatViewport::centerOn(int tileCol, int tileRow) {
-    _topLeftCol = tileCol - CENTER_X;
-    _topLeftRow = tileRow - CENTER_Y;
+void CombatViewport::centerOn(TilePos pos) {
+    _topLeftCol = pos.col - CENTER_X;
+    _topLeftRow = pos.row - CENTER_Y;
     clamp();
 }
 
-bool CombatViewport::adjustToInclude(int targetCol, int targetRow, uint8 radius) {
+bool CombatViewport::adjustToInclude(TilePos target, uint8 radius) {
     int centerCol = _topLeftCol + CENTER_X;
     int centerRow = _topLeftRow + CENTER_Y;
 
-    // If within radius, no scroll needed
     if (radius != 0xFF) {
-        if (ABS(targetCol - centerCol) <= (int)radius &&
-            ABS(targetRow - centerRow) <= (int)radius)
+        if (ABS((int)target.col - centerCol) <= (int)radius &&
+            ABS((int)target.row - centerRow) <= (int)radius)
             return false;
     }
 
     int oldCol = _topLeftCol;
     int oldRow = _topLeftRow;
 
-    // Scroll toward target
-    while (targetCol < centerCol && centerCol > CENTER_X) {
+    while ((int)target.col < centerCol && centerCol > CENTER_X)
         centerCol--;
-    }
-    while (targetCol > centerCol && centerCol < MAP_COLS - 1 - CENTER_X) {
+    while ((int)target.col > centerCol && centerCol < MAP_COLS - 1 - CENTER_X)
         centerCol++;
-    }
-    while (targetRow < centerRow && centerRow > CENTER_Y) {
+    while ((int)target.row < centerRow && centerRow > CENTER_Y)
         centerRow--;
-    }
-    while (targetRow > centerRow && centerRow < MAP_ROWS - 1 - CENTER_Y) {
+    while ((int)target.row > centerRow && centerRow < MAP_ROWS - 1 - CENTER_Y)
         centerRow++;
-    }
 
     _topLeftCol = centerCol - CENTER_X;
     _topLeftRow = centerRow - CENTER_Y;
@@ -69,14 +63,14 @@ bool CombatViewport::adjustToInclude(int targetCol, int targetRow, uint8 radius)
     return (_topLeftCol != oldCol || _topLeftRow != oldRow);
 }
 
-bool CombatViewport::isTileVisible(int col, int row) const {
-    return col >= _topLeftCol && col < _topLeftCol + VIEW_COLS &&
-           row >= _topLeftRow && row < _topLeftRow + VIEW_ROWS;
+bool CombatViewport::isTileVisible(TilePos pos) const {
+    return (int)pos.col >= _topLeftCol && (int)pos.col < _topLeftCol + VIEW_COLS &&
+           (int)pos.row >= _topLeftRow && (int)pos.row < _topLeftRow + VIEW_ROWS;
 }
 
-bool CombatViewport::mapToLocal(int col, int row, int &localCol, int &localRow) const {
-    localCol = col - _topLeftCol;
-    localRow = row - _topLeftRow;
+bool CombatViewport::mapToLocal(TilePos pos, int &localCol, int &localRow) const {
+    localCol = (int)pos.col - _topLeftCol;
+    localRow = (int)pos.row - _topLeftRow;
     return (localCol >= 0 && localCol < VIEW_COLS &&
             localRow >= 0 && localRow < VIEW_ROWS);
 }

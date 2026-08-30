@@ -202,8 +202,8 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 	if (!exchange || !exchange->captureMapSnapshot(snapshot) || !snapshot.valid)
 		return;
 
-	uint16 mapX = snapshot.dungeonX;
-	uint16 mapY = snapshot.dungeonY;
+	uint16 mapX = snapshot.dungeonPos.x;
+	uint16 mapY = snapshot.dungeonPos.y;
 	uint8 mapDir = snapshot.dungeonDir;
 	const uint8 effectiveType = effectiveMapTypeFromRuntime();
 
@@ -317,8 +317,8 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 	}
 
 	if (effectiveType > 1 && effectiveType < 5) {
-		const int wildX = static_cast<int>(snapshot.wildernessX);
-		const int wildY = static_cast<int>(snapshot.wildernessY);
+		const int wildX = static_cast<int>(snapshot.wildernessPos.col);
+		const int wildY = static_cast<int>(snapshot.wildernessPos.row);
 		const int mapType = (int)effectiveType;
 		const int xOffset = (mapType >= 0 && mapType < 8)
 			? kWildernessMapXOffsets[mapType]

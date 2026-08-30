@@ -24,6 +24,7 @@
 
 #include "common/scummsys.h"
 #include "common/array.h"
+#include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
 namespace Data {
@@ -66,12 +67,11 @@ public:
      */
     struct DownedMemberRecord {
         Data::PlayerCharacter *character;
-        uint8 tileCol;
-        uint8 tileRow;
+        TilePos pos;
         uint8 savedTile;
 
         DownedMemberRecord()
-            : character(nullptr), tileCol(0), tileRow(0), savedTile(0) {}
+            : character(nullptr), pos(), savedTile(0) {}
     };
 
     CombatantTable();
@@ -103,7 +103,7 @@ public:
     uint8 getSize(int idx) const;
 
     /** Set position and mark occupancy dirty. */
-    void setPosition(int idx, uint8 col, uint8 row);
+    void setPosition(int idx, TilePos pos);
 
     /** Set size and mark occupancy dirty. */
     void setSize(int idx, uint8 size);
@@ -116,16 +116,14 @@ public:
 
     // --- Trigger records ---
 
-    void addDownedMember(Data::PlayerCharacter *ch, uint8 col, uint8 row, uint8 savedTile);
+    void addDownedMember(Data::PlayerCharacter *ch, TilePos pos, uint8 savedTile);
     const Common::Array<DownedMemberRecord> &getDownedMembers() const { return _downedMembers; }
 
     // --- Occupancy grid (lazy rebuild) ---
 
-    /**
-     * Get occupant index at tile (0 = empty, 1-based combatant index).
-     * Automatically rebuilds occupancy grid if dirty.
-     */
-    uint8 getOccupant(int col, int row) const;
+    uint8 getOccupant(TilePos pos) const;
+    // Raw int overload for arithmetic call sites
+    uint8 getOccupant(int col, int row) const { return getOccupant(TilePos((uint8)col, (uint8)row)); }
 
     /**
      * Force an immediate occupancy rebuild.
@@ -157,7 +155,7 @@ public:
      * @param vpCol Viewport top-left column (CombatViewport::getTopLeftCol)
      * @param vpRow Viewport top-left row (CombatViewport::getTopLeftRow)
      */
-    void setViewportOrigin(int vpCol, int vpRow);
+    void setViewportOrigin(TilePos origin);
 
     /** Column offset from viewport origin for combatant idx. */
     int8 getColDist(int idx) const;
@@ -184,17 +182,16 @@ public:
     void rebuildOccupancy() { _occupancyDirty = true; ensureOccupancy(); }
 
     /** @deprecated Use setViewportOrigin instead. */
-    void setDistanceOrigin(int refCol, int refRow) { setViewportOrigin(refCol, refRow); }
-    void rebuildDistances(int vpCol, int vpRow) { setViewportOrigin(vpCol, vpRow); }
+    void setDistanceOrigin(TilePos origin) { setViewportOrigin(origin); }
+    void rebuildDistances(TilePos origin) { setViewportOrigin(origin); }
 
 private:
     struct Entry {
         Data::PlayerCharacter *character;
-        uint8 tileCol;
-        uint8 tileRow;
-        uint8 size;  // 0 = not placed/removed
+        TilePos pos;
+        uint8 size;
 
-        Entry() : character(nullptr), tileCol(0), tileRow(0), size(0) {}
+        Entry() : character(nullptr), pos(), size(0) {}
     };
 
     Entry _entries[MAX_COMBATANTS];
