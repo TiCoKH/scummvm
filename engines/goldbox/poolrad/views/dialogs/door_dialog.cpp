@@ -27,6 +27,7 @@
 #include "goldbox/data/spells/spell.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/runtime/runtime_geo.h"
+#include "goldbox/core/tile_pos.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/events.h"
 #include "goldbox/core/direction.h"
@@ -298,7 +299,7 @@ void DoorDialog::openDoor(uint8 doorFlag) {
         int y = 0;
         uint8 wireDir = 0;
         if (rtGeo.isLoaded() && readRuntimeDoorPos(x, y, wireDir)) {
-            rtGeo.clearFlag(x, y, wireDir);
+            rtGeo.clearFlag(MapPos(static_cast<int8>(x), static_cast<int8>(y)), wireDir);
         }
         postResult(false);
         return;
@@ -432,13 +433,12 @@ void DoorDialog::handleMenuKey(char key) {
         int y = 0;
         uint8 wireDir = 0;
         if (rtGeo.isLoaded() && readRuntimeDoorPos(x, y, wireDir)) {
-
-            rtGeo.setTileDirectionState(x, y, wireDir);
+            rtGeo.setTileDirectionState(MapPos(static_cast<int8>(x), static_cast<int8>(y)), wireDir);
 
             int oppX = x + kDirDeltaX[wireDir];
             int oppY = y + kDirDeltaY[wireDir];
             uint8 oppDir = dirReverse(wireDir);
-            rtGeo.setTileDirectionState(oppX, oppY, oppDir);
+            rtGeo.setTileDirectionState(MapPos(static_cast<int8>(oppX), static_cast<int8>(oppY)), oppDir);
         }
         postResult(true);
     } else {
@@ -450,7 +450,7 @@ void DoorDialog::handleMenuKey(char key) {
             int y = 0;
             uint8 wireDir = 0;
             if (rtGeo.isLoaded() && readRuntimeDoorPos(x, y, wireDir)) {
-                rtGeo.clearFlag(x, y, wireDir);
+                rtGeo.clearFlag(MapPos(static_cast<int8>(x), static_cast<int8>(y)), wireDir);
             }
             postResult(false);
         } else if (_horizontalMenu) {

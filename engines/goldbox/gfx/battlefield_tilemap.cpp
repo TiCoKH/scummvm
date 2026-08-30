@@ -26,6 +26,7 @@
 #include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/gfx/icon_manager.h"
 #include "goldbox/gfx/pic.h"
+#include "goldbox/core/tile_pos.h"
 
 #include <string.h>
 
@@ -47,17 +48,17 @@ void BattlefieldTilemap::clear() {
     _built = false;
 }
 
-Common::Rect BattlefieldTilemap::tileToPixelRect(int col, int row,
-                                                 int w, int h) const {
-    return Common::Rect(col * kIconSize, row * kIconSize,
-                        (col + w) * kIconSize, (row + h) * kIconSize);
+Common::Rect BattlefieldTilemap::tileToPixelRect(TilePos pos, int w, int h) const {
+    return Common::Rect(pos.col * kIconSize, pos.row * kIconSize,
+                        (pos.col + w) * kIconSize, (pos.row + h) * kIconSize);
 }
 
 Common::Rect BattlefieldTilemap::getActiveAreaRect(
         const Combat::BattlefieldMap &map) const {
-    return tileToPixelRect(map.getViewportStartX(), map.getViewportStartY(),
-                           kPlayfieldCols - map.getViewportStartX(),
-                           kPlayfieldRows - map.getViewportStartY());
+    TilePos vs = map.getViewportStart();
+    return tileToPixelRect(vs,
+                           kPlayfieldCols - vs.col,
+                           kPlayfieldRows - vs.row);
 }
 
 void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
@@ -67,7 +68,7 @@ void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
 
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
-            uint8 raw = map.getRawTile(col, row);
+            uint8 raw = map.getRawTile(TilePos((uint8)col, (uint8)row));
             if (raw == 0)
                 continue;
 
@@ -101,7 +102,7 @@ int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
 
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
-            if (!map.isTileDirty(col, row))
+            if (!map.isTileDirty(TilePos((uint8)col, (uint8)row)))
                 continue;
 
             int pixX = col * kIconSize;
@@ -111,7 +112,7 @@ int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
                                   pixX + kIconSize, pixY + kIconSize);
             _surface.fillRect(tileRect, 0);
 
-            uint8 raw = map.getRawTile(col, row);
+            uint8 raw = map.getRawTile(TilePos((uint8)col, (uint8)row));
             if (raw != 0) {
                 uint8 slotId;
                 if (tileProps && (raw - 1) < tileProps->getTilePropCount()) {
@@ -138,7 +139,7 @@ void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
 
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
-            uint8 raw = map.getRawTile(col, row);
+            uint8 raw = map.getRawTile(TilePos((uint8)col, (uint8)row));
             if (raw == 0)
                 continue;
 
@@ -165,18 +166,17 @@ int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
 
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
-            if (!map.isTileDirty(col, row))
+            if (!map.isTileDirty(TilePos((uint8)col, (uint8)row)))
                 continue;
 
             int pixX = col * kIconSize;
             int pixY = row * kIconSize;
 
-            // Clear the tile area first
             Common::Rect tileRect(pixX, pixY,
                                   pixX + kIconSize, pixY + kIconSize);
             _surface.fillRect(tileRect, 0);
 
-            uint8 raw = map.getRawTile(col, row);
+            uint8 raw = map.getRawTile(TilePos((uint8)col, (uint8)row));
             if (raw != 0) {
                 uint8 slotId = raw - 1;
                 const Pic *pic = iconMgr.getPic(slotId);

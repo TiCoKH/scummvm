@@ -25,6 +25,7 @@
 #include "common/scummsys.h"
 #include "common/array.h"
 #include "goldbox/core/vm_layout.h"
+#include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
 
@@ -64,12 +65,10 @@ struct CombatParams {
     RuntimeGeoBlock *geo;     // dungeon geometry for tilemap generation
 
     // --- Terrain generation inputs ---
-    int8 mapCenterX;         // party map X for dungeon generation
-    int8 mapCenterY;         // party map Y for dungeon generation
+    MapPos mapCenter;        // party map position for dungeon generation
     int8 playerY;            // player Y row for OOB checks
     uint8 eclScriptId;       // ECL script ID (affects random floor tiles)
-    uint8 wildX;             // wilderness X coordinate
-    uint8 wildY;             // wilderness Y coordinate
+    TilePos wild;            // wilderness coordinates
     uint8 mapType;           // VM map type (1=dungeon, 3/4=wilderness)
     uint8 terrainOverride;   // terrain override flags
 
@@ -87,8 +86,8 @@ struct CombatParams {
     CombatParams()
         : partyCount(0), mapDirection(0), encounterDistance(2),
           isDungeon(true), geo(nullptr),
-          mapCenterX(0), mapCenterY(0), playerY(0),
-          eclScriptId(0), wildX(0), wildY(0), mapType(1),
+          mapCenter(), playerY(0),
+          eclScriptId(0), wild(), mapType(1),
           terrainOverride(0), moraleThreshold(100),
           eclMemory(nullptr), vmGlobalLayout(nullptr),
           magicEnabled(false), slowMode(false), isAmbush(false),

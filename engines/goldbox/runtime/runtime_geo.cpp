@@ -57,26 +57,26 @@ void RuntimeGeoBlock::clear() {
     _blockId = 0xFF;
 }
 
-bool RuntimeGeoBlock::isInBounds(int x, int y) const {
-    return (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE);
+bool RuntimeGeoBlock::isInBounds(MapPos pos) const {
+    return (pos.x >= 0 && pos.x < GRID_SIZE && pos.y >= 0 && pos.y < GRID_SIZE);
 }
 
-void RuntimeGeoBlock::wrapCoords(int &x, int &y) const {
-    if (x > 15) x = 0;
-    if (x < 0)  x = 15;
-    if (y > 15) y = 0;
-    if (y < 0)  y = 15;
+void RuntimeGeoBlock::wrapCoords(MapPos &pos) const {
+    if (pos.x > 15) pos.x = 0;
+    if (pos.x < 0)  pos.x = 15;
+    if (pos.y > 15) pos.y = 0;
+    if (pos.y < 0)  pos.y = 15;
 }
 
-uint8 RuntimeGeoBlock::getMapNibble(int x, int y, uint8 wireDir) const {
+uint8 RuntimeGeoBlock::getMapNibble(MapPos pos, uint8 wireDir) const {
     if (!_loaded)
         return 0;
 
-    if (!isInBounds(x, y) && (_mapId == 0 || _mapId == 10))
+    if (!isInBounds(pos) && (_mapId == 0 || _mapId == 10))
         return 0;
 
-    wrapCoords(x, y);
-    const int idx = cellIndex(x, y);
+    wrapCoords(pos);
+    const int idx = cellIndex(pos);
 
     switch (wireDir) {
     case 0: // North
@@ -92,32 +92,32 @@ uint8 RuntimeGeoBlock::getMapNibble(int x, int y, uint8 wireDir) const {
     }
 }
 
-uint8 RuntimeGeoBlock::getGeoData(int x, int y) const {
+uint8 RuntimeGeoBlock::getGeoData(MapPos pos) const {
     if (!_loaded)
         return 0;
 
-    if (!isInBounds(x, y) && (_mapId == 0 || _mapId == 10))
+    if (!isInBounds(pos) && (_mapId == 0 || _mapId == 10))
         return 0;
 
-    wrapCoords(x, y);
-    return _buf[PLANE_SIZE * 2 + cellIndex(x, y)];
+    wrapCoords(pos);
+    return _buf[PLANE_SIZE * 2 + cellIndex(pos)];
 }
 
-uint8 RuntimeGeoBlock::getWallFlag(int x, int y, uint8 wireDir) const {
+uint8 RuntimeGeoBlock::getWallFlag(MapPos pos, uint8 wireDir) const {
     if (!_loaded)
         return 0;
 
-    if (!isInBounds(x, y) && (_mapId == 0 || _mapId == 10))
+    if (!isInBounds(pos) && (_mapId == 0 || _mapId == 10))
         return 0;
 
-    wrapCoords(x, y);
+    wrapCoords(pos);
 
     // If the wall nibble is 0 (no wall), return 1 (passable) per original.
-    const uint8 nibble = getMapNibble(x, y, wireDir);
+    const uint8 nibble = getMapNibble(pos, wireDir);
     if (nibble == 0)
         return 1;
 
-    const int idx = cellIndex(x, y);
+    const int idx = cellIndex(pos);
     const uint8 doorByte = _buf[PLANE_SIZE * 3 + idx];
 
     switch (wireDir) {
@@ -134,11 +134,11 @@ uint8 RuntimeGeoBlock::getWallFlag(int x, int y, uint8 wireDir) const {
     }
 }
 
-void RuntimeGeoBlock::clearFlag(int x, int y, uint8 wireDir) {
+void RuntimeGeoBlock::clearFlag(MapPos pos, uint8 wireDir) {
     if (!_loaded)
         return;
 
-    const int idx = cellIndex(x, y);
+    const int idx = cellIndex(pos);
     uint8 &doorByte = _buf[PLANE_SIZE * 3 + idx];
 
     switch (wireDir) {
@@ -159,14 +159,14 @@ void RuntimeGeoBlock::clearFlag(int x, int y, uint8 wireDir) {
     }
 }
 
-void RuntimeGeoBlock::setTileDirectionState(int x, int y, uint8 wireDir) {
+void RuntimeGeoBlock::setTileDirectionState(MapPos pos, uint8 wireDir) {
     if (!_loaded)
         return;
 
-    if (!isInBounds(x, y))
+    if (!isInBounds(pos))
         return;
 
-    const int idx = cellIndex(x, y);
+    const int idx = cellIndex(pos);
     uint8 &doorByte = _buf[PLANE_SIZE * 3 + idx];
 
     switch (wireDir) {

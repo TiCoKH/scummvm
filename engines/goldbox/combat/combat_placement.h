@@ -26,6 +26,7 @@
 #include "common/array.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_globals.h"
+#include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
 namespace Data {
@@ -82,8 +83,7 @@ private:
      *   valid_mask   = ARRAY_FORMATION_VALID_MASK[side]
      */
     struct CombatSideData {
-        int8  origin_x;
-        int8  origin_y;
+        MapPos origin;
         uint8 dir_idx;
         uint8 side_dir;
         // Formation mask: reset per-combatant, tracks cells available in
@@ -103,8 +103,7 @@ private:
     // Current placement context
     int _currentSide;
     bool _isDungeon;
-    int8 _mapCenterX;
-    int8 _mapCenterY;
+    MapPos _mapCenter;
     uint8 _mapDirection;
     BattlefieldMap *_map;
     CombatantTable *_table;

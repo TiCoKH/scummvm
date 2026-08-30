@@ -129,9 +129,9 @@ void setupCombat(CombatParams &params,
 
     // Step 3: Build playfield data (COMBAT_BuildPlayfield)
     map.build(*params.geo,
-              params.mapCenterX, params.mapCenterY, params.playerY,
+              params.mapCenter, params.playerY,
               params.isDungeon, params.eclScriptId,
-              params.wildX, params.wildY,
+              params.wild,
               params.mapType, params.terrainOverride);
 
     // Step 4: Init combatant states (COMBAT_InitCombatantStates)
@@ -146,8 +146,8 @@ void setupCombat(CombatParams &params,
     // Step 6: Center viewport on active character (PTR_NEXT_CHAR)
     // Original: _PTR_COMBAT_FIELD[2] = charX - 3; [3] = charY - 3
     if (params.nextChar) {
-        viewport.centerOn(table.getCharacterCol(params.nextChar),
-                          table.getCharacterRow(params.nextChar));
+        viewport.centerOn(TilePos(table.getCharacterCol(params.nextChar),
+                                  table.getCharacterRow(params.nextChar)));
     }
 
     // Step 7: Apply combat aura effects (EFFECT_applyEffectSet(8, ch))

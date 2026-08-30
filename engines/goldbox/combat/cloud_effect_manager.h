@@ -24,6 +24,7 @@
 
 #include "common/list.h"
 #include "common/scummsys.h"
+#include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
 namespace Data {
@@ -47,15 +48,14 @@ namespace Combat {
  */
 struct CloudEffect {
     Data::PlayerCharacter *owner;
-    uint8 centerX;
-    uint8 centerY;
+    TilePos center;
     uint8 cloudIndex;       // owner-relative index (effect power >> 4)
     uint8 savedTile[4];     // original map tile under each cell before cloud placed
     uint8 occupantIcon[4];  // combatant/terrain icon saved at each cell
     bool  activeTile[4];    // true if cell is cloud-affected (not impassable)
 
     CloudEffect()
-        : owner(nullptr), centerX(0), centerY(0), cloudIndex(0) {
+        : owner(nullptr), center(), cloudIndex(0) {
         for (int i = 0; i < 4; ++i) {
             savedTile[i]    = 0;
             occupantIcon[i] = 0;
@@ -91,7 +91,7 @@ public:
      * Returns the cloudIndex assigned to this cloud (= countOwnedBy before insert).
      * Resolves BattlefieldMap and CombatantTable via g_engine->getCombatContext().
      */
-    uint8 create(Data::PlayerCharacter *owner, uint8 centerX, uint8 centerY);
+    uint8 create(Data::PlayerCharacter *owner, TilePos center);
 
     /**
      * Called by the E_IN_STINKING_CLOUD EFF_REMOVE handler.
@@ -109,7 +109,7 @@ public:
      * Find the first cloud whose active cells include (x, y).
      * Optionally excludes one entry (used during create to skip self).
      */
-    const CloudEffect *findAtTile(uint8 x, uint8 y,
+    const CloudEffect *findAtTile(TilePos pos,
                                   const CloudEffect *exclude = nullptr) const;
 
     bool isEmpty() const { return _clouds.empty(); }
@@ -120,7 +120,7 @@ private:
 
     Common::List<CloudEffect> _clouds;
 
-    void getCellPos(const CloudEffect &c, int dir, uint8 &x, uint8 &y) const;
+    void getCellPos(const CloudEffect &c, int dir, TilePos &out) const;
     void rebuildOverlays() const;
 };
 

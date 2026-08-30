@@ -23,6 +23,7 @@
 #define GOLDBOX_COMBAT_BATTLEFIELD_MAP_H
 
 #include "common/scummsys.h"
+#include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
 
@@ -45,29 +46,27 @@ public:
     void clear();
 
     void build(const RuntimeGeoBlock &geo,
-               int8 centerX, int8 centerY, int8 playerY,
+               MapPos center, int8 playerY,
                bool isDungeon, uint8 eclScriptId,
-               uint8 wildX, uint8 wildY,
+               TilePos wild,
                uint8 mapType, uint8 terrainOverride);
 
     void regenerate(const RuntimeGeoBlock &geo,
-                    int8 centerX, int8 centerY, int8 playerY,
+                    MapPos center, int8 playerY,
                     bool isDungeon, uint8 eclScriptId,
-                    uint8 wildX, uint8 wildY,
+                    TilePos wild,
                     uint8 mapType, uint8 terrainOverride);
 
-    uint8 checkOpenPassage(int8 mapX, int8 mapY, uint8 wireDir) const;
-    uint8 getRawTile(int col, int row) const;
-    void setRawTile(int col, int row, uint8 rawTile);
-    uint8 getTileId(int col, int row) const;
-    uint8 getViewportStartX() const;
-    uint8 getViewportStartY() const;
+    uint8 checkOpenPassage(MapPos mapPos, uint8 wireDir) const;
+    uint8 getRawTile(TilePos pos) const;
+    void setRawTile(TilePos pos, uint8 rawTile);
+    uint8 getTileId(TilePos pos) const;
+    TilePos getViewportStart() const;
     uint8 getSize() const;
     bool getTargetCursor() const;
     bool getIgnoreWalls() const;
     bool isDungeon() const;
-    int8 getCenterX() const;
-    int8 getCenterY() const;
+    MapPos getCenter() const;
 
     // --- Dirty tile tracking ---
 
@@ -85,7 +84,7 @@ public:
      * Check if a specific tile is dirty.
      * @return true if tile at (col, row) was modified since last ack.
      */
-    bool isTileDirty(int col, int row) const;
+    bool isTileDirty(TilePos pos) const;
 
     /**
      * Acknowledge all dirty tiles (renderer has redrawn them).
@@ -97,8 +96,7 @@ private:
     struct PlayfieldState {
         uint8 unknown1;
         uint8 unknown2;
-        uint8 viewportStartX;
-        uint8 viewportStartY;
+        TilePos viewportStart;
         bool targetCursor;
         uint8 size;
         bool ignoreWalls;
@@ -153,18 +151,15 @@ private:
     const RuntimeGeoBlock *_geo;
     const TilePropertyProvider *_tileProps;
     bool _isDungeon;
-    int8 _centerX;
-    int8 _centerY;
+    MapPos _center;
     int8 _playerY;
     uint8 _eclScriptId;
     uint8 _wildCell;
     uint8 _terrainOverrideFlags;
     uint8 _mapType;
-    uint8 _wildX;
-    uint8 _wildY;
+    TilePos _wild;
 
-    int8 _cellAbsX;
-    int8 _cellAbsY;
+    MapPos _cellAbs;
     int _cellOffsetX;
     int _cellOffsetY;
     uint8 _cellPassWest;
@@ -172,16 +167,16 @@ private:
     uint8 _cellPassEast;
 
     void writeTile(int localCol, int localRow, uint8 tileId);
-    uint8 checkCell(int8 mapX, int8 mapY, uint8 wireDir) const;
+    uint8 checkCell(MapPos mapPos, uint8 wireDir) const;
 
     // --- Dirty tile bitmap (1 bit per tile, 50*25 = 1250 bits = 157 bytes) ---
     static const int kDirtyBitmapSize = (kPlayfieldCols * kPlayfieldRows + 7) / 8;
     mutable uint8 _dirtyBitmap[kDirtyBitmapSize];
     mutable int _dirtyCount;
 
-    void markTileDirty(int col, int row) const;
+    void markTileDirty(TilePos pos) const;
 
-    void generateDungeon(int8 centerX, int8 centerY);
+    void generateDungeon(MapPos center);
     void generateWilderness();
 
     uint8 getTerrainFlags() const;

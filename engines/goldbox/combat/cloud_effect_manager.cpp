@@ -40,14 +40,14 @@ void CloudEffectManager::reset() {
 }
 
 void CloudEffectManager::getCellPos(const CloudEffect &c, int dir,
-                                    uint8 &x, uint8 &y) const {
+                                    TilePos &out) const {
     const uint8 wireDir = kCloudDirections[dir];
-    x = (uint8)(c.centerX + kDirDeltaX[wireDir]);
-    y = (uint8)(c.centerY + kDirDeltaY[wireDir]);
+    out.col = (uint8)(c.center.col + kDirDeltaX[wireDir]);
+    out.row = (uint8)(c.center.row + kDirDeltaY[wireDir]);
 }
 
 uint8 CloudEffectManager::create(Data::PlayerCharacter *owner,
-                                 uint8 centerX, uint8 centerY) {
+                                 TilePos center) {
     CombatContext *ctx = Goldbox::g_engine->getCombatContext();
     if (!ctx)
         return 0;
@@ -57,17 +57,16 @@ uint8 CloudEffectManager::create(Data::PlayerCharacter *owner,
 
     CloudEffect cloud;
     cloud.owner      = owner;
-    cloud.centerX    = centerX;
-    cloud.centerY    = centerY;
+    cloud.center     = center;
     cloud.cloudIndex = countOwnedBy(owner);
 
     const TilePropertyProvider *props = map.getTilePropertyProvider();
 
     for (int dir = 0; dir < 4; ++dir) {
-        uint8 x, y;
-        getCellPos(cloud, dir, x, y);
+        TilePos cell;
+        getCellPos(cloud, dir, cell);
 
-        const uint8 rawTile = map.getRawTile(x, y);
+        const uint8 rawTile = map.getRawTile(cell);
         cloud.savedTile[dir] = rawTile;
 
         if (props && props->isImpassable(rawTile)) {
@@ -78,31 +77,27 @@ uint8 CloudEffectManager::create(Data::PlayerCharacter *owner,
 
         cloud.activeTile[dir] = true;
 
-        // Resolve the icon to save under this cell.
         uint8 icon = rawTile;
 
         if (rawTile == kTileCloud) {
-            // Another cloud already occupies this cell — inherit its saved icon.
-            const CloudEffect *other = findAtTile(x, y, nullptr);
+            const CloudEffect *other = findAtTile(cell, nullptr);
             if (other) {
                 for (int od = 0; od < 4; ++od) {
                     if (!other->activeTile[od])
                         continue;
-                    uint8 ox, oy;
-                    getCellPos(*other, od, ox, oy);
-                    if (ox == x && oy == y &&
-                            other->occupantIcon[od] != kTileCloud) {
+                    TilePos oc;
+                    getCellPos(*other, od, oc);
+                    if (oc == cell && other->occupantIcon[od] != kTileCloud) {
                         icon = other->occupantIcon[od];
                         break;
                     }
                 }
             }
         } else if (rawTile == kTileDowned) {
-            // Downed party member — find their original saved tile.
             const Common::Array<CombatantTable::DownedMemberRecord> &downed =
                 table.getDownedMembers();
             for (uint i = 0; i < downed.size(); ++i) {
-                if (downed[i].tileCol == x && downed[i].tileRow == y) {
+                if (downed[i].pos == cell) {
                     icon = downed[i].savedTile;
                     break;
                 }
@@ -110,7 +105,7 @@ uint8 CloudEffectManager::create(Data::PlayerCharacter *owner,
         }
 
         cloud.occupantIcon[dir] = icon;
-        map.setRawTile(x, y, kTileCloud);
+        map.setRawTile(cell, kTileCloud);
     }
 
     _clouds.push_back(cloud);
@@ -145,21 +140,20 @@ void CloudEffectManager::expire(Data::PlayerCharacter *owner,
         if (!it->activeTile[dir])
             continue;
 
-        uint8 x, y;
-        getCellPos(*it, dir, x, y);
+        TilePos cell;
+        getCellPos(*it, dir, cell);
 
-        // If a downed member is at this position, restore the downed tile.
         bool hasDowned = false;
         for (uint i = 0; i < downed.size(); ++i) {
-            if (downed[i].tileCol == x && downed[i].tileRow == y) {
-                map.setRawTile(x, y, kTileDowned);
+            if (downed[i].pos == cell) {
+                map.setRawTile(cell, kTileDowned);
                 hasDowned = true;
                 break;
             }
         }
 
         if (!hasDowned)
-            map.setRawTile(x, y, it->savedTile[dir]);
+            map.setRawTile(cell, it->savedTile[dir]);
     }
 
     _clouds.erase(it);
@@ -175,7 +169,7 @@ uint8 CloudEffectManager::countOwnedBy(const Data::PlayerCharacter *owner) const
     return count;
 }
 
-const CloudEffect *CloudEffectManager::findAtTile(uint8 x, uint8 y,
+const CloudEffect *CloudEffectManager::findAtTile(TilePos pos,
                                                    const CloudEffect *exclude) const {
     for (const CloudEffect &c : _clouds) {
         if (&c == exclude)
@@ -183,9 +177,9 @@ const CloudEffect *CloudEffectManager::findAtTile(uint8 x, uint8 y,
         for (int dir = 0; dir < 4; ++dir) {
             if (!c.activeTile[dir])
                 continue;
-            uint8 cx, cy;
-            getCellPos(c, dir, cx, cy);
-            if (cx == x && cy == y)
+            TilePos cell;
+            getCellPos(c, dir, cell);
+            if (cell == pos)
                 return &c;
         }
     }
@@ -201,9 +195,9 @@ void CloudEffectManager::rebuildOverlays() const {
         for (int dir = 0; dir < 4; ++dir) {
             if (!c.activeTile[dir])
                 continue;
-            uint8 x, y;
-            getCellPos(c, dir, x, y);
-            map.setRawTile(x, y, kTileCloud);
+            TilePos cell;
+            getCellPos(c, dir, cell);
+            map.setRawTile(cell, kTileCloud);
         }
     }
 }

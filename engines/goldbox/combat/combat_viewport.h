@@ -24,6 +24,7 @@
 
 #include "common/scummsys.h"
 #include "common/rect.h"
+#include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
 namespace Combat {
@@ -47,32 +48,16 @@ public:
 
     CombatViewport();
 
-    /** Center viewport on a tile position (clamped to map bounds). */
-    void centerOn(int tileCol, int tileRow);
+    void centerOn(TilePos pos);
+    bool adjustToInclude(TilePos target, uint8 radius = 0xFF);
 
-    /**
-     * Scroll viewport to include a target tile.
-     * @param targetCol Target tile column
-     * @param targetRow Target tile row
-     * @param radius    If target is within radius of center, no scroll.
-     *                  Use 0xFF to always scroll.
-     * @return true if viewport moved
-     */
-    bool adjustToInclude(int targetCol, int targetRow, uint8 radius = 0xFF);
-
-    /** Top-left corner of viewport in map coordinates. */
     int getTopLeftCol() const { return _topLeftCol; }
     int getTopLeftRow() const { return _topLeftRow; }
+    TilePos getTopLeft() const { return TilePos((uint8)_topLeftCol, (uint8)_topLeftRow); }
+    TilePos getCenter() const { return TilePos((uint8)(_topLeftCol + CENTER_X), (uint8)(_topLeftRow + CENTER_Y)); }
 
-    /** Center tile in map coordinates. */
-    int getCenterCol() const { return _topLeftCol + CENTER_X; }
-    int getCenterRow() const { return _topLeftRow + CENTER_Y; }
-
-    /** Check if a map tile is visible in the viewport. */
-    bool isTileVisible(int col, int row) const;
-
-    /** Convert map tile to viewport-local coordinates. Returns false if off-screen. */
-    bool mapToLocal(int col, int row, int &localCol, int &localRow) const;
+    bool isTileVisible(TilePos pos) const;
+    bool mapToLocal(TilePos pos, int &localCol, int &localRow) const;
 
     /** Get the source rect in pixel space for blitting from the full tilemap surface. */
     Common::Rect getSourceRect(int tileSize) const;

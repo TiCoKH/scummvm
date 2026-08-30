@@ -45,7 +45,7 @@ void CombatContext::rebuildPlacementMap() {
 }
 
 void CombatContext::rebuildDistances() {
-    table.setViewportOrigin(viewport.getTopLeftCol(), viewport.getTopLeftRow());
+    table.setViewportOrigin(viewport.getTopLeft());
 }
 
 void CombatContext::removeMember(Data::PlayerCharacter *ch, bool keepPartyCount, bool freeIconSlot) {

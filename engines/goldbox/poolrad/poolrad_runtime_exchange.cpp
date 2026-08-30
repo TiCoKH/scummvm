@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
 
+#include "goldbox/core/tile_pos.h"
 #include "goldbox/ecl/runtime_layout.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
@@ -60,19 +61,17 @@ bool PoolradRuntimeExchange::captureMapSnapshot(
 	out.wallNibble = mem->read8(globalLayout.field(kVmGlobalFieldMapWallType).vmAddr);
 	out.eventId = mem->read8(globalLayout.field(kVmGlobalFieldMapSquareInfo).vmAddr);
 
-	// DungeonX/Y/Dir are packed at consecutive byte addresses in the
-	// system bank (0xC04B, 0xC04C, 0xC04D). Each ECL SAVE writes a
-	// 16-bit word, so the high byte of each overlaps the low byte of
-	// the next field. The original code reads them as bytes.
-	out.dungeonX = static_cast<uint16>(mem->read8(
-		globalLayout.field(kVmGlobalFieldDungeonX).vmAddr));
-	out.dungeonY = static_cast<uint16>(mem->read8(
-		globalLayout.field(kVmGlobalFieldDungeonY).vmAddr));
+	out.dungeonPos = MapPos(
+		static_cast<int8>(mem->read8(
+			globalLayout.field(kVmGlobalFieldDungeonX).vmAddr)),
+		static_cast<int8>(mem->read8(
+			globalLayout.field(kVmGlobalFieldDungeonY).vmAddr)));
 	out.dungeonDir = mem->read8(
 		globalLayout.field(kVmGlobalFieldDungeonDir).vmAddr) & 0x03;
 
-	out.wildernessX = mem->read8(vmLayout.field(kVmFieldWildernessX).vmAddr);
-	out.wildernessY = mem->read8(vmLayout.field(kVmFieldWildernessY).vmAddr);
+	out.wildernessPos = TilePos(
+		mem->read8(vmLayout.field(kVmFieldWildernessX).vmAddr),
+		mem->read8(vmLayout.field(kVmFieldWildernessY).vmAddr));
 
 	out.clockHour = mem->read8(vmLayout.field(kVmFieldClockHour).vmAddr);
 	const uint8 minuteOnes =

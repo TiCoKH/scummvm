@@ -24,6 +24,7 @@
 
 #include "common/scummsys.h"
 #include "goldbox/core/global.h"
+#include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
 
@@ -35,15 +36,13 @@ struct RuntimeMapSnapshot {
 	bool indoorMode = true;
 	uint8 mapType = 1;
 
-	uint16 dungeonX = 0;
-	uint16 dungeonY = 0;
+	MapPos dungeonPos;
 	uint8 dungeonDir = 0;
 
 	uint8 wallNibble = 0;   // walldef type in facing direction
 	uint8 eventId = 0;      // event ID at current map cell
 
-	uint8 wildernessX = 0;
-	uint8 wildernessY = 0;
+	TilePos wildernessPos;
 
 	uint8 clockHour = 0;
 	uint8 clockMinute = 0;

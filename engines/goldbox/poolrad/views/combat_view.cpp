@@ -80,8 +80,7 @@ void CombatView::setup(const Combat::CombatParams &params) {
                      _battlefieldMap.getTilePropertyProvider());
 
     // Set viewport-relative position cache origin
-    _table.setViewportOrigin(_viewport.getTopLeftCol(),
-                             _viewport.getTopLeftRow());
+    _table.setViewportOrigin(_viewport.getTopLeft());
 
     _needsFullRedraw = true;
     _phase = PHASE_PLAYER_TURN;
@@ -114,37 +113,29 @@ bool CombatView::msgKeypress(const KeypressMessage &msg) {
         return true;
 
     case Common::KEYCODE_LEFT:
-        _viewport.adjustToInclude(_viewport.getCenterCol() - 1,
-                                  _viewport.getCenterRow());
-        _table.setViewportOrigin(_viewport.getTopLeftCol(),
-                                 _viewport.getTopLeftRow());
+        _viewport.adjustToInclude(TilePos((uint8)(_viewport.getCenter().col - 1), _viewport.getCenter().row));
+        _table.setViewportOrigin(_viewport.getTopLeft());
         _needsFullRedraw = true;
         redraw();
         return true;
 
     case Common::KEYCODE_RIGHT:
-        _viewport.adjustToInclude(_viewport.getCenterCol() + 1,
-                                  _viewport.getCenterRow());
-        _table.setViewportOrigin(_viewport.getTopLeftCol(),
-                                 _viewport.getTopLeftRow());
+        _viewport.adjustToInclude(TilePos((uint8)(_viewport.getCenter().col + 1), _viewport.getCenter().row));
+        _table.setViewportOrigin(_viewport.getTopLeft());
         _needsFullRedraw = true;
         redraw();
         return true;
 
     case Common::KEYCODE_UP:
-        _viewport.adjustToInclude(_viewport.getCenterCol(),
-                                  _viewport.getCenterRow() - 1);
-        _table.setViewportOrigin(_viewport.getTopLeftCol(),
-                                 _viewport.getTopLeftRow());
+        _viewport.adjustToInclude(TilePos(_viewport.getCenter().col, (uint8)(_viewport.getCenter().row - 1)));
+        _table.setViewportOrigin(_viewport.getTopLeft());
         _needsFullRedraw = true;
         redraw();
         return true;
 
     case Common::KEYCODE_DOWN:
-        _viewport.adjustToInclude(_viewport.getCenterCol(),
-                                  _viewport.getCenterRow() + 1);
-        _table.setViewportOrigin(_viewport.getTopLeftCol(),
-                                 _viewport.getTopLeftRow());
+        _viewport.adjustToInclude(TilePos(_viewport.getCenter().col, (uint8)(_viewport.getCenter().row + 1)));
+        _table.setViewportOrigin(_viewport.getTopLeft());
         _needsFullRedraw = true;
         redraw();
         return true;
@@ -353,10 +344,9 @@ void CombatView::handleDeathOnMap(::Goldbox::Data::PlayerCharacter *ch) {
     if (idx >= 0) {
         const uint8 col = _table.getTileCol(idx);
         const uint8 row = _table.getTileRow(idx);
-        if (!_viewport.isTileVisible(col, row)) {
-            _viewport.adjustToInclude(col, row);
-            _table.setViewportOrigin(_viewport.getTopLeftCol(),
-                                     _viewport.getTopLeftRow());
+        if (!_viewport.isTileVisible(TilePos(col, row))) {
+            _viewport.adjustToInclude(TilePos(col, row));
+            _table.setViewportOrigin(_viewport.getTopLeft());
             drawViewport();
             drawCombatants();
             g_system->updateScreen();

@@ -91,8 +91,8 @@ void InGameStateAreaDialog::draw() {
         ::Goldbox::RuntimeMapSnapshot snapshot;
         if (exchange && exchange->captureMapSnapshot(snapshot)
                 && snapshot.valid) {
-            posX = static_cast<int>(snapshot.dungeonX);
-            posY = static_cast<int>(snapshot.dungeonY);
+            posX = static_cast<int>(snapshot.dungeonPos.x);
+            posY = static_cast<int>(snapshot.dungeonPos.y);
             mapDir = snapshot.dungeonDir;
 
             hour = static_cast<int>(snapshot.clockHour);
@@ -107,9 +107,9 @@ void InGameStateAreaDialog::draw() {
 
             if (mapType > 1) {
                 isDungeon = false;
-                posX = static_cast<int>(snapshot.wildernessX)
+                posX = static_cast<int>(snapshot.wildernessPos.col)
                     + wildernessXOffsetForType(mapType);
-                posY = static_cast<int>(snapshot.wildernessY);
+                posY = static_cast<int>(snapshot.wildernessPos.row);
             }
         }
     }

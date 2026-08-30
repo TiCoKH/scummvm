@@ -24,6 +24,7 @@
 
 #include "common/scummsys.h"
 #include "goldbox/data/daxblock.h"
+#include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
 
@@ -79,42 +80,42 @@ public:
     // Read accessors (match DaxBlockGeo API)
     // -----------------------------------------------------------------------
 
-    bool isInBounds(int x, int y) const;
+    bool isInBounds(MapPos pos) const;
 
     /**
-     * Get wall nibble for a direction at (x, y).
+     * Get wall nibble for a direction at pos.
      * Direction uses legacy wire format: 0=N, 2=E, 4=S, 6=W.
      * Returns 4-bit wall type (0-15), or 0 if out of bounds on map 0/10.
      */
-    uint8 getMapNibble(int x, int y, uint8 wireDir) const;
+    uint8 getMapNibble(MapPos pos, uint8 wireDir) const;
 
     /**
-     * Get the event byte at (x, y) from plane 2.
+     * Get the event byte at pos from plane 2.
      * Returns full byte (bit 7 = flag, bits 0-6 = event ID).
      */
-    uint8 getGeoData(int x, int y) const;
+    uint8 getGeoData(MapPos pos) const;
 
     /**
-     * Get 2-bit door/wall flag for a direction at (x, y).
+     * Get 2-bit door/wall flag for a direction at pos.
      * Direction uses legacy wire format: 0=N, 2=E, 4=S, 6=W.
      */
-    uint8 getWallFlag(int x, int y, uint8 wireDir) const;
+    uint8 getWallFlag(MapPos pos, uint8 wireDir) const;
 
     // -----------------------------------------------------------------------
     // Write accessors (ECL script mutations)
     // -----------------------------------------------------------------------
 
     /**
-     * Clear the 2-bit door flag for a direction at (x, y).
+     * Clear the 2-bit door flag for a direction at pos.
      * Direction uses legacy wire format: 0=N, 2=E, 4=S, 6=W.
      */
-    void clearFlag(int x, int y, uint8 wireDir);
+    void clearFlag(MapPos pos, uint8 wireDir);
 
     /**
-     * Set the 2-bit door flag to state 1 (open) for a direction at (x, y).
+     * Set the 2-bit door flag to state 1 (open) for a direction at pos.
      * Direction uses legacy wire format: 0=N, 2=E, 4=S, 6=W.
      */
-    void setTileDirectionState(int x, int y, uint8 wireDir);
+    void setTileDirectionState(MapPos pos, uint8 wireDir);
 
     /**
      * Direct write to a plane byte (for save/load or ECL raw access).
@@ -137,8 +138,8 @@ public:
     uint8 mapId() const { return _mapId; }
 
 private:
-    void wrapCoords(int &x, int &y) const;
-    int cellIndex(int x, int y) const { return x + y * GRID_SIZE; }
+    void wrapCoords(MapPos &pos) const;
+    int cellIndex(MapPos pos) const { return pos.x + pos.y * GRID_SIZE; }
 
     uint8 _buf[BUFFER_SIZE];
     bool _loaded;

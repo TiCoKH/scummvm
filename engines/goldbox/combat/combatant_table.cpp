@@ -56,8 +56,7 @@ int CombatantTable::addCombatant(Data::PlayerCharacter *ch, uint8 size) {
     int idx = _count;
     _entries[idx].character = ch;
     _entries[idx].size = size;
-    _entries[idx].tileCol = 0;
-    _entries[idx].tileRow = 0;
+    _entries[idx].pos = TilePos();
     _count++;
     _occupancyDirty = true;
     _vpPosDirty = true;
@@ -103,13 +102,13 @@ Data::PlayerCharacter *CombatantTable::getCharacter(int idx) const {
 uint8 CombatantTable::getTileCol(int idx) const {
     if (idx < 0 || idx >= MAX_COMBATANTS)
         return 0;
-    return _entries[idx].tileCol;
+    return _entries[idx].pos.col;
 }
 
 uint8 CombatantTable::getTileRow(int idx) const {
     if (idx < 0 || idx >= MAX_COMBATANTS)
         return 0;
-    return _entries[idx].tileRow;
+    return _entries[idx].pos.row;
 }
 
 uint8 CombatantTable::getSize(int idx) const {
@@ -118,11 +117,10 @@ uint8 CombatantTable::getSize(int idx) const {
     return _entries[idx].size;
 }
 
-void CombatantTable::setPosition(int idx, uint8 col, uint8 row) {
+void CombatantTable::setPosition(int idx, TilePos pos) {
     if (idx < 0 || idx >= MAX_COMBATANTS)
         return;
-    _entries[idx].tileCol = col;
-    _entries[idx].tileRow = row;
+    _entries[idx].pos = pos;
     _occupancyDirty = true;
     _vpPosDirty = true;
 }
@@ -138,14 +136,14 @@ uint8 CombatantTable::getCharacterCol(const Data::PlayerCharacter *ch) const {
     int idx = findIndex(ch);
     if (idx < 0)
         return 0;
-    return _entries[idx].tileCol;
+    return _entries[idx].pos.col;
 }
 
 uint8 CombatantTable::getCharacterRow(const Data::PlayerCharacter *ch) const {
     int idx = findIndex(ch);
     if (idx < 0)
         return 0;
-    return _entries[idx].tileRow;
+    return _entries[idx].pos.row;
 }
 
 uint8 CombatantTable::getCharacterSize(const Data::PlayerCharacter *ch) const {
@@ -155,11 +153,10 @@ uint8 CombatantTable::getCharacterSize(const Data::PlayerCharacter *ch) const {
     return _entries[idx].size;
 }
 
-void CombatantTable::addDownedMember(Data::PlayerCharacter *ch, uint8 col, uint8 row, uint8 savedTile) {
+void CombatantTable::addDownedMember(Data::PlayerCharacter *ch, TilePos pos, uint8 savedTile) {
     DownedMemberRecord rec;
     rec.character = ch;
-    rec.tileCol = col;
-    rec.tileRow = row;
+    rec.pos = pos;
     rec.savedTile = savedTile;
     _downedMembers.push_back(rec);
 }
@@ -171,11 +168,11 @@ void CombatantTable::ensureOccupancy() const {
         doRebuildOccupancy();
 }
 
-uint8 CombatantTable::getOccupant(int col, int row) const {
-    if (col < 0 || col >= 50 || row < 0 || row >= 25)
+uint8 CombatantTable::getOccupant(TilePos pos) const {
+    if (pos.col >= 50 || pos.row >= 25)
         return 0;
     ensureOccupancy();
-    return _occupancy[row][col];
+    return _occupancy[pos.row][pos.col];
 }
 
 void CombatantTable::doRebuildOccupancy() const {
@@ -185,8 +182,8 @@ void CombatantTable::doRebuildOccupancy() const {
         if (_entries[i].size == 0)
             continue;
 
-        uint8 baseCol = _entries[i].tileCol;
-        uint8 baseRow = _entries[i].tileRow;
+        uint8 baseCol = _entries[i].pos.col;
+        uint8 baseRow = _entries[i].pos.row;
         uint8 iconSize = _entries[i].size & 7;
 
         // Use the canonical getIconOffsetBySize for footprint — same
@@ -208,10 +205,10 @@ void CombatantTable::doRebuildOccupancy() const {
 
 // --- Viewport-relative position cache (lazy) ---
 
-void CombatantTable::setViewportOrigin(int vpCol, int vpRow) {
-    if (vpCol != _vpOriginCol || vpRow != _vpOriginRow) {
-        _vpOriginCol = vpCol;
-        _vpOriginRow = vpRow;
+void CombatantTable::setViewportOrigin(TilePos origin) {
+    if (origin.col != _vpOriginCol || origin.row != _vpOriginRow) {
+        _vpOriginCol = origin.col;
+        _vpOriginRow = origin.row;
         _vpPosDirty = true;
     }
 }
@@ -249,8 +246,8 @@ void CombatantTable::doRebuildViewportPositions() const {
             _rowDist[i] = 0;
             continue;
         }
-        _colDist[i] = (int8)((int)_entries[i].tileCol - _vpOriginCol);
-        _rowDist[i] = (int8)((int)_entries[i].tileRow - _vpOriginRow);
+        _colDist[i] = (int8)((int)_entries[i].pos.col - _vpOriginCol);
+        _rowDist[i] = (int8)((int)_entries[i].pos.row - _vpOriginRow);
     }
     _vpPosDirty = false;
 }

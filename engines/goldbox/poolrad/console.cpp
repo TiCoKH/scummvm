@@ -730,12 +730,12 @@ bool Console::cmdDumpBattlefield(int argc, const char **argv) {
 		Combat::BattlefieldMap::kPlayfieldRows));
 	writeLine(Common::String::format(
 		"viewportStart: %u,%u  viewportSizeFlag: %u",
-		(unsigned)map.getViewportStartX(),
-		(unsigned)map.getViewportStartY(),
+		(unsigned)map.getViewportStart().col,
+		(unsigned)map.getViewportStart().row,
 		(unsigned)map.getSize()));
 	writeLine(Common::String::format(
 		"center: %d,%d  isDungeon: %s  targetCursor: %s  ignoreWalls: %s",
-		(int)map.getCenterX(), (int)map.getCenterY(),
+		(int)map.getCenter().x, (int)map.getCenter().y,
 		map.isDungeon() ? "yes" : "no",
 		map.getTargetCursor() ? "yes" : "no",
 		map.getIgnoreWalls() ? "yes" : "no"));
@@ -746,7 +746,7 @@ bool Console::cmdDumpBattlefield(int argc, const char **argv) {
 	for (int row = 0; row < Combat::BattlefieldMap::kPlayfieldRows; ++row) {
 		Common::String line = Common::String::format("r%02d:", row);
 		for (int col = 0; col < Combat::BattlefieldMap::kPlayfieldCols; ++col) {
-			const uint8 raw = map.getRawTile(col, row);
+			const uint8 raw = map.getRawTile(TilePos((uint8)col, (uint8)row));
 			line += Common::String::format(" %02X", (unsigned)raw);
 		}
 		writeLine(line);
@@ -757,7 +757,7 @@ bool Console::cmdDumpBattlefield(int argc, const char **argv) {
 	for (int row = 0; row < Combat::BattlefieldMap::kPlayfieldRows; ++row) {
 		Common::String line = Common::String::format("r%02d:", row);
 		for (int col = 0; col < Combat::BattlefieldMap::kPlayfieldCols; ++col) {
-			const uint8 raw = map.getRawTile(col, row);
+			const uint8 raw = map.getRawTile(TilePos((uint8)col, (uint8)row));
 			if (raw == 0) {
 				line += " --";
 				continue;

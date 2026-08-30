@@ -121,8 +121,6 @@ void getGroundInfo(int charIdx, uint8 direction,
         int checkCol = (int)baseCol + colDelta + dx;
         int checkRow = (int)baseRow + rowDelta + dy;
 
-        // Query tile and occupant at position
-        // OOB returns tile=0, occupant=0 (matches COMBAT_GetTileAndOccupantAt)
         uint8 foundTile = 0;
         uint8 foundOccupant = 0;
 
@@ -131,7 +129,7 @@ void getGroundInfo(int charIdx, uint8 direction,
             foundTile = 0;
             foundOccupant = 0;
         } else {
-            foundTile = map.getRawTile(checkCol, checkRow);
+            foundTile = map.getRawTile(TilePos((uint8)checkCol, (uint8)checkRow));
             foundOccupant = table.getOccupant(checkCol, checkRow);
         }
 
