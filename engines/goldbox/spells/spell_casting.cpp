@@ -99,6 +99,8 @@ SpellCastingService::SpellCastingService()
     _registry.setHandler(kHandlerFireball,           &_fireballHandler);
     _registry.setHandler(kHandlerHaste,              &_hasteHandler);
     _registry.setHandler(kHandlerSlow,               &_slowHandler);
+    _registry.setHandler(kHandlerLightningBolt,      &_lightningBoltHandler);
+    _registry.setHandler(kHandlerSpellID60,          &_spellID60Handler);
 
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CURE_LT_WOUNDS,
         kHandlerCureLightWounds);
@@ -162,6 +164,10 @@ SpellCastingService::SpellCastingService()
         kHandlerHaste);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_SLOW,
         kHandlerSlow);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_LIGHTNING_BOLT,
+        kHandlerLightningBolt);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI4,
+        kHandlerSpellID60);
 }
 
 SpellCastResult SpellCastingService::castSpell(SpellContext &context,

@@ -67,7 +67,9 @@ enum HandlerId {
     kHandlerCureBlindness,       // ID37: removes E_POOLRAD_BLINDED; posts "can see" if removed
     kHandlerCureDisease,         // ID39: removes disease/affliction effects
     kHandlerCauseDisease,        // ID40: applies disease effect via generic path
-    kHandlerSpellID58            // ID58: cures 0x37+0x16, or afflictions, or heals 1d4+8
+    kHandlerSpellID58,           // ID58: cures 0x37+0x16, or afflictions, or heals 1d4+8
+    kHandlerLightningBolt,       // ID51: casterLevel d6; resolveAoE + traceSpellPath(8, dmg, 4)
+    kHandlerSpellID60            // ID60 (SP_MI4): 20+1d6; resolveAoE + traceSpellPath(3, 20, 4)
 };
 
 struct SpellDefinition {

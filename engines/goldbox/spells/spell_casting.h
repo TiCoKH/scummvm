@@ -84,6 +84,8 @@ private:
     // haste effect (0x27) from enemies.
     HasteSlowHandler _hasteHandler{0x2A, false};
     HasteSlowHandler _slowHandler{0x27, true};
+    LightningBoltHandler _lightningBoltHandler;
+    SpellID60Handler _spellID60Handler;
 };
 
 } // namespace Spells
