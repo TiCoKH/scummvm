@@ -594,6 +594,16 @@ ThiefSkills Rules::computeThiefSkills(uint8 race, uint8 dexterity, uint8 thiefLe
 
 	return out;
 }
+const SpellSlots &getSpellSlotsForClassAtRow(uint8 baseClassIndex, uint8 row) {
+	static const SpellSlots kZero = {0, 0, 0};
+	if (baseClassIndex >= kExperienceByClassAndLevel.size())
+		return kZero;
+	const LevelUpInfo &info = kExperienceByClassAndLevel[baseClassIndex];
+	if (row >= ARRAYSIZE(info.SlotsByLevel))
+		row = ARRAYSIZE(info.SlotsByLevel) - 1;
+	return info.SlotsByLevel[row];
+}
+
 int32 Rules::xpForClassAtLevel(uint8 baseClassIndex, uint8 level) {
 	if (baseClassIndex >= kExperienceByClassAndLevel.size() || level == 0)
 		return -1;

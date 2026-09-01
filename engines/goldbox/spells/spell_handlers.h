@@ -372,6 +372,15 @@ private:
     int8  _savingThrowMod;
 };
 
+// ID56 Restore: restores one drained level, re-grants the best available
+// class level, and adjusts XP to the minimum required for that level.
+class RestoreHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
 } // namespace Spells
 } // namespace Goldbox
 

@@ -32,6 +32,7 @@
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/player_character.h"
+#include "goldbox/data/rules/rules.h"
 #include "goldbox/data/rules/saving_throw.h"
 #include "goldbox/engine.h"
 #include "goldbox/runtime/runtime_exchange.h"
@@ -1440,6 +1441,123 @@ SpellCastResult BreathWeaponHandler::execute(const SpellContext &context,
                            _pathLength,
                            _effectTileId,
                            nullptr);
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Restore (ID56) ---
+// Restores one drained level: recovers HP proportional to drained_hp/drained_level,
+// then finds the best class slot to re-grant a level (lowest XP threshold that
+// hasn't yet hit its racial/strength cap), increments that slot's level,
+// floors experiencePoints to the XP needed for that level, and recalcs stats.
+static bool restoreCheckLevelRequired(
+        const Goldbox::Poolrad::Data::PoolradCharacter *ch, uint8 classSlot) {
+    const uint8 lvl = ch->levels.levels[classSlot];
+    if (lvl == 0)
+        return false;
+
+    const uint8 str = ch->abilities.strength.current;
+
+    switch (ch->race) {
+    case Goldbox::Data::R_DWARF:
+        if (classSlot == Goldbox::Data::C_FIGHTER &&
+                ((lvl == 8 && str == 17) || (lvl == 7 && str < 17)))
+            return true;
+        break;
+    case Goldbox::Data::R_ELF:
+        if (classSlot == Goldbox::Data::C_FIGHTER &&
+                (lvl == 7 ||
+                 (lvl == 6 && str == 17) ||
+                 (lvl == 5 && str < 17)))
+            return true;
+        break;
+    case Goldbox::Data::R_GNOME:
+        if (classSlot == Goldbox::Data::C_FIGHTER &&
+                (lvl == 6 || (lvl == 5 && str < 18)))
+            return true;
+        break;
+    case Goldbox::Data::R_HALF_ELF:
+        if (classSlot == Goldbox::Data::C_CLERIC && lvl == 5)
+            return true;
+        if (classSlot == Goldbox::Data::C_FIGHTER &&
+                (lvl == 8 ||
+                 (lvl == 7 && str == 17) ||
+                 (lvl == 6 && str < 17)))
+            return true;
+        break;
+    case Goldbox::Data::R_HALFLING:
+        if (classSlot == Goldbox::Data::C_FIGHTER &&
+                (lvl == 6 ||
+                 (lvl == 5 && str == 17) ||
+                 (lvl == 4 && str < 17)))
+            return true;
+        break;
+    default:
+        break;
+    }
+    return false;
+}
+
+SpellCastResult RestoreHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[0];
+    if (!target)
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(target);
+    if (!poolrad || poolrad->drainedLevels == 0)
+        return SpellCastResult(CAST_NOT_ALLOWED);
+
+    // Restore HP proportional to one drained level.
+    const uint8 restoredHp = poolrad->drainedHPs / poolrad->drainedLevels;
+    poolrad->hitPoints.max     = static_cast<uint8>(MIN<uint16>(poolrad->hitPoints.max     + restoredHp, 255));
+    poolrad->hitPoints.current = static_cast<uint8>(MIN<uint16>(poolrad->hitPoints.current + restoredHp, 255));
+    poolrad->hitPointsRolled   = static_cast<uint8>(MIN<uint16>(poolrad->hitPointsRolled   + restoredHp, 255));
+    poolrad->drainedHPs    -= restoredHp;
+    poolrad->drainedLevels -= 1;
+
+    // Find the best class slot to restore: lowest XP threshold among slots
+    // that have a level and haven't hit their racial/strength cap.
+    uint8 bestSlot = 0;
+    int32 bestXp   = 0x7FFFFFFF;
+    uint8 bestLvl  = 13;
+
+    for (uint8 slot = 0; slot < BASE_CLASS_NUM; ++slot) {
+        const uint8 lvl = poolrad->levels.levels[slot];
+        if (lvl == 0 || lvl > 13)
+            continue;
+        if (restoreCheckLevelRequired(poolrad, slot))
+            continue;
+
+        const int32 xpNeeded =
+            Goldbox::Data::Rules::xpForClassAtLevel(slot, lvl);
+        if (xpNeeded < 0)
+            continue;
+
+        if (xpNeeded < bestXp || (xpNeeded == bestXp && lvl < bestLvl)) {
+            bestSlot = slot;
+            bestLvl  = lvl;
+            bestXp   = xpNeeded;
+        }
+    }
+
+    poolrad->levels.levels[bestSlot] += 1;
+
+    if (poolrad->experiencePoints < static_cast<uint32>(bestXp))
+        poolrad->experiencePoints = static_cast<uint32>(bestXp);
+
+    poolrad->recalcCombatStats();
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem ? context.effectSystem->getHostBridge() : nullptr;
+    if (bridge)
+        bridge->postEffectMessage(target, "is restored", true);
 
     return SpellCastResult(CAST_OK);
 }
