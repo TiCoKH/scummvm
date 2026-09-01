@@ -49,6 +49,7 @@ MODULE_OBJS = \
 	data/rules/saving_throw.o \
 	data/spells/spell_book.o \
 	data/spells/spell_metadata.o \
+	spells/spell_aoe.o \
 	spells/spell_casting.o \
 	spells/spell_handlers.o \
 	spells/spell_registry.o \

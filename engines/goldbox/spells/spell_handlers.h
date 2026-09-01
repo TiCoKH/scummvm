@@ -335,6 +335,43 @@ public:
                             const TargetSelection &targets) const override;
 };
 
+// ID51 Lightning Bolt: casterLevel d6 damage; resolveAoEHitAtTile at target
+// then traceSpellPath(initialAnimFrame=8, savingThrowMod=4, pathLength=damageDice).
+class LightningBoltHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID60 (SP_MI4): damage = 20 + 1d6; resolveAoEHitAtTile at target
+// then traceSpellPath(initialAnimFrame=3, baseDamage=20, savingThrowMod=4, pathLength=3).
+class SpellID60Handler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// Lingering breath attack: same path-trace mechanic as Lightning Bolt but
+// uses a different effect tile and damage parameters supplied by the caller.
+class BreathWeaponHandler : public ISpellHandler {
+public:
+    explicit BreathWeaponHandler(uint8 effectTileId, uint8 baseDamage,
+                                 uint8 pathLength, int8 savingThrowMod)
+        : _effectTileId(effectTileId), _baseDamage(baseDamage),
+          _pathLength(pathLength), _savingThrowMod(savingThrowMod) {}
+
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+private:
+    uint8 _effectTileId;
+    uint8 _baseDamage;
+    uint8 _pathLength;
+    int8  _savingThrowMod;
+};
+
 } // namespace Spells
 } // namespace Goldbox
 

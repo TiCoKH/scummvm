@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/core/tile_pos.h"
+#include "goldbox/spells/spell_aoe.h"
 #include "goldbox/combat/cloud_effect_manager.h"
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combat_params.h"
@@ -1919,11 +1920,39 @@ static void handleLingeringBreath(const EffectCall &c) {
     if (c.bridge)
         c.bridge->postEffectMessage(&c.character, "Breathes!", true);
 
-    // TODO: SPELL_HANDLER_0 — platform-specific spell dispatch not yet ported.
-    // TODO: GFX_LoadEffectTileQuad(19)
-    // TODO: COMBAT_AnimateMissilePath(ax, ay, targetX, targetY, ...)
-    // TODO: SPELL_ResolveAoEHitAtTile(targetX, targetY, char_ptr->hp_max, 3, ...)
-    // TODO: SPELL_TraceBoltPath(...)
+    Combat::CombatContext *ctx = Goldbox::g_engine ?
+        Goldbox::g_engine->getCombatContext() : nullptr;
+
+    if (ctx) {
+        const TilePos attackerPos(
+            ctx->table.getCharacterCol(&c.character),
+            ctx->table.getCharacterRow(&c.character));
+
+        // Target position is the current combat target stored in globals.
+        // TODO(spell_aoe): expose targetX/Y on CombatGlobals or CombatContext
+        // and replace the placeholder zeros once that field is added.
+        const TilePos targetPos(0, 0); // TODO: ctx->globals.targetX/Y
+
+        const uint8 damage = c.character.hitPoints.max;
+
+        // TODO(spell_aoe): pass presenter (ICombatSpellPresenter*) once
+        // CombatView implements the interface and is reachable here.
+
+        // Initial hit at the target tile (mirrors SPELL_ResolveAoEHitAtTile
+        // called before SPELL_TraceSpellPath in the original).
+        bool hitObstacle = false;
+        Goldbox::Spells::resolveAoEHitAtTile(*ctx, targetPos, damage, 3, 19,
+                                             nullptr, hitObstacle);
+
+        // Continue the breath along its path.
+        Goldbox::Spells::traceSpellPath(*ctx, attackerPos, targetPos,
+                                        10,      // initialAnimFrame
+                                        3,       // savingThrowMod
+                                        damage,
+                                        3,       // pathLength
+                                        19,      // effectTileId
+                                        nullptr);
+    }
 
     // Remove the poison status that the breath attack inflicts on the attacker.
     CharacterEffects *fx = c.character.getEffects();

@@ -38,6 +38,7 @@
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/spells/spell_generic_handler.h"
+#include "goldbox/spells/spell_aoe.h"
 
 namespace Goldbox {
 namespace Spells {
@@ -1311,6 +1312,134 @@ SpellCastResult SpellID58Handler::execute(const SpellContext &context,
         if (target->healHp(amount, false) && bridge)
             bridge->postEffectMessage(target, "is Healed", true);
     }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Lightning Bolt (ID51) ---
+// Mirrors Spell_ID51_LightningBolt:
+//   damage = casterLevel d6
+//   resolveAoEHitAtTile at target (savingThrowMod=4)
+//   traceSpellPath(initialAnimFrame=8, savingThrowMod=4, pathLength=damageDice)
+SpellCastResult LightningBoltHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (!context.combat)
+        return SpellCastResult(CAST_NOT_ALLOWED);
+
+    Goldbox::Combat::CombatContext *ctx =
+        Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr;
+    if (!ctx)
+        return SpellCastResult(CAST_ERROR);
+
+    const uint8 damageDice = context.casterLevel > 0 ? context.casterLevel : 1;
+    const uint8 baseDamage = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(damageDice, 6)) : damageDice;
+
+    const TilePos attackerPos(
+        ctx->table.getCharacterCol(context.caster),
+        ctx->table.getCharacterRow(context.caster));
+    const TilePos targetPos(
+        static_cast<uint8>(targets.tileX),
+        static_cast<uint8>(targets.tileY));
+
+    bool hitObstacle = false;
+    Spells::resolveAoEHitAtTile(*ctx, targetPos, baseDamage, 4, 19,
+                                nullptr, hitObstacle);
+
+    // TODO(spell_aoe): pass context.presenter once SpellContext carries it.
+    Spells::traceSpellPath(*ctx, attackerPos, targetPos,
+                           8,           // initialAnimFrame
+                           4,           // savingThrowMod
+                           baseDamage,
+                           damageDice,  // pathLength
+                           19,          // effectTileId (lightning)
+                           nullptr);
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Spell ID60 (SP_MI4) ---
+// Mirrors Spell_ID60:
+//   damage = 20 + 1d6
+//   resolveAoEHitAtTile at target (savingThrowMod=4)
+//   traceSpellPath(initialAnimFrame=3, baseDamage=20, savingThrowMod=4, pathLength=3)
+SpellCastResult SpellID60Handler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (!context.combat)
+        return SpellCastResult(CAST_NOT_ALLOWED);
+
+    Goldbox::Combat::CombatContext *ctx =
+        Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr;
+    if (!ctx)
+        return SpellCastResult(CAST_ERROR);
+
+    const uint8 roll = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(1, 6)) : 3;
+    const uint8 baseDamage = static_cast<uint8>(20 + roll);
+
+    const TilePos attackerPos(
+        ctx->table.getCharacterCol(context.caster),
+        ctx->table.getCharacterRow(context.caster));
+    const TilePos targetPos(
+        static_cast<uint8>(targets.tileX),
+        static_cast<uint8>(targets.tileY));
+
+    bool hitObstacle = false;
+    Spells::resolveAoEHitAtTile(*ctx, targetPos, baseDamage, 4, 19,
+                                nullptr, hitObstacle);
+
+    // TODO(spell_aoe): pass context.presenter once SpellContext carries it.
+    Spells::traceSpellPath(*ctx, attackerPos, targetPos,
+                           3,    // initialAnimFrame
+                           4,    // savingThrowMod
+                           20,   // baseDamage (fixed component, matches original)
+                           3,    // pathLength
+                           19,   // effectTileId
+                           nullptr);
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Breath Weapon (lingering) ---
+// Driven by effect 88 (handleLingeringBreath in effect_handler.cpp).
+// This handler is the spell-cast entry point for a one-shot breath attack
+// using the same path-trace mechanic; parameters are supplied at construction.
+//
+// TODO(spell_aoe): pass context.presenter once SpellContext carries it.
+SpellCastResult BreathWeaponHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (!context.combat)
+        return SpellCastResult(CAST_NOT_ALLOWED);
+
+    Goldbox::Combat::CombatContext *ctx =
+        Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr;
+    if (!ctx)
+        return SpellCastResult(CAST_ERROR);
+
+    const TilePos attackerPos(
+        ctx->table.getCharacterCol(context.caster),
+        ctx->table.getCharacterRow(context.caster));
+    const TilePos targetPos(
+        static_cast<uint8>(targets.tileX),
+        static_cast<uint8>(targets.tileY));
+
+    bool hitObstacle = false;
+    Spells::resolveAoEHitAtTile(*ctx, targetPos, _baseDamage, _savingThrowMod,
+                                _effectTileId, nullptr, hitObstacle);
+
+    Spells::traceSpellPath(*ctx, attackerPos, targetPos,
+                           1,               // initialAnimFrame (breath uses frame offset)
+                           _savingThrowMod,
+                           _baseDamage,
+                           _pathLength,
+                           _effectTileId,
+                           nullptr);
 
     return SpellCastResult(CAST_OK);
 }
