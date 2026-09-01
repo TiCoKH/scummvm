@@ -1445,6 +1445,120 @@ SpellCastResult BreathWeaponHandler::execute(const SpellContext &context,
     return SpellCastResult(CAST_OK);
 }
 
+// --- Spell ID57 (SP_MI1) ---
+// Removes E_POOLRAD_SLOWED (0x2A) from the target. If removed, applies
+// the spell via the generic path ("is Speedy").
+SpellCastResult SpellID57Handler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[0];
+    if (!target)
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+    if (!fx || !context.effectSystem->removeEffectById(
+            *target, *fx,
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_SLOWED)))
+        return SpellCastResult(CAST_OK);
+
+    return GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+}
+
+// --- Spell ID59 (SP_MI3) ---
+// Applies applyStrengthChange(21, 0); posts "is stronger"; adds
+// E_POOLRAD_ENLARGE_STRENGTHEN with duration from computeSpellDuration.
+SpellCastResult SpellID59Handler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+    if (!context.effectSystem)
+        return SpellCastResult(CAST_ERROR);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+
+        uint8 strengthChange = 0;
+        if (target->applyStrengthChange(21, 0, strengthChange) && bridge)
+            bridge->postEffectMessage(target, "is stronger", true);
+
+        const uint8 duration = computeSpellDuration(
+            static_cast<uint8>(Goldbox::Data::Spells::SP_MI3),
+            context.casterLevel, context.inCombat);
+
+        context.effectSystem->addOrRefreshEffect(
+            *target->getEffects(), *target,
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE_STRENGTHEN),
+            duration, strengthChange, true);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Spell ID61 (SP_MI5) ---
+// Pure generic delegate — "is paralyzed".
+SpellCastResult SpellID61Handler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    return GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+}
+
+// --- Spell ID62 (SP_MI6) ---
+// Heals 2d4+2 HP; posts "is Healed".
+SpellCastResult SpellID62Handler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)definition;
+    if (targets.targetCharacters.empty())
+        return SpellCastResult(CAST_INVALID_TARGET);
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem ? context.effectSystem->getHostBridge() : nullptr;
+
+    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
+        if (!target)
+            continue;
+
+        const uint8 amount = static_cast<uint8>(2 +
+            (Goldbox::g_engine ? Goldbox::g_engine->rollDice(2, 4) : 5));
+
+        if (target->healHp(amount, false) && bridge)
+            bridge->postEffectMessage(target, "is Healed", true);
+    }
+
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Spell ID63 (SP_MI7) ---
+// Pure generic delegate — "is invisible".
+SpellCastResult SpellID63Handler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    return GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+}
+
+// --- Spell ID65 (SP_MI9) ---
+// effectPower = rollDiceAttack(2,4)+2; applies via generic path with behavior 8.
+SpellCastResult SpellID65Handler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    const uint8 roll = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(2, 4)) : 5;
+    const uint8 effectPower = static_cast<uint8>(roll + 2);
+    return GenericSpellHandler::applyToTargets(context, definition, targets, effectPower);
+}
+
 // --- Restore (ID56) ---
 // Restores one drained level: recovers HP proportional to drained_hp/drained_level,
 // then finds the best class slot to re-grant a level (lowest XP threshold that

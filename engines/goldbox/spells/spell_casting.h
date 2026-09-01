@@ -86,6 +86,17 @@ private:
     HasteSlowHandler _slowHandler{0x27, true};
     LightningBoltHandler _lightningBoltHandler;
     SpellID60Handler _spellID60Handler;
+    SpellID57Handler _spellID57Handler;
+    SpellID58Handler _spellID58Handler;
+    SpellID59Handler _spellID59Handler;
+    SpellID61Handler _spellID61Handler;
+    SpellID62Handler _spellID62Handler;
+    SpellID63Handler _spellID63Handler;
+    SpellID65Handler _spellID65Handler;
+    RestoreHandler _restoreHandler;
+    // effectTileId=19 (lightning/breath), baseDamage=0 (uses hp_max at runtime),
+    // pathLength=3, savingThrowMod=3 — matches EFFECT_88_LingeringBreath parameters.
+    BreathWeaponHandler _breathWeaponHandler{19, 0, 3, 3};
 };
 
 } // namespace Spells

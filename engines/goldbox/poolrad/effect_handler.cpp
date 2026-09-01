@@ -1954,7 +1954,8 @@ static void handleLingeringBreath(const EffectCall &c) {
                                         nullptr);
     }
 
-    // Remove the poison status that the breath attack inflicts on the attacker.
+    // Remove the poison status that the breath attack inflicts on the attacker
+    // (mirrors UTIL_RemovePoison called after SPELL_TraceSpellPath).
     CharacterEffects *fx = c.character.getEffects();
     if (fx) {
         fx->eraseEffectById(static_cast<uint8>(E_POISONED));

@@ -110,6 +110,10 @@ Common::String SpellRegistry::effectMessageForSpell(
     case SP_CL3_CAUSE_BLINDNESS: return "is blind";
     case SP_CL3_CURE_DISEASE:    return "is cured";
     case SP_CL3_CAUSE_DISEASE:   return "is diseased";
+    case SP_MI1:                 return "is Speedy";
+    case SP_MI5:                 return "is paralyzed";
+    case SP_MI7:                 return "is invisible";
+    case SP_MI11:                return "is Reading";
     default:                     return Common::String();
     }
 }

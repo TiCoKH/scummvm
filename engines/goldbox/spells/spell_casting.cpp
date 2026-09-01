@@ -101,6 +101,15 @@ SpellCastingService::SpellCastingService()
     _registry.setHandler(kHandlerSlow,               &_slowHandler);
     _registry.setHandler(kHandlerLightningBolt,      &_lightningBoltHandler);
     _registry.setHandler(kHandlerSpellID60,          &_spellID60Handler);
+    _registry.setHandler(kHandlerSpellID57,          &_spellID57Handler);
+    _registry.setHandler(kHandlerSpellID59,          &_spellID59Handler);
+    _registry.setHandler(kHandlerSpellID61,          &_spellID61Handler);
+    _registry.setHandler(kHandlerSpellID62,          &_spellID62Handler);
+    _registry.setHandler(kHandlerSpellID63,          &_spellID63Handler);
+    _registry.setHandler(kHandlerSpellID65,          &_spellID65Handler);
+    _registry.setHandler(kHandlerSpellID58,          &_spellID58Handler);
+    _registry.setHandler(kHandlerRestore,            &_restoreHandler);
+    _registry.setHandler(kHandlerBreathWeapon,       &_breathWeaponHandler);
 
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CURE_LT_WOUNDS,
         kHandlerCureLightWounds);
@@ -168,6 +177,24 @@ SpellCastingService::SpellCastingService()
         kHandlerLightningBolt);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI4,
         kHandlerSpellID60);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI1,
+        kHandlerSpellID57);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI2,
+        kHandlerSpellID58);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI3,
+        kHandlerSpellID59);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI5,
+        kHandlerSpellID61);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI6,
+        kHandlerSpellID62);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI7,
+        kHandlerSpellID63);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI9,
+        kHandlerSpellID65);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL7_RESTORATION,
+        kHandlerRestore);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI10,
+        kHandlerBreathWeapon);
 }
 
 SpellCastResult SpellCastingService::castSpell(SpellContext &context,

@@ -372,6 +372,55 @@ private:
     int8  _savingThrowMod;
 };
 
+// ID57 (SP_MI1): removes E_POOLRAD_SLOWED (0x2A); if removed, applies "is Speedy" via generic path.
+class SpellID57Handler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID59 (SP_MI3): applyStrengthChange(21, 0); posts "is stronger"; adds E_POOLRAD_ENLARGE_STRENGTHEN
+// with duration from computeSpellDuration.
+class SpellID59Handler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID61 (SP_MI5): pure generic delegate — "is paralyzed".
+class SpellID61Handler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID62 (SP_MI6): heals 2d4+2 HP; posts "is Healed".
+class SpellID62Handler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID63 (SP_MI7): pure generic delegate — "is invisible".
+class SpellID63Handler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID65 (SP_MI9): effectPower = rollDiceAttack(2,4)+2; applies via generic path with behavior 8.
+class SpellID65Handler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
 // ID56 Restore: restores one drained level, re-grants the best available
 // class level, and adjusts XP to the minimum required for that level.
 class RestoreHandler : public ISpellHandler {

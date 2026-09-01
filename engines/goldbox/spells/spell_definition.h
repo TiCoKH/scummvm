@@ -69,7 +69,15 @@ enum HandlerId {
     kHandlerCauseDisease,        // ID40: applies disease effect via generic path
     kHandlerSpellID58,           // ID58: cures 0x37+0x16, or afflictions, or heals 1d4+8
     kHandlerLightningBolt,       // ID51: casterLevel d6; resolveAoE + traceSpellPath(8, dmg, 4)
-    kHandlerSpellID60            // ID60 (SP_MI4): 20+1d6; resolveAoE + traceSpellPath(3, 20, 4)
+    kHandlerSpellID60,           // ID60 (SP_MI4): 20+1d6; resolveAoE + traceSpellPath(3, 20, 4)
+    kHandlerSpellID57,           // ID57 (SP_MI1): remove E_POOLRAD_SLOWED; apply "is Speedy" via generic
+    kHandlerSpellID59,           // ID59 (SP_MI3): applyStrengthChange(21,0); add E_POOLRAD_ENLARGE_STRENGTHEN
+    kHandlerSpellID61,           // ID61 (SP_MI5): pure generic delegate — "is paralyzed"
+    kHandlerSpellID62,           // ID62 (SP_MI6): heal 2d4+2 HP
+    kHandlerSpellID63,           // ID63 (SP_MI7): pure generic delegate — "is invisible"
+    kHandlerSpellID65,           // ID65 (SP_MI9): rollDiceAttack(2,4)+2 as effectPower; behavior 8
+    kHandlerRestore,             // ID56 (SP_CL7_RESTORATION): restore one drained level
+    kHandlerBreathWeapon         // ID66 (SP_MI10): one-shot breath weapon item
 };
 
 struct SpellDefinition {
