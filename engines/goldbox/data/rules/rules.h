@@ -127,6 +127,11 @@ uint8 computeItemLimitMask(const Common::Array<uint8> &levels);
 // Saving throws accessor: baseClassIndex 0..7, level 1..9 (clamped)
 const SavingThrows &savingThrowsAt(uint8 baseClassIndex, uint8 level);
 
+// Spell slot progression accessor.
+// Returns the SpellSlots (L1/L2/L3 counts) for a given base class (0..7)
+// and progression row (0-based, where row = classLevel - 3, clamped).
+const SpellSlots &getSpellSlotsForClassAtRow(uint8 baseClassIndex, uint8 row);
+
 // XP required to reach the next level for a given base class (0..7) and
 // current level (1-based). Returns -1 if the class has no further progression
 // or the level is out of range.

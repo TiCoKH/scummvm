@@ -163,7 +163,7 @@ public:
 
 	// Recalculate all derived combat stats from inventory and base values.
 	// Called after any change that affects equipment, encumbrance, or effects.
-	void recalcCombatStats();
+	virtual void recalcCombatStats();
 
 	// Apply an item's defensive bonuses and protections to character.
 	void setItemProtection(const Goldbox::Data::Items::CharacterItem *item,

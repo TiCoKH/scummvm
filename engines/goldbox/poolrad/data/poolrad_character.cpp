@@ -490,6 +490,57 @@ bool PoolradCharacter::receiveItem(
 	return true; // success
 }
 
+void PoolradCharacter::recalcSpellSlots() {
+	// Cleric spell slots from level progression table (classLevel >= 3 needed for L1 slots)
+	const uint8 clericLvl = levels.levels[Goldbox::Data::C_CLERIC];
+	if (clericLvl > 1) {
+		const uint8 row = (clericLvl >= 3) ? (clericLvl - 3) : 0;
+		const Goldbox::Data::SpellSlots &cs =
+			Goldbox::Data::Rules::getSpellSlotsForClassAtRow(
+				Goldbox::Data::C_CLERIC, row);
+		spellSlots.cleric.level1 = cs.level1;
+		spellSlots.cleric.level2 = cs.level2;
+		spellSlots.cleric.level3 = cs.level3;
+	}
+
+	// Magic-User spell slots
+	const uint8 muLvl = levels.levels[Goldbox::Data::C_MAGICUSER];
+	if (muLvl > 1) {
+		const uint8 row = (muLvl >= 3) ? (muLvl - 3) : 0;
+		const Goldbox::Data::SpellSlots &ms =
+			Goldbox::Data::Rules::getSpellSlotsForClassAtRow(
+				Goldbox::Data::C_MAGICUSER, row);
+		spellSlots.magicUser.level1 = ms.level1;
+		spellSlots.magicUser.level2 = ms.level2;
+		spellSlots.magicUser.level3 = ms.level3;
+	}
+}
+
+void PoolradCharacter::recalcCombatStats() {
+	// Refresh THAC0 base, highestLevel, and itemsLimit from current levels.
+	computeThac0();
+
+	// Refresh saving throws from current levels.
+	computeSavingThrows();
+
+	// Refresh spell slots from level progression table.
+	recalcSpellSlots();
+
+	// Fighter attacks per round: 2 below level 7, 3 at level 7+.
+	const uint8 ftrLvl = levels.levels[Goldbox::Data::C_FIGHTER];
+	if (ftrLvl > 0)
+		basePrimaryRoll.attacks = (ftrLvl < 7) ? 2 : 3;
+
+	// Thief skills from level, race, and dexterity.
+	const uint8 thiefLvl = levels.levels[Goldbox::Data::C_THIEF];
+	if (thiefLvl > 0)
+		thiefSkills = Goldbox::Data::Rules::computeThiefSkills(
+			race, abilities.dexterity.current, thiefLvl);
+
+	// Base equipment/AC/movement/weapon recalc.
+	ADnDCharacter::recalcCombatStats();
+}
+
 void PoolradCharacter::applyWeaponAndAbilityModifiers() {
 	setDamage();
 }
@@ -935,6 +986,7 @@ void PoolradCharacter::computeSavingThrows() {
 
 void PoolradCharacter::computeThac0() {
 	uint8 bestThac0 = 0;
+	uint8 best = 0;
 	const Common::Array<uint8> &lvls = levels.levels;
 	for (uint i = 0; i < lvls.size() && i < BASE_CLASS_NUM; ++i) {
 		uint8 lvl = lvls[i];
@@ -942,14 +994,13 @@ void PoolradCharacter::computeThac0() {
 			int v = Goldbox::Data::Rules::thac0AtLevel((uint8)i, lvl);
 			if (v > bestThac0)
 				bestThac0 = (uint8)v;
+			if (lvl > best)
+				best = lvl;
 		}
 	}
 	thac0.base = bestThac0;
-	// Refresh item limit mask from active base classes
+	highestLevel = best;
 	itemsLimit = Goldbox::Data::Rules::computeItemLimitMask(levels.levels);
-
-	// debug("PoolradCharacter::computeThac0 -> base=%u actual=%d itemsLimit=%u",
-	// 	  (unsigned)thac0.base, 60 - (int)thac0.base, (unsigned)itemsLimit);
 }
 
 void PoolradCharacter::rollInitialAge() {

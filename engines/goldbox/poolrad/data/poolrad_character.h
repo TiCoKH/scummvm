@@ -175,8 +175,12 @@ public:
     void computeSavingThrows();
 
     // Compute and apply THAC0 using the best progression among active base classes.
-    // Also refreshes itemsLimit bitmask.
+    // Also refreshes itemsLimit bitmask and highestLevel.
     void computeThac0();
+
+    // Recalculate spell slots for cleric and magic-user from the level progression
+    // table. Called as part of recalcCombatStats whenever levels may have changed.
+    void recalcSpellSlots();
 
     // Roll and apply initial age using rules for class/race and multiclass mapping.
     void rollInitialAge();
@@ -229,6 +233,8 @@ public:
     const char *getGenderName() const override { return "GenderName"; }
     const char *getAlignmentName() const override { return "AlignmentName"; }
     const char *getStatusName() const override { return "StatusName"; }
+
+    void recalcCombatStats() override;
 
 protected:
     void removeUnconsciousEffect() override;
