@@ -85,6 +85,12 @@ public:
     // Clear legacy memorized-spell flags on eligible inventory items.
     void clearMemorizedSpellFlagsOnEligibleItems();
 
+    // Mirrors ITEM_RemoveEffectTag: clears the matching effect slot (masked
+    // to 7 bits), decrements nameCode2, and removes the item if nameCode2
+    // drops below 0xD2. Returns true if the item was consumed and removed.
+    bool removeEffectTag(CharacterItem &item, uint8 tag,
+                         Common::Array<CharacterItem *> *equippedSlots = nullptr);
+
     /// Access loaded items.
     const Common::List<CharacterItem>  &all() const { return _items; }
     int                                count() const { return (int)_items.size(); }
