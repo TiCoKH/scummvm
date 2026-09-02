@@ -304,6 +304,27 @@ void CharacterInventory::clearMemorizedSpellFlagsOnEligibleItems() {
     }
 }
 
+bool CharacterInventory::removeEffectTag(CharacterItem &item, uint8 tag,
+        Common::Array<CharacterItem *> *equippedSlots) {
+    uint8 *effects[3] = { &item.effect1, &item.effect2, &item.effect3 };
+    int matchIndex = -1;
+    for (int i = 0; i < 3; ++i) {
+        if ((*effects[i] & 0x7F) == (tag & 0x7F))
+            matchIndex = i;
+    }
+    if (matchIndex < 0)
+        return false;
+
+    *effects[matchIndex] = 0;
+    if (item.nameCode2 > 0)
+        --item.nameCode2;
+
+    if (item.nameCode2 < 0xD2)
+        return removeItem(&item, equippedSlots);
+
+    return false;
+}
+
 bool CharacterInventory::equipItem(
     CharacterItem *item, Slot slot,
     Common::Array<CharacterItem *> &equippedSlots,
