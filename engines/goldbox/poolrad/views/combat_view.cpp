@@ -21,6 +21,9 @@
 
 #include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/combat/combat_setup.h"
+#include "goldbox/combat/combat_turn.h"
+#include "goldbox/combat/combat_ai.h"
+#include "goldbox/combat/combat_targeting.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/data/player_character.h"
@@ -44,7 +47,7 @@ namespace Views {
 
 CombatView::CombatView()
     : View("Combat"), _phase(PHASE_NONE),
-      _needsFullRedraw(true) {
+      _currentActor(nullptr), _needsFullRedraw(true) {
 }
 
 CombatView::~CombatView() {
@@ -84,6 +87,7 @@ void CombatView::setup(const Combat::CombatParams &params) {
 
     _needsFullRedraw = true;
     _phase = PHASE_PLAYER_TURN;
+    _currentActor = nullptr;
 }
 
 bool CombatView::msgFocus(const FocusMessage &msg) {
@@ -171,12 +175,56 @@ void CombatView::draw() {
 }
 
 bool CombatView::tick() {
-    // TODO: AI turn execution, animation stepping.
-    // At the end of each full combat turn, increment the turn counter:
-    //   _globals.turnCounter++;
-    // This mirrors COMBAT_TURN_COUNTER = COMBAT_TURN_COUNTER + 1 in
-    // DIALOG_CombatEnd, which fires once per turn after all characters act.
-    return false;
+    if (_phase == PHASE_NONE || _phase == PHASE_ENDED)
+        return false;
+
+    // --- Round start: init turn states and pick first actor ---
+    if (_phase == PHASE_PLAYER_TURN && _currentActor == nullptr) {
+        // Check combat-end condition before starting a new round.
+        _globals.updateSideCount(_params.roster);
+        if (_globals.sideCount[0] == 0 || _globals.sideCount[1] == 0) {
+            _globals.turnCounter++;
+            _phase = PHASE_ENDED;
+            return true;
+        }
+
+        Combat::initAllTurnStates(_params.roster);
+        _params.isAmbush = false;
+        _currentActor = Combat::selectNextActor(_params.roster, _globals);
+    }
+
+    if (_currentActor == nullptr)
+        return false;
+
+    // --- Dispatch by side ---
+    if (_currentActor->combatSide == ::Goldbox::Data::CS_ENEMY) {
+        _phase = PHASE_AI_TURN;
+        Combat::CombatContext ctx = makeContext();
+        Combat::AiTurnResult aiResult = Combat::executeAiTurn(_currentActor, ctx);
+
+        if (aiResult.action == Combat::AiTurnResult::ACTION_ATTACK &&
+                aiResult.target && aiResult.damage > 0) {
+            applyDamageMessage(aiResult.target, aiResult.damage,
+                               ::Goldbox::Data::DAMAGE_NORMAL, false);
+        }
+
+        _needsFullRedraw = true;
+    }
+    // CS_PARTY: player input drives the turn; tick() just advances to next actor.
+
+    // Advance to next actor.
+    _currentActor = Combat::selectNextActor(_params.roster, _globals);
+
+    if (_currentActor == nullptr) {
+        // All characters have acted — round complete.
+        _globals.turnCounter++;
+        Combat::updateHostileHealthPercent(_table, _globals);
+        _phase = PHASE_PLAYER_TURN; // ready for next round
+    } else if (_currentActor->combatSide == ::Goldbox::Data::CS_PARTY) {
+        _phase = PHASE_PLAYER_TURN;
+    }
+
+    return true;
 }
 
 // --- Internal ---

@@ -166,21 +166,27 @@ void setupCombat(CombatParams &params,
     }
 
     // Step 8: Update hostile health percentages
-    updateHostileHealthPercent(table);
+    updateHostileHealthPercent(table, globals);
 }
 
-void updateHostileHealthPercent(const CombatantTable &table) {
+void updateHostileHealthPercent(const CombatantTable &table, CombatGlobals &globals) {
+    uint totalCurrentHP = 0;
+    uint totalMaxHP = 0;
+
     for (int i = 0; i < table.getCount(); i++) {
         if (table.getSize(i) == 0)
             continue;
         Data::PlayerCharacter *ch = table.getCharacter(i);
-        if (!ch || ch->combatSide != Data::CS_ENEMY || !ch->combatState)
+        if (!ch || ch->combatSide != Data::CS_ENEMY)
             continue;
-        if (ch->hitPoints.max == 0)
-            continue;
-        // Store health as percentage (0-100) in AI state byte for UI
-        uint8 pct = (uint8)((ch->hitPoints.current * 100) / ch->hitPoints.max);
-        ch->combatState->aiState = pct;
+        totalMaxHP += ch->hitPoints.max;
+        if (ch->enabled)
+            totalCurrentHP += ch->hitPoints.current;
+    }
+
+    if (totalMaxHP != 0) {
+        const uint healthRatio = (totalCurrentHP * 20) / totalMaxHP;
+        globals.handicapValue = (uint8)(healthRatio * 5);
     }
 }
 

@@ -42,7 +42,7 @@ struct CombatAction {
 	uint8 spellId;              // spell_id: active spell being cast (0 = none)
 	bool canCast;               // can_cast
 	bool canUse;                // can_use
-	uint8 delay;                // delay: initiative/delay counter
+	uint8 initiative;                // initiative: initiative/initiative counter
 	uint8 attackId;             // attack_id
 	uint8 maxTargets;           // max_targets
 	uint8 movePoints;           // move: remaining movement this round
@@ -60,7 +60,7 @@ struct CombatAction {
 	uint8 aiState;              // ai_action: AI behavior state
 
 	CombatAction()
-		: spellId(0), canCast(false), canUse(false), delay(0),
+		: spellId(0), canCast(false), canUse(false), initiative(0),
 		  attackId(0), maxTargets(0), movePoints(0),
 		  guarding(false), unknownBool(false), direction(0),
 		  target(nullptr), bleeding(0), attackCount(0),
@@ -72,7 +72,7 @@ struct CombatAction {
 		spellId = 0;
 		canCast = false;
 		canUse = false;
-		delay = 0;
+		initiative = 0;
 		attackId = 0;
 		maxTargets = 0;
 		movePoints = 0;

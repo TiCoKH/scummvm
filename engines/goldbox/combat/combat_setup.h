@@ -101,14 +101,17 @@ void setupCombat(CombatParams &params,
                  Data::Effects::EffectRuntime *effectRuntime);
 
 /**
- * Compute health percentage for each hostile combatant.
+ * Compute hostile health ratio and store in globals.handicapValue.
  *
- * Stores result in each hostile character's combat state for UI display.
- * Mirrors original COMBAT_UpdateHostileHealthPercent.
+ * Mirrors original COMBAT_UpdateHostileHealthPercent:
+ *   healthRatio = (totalCurrentHP * 20) / totalMaxHP
+ *   C_HANDICAP_VALUE = healthRatio * 5
  *
- * @param table  Combatant table with placed characters
+ * @param table    Combatant table with placed characters
+ * @param globals  Combat globals (handicapValue written here)
  */
-void updateHostileHealthPercent(const CombatantTable &table);
+void updateHostileHealthPercent(const CombatantTable &table,
+                                CombatGlobals &globals);
 
 } // namespace Combat
 } // namespace Goldbox
