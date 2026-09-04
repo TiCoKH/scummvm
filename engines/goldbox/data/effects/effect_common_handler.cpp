@@ -165,7 +165,7 @@ static void handleReduce(const EffectCall &c) {
 }
 
 static void handleBlink(const EffectCall &c) {
-    if (!c.combat || !c.character.combatState || c.character.combatState->delay == 0)
+	if (!c.combat || !c.character.combatState || c.character.combatState->initiative == 0)
         return;
     c.combat->targetUnavailable = true;
     c.combat->attackRoll = 0xff;

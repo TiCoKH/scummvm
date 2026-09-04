@@ -85,7 +85,7 @@ void PlayerCharacter::damage(uint8 amount) {
     // Legacy equivalent of the same global combat-state check; delay is a
     // combat-only field, so guard with combatState lifetime instead.
     if (combatState)
-        combatState->delay = 0;
+		combatState->initiative = 0;
 }
 
 void PlayerCharacter::clearStatusEffects() {
@@ -146,7 +146,7 @@ bool PlayerCharacter::isAlive() const {
 void PlayerCharacter::resetCombatAction() {
     if (!combatState)
         return;
-    combatState->delay = 0;
+	combatState->initiative = 0;
     combatState->spellId = 0;
     combatState->guarding = false;
     combatState->movePoints = 0;

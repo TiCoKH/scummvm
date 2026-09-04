@@ -76,6 +76,9 @@ MODULE_OBJS = \
 	combat/combat_context.o \
 	combat/combat_damage.o \
 	combat/combat_setup.o \
+	combat/combat_turn.o \
+	combat/combat_targeting.o \
+	combat/combat_ai.o \
 	combat/combat_ground_info.o \
 	combat/combatant_table.o \
 	combat/combat_placement.o \

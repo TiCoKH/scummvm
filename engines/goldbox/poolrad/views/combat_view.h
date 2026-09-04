@@ -30,6 +30,9 @@
 #include "goldbox/combat/combat_placement.h"
 #include "goldbox/combat/combat_viewport.h"
 #include "goldbox/combat/battlefield_map.h"
+#include "goldbox/combat/combat_turn.h"
+#include "goldbox/combat/combat_ai.h"
+#include "goldbox/combat/combat_setup.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/gfx/combat_tile_cache.h"
@@ -138,6 +141,7 @@ private:
     Combat::CombatPlacement _placement;
     Combat::CombatViewport _viewport;
     CombatPhase _phase;
+    Goldbox::Data::PlayerCharacter *_currentActor; // actor taking its turn this tick
 
     // --- Effect bridge (wired at setup time) ---
     Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;

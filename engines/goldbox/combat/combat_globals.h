@@ -76,6 +76,7 @@ struct CombatGlobals {
     bool attackCountAdjusting;
     uint8 attacksLeft;        // COMBAT_ATTACKS_LEFT — attacker's remaining attacks this turn
     uint8 turnCounter;        // COMBAT_TURN_COUNTER — incremented once at the end of each turn
+    uint8 handicapValue;      // C_HANDICAP_VALUE — hostile health ratio * 5 (0-100), used by AI/morale
     CloudEffectManager clouds; // PTR_CLOUD_EFF_HANDLER
 
 
@@ -100,6 +101,7 @@ struct CombatGlobals {
         attackCount = 0;
         attacksLeft = 0;
         turnCounter = 0;
+        handicapValue = 0;
         clouds.reset();
     }
 
