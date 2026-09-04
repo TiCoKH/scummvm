@@ -57,7 +57,8 @@ SetPortrait::SetPortrait(const String &name,
         kTextColor,
         kSelectColor,
         kPromptColor,
-        false
+        false,
+        true, 0, false
     };
 
     _menu = new HorizontalMenu(name + "_Menu", cfg);

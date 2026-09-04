@@ -25,6 +25,7 @@
 #include "common/array.h"
 #include "goldbox/data/spells/spell.h"
 #include "goldbox/data/rules/rules_types.h"
+#include "goldbox/data/player_character.h"
 
 #define MAX_CLASS_RACE 11
 #define MAX_LEVEL 11
@@ -140,6 +141,15 @@ int32 xpForClassAtLevel(uint8 baseClassIndex, uint8 level);
 // Multiclass age mapping helper: returns forced base class index to use for age roll
 // for specific composite class types, or 0xFF if not forced.
 uint8 forcedBaseIndexForMulticlass(uint8 classId);
+
+// Roll starting gold from active base-class levels. Character-creation-time
+// helper only; not part of a character's persistent ruleset behavior.
+uint16 rollInitialGold(const LevelData &levels);
+
+// Clamp ability scores to race/gender/class bounds and roll exceptional
+// strength for eligible fighters. Character-creation-time helper only.
+void applyStatMinMax(uint8 race, uint8 gender, uint8 classType,
+        const LevelData &levels, AbilityScores &abilities);
 
 } // namespace Rules
 } // namespace Data

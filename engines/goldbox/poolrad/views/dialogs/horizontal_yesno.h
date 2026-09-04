@@ -36,7 +36,10 @@ struct HorizontalYesNoConfig {
     uint8 promptColor;          // Color for the prompt text
     uint8 textColor;            // Color for non-selected option text
     uint8 selectColor;          // Color for selected option text and shortcuts
-    uint8 backgroundColor = 0;  // Background color for the prompt line (optional, defaults to 0)
+    // Background color for the prompt line. No default member initializer:
+    // one would make this a non-aggregate under C++11, breaking brace-init
+    // call sites elsewhere. Callers must set this explicitly.
+    uint8 backgroundColor;
 };
 
 // A simple horizontal yes/no prompt displayed on the prompt line.

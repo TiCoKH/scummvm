@@ -732,6 +732,7 @@ int16 PoolradEngineHostImpl::horizontalMenu(
     Views::Dialogs::HorizontalMenuConfig cfg;
     cfg.menuItemList = &parsed;
     cfg.allowNumPad = true;
+    cfg.suppressUnhandledKeys = true;
     cfg.backgroundColor = 0;
     cfg.singleItemMode = singleItemMode;
 
@@ -1129,6 +1130,7 @@ VmResult PoolradEngineHostImpl::beginHorizontalMenuAsync(uint16 resultAddr,
     Views::Dialogs::HorizontalMenuConfig cfg;
     cfg.menuItemList = _asyncMenuModel.get();
     cfg.allowNumPad = true;
+    cfg.suppressUnhandledKeys = true;
     cfg.backgroundColor = 0;
     cfg.singleItemMode = singleItemMode;
 

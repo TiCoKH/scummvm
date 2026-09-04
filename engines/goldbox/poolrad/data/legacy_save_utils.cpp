@@ -4,8 +4,11 @@
  */
 
 #include "common/fs.h"
+#include "common/file.h"
+#include "common/debug.h"
 
 #include "goldbox/poolrad/data/legacy_save_utils.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -113,6 +116,88 @@ bool openLegacyCompanionStream(const Common::Path &savePath,
 	}
 
 	return false;
+}
+
+Common::String formatLegacyBaseFilename(const Common::String &name) {
+	Common::String formatted;
+	for (uint i = 0; i < name.size() && formatted.size() < 8; ++i) {
+		if (name[i] != ' ')
+			formatted += name[i];
+	}
+	return formatted;
+}
+
+bool appendLegacyTextFileLine(const Common::Path &savePath,
+		const Common::String &fileName, const Common::String &line) {
+	Common::FSNode saveNode(savePath);
+	if (!saveNode.isDirectory() && !saveNode.createDirectory()) {
+		warning("Failed to create save directory: %s", savePath.toString().c_str());
+		return false;
+	}
+
+	const Common::Path filePath = savePath / fileName;
+
+	Common::String existingContent;
+	Common::File existingFile;
+	if (existingFile.open(filePath)) {
+		char buffer[4096];
+		size_t bytesRead;
+		while ((bytesRead = existingFile.read(buffer, sizeof(buffer))) > 0)
+			existingContent += Common::String(buffer, bytesRead);
+		existingFile.close();
+	}
+
+	Common::DumpFile df;
+	if (!df.open(filePath)) {
+		warning("Failed to open %s for write", filePath.toString().c_str());
+		return false;
+	}
+
+	if (!existingContent.empty())
+		df.write(existingContent.c_str(), existingContent.size());
+
+	const Common::String out = line + "\n";
+	df.write(out.c_str(), out.size());
+	df.flush();
+	df.close();
+	return true;
+}
+
+bool saveNewCharacter(PoolradCharacter *pc, const Common::Path &savePath) {
+	if (!pc)
+		return false;
+
+	debug(4, "saveNewCharacter: starting save for character '%s'", pc->name.c_str());
+
+	Common::FSNode saveNode(savePath);
+	if (!saveNode.isDirectory() && !saveNode.createDirectory()) {
+		warning("Failed to create save directory: %s", savePath.toString().c_str());
+		return false;
+	}
+
+	const Common::String base = formatLegacyBaseFilename(pc->name);
+	const Common::Path chrFile = savePath / (base + ".CHA");
+	const Common::Path itmFile = savePath / (base + ".ITM");
+	const Common::Path spcFile = savePath / (base + ".SPC");
+
+	debug(4, "saveNewCharacter: opening '%s' for write", chrFile.toString().c_str());
+	Common::DumpFile out;
+	if (!out.open(chrFile)) {
+		warning("Failed to create %s", chrFile.toString().c_str());
+		return false;
+	}
+	pc->save(out);
+	out.close();
+	debug(4, "saveNewCharacter: successfully saved '%s'", chrFile.toString().c_str());
+
+	debug(4, "saveNewCharacter: saving inventory to '%s'", itmFile.toString().c_str());
+	pc->inventory.save(itmFile.toString());
+	debug(4, "saveNewCharacter: saving effects to '%s'", spcFile.toString().c_str());
+	pc->effects.save(spcFile.toString());
+
+	const bool listOk = appendLegacyTextFileLine(savePath, "CHARLIST.TXT", pc->name);
+	debug(4, "saveNewCharacter: completed save for character '%s'", pc->name.c_str());
+	return listOk;
 }
 
 } // namespace Data

@@ -155,6 +155,7 @@ void ShopBaseDialog::recreateHorizontalMenu() {
     cfg.allowNumPad = false;
     cfg.suppressUnhandledKeys = false;
     cfg.backgroundColor = 0;
+    cfg.singleItemMode = false;
 
     _horizontalMenu = new HorizontalMenu("ShopHMenu", cfg);
     _horizontalMenu->activate();
@@ -687,6 +688,7 @@ void ShopBaseDialog::openAppraiseScreen() {
     cfg.allowNumPad = false;
     cfg.suppressUnhandledKeys = true;
     cfg.backgroundColor = 0;
+    cfg.singleItemMode = false;
 
     _appraiseMenu = new HorizontalMenu("AppraiseMenu", cfg);
     setDialogParent(_appraiseMenu, this);
@@ -819,6 +821,7 @@ void ShopBaseDialog::appraiseItem(AppraiseType type) {
     cfg.allowNumPad = false;
     cfg.suppressUnhandledKeys = true;
     cfg.backgroundColor = 0;
+    cfg.singleItemMode = false;
 
     _appraiseKeepSellMenu = new HorizontalMenu("AppraiseKSMenu", cfg);
     setDialogParent(_appraiseKeepSellMenu, this);
