@@ -37,9 +37,12 @@ struct HorizontalMenuConfig {
     int selectColor;
     int promptColor;
     bool allowNumPad;
-    bool suppressUnhandledKeys = true;
-    int backgroundColor = 0;
-    bool singleItemMode = false;
+    // No default member initializers below: one would make this a
+    // non-aggregate under C++11, breaking brace-init call sites elsewhere.
+    // Callers must set these explicitly.
+    bool suppressUnhandledKeys;
+    int backgroundColor;
+    bool singleItemMode;
 };
 
 class HorizontalMenu : public Dialog {

@@ -88,7 +88,8 @@ VerticalMenu::VerticalMenu(const String &name, const VerticalMenuConfig &config)
         _textColor,
         _selectColor,
         _headColor,
-        true
+        true,
+        true, 0, false
     };
 
     _horizontalMenu = new HorizontalMenu(name + "_Horizontal", hMenuConfig);

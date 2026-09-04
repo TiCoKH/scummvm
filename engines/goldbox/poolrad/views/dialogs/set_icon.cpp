@@ -303,7 +303,8 @@ void SetIcon::buildAndShowMenu(const Common::String &prompt) {
         kPromptColor,
         false,
 		true,
-        kBackgroundColor
+        kBackgroundColor,
+        false
     };
 
     _menu = new HorizontalMenu(getName() + "_Menu", cfg);
@@ -353,7 +354,8 @@ void SetIcon::setMenuStage(IconMenuState stage) {
             kPromptColor,
             false,
 			true,
-            kBackgroundColor
+            kBackgroundColor,
+            false
         };
 
         _menu = new HorizontalMenu(getName() + "_SubPart", cfg);

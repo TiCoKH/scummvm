@@ -22,6 +22,7 @@
 #include "common/debug.h"
 #include "engines/goldbox/data/rules/rules.h"
 #include "goldbox/data/spells/spell.h"
+#include "goldbox/engine.h"
 
 namespace Goldbox {
 namespace Data {
@@ -518,6 +519,78 @@ uint8 classEnumCount() {
 uint8 alignmentEnumCount() {
 	// Alignments are typically 9 (LG..CE). Keep as 9 unless tables suggest more.
 	return 9;
+}
+
+uint16 rollInitialGold(const LevelData &levels) {
+	if (!Goldbox::g_engine)
+		return 0;
+
+	int totalGold = 0;
+	int classCount = 0;
+	for (uint8 base = 0; base < BASE_CLASS_NUM; ++base) {
+		if (levels[static_cast<ClassADnD>(base)] == 0)
+			continue;
+		const DiceRoll &dr = getInitGoldRoll(base);
+		totalGold += Goldbox::g_engine->rollDice(dr.diceNum, dr.diceSides) + 1;
+		++classCount;
+	}
+
+	// Average across classes (truncate), scaled by 10 to match legacy gold units.
+	return (classCount > 0) ? static_cast<uint16>((totalGold / classCount) * 10) : 0;
+}
+
+void applyStatMinMax(uint8 race, uint8 gender, uint8 classType,
+		const LevelData &levels, AbilityScores &abilities) {
+	// Not applied to monster race per requirement.
+	if (race == R_MONSTER)
+		return;
+
+	const RaceStatMinMax &mm = getRaceStatMinMaxForRace(race);
+	const bool isFemale = (gender == G_FEMALE);
+	const uint8 strMin = isFemale ? mm.strengthMinFemale : mm.strengthMinMale;
+	const uint8 strMax = isFemale ? mm.strengthMaxFemale : mm.strengthMaxMale;
+	const uint8 extStrMax = isFemale ? mm.extStrengthMaxFemale : mm.extStrengthMaxMale;
+
+	auto clampStatCur = [](Stat &s, uint8 minV, uint8 maxV) {
+		if (s.current < minV) s.current = minV;
+		if (s.current > maxV) s.current = maxV;
+	};
+
+	clampStatCur(abilities.strength, strMin, strMax);
+	clampStatCur(abilities.intelligence, mm.intelligenceMin, mm.intelligenceMax);
+	clampStatCur(abilities.wisdom, mm.wisdomMin, mm.wisdomMax);
+	clampStatCur(abilities.dexterity, mm.dexterityMin, mm.dexterityMax);
+	clampStatCur(abilities.constitution, mm.constitutionMin, mm.constitutionMax);
+	clampStatCur(abilities.charisma, mm.charismaMin, mm.charismaMax);
+
+	// After race bounds, enforce class minimum stats if below thresholds.
+	const ClassMinStats &cms = getClassMinStats(classType);
+	if (abilities.strength.current < cms.strength)
+		abilities.strength.current = cms.strength;
+
+	// Exceptional Strength rule: applicable if fighter level > 0 (any combination)
+	// and Strength is at its 18 cap.
+	const bool hasFighterLevel = levels[C_FIGHTER] > 0;
+	if (hasFighterLevel && abilities.strength.current >= 18) {
+		abilities.strException.current =
+				Goldbox::g_engine ? (uint8)Goldbox::g_engine->rollDice(1, 100) : 0;
+	} else {
+		abilities.strException.current = 0;
+	}
+	// Clamp Exceptional Strength to gender/race maximum.
+	if (abilities.strException.current > extStrMax)
+		abilities.strException.current = extStrMax;
+
+	if (abilities.intelligence.current < cms.intelligence)
+		abilities.intelligence.current = cms.intelligence;
+	if (abilities.wisdom.current < cms.wisdom)
+		abilities.wisdom.current = cms.wisdom;
+	if (abilities.dexterity.current < cms.dexterity)
+		abilities.dexterity.current = cms.dexterity;
+	if (abilities.constitution.current < cms.constitution)
+		abilities.constitution.current = cms.constitution;
+	if (abilities.charisma.current < cms.charisma)
+		abilities.charisma.current = cms.charisma;
 }
 
 using namespace Goldbox::Data;

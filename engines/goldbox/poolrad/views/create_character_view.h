@@ -125,11 +125,9 @@ private:
     void initializeRollStatsOnce();
     void performRerollAndRecompute();
 
-    // persistence helpers
+    // persistence helper (writes .CHA/.ITM/.SPC + CHARLIST.TXT; see
+    // goldbox/poolrad/data/legacy_save_utils.h)
     void saveCharacter();
-    Common::String formatBaseFilename(const Common::String &name);
-    void appendLineToTextFile(const Common::String &fileName,
-                              const Common::String &line);
 
     // reroll helper
     void rollAndRecompute();

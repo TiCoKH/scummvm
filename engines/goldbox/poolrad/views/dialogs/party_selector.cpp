@@ -56,7 +56,8 @@ PartySelector::PartySelector(const Common::String &name,
         kTextColor,
         kSelectColor,
         kPromptColor,
-        true
+        true,
+        true, 0, false
     };
 
     _horizontalMenu = new HorizontalMenu(name + "_Menu", menuConfig);

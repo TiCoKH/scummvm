@@ -131,6 +131,7 @@ void LoadSaveDialog::rebuildSlotMenu() {
 	cfg.allowNumPad = false;
 	cfg.suppressUnhandledKeys = true;
 	cfg.backgroundColor = 0;
+	cfg.singleItemMode = false;
 
 	_slotMenu = new HorizontalMenu(getName() + "_Slots", cfg);
 	subView(_slotMenu);

@@ -30,6 +30,7 @@
 #include "goldbox/core/menu_item.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/data/spells/spell.h"
+#include "goldbox/poolrad/data/legacy_save_utils.h"
 #include "goldbox/poolrad/views/create_character_view.h"
 
 namespace Goldbox {
@@ -430,7 +431,9 @@ void CreateCharacterView::attachKeepCharacterPrompt() {
 	if (_activeSubView == _yesNoPrompt)
 		setActiveSubView(nullptr);
 	detachAndDelete(_yesNoPrompt);
-	Dialogs::HorizontalYesNoConfig ynCfg { KEEP_CHARACTER, kMenuHeadColor, kMenuTextColor, kMenuSelectColor };
+	// All 5 fields must be given explicitly: default member initializer on
+	// backgroundColor makes this a non-aggregate under C++11 aggregate rules.
+	Dialogs::HorizontalYesNoConfig ynCfg { KEEP_CHARACTER, kMenuHeadColor, kMenuTextColor, kMenuSelectColor, 0 };
 	_yesNoPrompt = new Dialogs::HorizontalYesNo("ProfileYN", ynCfg);
 	if (_profileDialog)
 		setDialogParent(_yesNoPrompt, _profileDialog);
@@ -801,119 +804,17 @@ void CreateCharacterView::resetState() {
 	chooseRace();
 }
 
-Common::String CreateCharacterView::formatBaseFilename(const Common::String &name) {
-	Common::String formatted;
-	for (uint i = 0; i < name.size() && formatted.size() < 8; ++i) {
-		if (name[i] != ' ')
-			formatted += name[i];
-	}
-	return formatted;
-}
-
-void CreateCharacterView::appendLineToTextFile(const Common::String &fileName, const Common::String &line) {
-	// Get the save directory path
-	Common::Path savePath = getLegacySavePath();
-	if (savePath.empty()) {
-		warning("Failed to resolve legacy save directory for %s",
-			fileName.c_str());
-		return;
-	}
-
-	// Create the save directory if it doesn't exist
-	Common::FSNode saveNode(savePath);
-	if (!saveNode.isDirectory()) {
-		if (!saveNode.createDirectory()) {
-			warning("Failed to create save directory: %s", savePath.toString().c_str());
-			return;
-		}
-	}
-
-	// Build the full path to the file
-	Common::Path filePath = savePath / fileName;
-
-	// Read existing content
-	Common::String existingContent;
-	Common::File existingFile;
-	if (existingFile.open(filePath)) {
-		char buffer[4096];
-		size_t bytesRead;
-		while ((bytesRead = existingFile.read(buffer, sizeof(buffer))) > 0) {
-			existingContent += Common::String(buffer, bytesRead);
-		}
-		existingFile.close();
-	}
-
-	// Append the new line
-	Common::DumpFile df;
-	if (!df.open(filePath)) {
-		warning("Failed to open %s for write", filePath.toString().c_str());
-		return;
-	}
-
-	// Write existing content first
-	if (!existingContent.empty()) {
-		df.write(existingContent.c_str(), existingContent.size());
-	}
-
-	// Write the new line with trailing newline
-	Common::String out = line;
-	out += "\n";
-	df.write(out.c_str(), out.size());
-	df.flush();
-	df.close();
-}
-
 void CreateCharacterView::saveCharacter() {
 	if (!_newCharacter)
 		return;
 
-	debug(4, "saveCharacter: starting save for character '%s'", _newCharacter->name.c_str());
-
-	// Get the save directory path
 	Common::Path savePath = getLegacySavePath();
 	if (savePath.empty()) {
 		warning("Failed to resolve legacy save directory for character save");
 		return;
 	}
 
-	// Create the save directory if it doesn't exist
-	Common::FSNode saveNode(savePath);
-	if (!saveNode.isDirectory()) {
-		if (!saveNode.createDirectory()) {
-			warning("Failed to create save directory: %s", savePath.toString().c_str());
-			return;
-		}
-	}
-
-	// Build the base filename
-	Common::String base = formatBaseFilename(_newCharacter->name);
-
-	// Build full paths for character files
-	Common::Path chrFile = savePath / (base + ".CHA");
-	Common::Path itmFile = savePath / (base + ".ITM");
-	Common::Path spcFile = savePath / (base + ".SPC");
-
-	// Save .CHA file
-	debug(4, "saveCharacter: opening '%s' for write", chrFile.toString().c_str());
-	Common::DumpFile out;
-	if (out.open(chrFile)) {
-		_newCharacter->save(out);
-		out.close();
-		debug(4, "saveCharacter: successfully saved '%s'", chrFile.toString().c_str());
-	} else {
-		warning("Failed to create %s", chrFile.toString().c_str());
-		return;
-	}
-
-	// Create empty .ITM and .SPC via inventory/effects save
-	debug(4, "saveCharacter: saving inventory to '%s'", itmFile.toString().c_str());
-	_newCharacter->inventory.save(itmFile.toString());
-	debug(4, "saveCharacter: saving effects to '%s'", spcFile.toString().c_str());
-	_newCharacter->effects.save(spcFile.toString());
-
-	// Append character name to CHARLIST.TXT
-	appendLineToTextFile("CHARLIST.TXT", _newCharacter->name);
-	debug(4, "saveCharacter: completed save for character '%s'", _newCharacter->name.c_str());
+	Goldbox::Poolrad::Data::saveNewCharacter(_newCharacter, savePath);
 }
 
 void CreateCharacterView::rollAndRecompute() {
@@ -968,75 +869,11 @@ void CreateCharacterView::ageingEffects() {
 }
 
 void CreateCharacterView::applyStatMinMax() {
-    if (!_newCharacter)
-        return;
-
-    using namespace Goldbox::Data;
-
-    // Do not apply for monster race per requirement
-	if (_newCharacter->race == R_MONSTER) {
-		debug(4, "applyStatMinMax: skipped for monster race");
+	if (!_newCharacter)
 		return;
-	}
 
-    const RaceStatMinMax &mm = Goldbox::Data::Rules::getRaceStatMinMaxForRace(_newCharacter->race);
-
-    // Strength and exceptional strength depend on gender for max/min
-    const bool isFemale = (_newCharacter->gender == G_FEMALE);
-    const uint8 strMin = isFemale ? mm.strengthMinFemale : mm.strengthMinMale;
-    const uint8 strMax = isFemale ? mm.strengthMaxFemale : mm.strengthMaxMale;
-    const uint8 extStrMax = isFemale ? mm.extStrengthMaxFemale : mm.extStrengthMaxMale;
-
-    // Helper to clamp a Stat between min and max inclusive (current value only)
-    auto clampStatCur = [](Stat &s, uint8 minV, uint8 maxV) {
-        if (s.current < minV) s.current = minV;
-        if (s.current > maxV) s.current = maxV;
-    };
-
-	// Apply Strength min/max
-    clampStatCur(_newCharacter->abilities.strength, strMin, strMax);
-    // Intelligence
-    clampStatCur(_newCharacter->abilities.intelligence, mm.intelligenceMin, mm.intelligenceMax);
-    // Wisdom
-    clampStatCur(_newCharacter->abilities.wisdom, mm.wisdomMin, mm.wisdomMax);
-    // Dexterity
-    clampStatCur(_newCharacter->abilities.dexterity, mm.dexterityMin, mm.dexterityMax);
-    // Constitution
-    clampStatCur(_newCharacter->abilities.constitution, mm.constitutionMin, mm.constitutionMax);
-	// Charisma
-	clampStatCur(_newCharacter->abilities.charisma, mm.charismaMin, mm.charismaMax);
-
-	// After race bounds, enforce class minimum stats if below thresholds
-	const ClassMinStats &cms = Goldbox::Data::Rules::getClassMinStats(_newCharacter->classType);
-	if (_newCharacter->abilities.strength.current < cms.strength)
-		_newCharacter->abilities.strength.current = cms.strength;
-
-	// Exceptional Strength rule: applicable if fighter level > 0 (any combination)
-	bool hasFighterLevel = false;
-
-	hasFighterLevel = (_newCharacter->levels.levels[Goldbox::Data::C_FIGHTER] > 0);
-
-	if (hasFighterLevel && _newCharacter->abilities.strength.current >= 18) {
-		// Roll 1d100 for exceptional strength
-		uint8 roll = (uint8)VmInterface::rollDice(1, 100);
-		_newCharacter->abilities.strException.current = roll;
-	} else {
-		// Other classes do not have exceptional strength (or STR != 18)
-		_newCharacter->abilities.strException.current = 0;
-	}
-	// Clamp Exceptional Strength to gender/race maximum
-	if (_newCharacter->abilities.strException.current > extStrMax)
-		_newCharacter->abilities.strException.current = extStrMax;
-	if (_newCharacter->abilities.intelligence.current < cms.intelligence)
-		_newCharacter->abilities.intelligence.current = cms.intelligence;
-	if (_newCharacter->abilities.wisdom.current < cms.wisdom)
-		_newCharacter->abilities.wisdom.current = cms.wisdom;
-	if (_newCharacter->abilities.dexterity.current < cms.dexterity)
-		_newCharacter->abilities.dexterity.current = cms.dexterity;
-	if (_newCharacter->abilities.constitution.current < cms.constitution)
-		_newCharacter->abilities.constitution.current = cms.constitution;
-	if (_newCharacter->abilities.charisma.current < cms.charisma)
-		_newCharacter->abilities.charisma.current = cms.charisma;
+	Goldbox::Data::Rules::applyStatMinMax(_newCharacter->race, _newCharacter->gender,
+		_newCharacter->classType, _newCharacter->levels, _newCharacter->abilities);
 }
 
 void CreateCharacterView::applySpells() {
@@ -1059,37 +896,9 @@ void CreateCharacterView::setInitGold() {
 	if (!_newCharacter)
 		return;
 
-	using namespace Goldbox::Data;
-	using Goldbox::Data::Rules::getInitGoldRoll;
-
-	int totalGold = 0;
-	int classCount = 0;
-	debug(4, "setInitGold: classType=%u", (unsigned)_newCharacter->classType);
-
-	// Iterate all base classes (0..7) and roll per-class starting gold
-	for (uint8 base = 0; base < BASE_CLASS_NUM; ++base) {
-		uint8 lvl = 0;
-		// LevelData operator[] expects ClassADnD; cast base index accordingly
-		lvl = _newCharacter->levels[static_cast<Goldbox::Data::ClassADnD>(base)];
-		// debug("setInitGold: base=%u lvl=%u", (unsigned)base, (unsigned)lvl);
-		if (lvl > 0) {
-			const DiceRoll &dr = getInitGoldRoll(base);
-			int classGold = VmInterface::rollDice(dr.diceNum, dr.diceSides);
-			classGold += 1;
-			totalGold += classGold;
-			++classCount;
-			// debug("setInitGold: base=%u lvl=%u roll=%uD%u+1 -> %d",
-			// 	  (unsigned)base, (unsigned)lvl, (unsigned)dr.diceNum, (unsigned)dr.diceSides, classGold);
-		} else {
-			debug(4, "setInitGold: skipping base=%u (lvl==0)", (unsigned)base);
-		}
-	}
-
-	// Average across classes (truncate)
-	uint16 finalGold = (classCount > 0) ? static_cast<uint16>((totalGold / classCount) * 10) : 0;
-	_newCharacter->valuableItems[VAL_GOLD] = finalGold;
-	// debug("setInitGold: classes=%d total=%d avg=%u (final gold)", classCount, totalGold, (unsigned)finalGold);
-	if (classCount == 0) {
+	uint16 finalGold = Goldbox::Data::Rules::rollInitialGold(_newCharacter->levels);
+	_newCharacter->valuableItems[Goldbox::Data::VAL_GOLD] = finalGold;
+	if (finalGold == 0) {
 		warning("setInitGold: no base classes with level > 0; gold set to 0. classType=%u", (unsigned)_newCharacter->classType);
 	}
 }

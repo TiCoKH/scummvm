@@ -46,7 +46,8 @@ ViewCharacterView::ViewCharacterView()
         10, // textColor
         15, // selectColor
         13, // promptColor
-        false // allowNumPad
+        false, // allowNumPad
+        true, 0, false
     };
     _horizontalMenu = new Dialogs::HorizontalMenu("CharacterHorizontalMenu", menuConfig);
     _profileDialog = new Dialogs::CharacterProfile();
