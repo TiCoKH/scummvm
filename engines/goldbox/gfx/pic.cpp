@@ -59,6 +59,31 @@ Pic *Pic::readFrame(Data::DaxBlockPic *daxBlock, int frameIdx) {
 	return pic;
 }
 
+Pic *Pic::readTileFrame(Data::DaxBlockPic *daxBlock, int frameIdx) {
+	int width = daxBlock->width;
+	int height = daxBlock->height;
+	int frameSize = (width * height) / 2;
+	int offset = frameIdx * frameSize;
+
+	if (offset + frameSize > (int)daxBlock->_data.size())
+		return nullptr;
+
+	Pic *pic = new Pic(width, height);
+	pic->setTransparentIndex(255); // sentinel: original index-0 pixels
+	const uint8 *data = daxBlock->_data.data() + offset;
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x += 2) {
+			uint8 byte = *data++;
+			uint8 hi = (byte & 0xF0) >> 4;
+			uint8 lo = byte & 0x0F;
+			// 0 -> 255 (transparent background), 8 -> 0 (black art)
+			pic->setPixel(x,     y, hi == 0 ? 255 : (hi == 8 ? 0 : hi));
+			pic->setPixel(x + 1, y, lo == 0 ? 255 : (lo == 8 ? 0 : lo));
+		}
+	}
+	return pic;
+}
+
 Pic *Pic::readSpriteFrame(Data::DaxBlockSprit *spritBlock, int frameIdx) {
 	if (!spritBlock)
 		return nullptr;

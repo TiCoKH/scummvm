@@ -42,7 +42,7 @@ Surface::Surface(ManagedSurface &surf, const Common::Rect &bounds) :
 }
 
 void Surface::setupPalette() {
-	Graphics::Palette ega = Graphics::Palette::createEGAPalette();
+	const Graphics::Palette &ega = Graphics::Palette::createEGAPalette();
 	g_system->getPaletteManager()->setPalette(ega);
 
 	uint32 white = 0xffffffff;
@@ -256,14 +256,14 @@ void Surface::drawFrame(int startX, int startY, int endX, int endY,
 }
 
 void Surface::drawWindow(int startX, int startY, int endX, int endY, uint32 color) {
-	drawFrame(startX, startY, endX, endY);
 	clearBox(startX, startY, endX, endY, color);
+	drawFrame(startX, startY, endX, endY, color);
 }
 
 void Surface::drawWindow(int startX, int startY, int endX, int endY,
 		uint32 color, int titleColor, const Common::String &title) {
 	clearBox(startX, startY, endX, endY, color);
-	drawFrame(startX, startY, endX, endY);
+	drawFrame(startX, startY, endX, endY, color);
 	if (!title.empty()) {
 		int x = (endX + startX - (int)title.size()) / 2;
 		writeStringC(x, startY, titleColor, title);

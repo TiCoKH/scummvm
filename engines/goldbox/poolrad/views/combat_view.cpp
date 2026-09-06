@@ -166,10 +166,9 @@ void CombatView::draw() {
     }
 
     if (_needsFullRedraw) {
-        s.clear(0);
+        drawUI();
         drawViewport();
         drawCombatants();
-        drawUI();
         _needsFullRedraw = false;
     }
 }
@@ -293,10 +292,9 @@ void CombatView::drawCombatants() {
 
 void CombatView::drawUI() {
     Surface s = getSurface();
-    Common::Rect vpRect(kViewportX - 1, kViewportY - 1,
-                        kViewportX + kViewportPixelW + 1,
-                        kViewportY + kViewportPixelH + 1);
-    s.frameRect(vpRect, 15);
+    s.clear(kBackgroundColor);
+    s.drawWindow(kWin1Left, kWin1Top, kWin1Right, kWin1Bottom, kBackgroundColor);
+    s.drawWindow(kWin2Left, kWin2Top, kWin2Right, kWin2Bottom, kBackgroundColor);
 }
 
 void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,

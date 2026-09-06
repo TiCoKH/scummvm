@@ -51,6 +51,14 @@ public:
 	static Pic *readFrame(Data::DaxBlockPic *daxBlock, int frameIdx);
 
 	/**
+	 * Decode a TILE-format frame remapping for combat terrain tiles.
+	 * Index 0 = background (transparent) -> sentinel 255.
+	 * Index 8 = black art -> remapped to 0.
+	 * Drawn with trDraw(255) so background shows through.
+	 */
+	static Pic *readTileFrame(Data::DaxBlockPic *daxBlock, int frameIdx);
+
+	/**
 	 * Decode a single frame from a SPRIT DAX block's EGA planar data.
 	 * EGA format: 4 bitplanes interleaved per scanline row.
 	 * Each row is charWidth*4 bytes (one byte per plane per 8-pixel column).

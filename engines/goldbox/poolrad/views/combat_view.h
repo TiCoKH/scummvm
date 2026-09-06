@@ -152,12 +152,21 @@ private:
     Gfx::CombatRenderer _combatRenderer;
     bool _needsFullRedraw;
 
-    // --- Layout constants (pixel coords on 320x200 screen) ---
-    static const int kViewportX = 8;      // pixel X of viewport area
-    static const int kViewportY = 8;      // pixel Y of viewport area
+    // --- Layout constants ---
+    static const int kViewportX = 8;      // pixel X of viewport area (char 1 * 8)
+    static const int kViewportY = 8;      // pixel Y of viewport area (char 1 * 8)
     static const int kTileSize = 24;      // pixels per tile
-    static const int kViewportPixelW = Combat::CombatViewport::VIEW_COLS * kTileSize;
-    static const int kViewportPixelH = Combat::CombatViewport::VIEW_ROWS * kTileSize;
+    static const uint8 kBackgroundColor = 8;
+
+    // --- Window layout (character coords, matching original SCREEN_DrawWindow calls) ---
+    static const int kWin1Left   = 1;
+    static const int kWin1Top    = 1;
+    static const int kWin1Right  = 21;
+    static const int kWin1Bottom = 21;
+    static const int kWin2Left   = 23;
+    static const int kWin2Top    = 1;
+    static const int kWin2Right  = 38;
+    static const int kWin2Bottom = 21;
 
     // --- Internal methods ---
     Combat::CombatContext makeContext();
