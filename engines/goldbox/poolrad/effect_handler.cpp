@@ -595,7 +595,9 @@ static void handleRegeneration(const EffectCall &c) {
 static void handleEfreetiFireResistance(const EffectCall &c) {
     if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
         return;
-    const uint8 count = c.combat->attackCount;
+    if (!c.character.combatState)
+        return;
+    const uint8 count = c.character.combatState->attackCount;
     if (count == 0)
         return;
     uint8 dmg = c.combat->damage;
@@ -611,7 +613,7 @@ static void handleFireResistance(const EffectCall &c) {
     if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
         return;
 
-    const uint8 count = c.combat->attackCount;
+    const uint8 count = c.character.combatState ? c.character.combatState->attackCount : 0;
     uint8 dmg = c.combat->damage;
     for (uint8 i = 0; i < count; ++i) {
         dmg = (dmg < 2) ? 0 : dmg - 2;
@@ -636,8 +638,8 @@ static void handleImmobilized(const EffectCall &c) {
     if (c.op != EFF_EVAL || !c.character.combatState)
         return;
     c.character.combatState->movePoints = 0;
-    if (c.combat && c.combat->attackCountAdjusting)
-        c.combat->attackCount = 0;
+    if (c.combat)
+        c.combat->effectSet18.value = 0;
 }
 
 static void handleRot(const EffectCall &c) {
@@ -1611,7 +1613,7 @@ static void handleImmunityFireSpell(const EffectCall &c) {
 static void handleEfreetiFireResistanceSpell(const EffectCall &c) {
     if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
         return;
-    const uint8 count = c.combat->attackCount;
+    const uint8 count = c.character.combatState ? c.character.combatState->attackCount : 0;
     uint8 dmg = c.combat->damage;
     for (uint8 i = 0; i < count; ++i) {
         dmg = (dmg < 1) ? 0 : dmg - 1;
@@ -1751,7 +1753,7 @@ static void handleVulnerabilityToFire(const EffectCall &c) {
             Goldbox::g_engine ? Goldbox::g_engine->rollDice(3, 8) : 3);
     if (c.combat->behaviorFlags & (Combat::CombatGlobals::DMG_FIRE |
                                    Combat::CombatGlobals::DMG_MAGIC))
-        c.combat->damage += c.combat->attackCount;
+        c.combat->damage += c.character.combatState ? c.character.combatState->attackCount : 0;
 }
 
 static void handleImmunityNonMagicalHalfSilver(const EffectCall &c) {

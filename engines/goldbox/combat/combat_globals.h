@@ -72,8 +72,19 @@ struct CombatGlobals {
     Goldbox::Data::Spells::SaveVerseType savingThrowType; // SAVING_THROW_TYPE
     Data::PlayerCharacter *attacker; // PTR_SELECTED_CHAR — current attacking character
     bool targetUnavailable;   // Target cannot be selected
-    uint8 attackCount;        // BYTE_ATTACK_COUNT : resolved attacks this turn
-    bool attackCountAdjusting;
+
+    /**
+     * Scratch exchange used by ES_COMBAT_RATE_MODIFIER (effect set 18).
+     * Mirrors EFFECT_SET18_EXCHANGE_VALUE / EFFECT_SET18_EXCHANGE_MODE.
+     * isMovement=false: value holds attack count (HASTE doubles, SLOW halves,
+     *                   IMMOBILIZED zeroes).
+     * isMovement=true:  value holds move budget (IMMOBILIZED zeroes).
+     */
+    struct EffectSet18Exchange {
+        uint8 value;
+        bool  isMovement;
+    } effectSet18;
+
     uint8 attacksLeft;        // COMBAT_ATTACKS_LEFT — attacker's remaining attacks this turn
     uint8 turnCounter;        // COMBAT_TURN_COUNTER — incremented once at the end of each turn
     uint8 handicapValue;      // C_HANDICAP_VALUE — hostile health ratio * 5 (0-100), used by AI/morale
@@ -98,7 +109,8 @@ struct CombatGlobals {
         savingThrowType = Goldbox::Data::Spells::SVS_POISON;
         attacker = nullptr;
         targetUnavailable = false;
-        attackCount = 0;
+        effectSet18.value      = 0;
+        effectSet18.isMovement = false;
         attacksLeft = 0;
         turnCounter = 0;
         handicapValue = 0;

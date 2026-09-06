@@ -1128,9 +1128,7 @@ SpellCastResult FireballHandler::execute(const SpellContext &context,
         damageDice = context.casterLevel > 0 ? context.casterLevel : 1;
     }
 
-    // Mirror UTIL_RollDiceAttack: store dice count then roll.
-    if (context.combat)
-        context.combat->attackCount = damageDice;
+    // Roll damage dice.
     const uint8 baseDamage = Goldbox::g_engine ?
         static_cast<uint8>(Goldbox::g_engine->rollDice(damageDice, 6)) : damageDice;
 
