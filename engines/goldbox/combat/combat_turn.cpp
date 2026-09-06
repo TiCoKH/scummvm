@@ -26,15 +26,71 @@
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/character_effects.h"
-#include "common/random.h"
+#include "goldbox/data/items/base_items.h"
+#include "goldbox/data/items/character_inventory.h"
+#include "goldbox/ecl/ecl_memory.h"
+#include "goldbox/vm_interface.h"
 #include "common/util.h"
 
 namespace Goldbox {
 namespace Combat {
 
-// ---------------------------------------------------------------------------
-// isSideAmbushed
-// ---------------------------------------------------------------------------
+uint8 calcAttackCountWithEvenTurnBonus(uint8 attacks, uint8 turnCounter) {
+    if (turnCounter & 1)
+        attacks++;
+    return attacks >> 1;
+}
+
+void recalcPrimaryAttacks(Data::ADnDCharacter *adnd, CombatGlobals *globals,
+                          Data::Effects::EffectRuntime *effectRuntime) {
+    if (!adnd || !adnd->combatState)
+        return;
+
+    const uint8 oldAttacks = adnd->curPrimaryRoll.attacks;
+    adnd->curPrimaryRoll.attacks = adnd->basePrimaryRoll.attacks;
+
+    bool isRanged = false;
+    Data::Items::CharacterItem *ammoItem = nullptr;
+    adnd->getRangedAttackItem(&ammoItem);
+
+    const Data::Items::CharacterItem *weapon =
+        adnd->getEquippedItem(Data::Items::Slot::S_MAIN_HAND);
+    bool hasRangedWeapon = weapon && (weapon->prop().missileType != 0);
+
+    uint8 exchangeValue;
+    if (hasRangedWeapon) {
+        isRanged = true;
+        exchangeValue = weapon->prop().fireRate;
+        if (exchangeValue < 2)
+            exchangeValue = 2;
+    } else {
+        exchangeValue = adnd->curPrimaryRoll.attacks;
+    }
+
+    if (globals) {
+        globals->effectSet18.value      = exchangeValue;
+        globals->effectSet18.isMovement = false;
+    }
+
+    if (effectRuntime && adnd->getEffects())
+        effectRuntime->checkEffectSet(Data::Effects::ES_COMBAT_RATE_MODIFIER,
+                                      *adnd->getEffects(), *adnd, globals);
+
+    uint8 result = calcAttackCountWithEvenTurnBonus(
+        globals ? globals->effectSet18.value : exchangeValue,
+        globals ? globals->turnCounter : 0);
+
+    if (isRanged && ammoItem) {
+        uint8 cap = (ammoItem->stackSize > 1) ? ammoItem->stackSize : 1;
+        if (cap < result)
+            result = cap;
+    }
+
+    const bool unknownBool = adnd->combatState->unknownBool;
+    if (!unknownBool || result < oldAttacks ||
+            (unknownBool && result < (uint8)(oldAttacks * 2) && !isRanged))
+        adnd->curPrimaryRoll.attacks = result;
+}
 
 bool isSideAmbushed(Data::CombatSide side, uint8 ambushFlags) {
     switch (side) {
@@ -44,101 +100,87 @@ bool isSideAmbushed(Data::CombatSide side, uint8 ambushFlags) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// initCharacterTurnState
-// ---------------------------------------------------------------------------
+uint8 calcMoveBudget(const Data::PlayerCharacter *ch) {
+    int budget = (int)ch->movement.current + (int)ch->effectState.mods.movement;
+    if (budget < 0)   budget = 0;
+    if (budget > 255) budget = 255;
+    return (uint8)budget;
+}
 
 void initCharacterTurnState(Data::PlayerCharacter *ch,
-                            uint8 ambushFlags,
                             Data::Effects::EffectRuntime *effectRuntime,
-                            CombatGlobals *globals) {
+                            CombatGlobals *globals,
+                            ECL::AddressSpace *eclMemory,
+                            const VmGlobalLayout *vmLayout) {
     if (!ch || !ch->combatState)
         return;
 
     Data::CombatAction &cs = *ch->combatState;
 
-    // Fixed resets — mirrors original exactly.
-    cs.spellId      = 0;
-    cs.canCast      = true;
-    cs.canUse       = true;
-    cs.unknownBool  = false;
-    cs.attackId     = 2;
-    cs.target       = nullptr;
-    cs.fleeing      = false;
-    cs.guarding     = false;
-    cs.moralFailure = false;
-    cs.directionChange = 0;
+    cs.spellId     = 0;
+    cs.canCast     = true;
+    cs.canUse      = true;
+    cs.unknownBool = false;
+    cs.attackId    = 2;
 
-    // --- Attack count ---
-    // Base from primary roll (COMBAT_RecalcPrimaryAttacks equivalent).
-    uint8 baseAttacks = 1;
-    if (Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(ch))
-        baseAttacks = (uint8)adnd->curPrimaryRoll.attacks;
-    globals->attackCount = baseAttacks;
-    globals->attackCountAdjusting = false;
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(ch);
 
-    // ES_TARGET_SELECTION_FILTER (set 18) may modify globals->attackCount.
-    if (effectRuntime && ch->getEffects())
-        effectRuntime->checkEffectSet(Data::Effects::ES_TARGET_SELECTION_FILTER,
-                                      *ch->getEffects(), *ch, globals);
+    recalcPrimaryAttacks(adnd, globals, effectRuntime);
 
-    // Store the (possibly effect-modified) attack count.
-    // COMBAT_adjustFireRate maps the raw count to a per-round rate;
-    // for now store directly — the rate adjustment is a separate concern.
-    cs.attackCount = globals->attackCount;
+    // EFFECT_SET18_EXCHANGE_VALUE = sec_attack; EFFECT_SET18_EXCHANGE_MODE = false.
+    // Handlers (HASTE, SLOW, IMMOBILIZED) read/write globals->effectSet18.value.
+    uint8 baseAttacks = adnd ? adnd->baseSecondaryRoll.attacks : 1;
 
-    // --- Max targets ---
-    // Original: action->max_target = character->attack_level
-    // attack_level maps to attackLevel on ADnDCharacter.
-    if (Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(ch))
-        cs.maxTargets = adnd->attackLevel;
-    else
-        cs.maxTargets = 1;
-
-    // --- Initiative ---
-    if (!ch->enabled) {
-        // Disabled/dead characters get no turn.
-        cs.initiative = 0;
-    } else {
-        // Roll 1d6 + dexterity speed bonus.
-        static Common::RandomSource rng("combat_initiative");
-        int roll = (int)(rng.getRandomNumber(5) + 1); // 1d6
-        int init = roll + (int)ch->getDexSpeedBonus();
-
-        // Minimum before ambush penalty.
-        if (init < 1)
-            init = 1;
-
-        // Ambush: the ambushed side loses 6 initiative.
-        if (isSideAmbushed(ch->combatSide, ambushFlags))
-            init -= 6;
-
-        // Out-of-range initiative means no turn this round.
-        if (init < 0 || init > 20)
-            init = 0;
-
-        cs.initiative = (uint8)init;
+    if (globals) {
+        globals->effectSet18.value      = baseAttacks;
+        globals->effectSet18.isMovement = false;
     }
 
-    // --- Move budget ---
-    cs.movePoints = ch->movement.current;
-}
+    if (effectRuntime && ch->getEffects())
+        effectRuntime->checkEffectSet(Data::Effects::ES_COMBAT_RATE_MODIFIER,
+                                      *ch->getEffects(), *ch, globals);
 
-// ---------------------------------------------------------------------------
-// initAllTurnStates
-// ---------------------------------------------------------------------------
+    if (adnd)
+        adnd->curSecondaryRoll.attacks = calcAttackCountWithEvenTurnBonus(
+            globals ? globals->effectSet18.value : baseAttacks,
+            globals ? globals->turnCounter : 0);
+
+    cs.maxTargets = adnd ? adnd->attackLevel : 1;
+
+    if (!ch->enabled) {
+        cs.initiative = 0;
+    } else {
+        int init = VmInterface::rollDice(1, 6)
+                 + (int)ch->getDexSpeedBonus();
+        cs.initiative = (uint8)init;
+        if ((int8)cs.initiative < 1)
+            cs.initiative = 1;
+        uint8 ambushFlags = 0;
+        if (eclMemory && vmLayout) {
+            const VmFieldLocation field =
+                vmLayout->field(kVmGlobalFieldCombatIsAmbush);
+            if (VmLayout::isValid(field))
+                ambushFlags = eclMemory->read8(field.vmAddr);
+        }
+        if (isSideAmbushed(ch->combatSide, ambushFlags))
+            cs.initiative -= 6;
+        if ((int8)cs.initiative < 0 || cs.initiative > 20)
+            cs.initiative = 0;
+    }
+
+    // Move budget set after effect set — not part of the exchange.
+    cs.movePoints = calcMoveBudget(ch);
+}
 
 void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster,
-                       uint8 ambushFlags,
                        Data::Effects::EffectRuntime *effectRuntime,
-                       CombatGlobals *globals) {
+                       CombatGlobals *globals,
+                       ECL::AddressSpace *eclMemory,
+                       const VmGlobalLayout *vmLayout) {
     for (uint i = 0; i < roster.size(); i++)
-        initCharacterTurnState(roster[i], ambushFlags, effectRuntime, globals);
+        initCharacterTurnState(roster[i], effectRuntime, globals,
+                               eclMemory, vmLayout);
 }
-
-// ---------------------------------------------------------------------------
-// selectNextActor
-// ---------------------------------------------------------------------------
 
 Data::PlayerCharacter *selectNextActor(
         const Common::Array<Data::PlayerCharacter *> &roster,
@@ -147,20 +189,19 @@ Data::PlayerCharacter *selectNextActor(
     if (globals.sideCount[0] == 0 || globals.sideCount[1] == 0)
         return nullptr;
 
-    // Return the enabled character with the highest initiative that has not
-    // yet acted. initiative == 0 means no turn; 0xFF means already acted.
+    // Find the eligible character with the lowest delay value.
+    // delay == 0xFF means the character has already acted this round.
     Data::PlayerCharacter *best = nullptr;
-    uint8 bestInitiative = 0;
+    uint8 bestInitiative = 0xFF;
 
     for (uint i = 0; i < roster.size(); i++) {
         Data::PlayerCharacter *ch = roster[i];
         if (!ch || !ch->enabled || !ch->combatState)
             continue;
-        uint8 init = ch->combatState->initiative;
-        if (init == 0 || init == 0xFF)
+		if (ch->combatState->initiative == 0xFF)
             continue;
-        if (init > bestInitiative) {
-            bestInitiative = init;
+		if (ch->combatState->initiative < bestInitiative) {
+			bestInitiative = ch->combatState->initiative;
             best = ch;
         }
     }

@@ -133,7 +133,7 @@ private:
 
     /**
      * Per-actor setup mirroring COMBAT_ExecuteTurn's pre-dispatch block:
-     * resets attackCount/directionChange/guarding, clamps initiative==20 to 19,
+     * resets moveBudget/directionChange/guarding, clamps initiative==20 to 19,
      * runs ES_POST_MOVEMENT_TILE (7) and ES_POISON_CYCLE (15).
      * Returns false if the actor's turn was cancelled by an effect.
      */

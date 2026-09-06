@@ -24,9 +24,14 @@
 
 #include "common/scummsys.h"
 #include "common/array.h"
+#include "goldbox/core/vm_layout.h"
 #include "goldbox/data/player_character.h"
+#include "goldbox/data/adnd_character.h"
 
 namespace Goldbox {
+namespace ECL {
+class AddressSpace;
+}
 namespace Data {
 namespace Effects {
 class EffectRuntime;
@@ -38,50 +43,78 @@ namespace Combat {
 struct CombatGlobals;
 
 /**
- * Returns true if the given combat side is ambushed this round.
+ * Returns true if the given combat side is being ambushed.
  *
- * D_CombatIsAmbush encoding:
- *   0x00 = nobody ambushed
- *   0x01 = party ambushed
- *   0x02 = enemy ambushed
- *   0x03 = both sides ambushed
+ * Mirrors COMBAT_IsSideAmbushed: checks bit 0 for CS_PARTY, bit 1 for CS_ENEMY.
  *
- * Treated as a 2-bit field: bit0 = party, bit1 = enemy.
+ * @param side         The combat side to check
+ * @param ambushFlags  D_CombatIsAmbush byte from VM party state
  */
 bool isSideAmbushed(Data::CombatSide side, uint8 ambushFlags);
 
 /**
+ * Recalculate primary attack count for one character.
+ *
+ * Mirrors COMBAT_RecalcPrimaryAttacks: resets curPrimaryRoll.attacks from base,
+ * uses fireRate for ranged weapons (min 2), runs ES_COMBAT_RATE_MODIFIER,
+ * caps by ammo stack if ranged, then conditionally writes back based on unknownBool.
+ */
+void recalcPrimaryAttacks(Data::ADnDCharacter *adnd, CombatGlobals *globals,
+                          Data::Effects::EffectRuntime *effectRuntime);
+
+/**
+ * Compute the per-round secondary attack count with even-turn bonus.
+ *
+ * Mirrors COMBAT_CalcAttackCountWithEvenTurnBonus:
+ *   - Odd turnCounter (= even-numbered turn) grants +1 attack before halving.
+ *   - Result = (baseAttackCount + bonus) / 2.
+ *
+ * @param attacks      Raw attack count (EFFECT_SET18_EXCHANGE_VALUE after effect processing)
+ * @param turnCounter  Current round counter (COMBAT_TURN_COUNTER global in original)
+ * @return             Effective attacks this round
+ */
+uint8 calcAttackCountWithEvenTurnBonus(uint8 attacks, uint8 turnCounter);
+
+/**
+ * Compute the move budget for a character this turn.
+ *
+ * Mirrors COMBAT_CalcMoveBudget:
+ *   movement.current + effectState.mods.movement, clamped to [0, 255].
+ *
+ * @param ch  Character to compute move budget for
+ * @return    Move points available this turn
+ */
+uint8 calcMoveBudget(const Data::PlayerCharacter *ch);
+
+/**
  * Reset per-turn CombatAction fields for one character.
  *
- * Mirrors original COMBAT_InitCharacterTurnState:
- *   - Resets spellId=0, canCast=true, canUse=true, unknownBool=false, attackId=2
- *   - Recalculates attackCount from primary roll, then runs ES_TARGET_SELECTION_FILTER
- *     (effect set 18) which may modify it
- *   - Sets maxTargets from attackLevel
- *   - Rolls initiative: 1d6 + getDexSpeedBonus(), min 1, ambush side -6, clamp 0..20
- *     (initiative=0 means no turn; disabled characters always get initiative=0)
- *   - Calculates movePoints
+ * Mirrors original COMBAT_InitCharacterTurnState.
+ * Loads sec_attack into globals->effectSet18 (isMovement=false), runs
+ * ES_COMBAT_RATE_MODIFIER (effect set 18: HASTE, SLOW, IMMOBILIZED)
+ * whose handlers modify globals->effectSet18.value, then reads the result
+ * back through calcAttackCountWithEvenTurnBonus into cs.attackCount.
+ * Move budget is set directly after the effect set (not part of the exchange).
  *
  * @param ch             Character to initialise (must have valid combatState)
  * @param ambushFlags    D_CombatIsAmbush value: 0=none, 1=party, 2=enemy, 3=both (bit0=party, bit1=enemy)
- * @param effectRuntime  May be nullptr; used for ES_TARGET_SELECTION_FILTER
- * @param globals        Combat globals passed to effect runtime
+ * @param effectRuntime  May be nullptr; used for ES_COMBAT_RATE_MODIFIER
+ * @param globals        Combat globals (attackCount written here; turnCounter read for bonus)
  */
 void initCharacterTurnState(Data::PlayerCharacter *ch,
-                            uint8 ambushFlags,
                             Data::Effects::EffectRuntime *effectRuntime,
-                            CombatGlobals *globals);
+                            CombatGlobals *globals,
+                            ECL::AddressSpace *eclMemory,
+                            const VmGlobalLayout *vmLayout);
 
 /**
  * Reset turn state for every character in the roster.
- *
- * Mirrors the per-character loop at the top of each round in COMBAT_MainLoop.
- * Skips null entries and characters without combatState.
  */
 void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster,
-                       uint8 ambushFlags,
                        Data::Effects::EffectRuntime *effectRuntime,
-                       CombatGlobals *globals);
+                       CombatGlobals *globals,
+                       ECL::AddressSpace *eclMemory,
+                       const VmGlobalLayout *vmLayout);
 
 /**
  * Select the next character to act this round.

@@ -68,8 +68,15 @@ CombatSession::TickResult CombatSession::tick() {
             return result;
         }
 
-        const uint8 ambushFlags = readAndClearAmbushFlags();
-        initAllTurnStates(_params.roster, ambushFlags, nullptr, &_globals);
+        initAllTurnStates(_params.roster, nullptr, &_globals,
+                           _params.eclMemory, _params.vmGlobalLayout);
+        // Clear D_CombatIsAmbush after all initiatives are rolled.
+        if (_params.eclMemory && _params.vmGlobalLayout) {
+            const VmFieldLocation field =
+                _params.vmGlobalLayout->field(kVmGlobalFieldCombatIsAmbush);
+            if (VmLayout::isValid(field))
+                _params.eclMemory->write8(field.vmAddr, 0);
+        }
         _currentActor = selectNextActor(_params.roster, _globals);
     }
 
@@ -214,18 +221,6 @@ bool CombatSession::prepareTurn(Data::PlayerCharacter *ch) {
 
 CombatContext CombatSession::makeContext() {
     return CombatContext(_globals, _params, _table, _battlefieldMap, _viewport);
-}
-
-uint8 CombatSession::readAndClearAmbushFlags() const {
-    if (!_params.eclMemory || !_params.vmGlobalLayout)
-        return 0;
-    const VmFieldLocation field =
-        _params.vmGlobalLayout->field(kVmGlobalFieldCombatIsAmbush);
-    if (!VmLayout::isValid(field))
-        return 0;
-    const uint8 flags = _params.eclMemory->read8(field.vmAddr);
-    _params.eclMemory->write8(field.vmAddr, 0);
-    return flags;
 }
 
 } // namespace Combat

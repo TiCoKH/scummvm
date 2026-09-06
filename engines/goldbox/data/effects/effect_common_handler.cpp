@@ -81,8 +81,8 @@ static void handleHaste(const EffectCall &c) {
         if (c.bridge)
             c.bridge->postEffectMessage(&c.character, "ages", true);
     }
-    if (c.combat)
-        c.combat->attackCount += c.combat->attackCount;
+    if (c.combat && !c.combat->effectSet18.isMovement)
+        c.combat->effectSet18.value *= 2;
 }
 
 static void handleSleep(const EffectCall &c) {
@@ -295,7 +295,8 @@ void handleSlow(const EffectCall &c) {
     if (!c.combat)
         return;
     c.combat->attackRoll -= 1;
-    c.combat->attackCount >>= 1;
+    if (!c.combat->effectSet18.isMovement)
+        c.combat->effectSet18.value >>= 1;
 }
 
 void handleParalyze(const EffectCall &c) {
