@@ -79,6 +79,7 @@ MODULE_OBJS = \
 	combat/combat_turn.o \
 	combat/combat_targeting.o \
 	combat/combat_ai.o \
+	combat/combat_session.o \
 	combat/combat_ground_info.o \
 	combat/combatant_table.o \
 	combat/combat_placement.o \
@@ -109,6 +110,7 @@ MODULE_OBJS = \
 	poolrad/views/in_game_view.o \
 	poolrad/views/combat_view.o \
 	poolrad/views/dialogs/dialog.o \
+	poolrad/views/dialogs/combat_menu_dialog.o \
 	poolrad/views/dialogs/door_dialog.o \
 	poolrad/views/dialogs/spell_book_dialog.o \
 	poolrad/views/dialogs/horizontal_input.o \

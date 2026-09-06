@@ -20,10 +20,6 @@
  */
 
 #include "goldbox/poolrad/views/combat_view.h"
-#include "goldbox/combat/combat_setup.h"
-#include "goldbox/combat/combat_turn.h"
-#include "goldbox/combat/combat_ai.h"
-#include "goldbox/combat/combat_targeting.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/data/player_character.h"
@@ -46,25 +42,20 @@ namespace Poolrad {
 namespace Views {
 
 CombatView::CombatView()
-    : View("Combat"), _phase(PHASE_NONE),
-      _currentActor(nullptr), _needsFullRedraw(true) {
+    : View("Combat"), _needsFullRedraw(true), _combatMenu(nullptr) {
+    _combatMenu = new Dialogs::CombatMenuDialog();
 }
 
 CombatView::~CombatView() {
+    delete _combatMenu;
 }
 
 void CombatView::setup(const Combat::CombatParams &params) {
-    _params = params;
-    _globals.turnCounter = 0;
-    _phase = PHASE_SETUP;
     _bridge = Goldbox::Poolrad::getEffectHostBridge();
 
-    // Invalidate cached portrait data (mirrors VM_LOADED_HEAD = 0xFF,
-    // VM_LOADED_BODY = 0xFF and SYS_FreeRes calls in original COMBAT_Setup)
     g_engine->getPictureDisplayCache().clear();
 
-    // Load terrain tiles (mirrors DAX_LoadIconBlock in original)
-    if (_params.isDungeon) {
+    if (params.isDungeon) {
         _tileCache.loadDungeon(g_engine->getDaxDungcom(),
                                g_engine->getDaxRandcom());
     } else {
@@ -72,22 +63,14 @@ void CombatView::setup(const Combat::CombatParams &params) {
                                    g_engine->getDaxRandcom());
     }
 
-    // Wire up game-specific tile property provider
-    _battlefieldMap.setTilePropertyProvider(&PoolradTilePropertyProvider::instance());
+    Combat::CombatParams p = params;
+    p.tilePropertyProvider = &PoolradTilePropertyProvider::instance();
+    _session.setup(p);
 
-    // Run the full COMBAT_Setup sequence.
-    Combat::setupCombat(_params, _globals, _battlefieldMap, _table,
-                        _placement, _viewport, nullptr);
-
-    _tilemap.render(_battlefieldMap, _tileCache,
-                     _battlefieldMap.getTilePropertyProvider());
-
-    // Set viewport-relative position cache origin
-    _table.setViewportOrigin(_viewport.getTopLeft());
+    _tilemap.render(_session.getBattlefieldMap(), _tileCache,
+                    _session.getBattlefieldMap().getTilePropertyProvider());
 
     _needsFullRedraw = true;
-    _phase = PHASE_PLAYER_TURN;
-    _currentActor = nullptr;
 }
 
 bool CombatView::msgFocus(const FocusMessage &msg) {
@@ -102,66 +85,50 @@ bool CombatView::msgUnfocus(const UnfocusMessage &msg) {
 }
 
 bool CombatView::msgKeypress(const KeypressMessage &msg) {
-    if (_phase == PHASE_ENDED) {
+    if (_session.isEnded()) {
         close();
         return true;
     }
 
-    if (_phase != PHASE_PLAYER_TURN)
+    if (_session.getPhase() != Combat::CombatSession::PHASE_PLAYER_TURN)
         return false;
+
+    Combat::CombatViewport &vp = _session.getViewport();
+    TilePos center = vp.getCenter();
 
     switch (msg.keycode) {
     case Common::KEYCODE_ESCAPE:
-        _phase = PHASE_ENDED;
         close();
         return true;
-
     case Common::KEYCODE_LEFT:
-        _viewport.adjustToInclude(TilePos((uint8)(_viewport.getCenter().col - 1), _viewport.getCenter().row));
-        _table.setViewportOrigin(_viewport.getTopLeft());
-        _needsFullRedraw = true;
-        redraw();
-        return true;
-
-    case Common::KEYCODE_RIGHT:
-        _viewport.adjustToInclude(TilePos((uint8)(_viewport.getCenter().col + 1), _viewport.getCenter().row));
-        _table.setViewportOrigin(_viewport.getTopLeft());
-        _needsFullRedraw = true;
-        redraw();
-        return true;
-
-    case Common::KEYCODE_UP:
-        _viewport.adjustToInclude(TilePos(_viewport.getCenter().col, (uint8)(_viewport.getCenter().row - 1)));
-        _table.setViewportOrigin(_viewport.getTopLeft());
-        _needsFullRedraw = true;
-        redraw();
-        return true;
-
-    case Common::KEYCODE_DOWN:
-        _viewport.adjustToInclude(TilePos(_viewport.getCenter().col, (uint8)(_viewport.getCenter().row + 1)));
-        _table.setViewportOrigin(_viewport.getTopLeft());
-        _needsFullRedraw = true;
-        redraw();
-        return true;
-
-    default:
+        _session.scrollViewport(TilePos((uint8)(center.col - 1), center.row));
         break;
+    case Common::KEYCODE_RIGHT:
+        _session.scrollViewport(TilePos((uint8)(center.col + 1), center.row));
+        break;
+    case Common::KEYCODE_UP:
+        _session.scrollViewport(TilePos(center.col, (uint8)(center.row - 1)));
+        break;
+    case Common::KEYCODE_DOWN:
+        _session.scrollViewport(TilePos(center.col, (uint8)(center.row + 1)));
+        break;
+    default:
+        return false;
     }
 
-    return false;
+    _needsFullRedraw = true;
+    redraw();
+    return true;
 }
 
 void CombatView::draw() {
-    if (_phase == PHASE_NONE)
+    if (_session.getPhase() == Combat::CombatSession::PHASE_NONE)
         return;
 
-    Surface s = getSurface();
+    Combat::BattlefieldMap &map = _session.getBattlefieldMap();
 
-    // Incremental tilemap update: re-render only tiles that changed
-    // (downed-member stamps, spell cloud effects, etc.)
-    if (_battlefieldMap.hasDirtyTiles()) {
-        _tilemap.renderDirtyTiles(_battlefieldMap, _tileCache,
-                                  _battlefieldMap.getTilePropertyProvider());
+    if (map.hasDirtyTiles()) {
+        _tilemap.renderDirtyTiles(map, _tileCache, map.getTilePropertyProvider());
         _needsFullRedraw = true;
     }
 
@@ -174,94 +141,98 @@ void CombatView::draw() {
 }
 
 bool CombatView::tick() {
-    if (_phase == PHASE_NONE || _phase == PHASE_ENDED)
+    if (_session.getPhase() == Combat::CombatSession::PHASE_NONE ||
+            _session.isEnded())
         return false;
 
-    // --- Round start: init turn states and pick first actor ---
-    if (_phase == PHASE_PLAYER_TURN && _currentActor == nullptr) {
-        // Check combat-end condition before starting a new round.
-        _globals.updateSideCount(_params.roster);
-        if (_globals.sideCount[0] == 0 || _globals.sideCount[1] == 0) {
-            _globals.turnCounter++;
-            _phase = PHASE_ENDED;
-            return true;
+    const Combat::CombatSession::TickResult result = _session.tick();
+
+    // Scroll viewport to the current actor when they're focused.
+    if (result.event == Combat::CombatSession::TickResult::EV_ACTOR_FOCUSED &&
+            result.actor) {
+        const Combat::CombatantTable &table = _session.getTable();
+        const int idx = table.findIndex(result.actor);
+        if (idx >= 0) {
+            TilePos actorPos(table.getTileCol(idx), table.getTileRow(idx));
+            _session.scrollViewport(actorPos);
         }
-
-        Combat::initAllTurnStates(_params.roster);
-        _params.isAmbush = false;
-        _currentActor = Combat::selectNextActor(_params.roster, _globals);
-    }
-
-    if (_currentActor == nullptr)
-        return false;
-
-    // --- Dispatch by side ---
-    if (_currentActor->combatSide == ::Goldbox::Data::CS_ENEMY) {
-        _phase = PHASE_AI_TURN;
-        Combat::CombatContext ctx = makeContext();
-        Combat::AiTurnResult aiResult = Combat::executeAiTurn(_currentActor, ctx);
-
-        if (aiResult.action == Combat::AiTurnResult::ACTION_ATTACK &&
-                aiResult.target && aiResult.damage > 0) {
-            applyDamageMessage(aiResult.target, aiResult.damage,
-                               ::Goldbox::Data::DAMAGE_NORMAL, false);
-        }
-
         _needsFullRedraw = true;
     }
-    // CS_PARTY: player input drives the turn; tick() just advances to next actor.
 
-    // Advance to next actor.
-    _currentActor = Combat::selectNextActor(_params.roster, _globals);
-
-    if (_currentActor == nullptr) {
-        // All characters have acted — round complete.
-        _globals.turnCounter++;
-        Combat::updateHostileHealthPercent(_table, _globals);
-        _phase = PHASE_PLAYER_TURN; // ready for next round
-    } else if (_currentActor->combatSide == ::Goldbox::Data::CS_PARTY) {
-        _phase = PHASE_PLAYER_TURN;
+    // Party actor reached — show action menu.
+    if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER) {
+        if (_combatMenu && !_combatMenu->isActive()) {
+            attachDialog(_combatMenu);
+            _combatMenu->activate();
+        }
+        return true;
     }
 
-    return true;
+    if (result.event == Combat::CombatSession::TickResult::EV_AI_ATTACK &&
+            result.target && result.damage > 0) {
+        applyDamageMessage(result.target, (uint8)result.damage,
+                           ::Goldbox::Data::DAMAGE_NORMAL, false);
+    }
+
+    if (result.event != Combat::CombatSession::TickResult::EV_NONE)
+        _needsFullRedraw = true;
+
+    return result.event != Combat::CombatSession::TickResult::EV_NONE;
 }
 
-// --- Internal ---
+void CombatView::handleMenuResult(const MenuResultMessage &result) {
+    if (!result._success || !result._hasIntValue)
+        return;
 
-Combat::CombatContext CombatView::makeContext() {
-    return Combat::CombatContext(_globals, _params, _table, _battlefieldMap,
-                                 _viewport);
+    // Dismiss the menu.
+    if (_combatMenu && _combatMenu->isActive()) {
+        _combatMenu->deactivate();
+        detachDialog(_combatMenu);
+    }
+
+    const Combat::CombatSession::PlayerAction action =
+        static_cast<Combat::CombatSession::PlayerAction>(result._intValue);
+    const Combat::CombatSession::TickResult tickResult =
+        _session.submitPlayerAction(action);
+
+    if (tickResult.event == Combat::CombatSession::TickResult::EV_AI_ATTACK &&
+            tickResult.target && tickResult.damage > 0) {
+        applyDamageMessage(tickResult.target, (uint8)tickResult.damage,
+                           ::Goldbox::Data::DAMAGE_NORMAL, false);
+    }
+
+    _needsFullRedraw = true;
 }
+
+// ---------------------------------------------------------------------------
+// Draw helpers
 
 void CombatView::drawViewport() {
     if (!_tilemap.isBuilt())
         return;
 
-    Common::Rect srcRect = _viewport.getSourceRect(kTileSize);
-    Common::Point dstPos(kViewportX, kViewportY);
-
+    const Combat::CombatViewport &vp = _session.getViewport();
+    Common::Rect srcRect = vp.getSourceRect(kTileSize);
     Surface s = getSurface();
-    _tilemap.blitTo(&s, dstPos, srcRect);
+    _tilemap.blitTo(&s, Common::Point(kViewportX, kViewportY), srcRect);
 }
 
 void CombatView::drawCombatants() {
     Surface s = getSurface();
+    const Combat::CombatantTable &table = _session.getTable();
 
-    for (int i = 0; i < _table.getCount(); i++) {
-        if (_table.getSize(i) == 0)
+    for (int i = 0; i < table.getCount(); i++) {
+        if (table.getSize(i) == 0)
             continue;
 
-        // Use viewport-relative positions (mirrors original
-        // BYTE_ARRAY_COL_DIST / BYTE_ARRAY_ROW_DIST usage in
-        // COMBAT_RedrawViewport)
-        int8 localCol = _table.getColDist(i);
-        int8 localRow = _table.getRowDist(i);
+        int8 localCol = table.getColDist(i);
+        int8 localRow = table.getRowDist(i);
 
         if (localCol < 0 || localCol >= Combat::CombatViewport::VIEW_COLS ||
             localRow < 0 || localRow >= Combat::CombatViewport::VIEW_ROWS)
             continue;
 
-        ::Goldbox::Data::PlayerCharacter *ch = _table.getCharacter(i);
+        ::Goldbox::Data::PlayerCharacter *ch = table.getCharacter(i);
         if (!ch)
             continue;
 
@@ -272,9 +243,6 @@ void CombatView::drawCombatants() {
                 dir = Gfx::ICON_DIRECTION_LEFT;
         }
 
-        // If a pre-built icon slot was assigned (monsters loaded via loadMonster),
-        // use the engine's IconManager's pre-composited Pic drawn at the correct pixel
-        // position. Otherwise fall back to CombatRenderer (player characters).
         const uint8 slotId = ch->iconData.iconSlotId;
         int pixX = kViewportX + localCol * kTileSize;
         int pixY = kViewportY + localRow * kTileSize;
@@ -297,26 +265,27 @@ void CombatView::drawUI() {
     s.drawWindow(kWin2Left, kWin2Top, kWin2Right, kWin2Bottom, kBackgroundColor);
 }
 
+// ---------------------------------------------------------------------------
+// Damage
+
 void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
-    uint8 baseDamage, ::Goldbox::Data::DamageModifier modifier,
-    bool applyModifier) {
+        uint8 baseDamage, ::Goldbox::Data::DamageModifier modifier,
+        bool applyModifier) {
     if (!ch)
         return;
 
     Goldbox::Data::DamageSystem damageSystem(nullptr);
     const Goldbox::Data::DamageResult r = damageSystem.applyLegacy(
-        *ch, baseDamage, modifier, applyModifier, _globals.behaviorFlags);
+        *ch, baseDamage, modifier, applyModifier,
+        _session.getGlobals().behaviorFlags);
 
     if (r.applied <= 0)
         return;
 
     const bool isMagic =
-            (_globals.behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) ==
-            _globals.behaviorFlags;
+        (_session.getGlobals().behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) ==
+        _session.getGlobals().behaviorFlags;
 
-    // Mirrors COMBAT_DrawDamage: render the character-aware message before
-    // playing the hit animation. GameText owns TEXT_BlockPrint-compatible
-    // wrapping and the legacy combat message-box coordinates.
     if (g_engine) {
         g_engine->getGameText().showMessage(ch, r.message, 10, false);
         Surface messageSurface = getSurface();
@@ -351,8 +320,6 @@ void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
 }
 
 void CombatView::handleDeathOnMap(::Goldbox::Data::PlayerCharacter *ch) {
-    // TODO: remove character token from battlefield, update ground state.
-    // Mirrors COMBAT_HandleDeathOnMap.
     (void)ch;
     _needsFullRedraw = true;
     if (_bridge)
@@ -360,64 +327,54 @@ void CombatView::handleDeathOnMap(::Goldbox::Data::PlayerCharacter *ch) {
             ::Goldbox::Data::Effects::EffectHostBridge::RF_VIEWPORT);
 }
 
-    void CombatView::drawDamage(::Goldbox::Data::PlayerCharacter *ch,
+void CombatView::drawDamage(::Goldbox::Data::PlayerCharacter *ch,
         bool isMagic, const Common::String &message) {
-    // Outside combat: message only, no animation.
-    if (_phase == PHASE_NONE || _phase == PHASE_ENDED) {
+    if (_session.getPhase() == Combat::CombatSession::PHASE_NONE ||
+            _session.isEnded()) {
         if (_bridge)
             _bridge->postEffectMessage(ch, message, true);
         return;
     }
 
-    // Tile IDs: 0x16 = magic damage effect, 0x17 = normal damage effect.
-    // Each is a 4-frame sprite strip in SPRIT.DAX.
     const uint8 effectTileId = isMagic ? 0x16 : 0x17;
 
-    // Load all 4 effect frames up front.
     Gfx::Pic *frames[4] = {};
-            ::Goldbox::Data::DaxBlockContainer &sprit = g_engine->getDaxSprit();
-            ::Goldbox::Data::DaxBlock *block = sprit.getBlockById(effectTileId);
-            ::Goldbox::Data::DaxBlockSprit *spritBlock =
-                block ? dynamic_cast<::Goldbox::Data::DaxBlockSprit *>(block)
-                  : nullptr;
+    ::Goldbox::Data::DaxBlockContainer &sprit = g_engine->getDaxSprit();
+    ::Goldbox::Data::DaxBlock *block = sprit.getBlockById(effectTileId);
+    ::Goldbox::Data::DaxBlockSprit *spritBlock =
+        block ? dynamic_cast<::Goldbox::Data::DaxBlockSprit *>(block) : nullptr;
     if (spritBlock) {
         for (int f = 0; f < 4; ++f)
             frames[f] = Gfx::Pic::readSpriteFrame(spritBlock, f);
     }
 
-    // Ensure character is visible; scroll viewport if needed.
-    const int idx = _table.findIndex(ch);
+    const Combat::CombatantTable &table = _session.getTable();
+    const int idx = table.findIndex(ch);
     if (idx >= 0) {
-        const uint8 col = _table.getTileCol(idx);
-        const uint8 row = _table.getTileRow(idx);
-        if (!_viewport.isTileVisible(TilePos(col, row))) {
-            _viewport.adjustToInclude(TilePos(col, row));
-            _table.setViewportOrigin(_viewport.getTopLeft());
+        const uint8 col = table.getTileCol(idx);
+        const uint8 row = table.getTileRow(idx);
+        if (!_session.getViewport().isTileVisible(TilePos(col, row))) {
+            _session.scrollViewport(TilePos(col, row));
             drawViewport();
             drawCombatants();
             g_system->updateScreen();
         }
     }
 
-    // Sound.
-    // SOUND_ID_MAGIC_DAMAGE = 6, SOUND_ID_NORMAL_DAMAGE = 5 (Poolrad values).
     g_engine->soundPlay(isMagic ? 6 : 5);
 
-    // Animation: magic repeats CFG_GAME_SPEED times, normal runs once.
-    // CFG_GAME_SPEED maps to g_engine->getTextDelay() (1-5).
     const int repeatCount = isMagic ? (int)g_engine->getTextDelay() : 0;
 
-    // Pixel position of the character in the viewport.
-    // colDist/rowDist are viewport-local tile coords (0-based).
     int pixX = kViewportX;
     int pixY = kViewportY;
     if (idx >= 0) {
-        pixX = kViewportX + _table.getColDist(idx) * kTileSize;
-        pixY = kViewportY + _table.getRowDist(idx) * kTileSize;
+        pixX = kViewportX + table.getColDist(idx) * kTileSize;
+        pixY = kViewportY + table.getRowDist(idx) * kTileSize;
     }
 
     Surface screenSurface = getSurface();
-    Graphics::ManagedSurface *screen = static_cast<Graphics::ManagedSurface *>(&screenSurface);
+    Graphics::ManagedSurface *screen =
+        static_cast<Graphics::ManagedSurface *>(&screenSurface);
 
     for (int rep = 0; rep <= repeatCount; ++rep) {
         for (int f = 0; f < 4; ++f) {
@@ -425,23 +382,17 @@ void CombatView::handleDeathOnMap(::Goldbox::Data::PlayerCharacter *ch) {
                 drawDamageFrame(frames[f], pixX, pixY, screen);
 
             g_system->updateScreen();
-            g_system->delayMillis(46); // mirrors Wait_cycle(0x46)
+            g_system->delayMillis(46);
 
-            // Restore underlying tile by reblitting the tilemap region.
-            Common::Rect tileRect(pixX, pixY,
-                                  pixX + kTileSize, pixY + kTileSize);
             Common::Rect srcRect(pixX - kViewportX, pixY - kViewportY,
                                  pixX - kViewportX + kTileSize,
                                  pixY - kViewportY + kTileSize);
-            _tilemap.blitTo(screen,
-                            Common::Point(tileRect.left, tileRect.top),
-                            srcRect);
+            _tilemap.blitTo(screen, Common::Point(pixX, pixY), srcRect);
         }
     }
 
     g_system->updateScreen();
 
-    // Normal damage: one extra wait after animation.
     if (repeatCount == 0)
         g_system->delayMillis(200);
 

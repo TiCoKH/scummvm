@@ -24,10 +24,13 @@
 
 #include "common/scummsys.h"
 #include "common/array.h"
+#include "goldbox/data/player_character.h"
 
 namespace Goldbox {
 namespace Data {
-class PlayerCharacter;
+namespace Effects {
+class EffectRuntime;
+}
 }
 
 namespace Combat {
@@ -35,35 +38,58 @@ namespace Combat {
 struct CombatGlobals;
 
 /**
+ * Returns true if the given combat side is ambushed this round.
+ *
+ * D_CombatIsAmbush encoding:
+ *   0x00 = nobody ambushed
+ *   0x01 = party ambushed
+ *   0x02 = enemy ambushed
+ *   0x03 = both sides ambushed
+ *
+ * Treated as a 2-bit field: bit0 = party, bit1 = enemy.
+ */
+bool isSideAmbushed(Data::CombatSide side, uint8 ambushFlags);
+
+/**
  * Reset per-turn CombatAction fields for one character.
  *
  * Mirrors original COMBAT_InitCharacterTurnState:
- *   - Clears fleeing, guarding, moralFailure, directionChange
- *   - Resets attackCount from character's base attack rate
- *   - Resets movePoints from character's movement stat
- *   - Preserves direction, notInTeam, bleeding, aiState across turns
+ *   - Resets spellId=0, canCast=true, canUse=true, unknownBool=false, attackId=2
+ *   - Recalculates attackCount from primary roll, then runs ES_TARGET_SELECTION_FILTER
+ *     (effect set 18) which may modify it
+ *   - Sets maxTargets from attackLevel
+ *   - Rolls initiative: 1d6 + getDexSpeedBonus(), min 1, ambush side -6, clamp 0..20
+ *     (initiative=0 means no turn; disabled characters always get initiative=0)
+ *   - Calculates movePoints
  *
- * @param ch  Character whose combatState is reset (must be non-null with
- *            a valid combatState pointer — i.e. called during combat only).
+ * @param ch             Character to initialise (must have valid combatState)
+ * @param ambushFlags    D_CombatIsAmbush value: 0=none, 1=party, 2=enemy, 3=both (bit0=party, bit1=enemy)
+ * @param effectRuntime  May be nullptr; used for ES_TARGET_SELECTION_FILTER
+ * @param globals        Combat globals passed to effect runtime
  */
-void initCharacterTurnState(Data::PlayerCharacter *ch);
+void initCharacterTurnState(Data::PlayerCharacter *ch,
+                            uint8 ambushFlags,
+                            Data::Effects::EffectRuntime *effectRuntime,
+                            CombatGlobals *globals);
 
 /**
  * Reset turn state for every character in the roster.
  *
- * Mirrors the per-character loop at the top of each round in
- * COMBAT_MainLoop. Skips null entries and characters without combatState.
+ * Mirrors the per-character loop at the top of each round in COMBAT_MainLoop.
+ * Skips null entries and characters without combatState.
  */
-void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster);
+void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster,
+                       uint8 ambushFlags,
+                       Data::Effects::EffectRuntime *effectRuntime,
+                       CombatGlobals *globals);
 
 /**
  * Select the next character to act this round.
  *
- * Mirrors COMBAT_SelectNextActor:
- *   - Iterates roster in order
- *   - Skips disabled, dead, or already-acted characters (delay == 0xFF)
- *   - Returns the first character whose delay counter is lowest
- *   - Returns nullptr when all characters have acted (round complete)
+ * Mirrors COMBAT_SelectNextActor: returns the enabled character with the
+ * highest initiative value that has not yet acted (initiative != 0xFF).
+ * Returns nullptr when all characters have acted (round complete) or a
+ * side has no members.
  *
  * @param roster   Full combat roster
  * @param globals  Combat globals (reads sideCount to detect round end)
