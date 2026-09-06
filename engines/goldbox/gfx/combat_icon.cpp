@@ -107,8 +107,9 @@ void CombatIcon::drawIcon(
     if (!composite)
         return;
 
+    const uint8 transparentIdx = composite->getTransparentIndex();
     if (colorOverride < 0) {
-        composite->draw(dst, x, y);
+        composite->trDraw(dst, x, y, transparentIdx);
         return;
     }
 
@@ -119,7 +120,7 @@ void CombatIcon::drawIcon(
     if (colorOverride >= 0 && colorOverride < 256)
         applyColorFilter(effectPic, static_cast<uint8>(colorOverride));
 
-    effectPic->draw(dst, x, y);
+    effectPic->trDraw(dst, x, y, transparentIdx);
     delete effectPic;
 }
 
@@ -141,8 +142,9 @@ void CombatIcon::drawIconAtTile(
     if (!composite)
         return;
 
+    const uint8 transparentIdx = composite->getTransparentIndex();
     if (colorOverride < 0) {
-        composite->drawAtIconPos(dst, tileX, tileY);
+        composite->trDrawAtIconPos(dst, tileX, tileY, transparentIdx);
         return;
     }
 
@@ -153,7 +155,7 @@ void CombatIcon::drawIconAtTile(
     if (colorOverride >= 0 && colorOverride < 256)
         applyColorFilter(effectPic, static_cast<uint8>(colorOverride));
 
-    effectPic->drawAtIconPos(dst, tileX, tileY);
+    effectPic->trDrawAtIconPos(dst, tileX, tileY, transparentIdx);
     delete effectPic;
 }
 

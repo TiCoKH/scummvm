@@ -23,20 +23,12 @@
 #define GOLDBOX_POOLRAD_VIEWS_COMBAT_VIEW_H
 
 #include "goldbox/poolrad/views/view.h"
-#include "goldbox/combat/combat_params.h"
-#include "goldbox/combat/combat_globals.h"
-#include "goldbox/combat/combat_context.h"
-#include "goldbox/combat/combatant_table.h"
-#include "goldbox/combat/combat_placement.h"
-#include "goldbox/combat/combat_viewport.h"
-#include "goldbox/combat/battlefield_map.h"
-#include "goldbox/combat/combat_turn.h"
-#include "goldbox/combat/combat_ai.h"
-#include "goldbox/combat/combat_setup.h"
+#include "goldbox/combat/combat_session.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/gfx/combat_renderer.h"
+#include "goldbox/poolrad/views/dialogs/combat_menu_dialog.h"
 
 // Forward declarations — avoid pulling full headers into the Poolrad::Views
 // namespace where unqualified 'Data::' would resolve to Goldbox::Poolrad::Data.
@@ -44,7 +36,6 @@ namespace Goldbox {
 namespace Data {
 class PlayerCharacter;
 namespace Effects {
-class EffectRuntime;
 class EffectHostBridge;
 } // namespace Effects
 } // namespace Data
@@ -58,13 +49,11 @@ namespace Poolrad {
 namespace Views {
 
 /**
- * Tactical combat view — self-contained combat screen.
+ * Tactical combat view — presentation and input only.
  *
- * Pushed onto the view stack by the ECL ENCOUNTER opcode handler.
- * Owns the full combat loop: terrain, placement, turns, AI, rendering.
- * Does not access the VM directly; receives all setup data via CombatParams.
- *
- * Posts a CombatResult via MenuResult event when combat ends.
+ * Owns a CombatSession for all combat logic and state.
+ * Responsible for: terrain/combatant rendering, damage animation,
+ * viewport scroll input, and reacting to TickResult events from the session.
  */
 class CombatView : public View {
 public:
@@ -97,65 +86,49 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
     bool tick() override;
+    void handleMenuResult(const MenuResultMessage &result) override;
 
-    /** Debug read-only access for console dumps. */
+    // --- Debug accessors ---
     const Combat::BattlefieldMap &debugBattlefieldMap() const {
-        return _battlefieldMap;
+        return _session.getBattlefieldMap();
     }
-
-    /** Debug read-only access to the currently rendered tilemap. */
     const Gfx::BattlefieldTilemap &debugTilemap() const {
         return _tilemap;
     }
-
-    /** Debug read-only access to combat terrain tile cache. */
     const Gfx::CombatTileCache &debugTileCache() const {
         return _tileCache;
     }
-
-    /** Debug read-only access to combatant placement table. */
     const Combat::CombatantTable &debugCombatantTable() const {
-        return _table;
+        return _session.getTable();
     }
-
-    /** Debug: number of player-controlled characters in the roster. */
     int debugPartyCount() const {
-        return _params.partyCount;
+        return _session.getParams().partyCount;
     }
 
 private:
-    enum CombatPhase {
-        PHASE_NONE = 0,
-        PHASE_SETUP,       // terrain + placement done, ready to draw
-        PHASE_PLAYER_TURN, // waiting for player input
-        PHASE_AI_TURN,     // enemy AI executing
-        PHASE_ANIMATING,   // animation playing
-        PHASE_ENDED        // combat over, waiting to close
-    };
+    // --- Backend ---
+    Combat::CombatSession _session;
 
-    // --- Combat state ---
-    Combat::CombatParams _params;
-    Combat::CombatGlobals _globals;
-    Combat::BattlefieldMap _battlefieldMap;
-    Combat::CombatantTable _table;
-    Combat::CombatPlacement _placement;
-    Combat::CombatViewport _viewport;
-    CombatPhase _phase;
-    Goldbox::Data::PlayerCharacter *_currentActor; // actor taking its turn this tick
+    // --- Dialogs ---
+    Dialogs::CombatMenuDialog *_combatMenu;
 
     // --- Effect bridge (wired at setup time) ---
     Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;
 
     // --- Rendering ---
     Gfx::BattlefieldTilemap _tilemap;
-    Gfx::CombatTileCache _tileCache;
-    Gfx::CombatRenderer _combatRenderer;
-    bool _needsFullRedraw;
+    Gfx::CombatTileCache    _tileCache;
+    Gfx::CombatRenderer     _combatRenderer;
+    bool                    _needsFullRedraw;
 
     // --- Layout constants ---
-    static const int kViewportX = 8;      // pixel X of viewport area (char 1 * 8)
-    static const int kViewportY = 8;      // pixel Y of viewport area (char 1 * 8)
-    static const int kTileSize = 24;      // pixels per tile
+    static const int kViewportX = 8;
+    static const int kViewportY = 8;
+    static const int kTileSize  = 24;
+    static const int kViewportPixelW =
+        Combat::CombatViewport::VIEW_COLS * kTileSize;
+    static const int kViewportPixelH =
+        Combat::CombatViewport::VIEW_ROWS * kTileSize;
     static const uint8 kBackgroundColor = 8;
 
     // --- Window layout (character coords, matching original SCREEN_DrawWindow calls) ---
@@ -169,13 +142,11 @@ private:
     static const int kWin2Bottom = 21;
 
     // --- Internal methods ---
-    Combat::CombatContext makeContext();
-    void drawDamageFrame(const Goldbox::Gfx::Pic *frame, int pixX, int pixY,
-                         Graphics::ManagedSurface *dst);
-
     void drawViewport();
     void drawCombatants();
     void drawUI();
+    void drawDamageFrame(const Goldbox::Gfx::Pic *frame, int pixX, int pixY,
+                         Graphics::ManagedSurface *dst);
 };
 
 } // namespace Views

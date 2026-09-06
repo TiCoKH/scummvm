@@ -26,6 +26,7 @@
 #include "common/array.h"
 #include "goldbox/core/vm_layout.h"
 #include "goldbox/core/tile_pos.h"
+#include "goldbox/combat/tile_property_provider.h"
 
 namespace Goldbox {
 
@@ -37,6 +38,9 @@ class AddressSpace;
 
 namespace Data {
 class PlayerCharacter;
+namespace Effects {
+class EffectRuntime;
+}
 }
 
 namespace Combat {
@@ -82,6 +86,8 @@ struct CombatParams {
     bool monsterLoadReady;   // BOOL_MONST_LOAD_READY (pre-checked by caller)
     bool combatTrigger;      // BOOL_COMBAT_TRIGGER (caller clears after combat)
     Data::PlayerCharacter *nextChar;  // PTR_NEXT_CHAR (first character to act)
+    const TilePropertyProvider *tilePropertyProvider; // game-specific tile props
+    Data::Effects::EffectRuntime *effectRuntime;       // optional: for per-turn effect sets
 
     CombatParams()
         : partyCount(0), mapDirection(0), encounterDistance(2),
@@ -92,7 +98,8 @@ struct CombatParams {
           eclMemory(nullptr), vmGlobalLayout(nullptr),
           magicEnabled(false), slowMode(false), isAmbush(false),
           monsterLoadReady(false), combatTrigger(false),
-          nextChar(nullptr) {}
+          nextChar(nullptr), tilePropertyProvider(nullptr),
+          effectRuntime(nullptr) {}
 };
 
 /**
