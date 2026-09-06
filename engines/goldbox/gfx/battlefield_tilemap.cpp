@@ -36,7 +36,7 @@ namespace Gfx {
 BattlefieldTilemap::BattlefieldTilemap()
         : _built(false) {
     _surface.create(kSurfaceWidth, kSurfaceHeight);
-    _surface.clear(0);
+    _surface.clear(kBackgroundColor);
 }
 
 BattlefieldTilemap::~BattlefieldTilemap() {
@@ -44,7 +44,7 @@ BattlefieldTilemap::~BattlefieldTilemap() {
 }
 
 void BattlefieldTilemap::clear() {
-    _surface.clear(0);
+    _surface.clear(kBackgroundColor);
     _built = false;
 }
 
@@ -64,7 +64,7 @@ Common::Rect BattlefieldTilemap::getActiveAreaRect(
 void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
                                 const CombatTileCache &tileCache,
                                 const Combat::TilePropertyProvider *tileProps) {
-    _surface.clear(0);
+    _surface.clear(kBackgroundColor);
 
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
@@ -85,7 +85,7 @@ void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
 
             int pixX = col * kIconSize;
             int pixY = row * kIconSize;
-            pic->draw(&_surface, pixX, pixY);
+            pic->trDraw(&_surface, pixX, pixY, 255);
         }
     }
 
@@ -110,7 +110,7 @@ int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
 
             Common::Rect tileRect(pixX, pixY,
                                   pixX + kIconSize, pixY + kIconSize);
-            _surface.fillRect(tileRect, 0);
+            _surface.fillRect(tileRect, kBackgroundColor);
 
             uint8 raw = map.getRawTile(TilePos((uint8)col, (uint8)row));
             if (raw != 0) {
@@ -122,7 +122,7 @@ int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
                 }
                 const Pic *pic = tileCache.getTile(slotId);
                 if (pic)
-                    pic->draw(&_surface, pixX, pixY);
+                    pic->trDraw(&_surface, pixX, pixY, 255);
             }
 
             redrawn++;
@@ -135,7 +135,7 @@ int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
 
 void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
                                 const IconManager &iconMgr) {
-    _surface.clear(0);
+    _surface.clear(kBackgroundColor);
 
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
@@ -150,7 +150,7 @@ void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
 
             int pixX = col * kIconSize;
             int pixY = row * kIconSize;
-            pic->draw(&_surface, pixX, pixY);
+            pic->trDraw(&_surface, pixX, pixY, 255);
         }
     }
 
@@ -174,14 +174,14 @@ int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
 
             Common::Rect tileRect(pixX, pixY,
                                   pixX + kIconSize, pixY + kIconSize);
-            _surface.fillRect(tileRect, 0);
+            _surface.fillRect(tileRect, kBackgroundColor);
 
             uint8 raw = map.getRawTile(TilePos((uint8)col, (uint8)row));
             if (raw != 0) {
                 uint8 slotId = raw - 1;
                 const Pic *pic = iconMgr.getPic(slotId);
                 if (pic)
-                    pic->draw(&_surface, pixX, pixY);
+                    pic->trDraw(&_surface, pixX, pixY, 255);
             }
 
             redrawn++;

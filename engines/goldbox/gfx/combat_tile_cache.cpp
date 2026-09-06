@@ -127,7 +127,7 @@ void CombatTileCache::loadFromContainer(Data::DaxBlockContainer &container,
             if (frameSlot >= MAX_TILES)
                 break;
 
-            Pic *tilePic = Pic::readFrame(picBlock, frame);
+            Pic *tilePic = Pic::readTileFrame(picBlock, frame);
             if (!tilePic)
                 continue;
 

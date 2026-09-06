@@ -68,6 +68,7 @@ class CombatTileCache;
  */
 class BattlefieldTilemap {
 public:
+    static const uint8 kBackgroundColor = 8; // EGA dark gray, matches set_icon
     static const int kPlayfieldCols = 50;
     static const int kPlayfieldRows = 25;
     static const int kIconSize = 24;
