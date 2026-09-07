@@ -34,6 +34,7 @@ namespace Spells {
 class SpellCastingService {
 public:
     SpellCastingService();
+    ~SpellCastingService();
 
     SpellCastResult castSpell(SpellContext &context,
                               Goldbox::Data::Spells::Spells spell);
@@ -98,6 +99,8 @@ private:
     // pathLength=3, savingThrowMod=3 — matches EFFECT_88_LingeringBreath parameters.
     BreathWeaponHandler _breathWeaponHandler{19, 0, 3, 3};
 };
+
+extern SpellCastingService *g_spellCasting;
 
 } // namespace Spells
 } // namespace Goldbox

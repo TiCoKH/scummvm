@@ -68,8 +68,11 @@ uint8 computeSpellDuration(uint8 spellId, uint8 casterLevel, bool inCombat) {
     }
 }
 
+SpellCastingService *g_spellCasting = nullptr;
+
 SpellCastingService::SpellCastingService()
     : _combatTargeter(nullptr), _nonCombatTargeter(nullptr) {
+    g_spellCasting = this;
     _registry.setHandler(kHandlerCureLightWounds, &_cureLightWoundsHandler);
     _registry.setHandler(kHandlerBurningHands,    &_burningHandsHandler);
     _registry.setHandler(kHandlerCharmPerson,     &_charmPersonHandler);
@@ -195,6 +198,11 @@ SpellCastingService::SpellCastingService()
         kHandlerRestore);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI10,
         kHandlerBreathWeapon);
+}
+
+SpellCastingService::~SpellCastingService() {
+    if (g_spellCasting == this)
+        g_spellCasting = nullptr;
 }
 
 SpellCastResult SpellCastingService::castSpell(SpellContext &context,

@@ -32,8 +32,15 @@
 namespace Goldbox {
 namespace Combat {
 
+CombatSession *g_combatSession = nullptr;
+
 CombatSession::CombatSession()
     : _phase(PHASE_NONE), _currentActor(nullptr) {
+}
+
+CombatSession::~CombatSession() {
+    if (g_combatSession == this)
+        g_combatSession = nullptr;
 }
 
 void CombatSession::setup(const CombatParams &params) {
@@ -50,6 +57,7 @@ void CombatSession::setup(const CombatParams &params) {
     _table.setViewportOrigin(_viewport.getTopLeft());
     _phase = PHASE_PLAYER_TURN;
     _currentActor = nullptr;
+    _context.reset(new CombatContext(makeContext()));
 }
 
 CombatSession::TickResult CombatSession::tick() {

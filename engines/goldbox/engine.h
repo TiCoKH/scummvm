@@ -70,7 +70,6 @@ protected:
 	Runtime::TreasurePool            *_treasurePool;
 	Data::Effects::EffectHandlerBase *_effectHandler = nullptr;
 	Spells::SpellCastingService      *_spellCasting  = nullptr;
-	Combat::CombatContext            *_combatContext  = nullptr;
 	Gfx::ViewportBackground _viewportBg;
 	Gfx::AreaMapCache _areaMapCache;
 	Gfx::EncounterSpriteCache _encounterSpriteCache;
@@ -375,8 +374,8 @@ public:
 	const Spells::SpellCastingService *getSpellCasting() const { return _spellCasting; }
 
 	/** Nullable - only valid during an active combat session. */
-	Combat::CombatContext *getCombatContext() { return _combatContext; }
-	const Combat::CombatContext *getCombatContext() const { return _combatContext; }
+	Combat::CombatContext *getCombatContext();
+	const Combat::CombatContext *getCombatContext() const;
 
 	Gfx::Tile8x8Cache &getTileCache() { return _tileCache; }
 	const Gfx::Tile8x8Cache &getTileCache() const { return _tileCache; }

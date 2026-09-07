@@ -23,6 +23,7 @@
 #define GOLDBOX_COMBAT_COMBAT_SESSION_H
 
 #include "common/scummsys.h"
+#include "common/ptr.h"
 #include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/combat/combat_context.h"
@@ -83,6 +84,7 @@ public:
     };
 
     CombatSession();
+    ~CombatSession();
 
     void setup(const CombatParams &params);
 
@@ -114,6 +116,14 @@ public:
     const CombatGlobals   &getGlobals()        const { return _globals; }
     const CombatParams    &getParams()         const { return _params; }
 
+    /**
+     * Non-owning reference bundle valid for the lifetime of the active
+     * combat session (built in setup(), rebuilt on the next setup()).
+     * nullptr before the first setup() call.
+     */
+    CombatContext *getContext() { return _context.get(); }
+    const CombatContext *getContext() const { return _context.get(); }
+
     /** Scroll viewport to include target tile; rebuilds distance cache. */
     void scrollViewport(TilePos target);
 
@@ -125,6 +135,8 @@ private:
     CombatPlacement _placement;
     CombatViewport  _viewport;
     Phase           _phase;
+
+    Common::ScopedPtr<CombatContext> _context;
 
     Data::PlayerCharacter *_currentActor;
 
@@ -139,6 +151,12 @@ private:
      */
     bool prepareTurn(Data::PlayerCharacter *ch);
 };
+
+/**
+ * Set by CombatView while a combat encounter is on-screen; nullptr
+ * otherwise. Nullable - only valid during an active combat session.
+ */
+extern CombatSession *g_combatSession;
 
 } // namespace Combat
 } // namespace Goldbox

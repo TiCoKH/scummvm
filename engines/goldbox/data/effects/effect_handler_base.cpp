@@ -25,7 +25,15 @@ namespace Goldbox {
 namespace Data {
 namespace Effects {
 
+EffectHandlerBase *g_effectHandler = nullptr;
+
 EffectHandlerBase::EffectHandlerBase() : _defaultHandler(nullptr) {
+    g_effectHandler = this;
+}
+
+EffectHandlerBase::~EffectHandlerBase() {
+    if (g_effectHandler == this)
+        g_effectHandler = nullptr;
 }
 
 void EffectHandlerBase::apply(EffectOp op, Effect &effect,

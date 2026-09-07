@@ -21,6 +21,7 @@
 
 #include "goldbox/engine.h"
 #include "goldbox/runtime/treasure_pool.h"
+#include "goldbox/combat/combat_session.h"
 #include "goldbox/console.h"
 #include "common/config-manager.h"
 #include "common/debug-channels.h"
@@ -56,6 +57,14 @@ Engine::~Engine() {
 	for (Common::List<Data::PlayerCharacter *>::iterator it = _party.begin(); it != _party.end(); ++it)
 		delete *it;
 	_party.clear();
+}
+
+Combat::CombatContext *Engine::getCombatContext() {
+	return Combat::g_combatSession ? Combat::g_combatSession->getContext() : nullptr;
+}
+
+const Combat::CombatContext *Engine::getCombatContext() const {
+	return Combat::g_combatSession ? Combat::g_combatSession->getContext() : nullptr;
 }
 
 Runtime::TreasurePool &Engine::getTreasurePool() { return *_treasurePool; }
