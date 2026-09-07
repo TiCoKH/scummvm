@@ -1205,12 +1205,13 @@ VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
         layout.vmField(kVmFieldClockYearLo).vmAddr
     }};
 
-    EffectHandler effectHandler;
-    timeAddUnits(*_memory, clockAddrs, *party, &effectHandler,
+    timeAddUnits(*_memory, clockAddrs, *party,
+        Goldbox::Data::Effects::g_effectHandler,
         VmInterface::getGameStatus(), 1, amount);
 
     // First runtime trigger-set integration: periodic poison/disease cycle.
-    Goldbox::Data::Effects::EffectRuntime runtime(&effectHandler,
+    Goldbox::Data::Effects::EffectRuntime runtime(
+        Goldbox::Data::Effects::g_effectHandler,
         Goldbox::Poolrad::getEffectHostBridge());
     for (Goldbox::Data::PlayerCharacter *character : *party) {
         if (!character)
