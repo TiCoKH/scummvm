@@ -63,8 +63,8 @@ void PoolradCharacter::addEffect(uint8 type, uint16 durationMin,
 	// it never fires any handler. Pass immediate=false so addOrRefreshEffect
 	// only appends without triggering EFF_ADD, matching the original behaviour
 	// and avoiding reentrancy when one handler calls addEffect.
-	Goldbox::Poolrad::EffectHandler effectHandler;
-	Goldbox::Data::Effects::EffectSystem effectSystem(&effectHandler,
+	Goldbox::Data::Effects::EffectSystem effectSystem(
+		Goldbox::Data::Effects::g_effectHandler,
 		Goldbox::Poolrad::getEffectHostBridge());
 	effectSystem.addOrRefreshEffect(effects, *this, type, durationMin,
 		power, false);
@@ -76,8 +76,8 @@ void PoolradCharacter::onEffectsChanged() {
 }
 
 void PoolradCharacter::removeUnconsciousEffect() {
-	Goldbox::Poolrad::EffectHandler effectHandler;
-	Goldbox::Data::Effects::EffectSystem effectSystem(&effectHandler,
+	Goldbox::Data::Effects::EffectSystem effectSystem(
+		Goldbox::Data::Effects::g_effectHandler,
 		Goldbox::Poolrad::getEffectHostBridge());
 	effectSystem.removeEffectById(*this, effects,
 		Goldbox::Data::Effects::E_POOLRAD_HELPLESS_33);
