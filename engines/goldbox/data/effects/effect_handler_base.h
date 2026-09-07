@@ -69,7 +69,7 @@ class EffectHandlerBase {
 public:
     using Handler = void (*)(const EffectCall &call);
 
-    virtual ~EffectHandlerBase() {}
+    virtual ~EffectHandlerBase();
 
     void apply(EffectOp op, Effect &effect,
             Goldbox::Data::PlayerCharacter &character,
@@ -102,6 +102,8 @@ private:
     Common::HashMap<uint8, Handler> _rawHandlers;
     Handler _defaultHandler;
 };
+
+extern EffectHandlerBase *g_effectHandler;
 
 } // namespace Effects
 } // namespace Data

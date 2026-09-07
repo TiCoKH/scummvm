@@ -66,6 +66,7 @@ void CombatView::setup(const Combat::CombatParams &params) {
     Combat::CombatParams p = params;
     p.tilePropertyProvider = &PoolradTilePropertyProvider::instance();
     _session.setup(p);
+    Combat::g_combatSession = &_session;
 
     _tilemap.render(_session.getBattlefieldMap(), _tileCache,
                     _session.getBattlefieldMap().getTilePropertyProvider());
@@ -81,6 +82,8 @@ bool CombatView::msgFocus(const FocusMessage &msg) {
 }
 
 bool CombatView::msgUnfocus(const UnfocusMessage &msg) {
+    if (Combat::g_combatSession == &_session)
+        Combat::g_combatSession = nullptr;
     return View::msgUnfocus(msg);
 }
 
