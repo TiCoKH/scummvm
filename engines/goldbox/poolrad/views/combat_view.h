@@ -120,6 +120,7 @@ private:
     Gfx::CombatTileCache    _tileCache;
     Gfx::CombatRenderer     _combatRenderer;
     bool                    _needsFullRedraw;
+    ::Goldbox::Data::PlayerCharacter *_currentInfoActor;
 
     // --- Layout constants ---
     static const int kViewportX = 8;
@@ -145,6 +146,7 @@ private:
     void drawViewport();
     void drawCombatants();
     void drawUI();
+    void drawCombatInfo(Goldbox::Data::PlayerCharacter *ch);
     void drawDamageFrame(const Goldbox::Gfx::Pic *frame, int pixX, int pixY,
                          Graphics::ManagedSurface *dst);
 };

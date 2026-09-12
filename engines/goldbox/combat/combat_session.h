@@ -63,24 +63,26 @@ public:
         PA_USE,
         PA_MOVE,
         PA_GUARD,
-        PA_FLEE
+        PA_FLEE,
+        PA_NONE     // skip turn without menu (disabled / pre-cast spell)
     };
 
     /** What happened during one tick — view reacts to these. */
     struct TickResult {
         enum Event {
             EV_NONE,
-            EV_ACTOR_FOCUSED,  // Actor selected; view should scroll to actor
-            EV_AI_ATTACK,      // AI actor attacked; damage/target valid
-            EV_ROUND_END,      // All actors acted; round counter incremented
-            EV_COMBAT_END      // One side eliminated; session is PHASE_ENDED
+            EV_ACTOR_FOCUSED,   // Actor selected; view should scroll to actor and refresh status panel
+            EV_AI_ATTACK,       // AI actor attacked; damage/target valid
+            EV_ROUND_END,       // All actors acted; round counter incremented
+            EV_COMBAT_END       // One side eliminated; session is PHASE_ENDED
         };
 
-        Event                    event  = EV_NONE;
-        Data::PlayerCharacter   *actor  = nullptr; // who acted
-        Data::PlayerCharacter   *target = nullptr; // who was hit (EV_AI_ATTACK)
-        int                      damage = 0;       // damage dealt (EV_AI_ATTACK)
+        Event                    event     = EV_NONE;
+        Data::PlayerCharacter   *actor     = nullptr; // who acted
+        Data::PlayerCharacter   *target    = nullptr; // who was hit (EV_AI_ATTACK)
+        int                      damage    = 0;       // damage dealt (EV_AI_ATTACK)
         bool                     targetWentDown = false;
+        uint8                    actorSize = 1;  // icon_dim of actor (EV_ACTOR_FOCUSED)
     };
 
     CombatSession();
@@ -124,8 +126,13 @@ public:
     CombatContext *getContext() { return _context.get(); }
     const CombatContext *getContext() const { return _context.get(); }
 
-    /** Scroll viewport to include target tile; rebuilds distance cache. */
-    void scrollViewport(TilePos target);
+    /**
+     * Scroll viewport to include target tile; rebuilds distance cache.
+     * radius mirrors the guard zone in COMBAT_FocusCharacter/redrawViewport:
+     * only scrolls if target is more than radius tiles from the viewport center.
+     * Default 0xFF scrolls unconditionally.
+     */
+    void scrollViewport(TilePos target, uint8 radius = 0xFF);
 
 private:
     CombatParams    _params;

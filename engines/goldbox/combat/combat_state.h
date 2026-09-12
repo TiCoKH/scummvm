@@ -68,6 +68,13 @@ struct CombatAction {
 		  notInTeam(false), moralFailure(false), aiState(0) {
 	}
 
+	void reset() {
+		initiative = 0;
+		spellId = 0;
+		guarding = false;
+		movePoints = 0;
+	}
+
 	void clear() {
 		spellId = 0;
 		canCast = false;

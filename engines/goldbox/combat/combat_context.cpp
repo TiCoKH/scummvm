@@ -21,6 +21,7 @@
 
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combat_params.h"
+#include "goldbox/combat/combat_turn.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_viewport.h"
 #include "goldbox/data/player_character.h"
@@ -46,6 +47,21 @@ void CombatContext::rebuildPlacementMap() {
 
 void CombatContext::rebuildDistances() {
     table.setViewportOrigin(viewport.getTopLeft());
+}
+
+void CombatContext::initCharacterTurnState(Data::PlayerCharacter *ch) {
+    ::Goldbox::Combat::initCharacterTurnState(
+        ch, params.effectRuntime, &globals,
+        params.eclMemory, params.vmGlobalLayout);
+}
+
+void CombatContext::initAllTurnStates() {
+    for (uint i = 0; i < params.roster.size(); i++)
+        initCharacterTurnState(params.roster[i]);
+}
+
+Data::PlayerCharacter *CombatContext::selectNextActor() const {
+    return ::Goldbox::Combat::selectNextActor(params.roster, globals);
 }
 
 void CombatContext::removeMember(Data::PlayerCharacter *ch, bool keepPartyCount, bool freeIconSlot) {

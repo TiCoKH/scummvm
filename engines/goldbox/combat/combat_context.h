@@ -23,6 +23,7 @@
 #define GOLDBOX_COMBAT_COMBAT_CONTEXT_H
 
 #include "common/scummsys.h"
+#include "common/array.h"
 #include "goldbox/combat/combat_globals.h"
 
 namespace Goldbox {
@@ -70,6 +71,21 @@ struct CombatContext {
 
     /** Rebuild viewport distances — call after viewport scrolls or combatant moves. */
     void rebuildDistances();
+
+    /**
+     * Reset per-turn CombatAction fields for one character.
+     * Mirrors COMBAT_InitCharacterTurnState.
+     */
+    void initCharacterTurnState(Data::PlayerCharacter *ch);
+
+    /** Reset turn state for every character in the roster. */
+    void initAllTurnStates();
+
+    /**
+     * Select the next character to act this round.
+     * Returns nullptr when all characters have acted or a side has no members.
+     */
+    Data::PlayerCharacter *selectNextActor() const;
 
     /**
      * Remove a character from the combat roster.
