@@ -95,16 +95,8 @@ For variable-argument opcodes:
 ## Event System Usage Guide
 
 ### View vs Dialog Event Handling
-- **View**: Single instance, managed by view stack, uses msgFocus/msgUnfocus
-- **Dialog**: Multiple instances can be visible simultaneously, uses activate/deactivate
-
-### View Constructor (loadtime - runs once)
-✓ Create member pointers, empty UI elements, parse static data
-✗ Don't access game state, VmInterface, or assume visibility
-
-### msgFocus (view gains focus via replaceView/addView)
-✓ Get game state/party, activate/deactivate UI, refresh data
-✗ Don't create dialogs or init pointers (constructor's job)
+- View: Single instance, managed by view stack, represents a larger gameplay interaction.
+- Dialog: Interaction unit that can be nested within a view or another dialog; handles part of the input/presentation flow.
 
 ### msgUnfocus (view loses focus)
 ✓ Save changes, cleanup temp state, stop timers
@@ -212,3 +204,15 @@ void ParentView::handleMenuResult(const MenuResultMessage &result) {
     }
 }
 ```
+
+### Gold Box Dialog / View Interaction Rules
+
+* `DIALOG_` represents a partial interaction: it owns part of the screen interaction and handles input for that interaction.
+* A dialog does not have to be a literal modal dialog or message box.
+* Dialogs may contain child dialogs, forming an interaction chain/hierarchy.
+* Input is handled by the deepest active dialog first. Unhandled input may bubble to its parent dialog, then to the containing `VIEW_`.
+* Split legacy code at meaningful interaction boundaries, especially distinct input, selection, or prompt loops. Do not split solely because a function is large or contains branches.
+* `VIEW_` represents a larger gameplay interaction container that coordinates multiple dialogs and their overall lifecycle.
+* Dialogs may call gameplay systems to perform authoritative game-state operations, but do not move gameplay rules into dialogs.
+* Pure gameplay operations belong to the appropriate system/domain class; screen presentation and interaction belong to the dialog/view layer.
+* When modernizing legacy code, preserve the original interaction state machine. Extract dialogs from interaction boundaries rather than mechanically mapping one legacy function to one dialog class.

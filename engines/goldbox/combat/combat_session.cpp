@@ -21,11 +21,11 @@
 
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/combat/combat_setup.h"
-#include "goldbox/combat/combat_turn.h"
 #include "goldbox/combat/combat_ai.h"
 #include "goldbox/core/vm_layout.h"
 #include "goldbox/ecl/ecl_memory.h"
 #include "goldbox/data/player_character.h"
+#include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/character_effects.h"
 
@@ -76,8 +76,8 @@ CombatSession::TickResult CombatSession::tick() {
             return result;
         }
 
-        initAllTurnStates(_params.roster, nullptr, &_globals,
-                           _params.eclMemory, _params.vmGlobalLayout);
+        CombatContext initCtx = makeContext();
+        initCtx.initAllTurnStates();
         // Clear D_CombatIsAmbush after all initiatives are rolled.
         if (_params.eclMemory && _params.vmGlobalLayout) {
             const VmFieldLocation field =
@@ -85,7 +85,7 @@ CombatSession::TickResult CombatSession::tick() {
             if (VmLayout::isValid(field))
                 _params.eclMemory->write8(field.vmAddr, 0);
         }
-        _currentActor = selectNextActor(_params.roster, _globals);
+        _currentActor = initCtx.selectNextActor();
     }
 
     if (_currentActor == nullptr)
@@ -96,7 +96,7 @@ CombatSession::TickResult CombatSession::tick() {
     // Per-actor setup (mirrors COMBAT_ExecuteTurn pre-dispatch block).
     // Returns false if an effect cancelled the turn.
     if (!prepareTurn(_currentActor)) {
-        _currentActor = selectNextActor(_params.roster, _globals);
+        _currentActor = makeContext().selectNextActor();
         if (_currentActor == nullptr) {
             _globals.turnCounter++;
             updateHostileHealthPercent(_table, _globals);
@@ -107,6 +107,10 @@ CombatSession::TickResult CombatSession::tick() {
     }
 
     result.event = TickResult::EV_ACTOR_FOCUSED;
+    {
+        const int idx = _table.findIndex(_currentActor);
+        result.actorSize = (idx >= 0) ? _table.getSize(idx) : 1;
+    }
 
     // --- AI turn ---
     if (_currentActor->combatSide == ::Goldbox::Data::CS_ENEMY) {
@@ -127,7 +131,7 @@ CombatSession::TickResult CombatSession::tick() {
     }
 
     // --- Advance to next actor ---
-    _currentActor = selectNextActor(_params.roster, _globals);
+    _currentActor = makeContext().selectNextActor();
 
     if (_currentActor == nullptr) {
         _globals.turnCounter++;
@@ -172,7 +176,7 @@ CombatSession::TickResult CombatSession::submitPlayerAction(PlayerAction action)
         cs->initiative = 0xFF;
 
     // Advance to next actor.
-    _currentActor = selectNextActor(_params.roster, _globals);
+    _currentActor = makeContext().selectNextActor();
 
     if (_currentActor == nullptr) {
         _globals.turnCounter++;
@@ -188,8 +192,8 @@ CombatSession::TickResult CombatSession::submitPlayerAction(PlayerAction action)
     return result;
 }
 
-void CombatSession::scrollViewport(TilePos target) {
-    _viewport.adjustToInclude(target);
+void CombatSession::scrollViewport(TilePos target, uint8 radius) {
+    _viewport.adjustToInclude(target, radius);
     _table.setViewportOrigin(_viewport.getTopLeft());
 }
 
@@ -200,9 +204,9 @@ bool CombatSession::prepareTurn(Data::PlayerCharacter *ch) {
     Data::CombatAction &cs = *ch->combatState;
 
     // Mirrors COMBAT_ExecuteTurn: reset per-turn fields before dispatch.
-    cs.attackCount    = 0;
+    cs.attackCount     = 0;
     cs.directionChange = 0;
-    cs.guarding       = false;
+    cs.guarding        = false;
 
     // ES_POST_MOVEMENT_TILE (7) — may apply poison/regen/etc.
     if (_params.effectRuntime && ch->getEffects())
@@ -217,6 +221,14 @@ bool CombatSession::prepareTurn(Data::PlayerCharacter *ch) {
     // If initiative dropped to 0 (e.g. paralysis effect), skip this actor.
     if (cs.initiative == 0)
         return false;
+
+    // Make this character the active combat character (mirrors PTR_SELECTED_CHAR).
+    _globals.attacker = ch;
+
+    // Recalculate stats that may have changed since turn initialization
+    // (mirrors CHARACTER_RecalcCombatStats).
+    if (Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(ch))
+        adnd->recalcCombatStats();
 
     // ES_POISON_CYCLE (15) — may cancel the turn (sets initiative=0).
     if (_params.effectRuntime && ch->getEffects())

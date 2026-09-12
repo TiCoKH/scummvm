@@ -120,6 +120,8 @@ void View::attachDialog(Dialogs::Dialog *dialog) {
 }
 
 void View::detachDialog(Dialogs::Dialog *dialog) {
+	if (_focusedElement == dialog)
+		_focusedElement = nullptr;
 	setDialogParent(dialog, nullptr);
 }
 

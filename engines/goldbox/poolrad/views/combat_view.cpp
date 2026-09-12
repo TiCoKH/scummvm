@@ -23,14 +23,17 @@
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/data/player_character.h"
-#include "goldbox/runtime/effect_host_bridge.h"
+#include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/effects/effect.h"
+#include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/gfx/pic.h"
 #include "goldbox/poolrad/data/poolrad_tile_props.h"
 #include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/gfx/icon_manager.h"
+#include "goldbox/gfx/icon.h"
 #include "goldbox/engine.h"
 #include "goldbox/events.h"
 #include "goldbox/vm_interface.h"
@@ -42,7 +45,8 @@ namespace Poolrad {
 namespace Views {
 
 CombatView::CombatView()
-    : View("Combat"), _needsFullRedraw(true), _combatMenu(nullptr) {
+    : View("Combat"), _needsFullRedraw(true), _combatMenu(nullptr),
+      _currentInfoActor(nullptr) {
     _combatMenu = new Dialogs::CombatMenuDialog();
 }
 
@@ -70,6 +74,11 @@ void CombatView::setup(const Combat::CombatParams &params) {
 
     _tilemap.render(_session.getBattlefieldMap(), _tileCache,
                     _session.getBattlefieldMap().getTilePropertyProvider());
+
+    // Load selection cursor frame from COMSPR block 25 (mirrors set_icon SLOT_SELECTFRAME).
+    Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+    if (iconMgr)
+        iconMgr->loadIcon(Gfx::SLOT_SELECTFRAME, Gfx::ICON_KIND_SPRITE, 25);
 
     _needsFullRedraw = true;
 }
@@ -139,48 +148,74 @@ void CombatView::draw() {
         drawUI();
         drawViewport();
         drawCombatants();
+        if (_currentInfoActor)
+            drawCombatInfo(_currentInfoActor);
+        if (_combatMenu && _combatMenu->isActive())
+            _combatMenu->draw();
         _needsFullRedraw = false;
     }
 }
 
 bool CombatView::tick() {
+    // Don't advance while waiting for player input — menu keypresses drive that.
     if (_session.getPhase() == Combat::CombatSession::PHASE_NONE ||
+            _session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER ||
             _session.isEnded())
         return false;
 
     const Combat::CombatSession::TickResult result = _session.tick();
 
-    // Scroll viewport to the current actor when they're focused.
-    if (result.event == Combat::CombatSession::TickResult::EV_ACTOR_FOCUSED &&
-            result.actor) {
+    if (result.event == Combat::CombatSession::TickResult::EV_NONE)
+        return false;
+
+    // Focus viewport on the new actor (mirrors COMBAT_FocusCharacter radius=2).
+    if (result.actor) {
         const Combat::CombatantTable &table = _session.getTable();
         const int idx = table.findIndex(result.actor);
-        if (idx >= 0) {
-            TilePos actorPos(table.getTileCol(idx), table.getTileRow(idx));
-            _session.scrollViewport(actorPos);
-        }
-        _needsFullRedraw = true;
+        if (idx >= 0)
+            _session.scrollViewport(
+                TilePos(table.getTileCol(idx), table.getTileRow(idx)), 2);
     }
 
-    // Party actor reached — show action menu.
+    // Party actor reached — mirrors DIALOG_CombatMain entry checks.
     if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER) {
+        ::Goldbox::Data::PlayerCharacter *actor = result.actor;
+        ::Goldbox::Data::CombatAction *cs = actor ? actor->combatState : nullptr;
+
+        // Disabled character: reset and skip menu (mirrors !character->enabled path).
+        if (actor && !actor->enabled) {
+            if (cs) cs->reset();
+            _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
+            _needsFullRedraw = true;
+            return true;
+        }
+
+        // Pre-selected spell: consume and skip menu (mirrors spell_id != 0 path).
+        if (cs && cs->spellId != 0) {
+            cs->spellId = 0;
+            cs->reset();
+            _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
+            _needsFullRedraw = true;
+            return true;
+        }
+
+        _currentInfoActor = actor;
         if (_combatMenu && !_combatMenu->isActive()) {
             attachDialog(_combatMenu);
             _combatMenu->activate();
         }
+        _needsFullRedraw = true;
         return true;
     }
 
+    // AI turn completed synchronously — apply damage and redraw.
     if (result.event == Combat::CombatSession::TickResult::EV_AI_ATTACK &&
-            result.target && result.damage > 0) {
+            result.target && result.damage > 0)
         applyDamageMessage(result.target, (uint8)result.damage,
                            ::Goldbox::Data::DAMAGE_NORMAL, false);
-    }
 
-    if (result.event != Combat::CombatSession::TickResult::EV_NONE)
-        _needsFullRedraw = true;
-
-    return result.event != Combat::CombatSession::TickResult::EV_NONE;
+    _needsFullRedraw = true;
+    return true;
 }
 
 void CombatView::handleMenuResult(const MenuResultMessage &result) {
@@ -192,6 +227,7 @@ void CombatView::handleMenuResult(const MenuResultMessage &result) {
         _combatMenu->deactivate();
         detachDialog(_combatMenu);
     }
+    _currentInfoActor = nullptr;
 
     const Combat::CombatSession::PlayerAction action =
         static_cast<Combat::CombatSession::PlayerAction>(result._intValue);
@@ -250,6 +286,15 @@ void CombatView::drawCombatants() {
         int pixX = kViewportX + localCol * kTileSize;
         int pixY = kViewportY + localRow * kTileSize;
         Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+
+        // Draw selection cursor under the character (cursor first, icon on top).
+        if (ch == _session.getCurrentActor() && iconMgr &&
+                !iconMgr->isSlotEmpty(Gfx::SLOT_SELECTFRAME)) {
+            const Gfx::Pic *cursor = iconMgr->getReadyPic(Gfx::SLOT_SELECTFRAME);
+            if (cursor)
+                cursor->trDraw(&s, pixX, pixY, Gfx::Icon::TRANSPARENT_COLOR_INDEX);
+        }
+
         if (slotId != 0 && iconMgr && !iconMgr->isSlotEmpty(slotId)) {
             const Gfx::Pic *pic = iconMgr->getReadyPic(slotId);
             if (pic)
@@ -401,6 +446,53 @@ void CombatView::drawDamage(::Goldbox::Data::PlayerCharacter *ch,
 
     for (int f = 0; f < 4; ++f)
         delete frames[f];
+}
+
+void CombatView::drawCombatInfo(::Goldbox::Data::PlayerCharacter *ch) {
+    if (!ch)
+        return;
+
+    Surface s = getSurface();
+
+    // Clear the info panel (col 23-38, rows 1-21).
+    // Mirrors SCREEN_ClearRect(23, 1, 38, 21).
+    s.clearBox(23, 1, 38, 21, kBackgroundColor);
+
+    // Row 1: character name.
+    s.writeStringC(23, 1, 10, ch->name);
+
+    // Row 3: Hitpoints.
+    s.writeStringC(23, 3, 10, "Hitpoints");
+    s.writeStringC(33, 3, 10, Common::String::format("%d/%d",
+        ch->hitPoints.current, ch->hitPoints.max));
+
+    // Row 5: Armor class.
+    s.writeStringC(23, 5, 10, "AC");
+    s.writeStringC(26, 5, 10, Common::String::format("%d",
+        ch->armorClass.getCurrent()));
+
+    // Row 6: status (anchored to AC row + 2, mirrors BYTE_CHAR_POS_Y + 2).
+    if (!ch->enabled) {
+        s.writeStringC(23, 6, 10, ch->getStatusName());
+    } else {
+        const ::Goldbox::Data::Effects::CharacterEffects *fx = ch->getEffects();
+        if (fx && (
+                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_HELPLESS) ||
+                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_HELPLESS_33) ||
+                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_HELPLESS_34) ||
+                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_HELPLESS_35) ||
+                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_NAUSEATED) ||
+                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_ENFEEBLED)))
+            s.writeStringC(23, 6, 10, "(Helpless)");
+    }
+
+    // Row 7: equipped weapon name (if any).
+    const ::Goldbox::Data::ADnDCharacter *adnd =
+        dynamic_cast<const ::Goldbox::Data::ADnDCharacter *>(ch);
+    const ::Goldbox::Data::Items::CharacterItem *weapon = adnd ?
+        adnd->getEquippedItem(::Goldbox::Data::Items::Slot::S_MAIN_HAND) : nullptr;
+    if (weapon)
+        s.writeStringC(23, 7, 10, weapon->getDisplayName());
 }
 
 void CombatView::drawDamageFrame(const Gfx::Pic *frame, int pixX, int pixY,
