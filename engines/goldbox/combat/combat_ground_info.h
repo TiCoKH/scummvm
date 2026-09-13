@@ -32,11 +32,18 @@ class CombatantTable;
 class BattlefieldMap;
 
 /**
- * Special tile values returned by getGroundInfo.
+ * Special tile ID values returned by getGroundInfo.
+ *
+ * kTileIdNone (0)     = no tile: OOB or edge of map — caller offers Flee
+ * kTileIdHazard (0x1E) = hazard terrain (water, fire, etc.)
+ * kTileIdDefault (0x17) = neutral walkable fallback
+ *
+ * Note: tile property passable==0 is a separate concept (impassable terrain).
+ * The caller checks tileId==0 first (flee), then move < tileProps[tileId].passable (blocked).
  */
-static const uint8 kTileImpassable = 0;
-static const uint8 kTileHazard = 0x1E;
-static const uint8 kTileNeutralDefault = 0x17;
+static const uint8 kTileIdNone    = 0x00;
+static const uint8 kTileIdHazard  = 0x1E;
+static const uint8 kTileIdDefault = 0x17;
 
 /**
  * Query ground tile and occupant in a given direction from a combatant.
@@ -45,10 +52,12 @@ static const uint8 kTileNeutralDefault = 0x17;
  * in the specified direction. Reports the "best" tile using priority
  * rules and any occupant found at the destination.
  *
- * Tile priority system:
- *   0x00 = Impassable/invalid (highest priority, always propagates)
- *   0x1E = Special hazard/water (always propagates over normal tiles)
- *   1-0x1D = Walkable terrain (selected by priority table value)
+ * Caller logic (from original):
+ *   occupant != 0                    → destination occupied
+ *   occupant == 0, tileId == 0       → OOB: offer Flee dialog
+ *   occupant == 0, tileId != 0
+ *     move < tileProps[id].passable  → "Blocked" message
+ *     else                           → advance/move
  *
  * Used by: placement, AI movement, player step validation, etc.
  *
@@ -56,7 +65,7 @@ static const uint8 kTileNeutralDefault = 0x17;
  * @param direction   Direction index (0-7), or 8 for stationary check
  * @param map         Battlefield map for raw tile queries
  * @param table       Combatant table for position/occupancy queries
- * @param outTile     Result: best tile found (0=blocked, 0x1E=hazard)
+ * @param outTile     Result: 0=impassable/OOB, 0x1E=hazard, other=terrain
  * @param outOccupant Result: occupant index if found, else 0
  */
 void getGroundInfo(int charIdx, uint8 direction,
@@ -77,12 +86,12 @@ void getGroundInfo(int charIdx, uint8 direction,
  *
  * Size classes:
  *   0 = Invalid (no icon)
- *   1 = 1x1 (slot 0 only)
- *   2 = 1x2 tall (slots 0, 2)
- *   3 = 2x1 wide (slots 0, 1)
- *   4 = 2x2 (slots 0, 1, 2, 3)
+ *   1 = 1x1  — slot 0
+ *   2 = 1x2 tall — slots 0, 2 (col 0 row 0; col 0 row 1)
+ *   3 = 2x1 wide — slots 0, 1 (col 0 row 0; col 1 row 0)
+ *   4 = 2x2 — slots 0, 1, 2, 3
  *
- * Invalid slots are marked with col_offset = -1 in the lookup table.
+ * Slots use {-1, -1} as sentinel for unused entries.
  *
  * @param iconSize  Combat footprint code (from combatant data, masked to 0-7)
  * @param slot      Slot index (0-3)
