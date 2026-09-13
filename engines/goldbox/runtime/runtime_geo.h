@@ -24,6 +24,7 @@
 
 #include "common/scummsys.h"
 #include "goldbox/data/daxblock.h"
+#include "goldbox/core/direction.h"
 #include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
@@ -42,8 +43,8 @@ namespace Goldbox {
  *   +0x200..0x2FF  Plane 2: Event data (7-bit event ID + flag bit)
  *   +0x300..0x3FF  Plane 3: Door state (2 bits per direction)
  *
- * Direction encoding for door/wall flag operations (legacy wire format):
- *   0=North, 2=East, 4=South, 6=West
+ * Direction encoding for door/wall flag operations: use Direction enum
+ *   (DIR_N=0, DIR_E=2, DIR_S=4, DIR_W=6)
  */
 class RuntimeGeoBlock {
 public:
@@ -82,12 +83,8 @@ public:
 
     bool isInBounds(MapPos pos) const;
 
-    /**
-     * Get wall nibble for a direction at pos.
-     * Direction uses legacy wire format: 0=N, 2=E, 4=S, 6=W.
-     * Returns 4-bit wall type (0-15), or 0 if out of bounds on map 0/10.
-     */
-    uint8 getMapNibble(MapPos pos, uint8 wireDir) const;
+    /** Get wall nibble for a direction at pos. Returns 4-bit wall type (0-15). */
+    uint8 getMapNibble(MapPos pos, Direction wireDir) const;
 
     /**
      * Get the event byte at pos from plane 2.
@@ -95,27 +92,18 @@ public:
      */
     uint8 getGeoData(MapPos pos) const;
 
-    /**
-     * Get 2-bit door/wall flag for a direction at pos.
-     * Direction uses legacy wire format: 0=N, 2=E, 4=S, 6=W.
-     */
-    uint8 getWallFlag(MapPos pos, uint8 wireDir) const;
+    /** Get 2-bit door/wall flag for a direction at pos. */
+    uint8 getWallFlag(MapPos pos, Direction wireDir) const;
 
     // -----------------------------------------------------------------------
     // Write accessors (ECL script mutations)
     // -----------------------------------------------------------------------
 
-    /**
-     * Clear the 2-bit door flag for a direction at pos.
-     * Direction uses legacy wire format: 0=N, 2=E, 4=S, 6=W.
-     */
-    void clearFlag(MapPos pos, uint8 wireDir);
+    /** Clear the 2-bit door flag for a direction at pos. */
+    void clearFlag(MapPos pos, Direction wireDir);
 
-    /**
-     * Set the 2-bit door flag to state 1 (open) for a direction at pos.
-     * Direction uses legacy wire format: 0=N, 2=E, 4=S, 6=W.
-     */
-    void setTileDirectionState(MapPos pos, uint8 wireDir);
+    /** Set the 2-bit door flag to state 1 (open) for a direction at pos. */
+    void setTileDirectionState(MapPos pos, Direction wireDir);
 
     /**
      * Direct write to a plane byte (for save/load or ECL raw access).

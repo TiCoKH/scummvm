@@ -814,7 +814,7 @@ VmResult PoolradEngineHostImpl::readGeoAtPosition() {
     _memory->write8(geoFieldAddr, geoId);
 
     const uint8 wireDir = static_cast<uint8>((_memory->read8(dirAddr) & 0x03) * 2);
-    const uint8 wallNibble = rtGeo.getMapNibble(geoPos, wireDir);
+    const uint8 wallNibble = rtGeo.getMapNibble(geoPos, static_cast<Direction>(wireDir));
     const uint16 wallTypeAddr = layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr;
     _memory->write8(wallTypeAddr, wallNibble);
 
@@ -907,7 +907,7 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
 
         const MapPos curPos(static_cast<int8>(x), static_cast<int8>(y));
         const uint8 wallFlag = rtGeo.isLoaded()
-            ? rtGeo.getWallFlag(curPos, wireDir) : 1;
+            ? rtGeo.getWallFlag(curPos, static_cast<Direction>(wireDir)) : 1;
         if (wallFlag == 0)
             return VM_OK;
 
@@ -955,7 +955,7 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
         const uint8 wireDir = static_cast<uint8>((_memory->read8(dirAddr) & 0x03) * 2);
 
         const MapPos curPos(static_cast<int8>(x), static_cast<int8>(y));
-        const uint8 nibble = rtGeo.getMapNibble(curPos, wireDir);
+        const uint8 nibble = rtGeo.getMapNibble(curPos, static_cast<Direction>(wireDir));
 
         const uint16 wallTypeAddr =
             layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr;
@@ -983,7 +983,7 @@ static uint8 countStepsUntilWall(const RuntimeGeoBlock &rtGeo, uint8 wireDir,
 
     uint8 steps = 0;
     for (uint8 i = 0; i < 2; ++i) {
-        uint8 nibble = rtGeo.getMapNibble(pos, wireDir);
+        uint8 nibble = rtGeo.getMapNibble(pos, static_cast<Direction>(wireDir));
         if (nibble != 0)
             break;
         steps++;
@@ -1735,7 +1735,7 @@ bool PoolradEngineHostImpl::tryOpenDoor() {
     const int y = static_cast<int>(snapshot.dungeonPos.y);
     const uint8 wireDir = static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2);
 
-    const uint8 doorFlag = rtGeo.getWallFlag(MapPos(static_cast<int8>(x), static_cast<int8>(y)), wireDir);
+    const uint8 doorFlag = rtGeo.getWallFlag(MapPos(static_cast<int8>(x), static_cast<int8>(y)), static_cast<Direction>(wireDir));
 
     // doorFlag 0 = solid wall (no door), 1 = open door (already passable).
     if (doorFlag < 2)

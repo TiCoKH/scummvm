@@ -1488,7 +1488,7 @@ void PoolradEngine::dispatchPlayerCommand() {
 		// MAP_StepForward equivalent: check wall, advance position,
 		// clamp to borders, set TriedToLeaveMap.
 		const uint16 leaveAddr = layout.vmGlobalField(kVmGlobalFieldTriedToLeaveMap).vmAddr;
-		const uint8 wireDir = static_cast<uint8>(cardinal * 2);
+		const Direction wireDir = static_cast<Direction>(cardinal * 2);
 
 		mem.write8(leaveAddr, 0);
 

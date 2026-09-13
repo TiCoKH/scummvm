@@ -68,7 +68,7 @@ void RuntimeGeoBlock::wrapCoords(MapPos &pos) const {
     if (pos.y < 0)  pos.y = 15;
 }
 
-uint8 RuntimeGeoBlock::getMapNibble(MapPos pos, uint8 wireDir) const {
+uint8 RuntimeGeoBlock::getMapNibble(MapPos pos, Direction wireDir) const {
     if (!_loaded)
         return 0;
 
@@ -79,13 +79,13 @@ uint8 RuntimeGeoBlock::getMapNibble(MapPos pos, uint8 wireDir) const {
     const int idx = cellIndex(pos);
 
     switch (wireDir) {
-    case 0: // North
+    case DIR_N:
         return (_buf[idx] >> 4) & 0x0F;
-    case 2: // East
+    case DIR_E:
         return _buf[idx] & 0x0F;
-    case 4: // South
+    case DIR_S:
         return (_buf[PLANE_SIZE + idx] >> 4) & 0x0F;
-    case 6: // West
+    case DIR_W:
         return _buf[PLANE_SIZE + idx] & 0x0F;
     default:
         return 0x0F;
@@ -103,7 +103,7 @@ uint8 RuntimeGeoBlock::getGeoData(MapPos pos) const {
     return _buf[PLANE_SIZE * 2 + cellIndex(pos)];
 }
 
-uint8 RuntimeGeoBlock::getWallFlag(MapPos pos, uint8 wireDir) const {
+uint8 RuntimeGeoBlock::getWallFlag(MapPos pos, Direction wireDir) const {
     if (!_loaded)
         return 0;
 
@@ -121,20 +121,20 @@ uint8 RuntimeGeoBlock::getWallFlag(MapPos pos, uint8 wireDir) const {
     const uint8 doorByte = _buf[PLANE_SIZE * 3 + idx];
 
     switch (wireDir) {
-    case 0: // North: bits [1:0]
+    case DIR_N:
         return doorByte & 0x03;
-    case 2: // East: bits [3:2]
+    case DIR_E:
         return (doorByte >> 2) & 0x03;
-    case 4: // South: bits [5:4]
+    case DIR_S:
         return (doorByte >> 4) & 0x03;
-    case 6: // West: bits [7:6]
+    case DIR_W:
         return (doorByte >> 6) & 0x03;
     default:
         return 1;
     }
 }
 
-void RuntimeGeoBlock::clearFlag(MapPos pos, uint8 wireDir) {
+void RuntimeGeoBlock::clearFlag(MapPos pos, Direction wireDir) {
     if (!_loaded)
         return;
 
@@ -142,16 +142,16 @@ void RuntimeGeoBlock::clearFlag(MapPos pos, uint8 wireDir) {
     uint8 &doorByte = _buf[PLANE_SIZE * 3 + idx];
 
     switch (wireDir) {
-    case 0: // North: clear bits [1:0]
+    case DIR_N:
         doorByte &= 0xFC;
         break;
-    case 2: // East: clear bits [3:2]
+    case DIR_E:
         doorByte &= 0xF3;
         break;
-    case 4: // South: clear bits [5:4]
+    case DIR_S:
         doorByte &= 0xCF;
         break;
-    case 6: // West: clear bits [7:6]
+    case DIR_W:
         doorByte &= 0x3F;
         break;
     default:
@@ -159,7 +159,7 @@ void RuntimeGeoBlock::clearFlag(MapPos pos, uint8 wireDir) {
     }
 }
 
-void RuntimeGeoBlock::setTileDirectionState(MapPos pos, uint8 wireDir) {
+void RuntimeGeoBlock::setTileDirectionState(MapPos pos, Direction wireDir) {
     if (!_loaded)
         return;
 
@@ -170,16 +170,16 @@ void RuntimeGeoBlock::setTileDirectionState(MapPos pos, uint8 wireDir) {
     uint8 &doorByte = _buf[PLANE_SIZE * 3 + idx];
 
     switch (wireDir) {
-    case 0: // North: set bits [1:0] to 01
+    case DIR_N:
         doorByte = (doorByte & 0xFC) | 0x01;
         break;
-    case 2: // East: set bits [3:2] to 01
+    case DIR_E:
         doorByte = (doorByte & 0xF3) | 0x04;
         break;
-    case 4: // South: set bits [5:4] to 01
+    case DIR_S:
         doorByte = (doorByte & 0xCF) | 0x10;
         break;
-    case 6: // West: set bits [7:6] to 01
+    case DIR_W:
         doorByte = (doorByte & 0x3F) | 0x40;
         break;
     default:

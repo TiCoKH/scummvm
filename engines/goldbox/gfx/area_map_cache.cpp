@@ -25,6 +25,7 @@
 #include "goldbox/gfx/walldef_surface_builder.h"
 #include "goldbox/gfx/viewport_background.h"
 #include "goldbox/runtime/runtime_geo.h"
+#include "goldbox/core/direction.h"
 
 namespace Goldbox {
 namespace Gfx {
@@ -43,10 +44,10 @@ void AreaMapCache::rebuild(const RuntimeGeoBlock &geo,
         for (int x = 0; x < kGridSize; ++x) {
             MapPos p(static_cast<int8>(x), static_cast<int8>(y));
             uint8 mask = 0;
-            if (geo.getMapNibble(p, 0) != 0) mask |= 1; // north
-            if (geo.getMapNibble(p, 2) != 0) mask |= 2; // east
-            if (geo.getMapNibble(p, 4) != 0) mask |= 4; // south
-            if (geo.getMapNibble(p, 6) != 0) mask |= 8; // west
+            if (geo.getMapNibble(p, DIR_N) != 0) mask |= 1;
+            if (geo.getMapNibble(p, DIR_E) != 0) mask |= 2;
+            if (geo.getMapNibble(p, DIR_S) != 0) mask |= 4;
+            if (geo.getMapNibble(p, DIR_W) != 0) mask |= 8;
 
             blitTileToCache(x, y, kBaseTileId + mask, tileCache);
         }
@@ -62,10 +63,10 @@ void AreaMapCache::rebuildCell(int x, int y, const RuntimeGeoBlock &geo,
 
     MapPos p(static_cast<int8>(x), static_cast<int8>(y));
     uint8 mask = 0;
-    if (geo.getMapNibble(p, 0) != 0) mask |= 1;
-    if (geo.getMapNibble(p, 2) != 0) mask |= 2;
-    if (geo.getMapNibble(p, 4) != 0) mask |= 4;
-    if (geo.getMapNibble(p, 6) != 0) mask |= 8;
+    if (geo.getMapNibble(p, DIR_N) != 0) mask |= 1;
+    if (geo.getMapNibble(p, DIR_E) != 0) mask |= 2;
+    if (geo.getMapNibble(p, DIR_S) != 0) mask |= 4;
+    if (geo.getMapNibble(p, DIR_W) != 0) mask |= 8;
 
     blitTileToCache(x, y, kBaseTileId + mask, tileCache);
 }

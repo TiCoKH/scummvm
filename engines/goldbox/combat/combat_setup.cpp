@@ -76,13 +76,12 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
             }
         }
 
-        // Set initial facing from approach direction table
-        uint8 dirIndex = (wayFlag >> 1) & 0x03;
-        ch->combatState->direction = Data::kCombatDirectionTable[dirIndex];
+        // Set initial facing from approach direction
+        uint8 dirIndex = dir8ToDir4(static_cast<Direction>(wayFlag));
+        ch->combatState->direction = static_cast<uint8>(halfDirToIso(dirIndex));
 
-        // Enemy characters face the opposite direction
         if (ch->combatSide == Data::CS_ENEMY)
-            ch->combatState->direction = dirReverse(ch->combatState->direction);
+            ch->combatState->direction = static_cast<uint8>(dirReverse(static_cast<Direction>(ch->combatState->direction)));
     }
 }
 
