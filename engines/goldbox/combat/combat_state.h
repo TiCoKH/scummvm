@@ -101,20 +101,6 @@ struct CombatAction {
 // Legacy typedef so existing code using CombatState still compiles during migration.
 typedef CombatAction CombatState;
 
-/**
- * Direction lookup table for converting map cardinal facing (way_flag >> 1)
- * to isometric diagonal direction for combat sprites.
- *
- * Index: (way_flag >> 1), values 0..3
- * Value: 8-direction wire format
- *
- *   way_flag 0-1 (index 0) -> 7 (NW, facing left-up)
- *   way_flag 2-3 (index 1) -> 2 (E,  facing right)
- *   way_flag 4-5 (index 2) -> 3 (SE, facing right-down)
- *   way_flag 6-7 (index 3) -> 6 (W,  facing left)
- */
-static const uint8 kCombatDirectionTable[4] = { 7, 2, 3, 6 };
-
 } // namespace Data
 } // namespace Goldbox
 

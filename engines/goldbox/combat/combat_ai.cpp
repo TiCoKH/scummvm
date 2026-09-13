@@ -89,22 +89,21 @@ static uint8 rollDamage(const Data::PlayerCharacter *attacker) {
 
 /**
  * Find the direction from (fromCol, fromRow) toward (toCol, toRow).
- * Returns the 8-direction index (0-7) of the best step.
+ * Maps the sign of each axis directly to the delta table index.
+ * Returns 8 (no-move) if already at the target.
  */
-static uint8 directionToward(int fromCol, int fromRow,
-                              int toCol, int toRow) {
-    int dx = toCol - fromCol;
-    int dy = toRow - fromRow;
-
-    // Clamp to -1/0/+1 per axis to get the 8-direction step.
-    int sx = (dx > 0) ? 1 : (dx < 0) ? -1 : 0;
-    int sy = (dy > 0) ? 1 : (dy < 0) ? -1 : 0;
-
-    for (uint8 d = 0; d < 8; d++) {
-        if (kDirDeltaX[d] == sx && kDirDeltaY[d] == sy)
-            return d;
-    }
-    return 8; // no-move
+static Direction directionToward(int fromCol, int fromRow,
+                                  int toCol, int toRow) {
+    int sx = (toCol > fromCol) ? 1 : (toCol < fromCol) ? -1 : 0;
+    int sy = (toRow > fromRow) ? 1 : (toRow < fromRow) ? -1 : 0;
+    if (sx == 0 && sy == 0)
+        return DIR_NONE;
+    static const Direction kSignToDir[3][3] = {
+        { DIR_NW, DIR_N, DIR_NE },
+        { DIR_W,  DIR_NONE, DIR_E },
+        { DIR_SW, DIR_S, DIR_SE },
+    };
+    return kSignToDir[sy + 1][sx + 1];
 }
 
 // ---------------------------------------------------------------------------
@@ -174,8 +173,8 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
                 int toCol   = ctx.table.getTileCol(nearestIdx);
                 int toRow   = ctx.table.getTileRow(nearestIdx);
 
-                uint8 dir = directionToward(fromCol, fromRow, toCol, toRow);
-                if (dir < 8) {
+                Direction dir = directionToward(fromCol, fromRow, toCol, toRow);
+                if (dir != DIR_NONE) {
                     int newCol = fromCol + kDirDeltaX[dir];
                     int newRow = fromRow + kDirDeltaY[dir];
 
@@ -183,7 +182,7 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
                     if (ctx.table.getOccupant(newCol, newRow) == 0) {
                         ctx.table.setPosition(actorIdx,
                             TilePos((uint8)newCol, (uint8)newRow));
-                        cs.direction = dir;
+                        cs.direction = static_cast<uint8>(dir);
                         ctx.rebuildPlacementMap();
                         ctx.rebuildDistances();
                     }

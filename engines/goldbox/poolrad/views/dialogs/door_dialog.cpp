@@ -299,7 +299,7 @@ void DoorDialog::openDoor(uint8 doorFlag) {
         int y = 0;
         uint8 wireDir = 0;
         if (rtGeo.isLoaded() && readRuntimeDoorPos(x, y, wireDir)) {
-            rtGeo.clearFlag(MapPos(static_cast<int8>(x), static_cast<int8>(y)), wireDir);
+            rtGeo.clearFlag(MapPos(static_cast<int8>(x), static_cast<int8>(y)), static_cast<Direction>(wireDir));
         }
         postResult(false);
         return;
@@ -433,11 +433,12 @@ void DoorDialog::handleMenuKey(char key) {
         int y = 0;
         uint8 wireDir = 0;
         if (rtGeo.isLoaded() && readRuntimeDoorPos(x, y, wireDir)) {
-            rtGeo.setTileDirectionState(MapPos(static_cast<int8>(x), static_cast<int8>(y)), wireDir);
+            const Direction wd = static_cast<Direction>(wireDir);
+            rtGeo.setTileDirectionState(MapPos(static_cast<int8>(x), static_cast<int8>(y)), wd);
 
             int oppX = x + kDirDeltaX[wireDir];
             int oppY = y + kDirDeltaY[wireDir];
-            uint8 oppDir = dirReverse(wireDir);
+            Direction oppDir = dirReverse(wd);
             rtGeo.setTileDirectionState(MapPos(static_cast<int8>(oppX), static_cast<int8>(oppY)), oppDir);
         }
         postResult(true);
@@ -450,7 +451,7 @@ void DoorDialog::handleMenuKey(char key) {
             int y = 0;
             uint8 wireDir = 0;
             if (rtGeo.isLoaded() && readRuntimeDoorPos(x, y, wireDir)) {
-                rtGeo.clearFlag(MapPos(static_cast<int8>(x), static_cast<int8>(y)), wireDir);
+                rtGeo.clearFlag(MapPos(static_cast<int8>(x), static_cast<int8>(y)), static_cast<Direction>(wireDir));
             }
             postResult(false);
         } else if (_horizontalMenu) {

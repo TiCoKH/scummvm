@@ -32,9 +32,6 @@
 namespace Goldbox {
 namespace Combat {
 
-// HalfDirToIso[4] — converts half-direction to 8-way isometric facing
-const uint8 CombatPlacement::kHalfDirToIso[4] = { 7, 2, 3, 6 };
-
 // ARRAY_SPIRAL_FORM_FALLBACK[4][4] — form_set direction table (drives dirIndex for anchor/arm axes)
 const uint8 CombatPlacement::kDirAxisDirection[4][4] = {
     { 0, 0, 2, 6 },
@@ -108,12 +105,12 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
     CombatSideData &enemy = _sides[CombatantTable::SIDE_ENEMY];
 
     party.origin = MapPos();
-    party.dir_idx  = (mapDirection / 2) & 3;
+    party.dir_idx  = dir8ToDir4(static_cast<Direction>(mapDirection));
     party.side_dir = (globals.sideCount[CombatantTable::SIDE_PARTY] + 1) >> 1;
 
     enemy.origin = MapPos((int8)(encounterDist * kDirDeltaX[mapDirection]),
                           (int8)(encounterDist * kDirDeltaY[mapDirection]));
-    enemy.dir_idx  = (((mapDirection + 4) % 8) / 2) & 3;
+    enemy.dir_idx  = dir8ToDir4(dirReverse(static_cast<Direction>(mapDirection)));
     enemy.side_dir = (globals.sideCount[CombatantTable::SIDE_ENEMY] + 1) >> 1;
 
     // Count sides
@@ -223,10 +220,10 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
 
     bool placed = false;
     do {
-        const uint8 halfDir = (uint8)(kDirAxisDirection[sd.dir_idx][var14] / 2);
+        const uint8 halfDir = dir8ToDir4(static_cast<Direction>(kDirAxisDirection[sd.dir_idx][var14]));
 
         if (state == 1) {
-            const uint8 backwardIso = kHalfDirToIso[(halfDir + 2) % 4];
+            const uint8 backwardIso = halfDirToIso((halfDir + 2) % 4);
             const int8 dx = kDirDeltaX[backwardIso];
             const int8 dy = kDirDeltaY[backwardIso];
 
@@ -239,7 +236,7 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
             state = 2;
             stepsTaken = 1;
         } else if (state == 2) {
-            const uint8 rightIso = kHalfDirToIso[(halfDir + 1) % 4];
+            const uint8 rightIso = halfDirToIso((halfDir + 1) % 4);
             const int8 dx = kDirDeltaX[rightIso];
             const int8 dy = kDirDeltaY[rightIso];
 
@@ -248,7 +245,7 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
             state = 3;
             stepsTaken++;
         } else if (state == 3) {
-            const uint8 leftIso = kHalfDirToIso[(halfDir + 3) % 4];
+            const uint8 leftIso = halfDirToIso((halfDir + 3) % 4);
             const int8 dx = kDirDeltaX[leftIso];
             const int8 dy = kDirDeltaY[leftIso];
 
@@ -285,9 +282,9 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
 
                     for (int d = 1; d <= 3; d++) {
                         const uint8 testDir = kDirFormFallback[sd.dir_idx][d];
-                        if (testDir >= 8)
+                        if (testDir >= DIR_NONE)
                             continue;
-                        if (!_isDungeon || _map->checkOpenPassage(MapPos((int8)checkX, (int8)checkY), testDir) != 1)
+                        if (!_isDungeon || _map->checkOpenPassage(MapPos((int8)checkX, (int8)checkY), static_cast<Direction>(testDir)) != 1)
                             anyPassable = true;
                     }
 
@@ -307,12 +304,12 @@ bool CombatPlacement::placeCombatantSpiral(int charIdx) {
                 var14++;
 
                 const uint8 testDir = kDirFormFallback[sd.dir_idx][var14];
-                if (testDir >= 8)
+                if (testDir >= DIR_NONE)
                     continue;
 
                 const int checkX = _mapCenter.x + sd.origin.x;
                 const int checkY = _mapCenter.y + sd.origin.y;
-                if (!_isDungeon || _map->checkOpenPassage(MapPos((int8)checkX, (int8)checkY), testDir) != 1) {
+                if (!_isDungeon || _map->checkOpenPassage(MapPos((int8)checkX, (int8)checkY), static_cast<Direction>(testDir)) != 1) {
                     teamPos.x = static_cast<int8>(sd.origin.x + kDirDeltaX[testDir]);
                     teamPos.y = static_cast<int8>(sd.origin.y + kDirDeltaY[testDir]);
                     rowScale = 0;

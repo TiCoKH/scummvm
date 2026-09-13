@@ -27,30 +27,48 @@
 namespace Goldbox {
 
 /**
- * 8-direction movement deltas and helpers.
- *
- * Wire format (legacy ECL/GEO convention):
- *   0=North, 1=NE, 2=East, 3=SE, 4=South, 5=SW, 6=West, 7=NW 8=NoMove
- *
- * Cardinal directions use even indices (0/2/4/6).
- * Diagonal directions use odd indices (1/3/5/7) — used by combat tactical map.
- *
+ * 8-way movement direction (wire format, used by combat and movement systems).
  * Y axis: negative = north (up on screen), positive = south (down).
  */
+enum Direction {
+    DIR_N    = 0,
+    DIR_NE   = 1,
+    DIR_E    = 2,
+    DIR_SE   = 3,
+    DIR_S    = 4,
+    DIR_SW   = 5,
+    DIR_W    = 6,
+    DIR_NW   = 7,
+    DIR_NONE = 8   // stationary / no movement
+};
+
+/** Movement delta tables indexed by Direction (0-8). */
 static const int8 kDirDeltaX[9] = { 0, 1, 1, 1, 0, -1, -1, -1, 0 };
 static const int8 kDirDeltaY[9] = { -1, -1, 0, 1, 1, 1, 0, -1, 0 };
 
-/** Turn left (counterclockwise) by one 90-degree step (cardinal only). */
-inline uint8 dirLeft90(uint8 dir) { return (dir + 6) % 8; }
+/** Turn left (counterclockwise) 90 degrees. */
+inline Direction dirLeft90(Direction dir)  { return static_cast<Direction>((dir + 6) % 8); }
 
-/** Turn right (clockwise) by one 90-degree step (cardinal only). */
-inline uint8 dirRight90(uint8 dir) { return (dir + 2) % 8; }
+/** Turn right (clockwise) 90 degrees. */
+inline Direction dirRight90(Direction dir) { return static_cast<Direction>((dir + 2) % 8); }
 
 /** Reverse direction (180 degrees). */
-inline uint8 dirReverse(uint8 dir) { return (dir + 4) % 8; }
+inline Direction dirReverse(Direction dir) { return static_cast<Direction>((dir + 4) % 8); }
 
-/** Convert 8-direction wire format to 4-direction index (0=N,1=E,2=S,3=W). */
-inline int dir8ToDir4(uint8 dir) { return (dir / 2) % 4; }
+/**
+ * Convert 8-way Direction to 4-direction index (0=N, 1=E, 2=S, 3=W).
+ * DIR_NONE (8) maps to 0.
+ */
+inline uint8 dir8ToDir4(Direction dir) { return (static_cast<uint8>(dir) >> 1) & 3; }
+
+/**
+ * Convert half-direction index (0-3) to isometric 8-way Direction.
+ * Table: { DIR_NW, DIR_E, DIR_SE, DIR_W } = { 7, 2, 3, 6 }
+ */
+inline Direction halfDirToIso(uint8 halfDir) {
+    static const Direction kTable[4] = { DIR_NW, DIR_E, DIR_SE, DIR_W };
+    return kTable[halfDir & 3];
+}
 
 } // namespace Goldbox
 

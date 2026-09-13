@@ -928,7 +928,7 @@ void InGameView::openDoor() {
 	if (!rtGeo.isLoaded())
 		return;
 
-	const uint8 wireDir = _mapDir & 0x06;
+	const Direction wireDir = static_cast<Direction>(_mapDir & 0x06);
 	uint8 doorFlag = rtGeo.getWallFlag(
 		MapPos(static_cast<int8>(_mapX), static_cast<int8>(_mapY)), wireDir);
 
@@ -1041,7 +1041,7 @@ void InGameView::stepForward() {
 	// NOT here. This only blocks solid walls (wallFlag == 0).
 	RuntimeGeoBlock &rtGeo = VmInterface::getRuntimeGeo();
 	if (rtGeo.isLoaded()) {
-		const uint8 wireDir = _mapDir & 0x06;
+		const Direction wireDir = static_cast<Direction>(_mapDir & 0x06);
 		const uint8 wallFlag = rtGeo.getWallFlag(
 			MapPos(static_cast<int8>(_mapX), static_cast<int8>(_mapY)), wireDir);
 		if (wallFlag == 0)

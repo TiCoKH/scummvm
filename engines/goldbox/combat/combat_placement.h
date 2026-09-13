@@ -117,7 +117,6 @@ private:
     static const uint8 kDirFormFallback[4][4];   // ARRAY_SPIRAL_FORM_FALLBACK
     static const int8 kBaseX[8];
     static const int8 kBaseY[8];
-    static const uint8 kHalfDirToIso[4];
     static const int8 kFormationRange[5][6][2];
 
     // --- Internal methods ---

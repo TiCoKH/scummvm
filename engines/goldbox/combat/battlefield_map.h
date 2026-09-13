@@ -23,6 +23,7 @@
 #define GOLDBOX_COMBAT_BATTLEFIELD_MAP_H
 
 #include "common/scummsys.h"
+#include "goldbox/core/direction.h"
 #include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
@@ -57,7 +58,7 @@ public:
                     TilePos wild,
                     uint8 mapType, uint8 terrainOverride);
 
-    uint8 checkOpenPassage(MapPos mapPos, uint8 wireDir) const;
+    uint8 checkOpenPassage(MapPos mapPos, Direction wireDir) const;
     uint8 getRawTile(TilePos pos) const;
     void setRawTile(TilePos pos, uint8 rawTile);
     uint8 getTileId(TilePos pos) const;
@@ -167,7 +168,7 @@ private:
     uint8 _cellPassEast;
 
     void writeTile(int localCol, int localRow, uint8 tileId);
-    uint8 checkCell(MapPos mapPos, uint8 wireDir) const;
+    uint8 checkCell(MapPos mapPos, Direction wireDir) const;
 
     // --- Dirty tile bitmap (1 bit per tile, 50*25 = 1250 bits = 157 bytes) ---
     static const int kDirtyBitmapSize = (kPlayfieldCols * kPlayfieldRows + 7) / 8;

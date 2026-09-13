@@ -210,7 +210,7 @@ MapPos BattlefieldMap::getCenter() const {
     return _center;
 }
 
-uint8 BattlefieldMap::checkCell(MapPos mapPos, uint8 wireDir) const {
+uint8 BattlefieldMap::checkCell(MapPos mapPos, Direction wireDir) const {
     if (mapPos.x < kMapBoundMin || mapPos.x > kMapBoundMax ||
         mapPos.y < kMapBoundMin || mapPos.y > kMapBoundMax) {
         if (mapPos.y == _playerY && (wireDir == 0 || wireDir == 4))
@@ -227,8 +227,8 @@ uint8 BattlefieldMap::checkCell(MapPos mapPos, uint8 wireDir) const {
     return kCellWall;
 }
 
-uint8 BattlefieldMap::checkOpenPassage(MapPos mapPos, uint8 wireDir) const {
-    uint8 oppositeWire = (wireDir + 4) % 8;
+uint8 BattlefieldMap::checkOpenPassage(MapPos mapPos, Direction wireDir) const {
+    Direction oppositeWire = static_cast<Direction>((static_cast<uint8>(wireDir) + 4) % 8);
 
     uint8 thisCell = checkCell(mapPos, wireDir);
     MapPos next(static_cast<int8>(mapPos.x + kDirDeltaX[wireDir]),
@@ -272,8 +272,8 @@ void BattlefieldMap::setTilePatternNorthSide() {
 }
 
 void BattlefieldMap::setTilePatternNWCorner() {
-    uint8 aboveWest = checkOpenPassage(MapPos(_cellAbs.x, static_cast<int8>(_cellAbs.y - 1)), 6);
-    uint8 leftNorth = checkOpenPassage(MapPos(static_cast<int8>(_cellAbs.x - 1), _cellAbs.y), 0);
+    uint8 aboveWest = checkOpenPassage(MapPos(_cellAbs.x, static_cast<int8>(_cellAbs.y - 1)), DIR_W);
+    uint8 leftNorth = checkOpenPassage(MapPos(static_cast<int8>(_cellAbs.x - 1), _cellAbs.y), DIR_N);
     bool isCornerOpen = (aboveWest == kCellOpen) && (leftNorth == kCellOpen);
 
     uint8 tileNW;
@@ -336,8 +336,8 @@ void BattlefieldMap::setTilePatternNWCorner() {
 }
 
 void BattlefieldMap::setTilePatternNECorner() {
-    uint8 aboveEast = checkOpenPassage(MapPos(_cellAbs.x, static_cast<int8>(_cellAbs.y - 1)), 2);
-    uint8 rightNorth = checkOpenPassage(MapPos(static_cast<int8>(_cellAbs.x + 1), _cellAbs.y), 0);
+    uint8 aboveEast = checkOpenPassage(MapPos(_cellAbs.x, static_cast<int8>(_cellAbs.y - 1)), DIR_E);
+    uint8 rightNorth = checkOpenPassage(MapPos(static_cast<int8>(_cellAbs.x + 1), _cellAbs.y), DIR_N);
     bool isCornerOpen = (aboveEast == kCellOpen) && (rightNorth == kCellOpen);
 
     uint8 tileNW;
@@ -408,9 +408,9 @@ void BattlefieldMap::generateDungeon(MapPos center) {
             _cellAbs.x = static_cast<int8>(_cellOffsetX + center.x);
             _cellAbs.y = static_cast<int8>(_cellOffsetY + center.y);
 
-            _cellPassWest  = checkOpenPassage(_cellAbs, 6);
-            _cellPassNorth = checkOpenPassage(_cellAbs, 0);
-            _cellPassEast  = checkOpenPassage(_cellAbs, 2);
+            _cellPassWest  = checkOpenPassage(_cellAbs, DIR_W);
+            _cellPassNorth = checkOpenPassage(_cellAbs, DIR_N);
+            _cellPassEast  = checkOpenPassage(_cellAbs, DIR_E);
 
             setTilePatternWestSide();
             setTilePatternNorthSide();
