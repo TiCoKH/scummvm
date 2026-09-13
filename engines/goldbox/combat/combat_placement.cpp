@@ -364,7 +364,7 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
     if (occupant != 0)
         return false;
 
-    if (groundTile == 0 || (_map->getTilePropertyProvider() &&
+    if (groundTile == kTileIdNone || (_map->getTilePropertyProvider() &&
             _map->getTilePropertyProvider()->isImpassable(groundTile))) {
         _sides[_currentSide].valid_mask[slot][formRow][formCol] = 0;
         return false;
