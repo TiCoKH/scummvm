@@ -104,6 +104,51 @@ public:
      */
     TickResult submitPlayerAction(PlayerAction action);
 
+    // -----------------------------------------------------------------------
+    // Movement step API — called by CombatMoveDialog each step.
+    // All data mutations live here; the dialog owns only interaction state.
+
+    /** Outcome of one movement step. */
+    struct MoveStepResult {
+        enum Kind {
+            MS_OK,          // moved successfully
+            MS_OCCUPIED,    // destination has an occupant (index in occupantIndex)
+            MS_OUT_OF_BOUNDS, // tile == 0: offer flee
+            MS_BLOCKED,     // terrain cost > remaining move
+            MS_DISABLED     // character disabled mid-move; action complete
+        };
+        Kind kind = MS_OK;
+        int  occupantIndex = 0; // 1-based, valid when MS_OCCUPIED
+        bool actionComplete = false;
+    };
+
+    /** Update character facing without moving. */
+    void updateFacing(Data::PlayerCharacter *ch, uint8 direction);
+
+    /** Query ground/occupant one step in direction from ch. */
+    void queryGround(Data::PlayerCharacter *ch, uint8 direction,
+                     int *outOccupant, uint8 *outTile) const;
+
+    /** Get terrain passability cost for a tile id (0 = impassable/OOB). */
+    uint8 getTilePassability(uint8 tileId) const;
+
+    /**
+     * Execute one movement step: advance-engage check, move, status check.
+     * Returns MoveStepResult describing what happened.
+     */
+    MoveStepResult performMoveStep(Data::PlayerCharacter *ch, uint8 direction);
+
+    /** Restore character to saved position/facing (cancel path). */
+    void cancelMove(Data::PlayerCharacter *ch,
+                    uint8 origMovePoints, uint8 origDirection,
+                    uint8 origCol, uint8 origRow);
+
+    /** Set character fleeing; returns true if action is complete. */
+    bool trySetFleeing(Data::PlayerCharacter *ch);
+
+    /** Mark actor as having acted and advance to next actor. */
+    TickResult finishMoveAction(Data::PlayerCharacter *ch);
+
     /** The party actor currently waiting for player input. nullptr if none. */
     Data::PlayerCharacter *getCurrentActor() const { return _currentActor; }
 

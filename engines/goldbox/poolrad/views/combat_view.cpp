@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/combat_view.h"
+#include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/data/player_character.h"
@@ -46,12 +47,14 @@ namespace Views {
 
 CombatView::CombatView()
     : View("Combat"), _needsFullRedraw(true), _combatMenu(nullptr),
-      _currentInfoActor(nullptr) {
+      _combatMove(nullptr), _currentInfoActor(nullptr) {
     _combatMenu = new Dialogs::CombatMenuDialog();
+    _combatMove = new Dialogs::CombatMoveDialog();
 }
 
 CombatView::~CombatView() {
     delete _combatMenu;
+    delete _combatMove;
 }
 
 void CombatView::setup(const Combat::CombatParams &params) {
@@ -222,15 +225,39 @@ void CombatView::handleMenuResult(const MenuResultMessage &result) {
     if (!result._success || !result._hasIntValue)
         return;
 
-    // Dismiss the menu.
+    const Combat::CombatSession::PlayerAction action =
+        static_cast<Combat::CombatSession::PlayerAction>(result._intValue);
+
+    // PA_MOVE result from CombatMoveDialog — turn already advanced inside
+    // finishMoveAction(); just dismiss the move dialog and redraw.
+    if (action == Combat::CombatSession::PA_MOVE &&
+            _combatMove && _combatMove->isActive()) {
+        _combatMove->deactivate();
+        detachDialog(_combatMove);
+        _currentInfoActor = nullptr;
+        _needsFullRedraw = true;
+        return;
+    }
+
+    // Dismiss the action menu.
     if (_combatMenu && _combatMenu->isActive()) {
         _combatMenu->deactivate();
         detachDialog(_combatMenu);
     }
     _currentInfoActor = nullptr;
 
-    const Combat::CombatSession::PlayerAction action =
-        static_cast<Combat::CombatSession::PlayerAction>(result._intValue);
+    // Launch move dialog.
+    if (action == Combat::CombatSession::PA_MOVE) {
+        ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
+        if (actor && _combatMove) {
+            _combatMove->beginMove(actor);
+            attachDialog(_combatMove);
+            _combatMove->activate();
+        }
+        _needsFullRedraw = true;
+        return;
+    }
+
     const Combat::CombatSession::TickResult tickResult =
         _session.submitPlayerAction(action);
 
