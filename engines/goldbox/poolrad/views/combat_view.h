@@ -29,6 +29,7 @@
 #include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/gfx/combat_renderer.h"
 #include "goldbox/poolrad/views/dialogs/combat_menu_dialog.h"
+#include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
 
 // Forward declarations — avoid pulling full headers into the Poolrad::Views
 // namespace where unqualified 'Data::' would resolve to Goldbox::Poolrad::Data.
@@ -111,6 +112,7 @@ private:
 
     // --- Dialogs ---
     Dialogs::CombatMenuDialog *_combatMenu;
+    Dialogs::CombatMoveDialog *_combatMove;
 
     // --- Effect bridge (wired at setup time) ---
     Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;

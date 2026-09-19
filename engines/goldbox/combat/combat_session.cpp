@@ -22,7 +22,10 @@
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/combat/combat_setup.h"
 #include "goldbox/combat/combat_ai.h"
+#include "goldbox/combat/combat_ground_info.h"
+#include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/core/vm_layout.h"
+#include "goldbox/core/direction.h"
 #include "goldbox/ecl/ecl_memory.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
@@ -241,6 +244,123 @@ bool CombatSession::prepareTurn(Data::PlayerCharacter *ch) {
 
 CombatContext CombatSession::makeContext() {
     return CombatContext(_globals, _params, _table, _battlefieldMap, _viewport);
+}
+
+void CombatSession::updateFacing(Data::PlayerCharacter *ch, uint8 direction) {
+    if (ch && ch->combatState)
+        ch->combatState->direction = direction;
+}
+
+void CombatSession::queryGround(Data::PlayerCharacter *ch, uint8 direction,
+                                int *outOccupant, uint8 *outTile) const {
+    getGroundInfo(ch, direction, outOccupant, outTile);
+}
+
+uint8 CombatSession::getTilePassability(uint8 tileId) const {
+    if (tileId == 0)
+        return 0;
+    const TilePropertyProvider *props = _battlefieldMap.getTilePropertyProvider();
+    if (!props)
+        return 1;
+    const TileProp *p = props->getTileProp(tileId - 1);
+    return p ? (uint8)p->passable : 0;
+}
+
+CombatSession::MoveStepResult CombatSession::performMoveStep(
+        Data::PlayerCharacter *ch, uint8 direction) {
+    MoveStepResult result;
+    if (!ch || !ch->combatState) {
+        result.kind = MoveStepResult::MS_DISABLED;
+        return result;
+    }
+
+    int occupant = 0;
+    uint8 tileId = 0;
+    getGroundInfo(ch, direction, &occupant, &tileId);
+
+    if (occupant != 0) {
+        result.kind = MoveStepResult::MS_OCCUPIED;
+        result.occupantIndex = occupant;
+        return result;
+    }
+
+    if (tileId == kTileIdNone) {
+        result.kind = MoveStepResult::MS_OUT_OF_BOUNDS;
+        return result;
+    }
+
+    if (ch->combatState->movePoints < getTilePassability(tileId)) {
+        result.kind = MoveStepResult::MS_BLOCKED;
+        return result;
+    }
+
+    // Advance-engage check (mirrors tryAdvanceEngage).
+    // Deduct movement cost and update position via table.
+    const uint8 cost = getTilePassability(tileId);
+    ch->combatState->movePoints -= cost;
+
+    // Compute destination tile.
+    const int idx = _table.findIndex(ch);
+    if (idx >= 0) {
+        const int8 dx = ::Goldbox::kDirDeltaX[direction];
+        const int8 dy = ::Goldbox::kDirDeltaY[direction];
+        uint8 newCol = (uint8)(_table.getTileCol(idx) + dx);
+        uint8 newRow = (uint8)(_table.getTileRow(idx) + dy);
+        _table.setPosition(idx, TilePos(newCol, newRow));
+        _table.rebuildOccupancy();
+        scrollViewport(TilePos(newCol, newRow), 2);
+    }
+
+    if (!ch->enabled) {
+        if (ch->combatState) ch->combatState->reset();
+        result.kind = MoveStepResult::MS_DISABLED;
+        result.actionComplete = true;
+        return result;
+    }
+
+    // Status check (mirrors checkAndApplyStatus / hasNegativeEffect).
+    if (_params.effectRuntime && ch->getEffects()) {
+        _params.effectRuntime->checkEffectSet(
+            Data::Effects::ES_POST_MOVEMENT_TILE,
+            *ch->getEffects(), *ch, &_globals);
+    }
+
+    if (!ch->enabled) {
+        if (ch->combatState) ch->combatState->reset();
+        result.kind = MoveStepResult::MS_DISABLED;
+        result.actionComplete = true;
+    }
+
+    return result;
+}
+
+void CombatSession::cancelMove(Data::PlayerCharacter *ch,
+                               uint8 origMovePoints, uint8 origDirection,
+                               uint8 origCol, uint8 origRow) {
+    if (!ch || !ch->combatState)
+        return;
+    ch->combatState->movePoints = origMovePoints;
+    ch->combatState->direction  = origDirection;
+    const int idx = _table.findIndex(ch);
+    if (idx >= 0) {
+        _table.setPosition(idx, TilePos(origCol, origRow));
+        _table.rebuildOccupancy();
+        scrollViewport(TilePos(origCol, origRow), 2);
+    }
+}
+
+bool CombatSession::trySetFleeing(Data::PlayerCharacter *ch) {
+    if (!ch || !ch->combatState)
+        return false;
+    ch->combatState->fleeing = true;
+    // Mirrors trySetRunning: action is complete when fleeing is set.
+    return true;
+}
+
+CombatSession::TickResult CombatSession::finishMoveAction(Data::PlayerCharacter *ch) {
+    if (ch && ch->combatState)
+        ch->combatState->initiative = 0xFF;
+    return submitPlayerAction(PA_NONE);
 }
 
 } // namespace Combat
