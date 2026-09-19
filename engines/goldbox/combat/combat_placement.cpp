@@ -21,7 +21,6 @@
 
 #include "goldbox/combat/combat_placement.h"
 #include "goldbox/combat/battlefield_map.h"
-#include "goldbox/combat/combat_ground_info.h"
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
 #include "goldbox/data/player_character.h"
@@ -357,14 +356,12 @@ bool CombatPlacement::tryPlaceAt(int charIdx, int formCol, int formRow,
 
     _table->setPosition(charIdx, TilePos((uint8)tileCol, (uint8)tileRow));
 
-    uint8 occupant = 0;
-    uint8 groundTile = 0;
-    getGroundInfo(charIdx, 8, *_map, *_table, groundTile, occupant);
-
-    if (occupant != 0)
+    if (_table->getOccupant(tileCol, tileRow) != (uint8)(charIdx + 1) &&
+            _table->getOccupant(tileCol, tileRow) != 0)
         return false;
 
-    if (groundTile == kTileIdNone || (_map->getTilePropertyProvider() &&
+    uint8 groundTile = _map->getRawTile(TilePos((uint8)tileCol, (uint8)tileRow));
+    if (groundTile == 0 || (_map->getTilePropertyProvider() &&
             _map->getTilePropertyProvider()->isImpassable(groundTile))) {
         _sides[_currentSide].valid_mask[slot][formRow][formCol] = 0;
         return false;
