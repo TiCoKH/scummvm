@@ -22,8 +22,10 @@
 #include "goldbox/combat/combat_ground_info.h"
 #include "goldbox/combat/battlefield_map.h"
 #include "goldbox/combat/combatant_table.h"
+#include "goldbox/combat/combat_session.h"
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/core/direction.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Combat {
@@ -70,18 +72,26 @@ static uint8 getTilePriority(uint8 rawTile,
     return (uint8)prop->passable;
 }
 
-void getGroundInfo(int charIdx, uint8 direction,
-                   const BattlefieldMap &map,
-                   const CombatantTable &table,
-                   uint8 &outTile, uint8 &outOccupant) {
-    outOccupant = 0;
-    outTile = kTileIdDefault;
+void getGroundInfo(Data::PlayerCharacter *ch, uint8 direction,
+                   int *outPlayerIndex, uint8 *outTile) {
+    assert(g_combatSession);
+    const CombatantTable &table = g_combatSession->getTable();
+    const BattlefieldMap &map   = g_combatSession->getBattlefieldMap();
+
+    int charIdx = table.findIndex(ch);
+    if (charIdx < 0) {
+        if (outTile)        *outTile        = kTileIdNone;
+        if (outPlayerIndex) *outPlayerIndex = 0;
+        return;
+    }
+
+    uint8 outOccupant = 0;
+    uint8 outTileVal  = kTileIdDefault;
     uint8 bestPriority = 1;
 
     uint8 baseCol = table.getTileCol(charIdx);
     uint8 baseRow = table.getTileRow(charIdx);
     uint8 footprintCode = table.getSize(charIdx) & 7;
-
     const TilePropertyProvider *tileProps = map.getTilePropertyProvider();
 
     int8 dx = (direction < 8) ? kDirDeltaX[direction] : 0;
@@ -100,32 +110,30 @@ void getGroundInfo(int charIdx, uint8 direction,
 
         if (checkCol >= 0 && checkCol < BattlefieldMap::kPlayfieldCols &&
             checkRow >= 0 && checkRow < BattlefieldMap::kPlayfieldRows) {
-            foundTile = map.getRawTile(TilePos((uint8)checkCol, (uint8)checkRow));
+            foundTile     = map.getRawTile(TilePos((uint8)checkCol, (uint8)checkRow));
             foundOccupant = table.getOccupant(checkCol, checkRow);
         }
 
-        // Ignore self-reference (1-based occupant index)
         if (foundOccupant == (uint8)(charIdx + 1))
             foundOccupant = 0;
-
-        // Update occupant if found
         if (foundOccupant != 0)
             outOccupant = foundOccupant;
 
-        // Tile priority rules: tileId==0 means no tile (OOB or empty map cell)
-        if (foundTile == kTileIdNone || outTile == kTileIdNone) {
-            outTile = kTileIdNone;
-        } else if (foundTile == kTileIdHazard || outTile == kTileIdHazard) {
-            // Hazard always propagates over normal tiles
-            outTile = kTileIdHazard;
+        if (foundTile == kTileIdNone || outTileVal == kTileIdNone) {
+            outTileVal = kTileIdNone;
+        } else if (foundTile == kTileIdHazard || outTileVal == kTileIdHazard) {
+            outTileVal = kTileIdHazard;
         } else {
             uint8 priority = getTilePriority(foundTile, tileProps);
             if (bestPriority <= priority) {
                 bestPriority = priority;
-                outTile = foundTile;
+                outTileVal = foundTile;
             }
         }
     }
+
+    if (outTile)        *outTile        = outTileVal;
+    if (outPlayerIndex) *outPlayerIndex = (int)outOccupant;
 }
 
 } // namespace Combat

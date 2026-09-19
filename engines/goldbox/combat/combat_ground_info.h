@@ -25,11 +25,11 @@
 #include "common/scummsys.h"
 
 namespace Goldbox {
+namespace Data {
+class PlayerCharacter;
+}
 
 namespace Combat {
-
-class CombatantTable;
-class BattlefieldMap;
 
 /**
  * Special tile ID values returned by getGroundInfo.
@@ -48,30 +48,26 @@ static const uint8 kTileIdDefault = 0x17;
 /**
  * Query ground tile and occupant in a given direction from a combatant.
  *
+ * Resolves map and table from g_combatSession. Requires an active session.
  * Scans all tiles occupied by the character's icon footprint one step
  * in the specified direction. Reports the "best" tile using priority
  * rules and any occupant found at the destination.
  *
  * Caller logic (from original):
- *   occupant != 0                    → destination occupied
- *   occupant == 0, tileId == 0       → OOB: offer Flee dialog
- *   occupant == 0, tileId != 0
+ *   *outPlayerIndex != 0             → destination occupied
+ *   *outPlayerIndex == 0, tile == 0  → OOB: offer Flee dialog
+ *   *outPlayerIndex == 0, tile != 0
  *     move < tileProps[id].passable  → "Blocked" message
  *     else                           → advance/move
  *
- * Used by: placement, AI movement, player step validation, etc.
- *
- * @param charIdx     Combatant index in the CombatantTable
- * @param direction   Direction index (0-7), or 8 for stationary check
- * @param map         Battlefield map for raw tile queries
- * @param table       Combatant table for position/occupancy queries
- * @param outTile     Result: 0=impassable/OOB, 0x1E=hazard, other=terrain
- * @param outOccupant Result: occupant index if found, else 0
+ * @param ch             Character pointer (looked up in the session table)
+ * @param direction      Direction index (0-7), or 8 for stationary check
+ * @param outPlayerIndex Result: 1-based occupant index if found, else 0
+ * @param outTile        Result: tile ID (see kTileId* constants)
  */
-void getGroundInfo(int charIdx, uint8 direction,
-                   const BattlefieldMap &map,
-                   const CombatantTable &table,
-                   uint8 &outTile, uint8 &outOccupant);
+void getGroundInfo(Data::PlayerCharacter *ch, uint8 direction,
+                   int *outPlayerIndex, uint8 *outTile);
+
 
 /**
  * Get icon footprint offset for a given slot.
