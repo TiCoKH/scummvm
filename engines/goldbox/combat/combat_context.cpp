@@ -290,15 +290,15 @@ bool CombatContext::lineOfSightCheck(TilePos source, TilePos target,
     for (;;) {
         // Check obstacle height at current line position against height path.
         const uint8 raw = map.getRawTile(TilePos((uint8)linePath.col, (uint8)linePath.row));
-        uint8 obstacleHeight = 0;
+        uint8 obstacleWidth = 0;
         if (raw > 0 && tileProps) {
             const TileProp *prop = tileProps->getTileProp(raw - 1);
             if (prop)
-				obstacleHeight = prop->obstacleWidth;
+				obstacleWidth = prop->obstacleWidth;
         }
 
         const bool passable = map.getIgnoreWalls() ||
-                              obstacleHeight <= (uint8)heightPath.row;
+                              obstacleWidth <= (uint8)heightPath.row;
         const bool inRange  = linePath.moveCost <= (int16)(initialRange * 2 + 1);
 
         if (!passable || !inRange)

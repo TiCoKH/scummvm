@@ -1117,15 +1117,12 @@ static void handleBloodDrainingAttack(const EffectCall &c) {
 // TODO: GFX_LoadEffectTileQuad(18) and AnimateGaze() are not yet implemented;
 //       the visual gaze animation is skipped until the gfx effect system is ported.
 // Mirrors EFFECT_84_CharmingGaze.
-// Requires a valid combat target. Guards on canEngageTarget and line-of-sight
-// (both TODO: not yet ported). Announces the gaze, sets activeSpellId=10,
-// rolls save vs. spell (type 4, modifier -2), then applies charm effect (0x0B)
-// via checkUnaffected. If the effect was accepted, fires its EFF_ADD handler
-// directly to trigger the charm side-effects (combatSide swap, ai_control, etc.).
+// Requires a valid combat target on the opposite side with LOS.
+// Announces the gaze, sets activeSpellId=10, rolls save vs. spell
+// (type 4, modifier -2), then applies charm effect (0x0B) via checkUnaffected.
+// If the effect was accepted, fires its EFF_ADD handler directly to trigger
+// the charm side-effects (combatSide swap, ai_control, etc.).
 //
-// TODO: COMBAT_canEngageTarget and COMBAT_checkLineOfSight are not yet ported;
-//       the engagement and LOS guards are skipped until the combat system
-//       provides these queries.
 // TODO: GFX_LoadEffectTileQuad(18) and COMBAT_AnimateMissilePath are not yet
 //       implemented; the visual gaze animation is skipped.
 static void handleCharmingGaze(const EffectCall &c) {
@@ -1137,9 +1134,23 @@ static void handleCharmingGaze(const EffectCall &c) {
 
     Goldbox::Data::PlayerCharacter *target = c.character.combatState->target;
 
-    // TODO: if (!COMBAT_canEngageTarget(attacker, target)) return;
-    // TODO: if (!COMBAT_checkLineOfSight(attackerCol, attackerRow,
-    //                                    targetCol, targetRow)) return;
+    Combat::CombatContext *ctx = Goldbox::g_engine ?
+        Goldbox::g_engine->getCombatContext() : nullptr;
+
+    if (!target->enabled || target->combatSide == c.character.combatSide)
+        return;
+
+    if (ctx) {
+        const TilePos attackerPos(
+            ctx->table.getCharacterCol(&c.character),
+            ctx->table.getCharacterRow(&c.character));
+        const TilePos targetPos(
+            ctx->table.getCharacterCol(target),
+            ctx->table.getCharacterRow(target));
+        uint16 range = 0xFF;
+        if (!ctx->lineOfSightCheck(attackerPos, targetPos, range))
+            return;
+    }
 
     if (c.bridge)
         c.bridge->postEffectMessage(&c.character, "Gazes...", false);
