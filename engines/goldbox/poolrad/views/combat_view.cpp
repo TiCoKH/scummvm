@@ -291,11 +291,13 @@ void CombatView::drawCombatants() {
         if (table.getSize(i) == 0)
             continue;
 
-        int8 localCol = table.getColDist(i);
-        int8 localRow = table.getRowDist(i);
+        const Combat::ViewportPos vpos =
+            _session.getViewport().getCharacterViewportPosition(table, i);
+        const int16 localCol = vpos.column;
+        const int16 localRow = vpos.row;
 
-        if (localCol < 0 || localCol >= Combat::CombatViewport::VIEW_COLS ||
-            localRow < 0 || localRow >= Combat::CombatViewport::VIEW_ROWS)
+        if (!vpos.isVisible(Combat::CombatViewport::VIEW_COLS,
+                             Combat::CombatViewport::VIEW_ROWS))
             continue;
 
         ::Goldbox::Data::PlayerCharacter *ch = table.getCharacter(i);
@@ -443,8 +445,10 @@ void CombatView::drawDamage(::Goldbox::Data::PlayerCharacter *ch,
     int pixX = kViewportX;
     int pixY = kViewportY;
     if (idx >= 0) {
-        pixX = kViewportX + table.getColDist(idx) * kTileSize;
-        pixY = kViewportY + table.getRowDist(idx) * kTileSize;
+        const Combat::ViewportPos vpos =
+            _session.getViewport().getCharacterViewportPosition(table, idx);
+        pixX = kViewportX + vpos.column * kTileSize;
+        pixY = kViewportY + vpos.row    * kTileSize;
     }
 
     Surface screenSurface = getSurface();

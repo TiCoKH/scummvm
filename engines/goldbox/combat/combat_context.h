@@ -25,6 +25,7 @@
 #include "common/scummsys.h"
 #include "common/array.h"
 #include "goldbox/combat/combat_globals.h"
+#include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
 namespace Data {
@@ -37,6 +38,15 @@ struct CombatParams;
 class CombatantTable;
 class BattlefieldMap;
 class CombatViewport;
+
+struct FootprintOffsetPair {
+    int8 col;
+    int8 row;
+};
+
+struct TargetList {
+    Common::Array<uint8> targetOrder; // 0-based combatant table indices
+};
 
 /**
  * Non-owning bundle of live combat object references.
@@ -71,6 +81,29 @@ struct CombatContext {
 
     /** Rebuild viewport distances — call after viewport scrolls or combatant moves. */
     void rebuildDistances();
+
+    /**
+     * Returns the col/row delta for a footprint slot.
+     * iconSize: combat footprint code (1-4); slot: 0-3.
+     * Returns false for invalid size/slot or sentinel {-1,-1} entries.
+     */
+    static bool getFootprintOffset(uint8 iconSize, uint8 slot, FootprintOffsetPair &off);
+
+    /** Query ground tile and occupant one step in direction from ch. */
+    void getGroundInfo(Data::PlayerCharacter *ch, uint8 direction,
+                       int *outPlayerIndex, uint8 *outTile) const;
+
+    /** Build ordered list of valid targets for attacker within maxRange. */
+    void buildTargetList(const Data::PlayerCharacter *attacker,
+                         uint8 maxRange, TargetList &result) const;
+
+    /**
+     * Returns true if the attacker tile is within the frontal arc of a
+     * target facing direction. direction==DIR_NONE means no restriction.
+     * Mirrors COMBAT_IsTargetInArc.
+     */
+    static bool isTargetInArc(Direction direction,
+                               TilePos attackerPos, TilePos targetPos);
 
     /**
      * Reset per-turn CombatAction fields for one character.

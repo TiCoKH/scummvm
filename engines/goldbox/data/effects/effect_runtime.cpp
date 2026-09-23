@@ -22,7 +22,7 @@
 #include "goldbox/data/effects/effect_runtime.h"
 
 #include "common/array.h"
-#include "goldbox/combat/combat_ground_info.h"
+#include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect.h"
@@ -189,28 +189,24 @@ static bool isWithinPropagationRange(const Combat::CombatantTable &table,
     const uint8 targetSize = table.getSize(targetIdx) & 7;
 
     for (uint8 sourceSlot = 0; sourceSlot < 4; ++sourceSlot) {
-        int8 sourceColDelta = 0;
-        int8 sourceRowDelta = 0;
-        if (!Combat::getIconOffsetBySize(sourceSize, sourceSlot,
-                sourceColDelta, sourceRowDelta))
+        Combat::FootprintOffsetPair sourceOff;
+        if (!Combat::CombatContext::getFootprintOffset(sourceSize, sourceSlot, sourceOff))
             continue;
 
         const int sourceTileCol = static_cast<int>(sourceCol) +
-            static_cast<int>(sourceColDelta);
+            static_cast<int>(sourceOff.col);
         const int sourceTileRow = static_cast<int>(sourceRow) +
-            static_cast<int>(sourceRowDelta);
+            static_cast<int>(sourceOff.row);
 
         for (uint8 targetSlot = 0; targetSlot < 4; ++targetSlot) {
-            int8 targetColDelta = 0;
-            int8 targetRowDelta = 0;
-            if (!Combat::getIconOffsetBySize(targetSize, targetSlot,
-                    targetColDelta, targetRowDelta))
+            Combat::FootprintOffsetPair targetOff;
+            if (!Combat::CombatContext::getFootprintOffset(targetSize, targetSlot, targetOff))
                 continue;
 
             const int targetTileCol = static_cast<int>(targetCol) +
-                static_cast<int>(targetColDelta);
+                static_cast<int>(targetOff.col);
             const int targetTileRow = static_cast<int>(targetRow) +
-                static_cast<int>(targetRowDelta);
+                static_cast<int>(targetOff.row);
 
             const int deltaCol = ABS(targetTileCol - sourceTileCol);
             const int deltaRow = ABS(targetTileRow - sourceTileRow);

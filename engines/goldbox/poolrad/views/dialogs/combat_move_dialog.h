@@ -24,6 +24,7 @@
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/core/tile_pos.h"
 
 // Forward declaration in the correct namespace — mirrors combat_view.h pattern.
 namespace Goldbox {
@@ -74,8 +75,7 @@ private:
     // Snapshot saved at move start for cancel/restore.
     uint8 _origMovePoints;
     uint8 _origDirection;
-    uint8 _origCol;
-    uint8 _origRow;
+    TilePos _origPos;
 
     State _state;
 

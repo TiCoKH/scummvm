@@ -40,12 +40,13 @@ namespace Combat {
  *   gbCombatPosition_ARRAY[] (id, icon_size, tile_col, tile_row)
  *   C_CH_PTR_TABLE[]         (character pointers)
  *   C_FIELD_PLACEMENT_MAP[]  (50x25 occupancy grid)
- *   BYTE_ARRAY_COL_DIST[]    (viewport-relative column position)
- *   BYTE_ARRAY_ROW_DIST[]    (viewport-relative row position)
  *
  * Modernized: single Entry struct as authoritative source, occupancy
- * grid and viewport-relative positions are derived state rebuilt
- * lazily on access.
+ * grid is derived state rebuilt lazily on access.
+ *
+ * Viewport-relative positions are NOT cached here. Use
+ * CombatViewport::mapToViewport() / getCharacterViewportPosition()
+ * to convert map positions to viewport coordinates at the point of use.
  *
  * Uses 0-based indexing internally; the original 1-based convention
  * is handled at the API boundary (occupancy stores index+1).
@@ -100,6 +101,7 @@ public:
     Data::PlayerCharacter *getCharacter(int idx) const;
     uint8 getTileCol(int idx) const;
     uint8 getTileRow(int idx) const;
+    TilePos getTilePos(int idx) const;
     uint8 getSize(int idx) const;
 
     /** Set position and mark occupancy dirty. */
@@ -112,6 +114,7 @@ public:
 
     uint8 getCharacterCol(const Data::PlayerCharacter *ch) const;
     uint8 getCharacterRow(const Data::PlayerCharacter *ch) const;
+    TilePos getCharacterPos(const Data::PlayerCharacter *ch) const;
     uint8 getCharacterSize(const Data::PlayerCharacter *ch) const;
 
     // --- Trigger records ---
@@ -140,32 +143,6 @@ public:
      */
     void invalidateOccupancy() { _occupancyDirty = true; }
 
-    // --- Viewport-relative position cache (lazy rebuild) ---
-
-    /**
-     * Set the viewport origin for position calculations.
-     *
-     * Mirrors original BYTE_ARRAY_COL_DIST / BYTE_ARRAY_ROW_DIST which
-     * store each combatant's tile position relative to the viewport
-     * top-left corner (PTR_COMBAT_FIELD->viewport_startX/Y).
-     *
-     * Used by the renderer to compute screen-space tile coordinates
-     * and by COMBAT_IsCharacterInBounds to check viewport visibility.
-     *
-     * @param vpCol Viewport top-left column (CombatViewport::getTopLeftCol)
-     * @param vpRow Viewport top-left row (CombatViewport::getTopLeftRow)
-     */
-    void setViewportOrigin(TilePos origin);
-
-    /** Column offset from viewport origin for combatant idx. */
-    int8 getColDist(int idx) const;
-
-    /** Row offset from viewport origin for combatant idx. */
-    int8 getRowDist(int idx) const;
-
-    /** Manhattan distance from viewport origin to combatant. */
-    int getManhattanDist(int idx) const;
-
     // --- Side counts ---
 
     int getFriendsCount() const { return _friendsCount; }
@@ -181,9 +158,8 @@ public:
      */
     void rebuildOccupancy() { _occupancyDirty = true; ensureOccupancy(); }
 
-    /** @deprecated Use setViewportOrigin instead. */
-    void setDistanceOrigin(TilePos origin) { setViewportOrigin(origin); }
-    void rebuildDistances(TilePos origin) { setViewportOrigin(origin); }
+    // --- Removed: viewport-relative position cache ---
+    // Use CombatViewport::mapToViewport() / getCharacterViewportPosition() instead.
 
 private:
     struct Entry {
@@ -205,14 +181,9 @@ private:
 
     void doRebuildOccupancy() const;
 
-    // --- Lazy viewport-relative position cache ---
-    mutable int8 _colDist[MAX_COMBATANTS];
-    mutable int8 _rowDist[MAX_COMBATANTS];
-    mutable bool _vpPosDirty;
-    mutable int _vpOriginCol;
-    mutable int _vpOriginRow;
-
-    void doRebuildViewportPositions() const;
+    // --- Viewport-relative position cache removed ---
+    // (was: _colDist, _rowDist, _vpPosDirty, _vpOriginCol, _vpOriginRow)
+    // Use CombatViewport::getCharacterViewportPosition() instead.
 
     Common::Array<DownedMemberRecord> _downedMembers;
 };
