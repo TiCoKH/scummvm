@@ -187,7 +187,7 @@ void CombatContext::buildTargetListCore(TilePos pos, uint8 iconSize,
                     continue;
 
                 uint16 range = maxRange;
-                if (!map.lineOfSightCheck(sourceTiles[sSlot], candidateTiles[cSlot], range))
+                if (!lineOfSightCheck(sourceTiles[sSlot], candidateTiles[cSlot], range))
                     continue;
 
                 foundTarget = true;
@@ -257,6 +257,67 @@ void CombatContext::buildTargetList(const Data::PlayerCharacter *attacker,
 
     for (uint i = 0; i < result.entries.size(); i++)
         result.targetOrder.push_back(result.entries[i].idx);
+}
+
+bool CombatContext::lineOfSightCheck(TilePos source, TilePos target,
+                                     uint16 &range, TilePos *blockedAt) const {
+    const uint16 initialRange = range;
+    const TilePropertyProvider *tileProps = map.getTilePropertyProvider();
+
+    FieldPath linePath;
+    linePath.startCol = (int16)source.col;
+    linePath.startRow = (int16)source.row;
+    linePath.endCol   = (int16)target.col;
+    linePath.endRow   = (int16)target.row;
+    initBresenham(linePath);
+
+    // Terrain height at the source tile sets the initial elevation threshold.
+    const uint8 startRaw = map.getRawTile(source);
+    uint8 terrainLevel = 0;
+    if (startRaw > 0 && tileProps) {
+        const TileProp *prop = tileProps->getTileProp(startRaw - 1);
+        if (prop)
+            terrainLevel = prop->terrainHeight;
+    }
+
+    FieldPath heightPath;
+    heightPath.startCol = 0;
+    heightPath.startRow = (int16)terrainLevel;
+    heightPath.endCol   = (int16)MAX(linePath.deltaCol, linePath.deltaRow);
+    heightPath.endRow   = (int16)terrainLevel;
+    initBresenham(heightPath);
+
+    for (;;) {
+        // Check obstacle height at current line position against height path.
+        const uint8 raw = map.getRawTile(TilePos((uint8)linePath.col, (uint8)linePath.row));
+        uint8 obstacleHeight = 0;
+        if (raw > 0 && tileProps) {
+            const TileProp *prop = tileProps->getTileProp(raw - 1);
+            if (prop)
+				obstacleHeight = prop->obstacleWidth;
+        }
+
+        const bool passable = map.getIgnoreWalls() ||
+                              obstacleHeight <= (uint8)heightPath.row;
+        const bool inRange  = linePath.moveCost <= (int16)(initialRange * 2 + 1);
+
+        if (!passable || !inRange)
+            break;
+
+        stepBresenham(heightPath);
+
+        if (!stepBresenham(linePath)) {
+            // Reached the target tile — LOS clear.
+            range = (uint16)linePath.moveCost;
+            return true;
+        }
+    }
+
+    // Blocked or out of range.
+    if (blockedAt)
+        *blockedAt = TilePos((uint8)linePath.col, (uint8)linePath.row);
+    range = (uint16)linePath.moveCost;
+    return false;
 }
 
 void CombatContext::initCharacterTurnState(Data::PlayerCharacter *ch) {

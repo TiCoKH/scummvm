@@ -76,13 +76,6 @@ public:
      * acknowledgement. Used by the tilemap renderer to know when
      * to re-render affected tiles instead of the full surface.
      */
-    /**
-     * Check line of sight between two tiles, adjusting range for obstacles.
-     * Returns false if LOS is completely blocked; on success, range may be
-     * reduced. Stub implementation — always returns true.
-     */
-    bool lineOfSightCheck(TilePos from, TilePos to, uint16 &range) const;
-
     bool hasDirtyTiles() const { return _dirtyCount > 0; }
 
     /** Number of individually dirty tiles since last ack. */

@@ -21,6 +21,7 @@ MODULE_OBJS = \
 	ecl/opcode_table.o \
 	core/array.o \
 	core/file.o \
+	core/field_path.o \
 	core/menu_item.o \
 	core/vm_bank.o \
 	core/vm_layout.o \

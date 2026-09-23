@@ -238,11 +238,6 @@ uint8 BattlefieldMap::checkOpenPassage(MapPos mapPos, Direction wireDir) const {
     return thisCell | nextCell;
 }
 
-bool BattlefieldMap::lineOfSightCheck(TilePos /*from*/, TilePos /*to*/, uint16 & /*range*/) const {
-    // TODO: implement wall-based LOS reduction
-    return true;
-}
-
 void BattlefieldMap::setTilePatternWestSide() {
     for (int row = 2; row <= 4; row++) {
         for (int col = 0; col <= 5; col++) {

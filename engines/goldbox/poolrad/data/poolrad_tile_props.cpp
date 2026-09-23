@@ -26,7 +26,7 @@ namespace Poolrad {
 
 using Combat::TileProp;
 
-// struct = {passable, padding, tileSize, blockID}
+// struct = {passable, terrainHeight, obstacleWidth, blockID}
 // Table is indexed by raw tile value (1-based from tilemap = index+1 here)
 // Entry [0] corresponds to raw tile 1 in the tilemap buffer.
 const TileProp PoolradTilePropertyProvider::kTable[] = {

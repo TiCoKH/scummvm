@@ -25,6 +25,7 @@
 #include "common/scummsys.h"
 #include "common/array.h"
 #include "goldbox/combat/combat_globals.h"
+#include "goldbox/core/field_path.h"
 #include "goldbox/core/tile_pos.h"
 #include "goldbox/core/direction.h"
 
@@ -92,6 +93,22 @@ struct CombatContext {
     void getGroundInfo(Data::PlayerCharacter *ch, uint8 direction,
                        int *outPlayerIndex, uint8 *outTile) const;
 
+    /**
+     * Thin wrappers so call sites inside combat can use CombatContext::initBresenham
+     * and CombatContext::stepBresenham without a namespace qualifier.
+     * The implementations live in core/field_path.cpp and are shared with the spell system.
+     */
+    static void initBresenham(FieldPath &path) { Goldbox::initBresenham(path); }
+    static bool stepBresenham(FieldPath &path) { return Goldbox::stepBresenham(path); }
+
+    /**
+     * Check line of sight from source to target, reducing range for
+     * obstacles. On success returns true and range holds the walk cost.
+     * On failure returns false; blockedAt receives the blocking tile.
+     * Mirrors COMBAT_lineOfSightCheck.
+     */
+    bool lineOfSightCheck(TilePos source, TilePos target,
+                          uint16 &range, TilePos *blockedAt = nullptr) const;
     /**
      * Mirrors COMBAT_BuildTargetListCore.
      * Populates targetList.entries with all combatants reachable from
