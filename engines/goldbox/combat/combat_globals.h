@@ -25,6 +25,7 @@
 #include "common/scummsys.h"
 #include "common/array.h"
 #include "goldbox/combat/cloud_effect_manager.h"
+#include "goldbox/core/direction.h"
 #include "goldbox/data/spells/spell.h"
 
 namespace Goldbox {
@@ -33,6 +34,22 @@ class PlayerCharacter;
 }
 
 namespace Combat {
+
+struct TargetEntry {
+    uint8 idx;    // 0-based combatant table index
+    uint8 range;
+    Direction facing;
+
+    TargetEntry() : idx(0), range(0), facing(DIR_NONE) {}
+    TargetEntry(uint8 i, uint8 r, Direction f) : idx(i), range(r), facing(f) {}
+};
+
+struct TargetList {
+    Common::Array<TargetEntry> entries;
+    Common::Array<uint8> targetOrder; // sorted 0-based combatant table indices
+
+    void clear() { entries.clear(); targetOrder.clear(); }
+};
 
 /**
  * Global combat state reset at the start of each encounter.
@@ -89,7 +106,6 @@ struct CombatGlobals {
     uint8 turnCounter;        // COMBAT_TURN_COUNTER — incremented once at the end of each turn
     uint8 handicapValue;      // C_HANDICAP_VALUE — hostile health ratio * 5 (0-100), used by AI/morale
     CloudEffectManager clouds; // PTR_CLOUD_EFF_HANDLER
-
 
     CombatGlobals() { reset(); }
 

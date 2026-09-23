@@ -26,6 +26,7 @@
 #include "common/array.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/core/tile_pos.h"
+#include "goldbox/core/direction.h"
 
 namespace Goldbox {
 namespace Data {
@@ -42,10 +43,6 @@ class CombatViewport;
 struct FootprintOffsetPair {
     int8 col;
     int8 row;
-};
-
-struct TargetList {
-    Common::Array<uint8> targetOrder; // 0-based combatant table indices
 };
 
 /**
@@ -66,12 +63,14 @@ struct CombatContext {
     BattlefieldMap      &map;
     CombatViewport      &viewport;
     CloudEffectManager  &clouds;  // alias for globals.clouds
+    TargetList          &targetList; // TARGET_LIST / TARGET_COUNT / ARRAY_TARGET_ORDER
 
     CombatContext(CombatGlobals &globals_,
                   CombatParams &params_,
                   CombatantTable &table_,
                   BattlefieldMap &map_,
-                  CombatViewport &viewport_);
+                  CombatViewport &viewport_,
+                  TargetList &targetList_);
 
     /** Mirrors COMBAT_updateSideCount — call after any roster change. */
     void updateSideCount();
@@ -93,9 +92,20 @@ struct CombatContext {
     void getGroundInfo(Data::PlayerCharacter *ch, uint8 direction,
                        int *outPlayerIndex, uint8 *outTile) const;
 
-    /** Build ordered list of valid targets for attacker within maxRange. */
-    void buildTargetList(const Data::PlayerCharacter *attacker,
-                         uint8 maxRange, TargetList &result) const;
+    /**
+     * Mirrors COMBAT_BuildTargetListCore.
+     * Populates targetList.entries with all combatants reachable from
+     * pos within maxRange, passing arc and LOS checks. Sorted by range.
+     */
+    void buildTargetListCore(TilePos pos, uint8 iconSize,
+                             Direction facing, uint8 maxRange);
+
+    /**
+     * Mirrors COMBAT_BuildTargetList.
+     * Calls buildTargetListCore with DIR_NONE, filters to same side as
+     * attacker, and populates targetList.targetOrder.
+     */
+    void buildTargetList(const Data::PlayerCharacter *attacker, uint8 maxRange);
 
     /**
      * Returns true if the attacker tile is within the frontal arc of a

@@ -187,6 +187,7 @@ private:
     CombatPlacement _placement;
     CombatViewport  _viewport;
     Phase           _phase;
+    TargetList      _targetList;  // TARGET_LIST / TARGET_COUNT / ARRAY_TARGET_ORDER
 
     Common::ScopedPtr<CombatContext> _context;
 

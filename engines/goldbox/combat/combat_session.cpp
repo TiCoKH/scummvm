@@ -240,7 +240,7 @@ bool CombatSession::prepareTurn(Data::PlayerCharacter *ch) {
 }
 
 CombatContext CombatSession::makeContext() {
-    return CombatContext(_globals, _params, _table, _battlefieldMap, _viewport);
+    return CombatContext(_globals, _params, _table, _battlefieldMap, _viewport, _targetList);
 }
 
 CombatContext CombatSession::makeContext() const {
@@ -249,7 +249,8 @@ CombatContext CombatSession::makeContext() const {
         const_cast<CombatParams &>(_params),
         const_cast<CombatantTable &>(_table),
         const_cast<BattlefieldMap &>(_battlefieldMap),
-        const_cast<CombatViewport &>(_viewport));
+        const_cast<CombatViewport &>(_viewport),
+        const_cast<TargetList &>(_targetList));
 }
 
 void CombatSession::updateFacing(Data::PlayerCharacter *ch, uint8 direction) {

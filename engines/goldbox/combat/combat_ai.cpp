@@ -126,12 +126,11 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
     }
 
     // 2. Build melee target list (range = 1).
-    TargetList targets;
-    ctx.buildTargetList(actor, 1, targets);
+    ctx.buildTargetList(actor, 1);
 
-    if (!targets.targetOrder.empty()) {
+    if (!ctx.targetList.targetOrder.empty()) {
         // 3. Attack the first (nearest) target.
-        uint8 targetIdx = targets.targetOrder[0];
+        uint8 targetIdx = ctx.targetList.targetOrder[0];
         Data::PlayerCharacter *target = ctx.table.getCharacter(targetIdx);
 
         if (target && target->enabled) {
@@ -159,11 +158,10 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
         }
     } else {
         // 4. No target in melee range — move one step toward nearest enemy.
-        TargetList longRange;
-        ctx.buildTargetList(actor, 0xFF, longRange);
+        ctx.buildTargetList(actor, 0xFF);
 
-        if (!longRange.targetOrder.empty()) {
-            uint8 nearestIdx = longRange.targetOrder[0];
+        if (!ctx.targetList.targetOrder.empty()) {
+            uint8 nearestIdx = ctx.targetList.targetOrder[0];
             int actorIdx = ctx.table.findIndex(actor);
 
             if (actorIdx >= 0) {

@@ -37,9 +37,11 @@ CombatContext::CombatContext(CombatGlobals &globals_,
                              CombatParams &params_,
                              CombatantTable &table_,
                              BattlefieldMap &map_,
-                             CombatViewport &viewport_)
+                             CombatViewport &viewport_,
+                             TargetList &targetList_)
     : globals(globals_), params(params_), table(table_),
-      map(map_), viewport(viewport_), clouds(globals_.clouds) {}
+      map(map_), viewport(viewport_), clouds(globals_.clouds),
+      targetList(targetList_) {}
 
 void CombatContext::updateSideCount() {
     globals.updateSideCount(params.roster);
@@ -133,9 +135,101 @@ void CombatContext::getGroundInfo(Data::PlayerCharacter *ch, uint8 direction,
     if (outPlayerIndex) *outPlayerIndex = (int)outOccupant;
 }
 
+void CombatContext::buildTargetListCore(TilePos pos, uint8 iconSize,
+                                        Direction facing, uint8 maxRange) {
+    TargetList &result = targetList;
+    result.clear();
+
+    TilePos sourceTiles[4];
+    for (uint8 slot = 0; slot < 4; ++slot) {
+        FootprintOffsetPair off;
+        if (getFootprintOffset(iconSize, slot, off)) {
+            sourceTiles[slot] = TilePos(
+                (uint8)(pos.col + off.col),
+                (uint8)(pos.row + off.row));
+        } else {
+            sourceTiles[slot] = TilePos(0xFF, 0xFF);
+        }
+    }
+
+    for (int i = 0; i < table.getCount(); i++) {
+        Data::PlayerCharacter *ch = table.getCharacter(i);
+        if (!ch || !ch->enabled || table.getSize(i) == 0)
+            continue;
+
+        const TilePos candidatePos = table.getTilePos(i);
+        const uint8 candidateSize = table.getSize(i) & 7;
+
+        TilePos candidateTiles[4];
+        for (uint8 slot = 0; slot < 4; ++slot) {
+            FootprintOffsetPair off;
+            if (getFootprintOffset(candidateSize, slot, off)) {
+                candidateTiles[slot] = TilePos(
+                    (uint8)(candidatePos.col + off.col),
+                    (uint8)(candidatePos.row + off.row));
+            } else {
+                candidateTiles[slot] = TilePos(0xFF, 0xFF);
+            }
+        }
+
+        bool foundTarget = false;
+        uint16 nearestRange = 0xFF;
+        uint8 bestAttackerSlot = 0;
+        uint8 bestTargetSlot = 0;
+
+        for (uint8 cSlot = 0; cSlot < 4; ++cSlot) {
+            if (candidateTiles[cSlot].col == 0xFF)
+                continue;
+            for (uint8 sSlot = 0; sSlot < 4; ++sSlot) {
+                if (sourceTiles[sSlot].col == 0xFF)
+                    continue;
+                if (!isTargetInArc(facing, sourceTiles[sSlot], candidateTiles[cSlot]))
+                    continue;
+
+                uint16 range = maxRange;
+                if (!map.lineOfSightCheck(sourceTiles[sSlot], candidateTiles[cSlot], range))
+                    continue;
+
+                foundTarget = true;
+                if (range < nearestRange) {
+                    nearestRange = range;
+                    bestTargetSlot = sSlot;
+                    bestAttackerSlot = cSlot;
+                }
+            }
+        }
+
+        if (!foundTarget)
+            continue;
+
+        Direction setFacing = DIR_N;
+        if (facing < DIR_NONE) {
+            setFacing = facing;
+        } else {
+            while (!isTargetInArc(setFacing,
+                                   sourceTiles[bestTargetSlot],
+                                   candidateTiles[bestAttackerSlot])) {
+                setFacing = static_cast<Direction>(setFacing + 1);
+            }
+        }
+
+        result.entries.push_back(TargetEntry((uint8)i, (uint8)nearestRange, setFacing));
+    }
+
+    // Sort by range (insertion sort)
+    for (uint j = 1; j < result.entries.size(); j++) {
+        TargetEntry key = result.entries[j];
+        int k = (int)j - 1;
+        while (k >= 0 && result.entries[k].range > key.range) {
+            result.entries[k + 1] = result.entries[k--];
+        }
+        result.entries[k + 1] = key;
+    }
+}
+
 void CombatContext::buildTargetList(const Data::PlayerCharacter *attacker,
-                                    uint8 maxRange, TargetList &result) const {
-    result.targetOrder.clear();
+                                    uint8 maxRange) {
+    targetList.clear();
     if (!attacker)
         return;
 
@@ -144,40 +238,25 @@ void CombatContext::buildTargetList(const Data::PlayerCharacter *attacker,
         return;
 
     const TilePos attackerPos = table.getTilePos(attackerIdx);
+    const uint8 attackerSize = table.getSize(attackerIdx) & 7;
+
+    buildTargetListCore(attackerPos, attackerSize, DIR_NONE, maxRange);
+
+    TargetList &result = targetList;
     const Data::CombatSide attackerSide = attacker->combatSide;
-
-    struct Candidate { uint8 idx; uint8 dist; };
-    Common::Array<Candidate> candidates;
-
-    for (int i = 0; i < table.getCount(); i++) {
-        Data::PlayerCharacter *ch = table.getCharacter(i);
-        if (!ch || !ch->enabled || table.getSize(i) == 0 || i == attackerIdx)
+    uint j = 0;
+    for (uint i = 0; i < result.entries.size(); i++) {
+        if ((int)result.entries[i].idx == attackerIdx)
             continue;
-        if (ch->combatSide == attackerSide)
+        const Data::PlayerCharacter *ch = table.getCharacter(result.entries[i].idx);
+        if (!ch || ch->combatSide != attackerSide)
             continue;
-
-        const TilePos pos = table.getTilePos(i);
-        const int dx = ABS((int)pos.col - (int)attackerPos.col);
-        const int dy = ABS((int)pos.row - (int)attackerPos.row);
-        const uint8 dist = (uint8)(dx > dy ? dx : dy);
-        if (dist > maxRange)
-            continue;
-
-        Candidate c = { (uint8)i, dist };
-        candidates.push_back(c);
+        result.entries[j++] = result.entries[i];
     }
+    result.entries.resize(j);
 
-    for (uint i = 1; i < candidates.size(); i++) {
-        Candidate key = candidates[i];
-        int j = (int)i - 1;
-        while (j >= 0 && candidates[j].dist > key.dist) {
-            candidates[j + 1] = candidates[j--];
-        }
-        candidates[j + 1] = key;
-    }
-
-    for (uint i = 0; i < candidates.size(); i++)
-        result.targetOrder.push_back(candidates[i].idx);
+    for (uint i = 0; i < result.entries.size(); i++)
+        result.targetOrder.push_back(result.entries[i].idx);
 }
 
 void CombatContext::initCharacterTurnState(Data::PlayerCharacter *ch) {
@@ -218,33 +297,70 @@ void CombatContext::removeMember(Data::PlayerCharacter *ch, bool keepPartyCount,
 
 bool CombatContext::isTargetInArc(Direction direction,
                                    TilePos attackerPos, TilePos targetPos) {
-    if (attackerPos.col > 49 || targetPos.col > 49 ||
-        attackerPos.row > 24 || targetPos.row > 24)
+    const int ax = (int)attackerPos.col;
+    const int ay = (int)attackerPos.row;
+    const int tx = (int)targetPos.col;
+    const int ty = (int)targetPos.row;
+
+    if (ax < 0 || ax > 49 || ay < 0 || ay > 24 ||
+        tx < 0 || tx > 49 || ty < 0 || ty > 24)
         return false;
 
-    if (direction == DIR_NONE)
-        return true;
+    // Wire value 0xFF (~DIR_N) is the original sentinel for "no facing".
+    if (direction == static_cast<Direction>(~DIR_N))
+        direction = DIR_NONE;
 
-    // Cell immediately in front of the target is always in-arc.
-    const uint8 adjCol = (uint8)(targetPos.col + kDirDeltaX[direction]);
-    const uint8 adjRow = (uint8)(targetPos.row + kDirDeltaY[direction]);
-    if ((attackerPos.col == targetPos.col  && attackerPos.row == targetPos.row) ||
-        (attackerPos.col == adjCol         && attackerPos.row == adjRow))
-        return true;
+    const int arcX = tx + kDirDeltaX[direction];
+    const int arcY = ty + kDirDeltaY[direction];
 
-    const int dx = (int)attackerPos.col - (int)targetPos.col; // +east
-    const int dy = (int)attackerPos.row - (int)targetPos.row; // +south
+    if ((tx == ax && ty == ay) || (arcX == ax && arcY == ay))
+        return true;
 
     switch (direction) {
-    case DIR_N:  return dy < 0 && ABS(dx) <= -dy;
-    case DIR_NE: return dx > 0 && dy < 0 && dx >= -dy;
-    case DIR_E:  return dx > 0 && ABS(dy) <= dx;
-    case DIR_SE: return dx > 0 && dy > 0 && dy >= dx;
-    case DIR_S:  return dy > 0 && ABS(dx) <= dy;
-    case DIR_SW: return dx < 0 && dy > 0 && dy >= -dx;
-    case DIR_W:  return dx < 0 && ABS(dy) <= -dx;
-    case DIR_NW: return dx < 0 && dy < 0 && (-dy) >= (-dx);
-    default:     return false;
+    case DIR_N:
+        return !(
+            (ax < arcX || arcX - ax + arcY < ay) &&
+            (arcX < ax || ax - arcX + arcY < ay)
+        );
+    case DIR_NE:
+        return !(
+            (ax < arcX || arcX - ax + arcY < ay) &&
+            (ax < arcX + arcY - ay || arcY < ay)
+        );
+    case DIR_E:
+        return !(
+            (ax < arcX + arcY - ay || arcY < ay) &&
+            (ax < arcX + ay - arcY || ay < arcY)
+        );
+    case DIR_SE:
+        return !(
+            (ax < arcX + ay - arcY || ay < arcY) &&
+            (ax < arcX || ay < ax - arcX + arcY)
+        );
+    case DIR_S:
+        return !(
+            (ax < arcX || ay < ax - arcX + arcY) &&
+            (arcX < ax || ay < arcX - ax + arcY)
+        );
+    case DIR_SW:
+        return !(
+            (arcX < ax || ay < arcX - ax + arcY) &&
+            (arcX + arcY - ay < ax || ay < arcY)
+        );
+    case DIR_W:
+        return !(
+            (arcX + arcY - ay < ax || ay < arcY) &&
+            (arcX + ay - arcY < ax || arcY < ay)
+        );
+    case DIR_NW:
+        return !(
+            (arcX + ay - arcY < ax || arcY < ay) &&
+            (arcX < ax || ax - arcX + arcY < ay)
+        );
+    case DIR_NONE:
+        return true;
+    default:
+        return false;
     }
 }
 
