@@ -42,7 +42,7 @@ CombatMoveDialog::CombatMoveDialog()
     : Dialog("CombatMove"),
       _character(nullptr),
       _origMovePoints(0), _origDirection(0),
-      _origCol(0), _origRow(0),
+      _origPos(),
       _state(STATE_MOVE),
       _fleeYesNo(nullptr) {
     setBounds(Window(0, 24, 39, 24));
@@ -70,8 +70,7 @@ void CombatMoveDialog::beginMove(Goldbox::Data::PlayerCharacter *ch) {
 
     const Combat::CombatantTable &table =
         Combat::g_combatSession->getTable();
-    _origCol = table.getCharacterCol(ch);
-    _origRow = table.getCharacterRow(ch);
+    _origPos = table.getCharacterPos(ch);
 }
 
 void CombatMoveDialog::activate() {
@@ -219,7 +218,7 @@ void CombatMoveDialog::handleCancel() {
     if (!Combat::g_combatSession || !_character)
         return;
     Combat::g_combatSession->cancelMove(
-        _character, _origMovePoints, _origDirection, _origCol, _origRow);
+        _character, _origMovePoints, _origDirection, _origPos);
     redraw();
 }
 

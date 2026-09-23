@@ -27,7 +27,32 @@
 #include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
+namespace Data {
+class PlayerCharacter;
+} // namespace Data
+} // namespace Goldbox
+
+namespace Goldbox {
 namespace Combat {
+
+class CombatantTable;
+
+/**
+ * Viewport-relative position of a combatant or map tile.
+ * column/row are signed: negative means left/above the viewport edge.
+ */
+struct ViewportPos {
+    int16 column;
+    int16 row;
+
+    ViewportPos() : column(0), row(0) {}
+    ViewportPos(int16 c, int16 r) : column(c), row(r) {}
+
+    bool isVisible(int viewCols = 7, int viewRows = 7) const {
+        return column >= 0 && column < viewCols &&
+               row    >= 0 && row    < viewRows;
+    }
+};
 
 /**
  * 7x7 tile viewport over the 50x25 combat battlefield.
@@ -58,6 +83,22 @@ public:
 
     bool isTileVisible(TilePos pos) const;
     bool mapToLocal(TilePos pos, int &localCol, int &localRow) const;
+
+    /**
+     * Convert an absolute map tile position to a viewport-relative position.
+     * Replaces BYTE_ARRAY_COL_DIST / BYTE_ARRAY_ROW_DIST cache reads.
+     */
+    ViewportPos mapToViewport(TilePos mapPos) const {
+        return ViewportPos(
+            (int16)((int)mapPos.col - _topLeftCol),
+            (int16)((int)mapPos.row - _topLeftRow));
+    }
+
+    /**
+     * Get the viewport-relative position of a combatant by table index.
+     * Replaces BYTE_ARRAY_COL_DIST[i] / BYTE_ARRAY_ROW_DIST[i].
+     */
+    ViewportPos getCharacterViewportPosition(const CombatantTable &table, int idx) const;
 
     /** Get the source rect in pixel space for blitting from the full tilemap surface. */
     Common::Rect getSourceRect(int tileSize) const;

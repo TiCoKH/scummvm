@@ -159,11 +159,10 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
             const bool notInTeam = ch->combatState && ch->combatState->notInTeam;
             if (!ch->enabled && !combatTriggerActive && !notInTeam) {
                 table.setSize(idx, 0);
-                uint8 col = table.getTileCol(idx);
-                uint8 row = table.getTileRow(idx);
-                uint8 savedTile = _map->getRawTile(TilePos(col, row));
-                _map->setRawTile(TilePos(col, row), CombatantTable::TILE_DOWNED_MEMBER);
-                table.addDownedMember(ch, TilePos(col, row), savedTile);
+                TilePos pos = table.getTilePos(idx);
+                uint8 savedTile = _map->getRawTile(pos);
+                _map->setRawTile(pos, CombatantTable::TILE_DOWNED_MEMBER);
+                table.addDownedMember(ch, pos, savedTile);
                 globals.membersOnGround++;
             }
             table.rebuildOccupancy();
@@ -387,8 +386,8 @@ bool CombatPlacement::placeCombatantFullScan(int charIdx) {
     for (int i = _sideStart[_currentSide]; i < charIdx; i++) {
         if (_table->getSize(i) == 0)
             continue;
-        sumCol += _table->getTileCol(i);
-        sumRow += _table->getTileRow(i);
+        sumCol += _table->getTilePos(i).col;
+        sumRow += _table->getTilePos(i).row;
         count++;
     }
 

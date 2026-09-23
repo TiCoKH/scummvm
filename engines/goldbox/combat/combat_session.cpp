@@ -22,7 +22,6 @@
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/combat/combat_setup.h"
 #include "goldbox/combat/combat_ai.h"
-#include "goldbox/combat/combat_ground_info.h"
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/core/vm_layout.h"
 #include "goldbox/core/direction.h"
@@ -57,7 +56,6 @@ void CombatSession::setup(const CombatParams &params) {
     setupCombat(_params, _globals, _battlefieldMap, _table,
                 _placement, _viewport, nullptr);
 
-    _table.setViewportOrigin(_viewport.getTopLeft());
     _phase = PHASE_PLAYER_TURN;
     _currentActor = nullptr;
     _context.reset(new CombatContext(makeContext()));
@@ -197,7 +195,6 @@ CombatSession::TickResult CombatSession::submitPlayerAction(PlayerAction action)
 
 void CombatSession::scrollViewport(TilePos target, uint8 radius) {
     _viewport.adjustToInclude(target, radius);
-    _table.setViewportOrigin(_viewport.getTopLeft());
 }
 
 bool CombatSession::prepareTurn(Data::PlayerCharacter *ch) {
@@ -246,6 +243,15 @@ CombatContext CombatSession::makeContext() {
     return CombatContext(_globals, _params, _table, _battlefieldMap, _viewport);
 }
 
+CombatContext CombatSession::makeContext() const {
+    return CombatContext(
+        const_cast<CombatGlobals &>(_globals),
+        const_cast<CombatParams &>(_params),
+        const_cast<CombatantTable &>(_table),
+        const_cast<BattlefieldMap &>(_battlefieldMap),
+        const_cast<CombatViewport &>(_viewport));
+}
+
 void CombatSession::updateFacing(Data::PlayerCharacter *ch, uint8 direction) {
     if (ch && ch->combatState)
         ch->combatState->direction = direction;
@@ -253,7 +259,7 @@ void CombatSession::updateFacing(Data::PlayerCharacter *ch, uint8 direction) {
 
 void CombatSession::queryGround(Data::PlayerCharacter *ch, uint8 direction,
                                 int *outOccupant, uint8 *outTile) const {
-    getGroundInfo(ch, direction, outOccupant, outTile);
+    makeContext().getGroundInfo(ch, direction, outOccupant, outTile);
 }
 
 uint8 CombatSession::getTilePassability(uint8 tileId) const {
@@ -276,7 +282,7 @@ CombatSession::MoveStepResult CombatSession::performMoveStep(
 
     int occupant = 0;
     uint8 tileId = 0;
-    getGroundInfo(ch, direction, &occupant, &tileId);
+    makeContext().getGroundInfo(ch, direction, &occupant, &tileId);
 
     if (occupant != 0) {
         result.kind = MoveStepResult::MS_OCCUPIED;
@@ -284,7 +290,7 @@ CombatSession::MoveStepResult CombatSession::performMoveStep(
         return result;
     }
 
-    if (tileId == kTileIdNone) {
+    if (tileId == 0x00) {
         result.kind = MoveStepResult::MS_OUT_OF_BOUNDS;
         return result;
     }
@@ -304,11 +310,11 @@ CombatSession::MoveStepResult CombatSession::performMoveStep(
     if (idx >= 0) {
         const int8 dx = ::Goldbox::kDirDeltaX[direction];
         const int8 dy = ::Goldbox::kDirDeltaY[direction];
-        uint8 newCol = (uint8)(_table.getTileCol(idx) + dx);
-        uint8 newRow = (uint8)(_table.getTileRow(idx) + dy);
-        _table.setPosition(idx, TilePos(newCol, newRow));
+        TilePos cur = _table.getTilePos(idx);
+        TilePos newPos((uint8)(cur.col + dx), (uint8)(cur.row + dy));
+        _table.setPosition(idx, newPos);
         _table.rebuildOccupancy();
-        scrollViewport(TilePos(newCol, newRow), 2);
+        scrollViewport(newPos, 2);
     }
 
     if (!ch->enabled) {
@@ -336,16 +342,16 @@ CombatSession::MoveStepResult CombatSession::performMoveStep(
 
 void CombatSession::cancelMove(Data::PlayerCharacter *ch,
                                uint8 origMovePoints, uint8 origDirection,
-                               uint8 origCol, uint8 origRow) {
+                               TilePos origPos) {
     if (!ch || !ch->combatState)
         return;
     ch->combatState->movePoints = origMovePoints;
     ch->combatState->direction  = origDirection;
     const int idx = _table.findIndex(ch);
     if (idx >= 0) {
-        _table.setPosition(idx, TilePos(origCol, origRow));
+        _table.setPosition(idx, origPos);
         _table.rebuildOccupancy();
-        scrollViewport(TilePos(origCol, origRow), 2);
+        scrollViewport(origPos, 2);
     }
 }
 

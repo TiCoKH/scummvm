@@ -22,7 +22,6 @@
 #include "goldbox/combat/combat_ai.h"
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combat_globals.h"
-#include "goldbox/combat/combat_targeting.h"
 #include "goldbox/combat/combat_damage.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_state.h"
@@ -128,7 +127,7 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
 
     // 2. Build melee target list (range = 1).
     TargetList targets;
-    buildTargetList(actor, 1, ctx.table, targets);
+    ctx.buildTargetList(actor, 1, targets);
 
     if (!targets.targetOrder.empty()) {
         // 3. Attack the first (nearest) target.
@@ -161,22 +160,20 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
     } else {
         // 4. No target in melee range — move one step toward nearest enemy.
         TargetList longRange;
-        buildTargetList(actor, 0xFF, ctx.table, longRange);
+        ctx.buildTargetList(actor, 0xFF, longRange);
 
         if (!longRange.targetOrder.empty()) {
             uint8 nearestIdx = longRange.targetOrder[0];
             int actorIdx = ctx.table.findIndex(actor);
 
             if (actorIdx >= 0) {
-                int fromCol = ctx.table.getTileCol(actorIdx);
-                int fromRow = ctx.table.getTileRow(actorIdx);
-                int toCol   = ctx.table.getTileCol(nearestIdx);
-                int toRow   = ctx.table.getTileRow(nearestIdx);
+                TilePos from = ctx.table.getTilePos(actorIdx);
+                TilePos to   = ctx.table.getTilePos(nearestIdx);
 
-                Direction dir = directionToward(fromCol, fromRow, toCol, toRow);
+                Direction dir = directionToward(from.col, from.row, to.col, to.row);
                 if (dir != DIR_NONE) {
-                    int newCol = fromCol + kDirDeltaX[dir];
-                    int newRow = fromRow + kDirDeltaY[dir];
+                    int newCol = from.col + kDirDeltaX[dir];
+                    int newRow = from.row + kDirDeltaY[dir];
 
                     // Only move if destination is unoccupied.
                     if (ctx.table.getOccupant(newCol, newRow) == 0) {

@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/combat/combat_viewport.h"
+#include "goldbox/combat/combatant_table.h"
 #include "common/util.h"
 
 namespace Goldbox {
@@ -61,6 +62,11 @@ bool CombatViewport::adjustToInclude(TilePos target, uint8 radius) {
     clamp();
 
     return (_topLeftCol != oldCol || _topLeftRow != oldRow);
+}
+
+ViewportPos CombatViewport::getCharacterViewportPosition(
+        const CombatantTable &table, int idx) const {
+    return mapToViewport(TilePos(table.getTileCol(idx), table.getTileRow(idx)));
 }
 
 bool CombatViewport::isTileVisible(TilePos pos) const {

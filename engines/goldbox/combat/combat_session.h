@@ -141,7 +141,7 @@ public:
     /** Restore character to saved position/facing (cancel path). */
     void cancelMove(Data::PlayerCharacter *ch,
                     uint8 origMovePoints, uint8 origDirection,
-                    uint8 origCol, uint8 origRow);
+                    TilePos origPos);
 
     /** Set character fleeing; returns true if action is complete. */
     bool trySetFleeing(Data::PlayerCharacter *ch);
@@ -193,6 +193,7 @@ private:
     Data::PlayerCharacter *_currentActor;
 
     CombatContext makeContext();
+    CombatContext makeContext() const;
     uint8 readAndClearAmbushFlags() const;
 
     /**
