@@ -94,19 +94,21 @@ struct CombatContext {
                        int *outPlayerIndex, uint8 *outTile) const;
 
     /**
-     * Thin wrappers so call sites inside combat can use CombatContext::initBresenham
-     * and CombatContext::stepBresenham without a namespace qualifier.
-     * The implementations live in core/field_path.cpp and are shared with the spell system.
+     * Returns the tile id and 1-based combatant index at pos.
+     * tileId==0 means out-of-bounds or void. occupantId==0 means empty.
+     * Mirrors CombatSystem::getTileAndOccupantAt.
      */
-    static void initBresenham(FieldPath &path) { Goldbox::initBresenham(path); }
-    static bool stepBresenham(FieldPath &path) { return Goldbox::stepBresenham(path); }
+    struct CombatCell {
+        uint8 tileId;
+        uint8 occupantId;
+    };
+    CombatCell getTileAndOccupantAt(TilePos pos) const;
 
-    /**
-     * Check line of sight from source to target, reducing range for
-     * obstacles. On success returns true and range holds the walk cost.
-     * On failure returns false; blockedAt receives the blocking tile.
-     * Mirrors COMBAT_lineOfSightCheck.
-     */
+    /** Returns true if pos is within the 50x25 battlefield bounds. */
+    static bool isValidTilePos(TilePos pos) { return Goldbox::isValidTilePos(pos); }
+
+    /** Check LOS from source to target. Returns true if clear; range holds walk cost.
+     *  On failure, blockedAt receives the blocking tile. Mirrors COMBAT_lineOfSightCheck. */
     bool lineOfSightCheck(TilePos source, TilePos target,
                           uint16 &range, TilePos *blockedAt = nullptr) const;
     /**

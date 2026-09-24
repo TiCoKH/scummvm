@@ -26,6 +26,7 @@
 #include "common/array.h"
 #include "goldbox/combat/cloud_effect_manager.h"
 #include "goldbox/core/direction.h"
+#include "goldbox/core/tile_pos.h"
 #include "goldbox/data/spells/spell.h"
 
 namespace Goldbox {
@@ -89,6 +90,8 @@ struct CombatGlobals {
     Goldbox::Data::Spells::SaveVerseType savingThrowType; // SAVING_THROW_TYPE
     Data::PlayerCharacter *attacker; // PTR_SELECTED_CHAR — current attacking character
     bool targetUnavailable;   // Target cannot be selected
+    bool multiTarget;         // SPELL_MULTI_TARGET — set during AoE path traversal
+    TilePos targetPos;        // COMBAT_TARGET_X/Y — current spell target tile
 
     /**
      * Scratch exchange used by ES_COMBAT_RATE_MODIFIER (effect set 18).
@@ -125,6 +128,8 @@ struct CombatGlobals {
         savingThrowType = Goldbox::Data::Spells::SVS_POISON;
         attacker = nullptr;
         targetUnavailable = false;
+        multiTarget = false;
+        targetPos = TilePos(0, 0);
         effectSet18.value      = 0;
         effectSet18.isMovement = false;
         attacksLeft = 0;

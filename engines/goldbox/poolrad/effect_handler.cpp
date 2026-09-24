@@ -1940,29 +1940,31 @@ static void handleLingeringBreath(const EffectCall &c) {
         const TilePos attackerPos(
             ctx->table.getCharacterCol(&c.character),
             ctx->table.getCharacterRow(&c.character));
-
-        // Target position is the current combat target stored in globals.
-        // TODO(spell_aoe): expose targetX/Y on CombatGlobals or CombatContext
-        // and replace the placeholder zeros once that field is added.
-        const TilePos targetPos(0, 0); // TODO: ctx->globals.targetX/Y
+        const TilePos targetPos(
+            c.character.combatState && c.character.combatState->target
+                ? ctx->table.getCharacterCol(c.character.combatState->target) : attackerPos.col,
+            c.character.combatState && c.character.combatState->target
+                ? ctx->table.getCharacterRow(c.character.combatState->target) : attackerPos.row);
 
         const uint8 damage = c.character.hitPoints.max;
 
         // TODO(spell_aoe): pass presenter (ICombatSpellPresenter*) once
         // CombatView implements the interface and is reachable here.
 
-        // Initial hit at the target tile (mirrors SPELL_ResolveAoEHitAtTile
-        // called before SPELL_TraceSpellPath in the original).
-        bool hitObstacle = false;
+        // Initial hit at the target tile.
+        bool aoeTriggered = false;
         Goldbox::Spells::resolveAoEHitAtTile(*ctx, targetPos, damage, 3, 19,
-                                             nullptr, hitObstacle);
+                                             nullptr, aoeTriggered);
+
+        // Set target position in globals before tracing the path.
+        ctx->globals.targetPos = targetPos;
 
         // Continue the breath along its path.
-        Goldbox::Spells::traceSpellPath(*ctx, attackerPos, targetPos,
-                                        10,      // initialAnimFrame
-                                        3,       // savingThrowMod
-                                        damage,
+        Goldbox::Spells::traceSpellPath(*ctx, attackerPos,
                                         3,       // pathLength
+                                        damage,
+                                        3,       // savingThrowMod
+                                        true,    // animatePath
                                         19,      // effectTileId
                                         nullptr);
     }
@@ -2349,7 +2351,7 @@ void EffectHandler::setupHandlers() {
     setSpecHandler(0x52,                            handleMummyFearAura);
     // Poolrad raw ID 83: petrifying gaze — save vs. petrification or stoned; reflective item check.
     setSpecHandler(0x53,                            handlePetrifyingGaze);
-    // Poolrad raw ID 84: charming gaze — save vs. spell or charmed; LOS + engage guards (TODO).
+    // Poolrad raw ID 84: charming gaze — opposite-side LOS check, save vs. spell(-2) or charmed.
     setSpecHandler(0x54,                            handleCharmingGaze);
     // Poolrad raw ID 85: drain 1 level from combat target.
     setSpecHandler(0x55,                            handleDrain1Level);

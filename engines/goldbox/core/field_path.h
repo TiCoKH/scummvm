@@ -23,6 +23,7 @@
 #define GOLDBOX_CORE_FIELD_PATH_H
 
 #include "common/scummsys.h"
+#include "goldbox/core/tile_pos.h"
 #include "goldbox/core/direction.h"
 
 namespace Goldbox {
@@ -30,30 +31,25 @@ namespace Goldbox {
 /**
  * Bresenham line-walk state used by combat LOS and spell path tracing.
  * Mirrors gbFieldPath from the original engine.
- *
- * Used by:
- *   COMBAT_lineOfSightCheck  -> CombatContext::lineOfSightCheck
- *   SPELL_TraceSpellPath     -> spell system path tracing
  */
 struct FieldPath {
-    // Input
-    int16 startCol, startRow;
-    int16 endCol,   endRow;
+    TilePos start;
+    TilePos current;
+    int16 endCol;
+    int16 endRow;
 
-    // Derived line geometry
-    int16 deltaCol, deltaRow;
-    int8  stepCol,  stepRow;
+    int16 deltaX;
+    int16 deltaY;
+    int8  stepX;
+    int8  stepY;
 
-    // Traversal state
-    int16 col,      row;
     int16 moveCost;
-
-    // Bresenham state
     int16 error;
     int16 errorStep;
     int16 minorErrorStep;
 
-    // Direction of the last step taken (written by stepBresenham)
+    // Compass direction of the last step taken (written by stepBresenham).
+    // Mirrors the kStepDirection table lookup in the original COMBAT_stepBresenham.
     Direction stepDirection;
 };
 

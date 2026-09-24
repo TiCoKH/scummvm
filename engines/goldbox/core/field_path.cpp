@@ -24,6 +24,10 @@
 
 namespace Goldbox {
 
+// Maps (sy+1, sx+1) → compass Direction of the step taken.
+// Mirrors the original kStepDirection[4][3] table in COMBAT_stepBresenham.
+// Row index = stepY+1 (0=north, 1=none, 2=south; row 3 reserved for future use)
+// Col index = stepX+1 (0=west,  1=none, 2=east)
 static const Direction kStepDirection[4][3] = {
     { DIR_NW, DIR_N,    DIR_NE },
     { DIR_W,  DIR_NONE, DIR_E  },
@@ -33,69 +37,69 @@ static const Direction kStepDirection[4][3] = {
 
 void initBresenham(FieldPath &p) {
     p.moveCost = 0;
-    p.deltaCol = (int16)ABS((int)p.endCol - (int)p.startCol);
-    p.deltaRow = (int16)ABS((int)p.endRow - (int)p.startRow);
+    p.deltaX = (int16)ABS((int)p.endCol - (int)p.start.col);
+    p.deltaY = (int16)ABS((int)p.endRow - (int)p.start.row);
 
-    const int dc = (int)p.endCol - (int)p.startCol;
-    const int dr = (int)p.endRow - (int)p.startRow;
-    p.stepCol = (int8)(dc > 0 ? 1 : dc < 0 ? -1 : 0);
-    p.stepRow = (int8)(dr > 0 ? 1 : dr < 0 ? -1 : 0);
+    const int dc = (int)p.endCol - (int)p.start.col;
+    const int dr = (int)p.endRow - (int)p.start.row;
+    p.stepX = (int8)(dc > 0 ? 1 : dc < 0 ? -1 : 0);
+    p.stepY = (int8)(dr > 0 ? 1 : dr < 0 ? -1 : 0);
 
-    p.col = p.startCol;
-    p.row = p.startRow;
+    p.current = p.start;
     p.stepDirection = DIR_NONE;
 
-    if (p.deltaRow < p.deltaCol) {
-        p.error          = (int16)(p.deltaRow * 2 - p.deltaCol);
-        p.errorStep      = (int16)((p.deltaRow - p.deltaCol) * 2);
-        p.minorErrorStep = (int16)(p.deltaRow * 2);
+    if (p.deltaY < p.deltaX) {
+        p.error          = (int16)(p.deltaY * 2 - p.deltaX);
+        p.errorStep      = (int16)((p.deltaY - p.deltaX) * 2);
+        p.minorErrorStep = (int16)(p.deltaY * 2);
     } else {
-        p.error          = (int16)(p.deltaCol * 2 - p.deltaRow);
-        p.errorStep      = (int16)((p.deltaCol - p.deltaRow) * 2);
-        p.minorErrorStep = (int16)(p.deltaCol * 2);
+        p.error          = (int16)(p.deltaX * 2 - p.deltaY);
+        p.errorStep      = (int16)((p.deltaX - p.deltaY) * 2);
+        p.minorErrorStep = (int16)(p.deltaX * 2);
     }
 }
 
 bool stepBresenham(FieldPath &p) {
     int8 sx = 0, sy = 0;
-    bool stepped = false;
 
-    if (p.deltaRow < p.deltaCol) {
+    if (p.deltaY < p.deltaX) {
         // X-major
-        if (p.col != p.endCol) {
-            sx = p.stepCol;
-            if (p.error < 0) {
-                p.error += p.minorErrorStep;
-                p.moveCost += 2;
-            } else {
-                sy = p.stepRow;
-                p.row += p.stepRow;
-                p.error += p.errorStep;
-                p.moveCost += 3;
-            }
-            p.col += p.stepCol;
-            stepped = true;
+        if ((int16)p.current.col == p.endCol) {
+            p.stepDirection = DIR_NONE;
+            return false;
         }
+        sx = p.stepX;
+        if (p.error < 0) {
+            p.error += p.minorErrorStep;
+            p.moveCost += 2;
+        } else {
+            sy = p.stepY;
+            p.current.row = (uint8)((int)p.current.row + p.stepY);
+            p.error += p.errorStep;
+            p.moveCost += 3;
+        }
+        p.current.col = (uint8)((int)p.current.col + p.stepX);
     } else {
         // Y-major
-        if (p.row != p.endRow) {
-            sy = p.stepRow;
-            if (p.error < 0) {
-                p.error += p.minorErrorStep;
-                p.moveCost += 2;
-            } else {
-                sx = p.stepCol;
-                p.col += p.stepCol;
-                p.error += p.errorStep;
-                p.moveCost += 3;
-            }
-            p.row += p.stepRow;
-            stepped = true;
+        if ((int16)p.current.row == p.endRow) {
+            p.stepDirection = DIR_NONE;
+            return false;
         }
+        sy = p.stepY;
+        if (p.error < 0) {
+            p.error += p.minorErrorStep;
+            p.moveCost += 2;
+        } else {
+            sx = p.stepX;
+            p.current.col = (uint8)((int)p.current.col + p.stepX);
+            p.error += p.errorStep;
+            p.moveCost += 3;
+        }
+        p.current.row = (uint8)((int)p.current.row + p.stepY);
     }
 
     p.stepDirection = kStepDirection[sy + 1][sx + 1];
-    return stepped;
+    return true;
 }
 
 } // namespace Goldbox

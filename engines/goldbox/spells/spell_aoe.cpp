@@ -33,62 +33,8 @@
 namespace Goldbox {
 namespace Spells {
 
-// ---------------------------------------------------------------------------
-// Bresenham helpers
-// ---------------------------------------------------------------------------
-
-void initBresenham(gbFieldPath &p) {
-    p.current_x = p.start_x;
-    p.current_y = p.start_y;
-    p.step_cost = 0;
-
-    p.delta_x = p.end_x - p.start_x;
-    p.delta_y = p.end_y - p.start_y;
-
-    p.step_x = (p.delta_x > 0) ? 1 : (p.delta_x < 0) ? -1 : 0;
-    p.step_y = (p.delta_y > 0) ? 1 : (p.delta_y < 0) ? -1 : 0;
-
-    if (p.delta_x < 0) p.delta_x = -p.delta_x;
-    if (p.delta_y < 0) p.delta_y = -p.delta_y;
-
-    if (p.delta_x >= p.delta_y) {
-        p.major_step       = p.step_x;
-        p.error_step       = p.delta_y * 2;
-        p.minor_error_step = p.delta_x * 2;
-        p.step_direction   = 0; // major axis = X
-    } else {
-        p.major_step       = p.step_y;
-        p.error_step       = p.delta_x * 2;
-        p.minor_error_step = p.delta_y * 2;
-        p.step_direction   = 1; // major axis = Y
-    }
-
-    p.error = p.error_step - (p.minor_error_step / 2);
-}
-
-bool stepBresenham(gbFieldPath &p) {
-    if (p.current_x == p.end_x && p.current_y == p.end_y)
-        return false;
-
-    if (p.step_direction == 0) {
-        p.current_x += p.step_x;
-        if (p.error >= 0) {
-            p.current_y += p.step_y;
-            p.error -= p.minor_error_step;
-        }
-        p.error += p.error_step;
-    } else {
-        p.current_y += p.step_y;
-        if (p.error >= 0) {
-            p.current_x += p.step_x;
-            p.error -= p.minor_error_step;
-        }
-        p.error += p.error_step;
-    }
-
-    ++p.step_cost;
-    return true;
-}
+using Combat::TileProp;
+using Combat::TilePropertyProvider;
 
 // ---------------------------------------------------------------------------
 // resolveAoEHitAtTile
@@ -100,58 +46,37 @@ void resolveAoEHitAtTile(Combat::CombatContext &ctx,
                          int8 savingThrowMod,
                          uint8 effectTileId,
                          ICombatSpellPresenter *presenter,
-                         bool &hitObstacle) {
-    hitObstacle = false;
+                         bool &aoeTriggered) {
+    aoeTriggered = false;
 
-    // --- Terrain check ---
-    const uint8 rawTile = ctx.map.getRawTile(pos);
-    if (rawTile != 0) {
-        const Combat::TilePropertyProvider *props =
-            ctx.map.getTilePropertyProvider();
-        if (props && props->isImpassable(rawTile))
-            hitObstacle = true;
-    }
-
-    // --- Character damage (independent of terrain) ---
     const uint8 occupant = ctx.table.getOccupant(pos);
-    if (occupant != 0) {
-        // occupant is 1-based index into the combatant table
-        Data::PlayerCharacter *target =
-            ctx.table.getCharacter(static_cast<int>(occupant) - 1);
+    if (occupant == 0)
+        return;
 
-        if (target) {
-            ctx.globals.behaviorFlags = 12;
+    Data::PlayerCharacter *target =
+        ctx.table.getCharacter(static_cast<int>(occupant) - 1);
+    if (!target)
+        return;
 
-            // TODO(spell_aoe): wire saving throw through EffectHandlerBase /
-            // EffectHostBridge once those are available in SpellContext.
-            // For now we call the shared helper with null handler/bridge.
-            Data::ADnDCharacter *adnd =
-                dynamic_cast<Data::ADnDCharacter *>(target);
-            bool saved = false;
-            if (adnd)
-                saved = Data::Rules::checkSavingThrow(
-                    *adnd,
-                    &ctx.globals,
-                    nullptr,
-                    nullptr,
-                    Data::Spells::SVS_BREATH,
-                    savingThrowMod);
+    ctx.globals.behaviorFlags = 12;
 
-            // TODO(spell_aoe): route through CombatView::applyDamageMessage
-            // once the presenter exposes a damage-message path. Until then
-            // we call DamageSystem directly via the context's damage layer.
-            // Placeholder: damage application deferred to presentation layer.
-            (void)saved;
-            (void)baseDamage;
-            // TODO(spell_aoe): ctx.damageSystem->applyLegacy(
-            //     *target, baseDamage, Data::DAMAGE_HALF, saved);
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(target);
+    bool saved = false;
+    if (adnd)
+        saved = Data::Rules::checkSavingThrow(
+            *adnd, &ctx.globals, nullptr, nullptr,
+            Data::Spells::SVS_BREATH, savingThrowMod);
 
-            if (presenter)
-                presenter->renderEffectTile(pos, effectTileId);
+    (void)saved;
+    (void)baseDamage;
+    // TODO(spell_aoe): ctx.damageSystem->applyLegacy(
+    //     *target, baseDamage, Data::DAMAGE_HALF, saved);
 
-            ctx.globals.behaviorFlags = 0;
-        }
-    }
+    if (presenter)
+        presenter->renderEffectTile(pos, effectTileId);
+
+    ctx.globals.behaviorFlags = 0;
+    aoeTriggered = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,125 +85,108 @@ void resolveAoEHitAtTile(Combat::CombatContext &ctx,
 
 void traceSpellPath(Combat::CombatContext &ctx,
                     TilePos attackerPos,
-                    TilePos targetPos,
-                    uint8 initialAnimFrame,
-                    int8 savingThrowMod,
-                    uint8 baseDamage,
                     uint8 pathLength,
+                    uint8 baseDamage,
+                    int8 savingThrowMod,
+                    bool animatePath,
                     uint8 effectTileId,
                     ICombatSpellPresenter *presenter) {
     if (presenter)
         presenter->prepareEffectTile(effectTileId);
 
-    // Nothing to trace when source and target are the same tile.
-    if (attackerPos.col == targetPos.col &&
-        attackerPos.row == targetPos.row)
+    TilePos &targetPos = ctx.globals.targetPos;
+
+    Combat::CombatContext::CombatCell cell = ctx.getTileAndOccupantAt(targetPos);
+    uint8 tileId     = cell.tileId;
+    uint8 occupantId = cell.occupantId;
+
+    if (attackerPos == targetPos)
         return;
 
-    // The spell can traverse twice the supplied path length.
-    int remainingRange = pathLength * 2;
+    uint8 remainingPath = pathLength * 2;
+    bool initialAnimation = animatePath;
+    int8 traceDirection = 1;
+    uint8 traceOccupantId = occupantId;
 
-    // Allow the hit logic to affect multiple combatants during traversal.
-    // TODO(spell_aoe): replace with ctx.globals.multiTarget flag once added.
-    bool savedMultiTarget = false; // placeholder
-    (void)savedMultiTarget;
+    ctx.globals.multiTarget = true;
 
-    int traceDirection = 1;
-    bool useInitialAnimFrame = (initialAnimFrame != 0);
+    while (remainingPath != 0) {
+        FieldPath seg{};
+        seg.start  = targetPos;
+        seg.endCol = (int16)targetPos.col + (int16)(targetPos.col - attackerPos.col) * traceDirection * remainingPath;
+        seg.endRow = (int16)targetPos.row + (int16)(targetPos.row - attackerPos.row) * traceDirection * remainingPath;
+        Goldbox::initBresenham(seg);
 
-    TilePos curTarget = targetPos;
-
-    while (remainingRange > 0) {
-        gbFieldPath seg{};
-        seg.start_x = curTarget.col;
-        seg.start_y = curTarget.row;
-
-        // Project away from the attacker in the current trace direction.
-        seg.end_x = static_cast<int16>(
-            curTarget.col +
-            (curTarget.col - attackerPos.col) * traceDirection * remainingRange);
-        seg.end_y = static_cast<int16>(
-            curTarget.row +
-            (curTarget.row - attackerPos.row) * traceDirection * remainingRange);
-
-        initBresenham(seg);
-
-        bool hitObstacle = false;
+        bool aoeTriggered = false;
 
         do {
-            TilePos prevPos(
-                static_cast<uint8>(seg.current_x),
-                static_cast<uint8>(seg.current_y));
+            TilePos prevPos = seg.current;
 
-            // Advance until segment ends, a character is hit, blocking
-            // terrain is reached, or remaining range is exhausted.
-            do {
-                const bool reachedEnd = !stepBresenham(seg);
+            if (seg.start.col != (uint8)seg.endCol || seg.start.row != (uint8)seg.endRow) {
+                while (true) {
+                    const bool stepped = Goldbox::stepBresenham(seg);
 
-                TilePos stepPos(
-                    static_cast<uint8>(seg.current_x),
-                    static_cast<uint8>(seg.current_y));
+                    cell       = ctx.getTileAndOccupantAt(seg.current);
+                    tileId     = cell.tileId;
+                    occupantId = cell.occupantId;
 
-                if (reachedEnd)
-                    break;
+                    if (!stepped)
+                        break;
 
-                if (ctx.table.getOccupant(stepPos) != 0)
-                    break;
+                    const TileProp *prop = nullptr;
+                    if (tileId != 0) {
+                        const TilePropertyProvider *props = ctx.map.getTilePropertyProvider();
+                        if (props)
+                            prop = props->getTileProp(tileId - 1);
+                    }
 
-                const uint8 rawTile = ctx.map.getRawTile(stepPos);
-                if (rawTile != 0) {
-                    const Combat::TilePropertyProvider *props =
-                        ctx.map.getTilePropertyProvider();
-                    if (props && props->isImpassable(rawTile))
+                    if ((occupantId != 0 && occupantId != traceOccupantId) ||
+                        tileId == 0 ||
+                        (prop && prop->passable > 1) ||
+                        remainingPath <= (uint8)seg.moveCost)
                         break;
                 }
+            }
 
-                if (seg.step_cost >= static_cast<uint8>(remainingRange))
-                    break;
+            traceOccupantId = occupantId;
 
-            } while (true);
+            if (tileId == 0)
+                remainingPath = 0;
 
-            TilePos curPos(
-                static_cast<uint8>(seg.current_x),
-                static_cast<uint8>(seg.current_y));
-
-            // TODO(spell_aoe): presenter->showProjectile() is the sole
-            // presentation call for the moving projectile. CombatView will
-            // decide tile size, flip, frame, and platform blitting here.
             if (presenter)
-                presenter->showProjectile(prevPos, curPos, effectTileId, 0);
+                presenter->showProjectile(prevPos, seg.current, effectTileId, 0);
 
-            resolveAoEHitAtTile(ctx, curPos, baseDamage, savingThrowMod,
-                                effectTileId, presenter, hitObstacle);
+            resolveAoEHitAtTile(ctx, seg.current, baseDamage, savingThrowMod,
+                                effectTileId, presenter, aoeTriggered);
 
-            if (hitObstacle) {
-                curTarget = curPos;
+            if (aoeTriggered) {
+                targetPos = seg.current;
 
-                // Measure the return path to the attacker to compute the
-                // range offset when the initial-frame adjustment is active.
-                gbFieldPath returnPath{};
-                returnPath.start_x = curTarget.col;
-                returnPath.start_y = curTarget.row;
-                returnPath.end_x   = attackerPos.col;
-                returnPath.end_y   = attackerPos.row;
-                initBresenham(returnPath);
+                FieldPath returnPath{};
+                returnPath.start  = targetPos;
+                returnPath.endCol = (int16)attackerPos.col;
+                returnPath.endRow = (int16)attackerPos.row;
+                Goldbox::initBresenham(returnPath);
 
-                while (stepBresenham(returnPath)) {
-                    if (useInitialAnimFrame && returnPath.step_cost < 9)
-                        seg.step_cost = static_cast<uint8>(seg.step_cost + 8);
+                while (Goldbox::stepBresenham(returnPath)) {
+                    if (initialAnimation && returnPath.moveCost < 9)
+                        seg.moveCost += 8;
                 }
 
                 traceDirection = -traceDirection;
-                useInitialAnimFrame = false;
+                traceOccupantId = 0;
+                initialAnimation = false;
             }
 
-            if (seg.step_cost < static_cast<uint8>(remainingRange))
-                remainingRange -= seg.step_cost;
+            if ((uint8)seg.moveCost < remainingPath)
+                remainingPath -= (uint8)seg.moveCost;
             else
-                remainingRange = 0;
+                remainingPath = 0;
 
-        } while (!hitObstacle && remainingRange > 0);
+        } while (!aoeTriggered && remainingPath != 0);
     }
+
+    ctx.globals.multiTarget = false;
 }
 
 } // namespace Spells

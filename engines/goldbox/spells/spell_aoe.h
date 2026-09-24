@@ -22,6 +22,7 @@
 #define GOLDBOX_SPELLS_SPELL_AOE_H
 
 #include "common/scummsys.h"
+#include "goldbox/core/field_path.h"
 #include "goldbox/core/tile_pos.h"
 
 namespace Goldbox {
@@ -35,36 +36,6 @@ struct CombatContext;
 } // namespace Combat
 
 namespace Spells {
-
-/**
- * Bresenham line-walk state for projectile/AoE path traversal.
- *
- * Mirrors the original gbFieldPath struct used by COMBAT_initBresenham /
- * COMBAT_stepBresenham. All fields are signed shorts to match the m68k layout.
- */
-struct gbFieldPath {
-    int16 start_x;
-    int16 start_y;
-    int16 end_x;
-    int16 end_y;
-
-    int16 error;
-    int16 delta_x;
-    int16 delta_y;
-
-    int16 error_step;
-    int16 minor_error_step;
-    int16 major_step;
-
-    int16 current_x;
-    int16 current_y;
-
-    int8  step_x;
-    int8  step_y;
-
-    uint8 step_direction;
-    uint8 step_cost;    // tiles consumed by the last step sequence
-};
 
 /**
  * Presentation interface for AoE/projectile spell effects.
@@ -116,34 +87,19 @@ public:
 };
 
 /**
- * Initialise a gbFieldPath for Bresenham traversal from start to end.
- * Mirrors COMBAT_initBresenham.
- */
-void initBresenham(gbFieldPath &path);
-
-/**
- * Advance the Bresenham walker by one step.
- * Updates current_x/current_y and step_cost.
- * Returns true while the path has not yet reached the end point.
- * Mirrors COMBAT_stepBresenham.
- */
-bool stepBresenham(gbFieldPath &path);
-
-/**
  * Resolve one AoE/projectile tile hit.
  *
- * Two independent jobs:
- *   1. Terrain check — sets *hitObstacle if the tile is impassable.
- *   2. Character damage — saving throw + DAMAGE_HALF; sets behaviorFlags=12
- *      around the damage call, then resets to 0.
+ * Applies character damage (saving throw + DAMAGE_HALF) at pos.
+ * Sets aoeTriggered=true if a character was hit (drives path reflection).
+ * Terrain blocking is handled by the traversal loop, not here.
  *
- * @param ctx               Live combat context (table, map, globals).
- * @param pos               Tile being resolved.
- * @param baseDamage        Raw damage before saving-throw halving.
- * @param savingThrowMod    Flat modifier added to the target's saving throw.
- * @param effectTileId      Tile graphic used for the hit flash.
- * @param presenter         Presentation layer (may be null; skips visuals).
- * @param hitObstacle       Set to true when impassable terrain is encountered.
+ * @param ctx            Live combat context.
+ * @param pos            Tile being resolved.
+ * @param baseDamage     Raw damage before saving-throw halving.
+ * @param savingThrowMod Flat modifier added to the target's saving throw.
+ * @param effectTileId   Tile graphic used for the hit flash.
+ * @param presenter      Presentation layer (may be null; skips visuals).
+ * @param aoeTriggered   Set to true when a character is hit.
  */
 void resolveAoEHitAtTile(Combat::CombatContext &ctx,
                          TilePos pos,
@@ -151,33 +107,31 @@ void resolveAoEHitAtTile(Combat::CombatContext &ctx,
                          int8 savingThrowMod,
                          uint8 effectTileId,
                          ICombatSpellPresenter *presenter,
-                         bool &hitObstacle);
+                         bool &aoeTriggered);
 
 /**
  * Trace a linear projectile path through the combat map.
  *
- * Used by Lightning Bolt and the lingering breath attack. Starts at
- * ctx.globals.targetX/Y, projects away from the attacker, resolves hits
- * at each tile, animates via presenter, and reflects off blocking terrain
- * back toward the source for the remaining range.
+ * Mirrors SPELL_TraceSpellPath. Starts at ctx.globals.targetPos, projects
+ * away from the attacker, resolves hits at each tile, animates via presenter,
+ * and reflects off blocking terrain back toward the source for the remaining
+ * range. ctx.globals.multiTarget is set for the duration of the call.
  *
- * @param ctx               Live combat context.
- * @param attackerPos       Position of the casting character.
- * @param targetPos         Initial target tile (spell origin).
- * @param initialAnimFrame  Non-zero enables the initial-frame range offset.
- * @param savingThrowMod    Passed through to resolveAoEHitAtTile.
- * @param baseDamage        Passed through to resolveAoEHitAtTile.
- * @param pathLength        Maximum range in tiles (traversed up to 2× total).
- * @param effectTileId      Tile graphic index for the projectile.
- * @param presenter         Presentation layer (may be null).
+ * @param ctx            Live combat context (targetPos read/written).
+ * @param attackerPos    Position of the casting character.
+ * @param pathLength     Maximum range; budget is pathLength*2 move-cost units.
+ * @param baseDamage     Passed through to resolveAoEHitAtTile.
+ * @param savingThrowMod Passed through to resolveAoEHitAtTile.
+ * @param animatePath    Enables the initial-frame range adjustment on first reflection.
+ * @param effectTileId   Tile graphic index for the projectile.
+ * @param presenter      Presentation layer (may be null).
  */
 void traceSpellPath(Combat::CombatContext &ctx,
                     TilePos attackerPos,
-                    TilePos targetPos,
-                    uint8 initialAnimFrame,
-                    int8 savingThrowMod,
-                    uint8 baseDamage,
                     uint8 pathLength,
+                    uint8 baseDamage,
+                    int8 savingThrowMod,
+                    bool animatePath,
                     uint8 effectTileId,
                     ICombatSpellPresenter *presenter);
 

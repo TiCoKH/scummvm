@@ -41,6 +41,11 @@ struct TilePos {
 	bool operator!=(const TilePos &o) const { return !(*this == o); }
 };
 
+/** Returns true if pos is within the 50x25 combat battlefield bounds. */
+inline bool isValidTilePos(TilePos pos) {
+	return pos.col < 50 && pos.row < 25;
+}
+
 /**
  * A position on the 16x16 GEO dungeon map grid.
  * x = column (0-15), y = row (0-15). Signed to allow delta arithmetic.

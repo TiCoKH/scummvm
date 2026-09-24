@@ -35,8 +35,8 @@ namespace Combat {
  */
 struct TileProp {
     int8  passable;       // movement cost: 0x01 = walkable, -1 (0xFF) = blocked/impassable
-    uint8 terrainHeight;  // elevation level used for LOS height-path
-    uint8 obstacleWidth; // obstacle width for LOS blocking: 0x02 = full-wide, 0x00 = half-width
+    uint8 terrainHeight;  // obstacle height for LOS: low obstacles (e.g. bush) don't block spells/projectiles
+    uint8 obstacleWidth;  // obstacle width: 0x02 = full-width wall, 0x00 = half-width (e.g. door)
     uint8 blockID;        // graphic/sprite block ID
 };
 
