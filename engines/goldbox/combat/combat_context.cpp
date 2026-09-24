@@ -135,6 +135,15 @@ void CombatContext::getGroundInfo(Data::PlayerCharacter *ch, uint8 direction,
     if (outPlayerIndex) *outPlayerIndex = (int)outOccupant;
 }
 
+CombatContext::CombatCell CombatContext::getTileAndOccupantAt(TilePos pos) const {
+    CombatCell cell{};
+    if (!Goldbox::isValidTilePos(pos))
+        return cell;
+    cell.tileId     = map.getRawTile(pos);
+    cell.occupantId = table.getOccupant(pos);
+    return cell;
+}
+
 void CombatContext::buildTargetListCore(TilePos pos, uint8 iconSize,
                                         Direction facing, uint8 maxRange) {
     TargetList &result = targetList;
@@ -265,13 +274,11 @@ bool CombatContext::lineOfSightCheck(TilePos source, TilePos target,
     const TilePropertyProvider *tileProps = map.getTilePropertyProvider();
 
     FieldPath linePath;
-    linePath.startCol = (int16)source.col;
-    linePath.startRow = (int16)source.row;
-    linePath.endCol   = (int16)target.col;
-    linePath.endRow   = (int16)target.row;
-    initBresenham(linePath);
+    linePath.start = source;
+    linePath.endCol = (int16)target.col;
+    linePath.endRow = (int16)target.row;
+    Goldbox::initBresenham(linePath);
 
-    // Terrain height at the source tile sets the initial elevation threshold.
     const uint8 startRaw = map.getRawTile(source);
     uint8 terrainLevel = 0;
     if (startRaw > 0 && tileProps) {
@@ -281,41 +288,37 @@ bool CombatContext::lineOfSightCheck(TilePos source, TilePos target,
     }
 
     FieldPath heightPath;
-    heightPath.startCol = 0;
-    heightPath.startRow = (int16)terrainLevel;
-    heightPath.endCol   = (int16)MAX(linePath.deltaCol, linePath.deltaRow);
-    heightPath.endRow   = (int16)terrainLevel;
-    initBresenham(heightPath);
+    heightPath.start = TilePos(0, terrainLevel);
+    heightPath.endCol = (int16)MAX(linePath.deltaX, linePath.deltaY);
+    heightPath.endRow = (int16)terrainLevel;
+    Goldbox::initBresenham(heightPath);
 
     for (;;) {
-        // Check obstacle height at current line position against height path.
-        const uint8 raw = map.getRawTile(TilePos((uint8)linePath.col, (uint8)linePath.row));
-        uint8 obstacleWidth = 0;
+        const uint8 raw = map.getRawTile(linePath.current);
+        uint8 tileHeight = 0;
         if (raw > 0 && tileProps) {
             const TileProp *prop = tileProps->getTileProp(raw - 1);
             if (prop)
-				obstacleWidth = prop->obstacleWidth;
+                tileHeight = prop->terrainHeight;
         }
 
         const bool passable = map.getIgnoreWalls() ||
-                              obstacleWidth <= (uint8)heightPath.row;
+                              tileHeight <= (uint8)heightPath.current.row;
         const bool inRange  = linePath.moveCost <= (int16)(initialRange * 2 + 1);
 
         if (!passable || !inRange)
             break;
 
-        stepBresenham(heightPath);
+        Goldbox::stepBresenham(heightPath);
 
-        if (!stepBresenham(linePath)) {
-            // Reached the target tile — LOS clear.
+        if (!Goldbox::stepBresenham(linePath)) {
             range = (uint16)linePath.moveCost;
             return true;
         }
     }
 
-    // Blocked or out of range.
     if (blockedAt)
-        *blockedAt = TilePos((uint8)linePath.col, (uint8)linePath.row);
+        *blockedAt = linePath.current;
     range = (uint16)linePath.moveCost;
     return false;
 }

@@ -1347,12 +1347,13 @@ SpellCastResult LightningBoltHandler::execute(const SpellContext &context,
     Spells::resolveAoEHitAtTile(*ctx, targetPos, baseDamage, 4, 19,
                                 nullptr, hitObstacle);
 
+    ctx->globals.targetPos = targetPos;
     // TODO(spell_aoe): pass context.presenter once SpellContext carries it.
-    Spells::traceSpellPath(*ctx, attackerPos, targetPos,
-                           8,           // initialAnimFrame
-                           4,           // savingThrowMod
-                           baseDamage,
+    Spells::traceSpellPath(*ctx, attackerPos,
                            damageDice,  // pathLength
+                           baseDamage,
+                           4,           // savingThrowMod
+                           true,        // animatePath
                            19,          // effectTileId (lightning)
                            nullptr);
 
@@ -1391,12 +1392,13 @@ SpellCastResult SpellID60Handler::execute(const SpellContext &context,
     Spells::resolveAoEHitAtTile(*ctx, targetPos, baseDamage, 4, 19,
                                 nullptr, hitObstacle);
 
+    ctx->globals.targetPos = targetPos;
     // TODO(spell_aoe): pass context.presenter once SpellContext carries it.
-    Spells::traceSpellPath(*ctx, attackerPos, targetPos,
-                           3,    // initialAnimFrame
-                           4,    // savingThrowMod
-                           20,   // baseDamage (fixed component, matches original)
+    Spells::traceSpellPath(*ctx, attackerPos,
                            3,    // pathLength
+                           20,   // baseDamage (fixed component, matches original)
+                           4,    // savingThrowMod
+                           true, // animatePath
                            19,   // effectTileId
                            nullptr);
 
@@ -1432,11 +1434,12 @@ SpellCastResult BreathWeaponHandler::execute(const SpellContext &context,
     Spells::resolveAoEHitAtTile(*ctx, targetPos, _baseDamage, _savingThrowMod,
                                 _effectTileId, nullptr, hitObstacle);
 
-    Spells::traceSpellPath(*ctx, attackerPos, targetPos,
-                           1,               // initialAnimFrame (breath uses frame offset)
-                           _savingThrowMod,
-                           _baseDamage,
+    ctx->globals.targetPos = targetPos;
+    Spells::traceSpellPath(*ctx, attackerPos,
                            _pathLength,
+                           _baseDamage,
+                           _savingThrowMod,
+                           true,            // animatePath
                            _effectTileId,
                            nullptr);
 
