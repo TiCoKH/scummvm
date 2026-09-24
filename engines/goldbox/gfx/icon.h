@@ -23,6 +23,7 @@
 #define GOLDBOX_GFX_ICON_H
 
 #include "common/scummsys.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/gfx/pic.h"
 #include "goldbox/gfx/dax_renderer.h"
 #include "goldbox/combat/combat_icon_data.h"
@@ -78,20 +79,18 @@ struct IconRenderParams {
     uint8 iconIndex;
     IconState state;
     IconDirection direction;
-    int16 screenTileY;
-    int16 screenTileX;
+    ScreenPos screenPos;      // character-grid position of the icon
     int32 colorOverride;      // -1 = no override
-    int16 pixelOffsetX;
-    int16 pixelOffsetY;
+    PixelPos pixelOffset;     // sub-cell pixel nudge
     void *overrideDax;        // Optional: DAX block override (nullptr = use default)
 
     IconRenderParams() : iconIndex(0), state(ICON_STATE_READY), direction(ICON_DIRECTION_RIGHT),
-                        screenTileY(0), screenTileX(0), colorOverride(-1),
-                        pixelOffsetX(0), pixelOffsetY(0), overrideDax(nullptr) {}
+                        screenPos(), colorOverride(-1),
+                        pixelOffset(), overrideDax(nullptr) {}
 
-    // Computed screen coordinates (in pixels)
-    int32 screenPixelX() const { return screenTileX * 3 + 1 + pixelOffsetX; }
-    int32 screenPixelY() const { return screenTileY * 3 + 1 + pixelOffsetY; }
+    // Computed pixel coordinates (screen cell * 3px per combat tile + 1px offset)
+    int32 screenPixelX() const { return screenPos.col * 3 + 1 + pixelOffset.x; }
+    int32 screenPixelY() const { return screenPos.row * 3 + 1 + pixelOffset.y; }
 };
 
 

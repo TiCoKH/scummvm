@@ -37,7 +37,7 @@
 #include "goldbox/spells/spell_casting.h"
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/core/direction.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
 
 #include "goldbox/poolrad/console.h"

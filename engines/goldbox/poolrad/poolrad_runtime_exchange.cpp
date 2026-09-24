@@ -21,7 +21,7 @@
 
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
 
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/ecl/runtime_layout.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"

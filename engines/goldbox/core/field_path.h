@@ -23,7 +23,7 @@
 #define GOLDBOX_CORE_FIELD_PATH_H
 
 #include "common/scummsys.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/core/direction.h"
 
 namespace Goldbox {

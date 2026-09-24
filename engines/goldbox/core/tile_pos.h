@@ -19,48 +19,5 @@
  *
  */
 
-#ifndef GOLDBOX_CORE_TILE_POS_H
-#define GOLDBOX_CORE_TILE_POS_H
-
-#include "common/scummsys.h"
-
-namespace Goldbox {
-
-/**
- * A position on the 50x25 combat battlefield tile grid.
- * col = column (0-49), row = row (0-24).
- */
-struct TilePos {
-	uint8 col;
-	uint8 row;
-
-	TilePos() : col(0), row(0) {}
-	TilePos(uint8 c, uint8 r) : col(c), row(r) {}
-
-	bool operator==(const TilePos &o) const { return col == o.col && row == o.row; }
-	bool operator!=(const TilePos &o) const { return !(*this == o); }
-};
-
-/** Returns true if pos is within the 50x25 combat battlefield bounds. */
-inline bool isValidTilePos(TilePos pos) {
-	return pos.col < 50 && pos.row < 25;
-}
-
-/**
- * A position on the 16x16 GEO dungeon map grid.
- * x = column (0-15), y = row (0-15). Signed to allow delta arithmetic.
- */
-struct MapPos {
-	int8 x;
-	int8 y;
-
-	MapPos() : x(0), y(0) {}
-	MapPos(int8 x_, int8 y_) : x(x_), y(y_) {}
-
-	bool operator==(const MapPos &o) const { return x == o.x && y == o.y; }
-	bool operator!=(const MapPos &o) const { return !(*this == o); }
-};
-
-} // namespace Goldbox
-
-#endif // GOLDBOX_CORE_TILE_POS_H
+/* Renamed to coords.h — this stub exists only for transition. */
+#include "goldbox/core/coords.h"

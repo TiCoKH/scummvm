@@ -26,7 +26,7 @@
 #include "goldbox/gfx/combat_tile_cache.h"
 #include "goldbox/gfx/icon_manager.h"
 #include "goldbox/gfx/pic.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 
 #include <string.h>
 

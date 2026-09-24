@@ -26,7 +26,7 @@
 #include "common/array.h"
 #include "goldbox/combat/cloud_effect_manager.h"
 #include "goldbox/core/direction.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/data/spells/spell.h"
 
 namespace Goldbox {

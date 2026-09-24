@@ -39,7 +39,7 @@
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/runtime/runtime_exchange.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {

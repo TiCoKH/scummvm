@@ -26,7 +26,7 @@
 #include "common/array.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_globals.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 
 namespace Goldbox {
 namespace Data {
