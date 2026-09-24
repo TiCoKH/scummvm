@@ -25,6 +25,7 @@
 #include "common/rect.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
+#include "goldbox/core/coords.h"
 
 namespace Goldbox {
 namespace Shared {
@@ -82,10 +83,12 @@ public:
 	void writeString(const unsigned char *str);
 	void writeString(int x, int y, const Common::String &str);
 	void writeString(int x, int y, const unsigned char *str);
+	void writeString(ScreenPos pos, const Common::String &str) { writeString(pos.col, pos.row, str); }
 	void writeStringC(const Common::String &str, int color);
 	void writeStringC(const unsigned char *str, int color);
 	void writeStringC(int x, int y, int color, const Common::String &str);
 	void writeStringC(int x, int y, int color, const unsigned char *str);
+	void writeStringC(ScreenPos pos, int color, const Common::String &str) { writeStringC(pos.col, pos.row, color, str); }
 	void writeCenteredString(const Common::String &str, int y);
 	void writeChar(unsigned char c);
 	void writeChar(int x, int y, unsigned char c);
@@ -101,6 +104,8 @@ public:
 	 */
 	void writeTile(int charX, int charY, uint16 globalTileId,
 			uint32 bgColor = 0, uint32 tpColorIndex = 0);
+	void writeTile(ScreenPos pos, uint16 globalTileId,
+			uint32 bgColor = 0, uint32 tpColorIndex = 0) { writeTile(pos.col, pos.row, globalTileId, bgColor, tpColorIndex); }
 
 	void writeCharC(unsigned char c, int color);
 	void writeCharC(int x, int y, int color, unsigned char c);

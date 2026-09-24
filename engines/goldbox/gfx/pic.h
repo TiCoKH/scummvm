@@ -27,6 +27,7 @@
 #include "graphics/managed_surface.h"
 #include "graphics/palette.h"
 #include "goldbox/data/daxblock.h"
+#include "goldbox/core/coords.h"
 
 namespace Goldbox {
 namespace Gfx {
@@ -110,39 +111,28 @@ public:
 
 	/**
 	 * Render the picture at the given character grid coordinates (8x8 cells)
-	 * @param dst Destination surface
-	 * @param charX Character column position
-	 * @param charY Character row position
 	 */
 	void drawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY) const;
+	void drawAtCharPos(Graphics::ManagedSurface *dst, ScreenPos pos) const { drawAtCharPos(dst, pos.col, pos.row); }
 
 	/**
 	 * Render the picture at the given character grid coordinates with transparent color
-	 * @param dst Destination surface
-	 * @param charX Character column position
-	 * @param charY Character row position
-	 * @param tpColorIndex Color index to treat as transparent
 	 */
 	void trDrawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY, uint32 tpColorIndex) const;
+	void trDrawAtCharPos(Graphics::ManagedSurface *dst, ScreenPos pos, uint32 tpColorIndex) const { trDrawAtCharPos(dst, pos.col, pos.row, tpColorIndex); }
 
 	/**
 	 * Render the picture at Gold Box's 3x3-tile grid coordinates.
 	 * Each tile is 3x3 pixels; rendering is offset by +1 pixel from tile origin.
-	 * @param dst Destination surface
-	 * @param iconX Tile column
-	 * @param iconY Tile row
 	 */
 	void drawAtIconPos(Graphics::ManagedSurface *dst, int iconX, int iconY) const;
+	void drawAtIconPos(Graphics::ManagedSurface *dst, ScreenPos pos) const { drawAtIconPos(dst, pos.col, pos.row); }
 
 	/**
 	 * Render at 3x3-tile grid coordinates with a transparent color.
-	 * Each tile is 3x3 pixels; rendering is offset by +1 pixel from tile origin.
-	 * @param dst Destination surface
-	 * @param iconX Tile column
-	 * @param iconY Tile row
-	 * @param tpColorIndex Color index to treat as transparent
 	 */
 	void trDrawAtIconPos(Graphics::ManagedSurface *dst, int iconX, int iconY, uint32 tpColorIndex) const;
+	void trDrawAtIconPos(Graphics::ManagedSurface *dst, ScreenPos pos, uint32 tpColorIndex) const { trDrawAtIconPos(dst, pos.col, pos.row, tpColorIndex); }
 
 	/**
 	 * Draw using transparency mask (if available).

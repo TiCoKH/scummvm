@@ -24,7 +24,7 @@
 
 #include "common/list.h"
 #include "common/scummsys.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 
 namespace Goldbox {
 namespace Data {

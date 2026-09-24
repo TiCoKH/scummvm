@@ -27,7 +27,7 @@
 #include "goldbox/data/spells/spell.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/runtime/runtime_geo.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/events.h"
 #include "goldbox/core/direction.h"

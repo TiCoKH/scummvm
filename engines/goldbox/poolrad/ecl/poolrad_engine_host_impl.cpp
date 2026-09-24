@@ -24,7 +24,7 @@
 #include "common/list.h"
 #include "common/memstream.h"
 #include "common/path.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/gfx/surface.h"

@@ -26,7 +26,7 @@
 #include "common/array.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/core/field_path.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/core/direction.h"
 
 namespace Goldbox {

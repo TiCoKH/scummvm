@@ -25,7 +25,7 @@
 #include "common/scummsys.h"
 #include "common/array.h"
 #include "goldbox/core/vm_layout.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/combat/tile_property_provider.h"
 
 namespace Goldbox {

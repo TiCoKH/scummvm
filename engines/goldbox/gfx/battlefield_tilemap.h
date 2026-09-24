@@ -25,7 +25,7 @@
 #include "common/scummsys.h"
 #include "common/rect.h"
 #include "graphics/managed_surface.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 
 namespace Goldbox {
 

@@ -20,7 +20,7 @@
  */
 
 #include "goldbox/poolrad/effect_handler.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/spells/spell_aoe.h"
 #include "goldbox/combat/cloud_effect_manager.h"
 #include "goldbox/combat/combat_context.h"

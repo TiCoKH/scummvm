@@ -24,7 +24,7 @@
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
-#include "goldbox/core/tile_pos.h"
+#include "goldbox/core/coords.h"
 
 // Forward declaration in the correct namespace — mirrors combat_view.h pattern.
 namespace Goldbox {
