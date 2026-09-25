@@ -111,15 +111,17 @@ public:
     /** Outcome of one movement step. */
     struct MoveStepResult {
         enum Kind {
-            MS_OK,          // moved successfully
-            MS_OCCUPIED,    // destination has an occupant (index in occupantIndex)
-            MS_OUT_OF_BOUNDS, // tile == 0: offer flee
-            MS_BLOCKED,     // terrain cost > remaining move
-            MS_DISABLED     // character disabled mid-move; action complete
+            MS_OK,
+            MS_OCCUPIED,
+            MS_OUT_OF_BOUNDS,
+            MS_BLOCKED,
+            MS_DISABLED
         };
         Kind kind = MS_OK;
-        int  occupantIndex = 0; // 1-based, valid when MS_OCCUPIED
+        int  occupantIndex = 0;
         bool actionComplete = false;
+        TilePos fromPos;   // position before the step (valid for MS_OK)
+        TilePos toPos;     // position after the step  (valid for MS_OK)
     };
 
     /** Update character facing without moving. */

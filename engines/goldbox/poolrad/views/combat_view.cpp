@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
+#include "goldbox/core/field_path.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/data/player_character.h"
@@ -250,6 +251,12 @@ void CombatView::handleMenuResult(const MenuResultMessage &result) {
     if (action == Combat::CombatSession::PA_MOVE) {
         ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
         if (actor && _combatMove) {
+            _combatMove->setAnimateCallback(
+                [](TilePos from, TilePos to,
+                   ::Goldbox::Data::PlayerCharacter *ch, void *ctx) {
+                    (void)ch;
+                    static_cast<CombatView *>(ctx)->animateMovementPath(from, to);
+                }, this);
             _combatMove->beginMove(actor);
             attachDialog(_combatMove);
             _combatMove->activate();
@@ -529,6 +536,198 @@ void CombatView::drawCombatInfo(::Goldbox::Data::PlayerCharacter *ch) {
 void CombatView::drawDamageFrame(const Gfx::Pic *frame, int pixX, int pixY,
         Graphics::ManagedSurface *dst) {
     frame->trDraw(dst, pixX, pixY, frame->getTransparentIndex());
+}
+
+// ---------------------------------------------------------------------------
+// Movement animation
+
+void CombatView::redrawViewportAt(TilePos center) {
+    _session.getViewport().centerOn(center);
+    drawViewport();
+    drawCombatants();
+}
+
+Common::Array<CombatView::MovementAnimStep>
+CombatView::buildMovementAnimationPath(TilePos start, TilePos end) {
+    Common::Array<MovementAnimStep> steps;
+
+    // Build Bresenham path in fine-grid coords (tile * kFinePerTile).
+    FieldPath path;
+    path.start   = TilePos((uint8)(start.col * kFinePerTile),
+                           (uint8)(start.row * kFinePerTile));
+    path.current = path.start;
+    path.endCol  = (int16)(end.col * kFinePerTile);
+    path.endRow  = (int16)(end.row * kFinePerTile);
+    initBresenham(path);
+
+    static const int kMaxSteps = 256;
+    Direction directions[kMaxSteps];
+    int stepCount = 0;
+    do {
+        bool stepped = stepBresenham(path);
+        if (stepCount < kMaxSteps)
+            directions[stepCount++] = path.stepDirection;
+        if (!stepped)
+            break;
+    } while (stepCount < kMaxSteps);
+
+    if (stepCount < 2)
+        return steps;
+
+    // Determine initial viewport center.
+    const int deltaX = (int)end.col - (int)start.col;
+    const int deltaY = (int)end.row - (int)start.row;
+    TilePos redrawCenter;
+    if (_session.getViewport().isTileVisible(start) &&
+            _session.getViewport().isTileVisible(end)) {
+        redrawCenter = _session.getViewport().getCenter();
+    } else if (ABS(deltaX) < Combat::CombatViewport::VIEW_COLS &&
+               ABS(deltaY) < Combat::CombatViewport::VIEW_ROWS) {
+        redrawCenter = TilePos((uint8)(start.col + deltaX / 2),
+                               (uint8)(start.row + deltaY / 2));
+    } else {
+        redrawCenter = _session.getViewport().getCenter();
+    }
+    redrawViewportAt(redrawCenter);
+
+    const int kFineViewCols = Combat::CombatViewport::VIEW_COLS * kFinePerTile;
+    const int kFineViewRows = Combat::CombatViewport::VIEW_ROWS * kFinePerTile;
+
+    TilePos vpTopLeft = _session.getViewport().getTopLeft();
+    ScreenPos finePos(
+        (int16)((start.col - vpTopLeft.col) * kFinePerTile),
+        (int16)((start.row - vpTopLeft.row) * kFinePerTile));
+    ScreenPos subtileOffset(0, 0);
+
+    // Walk every direction step, emitting one MovementAnimStep per tile boundary.
+    for (int i = 0; i < stepCount; ++i) {
+        // Emit on tile boundaries (both axes aligned).
+        if (finePos.col % kFinePerTile == 0 && finePos.row % kFinePerTile == 0) {
+            MovementAnimStep s;
+            s.finePos = finePos;
+            steps.push_back(s);
+        }
+
+        if (i + 1 >= stepCount)
+            break;
+
+        const Direction dir = directions[i + 1];
+        finePos.col += kDirDeltaX[dir];
+        finePos.row += kDirDeltaY[dir];
+
+        const bool leftViewport =
+            finePos.col < 0 || finePos.col >= kFineViewCols ||
+            finePos.row < 0 || finePos.row >= kFineViewRows;
+
+        if (!leftViewport) {
+            subtileOffset.col += kDirDeltaX[dir];
+            subtileOffset.row += kDirDeltaY[dir];
+            if (ABS((int)subtileOffset.col) == kFinePerTile) {
+                redrawCenter.col = (uint8)((int)redrawCenter.col +
+                    (subtileOffset.col > 0 ? 1 : -1));
+                subtileOffset.col = 0;
+            }
+            if (ABS((int)subtileOffset.row) == kFinePerTile) {
+                redrawCenter.row = (uint8)((int)redrawCenter.row +
+                    (subtileOffset.row > 0 ? 1 : -1));
+                subtileOffset.row = 0;
+            }
+        } else {
+            // Pan viewport kPanTiles toward movement direction and recalculate.
+            redrawCenter.col = (uint8)((int)redrawCenter.col +
+                kDirDeltaX[dir] * kPanTiles);
+            redrawCenter.row = (uint8)((int)redrawCenter.row +
+                kDirDeltaY[dir] * kPanTiles);
+            redrawViewportAt(redrawCenter);
+
+            vpTopLeft = _session.getViewport().getTopLeft();
+            const TilePos curTile(
+                (uint8)(start.col + subtileOffset.col / kFinePerTile),
+                (uint8)(start.row + subtileOffset.row / kFinePerTile));
+            finePos.col = (int16)((curTile.col - vpTopLeft.col) * kFinePerTile +
+                kDirDeltaX[dir]);
+            finePos.row = (int16)((curTile.row - vpTopLeft.row) * kFinePerTile +
+                kDirDeltaY[dir]);
+            subtileOffset = ScreenPos(0, 0);
+        }
+    }
+
+    // Always emit the final tile position.
+    if (!_session.getViewport().isTileVisible(end))
+        redrawViewportAt(end);
+    vpTopLeft = _session.getViewport().getTopLeft();
+    MovementAnimStep last;
+    last.finePos = ScreenPos(
+        (int16)((end.col - vpTopLeft.col) * kFinePerTile),
+        (int16)((end.row - vpTopLeft.row) * kFinePerTile));
+    steps.push_back(last);
+
+    return steps;
+}
+
+void CombatView::drawMovementAnimation(
+        const ScreenPos &finePos, uint8 animFrame, uint8 frameDelay,
+        ::Goldbox::Data::PlayerCharacter *ch, Gfx::IconDirection iconDir,
+        Graphics::ManagedSurface *screen) {
+    const Common::Point px = fineToPixel(finePos);
+
+    // Draw icon — alternate ready/attack state across the frame cycle.
+    const uint8 slotId = ch->iconData.iconSlotId;
+    Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+    if (slotId != 0 && iconMgr && !iconMgr->isSlotEmpty(slotId)) {
+        const Gfx::Pic *pic = (animFrame < kAnimFrameCount / 2)
+            ? iconMgr->getReadyPic(slotId)
+            : iconMgr->getActionPic(slotId);
+        if (pic)
+            pic->trDraw(screen, px.x, px.y, pic->getTransparentIndex());
+    } else {
+        _combatRenderer.drawIcon(
+            ch->iconData,
+            (animFrame < kAnimFrameCount / 2) ? Gfx::ICON_STATE_READY
+                                              : Gfx::ICON_STATE_ATTACK,
+            iconDir, px.x, px.y, screen);
+    }
+
+    g_system->updateScreen();
+    g_system->delayMillis((uint32)frameDelay);
+
+    // Restore background tile behind the icon.
+    const int srcX = px.x - kViewportX;
+    const int srcY = px.y - kViewportY;
+    _tilemap.blitTo(screen,
+        Common::Point(px.x, px.y),
+        Common::Rect(srcX, srcY, srcX + kTileSize, srcY + kTileSize));
+}
+
+void CombatView::animateMovementPath(
+        TilePos start, TilePos end,
+        uint8 initialFrame, uint8 frameDelay) {
+    ::Goldbox::Data::PlayerCharacter *ch = _session.getCurrentActor();
+    if (!ch)
+        return;
+    Gfx::IconDirection iconDir = Gfx::ICON_DIRECTION_RIGHT;
+    if (ch->combatState) {
+        const uint8 facing = ch->combatState->direction;
+        if (facing >= 5 || facing == 0)
+            iconDir = Gfx::ICON_DIRECTION_LEFT;
+    }
+
+    Surface screenSurface = getSurface();
+    Graphics::ManagedSurface *screen =
+        static_cast<Graphics::ManagedSurface *>(&screenSurface);
+
+    const Common::Array<MovementAnimStep> path =
+        buildMovementAnimationPath(start, end);
+
+    uint8 animFrame = initialFrame;
+    for (uint i = 0; i < path.size(); ++i) {
+        drawMovementAnimation(path[i].finePos, animFrame, frameDelay,
+                              ch, iconDir, screen);
+        animFrame = getNextAnimationFrame(animFrame);
+    }
+
+    g_system->updateScreen();
+    _needsFullRedraw = true;
 }
 
 } // namespace Views

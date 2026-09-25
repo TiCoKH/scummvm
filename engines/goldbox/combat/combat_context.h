@@ -135,6 +135,36 @@ struct CombatContext {
                                TilePos attackerPos, TilePos targetPos);
 
     /**
+     * Returns the first Direction (scanning N through NW) such that
+     * targetPos falls within the arc when attacker faces that direction.
+     * Mirrors COMBAT_GetFacingToward.
+     */
+    Direction getFacingToward(const Data::PlayerCharacter *target,
+                              const Data::PlayerCharacter *attacker) const;
+
+    /**
+     * Returns whether the character's combat footprint is within the
+     * visible viewport grid.
+     * requireAllCells=true  → every footprint cell must be inside.
+     * requireAllCells=false → any one footprint cell inside is sufficient.
+     * Mirrors COMBAT_IsCharacterInBounds.
+     */
+    bool isCharacterInBounds(const Data::PlayerCharacter *ch,
+                             bool requireAllCells) const;
+
+    /**
+     * Mirrors COMBAT_CheckAdvanceEngagement.
+     * After a one-tile advance in moveDirection, finds enemies that became
+     * newly reachable (range=1) and triggers a reaction attack from each
+     * eligible enemy against currentCharacter.
+     * Calls drawCombatInfoCallback(currentCharacter) after each resolved
+     * attack if currentCharacter is still enabled; pass nullptr to skip.
+     */
+    void checkAdvanceEngagement(Data::PlayerCharacter *currentCharacter,
+                                Direction moveDirection,
+                                void (*drawCombatInfoCallback)(Data::PlayerCharacter *) = nullptr);
+
+    /**
      * Reset per-turn CombatAction fields for one character.
      * Mirrors COMBAT_InitCharacterTurnState.
      */

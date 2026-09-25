@@ -26,8 +26,12 @@
 #include "goldbox/combat/combat_viewport.h"
 #include "goldbox/combat/battlefield_map.h"
 #include "goldbox/combat/tile_property_provider.h"
+#include "goldbox/combat/combat_damage.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/data/player_character.h"
+#include "goldbox/data/adnd_character.h"
+#include "goldbox/data/effects/effect_runtime.h"
+#include "goldbox/data/effects/character_effects.h"
 #include "common/util.h"
 
 namespace Goldbox {
@@ -225,14 +229,20 @@ void CombatContext::buildTargetListCore(TilePos pos, uint8 iconSize,
         result.entries.push_back(TargetEntry((uint8)i, (uint8)nearestRange, setFacing));
     }
 
-    // Sort by range (insertion sort)
-    for (uint j = 1; j < result.entries.size(); j++) {
-        TargetEntry key = result.entries[j];
-        int k = (int)j - 1;
-        while (k >= 0 && result.entries[k].range > key.range) {
-            result.entries[k + 1] = result.entries[k--];
+    // Sort: primary key = range ascending; tie-break = lower idx wins when
+    // (candidate.idx & 1) <= (current.idx & 1). Mirrors COMBAT_SortTargetList.
+    for (uint i = 0; i < result.entries.size(); ++i) {
+        for (uint j = i + 1; j < result.entries.size(); ++j) {
+            const TargetEntry &cur  = result.entries[i];
+            const TargetEntry &cand = result.entries[j];
+            bool swap = cand.range < cur.range;
+            if (!swap && cand.range == cur.range &&
+                cand.idx < cur.idx &&
+                (cand.idx & 1) <= (cur.idx & 1))
+                swap = true;
+            if (swap)
+                SWAP(result.entries[i], result.entries[j]);
         }
-        result.entries[k + 1] = key;
     }
 }
 
@@ -258,7 +268,7 @@ void CombatContext::buildTargetList(const Data::PlayerCharacter *attacker,
         if ((int)result.entries[i].idx == attackerIdx)
             continue;
         const Data::PlayerCharacter *ch = table.getCharacter(result.entries[i].idx);
-        if (!ch || ch->combatSide != attackerSide)
+        if (!ch || ch->combatSide == attackerSide)
             continue;
         result.entries[j++] = result.entries[i];
     }
@@ -425,6 +435,238 @@ bool CombatContext::isTargetInArc(Direction direction,
         return true;
     default:
         return false;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// checkAdvanceEngagement helpers
+// ---------------------------------------------------------------------------
+
+Direction CombatContext::getFacingToward(const Data::PlayerCharacter *target,
+                                         const Data::PlayerCharacter *attacker) const {
+    const TilePos targetPos   = table.getCharacterPos(target);
+    const TilePos attackerPos = table.getCharacterPos(attacker);
+
+    Direction facing = DIR_N;
+    while (!isTargetInArc(facing, attackerPos, targetPos))
+        facing = static_cast<Direction>(facing + 1);
+    return facing;
+}
+
+bool CombatContext::isCharacterInBounds(const Data::PlayerCharacter *ch,
+                                        bool requireAllCells) const {
+    const int idx = table.findIndex(ch);
+    if (idx < 0)
+        return false;
+
+    const uint8 iconSize = table.getSize(idx) & 7;
+    if (iconSize == 0)
+        return false;
+
+    const ViewportPos base = viewport.getCharacterViewportPosition(table, idx);
+
+    for (uint8 slot = 0; slot < 4; ++slot) {
+        FootprintOffsetPair off;
+        if (!getFootprintOffset(iconSize, slot, off))
+            continue;
+
+        ViewportPos cell(base.column + off.col, base.row + off.row);
+        const bool inside = cell.isVisible(CombatViewport::VIEW_COLS,
+                                           CombatViewport::VIEW_ROWS);
+
+        if (requireAllCells && !inside)
+            return false;
+        if (!requireAllCells && inside)
+            return true;
+    }
+
+    return requireAllCells;
+}
+
+// ---------------------------------------------------------------------------
+// checkAdvanceEngagement helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Mirrors COMBAT_CanEngageTarget.
+ * Runs ES_DEFENSIVE_PASSIVE on target and ES_ATTACKER_OFFENSE on attacker
+ * to let effects set globals.targetUnavailable.
+ */
+static bool canEngageTarget(Data::PlayerCharacter *attacker,
+                             Data::PlayerCharacter *target,
+                             CombatContext &ctx) {
+    if (!target)
+        return false;
+    if (attacker == target)
+        return true;
+
+    ctx.globals.targetUnavailable = false;
+
+    if (ctx.params.effectRuntime && target->getEffects())
+        ctx.params.effectRuntime->checkEffectSet(
+            Data::Effects::ES_DEFENSIVE_PASSIVE,
+            *target->getEffects(), *target, &ctx.globals);
+
+    if (!ctx.globals.targetUnavailable && ctx.params.effectRuntime && attacker->getEffects()) {
+        Data::PlayerCharacter *oldTarget = attacker->combatState ? attacker->combatState->target : nullptr;
+        if (attacker->combatState)
+            attacker->combatState->target = target;
+
+        ctx.params.effectRuntime->checkEffectSet(
+            Data::Effects::ES_ATTACKER_OFFENSE,
+            *attacker->getEffects(), *attacker, &ctx.globals);
+
+        if (attacker->combatState)
+            attacker->combatState->target = oldTarget;
+    }
+
+    return !ctx.globals.targetUnavailable;
+}
+
+/**
+ * Mirrors SelectReactionAttack.
+ * Initial choice: slot 1 if primary has attacks, else slot 2.
+ * Then scan slots 1-2: last available slot wins (so slot 2 beats slot 1
+ * when both are available).
+ * Ensures the chosen slot has at least 1 attack marked available.
+ */
+static uint8 selectEngagementAttack(Data::PlayerCharacter *enemy) {
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(enemy);
+    if (!adnd)
+        return 1;
+
+    uint8 attackId = (adnd->curPrimaryRoll.attacks != 0) ? 1 : 2;
+
+    for (uint8 slot = 1; slot <= 2; ++slot) {
+        uint attacks = (slot == 1) ? adnd->curPrimaryRoll.attacks
+                                   : adnd->curSecondaryRoll.attacks;
+        if (attacks != 0)
+            attackId = slot;
+    }
+
+    // Force at least 1 attack available on the chosen slot.
+    if (attackId == 1 && adnd->curPrimaryRoll.attacks == 0)
+        adnd->curPrimaryRoll.attacks = 1;
+    else if (attackId == 2 && adnd->curSecondaryRoll.attacks == 0)
+        adnd->curSecondaryRoll.attacks = 1;
+
+    return attackId;
+}
+
+// ---------------------------------------------------------------------------
+// checkAdvanceEngagement
+// ---------------------------------------------------------------------------
+
+void CombatContext::checkAdvanceEngagement(
+        Data::PlayerCharacter *currentCharacter,
+        Direction moveDirection,
+        void (*drawCombatInfoCallback)(Data::PlayerCharacter *)) {
+
+    if (!currentCharacter || !currentCharacter->enabled)
+        return;
+
+    const int charIdx = table.findIndex(currentCharacter);
+    if (charIdx < 0)
+        return;
+
+    // Phase 1: build target list at current position.
+    buildTargetList(currentCharacter, 1);
+
+    // Phase 2: save the target order before the advance.
+    // Entries are nulled with -1 to match the original signed sentinel.
+    Common::Array<int8> oldOrder;
+    oldOrder.resize(targetList.targetOrder.size());
+    for (uint i = 0; i < targetList.targetOrder.size(); ++i)
+        oldOrder[i] = (int8)targetList.targetOrder[i];
+
+    if (oldOrder.empty())
+        return;
+
+    // Phase 3: temporarily advance one tile.
+    const TilePos origPos = table.getTilePos(charIdx);
+    const int8 dx = kDirDeltaX[moveDirection];
+    const int8 dy = kDirDeltaY[moveDirection];
+    table.setPosition(charIdx, TilePos((uint8)(origPos.col + dx),
+                                       (uint8)(origPos.row + dy)));
+
+    // Phase 4: build target list at the simulated position.
+    buildTargetList(currentCharacter, 1);
+    const Common::Array<uint8> newOrder = targetList.targetOrder;
+
+    // Restore original position immediately.
+    table.setPosition(charIdx, origPos);
+
+    // Phase 5: null out oldOrder entries still present after the advance.
+    // Remaining entries (>= 0) are enemies that lose engagement.
+    for (uint oldIdx = 0; oldIdx < oldOrder.size(); ++oldIdx) {
+        if (oldOrder[oldIdx] < 0)
+            continue;
+        for (uint newIdx = 0; newIdx < newOrder.size(); ++newIdx) {
+            if (newOrder[newIdx] == (uint8)oldOrder[oldIdx]) {
+                oldOrder[oldIdx] = -1;
+                break;
+            }
+        }
+    }
+
+    // Phase 6: reaction attack from each enemy that loses engagement.
+    for (uint targetIdx = 0; targetIdx < oldOrder.size(); ++targetIdx) {
+        if (oldOrder[targetIdx] < 0)
+            continue;
+
+        if (!currentCharacter->enabled)
+            return;
+
+        Data::PlayerCharacter *enemy = table.getCharacter((uint8)oldOrder[targetIdx]);
+        if (!enemy || !enemy->combatState)
+            continue;
+
+        if (enemy->hasNegativeEffect())
+            continue;
+
+        if (!canEngageTarget(enemy, currentCharacter, *this))
+            continue;
+
+        // Effects 0x4B and 0x4A suppress the reaction.
+        {
+            const Data::Effects::CharacterEffects *fx = enemy->getEffects();
+            if (fx && fx->hasEffect(0x4B))
+                continue;
+            if (fx && fx->hasEffect(0x4A))
+                continue;
+        }
+
+        bool attackResolved = false;
+
+        // Scan facing+6 through facing+10, normalized % 8 (five directions).
+        const int baseFacing = (int)enemy->combatState->direction;
+        for (int scan = baseFacing + 6; scan <= baseFacing + 10; ++scan) {
+            if (attackResolved)
+                break;
+
+            // Arc test only when initiative < 1 AND canAttack != 0.
+            if (enemy->combatState->initiative < 1 &&
+                enemy->combatState->attackCount != 0) {
+                Direction arcDir = static_cast<Direction>(scan % 8);
+                const TilePos enemyPos    = table.getTilePos((uint8)oldOrder[targetIdx]);
+                const TilePos attackerPos = table.getTilePos(charIdx);
+                if (!isTargetInArc(arcDir, attackerPos, enemyPos))
+                    continue;
+            }
+
+            enemy->combatState->attackId = selectEngagementAttack(enemy);
+
+            Data::PlayerCharacter *savedTarget = enemy->combatState->target;
+
+            // TODO: call resolveAttack(enemy, currentCharacter, true, nullptr)
+            // once that function is implemented.
+
+            enemy->combatState->target = savedTarget;
+            attackResolved = true;
+
+            if (currentCharacter->enabled && drawCombatInfoCallback)
+                drawCombatInfoCallback(currentCharacter);
+        }
     }
 }
 

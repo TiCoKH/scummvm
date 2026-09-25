@@ -207,6 +207,9 @@ public:
 	// Remove status effects without firing effect handlers.
 	void clearStatusEffects();
 
+	// Returns true if any negative (debilitating) status effect is active.
+	bool hasNegativeEffect() const;
+
 	// Apply a strength change (buff or debuff) to this character.
 	// Encodes new_str/new_ext_str into *outEncoded (bit 7 = active marker).
 	// Returns true if a buff was applied, false if a debuff.

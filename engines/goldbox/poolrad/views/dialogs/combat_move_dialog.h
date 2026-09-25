@@ -61,6 +61,14 @@ public:
     /** Called by CombatView before attaching; captures snapshot of original state. */
     void beginMove(Goldbox::Data::PlayerCharacter *ch);
 
+    /** Set by CombatView so the dialog can trigger movement animation per step. */
+    typedef void (*AnimateStepFn)(TilePos from, TilePos to,
+                                  Goldbox::Data::PlayerCharacter *ch, void *ctx);
+    void setAnimateCallback(AnimateStepFn fn, void *ctx) {
+        _animateFn  = fn;
+        _animateCtx = ctx;
+    }
+
     void activate() override;
     void deactivate() override;
     void draw() override;
@@ -80,6 +88,9 @@ private:
     State _state;
 
     HorizontalYesNo *_fleeYesNo;
+
+    AnimateStepFn _animateFn  = nullptr;
+    void         *_animateCtx = nullptr;
 
     // --- Helpers ---
 

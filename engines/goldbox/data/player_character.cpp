@@ -97,6 +97,17 @@ void PlayerCharacter::clearStatusEffects() {
         fx->eraseEffectById(kStatusEffects[i]);
 }
 
+bool PlayerCharacter::hasNegativeEffect() const {
+    const Effects::CharacterEffects *fx =
+        const_cast<PlayerCharacter *>(this)->getEffects();
+    if (!fx)
+        return false;
+    for (uint i = 0; i < ARRAYSIZE(kStatusEffects); ++i)
+        if (fx->hasEffect(kStatusEffects[i]))
+            return true;
+    return false;
+}
+
 void PlayerCharacter::heal(uint8 amount) {
     hitPoints.current = MIN<uint8>(hitPoints.max, hitPoints.current + amount);
 }
