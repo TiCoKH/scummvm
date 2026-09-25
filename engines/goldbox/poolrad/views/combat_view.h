@@ -151,6 +151,46 @@ private:
     void drawCombatInfo(Goldbox::Data::PlayerCharacter *ch);
     void drawDamageFrame(const Goldbox::Gfx::Pic *frame, int pixX, int pixY,
                          Graphics::ManagedSurface *dst);
+
+    // --- Movement animation ---
+
+    struct MovementAnimStep {
+        ScreenPos finePos;  // fine-grid position relative to viewport top-left
+    };
+
+    /** Build the flat list of fine-grid steps for the movement animation,
+     *  including viewport pans. Viewport state is updated as a side-effect. */
+    Common::Array<MovementAnimStep> buildMovementAnimationPath(
+        TilePos start, TilePos end);
+
+    /** Draw one animation frame at finePos, update screen, wait, restore background. */
+    void drawMovementAnimation(const ScreenPos &finePos, uint8 animFrame,
+                               uint8 frameDelay,
+                               Goldbox::Data::PlayerCharacter *ch,
+                               Gfx::IconDirection iconDir,
+                               Graphics::ManagedSurface *screen);
+
+    static uint8 getNextAnimationFrame(uint8 frame) {
+        return (frame + 1) % kAnimFrameCount;
+    }
+
+    void animateMovementPath(TilePos start, TilePos end,
+                             uint8 initialFrame = 0,
+                             uint8 frameDelay = 46);
+
+    /** Redraw tilemap + combatants centered on the given tile. */
+    void redrawViewportAt(TilePos center);
+
+    /** Convert fine-grid ScreenPos to screen pixel Point. */
+    Common::Point fineToPixel(ScreenPos fine) const {
+        return Common::Point(kViewportX + fine.col * (kTileSize / kFinePerTile),
+                             kViewportY + fine.row * (kTileSize / kFinePerTile));
+    }
+
+    static const int      kFinePerTile        = 3;
+    static const int      kAnimFrameCount     = 4;
+    static const int      kPanTiles           = 3;
+    static const uint8    kDefaultFrameDelay  = 46;
 };
 
 } // namespace Views

@@ -209,6 +209,8 @@ void CombatMoveDialog::handleDirectionInput(uint8 direction) {
         break;
 
     case Combat::CombatSession::MoveStepResult::MS_OK:
+        if (_animateFn)
+            _animateFn(step.fromPos, step.toPos, _character, _animateCtx);
         redraw();
         break;
     }

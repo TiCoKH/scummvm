@@ -313,6 +313,8 @@ CombatSession::MoveStepResult CombatSession::performMoveStep(
         const int8 dy = ::Goldbox::kDirDeltaY[direction];
         TilePos cur = _table.getTilePos(idx);
         TilePos newPos((uint8)(cur.col + dx), (uint8)(cur.row + dy));
+        result.fromPos = cur;
+        result.toPos   = newPos;
         _table.setPosition(idx, newPos);
         _table.rebuildOccupancy();
         scrollViewport(newPos, 2);
