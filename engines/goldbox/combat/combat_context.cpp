@@ -483,6 +483,11 @@ bool CombatContext::isCharacterInBounds(const Data::PlayerCharacter *ch,
     return requireAllCells;
 }
 
+void CombatContext::setCharacterFacing(Data::PlayerCharacter *ch, Direction direction) {
+    if (ch && ch->combatState)
+        ch->combatState->direction = static_cast<uint8>(direction);
+}
+
 // ---------------------------------------------------------------------------
 // checkAdvanceEngagement helpers
 // ---------------------------------------------------------------------------

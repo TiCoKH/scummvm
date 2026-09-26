@@ -36,6 +36,7 @@
 namespace Goldbox {
 namespace Data {
 class PlayerCharacter;
+namespace Items { struct CharacterItem; }
 namespace Effects {
 class EffectHostBridge;
 } // namespace Effects
@@ -152,6 +153,17 @@ private:
     void drawDamageFrame(const Goldbox::Gfx::Pic *frame, int pixX, int pixY,
                          Graphics::ManagedSurface *dst);
 
+    /**
+     * Mirrors COMBAT_UpdateCharacterFacingAndRedraw.
+     * Updates the character's facing in combat state and redraws as needed.
+     * noRedraw=true suppresses the final sprite draw but still allows
+     * viewport scroll and entity tile restoration.
+     */
+    void updateCharacterFacingAndRedraw(Goldbox::Data::PlayerCharacter *ch,
+                                        Direction direction,
+                                        uint8 iconFrame,
+                                        bool noRedraw);
+
     // --- Movement animation ---
 
     struct MovementAnimStep {
@@ -177,6 +189,23 @@ private:
     void animateMovementPath(TilePos start, TilePos end,
                              uint8 initialFrame = 0,
                              uint8 frameDelay = 46);
+
+    /**
+     * Mirrors COMBAT_AnimateRangedAttack.
+     * Renders the projectile/effect graphic and animates it along the
+     * path from attacker to target. Presentation only — no state mutation.
+     */
+    void animateRangedAttack(Goldbox::Data::PlayerCharacter *attacker,
+                             Goldbox::Data::PlayerCharacter *target,
+                             const Goldbox::Data::Items::CharacterItem *item);
+
+    /**
+     * Render one effect tile from SPRIT DAX block blockId, frame frameIdx,
+     * at viewport pixel position (pixX, pixY). Optionally draws a second
+     * layer (frame frameIdx+1) blended on top — mirrors the copyViaBuffer path.
+     */
+    void renderEffectTile(uint8 blockId, int frameIdx,
+                          int pixX, int pixY, bool withLayer = false);
 
     /** Redraw tilemap + combatants centered on the given tile. */
     void redrawViewportAt(TilePos center);
