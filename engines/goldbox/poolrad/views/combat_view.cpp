@@ -27,7 +27,6 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/character_effects.h"
-#include "goldbox/data/effects/effect.h"
 #include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/data/rules/rules_types.h"
@@ -41,6 +40,8 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/combat/damage_utils.h"
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
+#include "goldbox/data/items/character_item.h"
+#include "goldbox/combat/combat_context.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -492,45 +493,46 @@ void CombatView::drawCombatInfo(::Goldbox::Data::PlayerCharacter *ch) {
 
     Surface s = getSurface();
 
-    // Clear the info panel (col 23-38, rows 1-21).
     // Mirrors SCREEN_ClearRect(23, 1, 38, 21).
     s.clearBox(23, 1, 38, 21, kBackgroundColor);
 
     // Row 1: character name.
     s.writeStringC(23, 1, 10, ch->name);
 
-    // Row 3: Hitpoints.
+    // Row 3: Hitpoints label + value.
     s.writeStringC(23, 3, 10, "Hitpoints");
     s.writeStringC(33, 3, 10, Common::String::format("%d/%d",
         ch->hitPoints.current, ch->hitPoints.max));
 
-    // Row 5: Armor class.
+    // Row 5: Armor class label + value.
     s.writeStringC(23, 5, 10, "AC");
     s.writeStringC(26, 5, 10, Common::String::format("%d",
         ch->armorClass.getCurrent()));
 
-    // Row 6: status (anchored to AC row + 2, mirrors BYTE_CHAR_POS_Y + 2).
-    if (!ch->enabled) {
-        s.writeStringC(23, 6, 10, ch->getStatusName());
-    } else {
-        const ::Goldbox::Data::Effects::CharacterEffects *fx = ch->getEffects();
-        if (fx && (
-                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_HELPLESS) ||
-                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_HELPLESS_33) ||
-                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_HELPLESS_34) ||
-                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_HELPLESS_35) ||
-                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_NAUSEATED) ||
-                fx->hasEffect(::Goldbox::Data::Effects::E_POOLRAD_ENFEEBLED)))
-            s.writeStringC(23, 6, 10, "(Helpless)");
-    }
+    // BYTE_CHAR_POS_Y = 5 (AC row). Status anchors to row 7 (BYTE_CHAR_POS_Y + 2).
+    static const int kStatusRow = 7;
 
-    // Row 7: equipped weapon name (if any).
+    // Rows 7-8: equipped weapon display text (wraps up to 2 rows).
     const ::Goldbox::Data::ADnDCharacter *adnd =
         dynamic_cast<const ::Goldbox::Data::ADnDCharacter *>(ch);
     const ::Goldbox::Data::Items::CharacterItem *weapon = adnd ?
         adnd->getEquippedItem(::Goldbox::Data::Items::Slot::S_MAIN_HAND) : nullptr;
-    if (weapon)
-        s.writeStringC(23, 7, 10, weapon->getDisplayName());
+    if (weapon) {
+        // getListDisplayText(false) mirrors ITEM_buildListDisplayText(..., false, false).
+        const Common::String weaponText = weapon->getListDisplayText(false);
+        // First line at row 7, overflow at row 8 — mirrors TEXT_BlockPrint rect {23,7,38,9}.
+        const int kMaxCols = 38 - 23; // 15 chars
+        s.writeStringC(23, kStatusRow,     10, weaponText.substr(0, kMaxCols));
+        if (weaponText.size() > (uint)kMaxCols)
+            s.writeStringC(23, kStatusRow + 1, 10, weaponText.substr(kMaxCols));
+    }
+
+    // Row 7: status/condition (overlays weapon area when character is disabled/helpless).
+    if (!ch->enabled) {
+        s.writeStringC(23, kStatusRow, 10, ch->getStatusName());
+    } else if (ch->hasNegativeEffect()) {
+        s.writeStringC(23, kStatusRow, 10, "(Helpless)");
+    }
 }
 
 void CombatView::drawDamageFrame(const Gfx::Pic *frame, int pixX, int pixY,
@@ -728,6 +730,180 @@ void CombatView::animateMovementPath(
 
     g_system->updateScreen();
     _needsFullRedraw = true;
+}
+
+void CombatView::updateCharacterFacingAndRedraw(
+        ::Goldbox::Data::PlayerCharacter *ch,
+        Direction direction,
+        uint8 iconFrame,
+        bool noRedraw) {
+    if (!ch)
+        return;
+
+    Combat::CombatContext *ctx = _session.getContext();
+    if (!ctx)
+        return;
+
+    // Scroll viewport to include the full footprint if needed.
+    if (!ctx->isCharacterInBounds(ch, true)) {
+        const TilePos pos = _session.getTable().getCharacterPos(ch);
+        redrawViewportAt(pos);
+    }
+
+    const Direction oldDirection =
+        static_cast<Direction>(ch->combatState ? ch->combatState->direction : 0);
+
+    // Restore entity tiles when the coarse facing group changes,
+    // a non-idle frame is requested, or the final draw is suppressed.
+    // direction >> 2 groups the 8 directions into two mirror groups.
+    if (((oldDirection >> 2) != (direction >> 2)) ||
+        iconFrame != 0 ||
+        noRedraw) {
+        drawViewport();
+        drawCombatants();
+    }
+
+    ctx->setCharacterFacing(ch, direction);
+
+    if (!noRedraw && ctx->isCharacterInBounds(ch, true)) {
+        drawCombatants();
+        g_system->updateScreen();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Ranged attack animation
+
+// Directional projectile tile selection.
+// Tile IDs from SPRIT DAX (confirmed from tileset):
+//
+//   Arrow tiles (single frame):
+//     N=0, NE=1, E=2, S=128, SE=129, W=130
+//
+//   Diagonal blend tiles (two frames, layer on top):
+//     NE=3/SE=131  (NE group: frame 3, SE group: frame 131)
+//     SW=4/NW=132  (SW group: frame 4, NW group: frame 132)
+//
+// The m68k arithmetic maps direction -> DAX block via:
+//   safe_div(dir,2)==0  -> arrow tile, tileId=13+safe_div(dir,4), row=dir>>2
+//   SE or SW            -> blend tile 0xe, row=1, copyViaBuffer=(dir==SW)
+//   else (E,S,W,NW)     -> blend tile 0xe, row=0, copyViaBuffer=(dir==NW)
+//
+// We translate that directly to logical tile IDs here.
+
+struct DirectionalTileParams {
+    uint8 blockId;   // SPRIT DAX block id
+    int   frameIdx;  // frame within block
+    bool  withLayer; // render second layer on top
+};
+
+static const DirectionalTileParams kDirectionalTiles[8] = {
+    { 0,   0, false }, // DIR_N
+    { 1,   0, false }, // DIR_NE
+    { 2,   0, false }, // DIR_E
+    { 129, 0, false }, // DIR_SE
+    { 128, 0, false }, // DIR_S
+    { 4,   0, true  }, // DIR_SW  (blend layer)
+    { 130, 0, false }, // DIR_W
+    { 132, 0, true  }, // DIR_NW  (blend layer)
+};
+
+void CombatView::renderEffectTile(uint8 blockId, int frameIdx,
+                                  int pixX, int pixY, bool withLayer) {
+    ::Goldbox::Data::DaxBlockContainer &sprit = g_engine->getDaxSprit();
+    ::Goldbox::Data::DaxBlock *raw = sprit.getBlockById(blockId);
+    ::Goldbox::Data::DaxBlockSprit *block =
+        raw ? dynamic_cast<::Goldbox::Data::DaxBlockSprit *>(raw) : nullptr;
+    if (!block)
+        return;
+
+    Surface s = getSurface();
+    Graphics::ManagedSurface *screen =
+        static_cast<Graphics::ManagedSurface *>(&s);
+
+    Gfx::Pic *tile = Gfx::Pic::readSpriteFrame(block, frameIdx);
+    if (tile) {
+        tile->trDraw(screen, pixX, pixY, tile->getTransparentIndex());
+        delete tile;
+    }
+
+    if (withLayer) {
+        Gfx::Pic *layer = Gfx::Pic::readSpriteFrame(block, frameIdx + 1);
+        if (layer) {
+            layer->trDraw(screen, pixX, pixY, layer->getTransparentIndex());
+            delete layer;
+        }
+    }
+}
+
+void CombatView::animateRangedAttack(
+        ::Goldbox::Data::PlayerCharacter *attacker,
+        ::Goldbox::Data::PlayerCharacter *target,
+        const ::Goldbox::Data::Items::CharacterItem *item) {
+    if (!attacker || !target || !item)
+        return;
+
+    Combat::CombatContext *ctx = _session.getContext();
+    if (!ctx)
+        return;
+
+    const Direction facing = ctx->getFacingToward(attacker, target);
+
+    const Combat::CombatantTable &table = _session.getTable();
+    const int attackerIdx = table.findIndex(attacker);
+    const int targetIdx   = table.findIndex(target);
+    if (attackerIdx < 0 || targetIdx < 0)
+        return;
+
+    const Combat::ViewportPos vpos =
+        _session.getViewport().getCharacterViewportPosition(table, attackerIdx);
+    const int pixX = kViewportX + vpos.column * kTileSize;
+    const int pixY = kViewportY + vpos.row    * kTileSize;
+
+    const TilePos attackerTile(
+        table.getTileCol(attackerIdx), table.getTileRow(attackerIdx));
+    const TilePos targetTile(
+        table.getTileCol(targetIdx), table.getTileRow(targetIdx));
+
+    uint8 pathSteps  = 1;
+    uint8 frameDelay = 10;
+
+    const uint8 propId = item->prop().wpnType;
+
+    // Effect group 1: directional projectile (propId 9,21,28,31,73)
+    if (propId == 9 || propId == 21 || propId == 28 ||
+            propId == 31 || propId == 73) {
+        if (facing < 8) {
+            const DirectionalTileParams &p = kDirectionalTiles[facing];
+            renderEffectTile(p.blockId, p.frameIdx, pixX, pixY, p.withLayer);
+        }
+    }
+    // Effect group 2: quad effect 0x10 (propId 2,7,20)
+    else if (propId == 2 || propId == 7 || propId == 20) {
+        renderEffectTile(0x10, 0, pixX, pixY);
+        pathSteps  = 4;
+        frameDelay = 50;
+    }
+    // Effect group 3: quad effect 0x11 (propId 85,86)
+    else if (propId == 85 || propId == 86) {
+        renderEffectTile(0x11, 0, pixX, pixY);
+        pathSteps  = 4;
+        frameDelay = 50;
+    }
+    // Effect group 4: default two-tile projectile
+    else {
+        const uint8 baseBlock = (propId == 0x2f) ? 14 : 13;
+        renderEffectTile(baseBlock + 7, 0, pixX, pixY);
+        renderEffectTile(baseBlock + 7, 1, pixX, pixY);
+        pathSteps  = 2;
+        frameDelay = 20;
+    }
+
+    g_engine->soundPlay(7);
+
+    animateMovementPath(attackerTile, targetTile, 0, frameDelay);
+
+    g_engine->soundPlay(13);
 }
 
 } // namespace Views

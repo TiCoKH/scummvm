@@ -153,6 +153,13 @@ struct CombatContext {
                              bool requireAllCells) const;
 
     /**
+     * Update the character's facing direction in combat state.
+     * Pure data mutation — no rendering.
+     * Mirrors the direction-update portion of COMBAT_UpdateCharacterFacingAndRedraw.
+     */
+    void setCharacterFacing(Data::PlayerCharacter *ch, Direction direction);
+
+    /**
      * Mirrors COMBAT_CheckAdvanceEngagement.
      * After a one-tile advance in moveDirection, finds enemies that became
      * newly reachable (range=1) and triggers a reaction attack from each
