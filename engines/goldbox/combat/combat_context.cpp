@@ -675,5 +675,29 @@ void CombatContext::checkAdvanceEngagement(
     }
 }
 
+bool CombatContext::checkBackstab(const Data::PlayerCharacter *attacker,
+                                   const Data::PlayerCharacter *target) const {
+    const Data::ADnDCharacter *adnd = dynamic_cast<const Data::ADnDCharacter *>(attacker);
+    if (!adnd || adnd->levels[Data::C_THIEF] == 0)
+        return false;
+
+    const Data::Items::CharacterItem *armor = adnd->getEquippedItem(Data::Items::Slot::S_BODY_ARMOR);
+    if (armor != nullptr && armor->typeIndex != 0x32)
+        return false;
+
+    const Data::Items::CharacterItem *weapon = adnd->getEquippedItem(Data::Items::Slot::S_MAIN_HAND);
+    if (weapon != nullptr &&
+        weapon->typeIndex != 7 &&
+        weapon->typeIndex != 8 &&
+        (weapon->typeIndex < 0x23 || weapon->typeIndex > 0x25))
+        return false;
+
+    if (!target->combatState || target->combatState->attackCount <= 1)
+        return false;
+
+    return static_cast<Direction>(target->combatState->direction) ==
+           getFacingToward(attacker, target);
+}
+
 } // namespace Combat
 } // namespace Goldbox
