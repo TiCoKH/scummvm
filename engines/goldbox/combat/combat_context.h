@@ -199,6 +199,16 @@ struct CombatContext {
      * Always calls updateSideCount() after removal.
      */
     void removeMember(Data::PlayerCharacter *ch, bool keepPartyCount, bool freeIconSlot);
+
+    /**
+     * Returns true if attacker can backstab target.
+     * Mirrors COMBAT_CheckBackstab.
+     * Conditions: attacker is a thief, armor absent or leather (typeIndex 0x32),
+     * weapon absent or a permitted melee type (typeIndex 7, 8, 0x23-0x25),
+     * target has attacks remaining (attackCount > 1), and target faces same way as attacker.
+     */
+    bool checkBackstab(const Data::PlayerCharacter *attacker,
+                       const Data::PlayerCharacter *target) const;
 };
 
 } // namespace Combat
