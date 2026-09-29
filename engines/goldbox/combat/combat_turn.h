@@ -132,6 +132,33 @@ Data::PlayerCharacter *selectNextActor(
     const Common::Array<Data::PlayerCharacter *> &roster,
     const CombatGlobals &globals);
 
+/**
+ * Mirrors UTIL_RollToHit.
+ *
+ * Removes Blur from attacker, rolls d20, applies natural-1/20 rules,
+ * runs ES_ATTACKER_TO_HIT (10) and ES_DEFENDER_TO_HIT (16), reads the
+ * side-specific THAC0/damage bonus from VM globals, and tests the
+ * modified roll against targetAC.
+ *
+ * Stores the raw d20 result in globals.attackRoll.
+ *
+ * @param attacker      Attacking character
+ * @param defender      Defending character
+ * @param targetAC      Defender's effective AC to test against
+ * @param globals       Combat globals (attackRoll written here)
+ * @param effectRuntime May be nullptr; used for effect sets 10 and 16
+ * @param eclMemory     May be nullptr; used to read VM THAC0 bonus fields
+ * @param vmLayout      May be nullptr; used to locate THAC0 bonus fields
+ * @return              true if the attack hits
+ */
+bool rollToHit(Data::PlayerCharacter *attacker,
+               Data::PlayerCharacter *defender,
+               uint8 targetAC,
+               CombatGlobals &globals,
+               Data::Effects::EffectRuntime *effectRuntime,
+               ECL::AddressSpace *eclMemory,
+               const VmGlobalLayout *vmLayout);
+
 } // namespace Combat
 } // namespace Goldbox
 

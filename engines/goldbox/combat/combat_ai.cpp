@@ -23,13 +23,14 @@
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/combat/combat_damage.h"
+#include "goldbox/combat/combat_turn.h"
+#include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_state.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/core/direction.h"
-#include "common/random.h"
 #include "common/util.h"
 
 namespace Goldbox {
@@ -38,34 +39,6 @@ namespace Combat {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-/** Roll d20 to-hit check. Returns true if the attack lands. */
-static bool rollToHit(const Data::PlayerCharacter *attacker,
-                      const Data::PlayerCharacter *target,
-                      CombatGlobals &globals) {
-    // d20 roll + attacker THAC0 modifier vs target AC.
-    // THAC0: lower is better; AC: lower is better.
-    // Hit if: roll >= (THAC0 - AC)
-    int thac0 = 20; // default
-    if (const Data::ADnDCharacter *adnd =
-            dynamic_cast<const Data::ADnDCharacter *>(attacker))
-        thac0 = adnd->thac0.getCurrent();
-
-    int targetAC = 10;
-    if (const Data::ADnDCharacter *adnd =
-            dynamic_cast<const Data::ADnDCharacter *>(target))
-        targetAC = adnd->armorClass.getCurrent();
-
-    // Use a simple LCG for now; the engine's g_vm->_random is not accessible
-    // from the pure data layer. This will be replaced when the engine random
-    // source is wired through CombatContext.
-    static Common::RandomSource rng("combat_ai");
-    int roll = (int)(rng.getRandomNumber(19) + 1); // 1-20
-
-    globals.attackRoll = (uint8)roll;
-    return roll >= (thac0 - targetAC);
-}
-
 /** Roll damage for one attack from attacker's primary roll. */
 static uint8 rollDamage(const Data::PlayerCharacter *attacker) {
     const Data::ADnDCharacter *adnd =
@@ -137,7 +110,9 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
             ctx.globals.attacker = actor;
             ctx.globals.behaviorFlags = 0;
 
-            if (rollToHit(actor, target, ctx.globals)) {
+            if (rollToHit(actor, target, (uint8)target->armorClass.getCurrent(),
+                          ctx.globals, ctx.params.effectRuntime,
+                          ctx.params.eclMemory, ctx.params.vmGlobalLayout)) {
                 uint8 dmg = rollDamage(actor);
                 DamageResult dr = applyDamage(ctx, target, dmg,
                                               DAMAGE_NORMAL, false, nullptr);
