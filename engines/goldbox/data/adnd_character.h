@@ -229,6 +229,15 @@ public:
 	void setCurrentPrimaryRoll(const Goldbox::Data::CombatRoll &roll) { curPrimaryRoll = roll; }
 	void setCurrentSecondaryRoll(const Goldbox::Data::CombatRoll &roll) { curSecondaryRoll = roll; }
 
+	// 1-indexed accessor matching original current_attack[1..2] / current_rolls[1..2] arrays.
+	// attackId 1 = primary, 2 = secondary (0 = no attack, returns primary as fallback).
+	Goldbox::Data::CombatRoll &getCurRoll(uint8 attackId) {
+		return (attackId == 2) ? curSecondaryRoll : curPrimaryRoll;
+	}
+	const Goldbox::Data::CombatRoll &getCurRoll(uint8 attackId) const {
+		return (attackId == 2) ? curSecondaryRoll : curPrimaryRoll;
+	}
+
 	// Reset current rolls back to base values (used at combat start / rest etc.).
 	void resetCurrentRollsFromBase();
 

@@ -578,20 +578,16 @@ static uint8 selectEngagementAttack(Data::PlayerCharacter *enemy) {
     if (!adnd)
         return 1;
 
-    uint8 attackId = (adnd->curPrimaryRoll.attacks != 0) ? 1 : 2;
-
+    // Mirror original SelectReactionAttack: scan slots 1-2, last available wins.
+    uint8 attackId = (adnd->getCurRoll(1).attacks != 0) ? 1 : 2;
     for (uint8 slot = 1; slot <= 2; ++slot) {
-        uint attacks = (slot == 1) ? adnd->curPrimaryRoll.attacks
-                                   : adnd->curSecondaryRoll.attacks;
-        if (attacks != 0)
+        if (adnd->getCurRoll(slot).attacks != 0)
             attackId = slot;
     }
 
     // Force at least 1 attack available on the chosen slot.
-    if (attackId == 1 && adnd->curPrimaryRoll.attacks == 0)
-        adnd->curPrimaryRoll.attacks = 1;
-    else if (attackId == 2 && adnd->curSecondaryRoll.attacks == 0)
-        adnd->curSecondaryRoll.attacks = 1;
+    if (adnd->getCurRoll(attackId).attacks == 0)
+        adnd->getCurRoll(attackId).attacks = 1;
 
     return attackId;
 }

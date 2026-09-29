@@ -42,7 +42,7 @@ struct CombatAction {
 	uint8 spellId;              // spell_id: active spell being cast (0 = none)
 	bool canCast;               // can_cast
 	bool canUse;                // can_use
-	uint8 initiative;                // initiative: initiative/initiative counter
+	uint8 initiative;           // initiative: initiative/initiative counter
 	uint8 attackId;             // attack_id
 	uint8 maxTargets;           // max_targets
 	uint8 movePoints;           // move: remaining movement this round

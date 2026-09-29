@@ -30,6 +30,7 @@
 #include "goldbox/data/items/character_inventory.h"
 #include "goldbox/ecl/ecl_memory.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/data/effects/character_effects.h"
 #include "common/util.h"
 
 namespace Goldbox {
@@ -205,8 +206,58 @@ Data::PlayerCharacter *selectNextActor(
             best = ch;
         }
     }
-
     return best;
+}
+
+bool rollToHit(Data::PlayerCharacter *attacker,
+               Data::PlayerCharacter *defender,
+               uint8 targetAC,
+               CombatGlobals &globals,
+               Data::Effects::EffectRuntime *effectRuntime,
+               ECL::AddressSpace *eclMemory,
+               const VmGlobalLayout *vmLayout) {
+    // Remove Blur from attacker before rolling.
+    if (Data::Effects::CharacterEffects *fx = attacker->getEffects())
+        fx->eraseEffectById(Data::Effects::E_POOLRAD_BLUR);
+
+    globals.attackRoll = (uint8)VmInterface::rollDice(1, 20);
+
+    // Natural 1 always misses.
+    if (globals.attackRoll <= 1)
+        return false;
+
+    // Natural 20 is promoted to 100 for the hit comparison.
+    if (globals.attackRoll == 20)
+        globals.attackRoll = 100;
+
+    // Attacker effect set 10, then defender effect set 16.
+    if (effectRuntime) {
+        if (Data::Effects::CharacterEffects *fx = attacker->getEffects())
+            effectRuntime->checkEffectSet(Data::Effects::ES_ATTACKER_TO_HIT,
+                                          *fx, *attacker, &globals);
+        if (Data::Effects::CharacterEffects *fx = defender->getEffects())
+            effectRuntime->checkEffectSet(Data::Effects::ES_DEFENDER_TO_HIT,
+                                          *fx, *defender, &globals);
+    }
+
+    // Read side-specific THAC0/damage bonus from VM globals.
+    int8 thac0Bonus = 0;
+    if (eclMemory && vmLayout) {
+        const VmGlobalFieldId fieldId = (attacker->combatSide == Data::CS_PARTY)
+            ? kVmGlobalFieldPartyThac0DmgBonus
+            : kVmGlobalFieldMonsterThac0Bonus;
+        const VmFieldLocation loc = vmLayout->field(fieldId);
+        if (VmLayout::isValid(loc))
+            thac0Bonus = (int8)eclMemory->read8(loc.vmAddr);
+    }
+
+    // (int8)attackRoll >= 0 guard mirrors the original signed comparison.
+    if ((int8)globals.attackRoll < 0)
+        return false;
+
+    return (int)targetAC <= (int)attacker->thac0.getCurrent()
+                          + (int)thac0Bonus
+                          + (int)globals.attackRoll;
 }
 
 } // namespace Combat
