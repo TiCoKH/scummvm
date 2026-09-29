@@ -22,6 +22,9 @@
 #include "goldbox/combat/combat_turn.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/combat/combat_state.h"
+#include "goldbox/combat/combat_context.h"
+#include "goldbox/combat/combat_params.h"
+#include "goldbox/combat/combat_damage.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
@@ -30,7 +33,6 @@
 #include "goldbox/data/items/character_inventory.h"
 #include "goldbox/ecl/ecl_memory.h"
 #include "goldbox/vm_interface.h"
-#include "goldbox/data/effects/character_effects.h"
 #include "common/util.h"
 
 namespace Goldbox {
@@ -42,10 +44,13 @@ uint8 calcAttackCountWithEvenTurnBonus(uint8 attacks, uint8 turnCounter) {
     return attacks >> 1;
 }
 
-void recalcPrimaryAttacks(Data::ADnDCharacter *adnd, CombatGlobals *globals,
-                          Data::Effects::EffectRuntime *effectRuntime) {
+void recalcPrimaryAttacks(Data::ADnDCharacter *adnd) {
     if (!adnd || !adnd->combatState)
         return;
+
+    CombatContext *ctx = VmInterface::getCombatContext();
+    CombatGlobals *globals = ctx ? &ctx->globals : nullptr;
+    Data::Effects::EffectRuntime *effectRuntime = ctx ? ctx->params.effectRuntime : nullptr;
 
     const uint8 oldAttacks = adnd->curPrimaryRoll.attacks;
     adnd->curPrimaryRoll.attacks = adnd->basePrimaryRoll.attacks;
@@ -108,13 +113,15 @@ uint8 calcMoveBudget(const Data::PlayerCharacter *ch) {
     return (uint8)budget;
 }
 
-void initCharacterTurnState(Data::PlayerCharacter *ch,
-                            Data::Effects::EffectRuntime *effectRuntime,
-                            CombatGlobals *globals,
-                            ECL::AddressSpace *eclMemory,
-                            const VmGlobalLayout *vmLayout) {
+void initCharacterTurnState(Data::PlayerCharacter *ch) {
     if (!ch || !ch->combatState)
         return;
+
+    CombatContext *ctx = VmInterface::getCombatContext();
+    CombatGlobals *globals = ctx ? &ctx->globals : nullptr;
+    Data::Effects::EffectRuntime *effectRuntime = ctx ? ctx->params.effectRuntime : nullptr;
+    ECL::AddressSpace *eclMemory = ctx ? ctx->params.eclMemory : nullptr;
+    const VmGlobalLayout *vmLayout = ctx ? ctx->params.vmGlobalLayout : nullptr;
 
     Data::CombatAction &cs = *ch->combatState;
 
@@ -126,7 +133,7 @@ void initCharacterTurnState(Data::PlayerCharacter *ch,
 
     Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(ch);
 
-    recalcPrimaryAttacks(adnd, globals, effectRuntime);
+    recalcPrimaryAttacks(adnd);
 
     // EFFECT_SET18_EXCHANGE_VALUE = sec_attack; EFFECT_SET18_EXCHANGE_MODE = false.
     // Handlers (HASTE, SLOW, IMMOBILIZED) read/write globals->effectSet18.value.
@@ -173,14 +180,9 @@ void initCharacterTurnState(Data::PlayerCharacter *ch,
     cs.movePoints = calcMoveBudget(ch);
 }
 
-void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster,
-                       Data::Effects::EffectRuntime *effectRuntime,
-                       CombatGlobals *globals,
-                       ECL::AddressSpace *eclMemory,
-                       const VmGlobalLayout *vmLayout) {
+void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster) {
     for (uint i = 0; i < roster.size(); i++)
-        initCharacterTurnState(roster[i], effectRuntime, globals,
-                               eclMemory, vmLayout);
+        initCharacterTurnState(roster[i]);
 }
 
 Data::PlayerCharacter *selectNextActor(
@@ -209,13 +211,215 @@ Data::PlayerCharacter *selectNextActor(
     return best;
 }
 
+void resolveAttackSequence(Data::PlayerCharacter *attacker,
+                           Data::PlayerCharacter *target,
+                           bool useBehindAC,
+                           bool *result) {
+    CombatContext *ctx = VmInterface::getCombatContext();
+    CombatGlobals &globals = ctx->globals;
+    Data::Effects::EffectRuntime *effectRuntime = ctx->params.effectRuntime;
+    ECL::AddressSpace *eclMemory = ctx->params.eclMemory;
+    const VmGlobalLayout *vmLayout = ctx->params.vmGlobalLayout;
+
+    bool attackHit = false;
+    bool stopAttacking = false;
+
+    *result = false;
+    globals.attacksLeft = 0;
+    globals.attackRollSlots[1] = 0;
+    globals.attackRollSlots[2] = 0;
+    globals.attackDisplayCount[1] = 0;
+    globals.attackDisplayCount[2] = 0;
+    globals.damage = 0;
+
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(attacker);
+    Data::CombatAction &cs = *attacker->combatState;
+    cs.unknownBool = true;
+
+    // ----------------------------------------------------------------
+    // Fast path: target already incapacitated.
+    // ----------------------------------------------------------------
+    if (target->hasNegativeEffect()) {
+        // Find the highest slot that still has attacks.
+        while (cs.attackId > 0 && adnd->getCurRoll(cs.attackId).attacks == 0)
+            --cs.attackId;
+
+        ++globals.attackDisplayCount[cs.attackId];
+
+        // TODO: CombatView::drawAttackResult fast path
+        VmInterface::soundPlay(0x08);
+
+        if (Data::Effects::CharacterEffects *fx = attacker->getEffects())
+            fx->eraseEffectById(Data::Effects::E_POOLRAD_BLUR);
+
+        adnd->curPrimaryRoll.attacks   = 0;
+        adnd->curSecondaryRoll.attacks = 0;
+
+        *result = true;
+
+    // ----------------------------------------------------------------
+    // Normal attack sequence.
+    // ----------------------------------------------------------------
+    } else {
+        // Large-target weapon swap: replace primary damage profile.
+        const Data::Items::CharacterItem *weapon =
+            adnd ? adnd->getEquippedItem(Data::Items::Slot::S_MAIN_HAND) : nullptr;
+        if (weapon && adnd &&
+            (target->iconDimension > 0x80 || (target->iconDimension & 7) > 1)) {
+            const Data::Items::ItemProperty &props = weapon->prop();
+            int8 oldBonus = props.dmgSmallMed.bonus;
+            adnd->curPrimaryRoll.action.roll.diceNum   = props.dmgLarge.dices;
+            adnd->curPrimaryRoll.action.roll.diceSides = props.dmgLarge.sides;
+            adnd->curPrimaryRoll.action.modifier       = adnd->curPrimaryRoll.action.modifier
+                                                         - oldBonus + props.dmgLarge.bonus;
+        }
+
+        Data::ADnDCharacter *targetAdnd = dynamic_cast<Data::ADnDCharacter *>(target);
+        if (targetAdnd)
+            targetAdnd->recalcCombatStats();
+
+        if (effectRuntime && target->getEffects())
+            effectRuntime->checkEffectSet(Data::Effects::ES_ALIGN_PROTECTION,
+                                          *target->getEffects(), *target, &globals);
+
+        // Backstab check.
+        bool backstab = ctx->checkBackstab(attacker, target);
+
+        // AC selection.
+        if (!backstab && cs.attackCount > 1) {
+            Direction facing = ctx->getFacingToward(attacker, target);
+            if (facing == (Direction)cs.direction && cs.directionChange > 4)
+                useBehindAC = true;
+        }
+
+        uint8 targetAC;
+        if (backstab)
+            targetAC = (uint8)((int)target->armorClass.getCurrent() - 2 - 2); // rear AC - 2
+        else if (useBehindAC)
+            targetAC = (uint8)((int)target->armorClass.getCurrent() - 2);     // rear AC
+        else
+            targetAC = (uint8)target->armorClass.getCurrent();                 // front AC
+
+        adjustAcForFacingAndRange(attacker, target, &targetAC);
+
+        uint8 attackResultMode = backstab ? 2 : (useBehindAC ? 1 : 0);
+
+        // ----------------------------------------------------------------
+        // Per-slot attack loop: slot 2 down to slot 1.
+        // ----------------------------------------------------------------
+        for (uint8 slot = cs.attackId; slot != 0; --slot) {
+            while (adnd->getCurRoll(slot).attacks != 0 && !stopAttacking) {
+                --adnd->getCurRoll(slot).attacks;
+                cs.attackId = slot;
+                ++globals.attackDisplayCount[slot];
+
+                bool hit = rollToHit(attacker, target, targetAC);
+
+                if (hit || target->hasNegativeEffect()) {
+                    ++globals.attackRollSlots[slot];
+                    VmInterface::soundPlay(0x08);
+                    attackHit = true;
+
+                    rollAttackDamage(attacker, target, slot);
+
+                    if (target->enabled && effectRuntime && attacker->getEffects())
+                        effectRuntime->checkEffectSet(
+                                static_cast<Data::Effects::EffectSet>(slot + 1),
+                                *attacker->getEffects(), *attacker, &globals);
+
+                    if (!target->enabled)
+                        stopAttacking = true;
+                }
+            }
+        }
+
+        if (!attackHit)
+            VmInterface::soundPlay(0x0A);
+
+        // All slots exhausted?
+        *result = true;
+        for (uint8 id = 1; id <= 2; ++id) {
+            if (adnd->getCurRoll(id).attacks != 0) {
+                *result = false;
+                break;
+            }
+        }
+
+        cs.maxTargets = 0;
+    }
+
+    if (*result)
+        *result = resetActionState(attacker);
+}
+
+void rollAttackDamage(Data::PlayerCharacter *attacker,
+                      Data::PlayerCharacter *target,
+                      uint8 slot) {
+    CombatContext *ctx = VmInterface::getCombatContext();
+    CombatGlobals &globals = ctx->globals;
+
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(attacker);
+    if (!adnd)
+        return;
+
+    const Data::CombatRoll &roll = adnd->getCurRoll(slot);
+    int total = 0;
+    for (uint i = 0; i < roll.action.roll.diceNum; i++)
+        total += VmInterface::rollDice(1, roll.action.roll.diceSides);
+    total += roll.action.modifier;
+    if (total < 1)
+        total = 1;
+
+    applyDamage(*ctx, target, (uint8)total, DAMAGE_NORMAL, false,
+                ctx->params.effectRuntime);
+}
+
+void adjustAcForFacingAndRange(Data::PlayerCharacter *attacker,
+                               Data::PlayerCharacter *target,
+                               uint8 *targetAC) {
+    CombatContext *ctx = VmInterface::getCombatContext();
+    if (!ctx || !targetAC)
+        return;
+
+    // Range penalty: +1 AC per 2 tiles beyond melee range (range > 1).
+    uint8 range = ctx->getTargetRange(attacker, target);
+    if (range > 1)
+        *targetAC = (uint8)MIN(255, (int)*targetAC + (range - 1) / 2);
+
+    // Facing bonus: -2 AC when attacker is in target's rear arc.
+    Direction facing = ctx->getFacingToward(attacker, target);
+    if (facing != (Direction)target->combatState->direction)
+        *targetAC = (uint8)MAX(0, (int)*targetAC - 2);
+}
+
+bool resetActionState(Data::PlayerCharacter *attacker) {
+    if (!attacker || !attacker->combatState)
+        return true;
+
+    Data::CombatAction &cs = *attacker->combatState;
+    cs.attackId    = 0;
+    cs.unknownBool = false;
+    cs.target      = nullptr;
+
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(attacker);
+    if (adnd) {
+        adnd->curPrimaryRoll.attacks   = 0;
+        adnd->curSecondaryRoll.attacks = 0;
+    }
+
+    return true;
+}
+
+
 bool rollToHit(Data::PlayerCharacter *attacker,
                Data::PlayerCharacter *defender,
-               uint8 targetAC,
-               CombatGlobals &globals,
-               Data::Effects::EffectRuntime *effectRuntime,
-               ECL::AddressSpace *eclMemory,
-               const VmGlobalLayout *vmLayout) {
+               uint8 targetAC) {
+    CombatContext *ctx = VmInterface::getCombatContext();
+    CombatGlobals &globals = ctx->globals;
+    Data::Effects::EffectRuntime *effectRuntime = ctx->params.effectRuntime;
+    ECL::AddressSpace *eclMemory = ctx->params.eclMemory;
+    const VmGlobalLayout *vmLayout = ctx->params.vmGlobalLayout;
+
     // Remove Blur from attacker before rolling.
     if (Data::Effects::CharacterEffects *fx = attacker->getEffects())
         fx->eraseEffectById(Data::Effects::E_POOLRAD_BLUR);

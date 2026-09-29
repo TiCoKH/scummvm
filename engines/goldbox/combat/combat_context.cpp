@@ -372,9 +372,7 @@ bool CombatContext::lineOfSightCheck(TilePos source, TilePos target,
 }
 
 void CombatContext::initCharacterTurnState(Data::PlayerCharacter *ch) {
-    ::Goldbox::Combat::initCharacterTurnState(
-        ch, params.effectRuntime, &globals,
-        params.eclMemory, params.vmGlobalLayout);
+    ::Goldbox::Combat::initCharacterTurnState(ch);
 }
 
 void CombatContext::initAllTurnStates() {

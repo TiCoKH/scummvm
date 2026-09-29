@@ -24,20 +24,10 @@
 
 #include "common/scummsys.h"
 #include "common/array.h"
-#include "goldbox/core/vm_layout.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
 
 namespace Goldbox {
-namespace ECL {
-class AddressSpace;
-}
-namespace Data {
-namespace Effects {
-class EffectRuntime;
-}
-}
-
 namespace Combat {
 
 struct CombatGlobals;
@@ -59,8 +49,7 @@ bool isSideAmbushed(Data::CombatSide side, uint8 ambushFlags);
  * uses fireRate for ranged weapons (min 2), runs ES_COMBAT_RATE_MODIFIER,
  * caps by ammo stack if ranged, then conditionally writes back based on unknownBool.
  */
-void recalcPrimaryAttacks(Data::ADnDCharacter *adnd, CombatGlobals *globals,
-                          Data::Effects::EffectRuntime *effectRuntime);
+void recalcPrimaryAttacks(Data::ADnDCharacter *adnd);
 
 /**
  * Compute the per-round secondary attack count with even-turn bonus.
@@ -97,24 +86,13 @@ uint8 calcMoveBudget(const Data::PlayerCharacter *ch);
  * Move budget is set directly after the effect set (not part of the exchange).
  *
  * @param ch             Character to initialise (must have valid combatState)
- * @param ambushFlags    D_CombatIsAmbush value: 0=none, 1=party, 2=enemy, 3=both (bit0=party, bit1=enemy)
- * @param effectRuntime  May be nullptr; used for ES_COMBAT_RATE_MODIFIER
- * @param globals        Combat globals (attackCount written here; turnCounter read for bonus)
  */
-void initCharacterTurnState(Data::PlayerCharacter *ch,
-                            Data::Effects::EffectRuntime *effectRuntime,
-                            CombatGlobals *globals,
-                            ECL::AddressSpace *eclMemory,
-                            const VmGlobalLayout *vmLayout);
+void initCharacterTurnState(Data::PlayerCharacter *ch);
 
 /**
  * Reset turn state for every character in the roster.
  */
-void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster,
-                       Data::Effects::EffectRuntime *effectRuntime,
-                       CombatGlobals *globals,
-                       ECL::AddressSpace *eclMemory,
-                       const VmGlobalLayout *vmLayout);
+void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster);
 
 /**
  * Select the next character to act this round.
@@ -133,6 +111,24 @@ Data::PlayerCharacter *selectNextActor(
     const CombatGlobals &globals);
 
 /**
+ * Mirrors COMBAT_ResolveAttackSequence.
+ *
+ * Executes the full attack resolution for one attacker/target pair.
+ * Handles the negative-effect fast path, large-target weapon swap,
+ * AC selection (front/rear/backstab), per-slot attack loops, damage,
+ * and action-state reset.
+ *
+ * @param attacker       Attacking character (must have valid combatState)
+ * @param target         Defending character
+ * @param useBehindAC    True if the attack comes from behind (use rear AC)
+ * @param result         Set to true when all attack slots are exhausted
+ */
+void resolveAttackSequence(Data::PlayerCharacter *attacker,
+                           Data::PlayerCharacter *target,
+                           bool useBehindAC,
+                           bool *result);
+
+/**
  * Mirrors UTIL_RollToHit.
  *
  * Removes Blur from attacker, rolls d20, applies natural-1/20 rules,
@@ -145,19 +141,39 @@ Data::PlayerCharacter *selectNextActor(
  * @param attacker      Attacking character
  * @param defender      Defending character
  * @param targetAC      Defender's effective AC to test against
- * @param globals       Combat globals (attackRoll written here)
- * @param effectRuntime May be nullptr; used for effect sets 10 and 16
- * @param eclMemory     May be nullptr; used to read VM THAC0 bonus fields
- * @param vmLayout      May be nullptr; used to locate THAC0 bonus fields
- * @return              true if the attack hits
  */
 bool rollToHit(Data::PlayerCharacter *attacker,
                Data::PlayerCharacter *defender,
-               uint8 targetAC,
-               CombatGlobals &globals,
-               Data::Effects::EffectRuntime *effectRuntime,
-               ECL::AddressSpace *eclMemory,
-               const VmGlobalLayout *vmLayout);
+               uint8 targetAC);
+
+/**
+ * Mirrors COMBAT_RollAttackDamage.
+ *
+ * Rolls damage dice from attacker's current roll for the given slot,
+ * applies strength bonus, stores result in globals.damage, and calls
+ * applyDamage() on the target.
+ */
+void rollAttackDamage(Data::PlayerCharacter *attacker,
+                      Data::PlayerCharacter *target,
+                      uint8 slot);
+
+/**
+ * Mirrors COMBAT_AdjustAcForFacingAndRange.
+ *
+ * Applies range penalty (+1 AC per 2 tiles beyond melee) and facing
+ * bonus (-2 AC for rear arc) to *targetAC.
+ */
+void adjustAcForFacingAndRange(Data::PlayerCharacter *attacker,
+                               Data::PlayerCharacter *target,
+                               uint8 *targetAC);
+
+/**
+ * Mirrors COMBAT_resetActionState.
+ *
+ * Clears the attacker's per-attack combat state after the sequence
+ * completes. Returns true when the reset is authoritative (always).
+ */
+bool resetActionState(Data::PlayerCharacter *attacker);
 
 } // namespace Combat
 } // namespace Goldbox
