@@ -66,10 +66,10 @@ static void handleChant(const EffectCall &c) {
         return;
     const CombatSide prayerSide = static_cast<CombatSide>((c.effect.power & 0x10) >> 4);
     if (c.character.combatSide == prayerSide) {
-        c.combat->attackRoll  += 1;
+        c.combat->attackRoll += 1;
         c.combat->savingThrow += 1;
     } else {
-        c.combat->attackRoll  -= 1;
+        c.combat->attackRoll -= 1;
         c.combat->savingThrow -= 1;
     }
 }
@@ -374,7 +374,7 @@ void handleProtectionFromEvil(const EffectCall &c) {
             alignment == Goldbox::Data::A_NEUTRAL_EVIL ||
             alignment == Goldbox::Data::A_CHAOTIC_EVIL) {
         c.combat->savingThrow += 2;
-        c.combat->attackRoll  -= 2;
+        c.combat->attackRoll -= 2;
     }
 }
 
@@ -386,7 +386,7 @@ void handleProtectionFromGood(const EffectCall &c) {
             alignment == Goldbox::Data::A_NEUTRAL_GOOD ||
             alignment == Goldbox::Data::A_CHAOTIC_GOOD) {
         c.combat->savingThrow += 2;
-        c.combat->attackRoll  -= 2;
+        c.combat->attackRoll -= 2;
     }
 }
 

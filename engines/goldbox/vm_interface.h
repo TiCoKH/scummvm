@@ -42,6 +42,10 @@ namespace Poolrad {
 	class PoolradEngine;
 }
 
+namespace Combat {
+    struct CombatContext;
+}
+
 class VmInterface {
 public:
     // Static utility methods to access Engine functionality
@@ -154,6 +158,15 @@ public:
 
     // Icon Manager accessor
     static Gfx::IconManager *getIconManager();
+
+    // Active combat context — nullptr outside of combat.
+    static Combat::CombatContext *getCombatContext() {
+        return g_engine->getCombatContext();
+    }
+
+    static void soundPlay(uint8 songId) {
+        g_engine->soundPlay(songId);
+    }
 };
 
 } // namespace Goldbox

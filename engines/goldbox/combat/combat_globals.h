@@ -67,18 +67,20 @@ struct CombatGlobals {
      * Mirrors EFFECT_BEHAVE_FLAG in the original m68k code.
      */
     enum DamageTypeMask {
-        DMG_FIRE         = 0x01,
-        DMG_COLD         = 0x02,
-        DMG_ELECTRICITY  = 0x04,
-        DMG_MAGIC        = 0x08,
-        DMG_ACID         = 0x10,
+        DMG_FIRE          = 0x01,
+        DMG_COLD          = 0x02,
+        DMG_ELECTRICITY   = 0x04,
+        DMG_MAGIC         = 0x08,
+        DMG_ACID          = 0x10,
         DMG_DRAGON_BREATH = 0x20,
-        DMG_UNKNOWN_40   = 0x40
+        DMG_UNKNOWN_40    = 0x40
     };
 
     bool magicEnabled;       // COMBAT_MAGIC_ENABLED
     bool slowMode;           // BYTE_COMFLAG_SLOW
-    uint8 attackRoll;        // COMBAT_ATTACKROLL
+    uint8 attackRoll;           // COMBAT_ATTACKROLL: d20 result, modified by effect handlers
+    uint8 attackRollSlots[3];   // [1..2] per-slot hit counts (mirrors Pascal attackRoll[1..2]), [0] unused
+    uint8 attackDisplayCount[3]; //[1..2] per-slot display counter, [0] unused
     uint8 damage;            // BYTE_DAMAGE
     int8 moraleModifier;     // COMBAT_MORALE_MOD
     uint8 behaviorFlags;     // bitmask of DamageTypeMask
@@ -116,6 +118,12 @@ struct CombatGlobals {
         magicEnabled = false;
         slowMode = false;
         attackRoll = 0;
+        attackRollSlots[0] = 0;
+        attackRollSlots[1] = 0;
+        attackRollSlots[2] = 0;
+        attackDisplayCount[0] = 0;
+        attackDisplayCount[1] = 0;
+        attackDisplayCount[2] = 0;
         damage = 0;
         moraleModifier = 0;
         behaviorFlags = 0;

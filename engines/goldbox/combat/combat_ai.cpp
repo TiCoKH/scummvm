@@ -110,9 +110,7 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
             ctx.globals.attacker = actor;
             ctx.globals.behaviorFlags = 0;
 
-            if (rollToHit(actor, target, (uint8)target->armorClass.getCurrent(),
-                          ctx.globals, ctx.params.effectRuntime,
-                          ctx.params.eclMemory, ctx.params.vmGlobalLayout)) {
+            if (rollToHit(actor, target, (uint8)target->armorClass.getCurrent())) {
                 uint8 dmg = rollDamage(actor);
                 DamageResult dr = applyDamage(ctx, target, dmg,
                                               DAMAGE_NORMAL, false, nullptr);
