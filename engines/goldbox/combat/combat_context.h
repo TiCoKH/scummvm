@@ -111,11 +111,6 @@ struct CombatContext {
      *  On failure, blockedAt receives the blocking tile. Mirrors COMBAT_lineOfSightCheck. */
     bool lineOfSightCheck(TilePos source, TilePos target,
                           uint16 &range, TilePos *blockedAt = nullptr) const;
-    /**
-     * Mirrors COMBAT_BuildTargetListCore.
-     * Populates targetList.entries with all combatants reachable from
-     * pos within maxRange, passing arc and LOS checks. Sorted by range.
-     */
     void buildTargetListCore(TilePos pos, uint8 iconSize,
                              Direction facing, uint8 maxRange);
 
@@ -127,8 +122,21 @@ struct CombatContext {
     void buildTargetList(const Data::PlayerCharacter *attacker, uint8 maxRange);
 
     /**
-     * Returns true if the attacker tile is within the frontal arc of a
-     * target facing direction. direction==DIR_NONE means no restriction.
+     * Mirrors COMBAT_GetTargetRange.
+     * Returns the geometric range (in half-tiles) between attacker and target,
+     * ignoring walls. Builds a temporary local target list so the live
+     * targetList is never disturbed. Returns 0xFF if target is not reachable.
+     */
+    uint8 getTargetRange(const Data::PlayerCharacter *attacker,
+                         const Data::PlayerCharacter *target);
+
+    /**
+     * Returns true if attackerPos is within the frontal arc of targetPos
+     * when target faces direction.
+     * DIR_ANY is converted to DIR_NONE before the test — both accept any
+     * relative position. DIR_NONE and DIR_ANY are equivalent here but
+     * semantically distinct to buildTargetListCore (which uses facing < DIR_NONE
+     * to decide whether to store a fixed or auto-calculated facing).
      * Mirrors COMBAT_IsTargetInArc.
      */
     static bool isTargetInArc(Direction direction,

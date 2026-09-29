@@ -77,9 +77,9 @@ bool CombatContext::getFootprintOffset(uint8 iconSize, uint8 slot, FootprintOffs
 
 void CombatContext::getGroundInfo(Data::PlayerCharacter *ch, uint8 direction,
                                   int *outPlayerIndex, uint8 *outTile) const {
-    static const uint8 kTileIdNone    = 0x00;
-    static const uint8 kTileIdHazard  = 0x1E;
-    static const uint8 kTileIdDefault = 0x17;
+    static const uint8 kTileIdNone    = 0;
+    static const uint8 kTileIdHazard  = 30;
+    static const uint8 kTileIdDefault = 23;
 
     int charIdx = table.findIndex(ch);
     if (charIdx < 0) {
@@ -156,13 +156,10 @@ void CombatContext::buildTargetListCore(TilePos pos, uint8 iconSize,
     TilePos sourceTiles[4];
     for (uint8 slot = 0; slot < 4; ++slot) {
         FootprintOffsetPair off;
-        if (getFootprintOffset(iconSize, slot, off)) {
-            sourceTiles[slot] = TilePos(
-                (uint8)(pos.col + off.col),
-                (uint8)(pos.row + off.row));
-        } else {
+        if (getFootprintOffset(iconSize, slot, off))
+            sourceTiles[slot] = TilePos((uint8)(pos.col + off.col), (uint8)(pos.row + off.row));
+        else
             sourceTiles[slot] = TilePos(0xFF, 0xFF);
-        }
     }
 
     for (int i = 0; i < table.getCount(); i++) {
@@ -171,43 +168,41 @@ void CombatContext::buildTargetListCore(TilePos pos, uint8 iconSize,
             continue;
 
         const TilePos candidatePos = table.getTilePos(i);
-        const uint8 candidateSize = table.getSize(i) & 7;
+        const uint8 candidateSize  = table.getSize(i) & 7;
 
         TilePos candidateTiles[4];
         for (uint8 slot = 0; slot < 4; ++slot) {
             FootprintOffsetPair off;
-            if (getFootprintOffset(candidateSize, slot, off)) {
-                candidateTiles[slot] = TilePos(
-                    (uint8)(candidatePos.col + off.col),
-                    (uint8)(candidatePos.row + off.row));
-            } else {
+            if (getFootprintOffset(candidateSize, slot, off))
+                candidateTiles[slot] = TilePos((uint8)(candidatePos.col + off.col), (uint8)(candidatePos.row + off.row));
+            else
                 candidateTiles[slot] = TilePos(0xFF, 0xFF);
-            }
         }
 
-        bool foundTarget = false;
-        uint16 nearestRange = 0xFF;
-        uint8 bestAttackerSlot = 0;
-        uint8 bestTargetSlot = 0;
+        bool   foundTarget      = false;
+        uint16 nearestRange     = 0xFF;
+        uint8  bestSourceSlot   = 0;
+        uint8  bestCandidateSlot = 0;
 
-        for (uint8 cSlot = 0; cSlot < 4; ++cSlot) {
-            if (candidateTiles[cSlot].col == 0xFF)
+        // Original: source slot is outer loop, candidate slot is inner loop.
+        for (uint8 sSlot = 0; sSlot < 4; ++sSlot) {
+            if (sourceTiles[sSlot].col == 0xFF)
                 continue;
-            for (uint8 sSlot = 0; sSlot < 4; ++sSlot) {
-                if (sourceTiles[sSlot].col == 0xFF)
+            for (uint8 cSlot = 0; cSlot < 4; ++cSlot) {
+                if (candidateTiles[cSlot].col == 0xFF)
                     continue;
                 if (!isTargetInArc(facing, sourceTiles[sSlot], candidateTiles[cSlot]))
                     continue;
 
-                uint16 range = maxRange;
-                if (!lineOfSightCheck(sourceTiles[sSlot], candidateTiles[cSlot], range))
+                uint16 losRange = maxRange;
+                if (!lineOfSightCheck(sourceTiles[sSlot], candidateTiles[cSlot], losRange))
                     continue;
 
-                foundTarget = true;
-                if (range < nearestRange) {
-                    nearestRange = range;
-                    bestTargetSlot = sSlot;
-                    bestAttackerSlot = cSlot;
+                if (!foundTarget || losRange < nearestRange) {
+                    foundTarget       = true;
+                    nearestRange      = losRange;
+                    bestSourceSlot    = sSlot;
+                    bestCandidateSlot = cSlot;
                 }
             }
         }
@@ -220,10 +215,9 @@ void CombatContext::buildTargetListCore(TilePos pos, uint8 iconSize,
             setFacing = facing;
         } else {
             while (!isTargetInArc(setFacing,
-                                   sourceTiles[bestTargetSlot],
-                                   candidateTiles[bestAttackerSlot])) {
+                                   sourceTiles[bestSourceSlot],
+                                   candidateTiles[bestCandidateSlot]))
                 setFacing = static_cast<Direction>(setFacing + 1);
-            }
         }
 
         result.entries.push_back(TargetEntry((uint8)i, (uint8)nearestRange, setFacing));
@@ -259,7 +253,7 @@ void CombatContext::buildTargetList(const Data::PlayerCharacter *attacker,
     const TilePos attackerPos = table.getTilePos(attackerIdx);
     const uint8 attackerSize = table.getSize(attackerIdx) & 7;
 
-    buildTargetListCore(attackerPos, attackerSize, DIR_NONE, maxRange);
+    buildTargetListCore(attackerPos, attackerSize, DIR_ANY, maxRange);
 
     TargetList &result = targetList;
     const Data::CombatSide attackerSide = attacker->combatSide;
@@ -276,6 +270,50 @@ void CombatContext::buildTargetList(const Data::PlayerCharacter *attacker,
 
     for (uint i = 0; i < result.entries.size(); i++)
         result.targetOrder.push_back(result.entries[i].idx);
+}
+
+uint8 CombatContext::getTargetRange(const Data::PlayerCharacter *attacker,
+                                    const Data::PlayerCharacter *target) {
+    if (!attacker || !target)
+        return 0xFF;
+
+    const int attackerIdx = table.findIndex(attacker);
+    if (attackerIdx < 0)
+        return 0xFF;
+
+    const TilePos attackerPos = table.getTilePos(attackerIdx);
+    const uint8 attackerSize  = table.getSize(attackerIdx) & 7;
+
+    // Build into a local list — live targetList is never touched.
+    TargetList tempList;
+    const bool savedIgnoreWalls = map.getIgnoreWalls();
+    map.setIgnoreWalls(true);
+
+    // Temporarily redirect targetList reference isn't possible (it's a ref),
+    // so swap contents, build, extract, then restore.
+    targetList.entries.swap(tempList.entries);
+    targetList.targetOrder.swap(tempList.targetOrder);
+
+    buildTargetListCore(attackerPos, attackerSize, DIR_ANY, 0xFF);
+
+    // Find the target in the freshly built list.
+    uint8 result = 0xFF;
+    const int targetIdx = table.findIndex(target);
+    if (targetIdx >= 0) {
+        for (uint i = 0; i < targetList.entries.size(); ++i) {
+            if ((int)targetList.entries[i].idx == targetIdx) {
+                result = targetList.entries[i].range >> 1;
+                break;
+            }
+        }
+    }
+
+    // Restore live list and ignoreWalls.
+    targetList.entries.swap(tempList.entries);
+    targetList.targetOrder.swap(tempList.targetOrder);
+    map.setIgnoreWalls(savedIgnoreWalls);
+
+    return result;
 }
 
 bool CombatContext::lineOfSightCheck(TilePos source, TilePos target,
@@ -380,8 +418,7 @@ bool CombatContext::isTargetInArc(Direction direction,
         tx < 0 || tx > 49 || ty < 0 || ty > 24)
         return false;
 
-    // Wire value 0xFF (~DIR_N) is the original sentinel for "no facing".
-    if (direction == static_cast<Direction>(~DIR_N))
+    if (direction == DIR_ANY)
         direction = DIR_NONE;
 
     const int arcX = tx + kDirDeltaX[direction];
@@ -434,6 +471,7 @@ bool CombatContext::isTargetInArc(Direction direction,
     case DIR_NONE:
         return true;
     default:
+        assert(false);
         return false;
     }
 }
@@ -635,9 +673,9 @@ void CombatContext::checkAdvanceEngagement(
         // Effects 0x4B and 0x4A suppress the reaction.
         {
             const Data::Effects::CharacterEffects *fx = enemy->getEffects();
-            if (fx && fx->hasEffect(0x4B))
+            if (fx && fx->hasEffect(75))
                 continue;
-            if (fx && fx->hasEffect(0x4A))
+            if (fx && fx->hasEffect(74))
                 continue;
         }
 
@@ -682,14 +720,14 @@ bool CombatContext::checkBackstab(const Data::PlayerCharacter *attacker,
         return false;
 
     const Data::Items::CharacterItem *armor = adnd->getEquippedItem(Data::Items::Slot::S_BODY_ARMOR);
-    if (armor != nullptr && armor->typeIndex != 0x32)
+    if (armor != nullptr && armor->typeIndex != 50)
         return false;
 
     const Data::Items::CharacterItem *weapon = adnd->getEquippedItem(Data::Items::Slot::S_MAIN_HAND);
     if (weapon != nullptr &&
         weapon->typeIndex != 7 &&
         weapon->typeIndex != 8 &&
-        (weapon->typeIndex < 0x23 || weapon->typeIndex > 0x25))
+        (weapon->typeIndex < 35 || weapon->typeIndex > 37))
         return false;
 
     if (!target->combatState || target->combatState->attackCount <= 1)

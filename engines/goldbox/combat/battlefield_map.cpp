@@ -202,6 +202,10 @@ bool BattlefieldMap::getIgnoreWalls() const {
     return _playfield.ignoreWalls;
 }
 
+void BattlefieldMap::setIgnoreWalls(bool ignore) {
+    _playfield.ignoreWalls = ignore;
+}
+
 bool BattlefieldMap::isDungeon() const {
     return _isDungeon;
 }

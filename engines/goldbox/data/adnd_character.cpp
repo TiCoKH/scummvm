@@ -249,6 +249,11 @@ const Goldbox::Data::Items::ItemProperty *ADnDCharacter::mainWeaponProp() const 
     return getEquippedProp(Slot::S_MAIN_HAND);
 }
 
+bool ADnDCharacter::hasRangedWeapon() const {
+    const Goldbox::Data::Items::ItemProperty *prop = mainWeaponProp();
+    return prop && prop->range >= 2;
+}
+
 bool ADnDCharacter::getRangedAttackItem(
         Goldbox::Data::Items::CharacterItem **attackItem) {
     using namespace Goldbox::Data::Items;
