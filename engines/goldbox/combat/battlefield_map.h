@@ -66,6 +66,7 @@ public:
     uint8 getSize() const;
     bool getTargetCursor() const;
     bool getIgnoreWalls() const;
+    void setIgnoreWalls(bool ignore);
     bool isDungeon() const;
     MapPos getCenter() const;
 

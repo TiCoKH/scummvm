@@ -39,7 +39,8 @@ enum Direction {
     DIR_SW   = 5,
     DIR_W    = 6,
     DIR_NW   = 7,
-    DIR_NONE = 8   // stationary / no movement
+    DIR_NONE = 8,   // stationary / no movement
+    DIR_ANY  = 0xFF
 };
 
 /** Movement delta tables indexed by Direction (0-8). */
