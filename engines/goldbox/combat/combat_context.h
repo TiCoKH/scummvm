@@ -168,14 +168,14 @@ struct CombatContext {
     void setCharacterFacing(Data::PlayerCharacter *ch, Direction direction);
 
     /**
-     * Mirrors COMBAT_CheckAdvanceEngagement.
+     * Mirrors COMBAT_CheckDisengagementReactions.
      * After a one-tile advance in moveDirection, finds enemies that became
      * newly reachable (range=1) and triggers a reaction attack from each
      * eligible enemy against currentCharacter.
      * Calls drawCombatInfoCallback(currentCharacter) after each resolved
      * attack if currentCharacter is still enabled; pass nullptr to skip.
      */
-    void checkAdvanceEngagement(Data::PlayerCharacter *currentCharacter,
+    void checkDisengagementReactions(Data::PlayerCharacter *currentCharacter,
                                 Direction moveDirection,
                                 void (*drawCombatInfoCallback)(Data::PlayerCharacter *) = nullptr);
 

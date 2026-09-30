@@ -475,7 +475,7 @@ bool CombatContext::isTargetInArc(Direction direction,
 }
 
 // ---------------------------------------------------------------------------
-// checkAdvanceEngagement helpers
+// checkDisengagementReactions helpers
 // ---------------------------------------------------------------------------
 
 Direction CombatContext::getFacingToward(const Data::PlayerCharacter *target,
@@ -525,7 +525,7 @@ void CombatContext::setCharacterFacing(Data::PlayerCharacter *ch, Direction dire
 }
 
 // ---------------------------------------------------------------------------
-// checkAdvanceEngagement helpers
+// checkDisengagementReactions helpers
 // ---------------------------------------------------------------------------
 
 /**
@@ -591,10 +591,10 @@ static uint8 selectEngagementAttack(Data::PlayerCharacter *enemy) {
 }
 
 // ---------------------------------------------------------------------------
-// checkAdvanceEngagement
+// checkDisengagementReactions
 // ---------------------------------------------------------------------------
 
-void CombatContext::checkAdvanceEngagement(
+void CombatContext::checkDisengagementReactions(
         Data::PlayerCharacter *currentCharacter,
         Direction moveDirection,
         void (*drawCombatInfoCallback)(Data::PlayerCharacter *)) {
@@ -675,34 +675,48 @@ void CombatContext::checkAdvanceEngagement(
 
         bool attackResolved = false;
 
-        // Scan facing+6 through facing+10, normalized % 8 (five directions).
+        // The character is disengaging from this enemy (was at range 1 before
+        // the advance, no longer at range 1 after). The enemy gets a reaction
+        // attack as the character turns their back to move away.
+        //
+        // The exact back-to-enemy condition is: character and enemy face the
+        // same direction (enemy->direction == character->direction), meaning
+        // the character's back is directly toward the enemy.
+        // The scan facing+6..+10 mod 8 = facing-2..+2 mod 8 is a 5-direction
+        // tolerance arc centered on that exact case (facing+8 mod 8 = same
+        // direction), allowing the strike when the character is roughly
+        // showing their back rather than requiring a perfect alignment.
         const int baseFacing = (int)enemy->combatState->direction;
         for (int scan = baseFacing + 6; scan <= baseFacing + 10; ++scan) {
             if (attackResolved)
                 break;
 
-            // Arc test only when initiative < 1 AND canAttack != 0.
             if (enemy->combatState->initiative < 1 &&
                 enemy->combatState->attackCount != 0) {
                 Direction arcDir = static_cast<Direction>(scan % 8);
                 const TilePos enemyPos    = table.getTilePos((uint8)oldOrder[targetIdx]);
                 const TilePos attackerPos = table.getTilePos(charIdx);
-                if (!isTargetInArc(arcDir, attackerPos, enemyPos))
+                // Is the departing character within this slice of the arc?
+                // The center case (arcDir == enemy facing) is when character
+                // and enemy face the same direction — character's back is
+                // directly toward the enemy.
+                if (!isTargetInArc(arcDir, enemyPos, attackerPos))
                     continue;
+
+                enemy->combatState->attackId = selectEngagementAttack(enemy);
+
+                Data::PlayerCharacter *savedTarget = enemy->combatState->target;
+
+                bool attackSuccess = false;
+                resolveAttack(enemy, currentCharacter, true, nullptr,
+                              &attackSuccess, nullptr);
+
+                enemy->combatState->target = savedTarget;
+                attackResolved = true;
+
+                if (currentCharacter->enabled && drawCombatInfoCallback)
+                    drawCombatInfoCallback(currentCharacter);
             }
-
-            enemy->combatState->attackId = selectEngagementAttack(enemy);
-
-            Data::PlayerCharacter *savedTarget = enemy->combatState->target;
-
-            // TODO: call resolveAttack(enemy, currentCharacter, true, nullptr)
-            // once that function is implemented.
-
-            enemy->combatState->target = savedTarget;
-            attackResolved = true;
-
-            if (currentCharacter->enabled && drawCombatInfoCallback)
-                drawCombatInfoCallback(currentCharacter);
         }
     }
 }
