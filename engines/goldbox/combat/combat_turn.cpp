@@ -296,9 +296,17 @@ void resolveAttack(Data::PlayerCharacter *attacker,
         ctx->globals.attacker = savedSelected;
     }
 
-    // Phase 10: reset action state.
-    if (*result)
-        *result = resetActionState(attacker);
+    // Phase 10: post-attack cleanup, then reset turn-action state.
+    if (*result) {
+        acs.attackId    = 0;
+        acs.unknownBool = false;
+        acs.target      = nullptr;
+        if (adnd) {
+            adnd->curPrimaryRoll.attacks   = 0;
+            adnd->curSecondaryRoll.attacks = 0;
+        }
+        acs.endTurn();
+    }
 
     // Phase 11: restore attacker facing if visible.
     if (ctx->isCharacterInBounds(attacker, false) && view) {
@@ -529,23 +537,7 @@ void adjustAcForFacingAndRange(Data::PlayerCharacter *attacker,
         *targetAC += 3;
 }
 
-bool resetActionState(Data::PlayerCharacter *attacker) {
-    if (!attacker || !attacker->combatState)
-        return true;
 
-    Data::CombatAction &cs = *attacker->combatState;
-    cs.attackId    = 0;
-    cs.unknownBool = false;
-    cs.target      = nullptr;
-
-    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(attacker);
-    if (adnd) {
-        adnd->curPrimaryRoll.attacks   = 0;
-        adnd->curSecondaryRoll.attacks = 0;
-    }
-
-    return true;
-}
 
 
 bool rollToHit(Data::PlayerCharacter *attacker,

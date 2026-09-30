@@ -1,12 +1,6 @@
 MODULE := engines/goldbox
 
-# ---------------------------------------------------------------------------
-# Shared core/VM/runtime object list. Games plug into this via the ECL
-# opcode/host dispatch mechanism (see ecl/game_config.h), so this list must
-# stay game-agnostic. A new game's sources belong in their own *_MODULE_OBJS
-# block below, never in this one.
-# ---------------------------------------------------------------------------
-CORE_MODULE_OBJS = \
+MODULE_OBJS = \
 	engine.o \
 	console.o \
 	events.o \
@@ -24,18 +18,14 @@ CORE_MODULE_OBJS = \
 	core/field_path.o \
 	core/menu_item.o \
 	core/vm_bank.o \
-	core/vm_layout.o
-
-ECL_MODULE_OBJS = \
+	core/vm_layout.o \
 	ecl/ecl_decoder.o \
 	ecl/ecl_memory.o \
 	ecl/runtime_layout.o \
 	ecl/ecl_syscall_impl.o \
 	ecl/ecl_vm.o \
 	ecl/opcode_handlers.o \
-	ecl/opcode_table.o
-
-DATA_MODULE_OBJS = \
+	ecl/opcode_table.o \
 	data/player_character.o \
 	data/adnd_character.o \
 	data/daxblock.o \
@@ -60,17 +50,13 @@ DATA_MODULE_OBJS = \
 	data/rules/rules.o \
 	data/rules/saving_throw.o \
 	data/spells/spell_book.o \
-	data/spells/spell_metadata.o
-
-SPELLS_MODULE_OBJS = \
+	data/spells/spell_metadata.o \
 	spells/spell_aoe.o \
 	spells/spell_casting.o \
 	spells/spell_handlers.o \
 	spells/spell_registry.o \
 	spells/spell_targeter.o \
-	spells/spell_generic_handler.o
-
-GFX_MODULE_OBJS = \
+	spells/spell_generic_handler.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/dax_renderer.o \
@@ -89,9 +75,7 @@ GFX_MODULE_OBJS = \
 	gfx/combat_tile_cache.o \
 	gfx/combat_renderer.o \
 	gfx/surface.o \
-	gfx/game_text.o
-
-COMBAT_MODULE_OBJS = \
+	gfx/game_text.o \
 	combat/combat_globals.o \
 	combat/combat_context.o \
 	combat/combat_damage.o \
@@ -103,19 +87,8 @@ COMBAT_MODULE_OBJS = \
 	combat/combat_placement.o \
 	combat/combat_viewport.o \
 	combat/battlefield_map.o \
-	combat/cloud_effect_manager.o
-
-SOUND_MODULE_OBJS = \
-	sound/sound_driver.o
-
-# ---------------------------------------------------------------------------
-# Per-game object lists. Each game is an isolated block: adding a new game
-# (e.g. buckrogers/**, coab/**) means adding a new *_MODULE_OBJS block here
-# and appending it to MODULE_OBJS below - the shared lists above are never
-# touched, and a shared list can never implicitly gain a per-game object
-# such as poolrad's rules provider.
-# ---------------------------------------------------------------------------
-POOLRAD_MODULE_OBJS = \
+	combat/cloud_effect_manager.o \
+	sound/sound_driver.o \
 	poolrad/poolrad.o \
 	poolrad/poolrad_runtime_exchange.o \
 	poolrad/effect_handler.o \
@@ -165,21 +138,8 @@ POOLRAD_MODULE_OBJS = \
 	poolrad/views/dialogs/store_dialog.o \
 	poolrad/views/dialogs/treasure_dialog.o \
 	poolrad/views/dialogs/set_portrait.o \
-	poolrad/views/dialogs/set_icon.o
-
-CURSE_MODULE_OBJS = \
+	poolrad/views/dialogs/set_icon.o \
 	curse/curse.o
-
-MODULE_OBJS = \
-	$(CORE_MODULE_OBJS) \
-	$(ECL_MODULE_OBJS) \
-	$(DATA_MODULE_OBJS) \
-	$(SPELLS_MODULE_OBJS) \
-	$(GFX_MODULE_OBJS) \
-	$(COMBAT_MODULE_OBJS) \
-	$(SOUND_MODULE_OBJS) \
-	$(POOLRAD_MODULE_OBJS) \
-	$(CURSE_MODULE_OBJS)
 
 
 ifeq ($(ENABLE_GOLDBOX), DYNAMIC_PLUGIN)
