@@ -25,7 +25,6 @@
 #include "common/array.h"
 #include "goldbox/data/spells/spell.h"
 #include "goldbox/data/rules/rules_types.h"
-#include "goldbox/data/player_character.h"
 
 #define MAX_CLASS_RACE 11
 #define MAX_LEVEL 11
@@ -150,6 +149,10 @@ uint16 rollInitialGold(const LevelData &levels);
 // strength for eligible fighters. Character-creation-time helper only.
 void applyStatMinMax(uint8 race, uint8 gender, uint8 classType,
         const LevelData &levels, AbilityScores &abilities);
+
+// Sentinel returned by RulesProvider effect-id hooks when the game does not
+// have that effect. Callers must check before passing to CharacterEffects.
+constexpr uint8 EFFECT_ID_NONE = 0xFF;
 
 // Game-specific raw effect id lookups, used by generic combat/character code
 // to avoid hardcoding a particular game's effect enum values.

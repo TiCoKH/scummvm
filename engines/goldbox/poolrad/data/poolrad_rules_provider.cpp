@@ -516,8 +516,8 @@ uint8 PoolradRulesProvider::alignmentEnumCount() const {
 
 const ThiefSkills &PoolradRulesProvider::getThiefSkillsForLevel(uint8 level) const {
 	// Clamp to last defined progression row.
-	if (level >= (uint8)(sizeof(kThiefSkills) / sizeof(kThiefSkills[0])))
-		level = (uint8)(sizeof(kThiefSkills) / sizeof(kThiefSkills[0]) - 1);
+	if (level >= (uint8)kThiefSkills.size())
+		level = (uint8)(kThiefSkills.size() - 1);
 	return kThiefSkills[level];
 }
 

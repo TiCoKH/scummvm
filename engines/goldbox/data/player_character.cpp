@@ -134,7 +134,8 @@ bool PlayerCharacter::healHp(uint8 amount, bool normalHealing) {
             return false;
     } else {
         Effects::CharacterEffects *fx = getEffects();
-        if (fx && fx->hasEffect(Rules::getEndlessRegenEffectId()))
+        uint8 regenId = Rules::getEndlessRegenEffectId();
+        if (fx && regenId != Rules::EFFECT_ID_NONE && fx->hasEffect(regenId))
             return false;
     }
 

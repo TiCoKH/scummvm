@@ -345,8 +345,11 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
             view->drawAttackResult(attacker, target, 3, 0, 0, 0);
         VmInterface::soundPlay(0x08);
 
-        if (Data::Effects::CharacterEffects *fx = attacker->getEffects())
-            fx->eraseEffectById(Data::Rules::getBlurEffectId());
+        if (Data::Effects::CharacterEffects *fx = attacker->getEffects()) {
+            uint8 blurId = Data::Rules::getBlurEffectId();
+            if (blurId != Data::Rules::EFFECT_ID_NONE)
+                fx->eraseEffectById(blurId);
+        }
 
         adnd->curPrimaryRoll.attacks   = 0;
         adnd->curSecondaryRoll.attacks = 0;
@@ -555,8 +558,11 @@ bool rollToHit(Data::PlayerCharacter *attacker,
     const VmGlobalLayout *vmLayout = ctx->params.vmGlobalLayout;
 
     // Remove Blur from attacker before rolling.
-    if (Data::Effects::CharacterEffects *fx = attacker->getEffects())
-        fx->eraseEffectById(Data::Rules::getBlurEffectId());
+    if (Data::Effects::CharacterEffects *fx = attacker->getEffects()) {
+        uint8 blurId = Data::Rules::getBlurEffectId();
+        if (blurId != Data::Rules::EFFECT_ID_NONE)
+            fx->eraseEffectById(blurId);
+    }
 
     globals.attackRoll = (uint8)VmInterface::rollDice(1, 20);
 
