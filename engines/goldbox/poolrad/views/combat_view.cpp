@@ -189,7 +189,7 @@ bool CombatView::tick() {
 
         // Disabled character: reset and skip menu (mirrors !character->enabled path).
         if (actor && !actor->enabled) {
-            if (cs) cs->reset();
+            if (cs) cs->clear();
             _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
             _needsFullRedraw = true;
             return true;
@@ -198,7 +198,7 @@ bool CombatView::tick() {
         // Pre-selected spell: consume and skip menu (mirrors spell_id != 0 path).
         if (cs && cs->spellId != 0) {
             cs->spellId = 0;
-            cs->reset();
+            cs->clear();
             _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
             _needsFullRedraw = true;
             return true;

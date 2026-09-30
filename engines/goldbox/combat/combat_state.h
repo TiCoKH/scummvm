@@ -68,7 +68,8 @@ struct CombatAction {
 		  notInTeam(false), moralFailure(false), aiState(0) {
 	}
 
-	void reset() {
+	/** Mirrors COMBAT_resetActionState. Marks the character's turn as ended. */
+	void endTurn() {
 		initiative = 0;
 		spellId = 0;
 		guarding = false;

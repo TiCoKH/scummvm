@@ -321,7 +321,7 @@ CombatSession::MoveStepResult CombatSession::performMoveStep(
     }
 
     if (!ch->enabled) {
-        if (ch->combatState) ch->combatState->reset();
+        if (ch->combatState) ch->combatState->clear();
         result.kind = MoveStepResult::MS_DISABLED;
         result.actionComplete = true;
         return result;
@@ -335,7 +335,7 @@ CombatSession::MoveStepResult CombatSession::performMoveStep(
     }
 
     if (!ch->enabled) {
-        if (ch->combatState) ch->combatState->reset();
+        if (ch->combatState) ch->combatState->clear();
         result.kind = MoveStepResult::MS_DISABLED;
         result.actionComplete = true;
     }

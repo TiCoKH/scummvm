@@ -198,14 +198,6 @@ void adjustAcForFacingAndRange(Data::PlayerCharacter *attacker,
                                uint8 *targetAC);
 
 /**
- * Mirrors COMBAT_resetActionState.
- *
- * Clears the attacker's per-attack combat state after the sequence
- * completes. Returns true when the reset is authoritative (always).
- */
-bool resetActionState(Data::PlayerCharacter *attacker);
-
-/**
  * View delegate interface for resolveAttack presentation callbacks.
  *
  * The data layer calls these at the appropriate points in the attack
