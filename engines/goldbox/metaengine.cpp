@@ -24,10 +24,23 @@
 #include "goldbox/metaengine.h"
 #include "goldbox/detection.h"
 //#include "goldbox/keymapping.h"
+#include "goldbox/game_factory.h"
 #include "goldbox/poolrad/poolrad.h"
+#include "goldbox/curse/curse.h"
 #include "goldbox/engine.h"
 
 namespace Goldbox {
+
+namespace {
+// Anchors that force each game's translation unit (and its
+// GameFactory::Registrar static initializer) to be linked into static
+// builds. Adding a new game means adding one term here plus its own
+// self-registering .cpp file - the createInstance() dispatch below never
+// needs to change.
+volatile int gForceLinkGames =
+	Goldbox::Poolrad::kForceLinkPoolrad +
+	Goldbox::Curse::kForceLinkCurse;
+} // End of anonymous namespace
 
 static const ADExtraGuiOptionsMap optionsList[] = {
 	{
@@ -68,20 +81,11 @@ const ADExtraGuiOptionsMap *GoldboxMetaEngine::getAdvancedExtraGuiOptions() cons
 Common::Error GoldboxMetaEngine::createInstance(OSystem *syst, Engine **engine, const ADGameDescription *desc) const {
 	const auto *gd = (Goldbox::GoldboxGameDescription *)desc;
 
-	switch (gd->gameType) {
-	case Goldbox::GAMETYPE_POOLRAD:
-		*engine = new Goldbox::Poolrad::PoolradEngine(syst, gd);
-		break;
-	case Goldbox::GAMETYPE_CURSE:
-		// TODO(curse): wire up Curse of the Azure Bonds engine once implemented.
-		error("Curse of the Azure Bonds is not yet supported");
-		break;
+	Goldbox::Engine *goldboxEngine = Goldbox::GameFactory::create(gd->gameType, syst, gd);
+	if (!goldboxEngine)
+		error("Unknown or unsupported game type %d", gd->gameType);
 
-	default:
-		error("Unknown game");
-		break;
-	}
-
+	*engine = goldboxEngine;
 	return Common::kNoError;
 }
 

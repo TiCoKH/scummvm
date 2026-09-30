@@ -181,6 +181,12 @@ public:
 
 extern PoolradEngine *g_engine;
 
+// Referencing this symbol from metaengine.cpp forces the archive member
+// containing this file's GameFactory::Registrar to be linked into static
+// builds (module.mk builds each engine as a real .a, so otherwise nothing
+// would pull in an object whose only effect is a static initializer).
+extern int kForceLinkPoolrad;
+
 } // namespace Poolrad
 } // namespace Goldbox
 

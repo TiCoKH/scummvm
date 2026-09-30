@@ -35,6 +35,7 @@
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
+#include "goldbox/game_factory.h"
 #include "goldbox/spells/spell_casting.h"
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/core/direction.h"
@@ -75,6 +76,12 @@ static const uint8 kCampfirePicId = 29;
 } // namespace
 
 PoolradEngine *g_engine;
+
+int kForceLinkPoolrad = 0;
+
+namespace {
+GameFactory::Registrar<PoolradEngine> sPoolradRegistrar(GAMETYPE_POOLRAD);
+} // namespace
 
 //Data::Character PoolradEngine::_party[MAX_CHARACTERS];
 
