@@ -23,6 +23,7 @@ namespace Goldbox {
 
 const PlainGameDescriptor goldboxGames[] = {
 	{ "poolrad", "Pool of Radiance (v1.0/v1.3)" },
+	{ "curse", "Curse of the Azure Bonds" },
 	{ 0, 0 }
 };
 
@@ -38,6 +39,24 @@ const GoldboxGameDescription gameDescriptions[] = {
 			GUIO1(GUIO_NONE)
 		},
 		GAMETYPE_POOLRAD
+	},
+
+	{
+		// Placeholder checksum: no real Curse of the Azure Bonds data files
+		// have been analyzed yet, so this entry cannot match a real install.
+		// It exists to exercise the GAMETYPE_CURSE -> GameFactory -> engine
+		// dispatch path end-to-end; replace with real AD_ENTRY1s data once
+		// Curse data files are supported.
+		{
+			"curse",
+			nullptr,
+			AD_ENTRY1s("title.dax", "0000000000000000000000000000000000", 0),
+			Common::EN_ANY,
+			Common::kPlatformDOS,
+			ADGF_UNSTABLE | ADGF_UNSUPPORTED,
+			GUIO1(GUIO_NONE)
+		},
+		GAMETYPE_CURSE
 	},
 
 	{AD_TABLE_END_MARKER,0}
