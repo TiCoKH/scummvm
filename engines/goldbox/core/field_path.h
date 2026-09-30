@@ -35,22 +35,22 @@ namespace Goldbox {
 struct FieldPath {
     TilePos start;
     TilePos current;
-    int16 endCol;
-    int16 endRow;
+    int16 endCol = 0;
+    int16 endRow = 0;
 
-    int16 deltaX;
-    int16 deltaY;
-    int8  stepX;
-    int8  stepY;
+    int16 deltaX = 0;
+    int16 deltaY = 0;
+    int8  stepX = 0;
+    int8  stepY = 0;
 
-    int16 moveCost;
-    int16 error;
-    int16 errorStep;
-    int16 minorErrorStep;
+    int16 moveCost = 0;
+    int16 error = 0;
+    int16 errorStep = 0;
+    int16 minorErrorStep = 0;
 
     // Compass direction of the last step taken (written by stepBresenham).
     // Mirrors the kStepDirection table lookup in the original COMBAT_stepBresenham.
-    Direction stepDirection;
+    Direction stepDirection = DIR_NONE;
 };
 
 /**
