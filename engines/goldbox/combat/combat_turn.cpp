@@ -1,4 +1,4 @@
-/* ScummVM - Graphic Adventure Engine
+﻿/* ScummVM - Graphic Adventure Engine
  *
  * ScummVM is the legal property of its developers, whose names
  * are too numerous to list here. Please refer to the COPYRIGHT
@@ -30,6 +30,7 @@
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/items/base_items.h"
+#include "goldbox/data/items/character_item.h"
 #include "goldbox/data/items/character_inventory.h"
 #include "goldbox/ecl/ecl_memory.h"
 #include "goldbox/vm_interface.h"
@@ -176,7 +177,6 @@ void initCharacterTurnState(Data::PlayerCharacter *ch) {
             cs.initiative = 0;
     }
 
-    // Move budget set after effect set — not part of the exchange.
     cs.movePoints = calcMoveBudget(ch);
 }
 
@@ -211,10 +211,106 @@ Data::PlayerCharacter *selectNextActor(
     return best;
 }
 
+void resolveAttack(Data::PlayerCharacter *attacker,
+                   Data::PlayerCharacter *target,
+                   bool useBehindAC,
+                   Data::Items::CharacterItem *item,
+                   bool *result,
+                   CombatViewDelegate *view) {
+    CombatContext *ctx = VmInterface::getCombatContext();
+    if (!ctx || !attacker->combatState || !target->combatState)
+        return;
+
+    Data::CombatAction &acs = *attacker->combatState;
+    Data::CombatAction &tcs = *target->combatState;
+
+    // Phase 1: turn target toward attacker when appropriate.
+    if (tcs.attackCount < 3 && !useBehindAC) {
+        uint8 targetFacing = (uint8)ctx->getFacingToward(target, attacker);
+        if (ctx->isCharacterInBounds(target, false)) {
+            if (view)
+                view->updateCharacterFacingAndRedraw(target, targetFacing, 0, false);
+        } else {
+            tcs.direction = targetFacing;
+        }
+    }
+
+    // Phase 2: turn attacker toward target.
+    uint8 attackerFacing = (uint8)ctx->getFacingToward(attacker, target);
+    acs.direction = attackerFacing;
+
+    if (view) {
+        view->drawCombatInfo(attacker);
+        view->updateCharacterFacingAndRedraw(attacker, attackerFacing, 1, false);
+    }
+
+    // Phase 3: store target.
+    acs.target = target;
+
+    // Phase 4: animate explicitly supplied item.
+    if (item && view)
+        view->animateRangedAttack(attacker, target, item);
+
+    // Phase 5: animate equipped ranged weapon with typeIndex 0x2F.
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(attacker);
+    if (adnd) {
+        Data::Items::CharacterItem *weapon =
+            adnd->getEquippedItem(Data::Items::Slot::S_MAIN_HAND);
+        if (weapon && weapon->typeIndex == 0x2F && view)
+            view->animateRangedAttack(attacker, target, weapon);
+    }
+
+    // Phase 6: default result.
+    *result = true;
+
+    // Phase 7: resolve attack sequence if attacker has attacks remaining.
+    if (adnd &&
+        (adnd->curPrimaryRoll.attacks != 0 || adnd->curSecondaryRoll.attacks != 0)) {
+
+        Data::PlayerCharacter *savedSelected = ctx->globals.attacker;
+        ctx->globals.attacker = attacker;
+
+        resolveAttackSequence(attacker, target, useBehindAC, result, view);
+
+        // Phase 8: consume supplied item stack.
+        if (item) {
+            if (item->stackSize > 0)
+                --item->stackSize;
+
+            if (item->stackSize == 0) {
+                if (adnd && adnd->isEquippedRangedWeapon() && item->effect3 != 0x89) {
+                    // Mirrors original: copy item to PTR_USED_ITEM list before removal
+                    // so it can be recovered after combat. Engine-level used-item list
+                    // not yet implemented; fall through to plain removal for now.
+                    adnd->removeItem(item);
+                } else {
+                    adnd->removeItem(item);
+                }
+            }
+        }
+
+        // Phase 9: recalculate combat stats.
+        adnd->recalcCombatStats();
+
+        ctx->globals.attacker = savedSelected;
+    }
+
+    // Phase 10: reset action state.
+    if (*result)
+        *result = resetActionState(attacker);
+
+    // Phase 11: restore attacker facing if visible.
+    if (ctx->isCharacterInBounds(attacker, false) && view) {
+        view->updateCharacterFacingAndRedraw(attacker, acs.direction, 1, true);
+        view->updateCharacterFacingAndRedraw(attacker, acs.direction, 0, false);
+    }
+}
+
 void resolveAttackSequence(Data::PlayerCharacter *attacker,
                            Data::PlayerCharacter *target,
                            bool useBehindAC,
-                           bool *result) {
+                           bool *result,
+                           CombatViewDelegate *view) {
     CombatContext *ctx = VmInterface::getCombatContext();
     CombatGlobals &globals = ctx->globals;
     Data::Effects::EffectRuntime *effectRuntime = ctx->params.effectRuntime;
@@ -246,7 +342,8 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
 
         ++globals.attackDisplayCount[cs.attackId];
 
-        // TODO: CombatView::drawAttackResult fast path
+        if (view)
+            view->drawAttackResult(attacker, target, 3, 0, 0, 0);
         VmInterface::soundPlay(0x08);
 
         if (Data::Effects::CharacterEffects *fx = attacker->getEffects())
@@ -320,7 +417,13 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
                     VmInterface::soundPlay(0x08);
                     attackHit = true;
 
+                    uint8 damageBeforeApply = globals.damage;
                     rollAttackDamage(attacker, target, slot);
+
+                    if (view)
+                        view->drawAttackResult(attacker, target, attackResultMode,
+                                               globals.damage, globals.damage,
+                                               hit ? 1 : 0);
 
                     if (target->enabled && effectRuntime && attacker->getEffects())
                         effectRuntime->checkEffectSet(
@@ -347,9 +450,6 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
 
         cs.maxTargets = 0;
     }
-
-    if (*result)
-        *result = resetActionState(attacker);
 }
 
 void rollAttackDamage(Data::PlayerCharacter *attacker,
@@ -370,7 +470,26 @@ void rollAttackDamage(Data::PlayerCharacter *attacker,
     if (total < 1)
         total = 1;
 
-    applyDamage(*ctx, target, (uint8)total, DAMAGE_NORMAL, false,
+    // Backstab multiplier: ((thiefLevel >> 2) + 2) * damage.
+    if (ctx->checkBackstab(attacker, target)) {
+        int thiefLevel = (int)adnd->levels[Data::C_THIEF];
+        if (thiefLevel < 0)
+            thiefLevel += 3;
+        int multiplier = (thiefLevel >> 2) + 2;
+        total = multiplier * total;
+    }
+
+    globals.behaviorFlags = 0;
+
+    if (Data::Effects::EffectRuntime *er = ctx->params.effectRuntime) {
+        if (Data::Effects::CharacterEffects *fx = attacker->getEffects())
+            er->checkEffectSet(Data::Effects::ES_ATTACKER_OFFENSE, *fx, *attacker, &globals);
+        if (Data::Effects::CharacterEffects *fx = target->getEffects())
+            er->checkEffectSet(Data::Effects::ES_DEFENDER_REACTIVE, *fx, *target, &globals);
+    }
+
+    globals.damage = (uint8)CLIP(total, 1, 255);
+    applyDamage(*ctx, target, globals.damage, DAMAGE_NORMAL, false,
                 ctx->params.effectRuntime);
 }
 
@@ -378,18 +497,35 @@ void adjustAcForFacingAndRange(Data::PlayerCharacter *attacker,
                                Data::PlayerCharacter *target,
                                uint8 *targetAC) {
     CombatContext *ctx = VmInterface::getCombatContext();
-    if (!ctx || !targetAC)
+    if (!ctx || !targetAC || !target->combatState)
         return;
 
-    // Range penalty: +1 AC per 2 tiles beyond melee range (range > 1).
-    uint8 range = ctx->getTargetRange(attacker, target);
-    if (range > 1)
-        *targetAC = (uint8)MIN(255, (int)*targetAC + (range - 1) / 2);
+    // facingValue: arc distance of attacker relative to target's facing.
+    // 0 = front, 1 = side, 2 = rear. Mirrors COMBAT_FindTargetFacing.
+    Direction attackerDir = ctx->getFacingToward(target, attacker);
+    int diff = (int)attackerDir - (int)target->combatState->direction;
+    if (diff < 0) diff += 8;
+    if (diff > 4) diff = 8 - diff;
+    int8 facingValue = (int8)(diff >> 1); // 0, 1, or 2
 
-    // Facing bonus: -2 AC when attacker is in target's rear arc.
-    Direction facing = ctx->getFacingToward(attacker, target);
-    if (facing != (Direction)target->combatState->direction)
-        *targetAC = (uint8)MAX(0, (int)*targetAC - 2);
+    int8 effectiveValue = facingValue;
+
+    // For ranged weapons, effectiveValue = (weaponRange - 1) / 3.
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(attacker);
+    const Data::Items::CharacterItem *weapon =
+        adnd ? adnd->getEquippedItem(Data::Items::Slot::S_MAIN_HAND) : nullptr;
+    if (weapon && weapon->prop().missileType != 0) {
+        uint8 range = weapon->prop().range;
+        effectiveValue = (int8)((range - 1) / 3);
+    }
+
+    if (effectiveValue < facingValue) {
+        facingValue -= effectiveValue;
+        *targetAC += 2;
+    }
+
+    if (effectiveValue < facingValue)
+        *targetAC += 3;
 }
 
 bool resetActionState(Data::PlayerCharacter *attacker) {

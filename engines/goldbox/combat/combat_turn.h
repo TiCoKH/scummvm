@@ -26,6 +26,7 @@
 #include "common/array.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
+#include "goldbox/data/items/character_item.h"
 
 namespace Goldbox {
 namespace Combat {
@@ -111,6 +112,34 @@ Data::PlayerCharacter *selectNextActor(
     const CombatGlobals &globals);
 
 /**
+ * Mirrors COMBAT_ResolveAttack.
+ *
+ * Outer attack wrapper: adjusts facing for both combatants, triggers
+ * ranged-attack animations, sets attacker->combatState->target, calls
+ * resolveAttackSequence, consumes the supplied item stack, recalculates
+ * combat stats, and resets action state.
+ *
+ * The view callbacks (drawCombatInfo, updateCharacterFacingAndRedraw,
+ * animateRangedAttack) are invoked through the supplied delegate so the
+ * data layer stays free of rendering code.
+ *
+ * @param attacker      Attacking character (must have valid combatState)
+ * @param target        Defending character
+ * @param useBehindAC   True forces rear-AC path; false allows normal facing logic
+ * @param item          Explicitly supplied ranged item (may be nullptr)
+ * @param result        Set to true when the action is fully resolved
+ * @param view          View delegate for facing/animation callbacks (may be nullptr)
+ */
+struct CombatViewDelegate;
+
+void resolveAttack(Data::PlayerCharacter *attacker,
+                   Data::PlayerCharacter *target,
+                   bool useBehindAC,
+                   Data::Items::CharacterItem *item,
+                   bool *result,
+                   CombatViewDelegate *view);
+
+/**
  * Mirrors COMBAT_ResolveAttackSequence.
  *
  * Executes the full attack resolution for one attacker/target pair.
@@ -126,7 +155,8 @@ Data::PlayerCharacter *selectNextActor(
 void resolveAttackSequence(Data::PlayerCharacter *attacker,
                            Data::PlayerCharacter *target,
                            bool useBehindAC,
-                           bool *result);
+                           bool *result,
+                           CombatViewDelegate *view);
 
 /**
  * Mirrors UTIL_RollToHit.
@@ -174,6 +204,51 @@ void adjustAcForFacingAndRange(Data::PlayerCharacter *attacker,
  * completes. Returns true when the reset is authoritative (always).
  */
 bool resetActionState(Data::PlayerCharacter *attacker);
+
+/**
+ * View delegate interface for resolveAttack presentation callbacks.
+ *
+ * The data layer calls these at the appropriate points in the attack
+ * sequence. The view layer provides a concrete implementation; pass
+ * nullptr to skip all presentation (e.g. in unit tests).
+ */
+struct CombatViewDelegate {
+    virtual ~CombatViewDelegate() {}
+
+    /** Draw the attacker's combat info panel. Mirrors CombatView::drawCombatInfo. */
+    virtual void drawCombatInfo(Data::PlayerCharacter *attacker) = 0;
+
+    /**
+     * Update character facing and redraw.
+     * redrawMode 0 = restore old tiles, 1 = draw current.
+     * Mirrors CombatView::updateCharacterFacingAndRedraw.
+     */
+    virtual void updateCharacterFacingAndRedraw(Data::PlayerCharacter *ch,
+                                                uint8 direction,
+                                                uint8 redrawMode,
+                                                bool restoreOld) = 0;
+
+    /** Animate a ranged attack from attacker to target using item. */
+    virtual void animateRangedAttack(Data::PlayerCharacter *attacker,
+                                     Data::PlayerCharacter *target,
+                                     Data::Items::CharacterItem *item) = 0;
+
+    /**
+     * Display the result of one attack swing.
+     * Mirrors COMBAT_drawAttackResult.
+     *
+     * facingMode: 0=normal, 1=from behind, 2=backstab, 3=helpless
+     * damage:        actual damage applied
+     * damageDisplay: damage value shown in message (may differ)
+     * resultType:    0=miss, non-zero=hit
+     */
+    virtual void drawAttackResult(Data::PlayerCharacter *attacker,
+                                  Data::PlayerCharacter *target,
+                                  uint8 facingMode,
+                                  uint8 damage,
+                                  uint8 damageDisplay,
+                                  uint8 resultType) = 0;
+};
 
 } // namespace Combat
 } // namespace Goldbox

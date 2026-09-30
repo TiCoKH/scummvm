@@ -254,6 +254,14 @@ bool ADnDCharacter::hasRangedWeapon() const {
     return prop && prop->range >= 2;
 }
 
+bool ADnDCharacter::isEquippedRangedWeapon() const {
+    if (!hasRangedWeapon())
+        return false;
+    const Goldbox::Data::Items::CharacterItem *weapon =
+        getEquippedItem(Goldbox::Data::Items::Slot::S_MAIN_HAND);
+    return weapon && (weapon->prop().missileType & 0x14) == 0x14;
+}
+
 bool ADnDCharacter::getRangedAttackItem(
         Goldbox::Data::Items::CharacterItem **attackItem) {
     using namespace Goldbox::Data::Items;
