@@ -151,8 +151,66 @@ uint16 rollInitialGold(const LevelData &levels);
 void applyStatMinMax(uint8 race, uint8 gender, uint8 classType,
         const LevelData &levels, AbilityScores &abilities);
 
+// Game-specific raw effect id lookups, used by generic combat/character code
+// to avoid hardcoding a particular game's effect enum values.
+uint8 getBlurEffectId();
+uint8 getEndlessRegenEffectId();
+
+/**
+ * Abstract interface for a game's ruleset (mirrors
+ * Combat::TilePropertyProvider). Each game provides its own implementation
+ * with its own tables (see PoolradRulesProvider); the free functions above
+ * forward to whichever provider is currently active so existing call sites
+ * do not need to change.
+ */
+class RulesProvider {
+public:
+    virtual ~RulesProvider() {}
+
+    virtual bool isClassAllowed(uint8 race, uint8 classId) const = 0;
+    virtual bool isAlignmentAllowed(uint8 classId, uint8 alignmentId) const = 0;
+    virtual int thac0AtLevel(uint8 classId, uint8 level) const = 0;
+    virtual const AgeDefEntry &getAgeDef(uint8 race, uint8 baseClassIndex) const = 0;
+    virtual const ClassAlignmentDef *getAlignmentTable() const = 0;
+    virtual const RaceClassDef *getRaceClassTable() const = 0;
+    virtual const thac0Bases *getThac0Table() const = 0;
+    virtual const Common::Array< Common::Array<AgeDefEntry> > &getAgeDefs() const = 0;
+    virtual const Common::Array<Spells::SpellEntry> &getSpellEntries() const = 0;
+    virtual const DiceRoll &getInitGoldRoll(uint8 baseClassIndex) const = 0;
+    virtual const DiceRoll &getHPRoll(uint8 baseClassIndex) const = 0;
+    virtual int8 conHPModifier(uint8 constitution) const = 0;
+    virtual const AgeCategories &getAgeCategoriesForRace(uint8 race) const = 0;
+    virtual const Common::Array<AgeingEffects> &getStatAgeingEffects() const = 0;
+    virtual const RaceStatMinMax &getRaceStatMinMaxForRace(uint8 race) const = 0;
+    virtual const ClassMinStats &getClassMinStats(uint8 classId) const = 0;
+    virtual uint8 classEnumCount() const = 0;
+    virtual uint8 alignmentEnumCount() const = 0;
+    virtual const ThiefSkills &getThiefSkillsForLevel(uint8 level) const = 0;
+    virtual ThiefSkills computeThiefSkills(uint8 race, uint8 dexterity, uint8 thiefLevel) const = 0;
+    virtual uint8 classItemLimitBit(uint8 baseClassIndex) const = 0;
+    virtual uint8 computeItemLimitMask(const Common::Array<uint8> &levels) const = 0;
+    virtual const SavingThrows &savingThrowsAt(uint8 baseClassIndex, uint8 level) const = 0;
+    virtual const SpellSlots &getSpellSlotsForClassAtRow(uint8 baseClassIndex, uint8 row) const = 0;
+    virtual int32 xpForClassAtLevel(uint8 baseClassIndex, uint8 level) const = 0;
+    virtual uint8 forcedBaseIndexForMulticlass(uint8 classId) const = 0;
+    virtual uint16 rollInitialGold(const LevelData &levels) const = 0;
+    virtual void applyStatMinMax(uint8 race, uint8 gender, uint8 classType,
+            const LevelData &levels, AbilityScores &abilities) const = 0;
+
+    // Game-specific raw effect id lookups (see free functions above).
+    virtual uint8 getBlurEffectId() const = 0;
+    virtual uint8 getEndlessRegenEffectId() const = 0;
+};
+
+/** Returns the currently active RulesProvider. Aborts if none was set. */
+RulesProvider &getRulesProvider();
+
+/** Installs the active RulesProvider (called once during game engine setup). */
+void setRulesProvider(RulesProvider *provider);
+
 } // namespace Rules
 } // namespace Data
 } // namespace Goldbox
 
 #endif // ENGINES_GOLDBOX_DATA_RULES_RULES_H
+

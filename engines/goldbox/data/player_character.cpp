@@ -22,6 +22,7 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect.h"
+#include "goldbox/data/rules/rules.h"
 #include "goldbox/data/rules/rules_types.h"
 
 namespace Goldbox {
@@ -133,7 +134,7 @@ bool PlayerCharacter::healHp(uint8 amount, bool normalHealing) {
             return false;
     } else {
         Effects::CharacterEffects *fx = getEffects();
-        if (fx && fx->hasEffect(Effects::E_POOLRAD_ENDLESS_REGEN))
+        if (fx && fx->hasEffect(Rules::getEndlessRegenEffectId()))
             return false;
     }
 

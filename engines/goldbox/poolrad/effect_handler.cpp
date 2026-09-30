@@ -29,6 +29,7 @@
 #include "goldbox/data/effects/effect_common_handler.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/effect_system.h"
+#include "goldbox/poolrad/data/poolrad_effects.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/data/rules/saving_throw.h"

@@ -25,6 +25,7 @@
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/data/spells/spell.h"
+#include "goldbox/poolrad/data/poolrad_effects.h"
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/poolrad/data/poolrad_character.h"

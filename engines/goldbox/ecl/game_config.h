@@ -45,9 +45,9 @@ struct MemoryRegionRange {
  */
 namespace ECLMemoryLayout {
     // Memory Base Configuration
-    constexpr uint16 ECL_START_POOLRAD = 0x9900;        // Pool of Radiance specific
+    // Game-specific ECL start/memory-base constants (e.g. ECL_START_POOLRAD)
+    // live in each game's own game_config.h; keep only the generic default here.
     constexpr uint16 ECL_START_DEFAULT = 0x8000;        // Default for other games
-    constexpr uint16 MEM_BASE_POOLRAD = 0x10000 - ECL_START_POOLRAD; // = 0x6700
 
     // Transitional constants kept for compatibility with GameConfig and
     // opcode decoding helpers. Prefer layout-based access for VM addresses.
