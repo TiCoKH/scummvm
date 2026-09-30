@@ -134,6 +134,7 @@ public:
 	bool isDualWielding() const;        // Main hand + off hand weapon (off hand not a shield)
 	const Goldbox::Data::Items::ItemProperty *mainWeaponProp() const; // Shorthand
 	bool hasRangedWeapon() const;       // Main hand weapon has range >= 2
+	bool isEquippedRangedWeapon() const; // hasRangedWeapon() && missileType & 0x14 == 0x14
 
 	// Return the projectile used by the equipped ranged weapon. The special
 	// missile type 10 is valid without a separate projectile item.
