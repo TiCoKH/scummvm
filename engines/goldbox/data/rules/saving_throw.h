@@ -27,7 +27,7 @@
 namespace Goldbox {
 
 namespace Combat {
-class CombatGlobals;
+struct CombatGlobals;
 } // namespace Combat
 
 namespace Data {

@@ -77,7 +77,7 @@ typedef MouseMessage MouseMoveMessage;
 
 struct GameMessage : public Message {
 	Common::String _name;
-	int _value;
+	int _value = -1;
 	Common::String _stringValue;
 
 	GameMessage() : Message(), _value(-1) {}

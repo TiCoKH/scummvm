@@ -314,8 +314,6 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
     CombatContext *ctx = VmInterface::getCombatContext();
     CombatGlobals &globals = ctx->globals;
     Data::Effects::EffectRuntime *effectRuntime = ctx->params.effectRuntime;
-    ECL::AddressSpace *eclMemory = ctx->params.eclMemory;
-    const VmGlobalLayout *vmLayout = ctx->params.vmGlobalLayout;
 
     bool attackHit = false;
     bool stopAttacking = false;
@@ -417,7 +415,6 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
                     VmInterface::soundPlay(0x08);
                     attackHit = true;
 
-                    uint8 damageBeforeApply = globals.damage;
                     rollAttackDamage(attacker, target, slot);
 
                     if (view)
