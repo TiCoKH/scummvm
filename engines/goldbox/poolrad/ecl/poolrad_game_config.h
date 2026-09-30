@@ -32,8 +32,18 @@
 namespace Goldbox {
 namespace Poolrad {
 
+/**
+ * Pool of Radiance specific ECL memory-base constants.
+ * Moved out of the shared ECL::ECLMemoryLayout namespace so other games
+ * do not inherit Poolrad-only configuration.
+ */
+namespace PoolradMemoryLayout {
+    constexpr uint16 ECL_START_POOLRAD = 0x9900;
+    constexpr uint16 MEM_BASE_POOLRAD = 0x10000 - ECL_START_POOLRAD; // = 0x6700
+}
+
 namespace {
-static const uint16 kPoolradScriptVmStart = 0x9900;
+static const uint16 kPoolradScriptVmStart = PoolradMemoryLayout::ECL_START_POOLRAD;
 }
 
 /** Pool of Radiance ECL configuration. */

@@ -31,6 +31,7 @@
 #include "goldbox/data/strings_data.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/data/legacy_save_utils.h"
+#include "goldbox/poolrad/data/poolrad_rules_provider.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
@@ -80,6 +81,7 @@ PoolradEngine *g_engine;
 PoolradEngine::PoolradEngine(OSystem *syst, const GoldboxGameDescription *gameDesc) :
 		Goldbox::Engine(syst, gameDesc) {
 	g_engine = this;
+	Goldbox::Data::Rules::setRulesProvider(&PoolradRulesProvider::instance());
 }
 
 PoolradEngine::~PoolradEngine() {

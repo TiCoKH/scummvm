@@ -20,17 +20,26 @@
 
 #include "common/array.h"
 #include "common/debug.h"
-#include "engines/goldbox/data/rules/rules.h"
+#include "goldbox/poolrad/data/poolrad_rules_provider.h"
+#include "goldbox/poolrad/data/poolrad_effects.h"
 #include "goldbox/data/spells/spell.h"
 #include "goldbox/engine.h"
 
+using namespace Goldbox::Data;
+using namespace Goldbox::Data::Rules;
+
 namespace Goldbox {
-namespace Data {
-namespace Rules {
+namespace Poolrad {
+
+// Local alias so unqualified "Spells::" below resolves to Goldbox::Data::Spells
+// rather than the sibling Goldbox::Spells namespace (spell casting runtime).
+namespace Spells = Goldbox::Data::Spells;
+
+namespace {
 
 // Alignment table per class: which alignments are allowed for each class.
 // Index by ClassADnD (0..N). Alignments are enum ids (0..8) in align_ids.
-static const Common::Array<ClassAlignmentDef> kClassAlignment = {
+const Common::Array<ClassAlignmentDef> kClassAlignment = {
 	{9, {0, 1, 2, 3, 4, 5, 6, 7, 8}}, // Cleric
 	{5, {1, 3, 4, 5, 7, 0, 0, 0, 0}}, // Druid
 	{9, {0, 1, 2, 3, 4, 5, 6, 7, 8}}, // Fighter
@@ -51,7 +60,7 @@ static const Common::Array<ClassAlignmentDef> kClassAlignment = {
 };
 
 // Race -> allowed classes.
-static const Common::Array<RaceClassDef> kRaceClasses = {
+const Common::Array<RaceClassDef> kRaceClasses = {
 	{0, { }},                                     // race Monster placeholder not used
 	{3, {2, 6, 14}},                              // race Dwarf
 	{7, {2, 5, 6, 13, 14, 15, 16}},               // race Elf
@@ -63,7 +72,7 @@ static const Common::Array<RaceClassDef> kRaceClasses = {
 };
 
 // THAC0 by level per class; 1..10 stored, index 0 unused.
-static const Common::Array<thac0Bases> kThac0ByClass = {
+const Common::Array<thac0Bases> kThac0ByClass = {
 	{ {40, 40, 40, 40, 42, 42, 42, 44, 44, 44, 46} }, // Class 0 - Cleric
 	{ {40, 40, 40, 40, 42, 42, 42, 44, 44, 44, 46} }, // class 1 - Druid
 	{ {40, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49} }, // class 2 - Fighter
@@ -75,7 +84,7 @@ static const Common::Array<thac0Bases> kThac0ByClass = {
 };
 
 // Age definitions
-static const Common::Array< Common::Array<AgeDefEntry> > kAgeDefs = {
+const Common::Array< Common::Array<AgeDefEntry> > kAgeDefs = {
 	// race 0..N, base classes 0..6
 	// Cleric, Druid, Fighter, Paladin, Ranger, Magic-User, Thief
 	// Dwarf
@@ -94,7 +103,7 @@ static const Common::Array< Common::Array<AgeDefEntry> > kAgeDefs = {
 	{ {18, 1, 4}, {18, 1, 4}, {15, 1, 4}, {17, 1, 4}, {20, 1, 4}, {24, 2, 4}, {18, 1, 4} }
 };
 
-static const Common::Array<ThiefSkills> kThiefSkills = {
+const Common::Array<ThiefSkills> kThiefSkills = {
 	// ThiefSkills in %
 	{ 30, 25, 20, 15, 10, 10, 85, 0 }, // Level 1
 	{ 35, 29, 25, 21, 15, 10, 86, 0 }, // Level 2
@@ -107,37 +116,7 @@ static const Common::Array<ThiefSkills> kThiefSkills = {
 	{ 70, 62, 60, 70, 56, 30, 98, 45 }  // Level 9
 };
 
-const ThiefSkills &getThiefSkillsForLevel(uint8 level) {
-	// Clamp to last defined progression row.
-	if (level >= (uint8)(sizeof(kThiefSkills) / sizeof(kThiefSkills[0])))
-		level = (uint8)(sizeof(kThiefSkills) / sizeof(kThiefSkills[0]) - 1);
-	return kThiefSkills[level];
-}
-
-uint8 forcedBaseIndexForMulticlass(uint8 classId) {
-	// Map select multiclasses to a single base index for age calculation rules.
-	// - Cleric-based combos -> Cleric
-	// - Fighter/Magic-User (and with Thief) -> Magic-User
-	// - Fighter/Thief -> Fighter
-	switch (classId) {
-	case C_CLERIC_FIGHTER:
-	case C_CLERIC_FIGHTER_MAGICUSER:
-	case C_CLERIC_MAGICUSER:
-	case C_CLERIC_THIEF:
-		return (uint8)C_CLERIC;
-	case C_FIGHTER_MAGICUSER:
-	case C_FIGHTER_MAGICUSER_THIEF:
-	case C_MAGICUSER_THIEF:
-		return (uint8)C_MAGICUSER;
-	case C_FIGHTER_THIEF:
-		return (uint8)C_FIGHTER;
-	default:
-		break;
-	}
-	return 0xFF;
-}
-
-static const Common::Array<ThiefRaceAdjustments> kThiefRaceAdjustments = {
+const Common::Array<ThiefRaceAdjustments> kThiefRaceAdjustments = {
 	{  0, 10, 15,  0,  0,  0, -10,  -5 }, // Dwarf
 	{  5, -5,  0,  5, 10,  5,   0,   0 }, // Elf
 	{  0,  5, 10,  5,  5, 10, -15,   0 }, // Gnome
@@ -147,7 +126,7 @@ static const Common::Array<ThiefRaceAdjustments> kThiefRaceAdjustments = {
 	{  0,  0,  0,  0,  0,  0,   0,   0 }  // Human
 };
 
-static const Common::Array<ThiefDexterityAdjustments> kThiefDexterityAdjustments = {
+const Common::Array<ThiefDexterityAdjustments> kThiefDexterityAdjustments = {
 	{ -15, -10, -10, -20, -10 }, // 9
 	{ -19,  -5, -10, -15,  -5 }, // 10
 	{  -5,   0,  -5, -10,   0 }, // 11
@@ -161,7 +140,7 @@ static const Common::Array<ThiefDexterityAdjustments> kThiefDexterityAdjustments
 	{  15,  20,  10,  12,  12 }  // 19
 };
 
-static const Common::Array<RaceStatMinMax> kRaceStatMinMax = {
+const Common::Array<RaceStatMinMax> kRaceStatMinMax = {
 	// RaceStatMinMax
 	// strMinM, strMinF, strMaxM, strMaxF, extStrMaxM, extStrMaxF,
 	// intMin, intMax, wisMin, wisMax, dexMin, dexMax, conMin, conMax, chaMin, chaMax
@@ -174,7 +153,7 @@ static const Common::Array<RaceStatMinMax> kRaceStatMinMax = {
 	{ 3, 3, 18, 18, 100, 50, 3, 18, 3, 18, 3, 18,  3, 18, 3, 18 }  // Human
 };
 
-static const Common::Array<AgeCategories> kAgeCategories = {
+const Common::Array<AgeCategories> kAgeCategories = {
 	// AgeCategories
 	// young, adult, middle, old, venitiar
 	{ 50, 150, 250, 350, 450 },   // Dwarf
@@ -186,7 +165,7 @@ static const Common::Array<AgeCategories> kAgeCategories = {
 	{ 20, 40, 60, 90, 120 }       // Human
 };
 
-static const Common::Array<AgeingEffects> kStatAgeingEffects = 	{
+const Common::Array<AgeingEffects> kStatAgeingEffects = {
 	{  0, 1, -1, -2, -1 }, // Strength
 	{  0, 0,  0,  0,  0 }, // Extended Strength
 	{  0, 0,  1,  0,  1 }, // Intelligence
@@ -196,7 +175,7 @@ static const Common::Array<AgeingEffects> kStatAgeingEffects = 	{
 	{  0, 0,  0,  0,  0 }  // Charisma
 };
 
-static const Common::Array<ClassMinStats> kClassMinStats = {
+const Common::Array<ClassMinStats> kClassMinStats = {
 	// ClassMinStats
 	// strMin, intMin, wisMin, dexMin, conMin, chaMin
 	{  6,  6,  9,  0,  0,  0 }, // Cleric
@@ -218,7 +197,7 @@ static const Common::Array<ClassMinStats> kClassMinStats = {
 	{  0,  9,  0,  9,  0,  0 }  // Magic-User/Thief
 };
 
-static const Common::Array<LevelUpInfo> kExperienceByClassAndLevel = {
+const Common::Array<LevelUpInfo> kExperienceByClassAndLevel = {
 	{ { 2, { 1501, 3001, 6001, 13001, 27501, -1, -1, -1 } }, {
 		{ 2, 0, 0 }, { 2, 1, 0 }, { 3, 2, 0 }, { 3, 3, 1 },
 		{ 3, 3, 2 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }
@@ -253,7 +232,7 @@ static const Common::Array<LevelUpInfo> kExperienceByClassAndLevel = {
 	} } //Monk
 };
 
-static const Common::Array<DiceRoll> kInitGoldRolls = {
+const Common::Array<DiceRoll> kInitGoldRolls = {
 	{ 3, 6 }, // Cleric
 	{ 3, 6 }, // Druid
 	{ 5, 4 }, // Fighter
@@ -264,7 +243,7 @@ static const Common::Array<DiceRoll> kInitGoldRolls = {
 	{ 5, 4 }  // Monk
 };
 
-static const Common::Array<DiceRoll> kHPRolls = {
+const Common::Array<DiceRoll> kHPRolls = {
 	{ 1, 8 }, // Cleric
 	{ 1, 8 }, // Druid
 	{ 1, 10 }, // Fighter
@@ -278,7 +257,7 @@ static const Common::Array<DiceRoll> kHPRolls = {
 #define SP_ATTACK_ROLL 255
 
 // Pool of Radiance spell
-static const Common::Array<Spells::SpellEntry> kSpellEntries = {
+const Common::Array<Spells::SpellEntry> kSpellEntries = {
 	//spellClass, spellLevel, fixedRange, perLvlRange, fixedDuration, perLvlDuration, areaOfEffect, targetType, damageOnSave, saveVerse, effectId, whenCast, castTime, priority, isOffensive, minAITargets
 	Spells::SpellEntry(Spells::SC_CLERIC,    0, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_COMBAT,       Spells::DMG_NO_SAVE,   Spells::SVS_POISON, 0, Spells::IN_CAMP, 0, 0, 0, 0),    // Dummy spell indexing start at 1
 	Spells::SpellEntry(Spells::SC_CLERIC,    1, 6,              0, 6, 0, Spells::AREA_DIAMETER_5, Spells::ST_TARGET_LIST,  Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 1,  Spells::IN_BOTH, 10, 2, 0, 0),   // Bless
@@ -350,29 +329,8 @@ static const Common::Array<Spells::SpellEntry> kSpellEntries = {
 	Spells::SpellEntry(Spells::SC_ITEM,      6, 0,              0, 0, 0, Spells::AREA_CASTER,     Spells::ST_CASTER,       Spells::DMG_NO_SAVE,   Spells::SVS_SPELL, 4,  Spells::IN_CAMP, 0, 0, 0, 0)
 };
 
-// Public accessor for spell entries
-const Common::Array<Spells::SpellEntry> &getSpellEntries() {
-	return kSpellEntries;
-}
-
-// Accessor for initial gold dice per base class
-const DiceRoll &getInitGoldRoll(uint8 baseClassIndex) {
-	static const DiceRoll kZero = { 0, 0 };
-	if (baseClassIndex < kInitGoldRolls.size())
-		return kInitGoldRolls[baseClassIndex];
-	return kZero;
-}
-
-// Accessor for HP dice per base class
-const DiceRoll &getHPRoll(uint8 baseClassIndex) {
-	static const DiceRoll kZero = { 0, 0 };
-	if (baseClassIndex < kHPRolls.size())
-		return kHPRolls[baseClassIndex];
-	return kZero;
-}
-
 // 8 base classes (0..7) x 9 levels (1..9)
-static const SavingThrows kSavingThrows[BASE_CLASS_NUM][9] = {
+const SavingThrows kSavingThrows[BASE_CLASS_NUM][9] = {
 	// Class 0 - Cleric
 	{
 		{ 10, 13, 14, 16, 15 }, { 10, 13, 14, 16, 15 }, { 10, 13, 14, 16, 15 },
@@ -423,17 +381,25 @@ static const SavingThrows kSavingThrows[BASE_CLASS_NUM][9] = {
 	}
 };
 
-const SavingThrows &savingThrowsAt(uint8 baseClassIndex, uint8 level) {
-	if (baseClassIndex >= BASE_CLASS_NUM)
-		baseClassIndex = 0;
-	if (level == 0)
-		level = 1;
-	if (level > 9)
-		level = 9;
-	return kSavingThrows[baseClassIndex][level - 1];
+// 0 Cleric -> 0x02, 1 Druid -> 0x10, 2 Fighter -> 0x08, 3 Paladin -> 0x40,
+// 4 Ranger -> 0x80, 5 Magic-User -> 0x01, 6 Thief -> 0x04, 7 Monk -> 0x20.
+const uint8 kClassItemLimitBits[BASE_CLASS_NUM] = {
+	0x02, 0x10, 0x08, 0x40, 0x80, 0x01, 0x04, 0x20
+};
+
+const int8 kConHPModifier[] = {
+	-2, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2
+};
+
+inline uint8 clampToU8(int v) {
+	if (v < 0) return 0;
+	if (v > 255) return 255;
+	return (uint8)v;
 }
 
-bool isClassAllowed(uint8 race, uint8 classId) {
+} // namespace
+
+bool PoolradRulesProvider::isClassAllowed(uint8 race, uint8 classId) const {
 	if (race >= kRaceClasses.size())
 		return false;
 	const RaceClassDef &rc = kRaceClasses[race];
@@ -444,7 +410,7 @@ bool isClassAllowed(uint8 race, uint8 classId) {
 	return false;
 }
 
-bool isAlignmentAllowed(uint8 classId, uint8 alignmentId) {
+bool PoolradRulesProvider::isAlignmentAllowed(uint8 classId, uint8 alignmentId) const {
 	if (classId >= kClassAlignment.size())
 		return false;
 	const ClassAlignmentDef &ca = kClassAlignment[classId];
@@ -455,7 +421,7 @@ bool isAlignmentAllowed(uint8 classId, uint8 alignmentId) {
 	return false;
 }
 
-int thac0AtLevel(uint8 classId, uint8 level) {
+int PoolradRulesProvider::thac0AtLevel(uint8 classId, uint8 level) const {
 	if (classId >= kThac0ByClass.size())
 		return 20;
 	if (level > 10)
@@ -463,7 +429,7 @@ int thac0AtLevel(uint8 classId, uint8 level) {
 	return kThac0ByClass[classId].thac0[level];
 }
 
-const AgeDefEntry &getAgeDef(uint8 race, uint8 baseClassIndex) {
+const AgeDefEntry &PoolradRulesProvider::getAgeDef(uint8 race, uint8 baseClassIndex) const {
 	// kAgeDefs is laid out for playable races only, starting at Dwarf.
 	// RaceADnD enumerates R_MONSTER=0, then Dwarf=1..Human=7.
 	// Map: Dwarf->0, Elf->1, ..., Human->6; Monster falls back to 0.
@@ -476,12 +442,39 @@ const AgeDefEntry &getAgeDef(uint8 race, uint8 baseClassIndex) {
 	return kAgeDefs[raceIdx][baseClassIndex];
 }
 
-const ClassAlignmentDef *getAlignmentTable() { return kClassAlignment.data(); }
-const RaceClassDef *getRaceClassTable() { return kRaceClasses.data(); }
-const thac0Bases *getThac0Table() { return kThac0ByClass.data(); }
-const Common::Array< Common::Array<AgeDefEntry> > &getAgeDefs() { return kAgeDefs; }
+const ClassAlignmentDef *PoolradRulesProvider::getAlignmentTable() const { return kClassAlignment.data(); }
+const RaceClassDef *PoolradRulesProvider::getRaceClassTable() const { return kRaceClasses.data(); }
+const thac0Bases *PoolradRulesProvider::getThac0Table() const { return kThac0ByClass.data(); }
+const Common::Array< Common::Array<AgeDefEntry> > &PoolradRulesProvider::getAgeDefs() const { return kAgeDefs; }
 
-const AgeCategories &getAgeCategoriesForRace(uint8 race) {
+const Common::Array<Spells::SpellEntry> &PoolradRulesProvider::getSpellEntries() const {
+	return kSpellEntries;
+}
+
+const DiceRoll &PoolradRulesProvider::getInitGoldRoll(uint8 baseClassIndex) const {
+	static const DiceRoll kZero = { 0, 0 };
+	if (baseClassIndex < kInitGoldRolls.size())
+		return kInitGoldRolls[baseClassIndex];
+	return kZero;
+}
+
+const DiceRoll &PoolradRulesProvider::getHPRoll(uint8 baseClassIndex) const {
+	static const DiceRoll kZero = { 0, 0 };
+	if (baseClassIndex < kHPRolls.size())
+		return kHPRolls[baseClassIndex];
+	return kZero;
+}
+
+int8 PoolradRulesProvider::conHPModifier(uint8 constitution) const {
+	int idx = (int)constitution - 3;
+	if (idx < 0) idx = 0;
+	// Derive length from known AD&D range to avoid exposing symbol size
+	const int maxIdx = 21 - 3; // 18
+	if (idx > maxIdx) idx = maxIdx;
+	return kConHPModifier[idx];
+}
+
+const AgeCategories &PoolradRulesProvider::getAgeCategoriesForRace(uint8 race) const {
 	// Map R_DWARF..R_HUMAN (1..7) -> 0..6; out-of-range maps to 0 (Dwarf) as a safe default.
 	uint8 raceIdx = (race > 0) ? (race - 1) : 0;
 	if (raceIdx >= kAgeCategories.size())
@@ -489,11 +482,11 @@ const AgeCategories &getAgeCategoriesForRace(uint8 race) {
 	return kAgeCategories[raceIdx];
 }
 
-const Common::Array<AgeingEffects> &getStatAgeingEffects() {
+const Common::Array<AgeingEffects> &PoolradRulesProvider::getStatAgeingEffects() const {
 	return kStatAgeingEffects;
 }
 
-const RaceStatMinMax &getRaceStatMinMaxForRace(uint8 race) {
+const RaceStatMinMax &PoolradRulesProvider::getRaceStatMinMaxForRace(uint8 race) const {
 	// Map R_DWARF..R_HUMAN (1..7) -> 0..6; out-of-range maps to 0 (Dwarf) as a safe default.
 	uint8 raceIdx = (race > 0) ? (race - 1) : 0;
 	if (raceIdx >= kRaceStatMinMax.size())
@@ -501,7 +494,7 @@ const RaceStatMinMax &getRaceStatMinMaxForRace(uint8 race) {
 	return kRaceStatMinMax[raceIdx];
 }
 
-const ClassMinStats &getClassMinStats(uint8 classId) {
+const ClassMinStats &PoolradRulesProvider::getClassMinStats(uint8 classId) const {
 	// Clamp to table size; if out of range, use first row (Cleric) as safe default
 	uint8 idx = classId;
 	if (idx >= kClassMinStats.size())
@@ -509,19 +502,136 @@ const ClassMinStats &getClassMinStats(uint8 classId) {
 	return kClassMinStats[idx];
 }
 
-uint8 classEnumCount() {
+uint8 PoolradRulesProvider::classEnumCount() const {
 	// For now, return the larger of the local tables or a conservative default the UI uses (18)
 	uint8 sz = (uint8)kClassAlignment.size();
 	if (sz < 18) return 18;
 	return sz;
 }
 
-uint8 alignmentEnumCount() {
+uint8 PoolradRulesProvider::alignmentEnumCount() const {
 	// Alignments are typically 9 (LG..CE). Keep as 9 unless tables suggest more.
 	return 9;
 }
 
-uint16 rollInitialGold(const LevelData &levels) {
+const ThiefSkills &PoolradRulesProvider::getThiefSkillsForLevel(uint8 level) const {
+	// Clamp to last defined progression row.
+	if (level >= (uint8)(sizeof(kThiefSkills) / sizeof(kThiefSkills[0])))
+		level = (uint8)(sizeof(kThiefSkills) / sizeof(kThiefSkills[0]) - 1);
+	return kThiefSkills[level];
+}
+
+ThiefSkills PoolradRulesProvider::computeThiefSkills(uint8 race, uint8 dexterity, uint8 thiefLevel) const {
+	ThiefSkills out;
+	// Level 0 -> all zero
+	if (thiefLevel == 0)
+		return out;
+
+	// Base from level (1-based), clamp to last row
+	const ThiefSkills &base = getThiefSkillsForLevel(thiefLevel);
+
+	// Race index in adjustments: Dwarf..Human -> 0..6, default Human
+	const ThiefRaceAdjustments *rAdjPtr = &kThiefRaceAdjustments[6];
+	if (race >= R_DWARF && race <= R_HUMAN) {
+		rAdjPtr = &kThiefRaceAdjustments[race - 1];
+	}
+	const ThiefRaceAdjustments &rAdj = *rAdjPtr;
+
+	// Dexterity adjustments cover 9..19; clamp accordingly
+	uint8 dex = dexterity;
+	if (dex < 9) dex = 9;
+	if (dex > 19) dex = 19;
+	const ThiefDexterityAdjustments &dAdj = kThiefDexterityAdjustments[dex - 9];
+
+	// For skills PICK..HIDE add dex bonus; others do not
+	for (int s = 0; s < THIEF_SKILL_COUNT; ++s) {
+		ThiefSkill sk = (ThiefSkill)s;
+
+		int baseVal = base.get(sk);
+		int raceMod = rAdj.get(sk);
+		int dexMod  = (sk <= SK_HIDE_IN_SHADOWS) ? dAdj.get(sk) : 0;
+
+		// If race penalty exceeds base, floor at 0
+		if (raceMod < 0 && (-raceMod) > baseVal) {
+			out.set(sk, 0);
+		} else {
+			out.set(sk, clampToU8(baseVal + raceMod + dexMod));
+		}
+	}
+
+	return out;
+}
+
+uint8 PoolradRulesProvider::classItemLimitBit(uint8 baseClassIndex) const {
+	if (baseClassIndex >= BASE_CLASS_NUM)
+		return 0;
+	return kClassItemLimitBits[baseClassIndex];
+}
+
+uint8 PoolradRulesProvider::computeItemLimitMask(const Common::Array<uint8> &levels) const {
+	uint8 mask = 0;
+	const uint sz = MIN<uint>(levels.size(), BASE_CLASS_NUM);
+	for (uint i = 0; i < sz; ++i) {
+		if (levels[i] > 0)
+			mask |= kClassItemLimitBits[i];
+	}
+	return mask;
+}
+
+const SavingThrows &PoolradRulesProvider::savingThrowsAt(uint8 baseClassIndex, uint8 level) const {
+	if (baseClassIndex >= BASE_CLASS_NUM)
+		baseClassIndex = 0;
+	if (level == 0)
+		level = 1;
+	if (level > 9)
+		level = 9;
+	return kSavingThrows[baseClassIndex][level - 1];
+}
+
+const SpellSlots &PoolradRulesProvider::getSpellSlotsForClassAtRow(uint8 baseClassIndex, uint8 row) const {
+	static const SpellSlots kZero = {0, 0, 0};
+	if (baseClassIndex >= kExperienceByClassAndLevel.size())
+		return kZero;
+	const LevelUpInfo &info = kExperienceByClassAndLevel[baseClassIndex];
+	if (row >= ARRAYSIZE(info.SlotsByLevel))
+		row = ARRAYSIZE(info.SlotsByLevel) - 1;
+	return info.SlotsByLevel[row];
+}
+
+int32 PoolradRulesProvider::xpForClassAtLevel(uint8 baseClassIndex, uint8 level) const {
+	if (baseClassIndex >= kExperienceByClassAndLevel.size() || level == 0)
+		return -1;
+	const NeededExperience &ne = kExperienceByClassAndLevel[baseClassIndex].experience;
+	const int idx = (int)level - 1;
+	if (idx < 0 || idx >= 8)
+		return -1;
+	return ne.toLevel[idx];
+}
+
+uint8 PoolradRulesProvider::forcedBaseIndexForMulticlass(uint8 classId) const {
+	// Map select multiclasses to a single base index for age calculation rules.
+	// - Cleric-based combos -> Cleric
+	// - Fighter/Magic-User (and with Thief) -> Magic-User
+	// - Fighter/Thief -> Fighter
+	switch (classId) {
+	case C_CLERIC_FIGHTER:
+	case C_CLERIC_FIGHTER_MAGICUSER:
+	case C_CLERIC_MAGICUSER:
+	case C_CLERIC_THIEF:
+		return (uint8)C_CLERIC;
+	case C_FIGHTER_MAGICUSER:
+	case C_FIGHTER_MAGICUSER_THIEF:
+	case C_MAGICUSER_THIEF:
+		return (uint8)C_MAGICUSER;
+	case C_FIGHTER_THIEF:
+		return (uint8)C_FIGHTER;
+	default:
+		break;
+	}
+	return 0xFF;
+}
+
+uint16 PoolradRulesProvider::rollInitialGold(const LevelData &levels) const {
 	if (!Goldbox::g_engine)
 		return 0;
 
@@ -539,8 +649,8 @@ uint16 rollInitialGold(const LevelData &levels) {
 	return (classCount > 0) ? static_cast<uint16>((totalGold / classCount) * 10) : 0;
 }
 
-void applyStatMinMax(uint8 race, uint8 gender, uint8 classType,
-		const LevelData &levels, AbilityScores &abilities) {
+void PoolradRulesProvider::applyStatMinMax(uint8 race, uint8 gender, uint8 classType,
+		const LevelData &levels, AbilityScores &abilities) const {
 	// Not applied to monster race per requirement.
 	if (race == R_MONSTER)
 		return;
@@ -593,112 +703,18 @@ void applyStatMinMax(uint8 race, uint8 gender, uint8 classType,
 		abilities.charisma.current = cms.charisma;
 }
 
-using namespace Goldbox::Data;
-
-// 0 Cleric -> 0x02, 1 Druid -> 0x10, 2 Fighter -> 0x08, 3 Paladin -> 0x40,
-// 4 Ranger -> 0x80, 5 Magic-User -> 0x01, 6 Thief -> 0x04, 7 Monk -> 0x20.
-static const uint8 kClassItemLimitBits[BASE_CLASS_NUM] = {
-	0x02, 0x10, 0x08, 0x40, 0x80, 0x01, 0x04, 0x20
-};
-
-static const int8  kConHPModifier[] = {
-	-2, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2
-};
-
-uint8 Rules::classItemLimitBit(uint8 baseClassIndex) {
-	if (baseClassIndex >= BASE_CLASS_NUM)
-		return 0;
-	return kClassItemLimitBits[baseClassIndex];
+uint8 PoolradRulesProvider::getBlurEffectId() const {
+	return (uint8)Goldbox::Data::Effects::E_POOLRAD_BLUR;
 }
 
-uint8 Rules::computeItemLimitMask(const Common::Array<uint8> &levels) {
-	uint8 mask = 0;
-	const uint sz = MIN<uint>(levels.size(), BASE_CLASS_NUM);
-	for (uint i = 0; i < sz; ++i) {
-		if (levels[i] > 0)
-			mask |= kClassItemLimitBits[i];
-	}
-	return mask;
+uint8 PoolradRulesProvider::getEndlessRegenEffectId() const {
+	return (uint8)Goldbox::Data::Effects::E_POOLRAD_ENDLESS_REGEN;
 }
 
-static inline uint8 clampToU8(int v) {
-	if (v < 0) return 0;
-	if (v > 255) return 255;
-	return (uint8)v;
+PoolradRulesProvider &PoolradRulesProvider::instance() {
+	static PoolradRulesProvider inst;
+	return inst;
 }
 
-ThiefSkills Rules::computeThiefSkills(uint8 race, uint8 dexterity, uint8 thiefLevel) {
-	ThiefSkills out;
-	// Level 0 -> all zero
-	if (thiefLevel == 0)
-		return out;
-
-	// Base from level (1-based), clamp to last row
-	const ThiefSkills &base = Rules::getThiefSkillsForLevel(thiefLevel);
-
-	// Race index in adjustments: Dwarf..Human -> 0..6, default Human
-	const ThiefRaceAdjustments *rAdjPtr = &kThiefRaceAdjustments[6];
-	if (race >= R_DWARF && race <= R_HUMAN) {
-		rAdjPtr = &kThiefRaceAdjustments[race - 1];
-	}
-	const ThiefRaceAdjustments &rAdj = *rAdjPtr;
-
-	// Dexterity adjustments cover 9..19; clamp accordingly
-	uint8 dex = dexterity;
-	if (dex < 9) dex = 9;
-	if (dex > 19) dex = 19;
-	const ThiefDexterityAdjustments &dAdj = kThiefDexterityAdjustments[dex - 9];
-
-	// For skills PICK..HIDE add dex bonus; others do not
-	for (int s = 0; s < THIEF_SKILL_COUNT; ++s) {
-		ThiefSkill sk = (ThiefSkill)s;
-
-		int baseVal = base.get(sk);
-		int raceMod = rAdj.get(sk);
-		int dexMod  = (sk <= SK_HIDE_IN_SHADOWS) ? dAdj.get(sk) : 0;
-
-		// If race penalty exceeds base, floor at 0
-		if (raceMod < 0 && (-raceMod) > baseVal) {
-			out.set(sk, 0);
-		} else {
-			out.set(sk, clampToU8(baseVal + raceMod + dexMod));
-		}
-	}
-
-	return out;
-}
-const SpellSlots &getSpellSlotsForClassAtRow(uint8 baseClassIndex, uint8 row) {
-	static const SpellSlots kZero = {0, 0, 0};
-	if (baseClassIndex >= kExperienceByClassAndLevel.size())
-		return kZero;
-	const LevelUpInfo &info = kExperienceByClassAndLevel[baseClassIndex];
-	if (row >= ARRAYSIZE(info.SlotsByLevel))
-		row = ARRAYSIZE(info.SlotsByLevel) - 1;
-	return info.SlotsByLevel[row];
-}
-
-int32 Rules::xpForClassAtLevel(uint8 baseClassIndex, uint8 level) {
-	if (baseClassIndex >= kExperienceByClassAndLevel.size() || level == 0)
-		return -1;
-	const NeededExperience &ne = kExperienceByClassAndLevel[baseClassIndex].experience;
-	const int idx = (int)level - 1;
-	if (idx < 0 || idx >= 8)
-		return -1;
-	return ne.toLevel[idx];
-}
-
-int8 conHPModifier(uint8 constitution) {
-	// Table defined in this compilation unit
-	extern const int8 kConHPModifier[];
-	int idx = (int)constitution - 3;
-	if (idx < 0) idx = 0;
-	// Derive length from known AD&D range to avoid exposing symbol size
-	const int maxIdx = 21 - 3; // 18
-	if (idx > maxIdx) idx = maxIdx;
-	return kConHPModifier[idx];
-}
-
-} // namespace Rules
-} // namespace Data
+} // namespace Poolrad
 } // namespace Goldbox
-

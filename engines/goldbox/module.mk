@@ -46,7 +46,7 @@ MODULE_OBJS = \
 	data/items/character_item.o \
 	data/items/character_inventory.o \
 	data/rules/rules_types.o \
-	data/rules/rules_poolrad.o \
+	data/rules/rules.o \
 	data/rules/saving_throw.o \
 	data/spells/spell_book.o \
 	data/spells/spell_metadata.o \
@@ -96,6 +96,7 @@ MODULE_OBJS = \
 	poolrad/ecl/poolrad_opcode_handlers.o \
 	poolrad/data/poolrad_character.o \
 	poolrad/data/poolrad_tile_props.o \
+	poolrad/data/poolrad_rules_provider.o \
 	poolrad/data/legacy_save_utils.o \
 	poolrad/data/poolrad_vm_layout.o \
 	poolrad/views/view.o \

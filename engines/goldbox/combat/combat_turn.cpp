@@ -29,6 +29,7 @@
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/rules/rules.h"
 #include "goldbox/data/items/base_items.h"
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/items/character_inventory.h"
@@ -345,7 +346,7 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
         VmInterface::soundPlay(0x08);
 
         if (Data::Effects::CharacterEffects *fx = attacker->getEffects())
-            fx->eraseEffectById(Data::Effects::E_POOLRAD_BLUR);
+            fx->eraseEffectById(Data::Rules::getBlurEffectId());
 
         adnd->curPrimaryRoll.attacks   = 0;
         adnd->curSecondaryRoll.attacks = 0;
@@ -555,7 +556,7 @@ bool rollToHit(Data::PlayerCharacter *attacker,
 
     // Remove Blur from attacker before rolling.
     if (Data::Effects::CharacterEffects *fx = attacker->getEffects())
-        fx->eraseEffectById(Data::Effects::E_POOLRAD_BLUR);
+        fx->eraseEffectById(Data::Rules::getBlurEffectId());
 
     globals.attackRoll = (uint8)VmInterface::rollDice(1, 20);
 

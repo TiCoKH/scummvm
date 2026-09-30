@@ -73,7 +73,8 @@ Common::Error GoldboxMetaEngine::createInstance(OSystem *syst, Engine **engine, 
 		*engine = new Goldbox::Poolrad::PoolradEngine(syst, gd);
 		break;
 	case Goldbox::GAMETYPE_CURSE:
-	//	*engine = new Wasteland::FOD::FountainOfDreamsEngine(syst, gd);
+		// TODO(curse): wire up Curse of the Azure Bonds engine once implemented.
+		error("Curse of the Azure Bonds is not yet supported");
 		break;
 
 	default:

@@ -29,6 +29,7 @@
 #include "goldbox/data/items/character_inventory.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect.h"
+#include "goldbox/poolrad/data/poolrad_effects.h"
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/player_character.h"
