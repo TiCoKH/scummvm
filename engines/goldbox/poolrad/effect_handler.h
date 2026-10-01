@@ -25,10 +25,23 @@
 #include "goldbox/data/effects/effect_handler_base.h"
 
 namespace Goldbox {
+namespace Data {
+class PlayerCharacter;
+}
 namespace Poolrad {
 namespace Data {
 class PoolradCharacter;
 }
+
+/**
+ * Mirrors UTIL_CheckCloudEffect.
+ * Checks whether ch is standing on a stinking-cloud tile and applies the
+ * appropriate nausea effect if no immunity or existing cloud effect is present.
+ * bridge may be nullptr (no message output).
+ */
+void checkCloudEffect(Goldbox::Data::PlayerCharacter &ch,
+                      Goldbox::Data::Effects::EffectHandlerBase *handler,
+                      Goldbox::Data::Effects::EffectHostBridge *bridge);
 
 class EffectHandler : public Goldbox::Data::Effects::EffectHandlerBase {
 public:

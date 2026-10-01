@@ -30,6 +30,8 @@
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/poolrad/effect_handler.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Combat {
@@ -370,6 +372,73 @@ CombatSession::TickResult CombatSession::finishMoveAction(Data::PlayerCharacter 
     if (ch && ch->combatState)
         ch->combatState->initiative = 0xFF;
     return submitPlayerAction(PA_NONE);
+}
+
+bool CombatSession::applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
+                                   void (*viewCallback)(Data::PlayerCharacter *)) {
+    if (!ch || !ch->combatState)
+        return false;
+
+    Data::CombatAction &cs = *ch->combatState;
+
+    // Diagonal (odd direction) costs 3; orthogonal costs 2.
+    const uint8 cost = (direction & 1) ? 3 : 2;
+    if (cs.movePoints < cost) {
+        cs.movePoints = 0;
+        return false;
+    }
+    cs.movePoints -= cost;
+
+    const int idx = _table.findIndex(ch);
+    if (idx < 0)
+        return false;
+
+    const TilePos src = _table.getTilePos(idx);
+    const TilePos dst((uint8)(src.col + kDirDeltaX[direction]),
+                      (uint8)(src.row + kDirDeltaY[direction]));
+
+    // AI-controlled characters use a larger viewport scroll radius and
+    // may need a viewport reposition before the move.
+    uint8 scrollRadius = 1;
+    if (ch->ai_control) {
+        scrollRadius = 3;
+        // If destination is outside the viewport, scroll to source first.
+        if (!_context->isCharacterInBounds(ch, false))
+            scrollViewport(src, 2);
+    }
+
+    // Erase old entity (presentation — caller's viewCallback handles this).
+    // Update authoritative position and rebuild occupancy.
+    _table.setPosition(idx, dst);
+    _table.rebuildOccupancy();
+
+    // Scroll viewport to destination.
+    scrollViewport(dst, scrollRadius);
+
+    // Movement invalidates these action states.
+    cs.attackCount     = 0;
+    cs.directionChange = 0;
+
+    VmInterface::soundPlay(0x0B);
+
+    // Cloud tile nausea check.
+    {
+        int dummyOccupant = 0;
+        uint8 dstTile = 0;
+        _context->getGroundInfo(ch, 0xFF, &dummyOccupant, &dstTile);
+        if (dstTile == Combat::CloudEffectManager::kTileCloud)
+            Goldbox::Poolrad::checkCloudEffect(*ch, nullptr, nullptr);
+    }
+
+    // Guard reactions (opportunity/counter attacks).
+    _context->handleGuardReactions(ch, viewCallback);
+
+    // Preserve remaining movement unless the character became disabled
+    // or acquired a negative effect.
+    if (!ch->enabled || ch->hasNegativeEffect())
+        cs.movePoints = 0;
+
+    return true;
 }
 
 } // namespace Combat

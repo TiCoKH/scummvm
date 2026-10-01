@@ -22,6 +22,7 @@
 
 #include "goldbox/spells/spell_duration.h"
 #include "goldbox/combat/cloud_effect_manager.h"
+#include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/core/direction.h"
@@ -692,12 +693,14 @@ SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
     Goldbox::Data::Effects::EffectHostBridge *bridge =
         context.effectSystem->getHostBridge();
 
+    Goldbox::Data::Effects::EffectHandlerBase *handler =
+        context.effectSystem->getHandler();
+
     for (int dir = 0; dir < 4; ++dir) {
         const uint8 wireDir = kCloudDirs[dir];
         const uint8 cx = static_cast<uint8>(centerX + kDirDeltaX[wireDir]);
         const uint8 cy = static_cast<uint8>(centerY + kDirDeltaY[wireDir]);
 
-        // Look up the combatant at this cell (1-based index, 0 = empty).
         const uint8 occupantIdx = ctx->table.getOccupant(cx, cy);
         if (occupantIdx == 0)
             continue;
@@ -707,19 +710,7 @@ SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
         if (!occupant)
             continue;
 
-        Goldbox::Data::Effects::CharacterEffects *fx = occupant->getEffects();
-        if (!fx)
-            continue;
-
-        // Apply the in-cloud nausea marker (E_STINKING_CLOUD_EXPAIR = 40).
-        // The effect handler decides whether the character is nauseated.
-        context.effectSystem->addOrRefreshEffect(
-            *fx, *occupant,
-            static_cast<uint8>(Goldbox::Data::Effects::E_STINKING_CLOUD_EXPAIR),
-            1, power, true);
-
-        if (bridge)
-            bridge->postEffectMessage(occupant, "is nauseated", false);
+        Goldbox::Poolrad::checkCloudEffect(*occupant, handler, bridge);
     }
 
     return SpellCastResult(CAST_OK);

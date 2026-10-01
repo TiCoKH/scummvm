@@ -42,19 +42,19 @@ struct CombatAction {
 	uint8 spellId;              // spell_id: active spell being cast (0 = none)
 	bool canCast;               // can_cast
 	bool canUse;                // can_use
-	uint8 initiative;           // initiative: initiative/initiative counter
+	uint8 initiative;           // turn/action-order related
 	uint8 attackId;             // attack_id
 	uint8 maxTargets;           // max_targets
-	uint8 movePoints;           // move: remaining movement this round
+	uint8 movePoints;           // move: remaining movement allowance this round
 	bool guarding;              // guarding
 	bool unknownBool;           // unknown_bool
 	uint8 direction;            // direction: facing (0=N,1=NE,2=E,3=SE,4=S,5=SW,6=W,7=NW)
 	PlayerCharacter *target;    // target: current attack target (ch_ptr->combat_address->target)
 	uint8 bleeding;             // bleeding
-	uint8 attackCount;          // get_attack: attacks remaining this round
+	uint8 attackCount;          // get_attack: current attack/opportunity state
 	bool fleeing;               // fleeing
 	bool turnedUndead;          // turned_undead
-	uint8 directionChange;      // direction_change
+	uint8 directionChange;      // direction_change: current movement/facing state
 	bool notInTeam;             // not_in_team: true if beyond party count (NPC/monster)
 	bool moralFailure;          // moral_failure
 	uint8 aiState;              // ai_action: AI behavior state

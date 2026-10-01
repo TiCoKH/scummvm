@@ -140,6 +140,21 @@ public:
      */
     MoveStepResult performMoveStep(Data::PlayerCharacter *ch, uint8 direction);
 
+    /**
+     * Mirrors COMBAT_ApplyMoveStep.
+     * Attempts to move ch one tile in direction (0-7, odd = diagonal).
+     * Handles movement cost, placement update, occupancy rebuild, viewport
+     * scroll, action-state reset, step sound, guard reactions, and the
+     * conditional move-budget preservation.
+     *
+     * viewCallback is invoked for viewport redraws (AI radius=3 path);
+     * pass nullptr to skip presentation (e.g. unit tests).
+     *
+     * Returns false if ch had insufficient movement (no move occurred).
+     */
+    bool applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
+                       void (*viewCallback)(Data::PlayerCharacter *) = nullptr);
+
     /** Restore character to saved position/facing (cancel path). */
     void cancelMove(Data::PlayerCharacter *ch,
                     uint8 origMovePoints, uint8 origDirection,

@@ -2197,6 +2197,55 @@ static void handleDrain2Levels(const EffectCall &c) {
 }
 } // namespace
 
+// --- UTIL_CheckCloudEffect ---
+
+void checkCloudEffect(Goldbox::Data::PlayerCharacter &ch,
+                      Goldbox::Data::Effects::EffectHandlerBase *handler,
+                      Goldbox::Data::Effects::EffectHostBridge *bridge) {
+    if (!ch.enabled)
+        return;
+
+    // Query the tile under the character (direction W8_NONE = current tile).
+    Combat::CombatContext *ctx = Goldbox::g_engine ?
+        Goldbox::g_engine->getCombatContext() : nullptr;
+    if (!ctx)
+        return;
+
+    int occupant = 0;
+    uint8 groundTile = 0;
+    ctx->getGroundInfo(&ch, 0xFF, &occupant, &groundTile);
+
+    if (groundTile != Combat::CloudEffectManager::kTileCloud)
+        return;
+
+    // Skip if any cloud-related or immunity effect is already present.
+    CharacterEffects *fx = ch.getEffects();
+    if (!fx)
+        return;
+    if (fx->hasEffect(0x1E) || fx->hasEffect(0x1F) || fx->hasEffect(0x20) ||
+            fx->hasEffect(0x6F) || fx->hasEffect(0x7D))
+        return;
+
+    // Build a minimal EffectCall so we can reuse the file-local helpers.
+    Effect dummy;
+    dummy.id          = 0;
+    dummy.durationMin = 0;
+    dummy.power       = 0;
+    dummy.immediate   = 0;
+    EffectCall c(EFF_ADD, dummy, ch, nullptr, bridge, nullptr, handler);
+
+    const bool saved = checkSavingThrow(c, Goldbox::Data::Spells::SVS_POISON, 0);
+
+    if (saved) {
+        checkUnaffected(c, 0x1E, 1, 0xFF, false, true, saved, "starts to cough");
+    } else {
+        const uint8 duration = Goldbox::g_engine ?
+            static_cast<uint8>(Goldbox::g_engine->rollDice(1, 4) + 1) : 2;
+        checkUnaffected(c, 0x1F, duration, 0xFF, false, true, saved,
+            "chokes and gags from nausea");
+    }
+}
+
 EffectHandler::EffectHandler() {
     setupHandlers();
 }
