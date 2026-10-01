@@ -475,7 +475,7 @@ bool CombatContext::isTargetInArc(Direction direction,
 }
 
 // ---------------------------------------------------------------------------
-// checkDisengagementReactions helpers
+// handleDisengagementReactions helpers
 // ---------------------------------------------------------------------------
 
 Direction CombatContext::getFacingToward(const Data::PlayerCharacter *target,
@@ -525,7 +525,7 @@ void CombatContext::setCharacterFacing(Data::PlayerCharacter *ch, Direction dire
 }
 
 // ---------------------------------------------------------------------------
-// checkDisengagementReactions helpers
+// handleDisengagementReactions helpers
 // ---------------------------------------------------------------------------
 
 /**
@@ -591,10 +591,10 @@ static uint8 selectEngagementAttack(Data::PlayerCharacter *enemy) {
 }
 
 // ---------------------------------------------------------------------------
-// checkDisengagementReactions
+// handleDisengagementReactions
 // ---------------------------------------------------------------------------
 
-void CombatContext::checkDisengagementReactions(
+void CombatContext::handleDisengagementReactions(
         Data::PlayerCharacter *currentCharacter,
         Direction moveDirection,
         void (*drawCombatInfoCallback)(Data::PlayerCharacter *)) {
@@ -743,6 +743,52 @@ bool CombatContext::checkBackstab(const Data::PlayerCharacter *attacker,
 
     return static_cast<Direction>(target->combatState->direction) ==
            getFacingToward(attacker, target);
+}
+
+void CombatContext::applyAttackFacingChange(Data::PlayerCharacter *attacker,
+                                            Data::PlayerCharacter *target) {
+    if (!attacker || !target || !target->combatState)
+        return;
+
+    Data::CombatAction &tcs = *target->combatState;
+    ++tcs.attackCount;
+
+    Direction toward = getFacingToward(target, attacker);
+    uint8 rotation = ((uint8)toward - tcs.direction + 8) % 8;
+    if (rotation > 4)
+        rotation = 8 - rotation;
+    tcs.directionChange = (tcs.directionChange + rotation) % 8;
+}
+
+void CombatContext::handleGuardReactions(Data::PlayerCharacter *ch,
+                                         void (*viewCallback)(Data::PlayerCharacter *)) {
+    if (!ch)
+        return;
+
+    buildTargetList(ch, 1);
+    const Common::Array<uint8> order = targetList.targetOrder;
+
+    for (uint i = 0; i < order.size(); ++i) {
+        if (!ch->enabled)
+            return;
+
+        Data::PlayerCharacter *guard = table.getCharacter(order[i]);
+        if (!guard || !guard->combatState)
+            continue;
+        if (!guard->combatState->guarding)
+            continue;
+        if (guard->hasNegativeEffect())
+            continue;
+
+        if (viewCallback)
+            viewCallback(ch);
+
+        guard->combatState->guarding = false;
+        applyAttackFacingChange(guard, ch);
+
+        bool attackResult = false;
+        resolveAttack(guard, ch, false, nullptr, &attackResult, nullptr);
+    }
 }
 
 } // namespace Combat

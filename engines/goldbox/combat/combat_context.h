@@ -168,14 +168,14 @@ struct CombatContext {
     void setCharacterFacing(Data::PlayerCharacter *ch, Direction direction);
 
     /**
-     * Mirrors COMBAT_CheckDisengagementReactions.
+     * Mirrors COMBAT_HandleDisengagementReactions.
      * After a one-tile advance in moveDirection, finds enemies that became
      * newly reachable (range=1) and triggers a reaction attack from each
      * eligible enemy against currentCharacter.
      * Calls drawCombatInfoCallback(currentCharacter) after each resolved
      * attack if currentCharacter is still enabled; pass nullptr to skip.
      */
-    void checkDisengagementReactions(Data::PlayerCharacter *currentCharacter,
+    void handleDisengagementReactions(Data::PlayerCharacter *currentCharacter,
                                 Direction moveDirection,
                                 void (*drawCombatInfoCallback)(Data::PlayerCharacter *) = nullptr);
 
@@ -217,6 +217,25 @@ struct CombatContext {
      */
     bool checkBackstab(const Data::PlayerCharacter *attacker,
                        const Data::PlayerCharacter *target) const;
+
+    /**
+     * Mirrors COMBAT_ApplyAttackFacingChange.
+     * Increments target's attackCount, calculates the shortest 8-way rotation
+     * from target's current facing toward attacker, and accumulates it into
+     * target's directionChange (mod 8).
+     */
+    void applyAttackFacingChange(Data::PlayerCharacter *attacker,
+                                 Data::PlayerCharacter *target);
+
+    /**
+     * Mirrors COMBAT_HandleGuardReactions.
+     * After char_ptr successfully moves, builds the target list and triggers
+     * a guarding attack from each eligible opponent against char_ptr.
+     * Calls viewCallback(char_ptr) before each attack for viewport redraw;
+     * pass nullptr to skip.
+     */
+    void handleGuardReactions(Data::PlayerCharacter *ch,
+                              void (*viewCallback)(Data::PlayerCharacter *) = nullptr);
 };
 
 } // namespace Combat
