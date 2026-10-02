@@ -143,7 +143,7 @@ void CombatMoveDialog::handleMenuResult(const MenuResultMessage &result) {
 
     if (result._hasIntValue && result._intValue == 1) {
         // YES — flee
-        const bool done = Combat::g_combatSession->trySetFleeing(_character);
+        const bool done = Combat::g_combatSession->flee(_character);
         if (done)
             finishAction(true);
     }

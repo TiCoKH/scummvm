@@ -23,6 +23,7 @@
 #define GOLDBOX_COMBAT_COMBAT_AI_H
 
 #include "common/scummsys.h"
+#include "common/array.h"
 
 namespace Goldbox {
 namespace Data {
@@ -32,6 +33,7 @@ class PlayerCharacter;
 namespace Combat {
 
 struct CombatContext;
+struct CombatGlobals;
 
 /**
  * Result of an AI turn execution.
@@ -102,17 +104,30 @@ struct AiMoveViewDelegate {
 /**
  * Mirrors COMBAT_HandleAIControlInput.
  *
- * Checks for player keyboard input during AI movement processing.
- * Handles autospell toggle, Space (transfer control to player), and cheat key.
- * Returns true if the currently acting character has been returned to player
- * control (initiative set to 20) — caller should stop AI processing.
+ * Called by the view layer when a keypress arrives during AI movement
+ * processing. The view decodes the key from msgKeypress and passes it here.
+ *
+ * Handles three keys:
+ *   - autospell toggle key: flip globals.magicEnabled, show message via view
+ *   - Space: clear ai_control on eligible party members, set actor initiative=20
+ *   - '-': cheat handler (no-op in modern engine)
+ *
+ * Returns true if the actor has been returned to player control (Space was
+ * pressed and actor->ai_control is now 0) — caller should stop AI processing.
+ * Returns false when no key was pending or no control transfer occurred.
+ *
+ * Pass key=0 when no keypress is pending (normal AI tick with no input).
  *
  * @param actor    The AI-controlled character currently acting
- * @param ctx      Live combat context
- * @param view     View delegate for message display (may be nullptr)
+ * @param roster   Full combat roster (for Space key party scan)
+ * @param key      ASCII key value from the view's msgKeypress, or 0 if none
+ * @param globals  Combat globals (magicEnabled toggle)
+ * @param view     View delegate for autospell message display (may be nullptr)
  */
 bool handleAiControlInput(Data::PlayerCharacter *actor,
-                          CombatContext &ctx,
+                          const Common::Array<Data::PlayerCharacter *> &roster,
+                          char key,
+                          CombatGlobals &globals,
                           AiMoveViewDelegate *view);
 
 /**
@@ -140,11 +155,15 @@ bool updateActionState(Data::PlayerCharacter *actor);
  *
  * Pure data layer — presentation is delegated through AiMoveViewDelegate.
  *
- * @param actor  The AI-controlled character taking its movement step
- * @param ctx    Live combat context
- * @param view   View delegate (may be nullptr)
+ * @param actor   The AI-controlled character taking its movement step
+ * @param roster  Full combat roster (forwarded to handleAiControlInput)
+ * @param key     ASCII key from view's msgKeypress, or 0 if no input this tick
+ * @param ctx     Live combat context
+ * @param view    View delegate (may be nullptr)
  */
 void processAiMove(Data::PlayerCharacter *actor,
+                   const Common::Array<Data::PlayerCharacter *> &roster,
+                   char key,
                    CombatContext &ctx,
                    AiMoveViewDelegate *view);
 

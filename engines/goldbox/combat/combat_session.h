@@ -38,6 +38,8 @@ class PlayerCharacter;
 }
 namespace Combat {
 
+struct AiMoveViewDelegate;
+
 /**
  * Owns all combat state and drives the round loop.
  *
@@ -160,8 +162,35 @@ public:
                     uint8 origMovePoints, uint8 origDirection,
                     TilePos origPos);
 
-    /** Set character fleeing; returns true if action is complete. */
-    bool trySetFleeing(Data::PlayerCharacter *ch);
+    /**
+     * Mirrors COMBAT_SetCharacterStatus (data layer).
+     *
+     * Removes ch from active combat:
+     *   - Sets enabled=false, healthStatus=status.
+     *   - Zeroes hp_current unless status==S_RUNNING.
+     *   - Calls endTurn(); if the character was the current actor,
+     *     also calls clearStatusEffects().
+     *   - Zeroes icon_dim in the combatant table and rebuilds occupancy.
+     *
+     * Returns the combatant table index (for view redraw) and whether
+     * effects were cleared (view may need to refresh status panel).
+     *
+     * Presentation (focus, message, tile redraw, gfx refresh) is the
+     * caller's responsibility via SetStatusViewDelegate.
+     */
+    struct SetStatusResult {
+        int  combatIndex;       // table index of ch (-1 if not found)
+        bool effectsCleared;    // true if clearStatusEffects() was called
+    };
+    SetStatusResult setCharacterStatus(Data::PlayerCharacter *ch,
+                                       uint8 status);
+
+    /**
+     * Attempt to flee combat for a party character.
+     * Returns true if the character escaped (healthStatus set to S_RUNNING).
+     * Always ends the character's turn.
+     */
+    bool flee(Data::PlayerCharacter *ch);
 
     /** Mark actor as having acted and advance to next actor. */
     TickResult finishMoveAction(Data::PlayerCharacter *ch);
@@ -197,6 +226,18 @@ public:
     void scrollViewport(TilePos target, uint8 radius = 0xFF);
 
 private:
+    friend void processAiMove(Data::PlayerCharacter *,
+                              const Common::Array<Data::PlayerCharacter *> &,
+                              char, CombatContext &, AiMoveViewDelegate *);
+
+    struct TryFleeResult {
+        bool actionComplete;
+        bool escaped;
+    };
+
+    /** Mirrors COMBAT_TrySetRunning. See TryFleeResult for semantics. */
+    TryFleeResult trySetFleeing(Data::PlayerCharacter *ch);
+
     CombatParams    _params;
     CombatGlobals   _globals;
     BattlefieldMap  _battlefieldMap;

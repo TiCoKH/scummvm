@@ -108,11 +108,59 @@ bool isSideAmbushed(Data::CombatSide side, uint8 ambushFlags) {
     }
 }
 
-uint8 calcMoveBudget(const Data::PlayerCharacter *ch) {
-    int budget = (int)ch->movement.current + (int)ch->effectState.mods.movement;
-    if (budget < 0)   budget = 0;
-    if (budget > 255) budget = 255;
-    return (uint8)budget;
+uint8 calcMoveBudget(Data::PlayerCharacter *ch) {
+    CombatContext *ctx = VmInterface::getCombatContext();
+    CombatGlobals *globals = ctx ? &ctx->globals : nullptr;
+    Data::Effects::EffectRuntime *effectRuntime = ctx ? ctx->params.effectRuntime : nullptr;
+    ECL::AddressSpace *eclMemory = ctx ? ctx->params.eclMemory : nullptr;
+    const VmGlobalLayout *vmLayout = ctx ? ctx->params.vmGlobalLayout : nullptr;
+
+    uint8 moveValue = ch->movement.current;
+
+    // Party characters receive the VM party movement modifier.
+    if (ch->combatSide == Data::CS_PARTY && eclMemory && vmLayout) {
+        const VmFieldLocation field = vmLayout->field(kVmGlobalFieldPartyMoveModifier);
+        if (VmLayout::isValid(field))
+            moveValue += eclMemory->read8(field.vmAddr);
+    }
+
+    // Movement must be within the valid range.
+    if (moveValue == 0 || moveValue > 0x60)
+        moveValue = 1;
+
+    // Effect Set 18 operates on movement in doubled units.
+    if (globals) {
+        globals->effectSet18.value      = moveValue * 2;
+        globals->effectSet18.isMovement = true;
+    }
+
+    if (effectRuntime && ch->getEffects())
+        effectRuntime->checkEffectSet(Data::Effects::ES_COMBAT_RATE_MODIFIER,
+                                      *ch->getEffects(),
+                                      *ch,
+                                      globals);
+
+    if (globals)
+        globals->effectSet18.isMovement = false;
+
+    return globals ? globals->effectSet18.value : (uint8)(moveValue * 2);
+}
+
+uint8 getOpposingSideMaxReach(const Data::PlayerCharacter *ch,
+                              const Common::Array<Data::PlayerCharacter *> &roster) {
+    const Data::CombatSide opposingSide =
+        (ch->combatSide == Data::CS_PARTY) ? Data::CS_ENEMY : Data::CS_PARTY;
+
+    uint8 maxReach = 0;
+    for (uint i = 0; i < roster.size(); ++i) {
+        Data::PlayerCharacter *member = roster[i];
+        if (!member || !member->enabled || member->combatSide != opposingSide)
+            continue;
+        const uint8 reach = calcMoveBudget(member) >> 1;
+        if (reach > maxReach)
+            maxReach = reach;
+    }
+    return maxReach;
 }
 
 void initCharacterTurnState(Data::PlayerCharacter *ch) {

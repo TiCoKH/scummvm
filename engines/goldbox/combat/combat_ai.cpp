@@ -28,8 +28,11 @@
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_state.h"
 #include "goldbox/combat/combat_session.h"
+#include "goldbox/combat/cloud_effect_manager.h"
+#include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
+#include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/vm_interface.h"
@@ -78,45 +81,89 @@ static uint8 rollDamage(const Data::PlayerCharacter *attacker) {
 }
 
 /**
- * Mirrors COMBAT_CheckMoveStep.
- * Tests whether the character can move one tile in the given direction.
- * Returns true if movement is possible; sets *outMoveResult to a non-zero
- * value when a morale-failure running condition is detected.
+ * Mirrors AI_CheckMoveStep.
+ * Evaluates one AI movement candidate without moving the character.
+ *
+ * Selects the candidate direction from kAiDirectionOffset using the
+ * character's current aiState and the attempt number, then queries
+ * ground info in that direction.
+ *
+ * Returns true if the movement step is affordable (movementCost <= movePoints).
+ * Sets *outMoveResult to a non-zero value for the morale-failure running
+ * condition (destination is at the map edge).
+ * Sets *outDirection to the candidate direction that was evaluated.
+ *
+ * @param actor          Character attempting the move
+ * @param attempt        Which candidate (1-5)
+ * @param desiredDir     Base direction toward target (or flee direction)
+ * @param ctx            Live combat context (for ground info and tile props)
+ * @param outMoveResult  Secondary output: non-zero signals running condition
+ * @param outDirection   The candidate direction that was evaluated
  */
 static bool checkMoveStep(Data::PlayerCharacter *actor,
-                           uint8 direction,
+                           uint8 attempt,
+                           uint8 desiredDir,
                            CombatContext &ctx,
-                           uint8 *outMoveResult) {
+                           uint8 *outMoveResult,
+                           uint8 *outDirection) {
     *outMoveResult = 0;
 
-    const int idx = ctx.table.findIndex(actor);
-    if (idx < 0)
+    const uint8 aiStateIdx = (actor->combatState->aiState >= 1 &&
+                              actor->combatState->aiState <= 6)
+                             ? actor->combatState->aiState - 1 : 0;
+    const uint8 offset = kAiDirectionOffset[aiStateIdx][attempt - 1];
+    const uint8 candidateDir = (uint8)((desiredDir + offset) % 8);
+    *outDirection = candidateDir;
+
+    int groundInfo = 0;
+    uint8 tileId = 0;
+    ctx.getGroundInfo(actor, candidateDir, &groundInfo, &tileId);
+
+    // No tile at destination: out of bounds.
+    if (tileId == 0)
         return false;
 
-    const TilePos src = ctx.table.getTilePos(idx);
-    const int8 dx = kDirDeltaX[direction];
-    const int8 dy = kDirDeltaY[direction];
-    const TilePos dst((uint8)(src.col + dx), (uint8)(src.row + dy));
-
-    if (!CombatContext::isValidTilePos(dst))
+    // Destination occupied.
+    if (groundInfo != 0)
         return false;
 
-    const CombatContext::CombatCell cell = ctx.getTileAndOccupantAt(dst);
-    if (cell.occupantId != 0)
-        return false;
-    if (cell.tileId == 0)
+    const TilePropertyProvider *tileProps = ctx.params.tilePropertyProvider;
+    if (!tileProps)
         return false;
 
-    // Passability check.
-    const uint8 cost = (direction & 1) ? 3 : 2;
-    if (!actor->combatState || actor->combatState->movePoints < cost)
+    const TileProp *prop = tileProps->getTileProp(tileId - 1);
+    if (!prop || prop->passable <= 0)
         return false;
 
-    // Morale-failure running: signal via outMoveResult when the destination
-    // tile is at the map edge (col==0, col==49, row==0, row==24).
+    // passable is a movement cost factor, not a boolean.
+    // cardinal = 2, diagonal = 3; total cost = directionCost * moveCostFactor.
+    const uint8 moveCostFactor = (uint8)prop->passable;
+    const uint8 directionCost  = (candidateDir & 1) ? 3 : 2;
+    uint8 movementCost = directionCost * moveCostFactor;
+
+    // Cloud tile (0x1E): make the step unaffordable unless the character
+    // already has one of the immunity effects (0x20, 0x1E, 0x6F, 0x7D).
+    if (tileId == CloudEffectManager::kTileCloud) {
+        const Data::Effects::CharacterEffects *fx = actor->getEffects();
+        if (!fx || (!fx->hasEffect(0x20) && !fx->hasEffect(0x1E) &&
+                    !fx->hasEffect(0x6F) && !fx->hasEffect(0x7D))) {
+            movementCost = actor->combatState->movePoints + 1;
+        }
+    }
+
+    if (movementCost > actor->combatState->movePoints)
+        return false;
+
+    // Morale-failure running: signal when destination is at the map edge.
     if (actor->combatState->moralFailure) {
-        if (dst.col == 0 || dst.col == 49 || dst.row == 0 || dst.row == 24)
-            *outMoveResult = 1;
+        const int idx = ctx.table.findIndex(actor);
+        if (idx >= 0) {
+            const TilePos src = ctx.table.getTilePos(idx);
+            const TilePos dst((uint8)(src.col + kDirDeltaX[candidateDir]),
+                              (uint8)(src.row + kDirDeltaY[candidateDir]));
+            if (dst.col == 0 || dst.col == 49 || dst.row == 0 || dst.row == 24)
+                *outMoveResult = 1;
+        }
     }
 
     return true;
@@ -140,20 +187,43 @@ static uint8 calcMoralFailureDirection(uint8 wayFlag, Data::CombatSide side) {
 // ---------------------------------------------------------------------------
 
 bool handleAiControlInput(Data::PlayerCharacter *actor,
-                          CombatContext &ctx,
+                          const Common::Array<Data::PlayerCharacter *> &roster,
+                          char key,
+                          CombatGlobals &globals,
                           AiMoveViewDelegate *view) {
-    // In the original, this checks for a keypress and handles three keys.
-    // In the modern engine there is no direct keyboard polling here;
-    // player-control transfer is handled by CombatSession::submitPlayerAction.
-    // We preserve the autospell toggle path via globals.magicEnabled.
-    //
-    // Space-key path: if the actor is no longer ai_control, set initiative=20
-    // and return true so the caller stops AI processing.
-    if (!actor->ai_control) {
-        if (actor->combatState)
-            actor->combatState->initiative = 20;
-        return true;
+    if (key == 0)
+        return false;
+
+    // Autospell toggle.
+    if (key == 'm' || key == 'M') {
+        globals.magicEnabled = !globals.magicEnabled;
+        if (view)
+            view->showMessage(globals.magicEnabled ? "Magic On" : "Magic Off");
+        return false;
     }
+
+    // Space: return eligible party members from AI to player control.
+    if (key == ' ') {
+        for (uint i = 0; i < roster.size(); ++i) {
+            Data::PlayerCharacter *ch = roster[i];
+            if (!ch)
+                continue;
+            // npc < 0x80 = player character; status != STATUS_ANIMATED.
+            if (ch->npc >= 0 && (uint8)ch->npc < 0x80 &&
+                ch->healthStatus != Data::S_ANIMATED) {
+                ch->ai_control = false;
+            }
+        }
+
+        if (!actor->ai_control) {
+            if (actor->combatState)
+                actor->combatState->initiative = 20;
+            return true;
+        }
+        return false;
+    }
+
+    // '-': cheat handler — no-op in modern engine.
     return false;
 }
 
@@ -187,6 +257,8 @@ bool updateActionState(Data::PlayerCharacter *actor) {
 // ---------------------------------------------------------------------------
 
 void processAiMove(Data::PlayerCharacter *actor,
+                   const Common::Array<Data::PlayerCharacter *> &roster,
+                   char key,
                    CombatContext &ctx,
                    AiMoveViewDelegate *view) {
     if (!actor || !actor->combatState)
@@ -200,7 +272,7 @@ void processAiMove(Data::PlayerCharacter *actor,
         view->drawMoveRemaining(cs.movePoints >> 1);
 
     // Autospell / player-control interception.
-    if (handleAiControlInput(actor, ctx, view))
+    if (handleAiControlInput(actor, roster, key, globals, view))
         return;
 
     // Bypass: no movement, initiative expired, or normal mage.
@@ -224,21 +296,20 @@ void processAiMove(Data::PlayerCharacter *actor,
     // Try up to five movement alternatives.
     uint8 attempt = 1;
     uint8 moveCheckResult = 0;
+    uint8 selectedDirection = 0;
     bool actionFinished = false;
 
     while (attempt < 6 && !actionFinished) {
-        const uint8 aiStateIdx = (cs.aiState >= 1 && cs.aiState <= 6) ? cs.aiState - 1 : 0;
-        const uint8 offset = kAiDirectionOffset[aiStateIdx][attempt - 1];
-        const uint8 tryDir = (uint8)((desiredDirection + offset) % 8);
-
-        if (checkMoveStep(actor, tryDir, ctx, &moveCheckResult))
+        if (checkMoveStep(actor, attempt, desiredDirection, ctx,
+                          &moveCheckResult, &selectedDirection))
             break;
 
         if (cs.moralFailure && moveCheckResult != 0) {
             // Morale-failure running: try to set fleeing.
-            if (g_combatSession)
-                actionFinished = g_combatSession->trySetFleeing(actor);
-            else {
+            if (g_combatSession) {
+                CombatSession::TryFleeResult fr = g_combatSession->trySetFleeing(actor);
+                actionFinished = fr.actionComplete;
+            } else {
                 cs.fleeing = true;
                 actionFinished = true;
             }
@@ -248,9 +319,10 @@ void processAiMove(Data::PlayerCharacter *actor,
     }
 
     if (!actionFinished) {
-        const uint8 aiStateIdx = (cs.aiState >= 1 && cs.aiState <= 6) ? cs.aiState - 1 : 0;
-        const uint8 offset = kAiDirectionOffset[aiStateIdx][attempt < 6 ? attempt - 1 : 4];
-        const uint8 selectedDirection = (uint8)((desiredDirection + offset) % 8);
+        // If all attempts failed, re-evaluate attempt 5 to get selectedDirection
+        // for the failure/reversal check (checkMoveStep always writes outDirection).
+        if (attempt == 6)
+            checkMoveStep(actor, 5, desiredDirection, ctx, &moveCheckResult, &selectedDirection);
 
         // All attempts failed, or selected direction is opposite the stored AI direction.
         if (attempt == 6 ||
@@ -372,7 +444,7 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
         }
     } else {
         // 4. No target in melee range — use processAiMove for the movement step.
-        processAiMove(actor, ctx, nullptr);
+        processAiMove(actor, ctx.params.roster, 0, ctx, nullptr);
         result.action = AiTurnResult::ACTION_MOVE;
     }
 
