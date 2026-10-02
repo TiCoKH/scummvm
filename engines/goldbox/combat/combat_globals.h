@@ -110,6 +110,8 @@ struct CombatGlobals {
     uint8 attacksLeft;        // COMBAT_ATTACKS_LEFT — attacker's remaining attacks this turn
     uint8 turnCounter;        // COMBAT_TURN_COUNTER — incremented once at the end of each turn
     uint8 handicapValue;      // C_HANDICAP_VALUE — hostile health ratio * 5 (0-100), used by AI/morale
+    uint8 aiDirection;        // BYTE_AI_DIRECTION — last chosen AI movement direction (0-7)
+    uint8 aiFailureCount;     // BYTE_AI_FAILURE_COUNT — consecutive AI movement failures
     CloudEffectManager clouds; // PTR_CLOUD_EFF_HANDLER
 
     CombatGlobals() { reset(); }
@@ -143,6 +145,8 @@ struct CombatGlobals {
         attacksLeft = 0;
         turnCounter = 0;
         handicapValue = 0;
+        aiDirection = 0;
+        aiFailureCount = 0;
         clouds.reset();
     }
 
