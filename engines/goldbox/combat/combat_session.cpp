@@ -21,8 +21,17 @@
 
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/combat/combat_setup.h"
+
+// Forward declarations for combat-internal functions defined in combat_turn.cpp.
+namespace Goldbox { namespace Data { class PlayerCharacter; } }
+namespace Goldbox { namespace Combat {
+uint8 calcMoveBudget(Data::PlayerCharacter *ch);
+uint8 getOpposingSideMaxReach(const Data::PlayerCharacter *ch,
+                              const Common::Array<Data::PlayerCharacter *> &roster);
+} }
 #include "goldbox/combat/combat_ai.h"
 #include "goldbox/combat/tile_property_provider.h"
+#include "goldbox/combat/combat_turn.h"
 #include "goldbox/core/vm_layout.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/ecl/ecl_memory.h"
@@ -360,12 +369,73 @@ void CombatSession::cancelMove(Data::PlayerCharacter *ch,
     }
 }
 
-bool CombatSession::trySetFleeing(Data::PlayerCharacter *ch) {
+CombatSession::TryFleeResult CombatSession::trySetFleeing(Data::PlayerCharacter *ch) {
+    TryFleeResult result = { true, false };
     if (!ch || !ch->combatState)
-        return false;
-    ch->combatState->fleeing = true;
-    // Mirrors trySetRunning: action is complete when fleeing is set.
-    return true;
+        return result;
+
+    CombatContext ctx = makeContext();
+
+    // Build target list against all opposing combatants.
+    ctx.buildTargetList(ch, 0xFF);
+    const bool hasTargets = !ctx.targetList.targetOrder.empty();
+
+    bool escaped = false;
+
+    if (!hasTargets) {
+        escaped = true;
+    } else {
+        const uint8 requiredMove = calcMoveBudget(ch) >> 1;
+        const uint8 opposingReach = getOpposingSideMaxReach(ch, _params.roster);
+
+        if (opposingReach < requiredMove) {
+            escaped = true;
+        } else if (opposingReach == requiredMove) {
+            escaped = (VmInterface::rollDice(1, 2) == 1);
+        }
+        // opposingReach > requiredMove: escaped stays false
+    }
+
+    if (escaped)
+        setCharacterStatus(ch, Data::S_RUNNING);
+    else if (ch->combatState)
+        ch->combatState->endTurn();
+    result.escaped = escaped;
+    return result;
+}
+
+CombatSession::SetStatusResult CombatSession::setCharacterStatus(
+        Data::PlayerCharacter *ch, uint8 status) {
+    SetStatusResult result = { -1, false };
+    if (!ch || !ch->enabled)
+        return result;
+
+    result.combatIndex = _table.findIndex(ch);
+
+    ch->enabled      = false;
+    ch->healthStatus = status;
+    if (status != Data::S_RUNNING)
+        ch->hitPoints.current = 0;
+
+    if (result.combatIndex >= 0) {
+        _table.setSize(result.combatIndex, 0);
+        _table.rebuildOccupancy();
+    }
+
+    bool wasCurrent = (ch == _currentActor);
+    if (ch->combatState) {
+        ch->combatState->endTurn();
+        if (wasCurrent) {
+            ch->clearStatusEffects();
+            result.effectsCleared = true;
+        }
+    }
+
+    return result;
+}
+
+bool CombatSession::flee(Data::PlayerCharacter *ch) {
+    return trySetFleeing(ch).escaped;
 }
 
 CombatSession::TickResult CombatSession::finishMoveAction(Data::PlayerCharacter *ch) {

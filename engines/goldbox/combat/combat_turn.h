@@ -66,17 +66,6 @@ void recalcPrimaryAttacks(Data::ADnDCharacter *adnd);
 uint8 calcAttackCountWithEvenTurnBonus(uint8 attacks, uint8 turnCounter);
 
 /**
- * Compute the move budget for a character this turn.
- *
- * Mirrors COMBAT_CalcMoveBudget:
- *   movement.current + effectState.mods.movement, clamped to [0, 255].
- *
- * @param ch  Character to compute move budget for
- * @return    Move points available this turn
- */
-uint8 calcMoveBudget(const Data::PlayerCharacter *ch);
-
-/**
  * Reset per-turn CombatAction fields for one character.
  *
  * Mirrors original COMBAT_InitCharacterTurnState.
