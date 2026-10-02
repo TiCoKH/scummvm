@@ -27,18 +27,36 @@
 #include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_state.h"
+#include "goldbox/combat/combat_session.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/core/direction.h"
+#include "goldbox/vm_interface.h"
 #include "common/util.h"
 
 namespace Goldbox {
 namespace Combat {
 
 // ---------------------------------------------------------------------------
+// AI direction offset table  (ARRAY_AI_DIRECTION_OFFSET[aiState 1-6][attempt 1-5])
+// Row index = aiState-1 (0-5); column index = attempt-1 (0-4).
+// Values are added to desiredDirection mod 8 to pick an alternate direction.
+// 8 is used in the original Pascal source where the offset is 0 (8 % 8 == 0).
+// ---------------------------------------------------------------------------
+static const uint8 kAiDirectionOffset[6][5] = {
+    { 8, 7, 6, 1, 2 },  // aiState 1
+    { 8, 1, 2, 7, 6 },  // aiState 2
+    { 7, 1, 8, 6, 2 },  // aiState 3
+    { 1, 7, 8, 2, 6 },  // aiState 4
+    { 8, 7, 6, 5, 4 },  // aiState 5
+    { 8, 1, 2, 3, 4 },  // aiState 6
+};
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
 /** Roll damage for one attack from attacker's primary roll. */
 static uint8 rollDamage(const Data::PlayerCharacter *attacker) {
     const Data::ADnDCharacter *adnd =
@@ -60,22 +78,247 @@ static uint8 rollDamage(const Data::PlayerCharacter *attacker) {
 }
 
 /**
- * Find the direction from (fromCol, fromRow) toward (toCol, toRow).
- * Maps the sign of each axis directly to the delta table index.
- * Returns 8 (no-move) if already at the target.
+ * Mirrors COMBAT_CheckMoveStep.
+ * Tests whether the character can move one tile in the given direction.
+ * Returns true if movement is possible; sets *outMoveResult to a non-zero
+ * value when a morale-failure running condition is detected.
  */
-static Direction directionToward(int fromCol, int fromRow,
-                                  int toCol, int toRow) {
-    int sx = (toCol > fromCol) ? 1 : (toCol < fromCol) ? -1 : 0;
-    int sy = (toRow > fromRow) ? 1 : (toRow < fromRow) ? -1 : 0;
-    if (sx == 0 && sy == 0)
-        return DIR_NONE;
-    static const Direction kSignToDir[3][3] = {
-        { DIR_NW, DIR_N, DIR_NE },
-        { DIR_W,  DIR_NONE, DIR_E },
-        { DIR_SW, DIR_S, DIR_SE },
-    };
-    return kSignToDir[sy + 1][sx + 1];
+static bool checkMoveStep(Data::PlayerCharacter *actor,
+                           uint8 direction,
+                           CombatContext &ctx,
+                           uint8 *outMoveResult) {
+    *outMoveResult = 0;
+
+    const int idx = ctx.table.findIndex(actor);
+    if (idx < 0)
+        return false;
+
+    const TilePos src = ctx.table.getTilePos(idx);
+    const int8 dx = kDirDeltaX[direction];
+    const int8 dy = kDirDeltaY[direction];
+    const TilePos dst((uint8)(src.col + dx), (uint8)(src.row + dy));
+
+    if (!CombatContext::isValidTilePos(dst))
+        return false;
+
+    const CombatContext::CombatCell cell = ctx.getTileAndOccupantAt(dst);
+    if (cell.occupantId != 0)
+        return false;
+    if (cell.tileId == 0)
+        return false;
+
+    // Passability check.
+    const uint8 cost = (direction & 1) ? 3 : 2;
+    if (!actor->combatState || actor->combatState->movePoints < cost)
+        return false;
+
+    // Morale-failure running: signal via outMoveResult when the destination
+    // tile is at the map edge (col==0, col==49, row==0, row==24).
+    if (actor->combatState->moralFailure) {
+        if (dst.col == 0 || dst.col == 49 || dst.row == 0 || dst.row == 24)
+            *outMoveResult = 1;
+    }
+
+    return true;
+}
+
+/**
+ * Mirrors the moral-failure direction calculation.
+ * Derives a flee direction from the map/party orientation flag and
+ * offsets it by 4 for party-side characters.
+ * way_flag is stored in globals.combatFlag1 (STRUCT_POSITION.way_flag).
+ */
+static uint8 calcMoralFailureDirection(uint8 wayFlag, Data::CombatSide side) {
+    uint8 dir = wayFlag & 7;
+    if (side == Data::CS_PARTY)
+        dir += 4;
+    return dir % 8;
+}
+
+// ---------------------------------------------------------------------------
+// handleAiControlInput
+// ---------------------------------------------------------------------------
+
+bool handleAiControlInput(Data::PlayerCharacter *actor,
+                          CombatContext &ctx,
+                          AiMoveViewDelegate *view) {
+    // In the original, this checks for a keypress and handles three keys.
+    // In the modern engine there is no direct keyboard polling here;
+    // player-control transfer is handled by CombatSession::submitPlayerAction.
+    // We preserve the autospell toggle path via globals.magicEnabled.
+    //
+    // Space-key path: if the actor is no longer ai_control, set initiative=20
+    // and return true so the caller stops AI processing.
+    if (!actor->ai_control) {
+        if (actor->combatState)
+            actor->combatState->initiative = 20;
+        return true;
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// updateActionState
+// ---------------------------------------------------------------------------
+
+bool updateActionState(Data::PlayerCharacter *actor) {
+    if (!actor || !actor->combatState)
+        return false;
+
+    Data::CombatAction &cs = *actor->combatState;
+
+    // Guard conditions: no negative effect, no ranged weapon, initiative != 0.
+    const Data::ADnDCharacter *adnd = dynamic_cast<const Data::ADnDCharacter *>(actor);
+    const bool hasRanged = adnd ? adnd->hasRangedWeapon() : false;
+
+    if (!actor->hasNegativeEffect() && !hasRanged && cs.initiative != 0) {
+        // COMBAT_Guarding: end turn first, then set guarding.
+        cs.endTurn();
+        cs.guarding = true;
+        return true;
+    }
+
+    cs.endTurn();
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// processAiMove
+// ---------------------------------------------------------------------------
+
+void processAiMove(Data::PlayerCharacter *actor,
+                   CombatContext &ctx,
+                   AiMoveViewDelegate *view) {
+    if (!actor || !actor->combatState)
+        return;
+
+    Data::CombatAction &cs = *actor->combatState;
+    CombatGlobals &globals = ctx.globals;
+
+    // Presentation: show remaining movement.
+    if (view)
+        view->drawMoveRemaining(cs.movePoints >> 1);
+
+    // Autospell / player-control interception.
+    if (handleAiControlInput(actor, ctx, view))
+        return;
+
+    // Bypass: no movement, initiative expired, or normal mage.
+    if ((cs.movePoints >> 1) == 0 ||
+        cs.initiative < 1 ||
+        (!cs.moralFailure && actor->classType == Data::C_MAGICUSER)) {
+        updateActionState(actor);
+        return;
+    }
+
+    // Determine desired direction.
+    uint8 desiredDirection;
+    if (!cs.moralFailure) {
+        desiredDirection = (uint8)ctx.getFacingToward(actor, cs.target);
+    } else {
+        cs.aiState = (uint8)VmInterface::rollDice(1, 2);
+        desiredDirection = calcMoralFailureDirection(globals.combatFlag1,
+                                                     actor->combatSide);
+    }
+
+    // Try up to five movement alternatives.
+    uint8 attempt = 1;
+    uint8 moveCheckResult = 0;
+    bool actionFinished = false;
+
+    while (attempt < 6 && !actionFinished) {
+        const uint8 aiStateIdx = (cs.aiState >= 1 && cs.aiState <= 6) ? cs.aiState - 1 : 0;
+        const uint8 offset = kAiDirectionOffset[aiStateIdx][attempt - 1];
+        const uint8 tryDir = (uint8)((desiredDirection + offset) % 8);
+
+        if (checkMoveStep(actor, tryDir, ctx, &moveCheckResult))
+            break;
+
+        if (cs.moralFailure && moveCheckResult != 0) {
+            // Morale-failure running: try to set fleeing.
+            if (g_combatSession)
+                actionFinished = g_combatSession->trySetFleeing(actor);
+            else {
+                cs.fleeing = true;
+                actionFinished = true;
+            }
+        } else {
+            attempt++;
+        }
+    }
+
+    if (!actionFinished) {
+        const uint8 aiStateIdx = (cs.aiState >= 1 && cs.aiState <= 6) ? cs.aiState - 1 : 0;
+        const uint8 offset = kAiDirectionOffset[aiStateIdx][attempt < 6 ? attempt - 1 : 4];
+        const uint8 selectedDirection = (uint8)((desiredDirection + offset) % 8);
+
+        // All attempts failed, or selected direction is opposite the stored AI direction.
+        if (attempt == 6 ||
+            globals.aiDirection == (uint8)((selectedDirection + 4) % 8)) {
+
+            globals.aiFailureCount++;
+            cs.aiState = (uint8)(cs.aiState % 6 + 1);
+
+            if (globals.aiFailureCount > 1) {
+                cs.target = nullptr;
+
+                if (globals.aiFailureCount < 3) {
+                    // Try to select another target.
+                    ctx.buildTargetList(actor, 0xFF);
+                    if (ctx.targetList.targetOrder.empty()) {
+                        updateActionState(actor);
+                        actionFinished = true;
+                    }
+                    // If a new target was found it is now in targetList;
+                    // the caller's next tick will re-enter with the new target.
+                } else {
+                    cs.movePoints = 0;
+                    actionFinished = true;
+                }
+            }
+        }
+
+        if (!actionFinished) {
+            if (attempt < 6) {
+                globals.aiDirection = selectedDirection;
+            } else {
+                actionFinished = true;
+            }
+        }
+
+    } else {
+        // Running / morale-failure action finished the turn.
+        cs.movePoints = 0;
+        cs.moralFailure = false;
+        cs.endTurn();
+        return;
+    }
+
+    if (actionFinished)
+        return;
+
+    // Apply the selected facing.
+    if (view)
+        view->updateCharacterFacingAndRedraw(actor, globals.aiDirection);
+    else
+        ctx.setCharacterFacing(actor, static_cast<Direction>(globals.aiDirection));
+
+    // Disengagement reactions (movement away from an engaged enemy).
+    ctx.handleDisengagementReactions(
+        actor,
+        static_cast<Direction>(cs.direction));
+
+    if (!actor->enabled) {
+        cs.endTurn();
+        return;
+    }
+
+    // Apply one movement step (includes cloud check and guard reactions).
+    if (g_combatSession)
+        g_combatSession->applyMoveStep(actor, globals.aiDirection);
+
+    if (!actor->enabled)
+        cs.endTurn();
 }
 
 // ---------------------------------------------------------------------------
@@ -119,49 +362,18 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
                 result.damage = dr.finalDamage;
                 result.targetWentDown = dr.wentDown;
 
-                // Update hostile health ratio after damage.
                 if (target->combatSide == Data::CS_ENEMY)
-                    ctx.globals.handicapValue = 0; // recalculated by view
+                    ctx.globals.handicapValue = 0;
             } else {
-                // Miss — still counts as the attack action.
                 result.action = AiTurnResult::ACTION_ATTACK;
                 result.target = target;
                 result.damage = 0;
             }
         }
     } else {
-        // 4. No target in melee range — move one step toward nearest enemy.
-        ctx.buildTargetList(actor, 0xFF);
-
-        if (!ctx.targetList.targetOrder.empty()) {
-            uint8 nearestIdx = ctx.targetList.targetOrder[0];
-            int actorIdx = ctx.table.findIndex(actor);
-
-            if (actorIdx >= 0) {
-                TilePos from = ctx.table.getTilePos(actorIdx);
-                TilePos to   = ctx.table.getTilePos(nearestIdx);
-
-                Direction dir = directionToward(from.col, from.row, to.col, to.row);
-                if (dir != DIR_NONE) {
-                    int newCol = from.col + kDirDeltaX[dir];
-                    int newRow = from.row + kDirDeltaY[dir];
-
-                    // Only move if destination is unoccupied.
-                    if (ctx.table.getOccupant(newCol, newRow) == 0) {
-                        ctx.table.setPosition(actorIdx,
-                            TilePos((uint8)newCol, (uint8)newRow));
-                        cs.direction = static_cast<uint8>(dir);
-                        ctx.rebuildPlacementMap();
-                        ctx.rebuildDistances();
-                    }
-                }
-            }
-            result.action = AiTurnResult::ACTION_MOVE;
-        } else {
-            // No targets at all — guard.
-            cs.guarding = true;
-            result.action = AiTurnResult::ACTION_GUARD;
-        }
+        // 4. No target in melee range — use processAiMove for the movement step.
+        processAiMove(actor, ctx, nullptr);
+        result.action = AiTurnResult::ACTION_MOVE;
     }
 
     // 5. Mark as acted this round.
