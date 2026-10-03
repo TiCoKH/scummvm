@@ -25,6 +25,8 @@
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combat_damage.h"
+#include "goldbox/combat/combatant_table.h"
+#include "goldbox/combat/combat_session.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
@@ -34,6 +36,8 @@
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/items/character_inventory.h"
 #include "goldbox/ecl/ecl_memory.h"
+#include "goldbox/core/vm_layout.h"
+#include "goldbox/data/rules/rules_types.h"
 #include "goldbox/vm_interface.h"
 #include "common/util.h"
 
@@ -642,6 +646,198 @@ bool rollToHit(Data::PlayerCharacter *attacker,
     return (int)targetAC <= (int)attacker->thac0.getCurrent()
                           + (int)thac0Bonus
                           + (int)globals.attackRoll;
+}
+
+bool executeMultiAttack(Data::PlayerCharacter *attacker,
+                        Data::PlayerCharacter *selectedTarget,
+                        CombatContext &ctx,
+                        CombatViewDelegate *view) {
+    if (!attacker || !attacker->combatState || !selectedTarget)
+        return false;
+
+    Data::CombatAction &cs = *attacker->combatState;
+
+    // Initial eligibility: attacker must not have reached max target count,
+    // and the selected target must be a valid living combatant.
+    if (cs.attackCount >= cs.maxTargets)
+        return false;
+
+    if (!selectedTarget->enabled)
+        return false;
+
+    // Multi-attack is specifically a range-1 melee sweep.
+    if (ctx.getTargetRange(attacker, selectedTarget) != 1)
+        return false;
+
+    ctx.buildTargetList(attacker, 1);
+    const uint8 targetCount = (uint8)ctx.targetList.targetOrder.size();
+
+    // Scan the target list: find the selected target's position and count
+    // eligible (enabled) targets.
+    uint8 selectedIdx    = 0;
+    uint8 eligibleCount  = 0;
+
+    for (uint8 i = 0; i < targetCount; ++i) {
+        Data::PlayerCharacter *candidate =
+            ctx.table.getCharacter(ctx.targetList.targetOrder[i]);
+        if (!candidate)
+            continue;
+
+        if (candidate == selectedTarget)
+            selectedIdx = i;
+
+        if (candidate->enabled)
+            ++eligibleCount;
+    }
+
+    // Multi-attack only fires when eligible targets exceed current attack count.
+    if (cs.attackCount >= eligibleCount)
+        return false;
+
+    // Cap by max_target.
+    if (eligibleCount > cs.maxTargets)
+        eligibleCount = cs.maxTargets;
+
+    // Presentation: notify the player that the attacker sweeps.
+    if (view)
+        view->drawCombatInfo(attacker);
+
+    // Move the selected target to the front of the target order so it is
+    // always attacked first. This is a swap, not a shift.
+    if (targetCount > 0 &&
+        ctx.table.getCharacter(ctx.targetList.targetOrder[0]) != selectedTarget) {
+        const int tableIdx = ctx.table.findIndex(selectedTarget);
+        if (tableIdx >= 0) {
+            ctx.targetList.targetOrder[selectedIdx] =
+                ctx.targetList.targetOrder[0];
+            ctx.targetList.targetOrder[0] = (uint8)tableIdx;
+        }
+    }
+
+    // Attack each eligible target once. The loop iterates the full target
+    // list while eligibleCount limits how many valid targets receive attacks.
+    for (uint8 i = 0; i < targetCount; ++i) {
+        if (eligibleCount == 0)
+            break;
+
+        Data::PlayerCharacter *currentTarget =
+            ctx.table.getCharacter(ctx.targetList.targetOrder[i]);
+        if (!currentTarget || !currentTarget->enabled)
+            continue;
+
+        ctx.applyAttackFacingChange(attacker, currentTarget);
+
+        // Force one primary attack per target.
+        cs.attackCount = 1;
+
+        bool attackResult = false;
+        resolveAttack(attacker, currentTarget, false, nullptr, &attackResult, view);
+
+        --eligibleCount;
+    }
+
+    return true;
+}
+
+void surrenderSetup(Data::PlayerCharacter *ch) {
+    Data::Effects::CharacterEffects *fx = ch ? ch->getEffects() : nullptr;
+    if (!fx)
+        return;
+    fx->eraseEffectById(0x4A);
+    fx->eraseEffectById(0x4B);
+}
+
+bool checkSurrender(Data::PlayerCharacter *ch,
+                    CombatContext &ctx,
+                    CombatViewDelegate *view) {
+    if (!ch || !ch->combatState)
+        return false;
+
+    Data::CombatAction &cs = *ch->combatState;
+    CombatGlobals &globals  = ctx.globals;
+
+    cs.moralFailure = false;
+
+    // Remove surrender-state effects before evaluation.
+    surrenderSetup(ch);
+
+    // Already fleeing: cannot surrender normally.
+    if (cs.fleeing) {
+        cs.moralFailure = true;
+        // Presentation only — "is forced to flee" message.
+        if (view)
+            view->drawAttackResult(ch, nullptr, 0, 0, 0, 0);
+        // TODO: replace drawAttackResult with a proper message delegate
+        //       once a showMessage callback is added to CombatViewDelegate.
+        return false;
+    }
+
+    // Only NPC values with bit 7 set (unsigned > 0x7F) participate.
+    if ((uint8)ch->npc <= 0x7F)
+        return false;
+
+    // Initial morale modifier from NPC value; cap at 0x66 → 0.
+    globals.moraleModifier = (int8)(ch->npc * 2);
+    if ((uint8)globals.moraleModifier > 0x66)
+        globals.moraleModifier = 0;
+
+    // First effect-set evaluation (ES_SIMPLE_BLESS_CURSE = 17).
+    // Handlers may modify globals.moraleModifier.
+    if (ctx.params.effectRuntime && ch->getEffects())
+        ctx.params.effectRuntime->checkEffectSet(
+            Data::Effects::ES_SIMPLE_BLESS_CURSE,
+            *ch->getEffects(), *ch, &globals);
+
+    // First morale gate: proceed when modifier < HP-loss% or modifier == 0.
+    const uint8 hpLossPercent = (ch->hitPoints.max > 0)
+        ? (uint8)(100 - ((uint16)ch->hitPoints.current * 100) / ch->hitPoints.max)
+        : 100;
+
+    if ((uint8)globals.moraleModifier >= hpLossPercent && globals.moraleModifier != 0)
+        return false;
+
+    // Replace modifier with global handicap value and re-evaluate.
+    globals.moraleModifier = (int8)globals.handicapValue;
+
+    if (ctx.params.effectRuntime && ch->getEffects())
+        ctx.params.effectRuntime->checkEffectSet(
+            Data::Effects::ES_SIMPLE_BLESS_CURSE,
+            *ch->getEffects(), *ch, &globals);
+
+    // Second morale gate: party characters bypass the threshold comparison.
+    if (ch->combatSide != Data::CS_PARTY) {
+        uint8 moraleThreshold = 0;
+        if (ctx.params.eclMemory && ctx.params.vmGlobalLayout) {
+            const VmFieldLocation loc =
+                ctx.params.vmGlobalLayout->field(kVmGlobalFieldMoraleThreshold);
+            if (VmLayout::isValid(loc))
+                moraleThreshold = ctx.params.eclMemory->read8(loc.vmAddr);
+        }
+        const uint8 thresholdValue = (uint8)(100 - moraleThreshold);
+        if ((uint8)globals.moraleModifier >= thresholdValue && globals.moraleModifier != 0)
+            return false;
+    }
+
+    // Compare movement reach against opposing side.
+    const uint8 opposingReach = getOpposingSideMaxReach(ch, ctx.params.roster);
+    const uint8 movementReach = calcMoveBudget(ch) >> 1;
+
+    if (movementReach < opposingReach) {
+        // Cannot escape: surrender if intelligent enough.
+        if (ch->abilities.intelligence.current > 5) {
+            if (g_combatSession)
+                g_combatSession->setCharacterStatus(ch, Data::S_UNCONSCIOUS);
+            // End actor turn.
+            cs.endTurn();
+            return true;
+        }
+    } else {
+        // Can be reached: moral failure, remove surrender effects.
+        cs.moralFailure = true;
+        surrenderSetup(ch);
+    }
+
+    return false;
 }
 
 } // namespace Combat

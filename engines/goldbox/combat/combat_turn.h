@@ -231,6 +231,62 @@ struct CombatViewDelegate {
                                   uint8 resultType) = 0;
 };
 
+/**
+ * Mirrors COMBAT_ExecuteMultiAttack.
+ *
+ * Performs a sweeping melee attack against all eligible range-1 targets.
+ * Only executes when:
+ *   - attacker->combatState->attackCount < attacker->combatState->maxTargets
+ *   - target is enabled (valid living combatant)
+ *   - target is exactly range 1 from attacker
+ *   - eligible adjacent targets exceed attacker's current attackCount
+ *
+ * The explicitly selected target is moved to the front of the target order
+ * so it is always attacked first. Each eligible target (up to maxTargets)
+ * receives one primary attack with attackCount forced to 1.
+ *
+ * Calls showSweepMessage(attacker) for the "sweeps" presentation before
+ * the attack loop; pass nullptr to skip.
+ *
+ * @return true if the multi-attack was executed, false if conditions not met.
+ */
+bool executeMultiAttack(Data::PlayerCharacter *attacker,
+                        Data::PlayerCharacter *selectedTarget,
+                        CombatContext &ctx,
+                        CombatViewDelegate *view);
+
+/**
+ * Mirrors UTIL_SurrenderSetup.
+ *
+ * Removes the two status effects (0x4A, 0x4B) that interfere with the
+ * surrender/flee state. Called at the start of checkSurrender() and
+ * again on moral failure to ensure they are absent after a failed attempt.
+ */
+void surrenderSetup(Data::PlayerCharacter *ch);
+
+/**
+ * Mirrors COMBAT_CheckSurrender.
+ *
+ * Evaluates whether ch surrenders this turn based on morale, HP loss,
+ * party morale threshold, and movement reach vs opposing side.
+ *
+ * Outcomes (mutually exclusive):
+ *   - Already fleeing: sets moralFailure=true, shows "forced to flee" via
+ *     view, returns false.
+ *   - npc <= 0x7F: not eligible for morale processing, returns false.
+ *   - First/second morale gate not passed: returns false.
+ *   - movementReach < opposingReach AND intelligence > 5: sets character
+ *     status to S_UNCONSCIOUS ("Surrenders"), ends actor turn, returns true.
+ *   - movementReach >= opposingReach: sets moralFailure=true, removes
+ *     effects 0x4A/0x4B, returns false.
+ *
+ * The view delegate is used only for the "forced to flee" message.
+ * Pass nullptr to skip presentation.
+ */
+bool checkSurrender(Data::PlayerCharacter *ch,
+                    CombatContext &ctx,
+                    CombatViewDelegate *view);
+
 } // namespace Combat
 } // namespace Goldbox
 

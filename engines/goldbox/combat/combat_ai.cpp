@@ -35,6 +35,7 @@
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/items/base_items.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/vm_interface.h"
@@ -383,62 +384,222 @@ void processAiMove(Data::PlayerCharacter *actor,
 }
 
 // ---------------------------------------------------------------------------
-// executeAiTurn
+// processAiTurn  (mirrors COMBAT_ProcessAITurn)
+// ---------------------------------------------------------------------------
+
+bool processAiTurn(Data::PlayerCharacter *actor,
+                   CombatContext &ctx,
+                   AiMoveViewDelegate *view) {
+    if (!actor || !actor->combatState)
+        return true;
+
+    Data::CombatAction &cs    = *actor->combatState;
+    CombatGlobals       &globals = ctx.globals;
+
+    // AI state initialization.
+    globals.aiDirection    = 0xFF; // W8_NONE
+    globals.aiFailureCount = 0;
+
+    uint8 iterationCount = 0;
+    bool  aiActive       = (cs.initiative != 0);
+    bool  turnComplete   = false;
+
+    // ES_ON_SPECIAL_ATTACK (14): initialize special-attack effect state.
+    Data::Effects::EffectRuntime *effectRuntime = ctx.params.effectRuntime;
+    if (effectRuntime && actor->getEffects())
+        effectRuntime->checkEffectSet(Data::Effects::ES_ON_SPECIAL_ATTACK,
+                                      *actor->getEffects(), *actor, &globals);
+
+    while (!turnComplete && aiActive) {
+        // Morale failure: keep processing AI movement while movement and
+        // initiative remain (initiative must be 1..19).
+        if (cs.moralFailure) {
+            while (cs.movePoints != 0 &&
+                   (int8)cs.initiative > 0 &&
+                   (int8)cs.initiative < 20) {
+                processAiMove(actor, ctx.params.roster, 0, ctx, view);
+            }
+        }
+
+        // Initiative values 0 and 20 terminate AI control.
+        if (cs.initiative == 0 || cs.initiative == 20) {
+            aiActive = false;
+        } else {
+            turnComplete = false;
+        }
+
+        if (turnComplete || !aiActive)
+            break;
+
+        // Safety limit: prevent infinite AI loops.
+        if (++iterationCount > 20) {
+            turnComplete = true;
+            aiActive     = !concludeAiTurn(actor);
+            break;
+        }
+
+        // Determine current attack range from equipped weapon.
+        uint8 attackRange = 1;
+        {
+            Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(actor);
+            const Data::Items::CharacterItem *weapon =
+                adnd ? adnd->getEquippedItem(Data::Items::Slot::S_MAIN_HAND) : nullptr;
+            if (weapon) {
+                uint8 r = weapon->prop().range;
+                attackRange = (r > 0) ? r - 1 : 1;
+                if (attackRange == 0 || attackRange == 0xFF)
+                    attackRange = 1;
+            }
+        }
+
+        bool canAttack = false;
+
+        // --- Decision 1: can we attack the current target? ---
+        Data::PlayerCharacter *target = cs.target;
+
+        if (target && target->enabled &&
+            target->combatSide != actor->combatSide) {
+
+            if (ctx.canEngageTarget(actor, target)) {
+                uint16 losRange = attackRange;
+                TilePos blockedAt;
+                const int attackerIdx = ctx.table.findIndex(actor);
+                const int targetIdx   = ctx.table.findIndex(target);
+
+                if (attackerIdx >= 0 && targetIdx >= 0) {
+                    TilePos attackerPos = ctx.table.getTilePos(attackerIdx);
+                    TilePos targetPos   = ctx.table.getTilePos(targetIdx);
+
+                    bool los = ctx.lineOfSightCheck(attackerPos, targetPos,
+                                                    losRange, &blockedAt);
+                    if (los && (losRange >> 1) <= attackRange)
+                        canAttack = true;
+                }
+            }
+        }
+
+        // --- Decision 2: no attackable current target — find one ---
+        if (!canAttack) {
+            ctx.buildTargetList(actor, attackRange);
+            const uint8 targetCount = (uint8)ctx.targetList.targetOrder.size();
+
+            if (targetCount == 0) {
+                // No candidates at all: try selecting a distant target and move.
+                if (ctx.selectTargetForAction(actor, 0xFF, false, false)) {
+                    processAiMove(actor, ctx.params.roster, 0, ctx, view);
+                } else {
+                    turnComplete = concludeAiTurn(actor);
+                }
+            } else {
+                // Pick a random candidate from the target list.
+                const uint8 roll = (uint8)VmInterface::rollDice(
+                    1, (int)targetCount);
+                const uint8 idx  = (roll > 0 && roll <= targetCount)
+                                   ? roll - 1 : 0;
+                target = ctx.table.getCharacter(
+                    ctx.targetList.targetOrder[idx]);
+
+                // --- Decision 3: ranged weapon auto-equip ---
+                Data::ADnDCharacter *adnd =
+                    dynamic_cast<Data::ADnDCharacter *>(actor);
+
+                if (adnd && adnd->hasRangedWeapon() &&
+                    !adnd->isEquippedRangedWeapon()) {
+                    ctx.buildTargetList(actor, 1);
+                    if (!ctx.targetList.targetOrder.empty()) {
+                        autoEquipWeapons(adnd, ctx, nullptr);
+                        if (view)
+                            view->drawCombatInfo(actor);
+                        turnComplete = true;
+                    }
+                }
+
+                if (!turnComplete && target) {
+                    // Check whether the selected candidate is attackable.
+                    const uint8 tRange = ctx.getTargetRange(actor, target);
+                    if (tRange == 1 || ctx.canEngageTarget(actor, target))
+                        canAttack = true;
+                }
+            }
+        }
+
+        // --- Attack the selected target ---
+        if (canAttack && target) {
+            const Direction facing = ctx.getFacingToward(actor, target);
+
+            // Presentation: update facing and redraw viewport.
+            if (view)
+                view->updateCharacterFacingAndRedraw(actor, (uint8)facing);
+            else
+                ctx.setCharacterFacing(actor, facing);
+
+            // Multi-attack attempt.
+            const bool multiHandled = executeMultiAttack(
+                actor, target, ctx,
+                nullptr /* view delegate handled separately */);
+
+            if (multiHandled) {
+                turnComplete = concludeAiTurn(actor);
+            } else {
+                ctx.applyAttackFacingChange(actor, target);
+
+                // Determine ranged attack item.
+                Data::Items::CharacterItem *attackItem = nullptr;
+                Data::ADnDCharacter *adnd =
+                    dynamic_cast<Data::ADnDCharacter *>(actor);
+                if (adnd && adnd->hasRangedWeapon()) {
+                    adnd->getRangedAttackItem(&attackItem);
+                    // At range 1 with a ranged weapon, use melee (no ammo).
+                    if (adnd->isEquippedRangedWeapon() &&
+                        ctx.getTargetRange(actor, target) == 1)
+                        attackItem = nullptr;
+                }
+
+                resolveAttack(actor, target, false, attackItem,
+                              &turnComplete,
+                              nullptr /* view delegate */);
+
+                if (!turnComplete && !target->enabled)
+                    turnComplete = true;
+                else if (turnComplete)
+                    aiActive = false;
+            }
+        }
+    }
+
+    return !aiActive;
+}
+
+// ---------------------------------------------------------------------------
+// executeAiTurn  (thin wrapper)
 // ---------------------------------------------------------------------------
 
 AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
     AiTurnResult result;
-
     if (!actor || !actor->combatState)
         return result;
 
-    Data::CombatAction &cs = *actor->combatState;
+    Data::PlayerCharacter *targetBefore = actor->combatState->target;
 
-    // 1. Morale check — if already failed, flee.
-    if (cs.moralFailure) {
-        cs.fleeing = true;
-        cs.initiative = 0xFF; // mark as acted
+    const bool ended = processAiTurn(actor, ctx, nullptr);
+
+    // Infer action from post-turn state.
+    if (actor->combatState->fleeing) {
         result.action = AiTurnResult::ACTION_FLEE;
-        return result;
-    }
-
-    // 2. Build melee target list (range = 1).
-    ctx.buildTargetList(actor, 1);
-
-    if (!ctx.targetList.targetOrder.empty()) {
-        // 3. Attack the first (nearest) target.
-        uint8 targetIdx = ctx.targetList.targetOrder[0];
-        Data::PlayerCharacter *target = ctx.table.getCharacter(targetIdx);
-
-        if (target && target->enabled) {
-            ctx.globals.attacker = actor;
-            ctx.globals.behaviorFlags = 0;
-
-            if (rollToHit(actor, target, (uint8)target->armorClass.getCurrent())) {
-                uint8 dmg = rollDamage(actor);
-                DamageResult dr = applyDamage(ctx, target, dmg,
-                                              DAMAGE_NORMAL, false, nullptr);
-                result.action = AiTurnResult::ACTION_ATTACK;
-                result.target = target;
-                result.damage = dr.finalDamage;
-                result.targetWentDown = dr.wentDown;
-
-                if (target->combatSide == Data::CS_ENEMY)
-                    ctx.globals.handicapValue = 0;
-            } else {
-                result.action = AiTurnResult::ACTION_ATTACK;
-                result.target = target;
-                result.damage = 0;
-            }
-        }
+    } else if (actor->combatState->guarding) {
+        result.action = AiTurnResult::ACTION_GUARD;
+    } else if (targetBefore && !targetBefore->enabled) {
+        result.action       = AiTurnResult::ACTION_ATTACK;
+        result.target       = targetBefore;
+        result.targetWentDown = true;
+    } else if (targetBefore) {
+        result.action = AiTurnResult::ACTION_ATTACK;
+        result.target = targetBefore;
     } else {
-        // 4. No target in melee range — use processAiMove for the movement step.
-        processAiMove(actor, ctx.params.roster, 0, ctx, nullptr);
         result.action = AiTurnResult::ACTION_MOVE;
     }
 
-    // 5. Mark as acted this round.
-    cs.initiative = 0xFF;
+    (void)ended;
     return result;
 }
 
