@@ -130,19 +130,6 @@ bool handleAiControlInput(Data::PlayerCharacter *actor,
                           CombatGlobals &globals,
                           AiMoveViewDelegate *view);
 
-/**
- * Mirrors COMBAT_UpdateState.
- *
- * Decides whether the character enters guarding or ends its turn.
- * Called when the normal movement/action path is not taken.
- * Returns true when the turn action is complete.
- *
- * Conditions for guarding: no negative effect, no ranged weapon, initiative != 0.
- * Otherwise ends the turn immediately.
- *
- * @param actor  Character whose action state is being updated
- */
-bool updateActionState(Data::PlayerCharacter *actor);
 
 /**
  * Mirrors COMBAT_ProcessAIMove.
