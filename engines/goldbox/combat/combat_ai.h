@@ -65,27 +65,7 @@ struct AiTurnResult {
 };
 
 /**
- * Execute one AI-controlled combatant's turn.
- *
- * Mirrors COMBAT_ExecuteTurn for the enemy side:
- *   1. Check morale — flee if moralFailure
- *   2. Build target list (melee range = 1)
- *   3. If target in range: attack (roll to-hit, apply damage)
- *   4. Else: move one step toward nearest target
- *   5. Mark character as acted (delay = 0xFF)
- *
- * Pure data layer — no rendering, no sound, no UI.
- * The view layer reads AiTurnResult and drives presentation.
- *
- * @param actor   The AI-controlled character taking its turn
- * @param ctx     Live combat context (globals, table, map)
- * @return        Result describing what the AI did
- */
-AiTurnResult executeAiTurn(Data::PlayerCharacter *actor,
-                            CombatContext &ctx);
-
-/**
- * View delegate for processAiMove presentation callbacks.
+ * View delegate for AI presentation callbacks.
  * Pass nullptr to skip all presentation (e.g. unit tests).
  */
 struct AiMoveViewDelegate {
@@ -104,6 +84,33 @@ struct AiMoveViewDelegate {
     /** Draw combat info panel for character. */
     virtual void drawCombatInfo(Data::PlayerCharacter *ch) = 0;
 };
+
+/**
+ * Mirrors COMBAT_ProcessAITurn.
+ *
+ * Full AI combat-turn processing loop for one AI-controlled character.
+ * Handles morale-failure movement, target selection, ranged weapon
+ * auto-equip, multi-attack, and single-attack resolution.
+ *
+ * Returns true when AI processing has ended (control released or turn
+ * complete); false if the caller should continue driving the AI.
+ *
+ * Presentation callbacks are routed through AiMoveViewDelegate.
+ * Pass nullptr to skip all presentation (e.g. unit tests).
+ */
+bool processAiTurn(Data::PlayerCharacter *actor,
+                   CombatContext &ctx,
+                   AiMoveViewDelegate *view);
+
+/**
+ * Execute one AI-controlled combatant's turn.
+ *
+ * Thin wrapper around processAiTurn for callers that do not need the
+ * full loop result. Drives the turn to completion and returns a summary
+ * result for the view layer.
+ */
+AiTurnResult executeAiTurn(Data::PlayerCharacter *actor,
+                            CombatContext &ctx);
 
 /**
  * Mirrors COMBAT_HandleAIControlInput.

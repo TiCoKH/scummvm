@@ -125,6 +125,25 @@ CombatSession::TickResult CombatSession::tick() {
     }
 
     // --- AI turn ---
+    // WIP: AI turn processing is partially implemented. The AI logic in
+    // processAiTurn/executeAiTurn runs synchronously and resolves the full
+    // turn in one tick() call. This causes two related problems:
+    //
+    // 1. When combat starts with enemy initiative (AI goes first), the
+    //    session never transitions to PHASE_AWAITING_PLAYER for the first
+    //    party actor — the view's tick() loop runs through all consecutive
+    //    AI turns without ever showing the player combat menu.
+    //
+    // 2. EV_ACTOR_FOCUSED and EV_AI_ATTACK are emitted on the same tick,
+    //    so the viewport scroll and status panel update for the AI actor
+    //    are skipped before the attack result is shown.
+    //
+    // TODO: Split AI turn execution across two tick() calls:
+    //   tick 1 — emit EV_ACTOR_FOCUSED, set PHASE_AI_TURN, return.
+    //   tick 2 — run executeAiTurn(), emit EV_AI_ATTACK if applicable,
+    //            advance actor, set next phase, return.
+    //   This mirrors how PHASE_AWAITING_PLAYER already pauses for party
+    //   actors and lets the view drive the next step.
     if (_currentActor->combatSide == ::Goldbox::Data::CS_ENEMY) {
         _phase = PHASE_AI_TURN;
         CombatContext ctx = makeContext();
