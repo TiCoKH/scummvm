@@ -199,6 +199,10 @@ public:
 	ReadyItemResult toggleReadyItem(Goldbox::Data::Items::CharacterItem *item,
 						   const Goldbox::Data::Items::CharacterItem **conflictingItem = nullptr);
 
+	// Returns the bitmask of item classes this character is allowed to ready.
+	// Public wrapper around the protected getReadyAllowedClassMask().
+	uint8 getAllowedItemClassMask() const { return getReadyAllowedClassMask(); }
+
 	// Character type helpers (legacy npc flag: < 0x80 player, >= 0x80 NPC)
 	bool isNpc() const;
 
