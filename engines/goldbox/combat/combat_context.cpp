@@ -27,6 +27,7 @@
 #include "goldbox/combat/battlefield_map.h"
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/combat/combat_damage.h"
+#include "goldbox/vm_interface.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
@@ -528,40 +529,107 @@ void CombatContext::setCharacterFacing(Data::PlayerCharacter *ch, Direction dire
 // handleDisengagementReactions helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Mirrors COMBAT_CanEngageTarget.
- * Runs ES_DEFENSIVE_PASSIVE on target and ES_ATTACKER_OFFENSE on attacker
- * to let effects set globals.targetUnavailable.
- */
-static bool canEngageTarget(Data::PlayerCharacter *attacker,
-                             Data::PlayerCharacter *target,
-                             CombatContext &ctx) {
+bool CombatContext::canEngageTarget(Data::PlayerCharacter *attacker,
+                                    Data::PlayerCharacter *target) {
     if (!target)
         return false;
     if (attacker == target)
         return true;
 
-    ctx.globals.targetUnavailable = false;
+    globals.targetUnavailable = false;
 
-    if (ctx.params.effectRuntime && target->getEffects())
-        ctx.params.effectRuntime->checkEffectSet(
+    if (params.effectRuntime && target->getEffects())
+        params.effectRuntime->checkEffectSet(
             Data::Effects::ES_DEFENSIVE_PASSIVE,
-            *target->getEffects(), *target, &ctx.globals);
+            *target->getEffects(), *target, &globals);
 
-    if (!ctx.globals.targetUnavailable && ctx.params.effectRuntime && attacker->getEffects()) {
+    if (!globals.targetUnavailable && params.effectRuntime && attacker->getEffects()) {
         Data::PlayerCharacter *oldTarget = attacker->combatState ? attacker->combatState->target : nullptr;
         if (attacker->combatState)
             attacker->combatState->target = target;
 
-        ctx.params.effectRuntime->checkEffectSet(
+        params.effectRuntime->checkEffectSet(
             Data::Effects::ES_ATTACKER_OFFENSE,
-            *attacker->getEffects(), *attacker, &ctx.globals);
+            *attacker->getEffects(), *attacker, &globals);
 
         if (attacker->combatState)
             attacker->combatState->target = oldTarget;
     }
 
-    return !ctx.globals.targetUnavailable;
+    return !globals.targetUnavailable;
+}
+
+bool CombatContext::selectTargetForAction(Data::PlayerCharacter *ch,
+                                          uint8 maxRange,
+                                          bool allowUnengageable,
+                                          bool resetTarget) {
+    if (!ch || !ch->combatState)
+        return false;
+
+    // 1. Validate existing target.
+    if (!resetTarget) {
+        Data::PlayerCharacter *existing = ch->combatState->target;
+        if (existing &&
+            existing->combatSide != ch->combatSide &&
+            existing->enabled &&
+            canEngageTarget(ch, existing)) {
+            map.setIgnoreWalls(false);
+            return true;
+        }
+    }
+    ch->combatState->target = nullptr;
+
+    // 2. Two-pass search.
+    bool found = false;
+    for (int pass = 0; pass < 2 && !found; ++pass) {
+        if (pass == 1 && !resetTarget)
+            map.setIgnoreWalls(true);
+
+        buildTargetList(ch, maxRange);
+        const uint8 targetCount = (uint8)targetList.targetOrder.size();
+
+        uint8 attempts = 20;
+        while (attempts != 0 && !found && targetCount != 0) {
+            --attempts;
+
+            // Random candidate from 1..targetCount (1-based roll).
+            const uint8 roll = (uint8)VmInterface::rollDice(targetCount, 1);
+            if (roll == 0 || roll > targetCount)
+                continue;
+
+            const uint8 rosterIdx = targetList.targetOrder[roll - 1];
+            if (rosterIdx == 0xFF)
+                continue;
+
+            Data::PlayerCharacter *candidate = table.getCharacter(rosterIdx);
+            if (!candidate)
+                continue;
+
+            bool accept = (allowUnengageable && map.getIgnoreWalls())
+                          ? true
+                          : canEngageTarget(ch, candidate);
+
+            if (accept) {
+                ch->combatState->target = candidate;
+                found = true;
+            } else {
+                // Remove this candidate from the order list.
+                targetList.targetOrder[roll - 1] = 0xFF;
+                bool anyLeft = false;
+                for (uint i = 0; i < targetList.targetOrder.size(); ++i) {
+                    if (targetList.targetOrder[i] != 0xFF) {
+                        anyLeft = true;
+                        break;
+                    }
+                }
+                if (!anyLeft)
+                    break;
+            }
+        }
+    }
+
+    map.setIgnoreWalls(false);
+    return found;
 }
 
 /**
@@ -661,7 +729,7 @@ void CombatContext::handleDisengagementReactions(
         if (enemy->hasNegativeEffect())
             continue;
 
-        if (!canEngageTarget(enemy, currentCharacter, *this))
+        if (!canEngageTarget(enemy, currentCharacter))
             continue;
 
         // Effects 0x4B and 0x4A suppress the reaction.

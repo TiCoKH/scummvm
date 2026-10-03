@@ -104,8 +104,7 @@ static bool checkMoveStep(Data::PlayerCharacter *actor,
                            uint8 attempt,
                            uint8 desiredDir,
                            CombatContext &ctx,
-                           uint8 *outMoveResult,
-                           uint8 *outDirection) {
+                           uint8 *outMoveResult) {
     *outMoveResult = 0;
 
     const uint8 aiStateIdx = (actor->combatState->aiState >= 1 &&
@@ -113,7 +112,6 @@ static bool checkMoveStep(Data::PlayerCharacter *actor,
                              ? actor->combatState->aiState - 1 : 0;
     const uint8 offset = kAiDirectionOffset[aiStateIdx][attempt - 1];
     const uint8 candidateDir = (uint8)((desiredDir + offset) % 8);
-    *outDirection = candidateDir;
 
     int groundInfo = 0;
     uint8 tileId = 0;
@@ -167,6 +165,12 @@ static bool checkMoveStep(Data::PlayerCharacter *actor,
     }
 
     return true;
+}
+
+/** Mirrors the post-loop direction table lookup in COMBAT_ProcessAIMove. */
+static uint8 calcAiDirection(uint8 aiState, uint8 attempt, uint8 desiredDir) {
+    const uint8 aiStateIdx = (aiState >= 1 && aiState <= 6) ? aiState - 1 : 0;
+    return (uint8)((desiredDir + kAiDirectionOffset[aiStateIdx][attempt - 1]) % 8);
 }
 
 /**
@@ -231,18 +235,15 @@ bool handleAiControlInput(Data::PlayerCharacter *actor,
 // updateActionState
 // ---------------------------------------------------------------------------
 
-bool updateActionState(Data::PlayerCharacter *actor) {
+static bool concludeAiTurn(Data::PlayerCharacter *actor) {
     if (!actor || !actor->combatState)
         return false;
 
     Data::CombatAction &cs = *actor->combatState;
-
-    // Guard conditions: no negative effect, no ranged weapon, initiative != 0.
     const Data::ADnDCharacter *adnd = dynamic_cast<const Data::ADnDCharacter *>(actor);
     const bool hasRanged = adnd ? adnd->hasRangedWeapon() : false;
 
     if (!actor->hasNegativeEffect() && !hasRanged && cs.initiative != 0) {
-        // COMBAT_Guarding: end turn first, then set guarding.
         cs.endTurn();
         cs.guarding = true;
         return true;
@@ -279,7 +280,7 @@ void processAiMove(Data::PlayerCharacter *actor,
     if ((cs.movePoints >> 1) == 0 ||
         cs.initiative < 1 ||
         (!cs.moralFailure && actor->classType == Data::C_MAGICUSER)) {
-        updateActionState(actor);
+        concludeAiTurn(actor);
         return;
     }
 
@@ -296,16 +297,11 @@ void processAiMove(Data::PlayerCharacter *actor,
     // Try up to five movement alternatives.
     uint8 attempt = 1;
     uint8 moveCheckResult = 0;
-    uint8 selectedDirection = 0;
     bool actionFinished = false;
 
-    while (attempt < 6 && !actionFinished) {
-        if (checkMoveStep(actor, attempt, desiredDirection, ctx,
-                          &moveCheckResult, &selectedDirection))
-            break;
-
+    while (attempt < 6 && !actionFinished &&
+           !checkMoveStep(actor, attempt, desiredDirection, ctx, &moveCheckResult)) {
         if (cs.moralFailure && moveCheckResult != 0) {
-            // Morale-failure running: try to set fleeing.
             if (g_combatSession) {
                 CombatSession::TryFleeResult fr = g_combatSession->trySetFleeing(actor);
                 actionFinished = fr.actionComplete;
@@ -319,12 +315,10 @@ void processAiMove(Data::PlayerCharacter *actor,
     }
 
     if (!actionFinished) {
-        // If all attempts failed, re-evaluate attempt 5 to get selectedDirection
-        // for the failure/reversal check (checkMoveStep always writes outDirection).
-        if (attempt == 6)
-            checkMoveStep(actor, 5, desiredDirection, ctx, &moveCheckResult, &selectedDirection);
+        // Direction table lookup happens here (post-loop), mirroring original.
+        const uint8 selectedDirection = calcAiDirection(cs.aiState, attempt, desiredDirection);
 
-        // All attempts failed, or selected direction is opposite the stored AI direction.
+        // All attempts failed, or selected direction reverses stored AI direction.
         if (attempt == 6 ||
             globals.aiDirection == (uint8)((selectedDirection + 4) % 8)) {
 
@@ -335,14 +329,8 @@ void processAiMove(Data::PlayerCharacter *actor,
                 cs.target = nullptr;
 
                 if (globals.aiFailureCount < 3) {
-                    // Try to select another target.
-                    ctx.buildTargetList(actor, 0xFF);
-                    if (ctx.targetList.targetOrder.empty()) {
-                        updateActionState(actor);
-                        actionFinished = true;
-                    }
-                    // If a new target was found it is now in targetList;
-                    // the caller's next tick will re-enter with the new target.
+                    if (!ctx.selectTargetForAction(actor, 0xFF, false, false))
+                        actionFinished = concludeAiTurn(actor);
                 } else {
                     cs.movePoints = 0;
                     actionFinished = true;
@@ -351,11 +339,10 @@ void processAiMove(Data::PlayerCharacter *actor,
         }
 
         if (!actionFinished) {
-            if (attempt < 6) {
+            if (attempt < 6)
                 globals.aiDirection = selectedDirection;
-            } else {
+            else
                 actionFinished = true;
-            }
         }
 
     } else {

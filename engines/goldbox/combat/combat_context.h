@@ -228,6 +228,35 @@ struct CombatContext {
                                  Data::PlayerCharacter *target);
 
     /**
+     * Mirrors COMBAT_CanEngageTarget.
+     * Returns true if attacker can engage target (no blocking effects).
+     * Sets globals.targetUnavailable via ES_DEFENSIVE_PASSIVE and
+     * ES_ATTACKER_OFFENSE effect sets.
+     */
+    bool canEngageTarget(Data::PlayerCharacter *attacker,
+                         Data::PlayerCharacter *target);
+
+    /**
+     * Mirrors COMBAT_SelectTargetForAction.
+     *
+     * Validates any existing target on char_ptr->combatState->target, then
+     * searches for a new one if needed. Uses up to two passes: the second
+     * pass sets ignoreWalls=true and (when allowUnengageable) bypasses
+     * canEngageTarget. Clears ignoreWalls before returning.
+     *
+     * @param ch                Character selecting a target
+     * @param maxRange          Maximum engagement range
+     * @param allowUnengageable If true, second pass accepts any candidate
+     * @param resetTarget       If true, always discard existing target first
+     * @return                  true if a valid target was found and stored
+     *                          in ch->combatState->target
+     */
+    bool selectTargetForAction(Data::PlayerCharacter *ch,
+                               uint8 maxRange,
+                               bool allowUnengageable,
+                               bool resetTarget);
+
+    /**
      * Mirrors COMBAT_HandleGuardReactions.
      * After char_ptr successfully moves, builds the target list and triggers
      * a guarding attack from each eligible opponent against char_ptr.
