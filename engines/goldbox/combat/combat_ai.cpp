@@ -32,6 +32,8 @@
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
+#include "goldbox/data/items/character_item.h"
+#include "goldbox/data/items/base_items.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/core/direction.h"
@@ -438,6 +440,243 @@ AiTurnResult executeAiTurn(Data::PlayerCharacter *actor, CombatContext &ctx) {
     // 5. Mark as acted this round.
     cs.initiative = 0xFF;
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// computeWeaponScore
+// ---------------------------------------------------------------------------
+
+uint8 computeWeaponScore(const Data::ADnDCharacter &character,
+                         const Data::Items::CharacterItem &item) {
+    using namespace Data::Items;
+
+    const ItemProperty &prop = item.prop();
+
+    uint8 score = prop.dmgSmallMed.dices * prop.dmgSmallMed.sides;
+
+    if (item.bonus > 0)
+        score += (uint8)(item.bonus * 8);
+
+    if (prop.dmgSmallMed.bonus > 0)
+        score += (uint8)(prop.dmgSmallMed.bonus * 2);
+
+    // Special weapon 0x55 gets fixed score 8 when the current combat target
+    // is undead.
+    if (item.typeIndex == 0x55 && character.combatState && character.combatState->target) {
+        const Data::ADnDCharacter *tgt =
+            dynamic_cast<const Data::ADnDCharacter *>(character.combatState->target);
+        if (tgt && tgt->levelUndead > 0)
+            score = 8;
+    }
+
+    // Ranged bonus: (range - 1) * 2 when MF_BOW bit is set.
+    if (prop.missileType & static_cast<uint8>(MissileFlag::MF_BOW))
+        score += (uint8)((prop.range > 0 ? prop.range - 1 : 0) * 2);
+
+    // One-handed preference.
+    if (prop.hands < 2)
+        score += 3;
+
+    // Reject if adding this weapon exceeds the hand capacity of 3.
+    if (character.handsEquipped + prop.hands > 3)
+        score = 0;
+
+    // Alignment restriction: effect3==0x84 means effect2 holds the allowed
+    // alignment mask.
+    if (item.effect3 == 0x84) {
+        const uint8 CHAOTIC_EVIL    = 0x01;
+        const uint8 CHAOTIC_NEUTRAL = 0x02;
+        if ((item.effect2 & (CHAOTIC_EVIL | CHAOTIC_NEUTRAL)) != character.alignment)
+            score = 0;
+    }
+
+    // Forbidden effect tag.
+    if (item.effect2 == 0x53)
+        score = 0;
+
+    if (item.cursed)
+        score = 0;
+
+    return score;
+}
+
+// ---------------------------------------------------------------------------
+// autoEquipWeapons
+// ---------------------------------------------------------------------------
+
+void autoEquipWeapons(Data::ADnDCharacter *character,
+                      CombatContext &ctx,
+                      void (*drawCombatInfoCallback)(Data::PlayerCharacter *)) {
+    using namespace Data::Items;
+
+    if (!character)
+        return;
+
+    // Temporarily remove currently equipped items from hand count.
+    // recalcCombatStats() will rebuild the authoritative value later.
+    const CharacterItem *curWeapon  = character->getEquippedItem(Slot::S_MAIN_HAND);
+    const CharacterItem *curShield  = character->getEquippedItem(Slot::S_OFF_HAND);
+
+    if (curWeapon)
+        character->handsEquipped -= character->getEquippedProp(Slot::S_MAIN_HAND)->hands;
+    if (curShield)
+        character->handsEquipped -= character->getEquippedProp(Slot::S_OFF_HAND)->hands;
+
+    // Baseline ordinary-weapon score from current unarmed/base damage.
+    uint8 ordinaryScore = (uint8)(character->curPrimaryRoll.action.roll.diceNum *
+                                  character->curPrimaryRoll.action.roll.diceSides);
+    if (character->curPrimaryRoll.action.modifier > 0)
+        ordinaryScore += (uint8)(character->curPrimaryRoll.action.modifier * 2);
+
+    // Inventory scan.
+    CharacterItem *bestRanged   = nullptr;
+    CharacterItem *bestOrdinary = nullptr;
+    CharacterItem *bestOffhand  = nullptr;
+    uint8 bestRangedScore  = 1;
+    uint8 bestOffhandScore = 0;
+
+    for (CharacterItem &item : character->inventory.items()) {
+        const ItemProperty &prop = item.prop();
+
+        if (static_cast<Slot>(prop.slotID) == Slot::S_MAIN_HAND &&
+            (prop.classMask & character->getAllowedItemClassMask()) != 0) {
+
+            uint8 sc = computeWeaponScore(*character, item);
+
+            const bool isMissileBow  = (prop.missileType & static_cast<uint8>(MissileFlag::MF_BOW))  != 0;
+            const bool isMissileDart = (prop.missileType & static_cast<uint8>(MissileFlag::MF_DART)) != 0;
+
+            if (isMissileBow || isMissileDart) {
+                if (sc > bestRangedScore) {
+                    bestRanged      = &item;
+                    bestRangedScore = sc;
+                }
+            }
+
+            if (!isMissileBow && sc > ordinaryScore) {
+                bestOrdinary  = &item;
+                ordinaryScore = sc;
+            }
+        }
+
+        if (static_cast<Slot>(prop.slotID) == Slot::S_OFF_HAND &&
+            (character->getAllowedItemClassMask() & prop.classMask) != 0) {
+
+            uint8 sc = (item.bonus < 0) ? 0 : (uint8)(item.bonus + 1);
+            if (sc > bestOffhandScore) {
+                bestOffhand      = &item;
+                bestOffhandScore = sc;
+            }
+        }
+    }
+
+    // Determine whether the best ranged weapon is usable (range>=2 and
+    // MF_BOW|MF_THROWING both set, i.e. missileType & 0x14 == 0x14).
+    // Null out bestRanged if it fails so downstream logic treats it as absent.
+    if (bestRanged) {
+        const ItemProperty &rp = bestRanged->prop();
+        if (rp.range < 2 || (rp.missileType & 0x14) != 0x14)
+            bestRanged = nullptr;
+    }
+
+    // Determine associated ammunition.
+    uint8 missileType = 0;
+    CharacterItem *rangedAmmoItem = nullptr;
+    if (bestRanged) {
+        missileType = bestRanged->prop().missileType;
+
+        if (missileType & static_cast<uint8>(MissileFlag::MF_DART))
+            rangedAmmoItem = bestRanged;
+
+        if (missileType & static_cast<uint8>(MissileFlag::MF_BOW)) {
+            if (missileType & static_cast<uint8>(MissileFlag::MF_RANGED_MELEE))
+                rangedAmmoItem = character->getEquippedItem(Slot::S_ARROW);
+            if (missileType & static_cast<uint8>(MissileFlag::MF_CROSSBOW))
+                rangedAmmoItem = character->getEquippedItem(Slot::S_BOLT);
+        }
+    }
+
+    // Special original-game exception: missileType 0x0A is valid without ammo.
+    const bool hasRangedEquipment = (rangedAmmoItem != nullptr) || (missileType == 0x0A);
+
+    // Choose ranged vs ordinary weapon.
+    CharacterItem *selectedWeapon = bestRanged;
+
+    bool chooseOrdinary = (bestRanged == nullptr) ||
+                          (bestRangedScore <= (ordinaryScore >> 1));
+
+    if (!chooseOrdinary && !hasRangedEquipment) {
+        ctx.buildTargetList(character, 1);
+        if (!ctx.targetList.targetOrder.empty())
+            chooseOrdinary = true;
+    }
+
+    if (chooseOrdinary)
+        selectedWeapon = bestOrdinary;
+
+    // Weapon switching restrictions.
+    bool canChangeWeapon = true;
+    if (curWeapon != nullptr &&
+        (selectedWeapon == curWeapon || curWeapon->cursed))
+        canChangeWeapon = false;
+
+    bool equipmentChanged = false;
+
+    if (canChangeWeapon) {
+        if (curWeapon != nullptr)
+            character->toggleReadyItem(const_cast<CharacterItem *>(curWeapon));
+
+        character->recalcCombatStats();
+
+        // Remove shield hand contribution before readying new weapon.
+        const CharacterItem *shieldNow = character->getEquippedItem(Slot::S_OFF_HAND);
+        if (shieldNow && !shieldNow->cursed)
+            character->handsEquipped -= character->getEquippedProp(Slot::S_OFF_HAND)->hands;
+
+        if (selectedWeapon != nullptr)
+            character->toggleReadyItem(selectedWeapon);
+
+        equipmentChanged = true;
+    }
+
+    character->recalcCombatStats();
+    recalcPrimaryAttacks(character);
+
+    // Shield switching restrictions.
+    const CharacterItem *shieldAfter = character->getEquippedItem(Slot::S_OFF_HAND);
+    bool canChangeShield = true;
+    if (shieldAfter != nullptr &&
+        (bestOffhand == shieldAfter || shieldAfter->cursed))
+        canChangeShield = false;
+
+    if (character->handsEquipped < 3) {
+        if (character->handsEquipped < 2 && canChangeShield) {
+            if (shieldAfter != nullptr)
+                character->toggleReadyItem(const_cast<CharacterItem *>(shieldAfter));
+
+            character->recalcCombatStats();
+
+            if (bestOffhand != nullptr)
+                character->toggleReadyItem(bestOffhand);
+
+            equipmentChanged = true;
+        }
+    } else {
+        // Over hand capacity: resolve by toggling off shield if possible,
+        // otherwise toggle the selected weapon.
+        if (shieldAfter == nullptr || shieldAfter->cursed) {
+            if (selectedWeapon != nullptr)
+                character->toggleReadyItem(selectedWeapon);
+        } else {
+            character->toggleReadyItem(const_cast<CharacterItem *>(shieldAfter));
+        }
+        equipmentChanged = true;
+    }
+
+    character->recalcCombatStats();
+
+    if (equipmentChanged && drawCombatInfoCallback)
+        drawCombatInfoCallback(character);
 }
 
 } // namespace Combat

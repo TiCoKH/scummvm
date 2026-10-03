@@ -28,6 +28,10 @@
 namespace Goldbox {
 namespace Data {
 class PlayerCharacter;
+class ADnDCharacter;
+namespace Items {
+struct CharacterItem;
+}
 }
 
 namespace Combat {
@@ -153,6 +157,32 @@ void processAiMove(Data::PlayerCharacter *actor,
                    char key,
                    CombatContext &ctx,
                    AiMoveViewDelegate *view);
+
+/**
+ * Compute a weapon desirability score for AI auto-equip selection.
+ *
+ * Mirrors AI_ComputeWeaponScore. Scores based on damage dice, item bonus,
+ * property damage modifier, undead special case, range bonus, and one-hand
+ * preference. Returns 0 for unusable items (hand overflow, alignment
+ * restriction, forbidden effect tag 0x53, or cursed).
+ */
+uint8 computeWeaponScore(const Data::ADnDCharacter &character,
+                         const Data::Items::CharacterItem &item);
+
+/**
+ * Auto-select and equip the best available weapon and off-hand item.
+ *
+ * Mirrors AI_AutoEquipWeapons. Scans inventory for the best ranged and
+ * ordinary main-hand weapons and best off-hand item, chooses between
+ * ranged and melee based on score threshold and adjacent-target check,
+ * then performs the necessary toggleReadyItem / recalcCombatStats sequence
+ * while respecting cursed equipment and hand capacity.
+ *
+ * Calls drawCombatInfoCallback(character) when equipment changed.
+ */
+void autoEquipWeapons(Data::ADnDCharacter *character,
+                      CombatContext &ctx,
+                      void (*drawCombatInfoCallback)(Data::PlayerCharacter *) = nullptr);
 
 } // namespace Combat
 } // namespace Goldbox
