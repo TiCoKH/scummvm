@@ -37,6 +37,8 @@
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/rules/rules_types.h"
+#include "goldbox/data/rules/rules.h"
+#include "goldbox/data/spells/spell.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/vm_interface.h"
 #include "common/util.h"
@@ -838,6 +840,243 @@ void autoEquipWeapons(Data::ADnDCharacter *character,
 
     if (equipmentChanged && drawCombatInfoCallback)
         drawCombatInfoCallback(character);
+}
+
+// ---------------------------------------------------------------------------
+// findNearbyWoundedAlly  (mirrors AI_FindNearbyWoundedAlly)
+// ---------------------------------------------------------------------------
+
+bool findNearbyWoundedAlly(Data::PlayerCharacter *attacker,
+                        CombatContext &ctx,
+                        Data::PlayerCharacter **outTarget) {
+    *outTarget = nullptr;
+
+    const int attackerIdx = ctx.table.findIndex(attacker);
+    if (attackerIdx < 0)
+        return false;
+
+    const TilePos src = ctx.table.getTilePos(attackerIdx);
+
+    Data::PlayerCharacter *bestTarget = nullptr;
+    uint8 bestHp = 0xFF;
+    Data::PlayerCharacter *downedCandidate = nullptr;
+
+    // Scan all 8 neighbours plus the attacker's own tile (direction 0-8).
+    for (int dir = 0; dir < 9; ++dir) {
+        const TilePos pos((uint8)(src.col + kDirDeltaX[dir]),
+                          (uint8)(src.row + kDirDeltaY[dir]));
+
+        const CombatContext::CombatCell cell = ctx.getTileAndOccupantAt(pos);
+
+        if (cell.occupantId == 0) {
+            // Tile 0x1F: downed-member tile — scan downed member records.
+            if (cell.tileId == CombatantTable::TILE_DOWNED_MEMBER) {
+                const Common::Array<CombatantTable::DownedMemberRecord> &downed =
+                    ctx.table.getDownedMembers();
+                for (uint i = 0; i < downed.size(); ++i) {
+                    Data::PlayerCharacter *ch = downed[i].character;
+                    if (!ch)
+                        continue;
+                    if (ch->healthStatus == Data::S_DEAD ||
+                        ch->healthStatus == Data::S_GONE ||
+                        ch->healthStatus == Data::S_STONED)
+                        continue;
+                    if (downed[i].pos.col == pos.col &&
+                        downed[i].pos.row == pos.row)
+                        downedCandidate = ch;
+                }
+            }
+        } else {
+            // occupantId is 1-based.
+            Data::PlayerCharacter *candidate =
+                ctx.table.getCharacter(cell.occupantId - 1);
+            if (!candidate)
+                continue;
+            if (candidate->combatSide != attacker->combatSide)
+                continue;
+            if (candidate->hitPoints.current >= candidate->hitPoints.max)
+                continue;
+
+            const bool isLowerHp = candidate->hitPoints.current < bestHp;
+            const bool selfCritical =
+                (candidate == attacker) &&
+                candidate->hitPoints.current < (candidate->hitPoints.max >> 1);
+
+            if (isLowerHp || selfCritical) {
+                if (isLowerHp)
+                    bestHp = candidate->hitPoints.current;
+                bestTarget = candidate;
+            }
+        }
+    }
+
+    // Prefer downed member when best standing HP is not critical (>= 8).
+    if (bestHp < 8 || downedCandidate == nullptr)
+        *outTarget = bestTarget;
+    else
+        *outTarget = downedCandidate;
+
+    return *outTarget != nullptr;
+}
+
+// ---------------------------------------------------------------------------
+// hasEnemyTargetForSpell  (mirrors AI_HasEnemyTargetForSpell)
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds a target list centered at pos using spell.targetType as the
+ * footprint/iconSize code and DIR_ANY as the arc, then returns true if
+ * at least one resulting target is on the opposing side from actor.
+ *
+ * Called by isSpellEligibleForAI when spell.minAITargets != 0; the spell
+ * is rejected when this returns true for any entry in the target list.
+ */
+static bool hasEnemyTargetForSpell(Data::PlayerCharacter *actor,
+                                   TilePos pos,
+                                   const Data::Spells::SpellEntry &spell,
+                                   CombatContext &ctx) {
+    TargetList saved;
+    saved.entries.swap(ctx.targetList.entries);
+    saved.targetOrder.swap(ctx.targetList.targetOrder);
+
+    ctx.buildTargetListCore(pos, (uint8)spell.targetType, DIR_ANY, spell.fixedRange);
+
+    bool hasEnemy = false;
+    for (uint i = 0; i < ctx.targetList.entries.size(); ++i) {
+        const Data::PlayerCharacter *target =
+            ctx.table.getCharacter(ctx.targetList.entries[i].idx);
+        if (target && target->combatSide != actor->combatSide) {
+            hasEnemy = true;
+            break;
+        }
+    }
+
+    saved.entries.swap(ctx.targetList.entries);
+    saved.targetOrder.swap(ctx.targetList.targetOrder);
+    return hasEnemy;
+}
+
+// ---------------------------------------------------------------------------
+// isSpellEligibleForAI  (mirrors AI_SpellEligible)
+// ---------------------------------------------------------------------------
+
+bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
+                          uint8 spellId,
+                          uint8 priorityThreshold,
+                          CombatContext &ctx) {
+    using namespace Data::Spells;
+
+    const Common::Array<SpellEntry> &spells = Data::Rules::getSpellEntries();
+    if (spellId >= spells.size())
+        return false;
+
+    const SpellEntry &spell = spells[spellId];
+
+    if (priorityThreshold > spell.priority)
+        return false;
+
+    // Spell must be offensive or be SP_CL1_CURE_LT_WOUNDS (id 3).
+    if (spellId != (uint8)SP_CL1_CURE_LT_WOUNDS && spell.isOffensive == 0)
+        return false;
+
+    // SP_CL1_CURE_LT_WOUNDS is rejected when an adjacent target exists.
+    if (spellId == (uint8)SP_CL1_CURE_LT_WOUNDS) {
+        Data::PlayerCharacter *adj = nullptr;
+        if (findNearbyWoundedAlly(actor, ctx, &adj) && adj != nullptr)
+            return false;
+    }
+
+    // Build target list using the spell's fixed range.
+    ctx.buildTargetList(actor, spell.fixedRange);
+    const uint8 targetCount = (uint8)ctx.targetList.targetOrder.size();
+
+    if (targetCount == 0)
+        return false;
+
+    // When minAITargets == 0 any non-empty target list is sufficient.
+    if (spell.minAITargets == 0)
+        return true;
+
+    // minAITargets != 0: reject the spell if any target in the list has an
+    // opposing-side character within the spell's area.
+    const Common::Array<uint8> order = ctx.targetList.targetOrder;
+    for (uint i = 0; i < order.size(); ++i) {
+        const TilePos targetPos = ctx.table.getTilePos(order[i]);
+        if (hasEnemyTargetForSpell(actor, targetPos, spell, ctx))
+            return false;
+    }
+
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// tryUseItem  (mirrors AI_TryUseItem)
+// ---------------------------------------------------------------------------
+
+bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx) {
+    if (!actor || !actor->combatState)
+        return false;
+
+    if (!actor->combatState->canUse)
+        return false;
+
+    if (ctx.globals.sideCount[actor->combatSide] == 0)
+        return false;
+
+    if (!ctx.globals.magicEnabled)
+        return false;
+
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(actor);
+    if (!adnd)
+        return false;
+
+    const uint8 searchPasses = (uint8)VmInterface::rollDice(1, 7);
+
+    Data::Items::CharacterItem *selectedItem = nullptr;
+    uint8 priorityThreshold = 7;
+
+    for (uint8 pass = 0;
+         pass < searchPasses && selectedItem == nullptr;
+         ++pass, --priorityThreshold) {
+
+        for (Common::List<Data::Items::CharacterItem>::iterator it =
+                 adnd->inventory.items().begin();
+             it != adnd->inventory.items().end() && selectedItem == nullptr;
+             ++it) {
+
+            Data::Items::CharacterItem &item = *it;
+
+            if (item.isMissileOrScroll())
+                continue;
+
+            // effect3 >= 0x80 means the item state is not usable.
+            if (item.effect3 >= 0x80)
+                continue;
+
+            if (item.readied == 0)
+                continue;
+
+            // effect2 holds the spell/effect ID for magic items.
+            uint8 spellId = item.effect2;
+            if (spellId == 0)
+                continue;
+
+            // Normalize item-stored spell IDs above 0x38 (56) into the
+            // regular spell table range by subtracting 0x17 (23).
+            if (spellId > 0x38)
+                spellId -= 0x17;
+
+            if (isSpellEligibleForAI(actor, spellId, priorityThreshold, ctx))
+                selectedItem = &item;
+        }
+    }
+
+    if (selectedItem == nullptr)
+        return false;
+
+    // TODO: call ITEM_Use(selectedItem) when that function is implemented.
+    // The original ignores the return value; we return true unconditionally.
+    return true;
 }
 
 } // namespace Combat
