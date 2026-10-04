@@ -166,6 +166,64 @@ void processAiMove(Data::PlayerCharacter *actor,
                    AiMoveViewDelegate *view);
 
 /**
+ * Mirrors AI_FindNearbyWoundedAlly.
+ *
+ * Scans the 8 neighbouring tiles plus the attacker's own tile (9 positions
+ * total) for the best wounded ally (same combat side, hp_current < hp_max).
+ *
+ * Selection rules:
+ *   - Primary: lowest absolute hp_current among wounded allies.
+ *   - Self exception: the attacker itself qualifies even if not the lowest HP,
+ *     provided hp_current < hp_max/2. bestHp is NOT updated in this case.
+ *   - Fallback: a downed member on tile 0x1F is preferred over a standing
+ *     ally only when bestHp >= 8. Last matching downed record wins.
+ *
+ * Returns true and sets *outTarget when a candidate is found.
+ * Returns false and sets *outTarget = nullptr when none exists.
+ *
+ * Used by isSpellEligibleForAI() to gate SP_CL1_CURE_LT_WOUNDS:
+ * that spell is only eligible when NO nearby wounded ally exists.
+ */
+bool findNearbyWoundedAlly(Data::PlayerCharacter *attacker,
+                        CombatContext &ctx,
+                        Data::PlayerCharacter **outTarget);
+
+/**
+ * Mirrors AI_SpellEligible.
+ *
+ * Returns true when spellId is eligible for AI use at the given
+ * priorityThreshold:
+ *   1. spell.priority >= priorityThreshold
+ *   2. spell is offensive OR is SP_CL1_CURE_LT_WOUNDS (id 3)
+ *   3. SP_CL1_CURE_LT_WOUNDS is rejected when an adjacent target exists
+ *   4. ctx.buildTargetList() must find at least one target
+ *   5. when spell.minAITargets != 0, each target is validated via
+ *      a per-target enemy check (AI_HasEnemyTargetForSpell — TBD)
+ *
+ * Side effect: calls ctx.buildTargetList(), which mutates ctx.targetList.
+ */
+bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
+                          uint8 spellId,
+                          uint8 priorityThreshold,
+                          CombatContext &ctx);
+
+/**
+ * Mirrors AI_TryUseItem.
+ *
+ * Searches the character's ready magic items for an eligible spell item
+ * and uses the first one found. Eligibility is gated by:
+ *   - combatState->canUse
+ *   - ctx.globals.sideCount[actor->combatSide] != 0
+ *   - ctx.globals.magicEnabled
+ *
+ * Rolls 1d7 to determine how many priority levels (7 down to 7-roll+1)
+ * are searched. Within each pass the first eligible item wins.
+ *
+ * Returns true when an item was used.
+ */
+bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx);
+
+/**
  * Compute a weapon desirability score for AI auto-equip selection.
  *
  * Mirrors AI_ComputeWeaponScore. Scores based on damage dice, item bonus,
