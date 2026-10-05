@@ -22,6 +22,7 @@
 #include "goldbox/poolrad/views/dialogs/spells_menu.h"
 
 #include "goldbox/events.h"
+#include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/data/poolrad_spell_mapping.h"
@@ -41,7 +42,8 @@ SpellsMenu::SpellsMenu(const Common::String &name)
       _verticalMenu(nullptr),
       _lastSelection(0),
       _selectedLegacyIndex(-1),
-      _selectedSpell(Goldbox::Data::Spells::SP_NONE) {
+      _selectedSpell(Goldbox::Data::Spells::SP_NONE),
+      _scribeSourceItem(nullptr) {
 
     _menuConfig.promptTxt = "Choose Spell: ";
     _menuConfig.promptOptions = &_horizontalMenuLabels;
@@ -85,6 +87,7 @@ void SpellsMenu::activate() {
     _selectedLegacyIndex = -1;
     _selectedSpell = Goldbox::Data::Spells::SP_NONE;
     _selectedSpellName.clear();
+    _scribeSourceItem = nullptr;
 
     buildSpellList();
     buildPromptOptions();
@@ -195,6 +198,12 @@ void SpellsMenu::handleMenuResult(const MenuResultMessage &result) {
     _selectedSpell = _spellEntries[entryIdx].spellId;
     _selectedSpellName = Goldbox::Spells::getSpellName(_selectedSpell);
 
+    // SA_SCRIBE: record the source scroll item for the caller.
+    if (_action == SA_SCRIBE &&
+            entryIdx < (int)_scrollItems.size()) {
+        _scribeSourceItem = _scrollItems[entryIdx];
+    }
+
     deactivate();
 
     if (_parent) {
@@ -293,6 +302,32 @@ void SpellsMenu::buildSpellList() {
 
     case SL_ON_SCROLL:
     case SL_ON_SCROLLS:
+        // Build from the caller-supplied scroll item list.
+        // Each item's effect1/effect2/effect3 slots hold spell tags (masked to
+        // 7 bits). nameCode2 tracks how many effect slots are occupied.
+        for (int i = 0; i < (int)_scrollItems.size(); ++i) {
+            Goldbox::Data::Items::CharacterItem *scrollItem = _scrollItems[i];
+            if (!scrollItem)
+                continue;
+            uint8 effects[3] = {
+                scrollItem->effect1,
+                scrollItem->effect2,
+                scrollItem->effect3
+            };
+            for (int e = 0; e < 3; ++e) {
+                const uint8 tag = effects[e] & 0x7F;
+                if (tag == 0)
+                    continue;
+                const int spellIdx = tag - 1;
+                if (spellIdx >= 0 &&
+                        spellIdx < Goldbox::Poolrad::Data::POOLRAD_KNOWN_SIZE) {
+                    appendSpellEntry(spellIdx,
+                        Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx]);
+                }
+            }
+        }
+        break;
+
     case SL_TO_BE_SCRIBED:
         // TODO: Build from item spell payloads once scroll spell mapping
         // is wired into the inventory system.
@@ -356,6 +391,7 @@ void SpellsMenu::handleExit() {
     _selectedLegacyIndex = -1;
     _selectedSpell = Goldbox::Data::Spells::SP_NONE;
     _selectedSpellName.clear();
+    _scribeSourceItem = nullptr;
 
     deactivate();
 

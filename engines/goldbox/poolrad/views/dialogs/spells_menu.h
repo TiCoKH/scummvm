@@ -29,6 +29,11 @@
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 
 namespace Goldbox {
+namespace Data {
+namespace Items {
+struct CharacterItem;
+}
+}
 namespace Poolrad {
 namespace Data {
 class PoolradCharacter;
@@ -104,6 +109,14 @@ public:
         return _selectedSpell;
     }
     Common::String getSelectedSpellName() const { return _selectedSpellName; }
+    // Returns the source scroll item for SA_SCRIBE, nullptr otherwise.
+    Goldbox::Data::Items::CharacterItem *getScribeSourceItem() const {
+        return _scribeSourceItem;
+    }
+    // Provide the item list for SL_ON_SCROLL / SL_ON_SCROLLS before activate().
+    void setScrollItems(Common::Array<Goldbox::Data::Items::CharacterItem *> *items) {
+        _scrollItems = items ? *items : Common::Array<Goldbox::Data::Items::CharacterItem *>();
+    }
 
 private:
     SpellLocation _location;
@@ -125,6 +138,12 @@ private:
     int _selectedLegacyIndex;
     Goldbox::Data::Spells::Spells _selectedSpell;
     Common::String _selectedSpellName;
+    // Source item for SA_SCRIBE: the scroll whose spell was selected.
+    Goldbox::Data::Items::CharacterItem *_scribeSourceItem;
+
+    // Item list provided by the caller for SL_ON_SCROLL / SL_ON_SCROLLS.
+    // Each entry maps 1:1 to _spellEntries (parallel array).
+    Common::Array<Goldbox::Data::Items::CharacterItem *> _scrollItems;
 
     void buildSpellList();
     void buildPromptOptions();
