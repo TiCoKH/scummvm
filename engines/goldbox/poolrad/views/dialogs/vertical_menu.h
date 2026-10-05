@@ -57,8 +57,6 @@ private:
     Common::String _promptTxt;
     Common::Array<Common::String> *_promptOptions;
     int _xStart, _yStart, _xEnd, _yEnd;
-    bool _nextNeed;
-    bool _prevNeed;
     // Count of leading consecutive inactive (separator) rows at the top of the
     // item list.  This is the minimum value _linesAbove may reach via Prev-page
     // navigation — the first level-header separator must always remain visible.
@@ -67,12 +65,12 @@ private:
     int _linesBelow = 0;
     int _menuHeight;
     int _itemNums;
-    int _linesToRender;
     int _currentVisibleIndex = 0;
     Common::String _title;
     bool _addExit = false;
     bool _redraw = true;
     HorizontalMenu *_horizontalMenu;
+    Goldbox::MenuItemList _hMenuList;
 
     void selectionDown();
     void selectionUp();
@@ -82,9 +80,8 @@ private:
     void updateHorizontalMenu();
 
 public:
-    Goldbox::MenuItemList _hMenuList;
-
     VerticalMenu(const Common::String &name, const VerticalMenuConfig &config);
+    void setPromptOptions(Common::Array<Common::String> *options);
     ~VerticalMenu();
 	bool dispatchKeypress(const KeypressMessage &msg) { return msgKeypress(msg); }
 

@@ -60,11 +60,8 @@ VerticalMenu::VerticalMenu(const String &name, const VerticalMenuConfig &config)
         _menuHeight = totalHeight;
     }
     _itemNums = static_cast<int>(_menuItems->items.size());
-    _linesToRender = MIN(_menuHeight, _itemNums);
-    if (_itemNums > _menuHeight) {
-        _nextNeed = true;
+    if (_itemNums > _menuHeight)
         _linesBelow = _itemNums - _menuHeight;
-    }
 
     // Count leading consecutive separator (inactive) rows so Prev-page
     // navigation never scrolls above the first level-header.
@@ -113,16 +110,17 @@ void VerticalMenu::activate() {
     // Sync _currentVisibleIndex with externally pre-set currentSelection and
     // skip past any inactive (separator) items at the start of the visible page.
     if (_menuItems && !_menuItems->items.empty()) {
+        const int visOnPage = MIN(_menuHeight, _itemNums - _linesAbove);
         _currentVisibleIndex = _menuItems->currentSelection - _linesAbove;
-        _currentVisibleIndex = CLIP(_currentVisibleIndex, 0, MAX(0, _linesToRender - 1));
-        int tries = _linesToRender;
-        while (tries > 0 && _currentVisibleIndex < _linesToRender &&
+        _currentVisibleIndex = CLIP(_currentVisibleIndex, 0, MAX(0, visOnPage - 1));
+        int tries = visOnPage;
+        while (tries > 0 && _currentVisibleIndex < visOnPage &&
                 !_menuItems->items[_linesAbove + _currentVisibleIndex].active) {
             _currentVisibleIndex++;
             tries--;
         }
         // If all visible items are inactive, keep at 0
-        if (tries == 0 || _currentVisibleIndex >= _linesToRender) {
+        if (tries == 0 || _currentVisibleIndex >= visOnPage) {
             _currentVisibleIndex = 0;
         }
         _menuItems->currentSelection = _linesAbove + _currentVisibleIndex;
@@ -141,7 +139,7 @@ void VerticalMenu::draw() {
         debug(7, "VerticalMenu::draw() - NOT ACTIVE, skipping");
         return;
     }
-    debug(7, "VerticalMenu::draw() - drawing %d items", _linesToRender);
+    debug(7, "VerticalMenu::draw() - drawing %d items", MIN(_menuHeight, _itemNums - _linesAbove));
     drawText();
 
     if (_horizontalMenu) {
@@ -155,8 +153,9 @@ void VerticalMenu::drawText() {
     const int localHeight = _yEnd - _yStart + 1;
     s.clearBox(0, 0, localWidth - 1, localHeight - 1, 0);
 
+    const int linesToRender = MIN(_menuHeight, _itemNums - _linesAbove);
     debug(7, "VerticalMenu::drawText() - clearing box (%d,%d) to (%d,%d), rendering %d items",
-          _xStart, _yStart, _xEnd, _yEnd, _linesToRender);
+          _xStart, _yStart, _xEnd, _yEnd, linesToRender);
 
     // Optional fixed title line (not part of selectable list)
     int titleOffset = 0;
@@ -167,7 +166,7 @@ void VerticalMenu::drawText() {
     // Indent items by 2 spaces if a title is present
     int itemX = (_title.empty()) ? 0 : 2;
 
-    for (int i = 0; i < _linesToRender; i++) {
+    for (int i = 0; i < linesToRender; i++) {
         int menuIndex = i + _linesAbove;
         if (menuIndex >= _itemNums) {
             break;
@@ -413,10 +412,8 @@ void VerticalMenu::rebuild(Goldbox::MenuItemList *newItems, const String &newTit
     } else {
         _menuHeight = totalHeight;
     }
-    _linesToRender = MIN(_menuHeight, _itemNums);
-    if (_itemNums > _menuHeight) {
+    if (_itemNums > _menuHeight)
         _linesBelow = _itemNums - _menuHeight;
-    }
     // Recompute leading separator floor after new item list is wired in.
     _selectMin = 0;
     for (int i = 0; i < _itemNums; ++i) {
@@ -429,7 +426,15 @@ void VerticalMenu::rebuild(Goldbox::MenuItemList *newItems, const String &newTit
         _menuItems->currentSelection = 0;
     _redraw = true;
     updateHorizontalMenu();
-    drawText();
+}
+
+void VerticalMenu::setPromptOptions(Common::Array<Common::String> *options) {
+    _promptOptions = options;
+    _hMenuList.items.clear();
+    _hMenuList.currentSelection = 0;
+    if (_promptOptions)
+        _hMenuList.generateMenuItems(*_promptOptions, true);
+    updateHorizontalMenu();
 }
 
 } // namespace Dialogs

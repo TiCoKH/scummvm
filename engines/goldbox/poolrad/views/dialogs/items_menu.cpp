@@ -103,8 +103,7 @@ void ItemsMenu::activate() {
 
 	if (_verticalMenu) {
 		// Regenerate horizontal menu items from updated action labels
-		_verticalMenu->_hMenuList.items.clear();
-		_verticalMenu->_hMenuList.generateMenuItems(_horizontalMenuLabels, true);
+		_verticalMenu->setPromptOptions(&_horizontalMenuLabels);
 
 		_verticalMenu->rebuild(&_itemsMenuList, "");
 		_verticalMenu->activate();
