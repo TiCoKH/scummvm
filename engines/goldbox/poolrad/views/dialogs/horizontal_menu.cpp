@@ -114,10 +114,12 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
             break;
         }
         case Common::KEYCODE_SPACE: {
-            _menuItems->currentSelection = 0;
-            _redraw = true;
-            handled = true;
-            break;
+            deactivate();
+            if (_parent)
+                g_events->postMenuResult(_parent->getName(), true,
+                    keyCode, _menuItems->currentSelection,
+                    Common::String(), true, false);
+            return true;
         }
 		case Common::KEYCODE_RETURN: {
 			// Enter/Return always means "confirm current vertical selection".

@@ -90,8 +90,7 @@ void SpellsMenu::activate() {
     buildPromptOptions();
 
     if (_verticalMenu) {
-        _verticalMenu->_hMenuList.items.clear();
-        _verticalMenu->_hMenuList.generateMenuItems(_horizontalMenuLabels, true);
+        _verticalMenu->setPromptOptions(&_horizontalMenuLabels);
         _verticalMenu->rebuild(&_spellMenuList, "");
 
         // Restore cursor to previously chosen entry, skipping separators.
