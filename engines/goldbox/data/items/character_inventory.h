@@ -91,6 +91,11 @@ public:
     bool removeEffectTag(CharacterItem &item, uint8 tag,
                          Common::Array<CharacterItem *> *equippedSlots = nullptr);
 
+    // Consume one use of a non-scroll magic item (effect1 charges or stack).
+    // Returns true if the item was fully consumed and removed from inventory.
+    bool consumeItemUse(CharacterItem &item,
+                        Common::Array<CharacterItem *> *equippedSlots = nullptr);
+
     /// Access loaded items.
     const Common::List<CharacterItem>  &all() const { return _items; }
     int                                count() const { return (int)_items.size(); }

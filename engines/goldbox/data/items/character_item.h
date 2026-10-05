@@ -82,6 +82,11 @@ struct CharacterItem {
     /// legacy memorized-spell flag cleanup paths.
     bool isMissileOrScroll() const;
 
+    /// Returns the spell ID this magic item can cast, or 0 if not usable.
+    /// Applies the legacy ID range normalization (> 56 -> -= 23).
+    /// Scroll/missile items return 0 here; their spell is selected via SpellsMenu.
+    uint8 getMagicItemSpellId() const;
+
     /// Returns true when memorized-spell flags should be cleared on this item.
     bool shouldClearMemorizedSpellFlags() const;
 

@@ -163,6 +163,20 @@ bool CharacterItem::isMissileOrScroll() const {
     return isAmmoLike || isScroll();
 }
 
+uint8 CharacterItem::getMagicItemSpellId() const {
+    // Scroll/missile items select their spell interactively via SpellsMenu.
+    if (isMissileOrScroll())
+        return 0;
+    // effect1 holds the spell ID; effect2 < 0x80 means it is usable.
+    if (effect1 == 0 || effect2 >= 0x80)
+        return 0;
+    uint8 spellId = effect1;
+    // Legacy magic-item spell IDs above 56 use a shifted range.
+    if (spellId > 56)
+        spellId -= 23;
+    return spellId;
+}
+
 bool CharacterItem::shouldClearMemorizedSpellFlags() const {
     return isMissileOrScroll();
 }

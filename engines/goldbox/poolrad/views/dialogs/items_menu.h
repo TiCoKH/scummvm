@@ -28,6 +28,7 @@
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/poolrad/views/dialogs/party_selector.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
+#include "goldbox/poolrad/views/dialogs/spells_menu.h"
 #include "common/array.h"
 
 namespace Goldbox {
@@ -66,7 +67,8 @@ public:
 	enum ItemsMenuStage {
 		STAGE_ITEM_SELECTION = 0,    // Main item/action menu
 		STAGE_CONFIRM_DROP,           // Drop confirmation dialog
-		STAGE_SELECT_TRADE_TARGET     // Party selector for trade
+		STAGE_SELECT_TRADE_TARGET,    // Party selector for trade
+		STAGE_SELECT_SCROLL_SPELL     // SpellsMenu for scroll/missile use
 	};
 
 	ItemsMenu(const Common::String &name = "ItemsMenu");
@@ -91,6 +93,8 @@ private:
 	Goldbox::Data::Items::CharacterItem *_pendingRemoveItem = nullptr;
 	PartySelector *_partySelector = nullptr;
 	Goldbox::Data::Items::CharacterItem *_pendingTradeItem = nullptr;
+	Goldbox::Data::Items::CharacterItem *_pendingUseItem = nullptr;
+	SpellsMenu *_scrollSpellMenu = nullptr;
 
 	void setStage(ItemsMenuStage stage);
 	void buildItemsListMenu();
@@ -127,6 +131,8 @@ private:
 	// Subdialog management
 	void handleDropConfirmResult(const MenuResultMessage &result);
 	void handleTradeSelectionResult(const MenuResultMessage &result);
+	void handleScrollSpellResult(const MenuResultMessage &result);
+	void executeItemUse(Goldbox::Data::Items::CharacterItem *item, uint8 spellId);
 };
 
 } // namespace Dialogs

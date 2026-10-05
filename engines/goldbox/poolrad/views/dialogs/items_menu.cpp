@@ -24,6 +24,7 @@
 #include "common/system.h"
 #include "goldbox/events.h"
 #include "goldbox/data/items/character_item.h"
+#include "goldbox/data/items/character_inventory.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
@@ -32,6 +33,7 @@
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/spells/spell_casting.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -87,6 +89,11 @@ ItemsMenu::~ItemsMenu() {
 		delete _partySelector;
 		_partySelector = nullptr;
 	}
+	if (_scrollSpellMenu) {
+		_scrollSpellMenu->setParent(nullptr);
+		delete _scrollSpellMenu;
+		_scrollSpellMenu = nullptr;
+	}
 }
 
 void ItemsMenu::activate() {
@@ -128,6 +135,13 @@ void ItemsMenu::deactivate() {
 	// Clear pending items
 	_pendingRemoveItem = nullptr;
 	_pendingTradeItem = nullptr;
+	_pendingUseItem = nullptr;
+
+	if (_scrollSpellMenu) {
+		detachDialog(_scrollSpellMenu);
+		delete _scrollSpellMenu;
+		_scrollSpellMenu = nullptr;
+	}
 }
 
 void ItemsMenu::draw() {
@@ -188,6 +202,9 @@ void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
 		return;
 	case STAGE_SELECT_TRADE_TARGET:
 		handleTradeSelectionResult(result);
+		return;
+	case STAGE_SELECT_SCROLL_SPELL:
+		handleScrollSpellResult(result);
 		return;
 	case STAGE_ITEM_SELECTION:
 		// Fall through to main item action handling
@@ -396,17 +413,24 @@ void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
 		return;
 	}
 
-	// Check if item is readied
 	if (!isItemReadied(item)) {
-		// TODO: Display message "Must be readied"
+		displayMessage("Must be readied");
 		return;
 	}
 
-	// TODO: Implement item use logic
-	// Check if item is a ring or has proper effect flags
-	// Call appropriate use handling
+	if (item->isMissileOrScroll()) {
+		// Scroll/missile: user selects the spell interactively.
+		_pendingUseItem = item;
+		setStage(STAGE_SELECT_SCROLL_SPELL);
+		return;
+	}
 
+	const uint8 spellId = item->getMagicItemSpellId();
+	if (spellId == 0) {
+		return;
+	}
 
+	executeItemUse(item, spellId);
 }
 
 void ItemsMenu::handleTradeItem(Goldbox::Data::Items::CharacterItem *item) {
@@ -661,6 +685,62 @@ void ItemsMenu::displayMessage(const Common::String &message) {
 	_activePrompt->activate();
 }
 
+void ItemsMenu::executeItemUse(Goldbox::Data::Items::CharacterItem *item,
+		uint8 spellId) {
+	if (!item || !_character || spellId == 0)
+		return;
+
+	if (!Goldbox::Spells::g_spellCasting) {
+		debug(3, "ItemsMenu::executeItemUse: no SpellCastingService");
+		return;
+	}
+
+	Goldbox::Spells::SpellContext ctx;
+	ctx.caster = _character;
+	ctx.inCombat = isCharacterInCombat();
+	ctx.fromMagicItem = true;
+
+	const Goldbox::Data::Spells::Spells spellEnum =
+		static_cast<Goldbox::Data::Spells::Spells>(spellId);
+
+	const Goldbox::Spells::SpellCastResult castResult =
+		Goldbox::Spells::g_spellCasting->castSpell(ctx, spellEnum);
+
+	if (castResult.status != Goldbox::Spells::CAST_OK)
+		return;
+
+	// Consume the item: scroll/missile uses removeEffectTag; magic items
+	// use charge/stack consumption.
+	if (item->isMissileOrScroll()) {
+		_character->inventory.removeEffectTag(*item, spellId,
+			&_character->equippedItems.slots);
+	} else {
+		_character->inventory.consumeItemUse(*item,
+			&_character->equippedItems.slots);
+	}
+
+	buildItemList();
+	buildItemsListMenu();
+	redraw();
+}
+
+void ItemsMenu::handleScrollSpellResult(const MenuResultMessage &result) {
+	Goldbox::Data::Items::CharacterItem *item = _pendingUseItem;
+	_pendingUseItem = nullptr;
+
+	setStage(STAGE_ITEM_SELECTION);
+
+	if (!result._success || !item)
+		return;
+
+	// result._intValue carries the legacy spell index (1-based).
+	if (!result._hasIntValue || result._intValue < 0)
+		return;
+
+	const uint8 spellId = static_cast<uint8>(result._intValue + 1);
+	executeItemUse(item, spellId);
+}
+
 void ItemsMenu::handleDropConfirmResult(const MenuResultMessage &result) {
 	const bool confirmed = result._success &&
 		(result._keyCode == Common::KEYCODE_y ||
@@ -840,6 +920,27 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 		attachDialog(_partySelector);
 		_partySelector->activate();
 		redraw();
+		break;
+	}
+	case STAGE_SELECT_SCROLL_SPELL: {
+		debug(7, "ItemsMenu::setStage() - SELECT_SCROLL_SPELL stage");
+		if (_scrollSpellMenu) {
+			detachDialog(_scrollSpellMenu);
+			delete _scrollSpellMenu;
+			_scrollSpellMenu = nullptr;
+		}
+		if (_pendingUseItem) {
+			_scrollSpellMenu = new SpellsMenu("ItemsScrollSpellMenu");
+			_scrollSpellMenu->configure(
+				SpellsMenu::SL_ON_SCROLL,
+				SpellsMenu::SA_CAST);
+			Common::Array<Goldbox::Data::Items::CharacterItem *> scrollList;
+			scrollList.push_back(_pendingUseItem);
+			_scrollSpellMenu->setScrollItems(&scrollList);
+			attachDialog(_scrollSpellMenu);
+			_scrollSpellMenu->activate();
+			redraw();
+		}
 		break;
 	}
 	default:

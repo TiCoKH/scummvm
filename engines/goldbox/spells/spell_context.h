@@ -94,9 +94,14 @@ struct SpellContext {
     // spells whose fixedRange == SP_ATTACK_ROLL (need_ar path).
     Goldbox::Data::DamageSystem *damageSystem;
 
+    // Set when the spell originates from a magic item rather than a memorized
+    // spell slot. Preserves BOOL_MAGIC_ITEM context for downstream handlers.
+    bool fromMagicItem;
+
     SpellContext() : caster(nullptr), spellBook(nullptr),
         effectSystem(nullptr), inCombat(false), casterLevel(0),
-        targetPicker(nullptr), combat(nullptr), damageSystem(nullptr) {}
+        targetPicker(nullptr), combat(nullptr), damageSystem(nullptr),
+        fromMagicItem(false) {}
 };
 
 } // namespace Spells
