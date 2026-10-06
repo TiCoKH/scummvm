@@ -94,8 +94,8 @@ uint8 CloudEffectManager::create(Data::PlayerCharacter *owner,
                 }
             }
         } else if (rawTile == kTileDowned) {
-            const Common::Array<CombatantTable::DownedMemberRecord> &downed =
-                table.getDownedMembers();
+            const Common::Array<CombatGlobals::DownedMemberRecord> &downed =
+                ctx->globals.downedMembers;
             for (uint i = 0; i < downed.size(); ++i) {
                 if (downed[i].pos == cell) {
                     icon = downed[i].savedTile;
@@ -120,7 +120,6 @@ void CloudEffectManager::expire(Data::PlayerCharacter *owner,
         return;
 
     BattlefieldMap &map = ctx->map;
-    const CombatantTable &table = ctx->table;
     Common::List<CloudEffect>::iterator it = _clouds.begin();
     for (; it != _clouds.end(); ++it) {
         if (it->owner == owner && it->cloudIndex == cloudIndex)
@@ -133,8 +132,8 @@ void CloudEffectManager::expire(Data::PlayerCharacter *owner,
         bridge->postEffectMessage(owner, "The air clears a little...", true);
 
     // Restore the four cells covered by this cloud.
-    const Common::Array<CombatantTable::DownedMemberRecord> &downed =
-        table.getDownedMembers();
+    const Common::Array<CombatGlobals::DownedMemberRecord> &downed =
+        ctx->globals.downedMembers;
 
     for (int dir = 0; dir < 4; ++dir) {
         if (!it->activeTile[dir])

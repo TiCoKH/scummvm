@@ -54,25 +54,13 @@ namespace Combat {
 class CombatantTable {
 public:
     static const int MAX_COMBATANTS = 72;
-    static const uint8 TILE_DOWNED_MEMBER = 0x1F;
+    static const uint8 TILE_DOWNED_MEMBER  = 0x1F;
+    static const uint8 TILE_SPECIAL_GROUND = 0x1E;
 
     enum Side {
         SIDE_PARTY = 0,
         SIDE_ENEMY = 1,
         SIDE_COUNT = 2
-    };
-
-    /**
-     * Record for downed/sleeping combatants placed as terrain triggers.
-     * Mirrors original ARRAY_MEMBER_DOWN_ICONS[].
-     */
-    struct DownedMemberRecord {
-        Data::PlayerCharacter *character;
-        TilePos pos;
-        uint8 savedTile;
-
-        DownedMemberRecord()
-            : character(nullptr), pos(), savedTile(0) {}
     };
 
     CombatantTable();
@@ -116,11 +104,6 @@ public:
     uint8 getCharacterRow(const Data::PlayerCharacter *ch) const;
     TilePos getCharacterPos(const Data::PlayerCharacter *ch) const;
     uint8 getCharacterSize(const Data::PlayerCharacter *ch) const;
-
-    // --- Trigger records ---
-
-    void addDownedMember(Data::PlayerCharacter *ch, TilePos pos, uint8 savedTile);
-    const Common::Array<DownedMemberRecord> &getDownedMembers() const { return _downedMembers; }
 
     // --- Occupancy grid (lazy rebuild) ---
 
@@ -184,8 +167,6 @@ private:
     // --- Viewport-relative position cache removed ---
     // (was: _colDist, _rowDist, _vpPosDirty, _vpOriginCol, _vpOriginRow)
     // Use CombatViewport::getCharacterViewportPosition() instead.
-
-    Common::Array<DownedMemberRecord> _downedMembers;
 };
 
 } // namespace Combat

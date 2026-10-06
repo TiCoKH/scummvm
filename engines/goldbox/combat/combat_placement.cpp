@@ -162,7 +162,8 @@ void CombatPlacement::placeAll(Common::Array<Data::PlayerCharacter *> &roster,
                 TilePos pos = table.getTilePos(idx);
                 uint8 savedTile = _map->getRawTile(pos);
                 _map->setRawTile(pos, CombatantTable::TILE_DOWNED_MEMBER);
-                table.addDownedMember(ch, pos, savedTile);
+                globals.downedMembers.push_back(
+                    CombatGlobals::DownedMemberRecord(ch, pos, savedTile));
                 globals.membersOnGround++;
             }
             table.rebuildOccupancy();
