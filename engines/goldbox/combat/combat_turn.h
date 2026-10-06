@@ -287,6 +287,46 @@ bool checkSurrender(Data::PlayerCharacter *ch,
                     CombatContext &ctx,
                     CombatViewDelegate *view);
 
+/**
+ * View delegate for castSpell presentation callbacks.
+ * Pass nullptr to skip all presentation (e.g. AI casting, unit tests).
+ */
+struct CastSpellViewDelegate {
+    virtual ~CastSpellViewDelegate() {}
+
+    /** Scroll/focus the viewport on the caster and refresh the combat info panel. */
+    virtual void focusCaster(Data::PlayerCharacter *caster) = 0;
+
+    /** Display "Begins Casting" message for a timed spell. */
+    virtual void showBeginsCasting(Data::PlayerCharacter *caster) = 0;
+};
+
+/**
+ * Mirrors COMBAT_CastSpell (data/game-rule layer only).
+ *
+ * Caller must supply a non-zero spellId; spell selection (DIALOG_Spells)
+ * is the view layer's responsibility.
+ *
+ * Two paths:
+ *   castTime / 3 == 0  → immediate: execute useSpell(), end actor turn,
+ *                         return result of endTurn.
+ *   castTime / 3 > 0   → timed: store spellId in combatState, consume
+ *                         initiative (strict <; floor at 1), return true.
+ *
+ * Rejects spells with whenCast == IN_CAMP (combat-unavailable).
+ * Presentation callbacks are routed through CastSpellViewDelegate.
+ *
+ * @param actor     The casting character (globals.attacker / PTR_SELECTED_CHAR)
+ * @param spellId   Non-zero spell to cast
+ * @param aiControl True when called from AI (suppresses view callbacks)
+ * @param view      View delegate (may be nullptr)
+ * @return          True when the action was consumed (spell cast or queued)
+ */
+bool castSpell(Data::PlayerCharacter *actor,
+               uint8 spellId,
+               bool aiControl,
+               CastSpellViewDelegate *view);
+
 } // namespace Combat
 } // namespace Goldbox
 

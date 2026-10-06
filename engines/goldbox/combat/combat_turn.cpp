@@ -840,5 +840,52 @@ bool checkSurrender(Data::PlayerCharacter *ch,
     return false;
 }
 
+bool castSpell(Data::PlayerCharacter *actor,
+               uint8 spellId,
+               bool aiControl,
+               CastSpellViewDelegate *view) {
+    if (!actor || !actor->combatState || spellId == 0)
+        return false;
+
+    const Common::Array<Data::Spells::SpellEntry> &spells =
+        Data::Rules::getSpellEntries();
+    if (spellId >= spells.size())
+        return false;
+
+    const Data::Spells::SpellEntry &spell = spells[spellId];
+
+    // Reject spells that cannot be cast during combat (c_avail == 0).
+    if (spell.whenCast == Data::Spells::IN_CAMP)
+        return false;
+
+    // Player-controlled casting refreshes the combat presentation.
+    if (!aiControl && view)
+        view->focusCaster(actor);
+
+    // Integer division: cast_time / 3 gives initiative units consumed.
+    const uint8 castingTime = spell.castTime / 3;
+
+    if (castingTime == 0) {
+        // Immediate spell: execute and end the actor's turn.
+        // TODO: call useSpell(actor, spellId, aiControl) when implemented.
+        actor->combatState->endTurn();
+        return true;
+    }
+
+    // Timed spell: enter casting state.
+    if (!aiControl && view)
+        view->showBeginsCasting(actor);
+
+    actor->combatState->spellId = spellId;
+
+    // Consume initiative; floor at 1 (strict < preserves original oddity).
+    if (castingTime < actor->combatState->initiative)
+        actor->combatState->initiative -= castingTime;
+    else
+        actor->combatState->initiative = 1;
+
+    return true;
+}
+
 } // namespace Combat
 } // namespace Goldbox

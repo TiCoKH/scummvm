@@ -147,14 +147,7 @@ CombatSession::TickResult CombatSession::tick() {
     if (_currentActor->combatSide == ::Goldbox::Data::CS_ENEMY) {
         _phase = PHASE_AI_TURN;
         CombatContext ctx = makeContext();
-        AiTurnResult ai = executeAiTurn(_currentActor, ctx);
-
-        if (ai.action == AiTurnResult::ACTION_ATTACK && ai.target && ai.damage > 0) {
-            result.event          = TickResult::EV_AI_ATTACK;
-            result.target         = ai.target;
-            result.damage         = ai.damage;
-            result.targetWentDown = ai.targetWentDown;
-        }
+        moveByAI(_currentActor, ctx, nullptr);
     } else {
         // Party actor — pause and wait for player input.
         _phase = PHASE_AWAITING_PLAYER;

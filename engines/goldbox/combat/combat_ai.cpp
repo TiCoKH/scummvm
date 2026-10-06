@@ -386,6 +386,99 @@ void processAiMove(Data::PlayerCharacter *actor,
 }
 
 // ---------------------------------------------------------------------------
+// moveByAI  (mirrors COMBAT_MoveByAI)
+// ---------------------------------------------------------------------------
+
+void moveByAI(Data::PlayerCharacter *actor,
+              CombatContext &ctx,
+              AiMoveViewDelegate *view) {
+    if (!actor || !actor->combatState)
+        return;
+
+    Data::CombatAction &cs = *actor->combatState;
+
+    // 1. Allow player/control mechanism to reclaim this actor.
+    bool turnHandled = handleAiControlInput(
+        actor, ctx.params.roster, 0, ctx.globals, view);
+
+    // 2. Presentation: clear prompt and message areas.
+    if (view)
+        view->clearPromptAndMessage();
+
+    // 3. Disabled actors have their turn ended.
+    //    Execution does NOT return here — original falls through.
+    if (!actor->enabled)
+        turnHandled = (cs.endTurn(), true);
+
+    // 4. Select or refresh the AI action category.
+    //    Values 1..4 are kept 75% of the time; otherwise re-roll.
+    uint8 aiAction = cs.aiState;
+    if (aiAction == 0 || aiAction > 4 ||
+        VmInterface::rollDice(1, 4) == 1) {
+        aiAction = (uint8)VmInterface::rollDice(1, 8);
+        if (aiAction == 8)
+            aiAction = (uint8)(VmInterface::rollDice(1, 2) + 4);
+        else
+            aiAction = (uint8)VmInterface::rollDice(1, 4);
+    }
+    cs.aiState = aiAction;
+
+    // 5. Morale/surrender check.
+    if (!turnHandled) {
+        turnHandled = checkSurrender(actor, ctx, nullptr);
+    }
+
+    // Presentation: moral failure without full flee → "Flees in panic".
+    if (cs.moralFailure && !cs.fleeing && view)
+        view->showFleesInPanic(actor);
+
+    if (turnHandled)
+        return;
+
+    // 6. Try using a magic item.
+    if (tryUseItem(actor, ctx)) {
+        cs.endTurn();
+        return;
+    }
+
+    // 7. Execute a pending spell (stored from a previous timed cast).
+    if (cs.spellId != 0) {
+        // TODO: call useSpell(actor, cs.spellId, true) when implemented.
+        cs.spellId = 0;
+        cs.endTurn();
+        return;
+    }
+
+    // 8. Try Turn Undead.
+    if (tryTurnUndead(actor, ctx)) {
+        cs.endTurn();
+        return;
+    }
+
+    // 9. Select and cast a spell from the spell book.
+    if (selectSpellFromBook(actor, ctx))
+        return;
+
+    // 10. Ensure the AI has appropriate weapons equipped.
+    autoEquipWeapons(dynamic_cast<Data::ADnDCharacter *>(actor), ctx, nullptr);
+
+    // 11. Second control-reclaim opportunity before movement/attack.
+    turnHandled = handleAiControlInput(
+        actor, ctx.params.roster, 0, ctx.globals, view);
+
+    // 12. Movement/attack loop.
+    while (!turnHandled) {
+        const bool hasTarget =
+            ctx.selectTargetForAction(actor, 0xFF, true, false);
+
+        if (!hasTarget || cs.initiative < 1)
+            turnHandled = (concludeAiTurn(actor), true);
+        else
+            turnHandled = processAiTurn(actor, ctx, view);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // processAiTurn  (mirrors COMBAT_ProcessAITurn)
 // ---------------------------------------------------------------------------
 
@@ -983,7 +1076,9 @@ bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
     if (spellId != (uint8)SP_CL1_CURE_LT_WOUNDS && spell.isOffensive == 0)
         return false;
 
-    // SP_CL1_CURE_LT_WOUNDS is rejected when an adjacent target exists.
+    // SP_CL1_CURE_LT_WOUNDS is rejected when a nearby wounded ally exists
+    // (caster's tile + 8 neighbours). The spell is only eligible when no
+    // ally in range needs healing — counterintuitive but matches original.
     if (spellId == (uint8)SP_CL1_CURE_LT_WOUNDS) {
         Data::PlayerCharacter *adj = nullptr;
         if (findNearbyWoundedAlly(actor, ctx, &adj) && adj != nullptr)
@@ -1081,6 +1176,63 @@ bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx) {
     // TODO: call ITEM_Use(selectedItem) when that function is implemented.
     // The original ignores the return value; we return true unconditionally.
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// selectSpellFromBook  (mirrors AI_SelectSpellFromBook)
+// ---------------------------------------------------------------------------
+
+bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx) {
+    if (!actor || !actor->combatState)
+        return false;
+
+    // Build compact list of memorized spells (21 entries, index 0-20).
+    static const uint8 kMemSpellCount = 21;
+    uint8 spellList[kMemSpellCount];
+    uint8 spellCount = 0;
+
+    if (actor->combatState->canCast) {
+        const Data::ADnDCharacter *adnd =
+            dynamic_cast<const Data::ADnDCharacter *>(actor);
+        if (adnd) {
+            for (uint8 i = 0; i < kMemSpellCount; ++i) {
+                if (adnd->spells.memorizedSpells[i] != 0)
+                    spellList[spellCount++] = adnd->spells.memorizedSpells[i];
+            }
+        }
+    }
+
+    uint8 selectedSpell = 0;
+
+    // AI/autospell gate.
+    const bool aiAllowed = ((uint8)actor->npc > 0x7f) || ctx.globals.magicEnabled;
+    const bool sideActive = ctx.globals.sideCount[actor->combatSide] != 0;
+
+    if (spellCount != 0 && aiAllowed && sideActive) {
+        const uint8 searchRounds = (uint8)VmInterface::rollDice(1, 7);
+        uint8 priorityThreshold = 7;
+
+        for (uint8 round = 1;
+             round <= searchRounds && selectedSpell == 0;
+             ++round, --priorityThreshold) {
+
+            for (uint8 attempt = 1;
+                 attempt < 4 && selectedSpell == 0;
+                 ++attempt) {
+
+                const uint8 roll = (uint8)VmInterface::rollDice(1, (int)spellCount);
+                const uint8 spellId = spellList[roll - 1];
+
+                if (isSpellEligibleForAI(actor, spellId, priorityThreshold, ctx))
+                    selectedSpell = spellId;
+            }
+        }
+    }
+
+    if (selectedSpell == 0)
+        return false;
+
+    return castSpell(actor, selectedSpell, true, nullptr);
 }
 
 // ---------------------------------------------------------------------------
