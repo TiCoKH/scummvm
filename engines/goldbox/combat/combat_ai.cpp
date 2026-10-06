@@ -412,6 +412,10 @@ bool processAiTurn(Data::PlayerCharacter *actor,
         effectRuntime->checkEffectSet(Data::Effects::ES_ON_SPECIAL_ATTACK,
                                       *actor->getEffects(), *actor, &globals);
 
+    // Turn-undead attempt (cleric AI action, consumes the turn if triggered).
+    if (tryTurnUndead(actor, ctx))
+        return true;
+
     while (!turnComplete && aiActive) {
         // Morale failure: keep processing AI movement while movement and
         // initiative remain (initiative must be 1..19).
@@ -871,8 +875,8 @@ bool findNearbyWoundedAlly(Data::PlayerCharacter *attacker,
         if (cell.occupantId == 0) {
             // Tile 0x1F: downed-member tile — scan downed member records.
             if (cell.tileId == CombatantTable::TILE_DOWNED_MEMBER) {
-                const Common::Array<CombatantTable::DownedMemberRecord> &downed =
-                    ctx.table.getDownedMembers();
+                const Common::Array<CombatGlobals::DownedMemberRecord> &downed =
+                    ctx.globals.downedMembers;
                 for (uint i = 0; i < downed.size(); ++i) {
                     Data::PlayerCharacter *ch = downed[i].character;
                     if (!ch)
@@ -1076,6 +1080,192 @@ bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx) {
 
     // TODO: call ITEM_Use(selectedItem) when that function is implemented.
     // The original ignores the return value; we return true unconditionally.
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Turn-undead table
+// Rows = cleric table level (index 0..9, where index = tableLevel - 1).
+// Columns = undead level (index 0..9).
+// Signed: negative = destroy, positive = d20 flee threshold (roll must be >= value).
+// 99 = automatic failure (undead too powerful for this cleric level).
+// ---------------------------------------------------------------------------
+static const int8 kTurnUndeadTable[10][10] = {
+    //  uL1  uL2  uL3  uL4  uL5  uL6  uL7  uL8  uL9 uL10
+    {   10,   7,   4,   1,   1,   0,   0,  -1,  -1,  -1 }, // cleric L1
+    {   13,  10,   7,   1,   1,   0,   0,   0,  -1,  -1 }, // cleric L2
+    {   16,  13,  10,   4,   1,   1,   0,   0,   0,  -1 }, // cleric L3
+    {   19,  16,  13,   7,   4,   1,   1,   0,   0,  -1 }, // cleric L4
+    {   20,  19,  16,  10,   7,   4,   1,   1,   0,   0 }, // cleric L5
+    {   99,  20,  19,  13,  10,   7,   4,   1,   1,   0 }, // cleric L6
+    {   99,  99,  20,  16,  13,  10,   7,   4,   1,   0 }, // cleric L7
+    {   99,  99,  99,  20,  16,  13,  10,   7,   4,   1 }, // cleric L8
+    {   99,  99,  99,  99,  20,  16,  13,  10,   7,   1 }, // cleric L9
+    {   99,  99,  99,  99,  99,  20,  16,  13,  10,   4 }, // cleric L10+
+};
+
+// ---------------------------------------------------------------------------
+// findTurnUndeadTarget
+// ---------------------------------------------------------------------------
+
+bool findTurnUndeadTarget(Data::PlayerCharacter *cleric,
+                          CombatContext &ctx,
+                          Data::PlayerCharacter **outTarget) {
+    *outTarget = nullptr;
+
+    ctx.buildTargetList(cleric, 0xFF);
+    const uint8 targetCount = (uint8)ctx.targetList.targetOrder.size();
+
+    uint8 bestUndeadLevel = 13; // initial sentinel; only levels < 13 qualify
+    bool found = false;
+
+    for (uint8 i = 0; i < targetCount; ++i) {
+        Data::PlayerCharacter *candidate =
+            ctx.table.getCharacter(ctx.targetList.targetOrder[i]);
+        if (!candidate || !candidate->combatState)
+            continue;
+        if (candidate->combatState->fleeing)
+            continue;
+
+        const Data::ADnDCharacter *adnd =
+            dynamic_cast<const Data::ADnDCharacter *>(candidate);
+        if (!adnd)
+            continue;
+
+        const uint8 ul = adnd->levelUndead;
+        if (ul > 0 && ul < bestUndeadLevel) {
+            bestUndeadLevel = ul;
+            *outTarget = candidate;
+            found = true;
+        }
+    }
+
+    return found;
+}
+
+// ---------------------------------------------------------------------------
+// turnUndead
+// ---------------------------------------------------------------------------
+
+void turnUndead(Data::PlayerCharacter *cleric,
+                CombatContext &ctx,
+                TurnUndeadViewDelegate *view) {
+    if (!cleric || !cleric->combatState)
+        return;
+
+    cleric->combatState->turnedUndead = true;
+
+    Data::ADnDCharacter *clericAdnd =
+        dynamic_cast<Data::ADnDCharacter *>(cleric);
+    if (!clericAdnd)
+        return;
+
+    const uint8 clericLevel = clericAdnd->levels[Data::C_CLERIC];
+    if (clericLevel == 0)
+        return;
+
+    // Map cleric level to table row (0-based).
+    uint8 tableRow;
+    if (clericLevel <= 8)
+        tableRow = clericLevel - 1;
+    else if (clericLevel <= 13)
+        tableRow = 8; // row index 8 = "cleric L9" bucket
+    else
+        tableRow = 9; // row index 9 = "cleric L10+" bucket
+
+    uint8 turnAttempts      = (uint8)VmInterface::rollDice(1, 12);
+    const uint8 turnRoll    = (uint8)VmInterface::rollDice(1, 20);
+    uint8 remainingSuccesses = 6;
+    bool stopTurning = false;
+
+    while (!stopTurning && turnAttempts != 0) {
+        Data::PlayerCharacter *target = nullptr;
+        if (!findTurnUndeadTarget(cleric, ctx, &target))
+            break;
+
+        const Data::ADnDCharacter *targetAdnd =
+            dynamic_cast<const Data::ADnDCharacter *>(target);
+        if (!targetAdnd)
+            break;
+
+        const uint8 ul = targetAdnd->levelUndead;
+        // Column index: undead levels 1-10 map to columns 0-9.
+        const uint8 col = (ul >= 1 && ul <= 10) ? ul - 1 : 9;
+        const int8 turnResult = kTurnUndeadTable[tableRow][col];
+
+        // 99 = automatic failure.
+        if (turnResult == 99) {
+            stopTurning = true;
+            break;
+        }
+
+        const int required = (turnResult < 0) ? -turnResult : turnResult;
+        if (turnRoll < required) {
+            stopTurning = true;
+            break;
+        }
+
+        // Successful turn.
+        TurnUndeadResult result;
+        result.target = target;
+
+        if (turnResult < 0) {
+            // Destroy.
+            result.outcome = TurnUndeadResult::DESTROYED;
+            if (view)
+                view->onTurnResult(result);
+            if (g_combatSession)
+                g_combatSession->setCharacterStatus(target, Data::S_GONE);
+            else {
+                target->healthStatus = Data::S_GONE;
+                target->enabled = false;
+            }
+        } else {
+            // Flee.
+            result.outcome = TurnUndeadResult::FLED;
+            if (view)
+                view->onTurnResult(result);
+            target->combatState->fleeing = true;
+        }
+
+        if (remainingSuccesses != 0)
+            --remainingSuccesses;
+
+        // Destroying undead preserves the last attempt when successes remain.
+        const uint8 nextAttempts = turnAttempts - 1;
+        if (nextAttempts == 0 &&
+                remainingSuccesses != 0 &&
+                turnResult < 0) {
+            // Keep turnAttempts unchanged.
+        } else {
+            turnAttempts = nextAttempts;
+        }
+    }
+
+    ctx.updateSideCount();
+    cleric->combatState->endTurn();
+}
+
+// ---------------------------------------------------------------------------
+// tryTurnUndead
+// ---------------------------------------------------------------------------
+
+bool tryTurnUndead(Data::PlayerCharacter *actor, CombatContext &ctx) {
+    if (!actor || !actor->combatState)
+        return false;
+    if (actor->combatState->turnedUndead)
+        return false;
+
+    const Data::ADnDCharacter *adnd =
+        dynamic_cast<const Data::ADnDCharacter *>(actor);
+    if (!adnd || adnd->levels[Data::C_CLERIC] == 0)
+        return false;
+
+    Data::PlayerCharacter *target = nullptr;
+    if (!findTurnUndeadTarget(actor, ctx, &target))
+        return false;
+
+    turnUndead(actor, ctx, nullptr);
     return true;
 }
 

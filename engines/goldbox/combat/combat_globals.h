@@ -33,7 +33,9 @@ namespace Goldbox {
 namespace Data {
 class PlayerCharacter;
 }
+}
 
+namespace Goldbox {
 namespace Combat {
 
 struct TargetEntry {
@@ -85,7 +87,26 @@ struct CombatGlobals {
     int8 moraleModifier;     // COMBAT_MORALE_MOD
     uint8 behaviorFlags;     // bitmask of DamageTypeMask
     uint8 activeSpellId;     // BYTE_SPELL_INPORCESS
+    /**
+     * Record for a downed/sleeping party member placed as a ground marker.
+     * Mirrors original ARRAY_MEMBER_DOWN_ICONS[].
+     * Owned here because it is combat/map state consulted by AI
+     * (e.g. AI_FindAdjacentWoundedAlly) and tile-restore logic,
+     * not merely a presentation list.
+     */
+    struct DownedMemberRecord {
+        Data::PlayerCharacter *character;
+        TilePos pos;
+        uint8 savedTile;
+
+        DownedMemberRecord()
+            : character(nullptr), pos(), savedTile(0) {}
+        DownedMemberRecord(Data::PlayerCharacter *ch, TilePos p, uint8 tile)
+            : character(ch), pos(p), savedTile(tile) {}
+    };
+
     uint8 membersOnGround;   // C_MEMBERS_ON_GROUND
+    Common::Array<DownedMemberRecord> downedMembers; // ARRAY_MEMBER_DOWN_ICONS
     uint8 combatFlag1;       // D_unknownCombatFlag1
     uint8 sideCount[2];      // ARRAY_HOSTILITY[CS_PARTY/CS_ENEMY]
     int8 savingThrow;        // SAVING_THROW per-hit modifier
@@ -131,6 +152,7 @@ struct CombatGlobals {
         behaviorFlags = 0;
         activeSpellId = 0;
         membersOnGround = 0;
+        downedMembers.clear();
         combatFlag1 = 0;
         sideCount[0] = 0;
         sideCount[1] = 0;

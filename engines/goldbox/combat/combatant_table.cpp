@@ -41,7 +41,6 @@ void CombatantTable::clear() {
     _foesCount = 0;
     _occupancyDirty = true;
     memset(_occupancy, 0, sizeof(_occupancy));
-    _downedMembers.clear();
 }
 
 int CombatantTable::addCombatant(Data::PlayerCharacter *ch, uint8 size) {
@@ -156,15 +155,7 @@ uint8 CombatantTable::getCharacterSize(const Data::PlayerCharacter *ch) const {
     return _entries[idx].size;
 }
 
-void CombatantTable::addDownedMember(Data::PlayerCharacter *ch, TilePos pos, uint8 savedTile) {
-    DownedMemberRecord rec;
-    rec.character = ch;
-    rec.pos = pos;
-    rec.savedTile = savedTile;
-    _downedMembers.push_back(rec);
-}
 
-// --- Occupancy grid (lazy) ---
 
 void CombatantTable::ensureOccupancy() const {
     if (_occupancyDirty)

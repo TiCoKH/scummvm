@@ -208,8 +208,63 @@ bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
                           CombatContext &ctx);
 
 /**
- * Mirrors AI_TryUseItem.
+ * Mirrors AI_TryTurnUndead.
  *
+ * Checks whether the cleric has already used their turn-undead attempt
+ * this turn, requires cleric level > 0, searches for an eligible undead
+ * target, and if one exists performs the full turn-undead action.
+ *
+ * Returns true when the AI action was consumed (turn-undead was attempted).
+ */
+bool tryTurnUndead(Data::PlayerCharacter *actor, CombatContext &ctx);
+
+/**
+ * Mirrors COMBAT_FindTurnUndeadTarget.
+ *
+ * Builds the combat target list and selects the lowest-level eligible
+ * undead (levelUndead > 0, levelUndead < 13, not already fleeing).
+ * Tie-breaks by target-list order (first encountered wins).
+ *
+ * Returns true and sets *outTarget when a candidate is found.
+ */
+bool findTurnUndeadTarget(Data::PlayerCharacter *cleric,
+                          CombatContext &ctx,
+                          Data::PlayerCharacter **outTarget);
+
+/**
+ * Mirrors COMBAT_TurnUndead.
+ *
+ * Executes the full turn-undead action for cleric:
+ *   - Sets turnedUndead flag.
+ *   - Rolls 1d12 attempts and 1d20 turn roll.
+ *   - Looks up the turn-undead table by cleric level bucket and target
+ *     undead level.
+ *   - Negative table result → destroy; positive → flee.
+ *   - At most 6 successful turns per action.
+ *   - Destroying undead preserves remaining attempts when successes remain.
+ *   - Ends the cleric's combat turn.
+ *
+ * Presentation (messages, focus, animation) is the caller's responsibility
+ * via the TurnUndeadViewDelegate.
+ */
+struct TurnUndeadResult {
+    enum Outcome { NONE, FLED, DESTROYED };
+    Data::PlayerCharacter *target;
+    Outcome outcome;
+    TurnUndeadResult() : target(nullptr), outcome(NONE) {}
+    TurnUndeadResult(Data::PlayerCharacter *t, Outcome o) : target(t), outcome(o) {}
+};
+
+struct TurnUndeadViewDelegate {
+    virtual ~TurnUndeadViewDelegate() {}
+    virtual void onTurnResult(const TurnUndeadResult &result) = 0;
+};
+
+void turnUndead(Data::PlayerCharacter *cleric,
+                CombatContext &ctx,
+                TurnUndeadViewDelegate *view = nullptr);
+
+/**
  * Searches the character's ready magic items for an eligible spell item
  * and uses the first one found. Eligibility is gated by:
  *   - combatState->canUse

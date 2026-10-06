@@ -985,10 +985,12 @@ static void handleRevive(const EffectCall &c) {
     // to the live table entry if the character was never recorded as downed.
     uint8 col = 0, row = 0;
     bool found = false;
-    for (const auto &rec : ctx->table.getDownedMembers()) {
-        if (rec.character == &c.character) {
-            col = rec.pos.col;
-            row = rec.pos.row;
+    const Common::Array<Combat::CombatGlobals::DownedMemberRecord> &downed =
+        ctx->globals.downedMembers;
+    for (uint i = 0; i < downed.size(); ++i) {
+        if (downed[i].character == &c.character) {
+            col = downed[i].pos.col;
+            row = downed[i].pos.row;
             found = true;
             break;
         }
