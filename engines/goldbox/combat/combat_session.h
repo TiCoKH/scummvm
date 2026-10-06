@@ -39,13 +39,14 @@ class PlayerCharacter;
 namespace Combat {
 
 struct AiMoveViewDelegate;
+struct CombatViewDelegate;
 
 /**
  * Owns all combat state and drives the round loop.
  *
- * CombatView holds a CombatSession and calls tick() each frame.
- * The view only reads session state for rendering and reacts to
- * TickResult events for animation and message display.
+ * CombatView holds a CombatSession and calls executeTurn() to advance
+ * one actor's turn. The view only reads session state for rendering
+ * and reacts to TurnResult events for animation and message display.
  */
 class CombatSession {
 public:
@@ -55,6 +56,8 @@ public:
         PHASE_PLAYER_TURN,      // waiting to select next actor
         PHASE_AWAITING_PLAYER,  // party actor selected, waiting for player input
         PHASE_AI_TURN,
+        PHASE_ROUND_END,        // all actors acted; waiting for DIALOG_CombatEnd
+        PHASE_COMBAT_END,       // one side eliminated; waiting for DIALOG_CombatEnd
         PHASE_ENDED
     };
 
@@ -69,8 +72,8 @@ public:
         PA_NONE     // skip turn without menu (disabled / pre-cast spell)
     };
 
-    /** What happened during one tick — view reacts to these. */
-    struct TickResult {
+    /** What happened during one actor turn — view reacts to these. */
+    struct TurnResult {
         enum Event {
             EV_NONE,
             EV_ACTOR_FOCUSED,   // Actor selected; view should scroll to actor and refresh status panel
@@ -93,18 +96,31 @@ public:
     void setup(const CombatParams &params);
 
     /**
-     * Advance combat by one actor turn.
-     * Returns a TickResult describing what happened so the view can
-     * play animations and show messages without containing any logic.
+     * Set view delegates for AI and attack presentation callbacks.
+     * Both may be nullptr to suppress all presentation (e.g. unit tests).
+     * Must be called after setup() and before the first tick().
      */
-    TickResult tick();
+    void setViewDelegates(AiMoveViewDelegate *aiDelegate,
+                          CombatViewDelegate *attackDelegate) {
+        _aiDelegate     = aiDelegate;
+        _attackDelegate = attackDelegate;
+    }
+
+    /**
+     * Mirrors COMBAT_ExecuteTurn.
+     * Drives one actor's turn: applies turn-start effects, sets the acting
+     * character, recalculates stats, runs ES15, then either dispatches to
+     * moveByAI() or pauses at PHASE_AWAITING_PLAYER for player input.
+     * Returns a TurnResult describing what happened.
+     */
+    TurnResult executeTurn();
 
     /**
      * Submit the player's chosen action for the current party actor.
      * Only valid when phase == PHASE_AWAITING_PLAYER.
      * Executes the action, marks the actor as done, advances to next actor.
      */
-    TickResult submitPlayerAction(PlayerAction action);
+    TurnResult submitPlayerAction(PlayerAction action);
 
     // -----------------------------------------------------------------------
     // Movement step API — called by CombatMoveDialog each step.
@@ -193,13 +209,23 @@ public:
     bool flee(Data::PlayerCharacter *ch);
 
     /** Mark actor as having acted and advance to next actor. */
-    TickResult finishMoveAction(Data::PlayerCharacter *ch);
+    TurnResult finishMoveAction(Data::PlayerCharacter *ch);
 
     /** The party actor currently waiting for player input. nullptr if none. */
     Data::PlayerCharacter *getCurrentActor() const { return _currentActor; }
 
     Phase getPhase() const { return _phase; }
     bool isEnded() const { return _phase == PHASE_ENDED; }
+
+    /**
+     * Acknowledge the end-of-round or end-of-combat interaction and
+     * resume the encounter loop.  Only valid when phase is
+     * PHASE_ROUND_END or PHASE_COMBAT_END.
+     *
+     * continueEncounter: true  → start the next round (PHASE_ROUND_END only)
+     *                    false → end the encounter (transitions to PHASE_ENDED)
+     */
+    void acknowledgeRoundEnd(bool continueEncounter);
 
     // --- Read-only accessors for rendering ---
     const CombatantTable  &getTable()          const { return _table; }
@@ -250,18 +276,29 @@ private:
     Common::ScopedPtr<CombatContext> _context;
 
     Data::PlayerCharacter *_currentActor;
+    // Saved PTR_SELECTED_CHAR value across PHASE_AWAITING_PLAYER pause.
+    // Mirrors the previousSelected local in COMBAT_ExecuteTurn.
+    Data::PlayerCharacter *_previousAttacker = nullptr;
+
+    AiMoveViewDelegate  *_aiDelegate     = nullptr;
+    CombatViewDelegate  *_attackDelegate = nullptr;
 
     CombatContext makeContext();
     CombatContext makeContext() const;
     uint8 readAndClearAmbushFlags() const;
 
     /**
-     * Per-actor setup mirroring COMBAT_ExecuteTurn's pre-dispatch block:
-     * resets moveBudget/directionChange/guarding, clamps initiative==20 to 19,
-     * runs ES_POST_MOVEMENT_TILE (7) and ES_POISON_CYCLE (15).
-     * Returns false if the actor's turn was cancelled by an effect.
+     * Turn-start effect processing (first half of COMBAT_ExecuteTurn,
+     * before PTR_SELECTED_CHAR is set):
+     *   - resets attackCount/directionChange/guarding
+     *   - runs ES_POST_MOVEMENT_TILE (7)
+     *   - first initiative gate (initiative > 0)
+     *   - normalizes initiative 20 → 19
+     * Returns false if the actor's turn is cancelled.
+     * recalcCombatStats, ES_POISON_CYCLE (15), and the second initiative
+     * gate run in executeTurn() after PTR_SELECTED_CHAR is set.
      */
-    bool prepareTurn(Data::PlayerCharacter *ch);
+    bool applyTurnStartEffects(Data::PlayerCharacter *ch);
 };
 
 /**

@@ -42,21 +42,116 @@
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/combat/combat_context.h"
+#include "goldbox/combat/combat_ai.h"
+#include "goldbox/combat/combat_turn.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
+// ---------------------------------------------------------------------------
+// Concrete AiMoveViewDelegate — routes AI presentation through CombatView
+
+struct CombatViewAiDelegate : public Combat::AiMoveViewDelegate {
+    CombatView *_view;
+    explicit CombatViewAiDelegate(CombatView *v) : _view(v) {}
+
+    void drawMoveRemaining(uint8 moveHalf) override {
+        // Mirrors COMBAT_ProcessAIMove TEXT_DrawToScreen(text, col=28, row=24, color=0):
+        // drawn at row 24 col 28 — same row as the horizontal menu, replacing it during AI turn.
+        Surface s = _view->getSurface();
+        s.clearBox(0, 24, 39, 24, 8);
+        s.writeStringC(28, 24, 10,
+            Common::String::format("Move/Attack, Move Left = %d", moveHalf));
+        g_system->updateScreen();
+    }
+
+    void showMessage(const char *msg) override {
+        // Autospell toggle and similar — also row 24 prompt area.
+        Surface s = _view->getSurface();
+        s.clearBox(0, 24, 39, 24, 8);
+        s.writeStringC(0, 24, 10, Common::String(msg));
+        g_system->updateScreen();
+    }
+
+    void updateCharacterFacingAndRedraw(::Goldbox::Data::PlayerCharacter *ch,
+                                        uint8 direction) override {
+        _view->updateCharacterFacingAndRedraw(
+            ch, static_cast<Direction>(direction), 0, false);
+    }
+
+    void drawCombatInfo(::Goldbox::Data::PlayerCharacter *ch) override {
+        _view->drawCombatInfo(ch);
+    }
+
+    void clearPromptAndMessage() override {
+        if (g_engine)
+            g_engine->getGameText().clearMessageArea();
+    }
+
+    void showFleesInPanic(::Goldbox::Data::PlayerCharacter *ch) override {
+        _view->printCombatMessage(ch, "Flees in panic!", 1);
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Concrete CombatViewDelegate — routes attack result messages through CombatView
+
+struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
+    CombatView *_view;
+    explicit CombatViewAttackDelegate(CombatView *v) : _view(v) {}
+
+    void drawCombatInfo(::Goldbox::Data::PlayerCharacter *attacker) override {
+        _view->drawCombatInfo(attacker);
+    }
+
+    void updateCharacterFacingAndRedraw(::Goldbox::Data::PlayerCharacter *ch,
+                                        uint8 direction, uint8 /*redrawMode*/,
+                                        bool restoreOld) override {
+        _view->updateCharacterFacingAndRedraw(
+            ch, static_cast<Direction>(direction), 0, restoreOld);
+    }
+
+    void animateRangedAttack(::Goldbox::Data::PlayerCharacter *attacker,
+                             ::Goldbox::Data::PlayerCharacter *target,
+                             ::Goldbox::Data::Items::CharacterItem *item) override {
+        _view->animateRangedAttack(attacker, target,
+            static_cast<const ::Goldbox::Data::Items::CharacterItem *>(item));
+    }
+
+    void drawAttackResult(::Goldbox::Data::PlayerCharacter *attacker,
+                          ::Goldbox::Data::PlayerCharacter *target,
+                          uint8 /*facingMode*/, uint8 damage,
+                          uint8 damageDisplay, uint8 resultType) override {
+        if (resultType == 0) {
+            _view->printCombatMessage(attacker, "Misses!", 10);
+        } else {
+            _view->printCombatMessage(attacker,
+                Common::String::format("Hits for %d!", damageDisplay), 10);
+            if (damage > 0)
+                _view->applyDamageMessage(target, damage,
+                    ::Goldbox::Data::DAMAGE_NORMAL, false);
+        }
+    }
+};
+
+
 CombatView::CombatView()
     : View("Combat"), _needsFullRedraw(true), _combatMenu(nullptr),
-      _combatMove(nullptr), _currentInfoActor(nullptr) {
+      _combatMove(nullptr), _combatEnd(nullptr), _currentInfoActor(nullptr) {
     _combatMenu = new Dialogs::CombatMenuDialog();
     _combatMove = new Dialogs::CombatMoveDialog();
+    _combatEnd  = new Dialogs::CombatEndDialog();
+    _aiDelegate     = new CombatViewAiDelegate(this);
+    _attackDelegate = new CombatViewAttackDelegate(this);
 }
 
 CombatView::~CombatView() {
     delete _combatMenu;
     delete _combatMove;
+    delete _combatEnd;
+    delete _aiDelegate;
+    delete _attackDelegate;
 }
 
 void CombatView::setup(const Combat::CombatParams &params) {
@@ -75,6 +170,7 @@ void CombatView::setup(const Combat::CombatParams &params) {
     Combat::CombatParams p = params;
     p.tilePropertyProvider = &PoolradTilePropertyProvider::instance();
     _session.setup(p);
+    _session.setViewDelegates(_aiDelegate, _attackDelegate);
     Combat::g_combatSession = &_session;
 
     _tilemap.render(_session.getBattlefieldMap(), _tileCache,
@@ -106,6 +202,10 @@ bool CombatView::msgKeypress(const KeypressMessage &msg) {
         close();
         return true;
     }
+
+    // Forward to CombatEndDialog while it's waiting for surrender input.
+    if (_combatEnd && _combatEnd->isActive())
+        return _combatEnd->msgKeypress(msg);
 
     if (_session.getPhase() != Combat::CombatSession::PHASE_PLAYER_TURN)
         return false;
@@ -165,13 +265,40 @@ bool CombatView::tick() {
     // Don't advance while waiting for player input — menu keypresses drive that.
     if (_session.getPhase() == Combat::CombatSession::PHASE_NONE ||
             _session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER ||
+            _session.getPhase() == Combat::CombatSession::PHASE_ROUND_END ||
+            _session.getPhase() == Combat::CombatSession::PHASE_COMBAT_END ||
             _session.isEnded())
         return false;
 
-    const Combat::CombatSession::TickResult result = _session.tick();
+    const Combat::CombatSession::TurnResult result = _session.executeTurn();
 
-    if (result.event == Combat::CombatSession::TickResult::EV_NONE)
+    if (result.event == Combat::CombatSession::TurnResult::EV_NONE)
         return false;
+
+    // Round ended — mirrors DIALOG_CombatEnd.
+    if (result.event == Combat::CombatSession::TurnResult::EV_ROUND_END ||
+            result.event == Combat::CombatSession::TurnResult::EV_COMBAT_END) {
+        const bool isCombatEnd =
+            result.event == Combat::CombatSession::TurnResult::EV_COMBAT_END;
+        // TODO: derive canSurrender from session state when surrender logic is implemented.
+        const bool canSurrender = false;
+        if (isCombatEnd || !canSurrender) {
+            // No interaction needed: resolve immediately.
+            if (isCombatEnd) {
+                close();
+            } else {
+                _session.acknowledgeRoundEnd(true);
+                _needsFullRedraw = true;
+            }
+        } else {
+            // Surrender prompt needed: attach dialog and wait for input.
+            _combatEnd->prepare(isCombatEnd, canSurrender);
+            attachDialog(_combatEnd);
+            _combatEnd->activate();
+            _needsFullRedraw = true;
+        }
+        return true;
+    }
 
     // Focus viewport on the new actor (mirrors COMBAT_FocusCharacter radius=2).
     if (result.actor) {
@@ -214,7 +341,7 @@ bool CombatView::tick() {
     }
 
     // AI turn completed synchronously — apply damage and redraw.
-    if (result.event == Combat::CombatSession::TickResult::EV_AI_ATTACK &&
+    if (result.event == Combat::CombatSession::TurnResult::EV_AI_ATTACK &&
             result.target && result.damage > 0)
         applyDamageMessage(result.target, (uint8)result.damage,
                            ::Goldbox::Data::DAMAGE_NORMAL, false);
@@ -224,7 +351,26 @@ bool CombatView::tick() {
 }
 
 void CombatView::handleMenuResult(const MenuResultMessage &result) {
-    if (!result._success || !result._hasIntValue)
+    if (!result._hasIntValue)
+        return;
+
+    // CombatEndDialog posts intValue=-1 as sentinel.
+    if (result._intValue == -1) {
+        if (_combatEnd && _combatEnd->isActive()) {
+            detachDialog(_combatEnd);
+        }
+        if (!result._success) {
+            // Combat ended or party surrendered.
+            close();
+            return;
+        }
+        // Continue to next round.
+        _session.acknowledgeRoundEnd(true);
+        _needsFullRedraw = true;
+        return;
+    }
+
+    if (!result._success)
         return;
 
     const Combat::CombatSession::PlayerAction action =
@@ -266,10 +412,10 @@ void CombatView::handleMenuResult(const MenuResultMessage &result) {
         return;
     }
 
-    const Combat::CombatSession::TickResult tickResult =
+    const Combat::CombatSession::TurnResult tickResult =
         _session.submitPlayerAction(action);
 
-    if (tickResult.event == Combat::CombatSession::TickResult::EV_AI_ATTACK &&
+    if (tickResult.event == Combat::CombatSession::TurnResult::EV_AI_ATTACK &&
             tickResult.target && tickResult.damage > 0) {
         applyDamageMessage(tickResult.target, (uint8)tickResult.damage,
                            ::Goldbox::Data::DAMAGE_NORMAL, false);
@@ -353,6 +499,18 @@ void CombatView::drawUI() {
 // ---------------------------------------------------------------------------
 // Damage
 
+void CombatView::printCombatMessage(::Goldbox::Data::PlayerCharacter *ch,
+        const Common::String &text, uint8 line) {
+    if (!g_engine)
+        return;
+    g_engine->getGameText().showMessage(ch, text, line);
+    Surface s = getSurface();
+    while (g_engine->getGameText().advance())
+        ;
+    g_engine->getGameText().draw(s);
+    g_system->updateScreen();
+}
+
 void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
         uint8 baseDamage, ::Goldbox::Data::DamageModifier modifier,
         bool applyModifier) {
@@ -371,15 +529,7 @@ void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
         (_session.getGlobals().behaviorFlags & Combat::CombatGlobals::DMG_MAGIC) ==
         _session.getGlobals().behaviorFlags;
 
-    if (g_engine) {
-        g_engine->getGameText().showMessage(ch, r.message, 10, false);
-        Surface messageSurface = getSurface();
-        while (g_engine->getGameText().advance())
-            ;
-        g_engine->getGameText().draw(messageSurface);
-        g_system->updateScreen();
-    }
-
+    printCombatMessage(ch, r.message);
     drawDamage(ch, isMagic, r.message);
 
     if (ch->combatState)
@@ -493,8 +643,9 @@ void CombatView::drawCombatInfo(::Goldbox::Data::PlayerCharacter *ch) {
 
     Surface s = getSurface();
 
-    // Mirrors SCREEN_ClearRect(23, 1, 38, 21).
-    s.clearBox(23, 1, 38, 21, kBackgroundColor);
+    // Clear only the static info area (rows 1-9); rows 10-21 are the
+    // GameText combat message area and must not be clobbered here.
+    s.clearBox(23, 1, 38, 9, kBackgroundColor);
 
     // Row 1: character name.
     s.writeStringC(23, 1, 10, ch->name);
