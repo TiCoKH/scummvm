@@ -245,19 +245,19 @@ Data::PlayerCharacter *selectNextActor(
     if (globals.sideCount[0] == 0 || globals.sideCount[1] == 0)
         return nullptr;
 
-    // Find the eligible character with the lowest delay value.
-    // delay == 0xFF means the character has already acted this round.
+    // Find the enabled character with the highest initiative that has not
+    // yet acted (initiative != 0xFF means acted; 0 means skipped/cancelled).
     Data::PlayerCharacter *best = nullptr;
-    uint8 bestInitiative = 0xFF;
+    uint8 bestInitiative = 0;
 
     for (uint i = 0; i < roster.size(); i++) {
         Data::PlayerCharacter *ch = roster[i];
         if (!ch || !ch->enabled || !ch->combatState)
             continue;
-		if (ch->combatState->initiative == 0xFF)
+        if (ch->combatState->initiative == 0xFF)
             continue;
-		if (ch->combatState->initiative < bestInitiative) {
-			bestInitiative = ch->combatState->initiative;
+        if (ch->combatState->initiative > bestInitiative) {
+            bestInitiative = ch->combatState->initiative;
             best = ch;
         }
     }

@@ -30,6 +30,7 @@
 #include "goldbox/gfx/combat_renderer.h"
 #include "goldbox/poolrad/views/dialogs/combat_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
+#include "goldbox/poolrad/views/dialogs/combat_end_dialog.h"
 
 // Forward declarations — avoid pulling full headers into the Poolrad::Views
 // namespace where unqualified 'Data::' would resolve to Goldbox::Poolrad::Data.
@@ -44,6 +45,10 @@ class EffectHostBridge;
 namespace Gfx {
 class Pic;
 } // namespace Gfx
+namespace Combat {
+struct AiMoveViewDelegate;
+struct CombatViewDelegate;
+} // namespace Combat
 } // namespace Goldbox
 
 namespace Goldbox {
@@ -83,12 +88,31 @@ public:
     // (e.g. poison wear-off via EffectHostBridge::onCharacterDied).
     void handleDeathOnMap(Goldbox::Data::PlayerCharacter *ch);
 
+    /**
+     * Print a message into the combat right-panel message area (cols 23-38).
+     * Routes through GameText::showMessage which auto-selects combat placement
+     * when GS_COMBAT is active. ch may be nullptr for system messages.
+     * line is the name row (text starts at line+1); default 10 matches
+     * the original COMBAT_ApplyDamageMessage anchor row.
+     */
+    void printCombatMessage(Goldbox::Data::PlayerCharacter *ch,
+                            const Common::String &text, uint8 line = 10);
+
     bool msgFocus(const FocusMessage &msg) override;
     bool msgUnfocus(const UnfocusMessage &msg) override;
     bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
     bool tick() override;
     void handleMenuResult(const MenuResultMessage &result) override;
+
+    void drawCombatInfo(Goldbox::Data::PlayerCharacter *ch);
+    void updateCharacterFacingAndRedraw(Goldbox::Data::PlayerCharacter *ch,
+                                        Direction direction,
+                                        uint8 iconFrame,
+                                        bool noRedraw);
+    void animateRangedAttack(Goldbox::Data::PlayerCharacter *attacker,
+                             Goldbox::Data::PlayerCharacter *target,
+                             const Goldbox::Data::Items::CharacterItem *item);
 
     // --- Debug accessors ---
     const Combat::BattlefieldMap &debugBattlefieldMap() const {
@@ -114,9 +138,14 @@ private:
     // --- Dialogs ---
     Dialogs::CombatMenuDialog *_combatMenu;
     Dialogs::CombatMoveDialog *_combatMove;
+    Dialogs::CombatEndDialog  *_combatEnd;
 
     // --- Effect bridge (wired at setup time) ---
     Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;
+
+    // --- View delegates (owned, wired into session at setup time) ---
+    Combat::AiMoveViewDelegate  *_aiDelegate     = nullptr;
+    Combat::CombatViewDelegate  *_attackDelegate = nullptr;
 
     // --- Rendering ---
     Gfx::BattlefieldTilemap _tilemap;
@@ -145,24 +174,13 @@ private:
     static const int kWin2Right  = 38;
     static const int kWin2Bottom = 21;
 
+private:
     // --- Internal methods ---
     void drawViewport();
     void drawCombatants();
     void drawUI();
-    void drawCombatInfo(Goldbox::Data::PlayerCharacter *ch);
     void drawDamageFrame(const Goldbox::Gfx::Pic *frame, int pixX, int pixY,
                          Graphics::ManagedSurface *dst);
-
-    /**
-     * Mirrors COMBAT_UpdateCharacterFacingAndRedraw.
-     * Updates the character's facing in combat state and redraws as needed.
-     * noRedraw=true suppresses the final sprite draw but still allows
-     * viewport scroll and entity tile restoration.
-     */
-    void updateCharacterFacingAndRedraw(Goldbox::Data::PlayerCharacter *ch,
-                                        Direction direction,
-                                        uint8 iconFrame,
-                                        bool noRedraw);
 
     // --- Movement animation ---
 
@@ -170,12 +188,9 @@ private:
         ScreenPos finePos;  // fine-grid position relative to viewport top-left
     };
 
-    /** Build the flat list of fine-grid steps for the movement animation,
-     *  including viewport pans. Viewport state is updated as a side-effect. */
     Common::Array<MovementAnimStep> buildMovementAnimationPath(
         TilePos start, TilePos end);
 
-    /** Draw one animation frame at finePos, update screen, wait, restore background. */
     void drawMovementAnimation(const ScreenPos &finePos, uint8 animFrame,
                                uint8 frameDelay,
                                Goldbox::Data::PlayerCharacter *ch,
@@ -190,27 +205,11 @@ private:
                              uint8 initialFrame = 0,
                              uint8 frameDelay = 46);
 
-    /**
-     * Mirrors COMBAT_AnimateRangedAttack.
-     * Renders the projectile/effect graphic and animates it along the
-     * path from attacker to target. Presentation only — no state mutation.
-     */
-    void animateRangedAttack(Goldbox::Data::PlayerCharacter *attacker,
-                             Goldbox::Data::PlayerCharacter *target,
-                             const Goldbox::Data::Items::CharacterItem *item);
-
-    /**
-     * Render one effect tile from SPRIT DAX block blockId, frame frameIdx,
-     * at viewport pixel position (pixX, pixY). Optionally draws a second
-     * layer (frame frameIdx+1) blended on top — mirrors the copyViaBuffer path.
-     */
     void renderEffectTile(uint8 blockId, int frameIdx,
                           int pixX, int pixY, bool withLayer = false);
 
-    /** Redraw tilemap + combatants centered on the given tile. */
     void redrawViewportAt(TilePos center);
 
-    /** Convert fine-grid ScreenPos to screen pixel Point. */
     Common::Point fineToPixel(ScreenPos fine) const {
         return Common::Point(kViewportX + fine.col * (kTileSize / kFinePerTile),
                              kViewportY + fine.row * (kTileSize / kFinePerTile));

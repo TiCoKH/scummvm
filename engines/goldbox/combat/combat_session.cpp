@@ -72,10 +72,11 @@ void CombatSession::setup(const CombatParams &params) {
     _context.reset(new CombatContext(makeContext()));
 }
 
-CombatSession::TickResult CombatSession::tick() {
-    TickResult result;
+CombatSession::TurnResult CombatSession::executeTurn() {
+    TurnResult result;
 
-    if (_phase == PHASE_NONE || _phase == PHASE_ENDED)
+    if (_phase == PHASE_NONE || _phase == PHASE_ENDED ||
+            _phase == PHASE_ROUND_END || _phase == PHASE_COMBAT_END)
         return result;
 
     // --- Round start ---
@@ -83,8 +84,8 @@ CombatSession::TickResult CombatSession::tick() {
         _globals.updateSideCount(_params.roster);
         if (_globals.sideCount[0] == 0 || _globals.sideCount[1] == 0) {
             _globals.turnCounter++;
-            _phase = PHASE_ENDED;
-            result.event = TickResult::EV_COMBAT_END;
+            _phase = PHASE_COMBAT_END;
+            result.event = TurnResult::EV_COMBAT_END;
             return result;
         }
 
@@ -105,54 +106,72 @@ CombatSession::TickResult CombatSession::tick() {
 
     result.actor = _currentActor;
 
-    // Per-actor setup (mirrors COMBAT_ExecuteTurn pre-dispatch block).
+    // Mirrors COMBAT_ExecuteTurn pre-gate block.
     // Returns false if an effect cancelled the turn.
-    if (!prepareTurn(_currentActor)) {
+    if (!applyTurnStartEffects(_currentActor)) {
         _currentActor = makeContext().selectNextActor();
         if (_currentActor == nullptr) {
             _globals.turnCounter++;
             updateHostileHealthPercent(_table, _globals);
-            _phase = PHASE_PLAYER_TURN;
-            result.event = TickResult::EV_ROUND_END;
+            _phase = PHASE_ROUND_END;
+            result.event = TurnResult::EV_ROUND_END;
         }
         return result;
     }
 
-    result.event = TickResult::EV_ACTOR_FOCUSED;
+    // Temporarily make this actor the selected character (mirrors PTR_SELECTED_CHAR).
+    _previousAttacker = _globals.attacker;
+    _globals.attacker = _currentActor;
+
+    // Recalculate stats now that PTR_SELECTED_CHAR is set.
+    if (Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(_currentActor))
+        adnd->recalcCombatStats();
+
+    // Signal view to focus and draw combat info (mirrors COMBAT_FocusCharacter +
+    // COMBATVIEW_drawCombatInfo). Must happen after recalc, before ES15.
+    result.event = TurnResult::EV_ACTOR_FOCUSED;
     {
         const int idx = _table.findIndex(_currentActor);
         result.actorSize = (idx >= 0) ? _table.getSize(idx) : 1;
     }
 
-    // --- AI turn ---
-    // WIP: AI turn processing is partially implemented. The AI logic in
-    // processAiTurn/executeAiTurn runs synchronously and resolves the full
-    // turn in one tick() call. This causes two related problems:
-    //
-    // 1. When combat starts with enemy initiative (AI goes first), the
-    //    session never transitions to PHASE_AWAITING_PLAYER for the first
-    //    party actor — the view's tick() loop runs through all consecutive
-    //    AI turns without ever showing the player combat menu.
-    //
-    // 2. EV_ACTOR_FOCUSED and EV_AI_ATTACK are emitted on the same tick,
-    //    so the viewport scroll and status panel update for the AI actor
-    //    are skipped before the attack result is shown.
-    //
-    // TODO: Split AI turn execution across two tick() calls:
-    //   tick 1 — emit EV_ACTOR_FOCUSED, set PHASE_AI_TURN, return.
-    //   tick 2 — run executeAiTurn(), emit EV_AI_ATTACK if applicable,
-    //            advance actor, set next phase, return.
-    //   This mirrors how PHASE_AWAITING_PLAYER already pauses for party
-    //   actors and lets the view drive the next step.
-    if (_currentActor->combatSide == ::Goldbox::Data::CS_ENEMY) {
-        _phase = PHASE_AI_TURN;
-        CombatContext ctx = makeContext();
-        moveByAI(_currentActor, ctx, nullptr);
-    } else {
-        // Party actor — pause and wait for player input.
+    // ES15 runs after recalc+draw; may zero initiative and cancel the turn.
+    if (_params.effectRuntime && _currentActor->getEffects())
+        _params.effectRuntime->checkEffectSet(
+            Data::Effects::ES_POISON_CYCLE,
+            *_currentActor->getEffects(), *_currentActor, &_globals);
+
+    // Second initiative gate: ES15 may have cancelled the turn.
+    if (_currentActor->combatState->initiative == 0) {
+        _globals.attacker = _previousAttacker;
+        _currentActor = makeContext().selectNextActor();
+        result.event = TurnResult::EV_NONE;
+        if (_currentActor == nullptr) {
+            _globals.turnCounter++;
+            updateHostileHealthPercent(_table, _globals);
+            _phase = PHASE_ROUND_END;
+            result.event = TurnResult::EV_ROUND_END;
+        }
+        return result;
+    }
+
+    // Dispatch: ai_control==0 means player-controlled.
+    if (_currentActor->ai_control == 0) {
+        // Player-controlled: pause and wait for input.
+        // _globals.attacker is restored in submitPlayerAction().
         _phase = PHASE_AWAITING_PLAYER;
         return result;
     }
+
+    // AI-controlled actor (enemy or charmed party member).
+    _phase = PHASE_AI_TURN;
+    {
+        CombatContext ctx = makeContext();
+        moveByAI(_currentActor, ctx, _aiDelegate);
+    }
+
+    // Restore selected-character context (mirrors PTR_SELECTED_CHAR = previousSelected).
+    _globals.attacker = _previousAttacker;
 
     // --- Advance to next actor ---
     _currentActor = makeContext().selectNextActor();
@@ -160,18 +179,18 @@ CombatSession::TickResult CombatSession::tick() {
     if (_currentActor == nullptr) {
         _globals.turnCounter++;
         updateHostileHealthPercent(_table, _globals);
-        _phase = PHASE_PLAYER_TURN;
-        if (result.event == TickResult::EV_NONE)
-            result.event = TickResult::EV_ROUND_END;
-    } else if (_currentActor->combatSide == ::Goldbox::Data::CS_PARTY) {
+        _phase = PHASE_ROUND_END;
+        if (result.event == TurnResult::EV_NONE)
+            result.event = TurnResult::EV_ROUND_END;
+    } else if (_currentActor->ai_control == 0) {
         _phase = PHASE_PLAYER_TURN;
     }
 
     return result;
 }
 
-CombatSession::TickResult CombatSession::submitPlayerAction(PlayerAction action) {
-    TickResult result;
+CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action) {
+    TurnResult result;
     if (_phase != PHASE_AWAITING_PLAYER || !_currentActor)
         return result;
 
@@ -190,8 +209,6 @@ CombatSession::TickResult CombatSession::submitPlayerAction(PlayerAction action)
     case PA_USE:
     case PA_MOVE:
     default:
-        // Full implementations (target selection, spell picker, etc.) are
-        // added per-action in subsequent steps. For now mark as acted.
         break;
     }
 
@@ -199,15 +216,19 @@ CombatSession::TickResult CombatSession::submitPlayerAction(PlayerAction action)
     if (cs)
         cs->initiative = 0xFF;
 
+    // Restore selected-character context set in executeTurn() (mirrors PTR_SELECTED_CHAR = previousSelected).
+    _globals.attacker = _previousAttacker;
+    _previousAttacker = nullptr;
+
     // Advance to next actor.
     _currentActor = makeContext().selectNextActor();
 
     if (_currentActor == nullptr) {
         _globals.turnCounter++;
         updateHostileHealthPercent(_table, _globals);
-        _phase = PHASE_PLAYER_TURN;
-        result.event = TickResult::EV_ROUND_END;
-    } else if (_currentActor->combatSide == ::Goldbox::Data::CS_PARTY) {
+        _phase = PHASE_ROUND_END;
+        result.event = TurnResult::EV_ROUND_END;
+    } else if (_currentActor->ai_control == 0) {
         _phase = PHASE_AWAITING_PLAYER;
     } else {
         _phase = PHASE_AI_TURN;
@@ -220,46 +241,44 @@ void CombatSession::scrollViewport(TilePos target, uint8 radius) {
     _viewport.adjustToInclude(target, radius);
 }
 
-bool CombatSession::prepareTurn(Data::PlayerCharacter *ch) {
+void CombatSession::acknowledgeRoundEnd(bool continueEncounter) {
+    if (_phase != PHASE_ROUND_END && _phase != PHASE_COMBAT_END)
+        return;
+    if (!continueEncounter || _phase == PHASE_COMBAT_END) {
+        _phase = PHASE_ENDED;
+        return;
+    }
+    // Resume: next executeTurn() call will start a fresh round.
+    _phase = PHASE_PLAYER_TURN;
+    _currentActor = nullptr;
+}
+
+bool CombatSession::applyTurnStartEffects(Data::PlayerCharacter *ch) {
     if (!ch || !ch->combatState)
         return false;
 
     Data::CombatAction &cs = *ch->combatState;
 
-    // Mirrors COMBAT_ExecuteTurn: reset per-turn fields before dispatch.
+    // Reset per-turn transient fields.
     cs.attackCount     = 0;
     cs.directionChange = 0;
     cs.guarding        = false;
 
-    // ES_POST_MOVEMENT_TILE (7) — may apply poison/regen/etc.
+    // ES7 runs unconditionally before the first initiative gate.
     if (_params.effectRuntime && ch->getEffects())
         _params.effectRuntime->checkEffectSet(
             Data::Effects::ES_POST_MOVEMENT_TILE,
             *ch->getEffects(), *ch, &_globals);
 
-    // initiative==20 is a sentinel; clamp to 19 so normal ordering applies.
-    if (cs.initiative == 20)
-        cs.initiative = 19;
-
-    // If initiative dropped to 0 (e.g. paralysis effect), skip this actor.
+    // First initiative gate.
     if (cs.initiative == 0)
         return false;
 
-    // Make this character the active combat character (mirrors PTR_SELECTED_CHAR).
-    _globals.attacker = ch;
+    // Initiative 20 is the special initial value; normalize to 19.
+    if (cs.initiative == 20)
+        cs.initiative = 19;
 
-    // Recalculate stats that may have changed since turn initialization
-    // (mirrors CHARACTER_RecalcCombatStats).
-    if (Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(ch))
-        adnd->recalcCombatStats();
-
-    // ES_POISON_CYCLE (15) — may cancel the turn (sets initiative=0).
-    if (_params.effectRuntime && ch->getEffects())
-        _params.effectRuntime->checkEffectSet(
-            Data::Effects::ES_POISON_CYCLE,
-            *ch->getEffects(), *ch, &_globals);
-
-    return cs.initiative > 0;
+    return true;
 }
 
 CombatContext CombatSession::makeContext() {
@@ -450,7 +469,7 @@ bool CombatSession::flee(Data::PlayerCharacter *ch) {
     return trySetFleeing(ch).escaped;
 }
 
-CombatSession::TickResult CombatSession::finishMoveAction(Data::PlayerCharacter *ch) {
+CombatSession::TurnResult CombatSession::finishMoveAction(Data::PlayerCharacter *ch) {
     if (ch && ch->combatState)
         ch->combatState->initiative = 0xFF;
     return submitPlayerAction(PA_NONE);
