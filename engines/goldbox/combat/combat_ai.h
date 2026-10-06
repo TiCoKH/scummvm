@@ -83,7 +83,39 @@ struct AiMoveViewDelegate {
 
     /** Draw combat info panel for character. */
     virtual void drawCombatInfo(Data::PlayerCharacter *ch) = 0;
+
+    /** Clear the prompt and message areas (SCREEN_ClearPrompt / clearMsgArea). */
+    virtual void clearPromptAndMessage() = 0;
+
+    /** Display "Flees in panic" message for a moral-failure character. */
+    virtual void showFleesInPanic(Data::PlayerCharacter *ch) = 0;
 };
+
+/**
+ * Mirrors COMBAT_MoveByAI.
+ *
+ * Outer AI-turn orchestrator. Sequences all AI decisions for one
+ * AI-controlled character in priority order:
+ *
+ *   1. handleAiControlInput  — player may reclaim control
+ *   2. clear prompt/message  — presentation only
+ *   3. disabled actor        — end turn immediately
+ *   4. ai_action selection   — refresh action category (25% re-roll)
+ *   5. checkSurrender        — morale/flee check
+ *   6. tryUseItem            — magic item use
+ *   7. pending spell         — execute spell stored in combatState->spellId
+ *   8. tryTurnUndead         — cleric turn-undead
+ *   9. selectSpellFromBook   — AI spell selection and cast
+ *  10. autoEquipWeapons      — ensure best weapon is ready
+ *  11. handleAiControlInput  — second control-reclaim opportunity
+ *  12. movement/attack loop  — processAiTurn until turn complete
+ *
+ * Presentation callbacks are routed through AiMoveViewDelegate.
+ * Pass nullptr to skip all presentation.
+ */
+void moveByAI(Data::PlayerCharacter *actor,
+              CombatContext &ctx,
+              AiMoveViewDelegate *view);
 
 /**
  * Mirrors COMBAT_ProcessAITurn.
@@ -195,7 +227,8 @@ bool findNearbyWoundedAlly(Data::PlayerCharacter *attacker,
  * priorityThreshold:
  *   1. spell.priority >= priorityThreshold
  *   2. spell is offensive OR is SP_CL1_CURE_LT_WOUNDS (id 3)
- *   3. SP_CL1_CURE_LT_WOUNDS is rejected when an adjacent target exists
+ *   3. SP_CL1_CURE_LT_WOUNDS is rejected when a nearby wounded ally exists
+ *      (caster's tile + 8 neighbours); use it only when no ally needs healing
  *   4. ctx.buildTargetList() must find at least one target
  *   5. when spell.minAITargets != 0, each target is validated via
  *      a per-target enemy check (AI_HasEnemyTargetForSpell — TBD)
@@ -206,6 +239,26 @@ bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
                           uint8 spellId,
                           uint8 priorityThreshold,
                           CombatContext &ctx);
+
+/**
+ * Mirrors AI_SelectSpellFromBook.
+ *
+ * Builds a compact list of memorized spells from actor->spells.memorizedSpells
+ * (21 entries, gated by combatState->canCast), then performs a randomized
+ * priority-descending search:
+ *   - rolls 1d7 to determine the number of search rounds
+ *   - priority threshold starts at 7 and decrements each round
+ *   - each round tries up to 3 randomly selected memorized spells
+ *   - first spell passing isSpellEligibleForAI() is cast via castSpell()
+ *
+ * AI control is only attempted when:
+ *   - at least one memorized spell exists
+ *   - actor->npc > 0x7f (NPC) OR ctx.globals.magicEnabled (autospell on)
+ *   - ctx.globals.sideCount[actor->combatSide] != 0
+ *
+ * Returns true when a spell was successfully cast.
+ */
+bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx);
 
 /**
  * Mirrors AI_TryTurnUndead.
