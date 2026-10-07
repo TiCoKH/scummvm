@@ -204,13 +204,6 @@ void GameText::clearMessageArea() {
 	_text.clear();
 	_pageStart = 0;
 	_renderPos = 0;
-
-	if (_engine && _engine->getScreen()) {
-		Surface surface(*_engine->getScreen(), Common::Rect(0, 0,
-				_engine->getScreen()->w, _engine->getScreen()->h));
-		surface.clearBox(1, 17, 38, 22, 0);
-		surface.clearBox(0, 24, 39, 24, 0);
-	}
 }
 
 } // namespace Goldbox

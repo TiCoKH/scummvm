@@ -41,9 +41,24 @@ uint8 getOpposingSideMaxReach(const Data::PlayerCharacter *ch,
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/vm_interface.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Combat {
+
+static const char *phaseStr(CombatSession::Phase p) {
+    switch (p) {
+    case CombatSession::PHASE_NONE:             return "NONE";
+    case CombatSession::PHASE_SETUP:            return "SETUP";
+    case CombatSession::PHASE_PLAYER_TURN:      return "PLAYER_TURN";
+    case CombatSession::PHASE_AWAITING_PLAYER:  return "AWAITING_PLAYER";
+    case CombatSession::PHASE_AI_TURN:          return "AI_TURN";
+    case CombatSession::PHASE_ROUND_END:        return "ROUND_END";
+    case CombatSession::PHASE_COMBAT_END:       return "COMBAT_END";
+    case CombatSession::PHASE_ENDED:            return "ENDED";
+    default:                                    return "?";
+    }
+}
 
 CombatSession *g_combatSession = nullptr;
 
@@ -70,6 +85,17 @@ void CombatSession::setup(const CombatParams &params) {
     _phase = PHASE_PLAYER_TURN;
     _currentActor = nullptr;
     _context.reset(new CombatContext(makeContext()));
+
+    debug(0, "[COMBAT] setup: roster=%u partyCount=%d",
+        (unsigned)_params.roster.size(), _params.partyCount);
+    for (uint i = 0; i < _params.roster.size(); i++) {
+        Data::PlayerCharacter *ch = _params.roster[i];
+        if (!ch) { debug(0, "  roster[%u] = NULL", i); continue; }
+        debug(0, "  roster[%u] name='%s' side=%d ai=%d enabled=%d hp=%d/%d",
+            i, ch->name.c_str(), (int)ch->combatSide,
+            (int)ch->ai_control, (int)ch->enabled,
+            ch->hitPoints.current, ch->hitPoints.max);
+    }
 }
 
 CombatSession::TurnResult CombatSession::executeTurn() {
@@ -82,15 +108,27 @@ CombatSession::TurnResult CombatSession::executeTurn() {
     // --- Round start ---
     if (_phase == PHASE_PLAYER_TURN && _currentActor == nullptr) {
         _globals.updateSideCount(_params.roster);
+        debug(0, "[COMBAT] round start: sideCount[PARTY]=%d sideCount[ENEMY]=%d",
+            (int)_globals.sideCount[0], (int)_globals.sideCount[1]);
         if (_globals.sideCount[0] == 0 || _globals.sideCount[1] == 0) {
             _globals.turnCounter++;
             _phase = PHASE_COMBAT_END;
             result.event = TurnResult::EV_COMBAT_END;
+            debug(0, "[COMBAT] -> EV_COMBAT_END (one side empty)");
             return result;
         }
 
         CombatContext initCtx = makeContext();
         initCtx.initAllTurnStates();
+        debug(0, "[COMBAT] initiatives rolled:");
+        for (uint i = 0; i < _params.roster.size(); i++) {
+            Data::PlayerCharacter *ch = _params.roster[i];
+            if (!ch) continue;
+            uint8 init = ch->combatState ? ch->combatState->initiative : 0;
+            debug(0, "  roster[%u] '%s' side=%d ai=%d enabled=%d initiative=%d",
+                i, ch->name.c_str(), (int)ch->combatSide,
+                (int)ch->ai_control, (int)ch->enabled, (int)init);
+        }
         // Clear D_CombatIsAmbush after all initiatives are rolled.
         if (_params.eclMemory && _params.vmGlobalLayout) {
             const VmFieldLocation field =
@@ -99,16 +137,28 @@ CombatSession::TurnResult CombatSession::executeTurn() {
                 _params.eclMemory->write8(field.vmAddr, 0);
         }
         _currentActor = initCtx.selectNextActor();
+        debug(0, "[COMBAT] first actor selected: %s",
+            _currentActor ? _currentActor->name.c_str() : "NULL");
     }
 
-    if (_currentActor == nullptr)
+    if (_currentActor == nullptr) {
+        debug(0, "[COMBAT] executeTurn: _currentActor=NULL phase=%s -> EV_NONE",
+            phaseStr(_phase));
         return result;
+    }
+
+    debug(0, "[COMBAT] executeTurn: actor='%s' side=%d ai=%d phase=%s",
+        _currentActor->name.c_str(), (int)_currentActor->combatSide,
+        (int)_currentActor->ai_control, phaseStr(_phase));
 
     result.actor = _currentActor;
 
     // Mirrors COMBAT_ExecuteTurn pre-gate block.
     // Returns false if an effect cancelled the turn.
     if (!applyTurnStartEffects(_currentActor)) {
+        debug(0, "[COMBAT] applyTurnStartEffects cancelled turn for '%s' (initiative=%d)",
+            _currentActor->name.c_str(),
+            _currentActor->combatState ? (int)_currentActor->combatState->initiative : -1);
         _currentActor = makeContext().selectNextActor();
         if (_currentActor == nullptr) {
             _globals.turnCounter++;
@@ -143,6 +193,8 @@ CombatSession::TurnResult CombatSession::executeTurn() {
 
     // Second initiative gate: ES15 may have cancelled the turn.
     if (_currentActor->combatState->initiative == 0) {
+        debug(0, "[COMBAT] ES15 zeroed initiative for '%s', skipping",
+            _currentActor->name.c_str());
         _globals.attacker = _previousAttacker;
         _currentActor = makeContext().selectNextActor();
         result.event = TurnResult::EV_NONE;
@@ -157,33 +209,60 @@ CombatSession::TurnResult CombatSession::executeTurn() {
 
     // Dispatch: ai_control==0 means player-controlled.
     if (_currentActor->ai_control == 0) {
-        // Player-controlled: pause and wait for input.
-        // _globals.attacker is restored in submitPlayerAction().
+        debug(0, "[COMBAT] -> PHASE_AWAITING_PLAYER for '%s' initiative=%d",
+            _currentActor->name.c_str(),
+            _currentActor->combatState ? (int)_currentActor->combatState->initiative : -1);
         _phase = PHASE_AWAITING_PLAYER;
         return result;
     }
 
-    // AI-controlled actor (enemy or charmed party member).
-    _phase = PHASE_AI_TURN;
+    // AI-controlled actor: first call returns EV_ACTOR_FOCUSED so the view
+    // can redraw the viewport (mirrors GFX_ViewPortUpdate before COMBAT_MoveByAI).
+    // The actual AI execution runs on the next executeTurn() call.
+    if (_phase != PHASE_AI_TURN) {
+        debug(0, "[COMBAT] -> PHASE_AI_TURN (focus) for '%s' initiative=%d",
+            _currentActor->name.c_str(),
+            _currentActor->combatState ? (int)_currentActor->combatState->initiative : -1);
+        _phase = PHASE_AI_TURN;
+        return result;
+    }
+
+    // Second call: run the AI turn.
+    debug(0, "[COMBAT] -> moveByAI for '%s'", _currentActor->name.c_str());
     {
         CombatContext ctx = makeContext();
         moveByAI(_currentActor, ctx, _aiDelegate);
     }
+
+    debug(0, "[COMBAT] moveByAI done for '%s'", _currentActor->name.c_str());
 
     // Restore selected-character context (mirrors PTR_SELECTED_CHAR = previousSelected).
     _globals.attacker = _previousAttacker;
 
     // --- Advance to next actor ---
     _currentActor = makeContext().selectNextActor();
+    debug(0, "[COMBAT] next actor after AI: %s",
+        _currentActor ? _currentActor->name.c_str() : "NULL");
+
+    // Reset to PHASE_PLAYER_TURN so the next actor (AI or player) goes
+    // through the full executeTurn() focus path on the next call.
+    _phase = PHASE_PLAYER_TURN;
 
     if (_currentActor == nullptr) {
         _globals.turnCounter++;
         updateHostileHealthPercent(_table, _globals);
         _phase = PHASE_ROUND_END;
-        if (result.event == TurnResult::EV_NONE)
-            result.event = TurnResult::EV_ROUND_END;
-    } else if (_currentActor->ai_control == 0) {
-        _phase = PHASE_PLAYER_TURN;
+        result.event = TurnResult::EV_ROUND_END;
+        debug(0, "[COMBAT] -> EV_ROUND_END (no more actors)");
+    } else {
+        // Signal the view to focus the next actor before the next executeTurn() call.
+        result.event = TurnResult::EV_ACTOR_FOCUSED;
+        result.actor = _currentActor;
+        const int idx = _table.findIndex(_currentActor);
+        result.actorSize = (idx >= 0) ? _table.getSize(idx) : 1;
+        debug(0, "[COMBAT] -> EV_ACTOR_FOCUSED (post-AI) for '%s' side=%d ai=%d",
+            _currentActor->name.c_str(),
+            (int)_currentActor->combatSide, (int)_currentActor->ai_control);
     }
 
     return result;
@@ -191,8 +270,13 @@ CombatSession::TurnResult CombatSession::executeTurn() {
 
 CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action) {
     TurnResult result;
-    if (_phase != PHASE_AWAITING_PLAYER || !_currentActor)
+    if (_phase != PHASE_AWAITING_PLAYER || !_currentActor) {
+        debug(0, "[COMBAT] submitPlayerAction: ignored (phase=%s actor=%s)",
+            phaseStr(_phase), _currentActor ? _currentActor->name.c_str() : "NULL");
         return result;
+    }
+    debug(0, "[COMBAT] submitPlayerAction: action=%d actor='%s'",
+        (int)action, _currentActor->name.c_str());
 
     result.actor = _currentActor;
     Data::CombatAction *cs = _currentActor->combatState;
@@ -228,10 +312,14 @@ CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action)
         updateHostileHealthPercent(_table, _globals);
         _phase = PHASE_ROUND_END;
         result.event = TurnResult::EV_ROUND_END;
-    } else if (_currentActor->ai_control == 0) {
-        _phase = PHASE_AWAITING_PLAYER;
+        debug(0, "[COMBAT] submitPlayerAction -> EV_ROUND_END");
     } else {
-        _phase = PHASE_AI_TURN;
+        // Always go through PHASE_PLAYER_TURN so the next actor gets
+        // EV_ACTOR_FOCUSED focus/redraw before acting (AI or player).
+        _phase = PHASE_PLAYER_TURN;
+        debug(0, "[COMBAT] submitPlayerAction -> next actor='%s' side=%d ai=%d phase=PLAYER_TURN",
+            _currentActor->name.c_str(),
+            (int)_currentActor->combatSide, (int)_currentActor->ai_control);
     }
 
     return result;
@@ -273,10 +361,6 @@ bool CombatSession::applyTurnStartEffects(Data::PlayerCharacter *ch) {
     // First initiative gate.
     if (cs.initiative == 0)
         return false;
-
-    // Initiative 20 is the special initial value; normalize to 19.
-    if (cs.initiative == 20)
-        cs.initiative = 19;
 
     return true;
 }

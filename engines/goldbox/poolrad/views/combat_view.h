@@ -102,10 +102,30 @@ public:
     bool msgUnfocus(const UnfocusMessage &msg) override;
     bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
-    bool tick() override;
+    void onUpdate() override;
     void handleMenuResult(const MenuResultMessage &result) override;
 
     void drawCombatInfo(Goldbox::Data::PlayerCharacter *ch);
+    void refreshViewport(Goldbox::Data::PlayerCharacter *ch, Direction direction);
+    void suppressRedraw() { _needsRedraw = false; }
+    void forceFullRedraw() { _needsFullRedraw = true; }
+
+    // State setters called by AI/attack delegates before redraw().
+    void setAiMessage(const Common::String &msg) {
+        _aiMessage = msg;
+        _hasAiMessage = true;
+        _needsFullRedraw = true;
+    }
+    void setAiInfoActor(Goldbox::Data::PlayerCharacter *ch) {
+        _currentInfoActor = ch;
+        _needsFullRedraw = true;
+    }
+    void setAiCharacterFacing(Goldbox::Data::PlayerCharacter *ch, Direction dir) {
+        _aiFacingChar = ch;
+        _aiFacingDir = dir;
+        _needsFullRedraw = true;
+    }
+
     void updateCharacterFacingAndRedraw(Goldbox::Data::PlayerCharacter *ch,
                                         Direction direction,
                                         uint8 iconFrame,
@@ -153,6 +173,17 @@ private:
     Gfx::CombatRenderer     _combatRenderer;
     bool                    _needsFullRedraw;
     ::Goldbox::Data::PlayerCharacter *_currentInfoActor;
+
+    // --- Player action synchronization ---
+    // Set by handleMenuResult() while onUpdate() is blocking in the player-input wait loop.
+    bool _playerActionPending;
+    Combat::CombatSession::PlayerAction _pendingPlayerAction;
+
+    // --- AI delegate draw state (set before redraw(), consumed by draw()) ---
+    Common::String _aiMessage;
+    bool _hasAiMessage = false;
+    ::Goldbox::Data::PlayerCharacter *_aiFacingChar = nullptr;
+    Direction _aiFacingDir = DIR_N;
 
     // --- Layout constants ---
     static const int kViewportX = 8;

@@ -28,6 +28,7 @@
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/data/player_character.h"
+#include "common/debug.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/character_effects.h"
@@ -242,25 +243,34 @@ Data::PlayerCharacter *selectNextActor(
         const Common::Array<Data::PlayerCharacter *> &roster,
         const CombatGlobals &globals) {
     // Both sides must still have members for combat to continue.
-    if (globals.sideCount[0] == 0 || globals.sideCount[1] == 0)
+    if (globals.sideCount[0] == 0 || globals.sideCount[1] == 0) {
+        debug(0, "[selectNextActor] sideCount[0]=%d sideCount[1]=%d -> nullptr",
+            (int)globals.sideCount[0], (int)globals.sideCount[1]);
         return nullptr;
+    }
 
-    // Find the enabled character with the highest initiative that has not
-    // yet acted (initiative != 0xFF means acted; 0 means skipped/cancelled).
+    // Find the enabled character with the lowest non-zero initiative that has
+    // not yet acted (0xFF = acted this round; 0 = skipped/cancelled).
+    // Lower initiative acts first — mirrors original COMBAT_SelectNextActor.
     Data::PlayerCharacter *best = nullptr;
-    uint8 bestInitiative = 0;
+    uint8 bestInitiative = 0xFF;
 
     for (uint i = 0; i < roster.size(); i++) {
         Data::PlayerCharacter *ch = roster[i];
         if (!ch || !ch->enabled || !ch->combatState)
             continue;
-        if (ch->combatState->initiative == 0xFF)
+        const uint8 init = ch->combatState->initiative;
+        debug(0, "[selectNextActor]   [%u] '%s' enabled=%d init=%d",
+            i, ch->name.c_str(), (int)ch->enabled, (int)init);
+        if (init == 0 || init == 0xFF)
             continue;
-        if (ch->combatState->initiative > bestInitiative) {
-            bestInitiative = ch->combatState->initiative;
+        if (init < bestInitiative) {
+            bestInitiative = init;
             best = ch;
         }
     }
+    debug(0, "[selectNextActor] -> '%s' init=%d",
+        best ? best->name.c_str() : "NULL", (int)bestInitiative);
     return best;
 }
 

@@ -88,7 +88,8 @@ void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster);
  * Select the next character to act this round.
  *
  * Mirrors COMBAT_SelectNextActor: returns the enabled character with the
- * highest initiative value that has not yet acted (initiative != 0xFF).
+ * lowest non-zero initiative value that has not yet acted (initiative 0xFF =
+ * acted; 0 = skipped/cancelled). Lower initiative acts first (AD&D 1e style).
  * Returns nullptr when all characters have acted (round complete) or a
  * side has no members.
  *
