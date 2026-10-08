@@ -63,13 +63,16 @@ public:
 
     /** Player action choices submitted via submitPlayerAction(). */
     enum PlayerAction {
-        PA_ATTACK = 0,
-        PA_CAST,
-        PA_USE,
-        PA_MOVE,
-        PA_GUARD,
-        PA_FLEE,
-        PA_NONE     // skip turn without menu (disabled / pre-cast spell)
+        PA_ATTACK = 0,  // Aim: select target and attack
+        PA_CAST,        // Cast spell
+        PA_USE,         // Use item
+        PA_MOVE,        // Move on battlefield
+        PA_DONE,        // Done: end turn without acting
+        PA_FLEE,        // Flee combat
+        PA_TURN,        // Turn Undead (cleric)
+        PA_VIEW,        // View: inspect battlefield (loops back to menu)
+        PA_QUICK,       // Quick: auto-attack without targeting
+        PA_NONE         // skip turn without menu (disabled / pre-cast spell)
     };
 
     /** What happened during one actor turn — view reacts to these. */

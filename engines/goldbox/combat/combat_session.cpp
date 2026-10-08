@@ -282,16 +282,24 @@ CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action)
     Data::CombatAction *cs = _currentActor->combatState;
 
     switch (action) {
-    case PA_GUARD:
-        if (cs) cs->guarding = true;
+    case PA_DONE:
+        // End turn without acting — no state change needed.
         break;
     case PA_FLEE:
         if (cs) cs->fleeing = true;
+        break;
+    case PA_TURN:
+        // Turn Undead: mark as used this round; actual resolution handled by caller.
+        if (cs) cs->turnedUndead = true;
+        break;
+    case PA_VIEW:
+        // View battlefield: no state change; caller loops back to menu.
         break;
     case PA_ATTACK:
     case PA_CAST:
     case PA_USE:
     case PA_MOVE:
+    case PA_QUICK:
     default:
         break;
     }
