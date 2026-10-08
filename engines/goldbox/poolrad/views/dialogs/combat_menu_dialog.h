@@ -25,8 +25,12 @@
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/core/menu_item.h"
 #include "goldbox/combat/combat_session.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 
 namespace Goldbox {
+namespace Data {
+class PlayerCharacter;
+}
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
@@ -36,14 +40,22 @@ class HorizontalMenu;
 /**
  * Player action menu shown during a party member's combat turn.
  *
- * Options: Attack / Cast / Use / Move / Guard / Flee
+ * Mirrors DIALOG_CombatMenu: runs Effect Set 15 on the actor, then
+ * dynamically builds the available commands from character/world state.
  * Posts a MenuResultMessage to "Combat" with _intValue = PlayerAction.
- * Mirrors InGameMenuDialog pattern.
  */
 class CombatMenuDialog : public Dialog {
 public:
     CombatMenuDialog();
     ~CombatMenuDialog() override;
+
+    /**
+     * Prepare the menu for the given actor before activate().
+     * Runs Effect Set 15 and computes which commands are available.
+     * Must be called each time a new actor's turn begins.
+     */
+    void beginMenu(Goldbox::Data::PlayerCharacter *actor,
+                   Combat::CombatSession *session);
 
     void activate() override;
     void deactivate() override;
@@ -51,6 +63,16 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
 
 private:
+    // Availability flags set by beginMenu().
+    bool _hasMove;
+    bool _hasUse;
+    bool _hasCast;
+    bool _hasTurn;
+
+    // Parallel arrays: action enum and shortcut key for each built entry.
+    Common::Array<Combat::CombatSession::PlayerAction> _actions;
+    Common::Array<char> _shortcuts;
+
     MenuItemList   _menuModel;
     HorizontalMenu *_horizontalMenu;
 

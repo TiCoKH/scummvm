@@ -344,6 +344,13 @@ void CombatView::onUpdate() {
             const Combat::CombatSession::PlayerAction action = _pendingPlayerAction;
             _playerActionPending = false;
 
+            // PA_VIEW: show battlefield without consuming the turn — loop back to menu.
+            if (action == Combat::CombatSession::PA_VIEW) {
+                _needsFullRedraw = true;
+                redraw();
+                continue;
+            }
+
             // PA_MOVE is handled by CombatMoveDialog — wait for it to finish.
             if (action == Combat::CombatSession::PA_MOVE) {
                 ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
@@ -457,6 +464,7 @@ void CombatView::onUpdate() {
                 }
 
                 if (_combatMenu && !_combatMenu->isActive()) {
+                    _combatMenu->beginMenu(actor, &_session);
                     attachDialog(_combatMenu);
                     _combatMenu->activate();
                 }
