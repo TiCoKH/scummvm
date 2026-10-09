@@ -29,9 +29,9 @@ namespace Goldbox {
 namespace {
 
 static const int kTextColor = 10;
-static const int kEnemyNameColor = 0x12;
-static const int kDisabledNameColor = 0x18;
-static const int kPartyNameColor = 0x1C;
+static const int kDisabledNameColor = 0x0C; // Amiga: 0x18
+static const int kEnemyNameColor    = 0x0E; // Amiga: 0x12
+static const int kPartyNameColor    = 0x0B; // Amiga: 0x1C
 
 } // namespace
 
