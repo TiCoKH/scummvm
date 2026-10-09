@@ -634,6 +634,8 @@ ADnDCharacter::ReadyItemResult ADnDCharacter::canReadyItem(
     if (extraConflict) {
         conflict = extraConflict;
         result = RIR_SLOT_IN_USE;
+        // slotID for ammo is resolved by getExtraReadyConflictItem; the
+        // conflicting item pointer is sufficient for display purposes.
     }
 
     const uint8 allowedMask = getReadyAllowedClassMask();

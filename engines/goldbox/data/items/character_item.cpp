@@ -156,11 +156,7 @@ bool CharacterItem::isMissile() const {
 }
 
 bool CharacterItem::isMissileOrScroll() const {
-    const uint8 slot = prop().slotID;
-    const bool isAmmoLike =
-        slot >= static_cast<uint8>(Slot::S_ARROW) &&
-        slot < static_cast<uint8>(Slot::SLOT_COUNT);
-    return isAmmoLike || isScroll();
+    return prop().isMissileOrScroll();
 }
 
 uint8 CharacterItem::getMagicItemSpellId() const {
