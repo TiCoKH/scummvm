@@ -77,11 +77,17 @@ public:
 	void activate() override;
 	void deactivate() override;
 	bool msgKeypress(const KeypressMessage &msg) override;
-    void draw() override;
-    void handleMenuResult(const MenuResultMessage &result) override;
+	void draw() override;
+	void handleMenuResult(const MenuResultMessage &result) override;
+
+	// resultFlag mirrors the original DIALOG_Items bool *b_ptr / resultFlag.
+	// When set to true by ITEM_Use in combat, the inventory loop exits.
+	// Callers that need this behavior should set the pointer before activating.
+	void setResultFlag(bool *flag) { _resultFlag = flag; }
 
 private:
 	ItemsMenuStage _stage = STAGE_ITEM_SELECTION;
+	bool *_resultFlag = nullptr;  // caller-owned; mirrors original resultFlag / b_ptr
 	Goldbox::Poolrad::Data::PoolradCharacter *_character;
 	Goldbox::MenuItemList _itemsMenuList;
 	Common::Array<Goldbox::Data::Items::CharacterItem *> _itemList;
@@ -100,7 +106,6 @@ private:
 	void buildItemsListMenu();
 	void buildItemList();
 	void buildActionMenu();
-	bool canTradeItem(const Goldbox::Data::Items::CharacterItem *item) const;
 	bool isFreeToRemove(Goldbox::Data::Items::CharacterItem *item);
 	bool canHalveItem(const Goldbox::Data::Items::CharacterItem *item) const;
 	bool canSellItem(const Goldbox::Data::Items::CharacterItem *item) const;
@@ -126,7 +131,7 @@ private:
 	void displayMessage(const Common::String &message);
 	void updateReadyItemDisplay(Goldbox::Data::Items::CharacterItem *item);
 	void prepareTradeSelectionBackdrop();
-    bool hasTradeTarget() const;
+	bool hasTradeTarget() const;
 
 	// Subdialog management
 	void handleDropConfirmResult(const MenuResultMessage &result);

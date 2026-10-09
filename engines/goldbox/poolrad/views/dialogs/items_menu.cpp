@@ -46,6 +46,7 @@ using Common::KeyCode;
 ItemsMenu::ItemsMenu(const String &name)
 	: Dialog(name),
 	  _character(nullptr),
+	  _resultFlag(nullptr),
 	  _verticalMenu(nullptr),
 	  _partySelector(nullptr),
 	  _pendingTradeItem(nullptr) {
@@ -118,6 +119,11 @@ void ItemsMenu::activate() {
 
 	// Reset to main stage
 	setStage(STAGE_ITEM_SELECTION);
+
+	// Exit immediately if character has no items (mirrors original early return)
+	if (!_character || !_character->hasItems()) {
+		handleExit();
+	}
 }
 
 void ItemsMenu::deactivate() {
@@ -132,10 +138,11 @@ void ItemsMenu::deactivate() {
 	// Return to main stage (cleans up subdialogs)
 	setStage(STAGE_ITEM_SELECTION);
 
-	// Clear pending items
+	// Clear pending items and result flag
 	_pendingRemoveItem = nullptr;
 	_pendingTradeItem = nullptr;
 	_pendingUseItem = nullptr;
+	_resultFlag = nullptr;
 
 	if (_scrollSpellMenu) {
 		detachDialog(_scrollSpellMenu);
@@ -272,11 +279,15 @@ void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
 	case Common::KEYCODE_e:
 		debug(7, "ItemsMenu::handleMenuResult() action=Exit");
 		handleExit();
-		break;
+		return; // skip recalc on exit
 	default:
 		debug(7, "ItemsMenu::handleMenuResult() unhandled key=%d", (int)key);
-		break;
+		return;
 	}
+
+	// Recalculate combat stats after every action (mirrors original loop end).
+	if (_character)
+		_character->recalcCombatStats();
 }
 
 void ItemsMenu::buildActionMenu() {
@@ -288,15 +299,16 @@ void ItemsMenu::buildActionMenu() {
 
 	const int gameStatus = Goldbox::VmInterface::getGameStatus();
 
-	// TODO: Replace with real GEO memory check equivalent to
-	// *(short *)(GB_PTR_MEM_GEO + 458) == 0 once available.
-	const bool geoAllowsUse = true;
+	// G_NoMagicFlag: *(short *)(GB_PTR_MEM_GEO + 458) == 0.
+	// No RuntimeGeoBlock field maps to this yet; treat as 0 (magic allowed).
+	// TODO: wire when the GEO offset is exposed.
+	const bool noMagicFlag = false;
 
-	// TODO: Combat readiness source is not wired yet. Replace this with
-	// _character->combat_address[2] != 0 (or equivalent runtime flag).
-	const bool combatAllowsUse = false;
+	// can_use comes from the character's per-turn CombatAction state.
+	const bool combatAllowsUse = (_character->combatState != nullptr) &&
+		_character->combatState->canUse;
 
-	if (_character->enabled && geoAllowsUse &&
+	if (_character->enabled && !noMagicFlag &&
 		((gameStatus == GS_CAMPING) ||
 		 (gameStatus == GS_WILDERNESS_MAP) ||
 		 (gameStatus == GS_DUNGEON_MAP) ||
@@ -304,28 +316,30 @@ void ItemsMenu::buildActionMenu() {
 		_horizontalMenuLabels.push_back("Use");
 	}
 
+	// Trade/Sell eligibility: npc < 0x80 (player) OR disabled OR animated.
+	// Preserves the original numeric NPC condition: bit 7 of npc byte.
+	const bool tradeEligible =
+		(!_character->isNpc() || !_character->enabled ||
+		 (_character->healthStatus == Goldbox::Data::S_ANIMATED));
 
-
-	if ((_character->enabled || !_character->isNpc() || (_character->healthStatus == Goldbox::Data::S_ANIMATED)) &&
-		gameStatus != GS_COMBAT) {
+	if (tradeEligible && gameStatus != GS_COMBAT)
 		_horizontalMenuLabels.push_back("Trade");
-	}
 
 	_horizontalMenuLabels.push_back("Drop");
-	_horizontalMenuLabels.push_back("Halve");
+
+	// Halve only when inventory has room for the split result (item_num < 16).
+	if ((int)_itemList.size() < 16)
+		_horizontalMenuLabels.push_back("Halve");
+
 	_horizontalMenuLabels.push_back("Join");
 
-	if ((_character->enabled || !_character->isNpc() || (_character->healthStatus == Goldbox::Data::S_ANIMATED)) &&
-		gameStatus == GS_SHOP) {
+	if (tradeEligible && gameStatus == GS_SHOP)
 		_horizontalMenuLabels.push_back("Sell");
-	}
 
-	if (gameStatus == GS_SHOP) {
+	if (gameStatus == GS_SHOP)
 		_horizontalMenuLabels.push_back("Id");
-	}
 
 	_horizontalMenuLabels.push_back("Exit");
-
 }
 
 
@@ -409,73 +423,80 @@ void ItemsMenu::handleReadyItem(Goldbox::Data::Items::CharacterItem *item) {
 }
 
 void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
-	if (!item || !_character) {
+	if (!item || !_character)
 		return;
-	}
 
 	if (!isItemReadied(item)) {
-		displayMessage("Must be readied");
+		displayMessage("Must be Readied");
 		return;
 	}
 
+	// Use eligibility: missile/scroll OR (effect2 != 0 AND effect3 < 0x80).
+	// Mirrors: ITEM_isMissileOrScroll(item) ||
+	//          (item->effects[1] != 0 && item->effects[2] < 0x80)
+	// where effects[1]=effect2 (0x3D) and effects[2]=effect3 (0x3E).
+	const bool usable = item->isMissileOrScroll() ||
+		(item->effect2 != 0 && item->effect3 < 0x80);
+	if (!usable)
+		return;
+
 	if (item->isMissileOrScroll()) {
-		// Scroll/missile: user selects the spell interactively.
 		_pendingUseItem = item;
 		setStage(STAGE_SELECT_SCROLL_SPELL);
 		return;
 	}
 
 	const uint8 spellId = item->getMagicItemSpellId();
-	if (spellId == 0) {
+	if (spellId == 0)
 		return;
-	}
 
 	executeItemUse(item, spellId);
+
+	// Outside combat the result flag is always cleared (loop continues).
+	// In combat, executeItemUse may have set it via the spell system.
+	if (isCharacterInCombat()) {
+		// If _resultFlag was set true by the spell/use system, exit the loop.
+		if (_resultFlag && *_resultFlag)
+			handleExit();
+	} else {
+		if (_resultFlag)
+			*_resultFlag = false;
+	}
 }
 
 void ItemsMenu::handleTradeItem(Goldbox::Data::Items::CharacterItem *item) {
-	if (!item || !_character) {
+	if (!item || !_character)
 		return;
-	}
 
-	if (item->readied != 0) {
-		debug(7, "ItemsMenu::handleTradeItem() blocked: readied item");
-		displayMessage("Must be unreadied");
+	if (!isFreeToRemove(item))
 		return;
-	}
 
-	// Check if item is free to trade (not in combat, or char is player/disabled/animated)
-	if (!canTradeItem(item)) {
-		debug(7, "ItemsMenu::handleTradeItem() blocked: canTradeItem=false");
-		displayMessage("Cannot trade this item");
+	if (!hasTradeTarget())
 		return;
-	}
 
-	if (!hasTradeTarget()) {
-		displayMessage("No one to trade with");
-		return;
-	}
-
-	// Store pending item and switch to trade selection stage
 	_pendingTradeItem = item;
 	setStage(STAGE_SELECT_TRADE_TARGET);
+
+	// Redraw is always requested after trade attempt, even on failure (spec).
+	redraw();
 }
 
 void ItemsMenu::handleDropItem(Goldbox::Data::Items::CharacterItem *item) {
-	if (!item || !_character) {
+	if (!item || !_character)
 		return;
-	}
 
-	// Check if item is free to drop
-	if (!isFreeToRemove(item)) {
+	if (!isFreeToRemove(item))
 		return;
-	}
 
-	if (_character->removeItem(item)) {
-		buildItemList();
-		buildItemsListMenu();
-		redraw();
-	}
+	// isFreeToRemove may have transitioned to STAGE_CONFIRM_DROP for special
+	// items (missiles with special effects). In that case the confirmation
+	// dialog handles the actual removal via handleDropConfirmResult.
+	if (_stage == STAGE_CONFIRM_DROP)
+		return;
+
+	// Ordinary items: show "Drop It?" confirmation before removing.
+	_pendingRemoveItem = item;
+	setStage(STAGE_CONFIRM_DROP);
 }
 
 void ItemsMenu::handleHalveItem(Goldbox::Data::Items::CharacterItem *item) {
@@ -501,13 +522,14 @@ void ItemsMenu::handleJoinItem(Goldbox::Data::Items::CharacterItem *item) {
 }
 
 void ItemsMenu::handleSellItem(Goldbox::Data::Items::CharacterItem *item) {
-	if (!item || !_character) {
+	if (!item || !_character)
 		return;
-	}
 
-	if (!canSellItem(item)) {
+	if (!isFreeToRemove(item))
 		return;
-	}
+
+	if (_stage == STAGE_CONFIRM_DROP)
+		return;
 
 	// TODO: Implement ITEM_Sell equivalent
 	// Remove item and give character gold value of item
@@ -547,45 +569,22 @@ bool ItemsMenu::isItemReadied(const Goldbox::Data::Items::CharacterItem *item) c
 	return item->readied != 0;
 }
 
-bool ItemsMenu::canTradeItem(const Goldbox::Data::Items::CharacterItem *item) const {
-	if (!item || !_character) return false;
-
-	// Cannot trade in combat
-	if (isCharacterInCombat()) {
-		return false;
-	}
-
-	// Can trade if character is player (not NPC), disabled, or animated
-	// NPC check: npc flag < 0x80 is player character, >= 0x80 is NPC
-	return !_character->isNpc() || !_character->enabled || isCharacterAnimated();
-}
-
 bool ItemsMenu::isFreeToRemove(Goldbox::Data::Items::CharacterItem *item) {
-	if (!item || !_character) {
+	if (!item || !_character)
 		return false;
-	}
 
-	if (item->readied != 0) {
-		displayMessage("Must be unreadied");
+	if (item->readied != 0)
 		return false;
-	}
 
-	if (!item->isMissile()) {
+	if (!item->isMissile())
 		return true;
-	}
 
-/* Special effect threshold: 0x80 (128) is the magic number separating normal charges from special effects
-Missile + special effects: The warning only appears for missiles with special effects (any effect >= 128),
- likely because these are scrolls that can be scribed */
-	if (item->effect1 < 0x80 && item->effect2 < 0x80 && item->effect3 < 0x80) {
+	// Missiles with any special effect (effect >= 0x80) require confirmation
+	// before removal because a character may have been going to scribe from them.
+	if (item->effect1 < 0x80 && item->effect2 < 0x80 && item->effect3 < 0x80)
 		return true;
-	}
 
-	if (_removeConfirm && _removeConfirm->isActive()) {
-		return false;
-	}
-
-	// Store pending item and switch to confirmation stage
+	// Transition to confirmation stage; caller must not proceed with removal.
 	_pendingRemoveItem = item;
 	setStage(STAGE_CONFIRM_DROP);
 	return false;
@@ -599,23 +598,8 @@ bool ItemsMenu::canHalveItem(const Goldbox::Data::Items::CharacterItem *item) co
 
 bool ItemsMenu::canSellItem(const Goldbox::Data::Items::CharacterItem *item) const {
 	if (!item || !_character) return false;
-
-	// Can only sell in shop
-	if (Goldbox::VmInterface::getGameStatus() != GS_SHOP) {
-		return false;
-	}
-
-	// Can sell if character is player (not NPC), disabled, or animated
-	// NPC check: npc flag < 0x80 is player character, >= 0x80 is NPC
-	if (_character->isNpc() && _character->enabled && !isCharacterAnimated()) {
-		return false;
-	}
-
-	// Cannot sell cursed items
-	if (item->cursed) {
-		return false;
-	}
-
+	if (Goldbox::VmInterface::getGameStatus() != GS_SHOP) return false;
+	if (item->cursed) return false;
 	return true;
 }
 
@@ -739,6 +723,18 @@ void ItemsMenu::handleScrollSpellResult(const MenuResultMessage &result) {
 
 	const uint8 spellId = static_cast<uint8>(result._intValue + 1);
 	executeItemUse(item, spellId);
+
+	// Apply same resultFlag semantics as the non-scroll Use path.
+	if (isCharacterInCombat()) {
+		if (_resultFlag && *_resultFlag)
+			handleExit();
+	} else {
+		if (_resultFlag)
+			*_resultFlag = false;
+	}
+
+	if (_character)
+		_character->recalcCombatStats();
 }
 
 void ItemsMenu::handleDropConfirmResult(const MenuResultMessage &result) {
@@ -890,10 +886,7 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 		}
 		// Create and show drop confirmation dialog
 		if (_character && _pendingRemoveItem) {
-			const Common::String prompt = Common::String::format(
-				"%s was going to scribe from that scroll. Is it okay to lose it? ",
-				_character->name.c_str());
-			HorizontalYesNoConfig ynCfg = {prompt, 13, 10, 15, 0};
+			HorizontalYesNoConfig ynCfg = {"Drop It?", 13, 10, 15, 0};
 			_removeConfirm = new HorizontalYesNo("ItemsRemoveConfirm", ynCfg);
 			attachDialog(_removeConfirm);
 			_removeConfirm->activate();
