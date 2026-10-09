@@ -20,6 +20,8 @@
  */
 
 #include "goldbox/engine.h"
+#include "goldbox/data/effects/effect_handler_base.h"
+#include "goldbox/spells/spell_casting.h"
 #include "goldbox/runtime/treasure_pool.h"
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/console.h"

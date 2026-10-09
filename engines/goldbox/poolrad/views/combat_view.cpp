@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
+#include "goldbox/poolrad/views/dialogs/combat_attack_dialog.h"
 #include "goldbox/core/field_path.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
@@ -86,6 +87,15 @@ struct CombatViewAiDelegate : public Combat::AiMoveViewDelegate {
 
     void updateCharacterFacingAndRedraw(::Goldbox::Data::PlayerCharacter *ch,
                                         uint8 direction) override {
+        // Apply facing to combatState immediately so drawCombatants() reads
+        // the correct direction during animateMovementPath (which calls
+        // drawCombatants before draw() processes _aiFacingChar).
+        Combat::CombatContext *ctx = Combat::g_combatSession
+            ? Combat::g_combatSession->getContext() : nullptr;
+        if (ctx)
+            ctx->setCharacterFacing(ch, static_cast<Direction>(direction));
+        // Keep ch so draw() can scroll the viewport to include the character.
+        // The setCharacterFacing call inside draw() is a harmless double-write.
         _view->setAiCharacterFacing(ch, static_cast<Direction>(direction));
         present();
     }
@@ -163,13 +173,15 @@ struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
 
 CombatView::CombatView()
     : View("Combat"), _needsFullRedraw(true), _combatMenu(nullptr),
-      _combatMove(nullptr), _combatEnd(nullptr), _currentInfoActor(nullptr),
+      _combatMove(nullptr), _combatAttack(nullptr), _combatEnd(nullptr),
+      _activeDialog(nullptr), _currentInfoActor(nullptr),
       _playerActionPending(false),
       _pendingPlayerAction(Combat::CombatSession::PA_NONE),
       _hasAiMessage(false), _aiFacingChar(nullptr), _aiFacingDir(DIR_N) {
-    _combatMenu = new Dialogs::CombatMenuDialog();
-    _combatMove = new Dialogs::CombatMoveDialog();
-    _combatEnd  = new Dialogs::CombatEndDialog();
+    _combatMenu   = new Dialogs::CombatMenuDialog();
+    _combatMove   = new Dialogs::CombatMoveDialog();
+    _combatAttack = new Dialogs::CombatAttackDialog();
+    _combatEnd    = new Dialogs::CombatEndDialog();
     _aiDelegate     = new CombatViewAiDelegate(this);
     _attackDelegate = new CombatViewAttackDelegate(this);
 }
@@ -177,6 +189,7 @@ CombatView::CombatView()
 CombatView::~CombatView() {
     delete _combatMenu;
     delete _combatMove;
+    delete _combatAttack;
     delete _combatEnd;
     delete _aiDelegate;
     delete _attackDelegate;
@@ -228,15 +241,18 @@ bool CombatView::msgUnfocus(const UnfocusMessage &msg) {
     return View::msgUnfocus(msg);
 }
 
+void CombatView::setActiveDialog(Dialogs::Dialog *dlg) {
+    switchActiveDialog(_activeDialog, dlg);
+}
+
 bool CombatView::msgKeypress(const KeypressMessage &msg) {
     if (_session.isEnded()) {
         close();
         return true;
     }
 
-    // Forward to CombatEndDialog while it's waiting for surrender input.
-    if (_combatEnd && _combatEnd->isActive())
-        return _combatEnd->msgKeypress(msg);
+    if (_activeDialog)
+        return _activeDialog->send(msg);
 
     if (_session.getPhase() != Combat::CombatSession::PHASE_PLAYER_TURN)
         return false;
@@ -310,8 +326,8 @@ void CombatView::draw() {
         _hasAiMessage = false;
     }
 
-    if (_combatMenu && _combatMenu->isActive())
-        _combatMenu->draw();
+    if (_activeDialog)
+        _activeDialog->draw();
     _needsFullRedraw = false;
 }
 
@@ -363,31 +379,56 @@ void CombatView::onUpdate() {
                         }, this);
                     _combatMove->beginMove(actor);
                     attachDialog(_combatMove);
-                    _combatMove->activate();
+                    setActiveDialog(_combatMove);
                     _needsFullRedraw = true;
                     redraw();
 
-                    // Block until move dialog posts PA_MOVE result.
                     _playerActionPending = false;
                     while (!_playerActionPending)
                         if (!g_events->pumpModalInputFrame()) break;
 
-                    if (_combatMove->isActive()) {
-                        _combatMove->deactivate();
-                        detachDialog(_combatMove);
-                    }
+                    setActiveDialog(nullptr);
+                    detachDialog(_combatMove);
                     _playerActionPending = false;
                 }
-                // finishMoveAction already called inside CombatMoveDialog;
-                // session phase is now PLAYER_TURN or ROUND_END — loop continues.
+                // Dialog called finishMoveAction() if actionComplete=true.
+                // For cancel/voluntary-done (actionComplete=false), advance
+                // the turn here so the session leaves PHASE_AWAITING_PLAYER.
+                if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
+                    _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
                 _currentInfoActor = nullptr;
                 _needsFullRedraw = true;
                 continue;
             }
 
-            // Dismiss combat menu.
-            if (_combatMenu && _combatMenu->isActive()) {
-                _combatMenu->deactivate();
+            // PA_ATTACK is handled by CombatAttackDialog — wait for it to finish.
+            if (action == Combat::CombatSession::PA_ATTACK) {
+                ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
+                if (actor && _combatAttack) {
+                    _combatAttack->beginAttack(actor, &_session);
+                    attachDialog(_combatAttack);
+                    setActiveDialog(_combatAttack);
+                    _needsFullRedraw = true;
+                    redraw();
+
+                    _playerActionPending = false;
+                    while (!_playerActionPending)
+                        if (!g_events->pumpModalInputFrame()) break;
+
+                    setActiveDialog(nullptr);
+                    detachDialog(_combatAttack);
+                    _playerActionPending = false;
+                }
+                if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
+                    _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
+                _currentInfoActor = nullptr;
+                _needsFullRedraw = true;
+                continue;
+            }
+
+            // Dismiss combat menu before submitting other actions.
+            if (_activeDialog == static_cast<Dialogs::Dialog *>(_combatMenu)) {
+                setActiveDialog(nullptr);
                 detachDialog(_combatMenu);
             }
             _currentInfoActor = nullptr;
@@ -463,10 +504,10 @@ void CombatView::onUpdate() {
                     continue;
                 }
 
-                if (_combatMenu && !_combatMenu->isActive()) {
+                if (!_activeDialog) {
                     _combatMenu->beginMenu(actor, &_session);
                     attachDialog(_combatMenu);
-                    _combatMenu->activate();
+                    setActiveDialog(_combatMenu);
                 }
                 redraw();
                 // Loop back — next iteration hits PHASE_AWAITING_PLAYER and blocks.
@@ -494,8 +535,10 @@ void CombatView::handleMenuResult(const MenuResultMessage &result) {
 
     // CombatEndDialog sentinel.
     if (result._intValue == -1) {
-        if (_combatEnd && _combatEnd->isActive())
+        if (_activeDialog == static_cast<Dialogs::Dialog *>(_combatEnd)) {
+            setActiveDialog(nullptr);
             detachDialog(_combatEnd);
+        }
         if (!result._success)
             close();
         else
@@ -568,7 +611,9 @@ void CombatView::drawCombatants() {
         Gfx::IconDirection dir = Gfx::ICON_DIRECTION_RIGHT;
         if (ch->combatState) {
             uint8 facing = ch->combatState->direction;
-            if (facing >= 5 || facing == 0)
+            // LEFT for west-facing directions: SW(5), W(6), NW(7).
+            // N(0), NE(1), E(2), SE(3), S(4) all face right.
+            if (facing == 5 || facing == 6 || facing == 7)
                 dir = Gfx::ICON_DIRECTION_LEFT;
         }
 
@@ -586,7 +631,12 @@ void CombatView::drawCombatants() {
         }
 
         if (slotId != 0 && iconMgr && !iconMgr->isSlotEmpty(slotId)) {
-            const Gfx::Pic *pic = iconMgr->getReadyPic(slotId);
+            Gfx::Icon *icon = iconMgr->getIcon(slotId);
+            const Gfx::Pic *pic = icon
+                ? (dir == Gfx::ICON_DIRECTION_LEFT
+                    ? icon->getReadyIconFlipped()
+                    : icon->getReadyIcon())
+                : nullptr;
             if (pic)
                 pic->trDraw(&s, pixX, pixY, pic->getTransparentIndex());
         } else {
@@ -998,6 +1048,10 @@ void CombatView::animateMovementPath(
         animFrame = getNextAnimationFrame(animFrame);
     }
 
+    // Repaint the character at its final position — the animation loop erases
+    // the icon after each step, leaving the screen blank at the end.
+    drawViewport();
+    drawCombatants();
     g_system->updateScreen();
     _needsFullRedraw = true;
 }

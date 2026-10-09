@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
+#include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/data/player_character.h"
@@ -31,11 +32,7 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-// ---------------------------------------------------------------------------
-// Direction decode table: numpad / arrow keys → 8-way direction index (0-7).
 // Directions: 0=N 1=NE 2=E 3=SE 4=S 5=SW 6=W 7=NW  8=none
-// ---------------------------------------------------------------------------
-
 static const uint8 kDirNone = 8;
 
 CombatMoveDialog::CombatMoveDialog()
@@ -65,6 +62,7 @@ void CombatMoveDialog::beginMove(Goldbox::Data::PlayerCharacter *ch) {
     if (!ch || !ch->combatState)
         return;
 
+    // Save original state for cancel/restore (mirrors orig_move/orig_facing/orig_x/orig_y).
     _origMovePoints = ch->combatState->movePoints;
     _origDirection  = ch->combatState->direction;
 
@@ -98,26 +96,28 @@ bool CombatMoveDialog::msgKeypress(const KeypressMessage &msg) {
     if (!_isActive)
         return false;
 
-    if (_state == STATE_FLEE) {
+    if (_state == STATE_FLEE)
         return _fleeYesNo->msgKeypress(msg);
-    }
 
-    // STATE_MOVE: check for end-of-movement sentinels first.
     if (!_character || !_character->combatState)
         return false;
 
+    // Loop condition: move > 1 (mirrors while (move > 1 && ...)).
     if (_character->combatState->movePoints < 2) {
         finishAction(false);
         return true;
     }
 
+    // RETURN / KP_ENTER: player voluntarily ends movement.
     if (msg.keycode == Common::KEYCODE_RETURN ||
             msg.keycode == Common::KEYCODE_KP_ENTER) {
         finishAction(false);
         return true;
     }
 
-    if (msg.keycode == Common::KEYCODE_ESCAPE) {
+    // ESC / 0 on numpad: cancel and restore original position.
+    if (msg.keycode == Common::KEYCODE_ESCAPE ||
+            msg.keycode == Common::KEYCODE_KP0) {
         handleCancel();
         return true;
     }
@@ -142,12 +142,13 @@ void CombatMoveDialog::handleMenuResult(const MenuResultMessage &result) {
         return;
 
     if (result._hasIntValue && result._intValue == 1) {
-        // YES — flee
-        const bool done = Combat::g_combatSession->flee(_character);
-        if (done)
-            finishAction(true);
+        // YES — attempt to flee.
+        const bool escaped = Combat::g_combatSession->flee(_character);
+        // flee() calls setCharacterStatus(S_RUNNING) on success, which ends
+        // the turn. Either way the move action is complete.
+        finishAction(escaped);
     }
-    // NO — fall back to movement loop (redraw menu next draw())
+    // NO — fall back to movement loop; redraw the movement menu.
     redraw();
 }
 
@@ -180,38 +181,72 @@ void CombatMoveDialog::handleDirectionInput(uint8 direction) {
 
     Combat::CombatSession &session = *Combat::g_combatSession;
 
+    // Original: COMBAT_UpdateCharacterFacingAndRedraw() is called BEFORE
+    // getGroundInfo(). The actor turns toward the requested direction even
+    // if the destination is blocked or occupied.
     session.updateFacing(_character, direction);
+    redraw();
 
+    int occupant = 0;
+    uint8 tileId = 0;
+    session.queryGround(_character, direction, &occupant, &tileId);
+
+    if (occupant != 0) {
+        // Adjacent tile is occupied: enter action-select interaction.
+        // The actor has already turned to face the target (above).
+        // TODO: wire DIALOG_ActionSelect when implemented.
+        // For now, end the move action so the turn can proceed.
+        finishAction(false);
+        return;
+    }
+
+    if (tileId == 0) {
+        // ground_type == 0: special flee/run destination.
+        enterFleePrompt();
+        return;
+    }
+
+    if (_character->combatState->movePoints < session.getTilePassability(tileId)) {
+        // Insufficient movement for this terrain cost.
+        showBlockedMessage();
+        return;
+    }
+
+    // Valid movement: perform the step (includes disengagement reactions,
+    // movement cost deduction, occupancy rebuild, cloud/effect check).
     const Combat::CombatSession::MoveStepResult step =
         session.performMoveStep(_character, direction);
 
     switch (step.kind) {
+    case Combat::CombatSession::MoveStepResult::MS_OK:
+        if (_animateFn)
+            _animateFn(step.fromPos, step.toPos, _character, _animateCtx);
+
+        // Negative effect acquired after movement ends the turn immediately
+        // (mirrors CHARACTER_HasNegativeEffect check after ApplyMoveStep).
+        if (_character->hasNegativeEffect() || !_character->enabled) {
+            finishAction(true);
+            return;
+        }
+        redraw();
+        break;
+
+    case Combat::CombatSession::MoveStepResult::MS_DISABLED:
+        // Disengagement reaction disabled the actor before the step.
+        finishAction(true);
+        break;
+
+    case Combat::CombatSession::MoveStepResult::MS_BLOCKED:
+        showBlockedMessage();
+        break;
+
     case Combat::CombatSession::MoveStepResult::MS_OCCUPIED:
-        // Enter action-select interaction — post result so CombatView handles it.
-        // For now finish the move action; full action-select wiring is a separate step.
+        // Should not reach here (handled above via queryGround), but guard it.
         finishAction(false);
         break;
 
     case Combat::CombatSession::MoveStepResult::MS_OUT_OF_BOUNDS:
         enterFleePrompt();
-        break;
-
-    case Combat::CombatSession::MoveStepResult::MS_BLOCKED: {
-        // Show "Blocked" on the prompt row.
-        Surface s = getSurface();
-        s.clearBox(0, 0, 39, 0, 8);
-        s.writeStringC(0, 0, 15, "Blocked");
-        break;
-    }
-
-    case Combat::CombatSession::MoveStepResult::MS_DISABLED:
-        finishAction(step.actionComplete);
-        break;
-
-    case Combat::CombatSession::MoveStepResult::MS_OK:
-        if (_animateFn)
-            _animateFn(step.fromPos, step.toPos, _character, _animateCtx);
-        redraw();
         break;
     }
 }
@@ -219,9 +254,15 @@ void CombatMoveDialog::handleDirectionInput(uint8 direction) {
 void CombatMoveDialog::handleCancel() {
     if (!Combat::g_combatSession || !_character)
         return;
+
+    // Restore original movement budget and position/facing.
     Combat::g_combatSession->cancelMove(
         _character, _origMovePoints, _origDirection, _origPos);
-    redraw();
+
+    // Cancel ends the move action (mirrors *result = !placed logic:
+    // if restoration succeeds the action is not yet complete, so we
+    // return false = "not done" to let CombatMain decide next step).
+    finishAction(false);
 }
 
 void CombatMoveDialog::enterFleePrompt() {
@@ -235,29 +276,38 @@ void CombatMoveDialog::finishAction(bool actionComplete) {
     if (!Combat::g_combatSession || !_character)
         return;
 
-    // If move budget exhausted, zero it out (mirrors original < 2 → 0).
+    // Normalize residual movement (mirrors: if (move < 2) move = 0).
     if (_character->combatState &&
             _character->combatState->movePoints < 2)
         _character->combatState->movePoints = 0;
 
-    Combat::g_combatSession->finishMoveAction(_character);
+    if (actionComplete)
+        Combat::g_combatSession->finishMoveAction(_character);
 
-    // Post result to CombatView so it can dismiss us and advance the turn.
+    // Post result to CombatView to dismiss this dialog and advance the turn.
     if (g_events)
         g_events->postMenuResult("Combat", true, Common::KEYCODE_RETURN,
                                  static_cast<int>(Combat::CombatSession::PA_MOVE),
                                  Common::String(), true, false);
 }
 
+void CombatMoveDialog::showBlockedMessage() {
+    PromptMessageConfig cfg;
+    cfg.message = "Blocked";
+    cfg.textColor = 15;
+    cfg.backgroundColor = 8;
+    attachDialog(new PromptMessage("CombatMoveBlocked", cfg));
+}
+
 void CombatMoveDialog::drawMovementMenu() {
     if (!_character || !_character->combatState)
         return;
+    // Displayed budget is half the stored value (mirrors move >> 1).
+    const uint8 budget = _character->combatState->movePoints >> 1;
     Surface s = getSurface();
     s.clearBox(0, 0, 39, 0, 8);
-    // Display remaining movement budget (mirrors showMovementMenu(move >> 1)).
-    const uint8 budget = _character->combatState->movePoints >> 1;
-    Common::String txt = Common::String::format("Move: %d  (direction or ESC)", budget);
-    s.writeStringC(0, 0, 10, txt);
+    s.writeStringC(0, 0, 10,
+        Common::String::format("Move/Attack, Move Left = %d", budget));
 }
 
 } // namespace Dialogs

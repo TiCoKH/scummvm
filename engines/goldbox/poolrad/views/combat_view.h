@@ -30,6 +30,7 @@
 #include "goldbox/gfx/combat_renderer.h"
 #include "goldbox/poolrad/views/dialogs/combat_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
+#include "goldbox/poolrad/views/dialogs/combat_attack_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_end_dialog.h"
 
 // Forward declarations — avoid pulling full headers into the Poolrad::Views
@@ -156,9 +157,11 @@ private:
     Combat::CombatSession _session;
 
     // --- Dialogs ---
-    Dialogs::CombatMenuDialog *_combatMenu;
-    Dialogs::CombatMoveDialog *_combatMove;
-    Dialogs::CombatEndDialog  *_combatEnd;
+    Dialogs::CombatMenuDialog   *_combatMenu;
+    Dialogs::CombatMoveDialog   *_combatMove;
+    Dialogs::CombatAttackDialog *_combatAttack;
+    Dialogs::CombatEndDialog    *_combatEnd;
+    Dialogs::Dialog             *_activeDialog = nullptr;
 
     // --- Effect bridge (wired at setup time) ---
     Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;
@@ -207,6 +210,7 @@ private:
 
 private:
     // --- Internal methods ---
+    void setActiveDialog(Dialogs::Dialog *dlg);
     void drawViewport();
     void drawCombatants();
     void drawUI();

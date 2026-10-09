@@ -103,6 +103,7 @@ private:
     void finishAction(bool actionComplete);
 
     void drawMovementMenu();
+    void showBlockedMessage();
 };
 
 } // namespace Dialogs
