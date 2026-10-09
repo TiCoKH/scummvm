@@ -29,11 +29,27 @@ namespace Dialogs {
 
 namespace {
 
+// TEXT_NameToScreen color mapping
+static const int kNameColorDisabled = 0x0C; // Amiga: 0x18
+static const int kNameColorEnemy    = 0x0E; // Amiga: 0x12
+static const int kNameColorFriendly = 0x0B; // Amiga: 0x1C
+static const int kNameColorSelected = 15;
+
+// TEXT_HPToScreen color mapping
+static const int kHpColorInjured    = 14;   // Amiga: 8
+static const int kHpColorNormal     = 10;   // Amiga: 10
+static const int kHpColorList       = 13;   // Amiga: 7
+
 static int acColumnOffset(int acCurrent) {
-    // Right-align AC values: single digit gets +1 offset.
-    if (acCurrent >= 0 && acCurrent <= 9)
-        return 1;
-    return 0;
+    if (acCurrent < -9)
+        return 0;  // 3 chars: "-99" fits at 0x20
+    if (acCurrent < 0)
+        return 1;  // 2 chars: "-9" right-aligns at 0x21
+    if (acCurrent < 10)
+        return 2;  // 1 char: right-aligns at 0x22
+    if (acCurrent <= 69)
+        return 1;  // 2 chars
+    return 0;      // 3 chars
 }
 
 static int hpColumnOffset(int hpCurrent) {
@@ -169,7 +185,7 @@ void PartyList::draw() {
 
     int y = _yStart;
 	s.writeStringC(_xName, y, 15, "Name");
-	s.writeStringC(_xAC,   y, 15, "AC  HP");
+	s.writeStringC(0x21,   y, 15, "AC  HP");
     y += 2;
 
     uint _partyIndex = 0;
@@ -179,8 +195,14 @@ void PartyList::draw() {
             s.clearBox(_xName, y, 0x26, y, 0);
 
             const bool isSelected = (_partyIndex == _selectedCharIndex - 1);
-            int color = isSelected ? 15 : 11;
-			s.writeStringC(_xName, y, color, pc->name);
+            int color;
+            if (!pc->enabled)
+                color = kNameColorDisabled;
+            else if (pc->combatSide == Data::CS_ENEMY)
+                color = kNameColorEnemy;
+            else
+                color = isSelected ? kNameColorSelected : kNameColorFriendly;
+            s.writeStringC(_xName, y, color, pc->name);
 
             // AC/HP column alignment matches original routine behavior.
             const int ac = pc->armorClass.getCurrent();
@@ -188,9 +210,10 @@ void PartyList::draw() {
             const int acCol = 0x20 + acColumnOffset(ac);
             const int hpCol = 0x24 + hpColumnOffset(hp);
 
-            color = (pc->hitPoints.max > 0) ? 10 : 12;
-            s.writeStringC(acCol, y, color, Common::String::format("%d", ac));
-            s.writeStringC(hpCol, y, color, Common::String::format("%d", hp));
+            const int acColor = (pc->hitPoints.current < pc->hitPoints.max) ? kHpColorInjured : kHpColorNormal;
+            const int hpColor = (pc->hitPoints.current < pc->hitPoints.max) ? kHpColorInjured : kHpColorNormal;
+            s.writeStringC(acCol, y, acColor, Common::String::format("%d", ac));
+            s.writeStringC(hpCol, y, hpColor, Common::String::format("%d", hp));
             y ++;
         }
         ++_partyIndex;

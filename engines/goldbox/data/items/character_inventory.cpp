@@ -225,8 +225,10 @@ bool CharacterInventory::addItem(
 bool CharacterInventory::removeItem(
     CharacterItem *item,
     Common::Array<CharacterItem *> *equippedSlots) {
-    if (!item)
+    if (!item) {
+        debug(1, "CharacterInventory::removeItem: nil item pointer");
         return false;
+    }
 
     Common::Array<uint32> offsets;
     if (equippedSlots)
@@ -252,6 +254,7 @@ bool CharacterInventory::removeItem(
         }
     }
 
+    debug(1, "CharacterInventory::removeItem: item not found in inventory");
     return false;
 }
 
