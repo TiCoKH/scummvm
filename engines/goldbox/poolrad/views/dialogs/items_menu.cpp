@@ -399,27 +399,34 @@ void ItemsMenu::buildItemsListMenu() {
 
 
 void ItemsMenu::handleReadyItem(Goldbox::Data::Items::CharacterItem *item) {
-	if (!item || !_character) {
+	if (!item || !_character)
 		return;
-	}
 
 	const Goldbox::Data::Items::CharacterItem *conflictingItem = nullptr;
 	const Goldbox::Poolrad::Data::PoolradCharacter::ReadyItemResult result =
 		_character->toggleReadyItem(item, &conflictingItem);
 
-	if (result != Goldbox::Poolrad::Data::PoolradCharacter::RIR_SUCCESS) {
-		if (result == Goldbox::Poolrad::Data::PoolradCharacter::RIR_CURSED) {
-			displayMessage("It's Cursed");
-		} else {
-			displayEquipError(static_cast<uint8>(result),
-						 conflictingItem ? conflictingItem : item);
-		}
+	if (result == Goldbox::Poolrad::Data::PoolradCharacter::RIR_SUCCESS) {
+		updateReadyItemDisplay(item);
+		_character->resolveEquippedItems();
 		return;
 	}
 
-	// Update menu display and recalculate equipment
-	updateReadyItemDisplay(item);
-	_character->resolveEquippedItems();
+	// Hands-full message is suppressed for AI-controlled characters in combat.
+	// Original: if (BYTE_GAME_STATE != GS_COMBAT || character->ai_control == 0)
+	if (result == Goldbox::Poolrad::Data::PoolradCharacter::RIR_HANDS_FULL) {
+		if (!isCharacterInCombat() || !_character->ai_control)
+			displayMessage("Your hands are full!");
+		return;
+	}
+
+	if (result == Goldbox::Poolrad::Data::PoolradCharacter::RIR_CURSED) {
+		displayMessage("It's Cursed");
+		return;
+	}
+
+	displayEquipError(static_cast<uint8>(result),
+		conflictingItem ? conflictingItem : item);
 }
 
 void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
@@ -431,20 +438,15 @@ void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
 		return;
 	}
 
-	// Use eligibility: missile/scroll OR (effect2 != 0 AND effect3 < 0x80).
-	// Mirrors: ITEM_isMissileOrScroll(item) ||
-	//          (item->effects[1] != 0 && item->effects[2] < 0x80)
-	// where effects[1]=effect2 (0x3D) and effects[2]=effect3 (0x3E).
-	const bool usable = item->isMissileOrScroll() ||
-		(item->effect2 != 0 && item->effect3 < 0x80);
-	if (!usable)
-		return;
-
 	if (item->isMissileOrScroll()) {
 		_pendingUseItem = item;
 		setStage(STAGE_SELECT_SCROLL_SPELL);
 		return;
 	}
+
+	// Other item: only usable when effects[1] != 0 && effects[2] < 0x80.
+	if (item->effect2 == 0 || item->effect3 >= 0x80)
+		return;
 
 	const uint8 spellId = item->getMagicItemSpellId();
 	if (spellId == 0)
@@ -455,7 +457,6 @@ void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
 	// Outside combat the result flag is always cleared (loop continues).
 	// In combat, executeItemUse may have set it via the spell system.
 	if (isCharacterInCombat()) {
-		// If _resultFlag was set true by the spell/use system, exit the loop.
 		if (_resultFlag && *_resultFlag)
 			handleExit();
 	} else {
@@ -640,7 +641,8 @@ void ItemsMenu::displayEquipError(uint8 errorCode, const Goldbox::Data::Items::C
 		break;
 	}
 	case 3:
-		message = "Your hands are full!";
+		// Hands-full is handled directly in handleReadyItem with combat/AI suppression.
+		// This case should not be reached.
 		break;
 	default:
 		message = "Cannot equip this item";
@@ -693,8 +695,23 @@ void ItemsMenu::executeItemUse(Goldbox::Data::Items::CharacterItem *item,
 	if (castResult.status != Goldbox::Spells::CAST_OK)
 		return;
 
-	// Consume the item: scroll/missile uses removeEffectTag; magic items
-	// use charge/stack consumption.
+	// ACTION_UseSpell succeeded: set useResult true.
+	if (_resultFlag)
+		*_resultFlag = true;
+
+	// COMBAT_endActorTurn: if in combat and spell has a casting time (c_avail),
+	// end the actor's turn. Result remains true (turn consumed).
+	if (isCharacterInCombat()) {
+		const Goldbox::Spells::SpellDefinition *def =
+			Goldbox::Spells::g_spellCasting->registry().getDefinition(spellEnum);
+		if (def && def->entry && def->entry->castTime != 0) {
+			if (_character->combatState)
+				_character->combatState->endTurn();
+			// useResult stays true: turn was consumed.
+		}
+	}
+
+	// Consume the item only when useResult is true (already guaranteed here).
 	if (item->isMissileOrScroll()) {
 		_character->inventory.removeEffectTag(*item, spellId,
 			&_character->equippedItems.slots);

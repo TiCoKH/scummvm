@@ -39,9 +39,10 @@ namespace {
 
 void callItemReadyEffect(PoolradCharacter *character,
 					Goldbox::Data::Items::CharacterItem *item, bool equipping) {
-	if (!character || !item || item->effect3 <= 0x7f) {
+	// Magic item detection: effect3 > 0x7f (bit 7 set).
+	// Original: isMagicItem = item->effects[2] > 0x7f
+	if (!character || !item || !(item->effect3 > 0x7f))
 		return;
-	}
 
 	// TODO: Hook up original item effect dispatch table.
 	debug(4, "PoolradCharacter::callItemReadyEffect - effect3=%u mode=%u for %s",
@@ -411,7 +412,9 @@ uint8 PoolradCharacter::getReadyAllowedClassMask() const {
 }
 
 bool PoolradCharacter::ignoreHandsLimitForReady() const {
-	return Goldbox::VmInterface::getGameStatus() == GS_COMBAT && ai_control;
+	// Original never skips the hands check. This override must not exist.
+	// Message suppression for AI in combat is handled at the presentation layer.
+	return false;
 }
 
 const Goldbox::Data::Items::CharacterItem *
