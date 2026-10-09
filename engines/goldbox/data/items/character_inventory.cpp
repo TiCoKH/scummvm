@@ -417,6 +417,74 @@ bool CharacterInventory::unequipItem(
     return true;
 }
 
+bool CharacterInventory::halveItem(CharacterItem *item) {
+    if (!item)
+        return false;
+
+    const uint8 originalStack = item->stackSize;
+    const uint8 halfStack = originalStack / 2;
+
+    if (halfStack == 0)
+        return false;
+
+    // Find the item's position in the list.
+    Common::List<CharacterItem>::iterator it = _items.begin();
+    while (it != _items.end() && &(*it) != item)
+        ++it;
+    if (it == _items.end())
+        return false;
+
+    // Build the split copy, then insert it directly after the original.
+    CharacterItem splitItem = *item;
+    splitItem.stackSize = halfStack;
+    splitItem.readied = 0;
+
+    item->stackSize = originalStack - halfStack;
+
+    ++it;
+    _items.insert(it, splitItem);
+    return true;
+}
+
+void CharacterInventory::joinItem(CharacterItem *item) {
+    if (!item)
+        return;
+
+    CharacterItem *accumulator = item;
+    unsigned currentStack = item->stackSize;
+
+    Common::List<CharacterItem>::iterator it = _items.begin();
+    while (it != _items.end()) {
+        CharacterItem *candidate = &(*it);
+        ++it; // advance before possible removal
+
+        if (candidate == accumulator || candidate->stackSize == 0)
+            continue;
+
+        if (*candidate != *accumulator || candidate->effect1 >= 2)
+            continue;
+
+        const unsigned combined = currentStack + candidate->stackSize;
+        if (combined < 256) {
+            currentStack = combined;
+            // Remove candidate without invalidating our pre-advanced iterator.
+            for (Common::List<CharacterItem>::iterator ri = _items.begin();
+                    ri != _items.end(); ++ri) {
+                if (&(*ri) == candidate) {
+                    _items.erase(ri);
+                    break;
+                }
+            }
+        } else {
+            accumulator->stackSize = 0xFF;
+            currentStack = combined - 0xFF;
+            accumulator = candidate;
+        }
+    }
+
+    accumulator->stackSize = static_cast<uint8>(currentStack);
+}
+
 } // namespace Items
 } // namespace Data
 } // namespace Goldbox

@@ -96,6 +96,17 @@ public:
     bool consumeItemUse(CharacterItem &item,
                         Common::Array<CharacterItem *> *equippedSlots = nullptr);
 
+    // Mirrors ITEM_Halve: splits item's stack in half, inserting the new
+    // split item directly after the original. Returns false if the stack
+    // is too small to split (halfStack == 0).
+    bool halveItem(CharacterItem *item);
+
+    // Mirrors ITEM_Join: merges all compatible stacks in the inventory into
+    // item, capping at 255 per stack with overflow chained to the next
+    // compatible item. Compatible items must share nameCode1/2/3, typeIndex,
+    // bonus, saveBonus, cursed, weight, and have effects[0] < 2.
+    void joinItem(CharacterItem *item);
+
     /// Access loaded items.
     const Common::List<CharacterItem>  &all() const { return _items; }
     int                                count() const { return (int)_items.size(); }
