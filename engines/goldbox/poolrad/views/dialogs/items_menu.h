@@ -67,6 +67,7 @@ public:
 	enum ItemsMenuStage {
 		STAGE_ITEM_SELECTION = 0,    // Main item/action menu
 		STAGE_CONFIRM_DROP,           // Drop confirmation dialog
+		STAGE_CONFIRM_SELL,           // Sell confirmation dialog
 		STAGE_SELECT_TRADE_TARGET,    // Party selector for trade
 		STAGE_SELECT_SCROLL_SPELL     // SpellsMenu for scroll/missile use
 	};
@@ -100,6 +101,8 @@ private:
 	PartySelector *_partySelector = nullptr;
 	Goldbox::Data::Items::CharacterItem *_pendingTradeItem = nullptr;
 	Goldbox::Data::Items::CharacterItem *_pendingUseItem = nullptr;
+	Goldbox::Data::Items::CharacterItem *_pendingSellItem = nullptr;
+	uint16 _pendingSellValue = 0;
 	SpellsMenu *_scrollSpellMenu = nullptr;
 
 	void setStage(ItemsMenuStage stage);
@@ -107,7 +110,6 @@ private:
 	void buildItemList();
 	void buildActionMenu();
 	bool isFreeToRemove(Goldbox::Data::Items::CharacterItem *item);
-	bool canHalveItem(const Goldbox::Data::Items::CharacterItem *item) const;
 	bool canSellItem(const Goldbox::Data::Items::CharacterItem *item) const;
 
 	// Action handlers matching original keycode shortcuts
@@ -135,6 +137,7 @@ private:
 
 	// Subdialog management
 	void handleDropConfirmResult(const MenuResultMessage &result);
+	void handleSellConfirmResult(const MenuResultMessage &result);
 	void handleTradeSelectionResult(const MenuResultMessage &result);
 	void handleScrollSpellResult(const MenuResultMessage &result);
 	void executeItemUse(Goldbox::Data::Items::CharacterItem *item, uint8 spellId);

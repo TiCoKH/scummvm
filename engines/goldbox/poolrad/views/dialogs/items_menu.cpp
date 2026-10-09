@@ -142,6 +142,8 @@ void ItemsMenu::deactivate() {
 	_pendingRemoveItem = nullptr;
 	_pendingTradeItem = nullptr;
 	_pendingUseItem = nullptr;
+	_pendingSellItem = nullptr;
+	_pendingSellValue = 0;
 	_resultFlag = nullptr;
 
 	if (_scrollSpellMenu) {
@@ -206,6 +208,9 @@ void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
 	switch (_stage) {
 	case STAGE_CONFIRM_DROP:
 		handleDropConfirmResult(result);
+		return;
+	case STAGE_CONFIRM_SELL:
+		handleSellConfirmResult(result);
 		return;
 	case STAGE_SELECT_TRADE_TARGET:
 		handleTradeSelectionResult(result);
@@ -486,40 +491,44 @@ void ItemsMenu::handleDropItem(Goldbox::Data::Items::CharacterItem *item) {
 	if (!item || !_character)
 		return;
 
-	if (!isFreeToRemove(item))
+	if (!isFreeToRemove(item)) {
+		// If it's a missile/scroll with stored effect data, ask for confirmation.
+		if (item->readied == 0 && item->isMissileOrScroll() &&
+			(item->effect1 >= 0x80 || item->effect2 >= 0x80 || item->effect3 >= 0x80)) {
+			_pendingRemoveItem = item;
+			setStage(STAGE_CONFIRM_DROP);
+		}
 		return;
+	}
 
-	// isFreeToRemove may have transitioned to STAGE_CONFIRM_DROP for special
-	// items (missiles with special effects). In that case the confirmation
-	// dialog handles the actual removal via handleDropConfirmResult.
-	if (_stage == STAGE_CONFIRM_DROP)
-		return;
-
-	// Ordinary items: show "Drop It?" confirmation before removing.
+	// Freely removable item: still confirm before dropping.
 	_pendingRemoveItem = item;
 	setStage(STAGE_CONFIRM_DROP);
 }
 
 void ItemsMenu::handleHalveItem(Goldbox::Data::Items::CharacterItem *item) {
-	if (!item || !_character) {
+	if (!item || !_character)
+		return;
+
+	if (!_character->inventory.halveItem(item)) {
+		displayMessage("Can't halve that");
 		return;
 	}
 
-	if (!canHalveItem(item)) {
-		return;
-	}
-
-	// TODO: Implement ITEM_Halve equivalent
-	// Split the stackSize in half, creating a new item if successful
+	buildItemList();
+	buildItemsListMenu();
+	redraw();
 }
 
 void ItemsMenu::handleJoinItem(Goldbox::Data::Items::CharacterItem *item) {
-	if (!item || !_character) {
+	if (!item || !_character)
 		return;
-	}
 
-	// TODO: Implement ITEM_Join equivalent
-	// Find matching items and combine them if possible
+	_character->inventory.joinItem(item);
+
+	buildItemList();
+	buildItemsListMenu();
+	redraw();
 }
 
 void ItemsMenu::handleSellItem(Goldbox::Data::Items::CharacterItem *item) {
@@ -529,11 +538,17 @@ void ItemsMenu::handleSellItem(Goldbox::Data::Items::CharacterItem *item) {
 	if (!isFreeToRemove(item))
 		return;
 
-	if (_stage == STAGE_CONFIRM_DROP)
-		return;
+	// Calculate sale value: half the item's listed value.
+	// For stacks > 1: (stack * halfValue) / 20.
+	uint16 saleValue = 0;
+	if (item->value != 0)
+		saleValue = item->value >> 1;
+	if (item->stackSize > 1)
+		saleValue = (uint16)((item->stackSize * saleValue) / 20);
 
-	// TODO: Implement ITEM_Sell equivalent
-	// Remove item and give character gold value of item
+	_pendingSellItem = item;
+	_pendingSellValue = saleValue;
+	setStage(STAGE_CONFIRM_SELL);
 }
 
 void ItemsMenu::handleIdentifyItem(Goldbox::Data::Items::CharacterItem *item) {
@@ -574,27 +589,20 @@ bool ItemsMenu::isFreeToRemove(Goldbox::Data::Items::CharacterItem *item) {
 	if (!item || !_character)
 		return false;
 
-	if (item->readied != 0)
+	if (item->readied != 0) {
+		displayMessage("Must be unreadied");
 		return false;
+	}
 
-	if (!item->isMissile())
+	if (!item->isMissileOrScroll())
 		return true;
 
-	// Missiles with any special effect (effect >= 0x80) require confirmation
-	// before removal because a character may have been going to scribe from them.
+	// Missile/scroll-slot item: any effect byte >= 0x80 means stored spell data
+	// that may be lost — require confirmation before allowing removal.
 	if (item->effect1 < 0x80 && item->effect2 < 0x80 && item->effect3 < 0x80)
 		return true;
 
-	// Transition to confirmation stage; caller must not proceed with removal.
-	_pendingRemoveItem = item;
-	setStage(STAGE_CONFIRM_DROP);
 	return false;
-}
-
-bool ItemsMenu::canHalveItem(const Goldbox::Data::Items::CharacterItem *item) const {
-	if (!item) return false;
-	// Can halve if item has more than 1 in stack and there's room in inventory
-	return item->stackSize > 1 && _itemList.size() < 16;
 }
 
 bool ItemsMenu::canSellItem(const Goldbox::Data::Items::CharacterItem *item) const {
@@ -774,6 +782,61 @@ void ItemsMenu::handleDropConfirmResult(const MenuResultMessage &result) {
 	}
 }
 
+void ItemsMenu::handleSellConfirmResult(const MenuResultMessage &result) {
+	const bool confirmed = result._success &&
+		(result._keyCode == Common::KEYCODE_y ||
+		 (result._hasIntValue && result._intValue == 1));
+
+	Goldbox::Data::Items::CharacterItem *item = _pendingSellItem;
+	_pendingSellItem = nullptr;
+	const uint16 saleValue = _pendingSellValue;
+	_pendingSellValue = 0;
+
+	setStage(STAGE_ITEM_SELECTION);
+
+	if (!confirmed || !item || !_character)
+		return;
+
+	// Remove the item first.
+	if (!_character->removeItem(item))
+		return;
+
+	// Convert sale value: platinum = saleValue / 5, gold = saleValue % 5.
+	const uint16 platAmount = saleValue / 5;
+	const uint16 goldAmount = saleValue % 5;
+
+	// Overload check: can the character carry platAmount + goldAmount coin weight?
+	// Uses the same 1500 + capacityModifier encumbrance limit as receiveItemLegacy.
+	const int capacity = 1500 + _character->getCapacityModifier();
+	const int currentEnc = (int)_character->encumbrance;
+	const int coinWeight = (int)(platAmount + goldAmount);
+	const bool willOverload = (currentEnc + coinWeight) > capacity;
+
+	if (willOverload) {
+		// Credit only as much platinum as fits; overflow goes to party pool.
+		const int freeCapacity = capacity - currentEnc;
+		const uint16 platCapacity = (freeCapacity > 0) ?
+			(uint16)MIN<int>(freeCapacity, platAmount) : 0;
+
+		if (platAmount < platCapacity) {
+			_character->valuableItems[Goldbox::Data::VAL_PLATINUM] += platAmount;
+		} else {
+			_character->valuableItems[Goldbox::Data::VAL_PLATINUM] += platCapacity;
+			Goldbox::VmInterface::getTreasurePool().coins()[Goldbox::Data::VAL_PLATINUM] +=
+				platAmount - platCapacity;
+		}
+		displayMessage("Overloaded!");
+	} else {
+		_character->valuableItems[Goldbox::Data::VAL_PLATINUM] += platAmount;
+	}
+	_character->valuableItems[Goldbox::Data::VAL_GOLD] += goldAmount;
+
+	_character->recalcCombatStats();
+	buildItemList();
+	buildItemsListMenu();
+	redraw();
+}
+
 void ItemsMenu::handleTradeSelectionResult(const MenuResultMessage &result) {
 	Goldbox::Data::Items::CharacterItem *itemToTrade = _pendingTradeItem;
 	_pendingTradeItem = nullptr;
@@ -905,6 +968,25 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 		if (_character && _pendingRemoveItem) {
 			HorizontalYesNoConfig ynCfg = {"Drop It?", 13, 10, 15, 0};
 			_removeConfirm = new HorizontalYesNo("ItemsRemoveConfirm", ynCfg);
+			attachDialog(_removeConfirm);
+			_removeConfirm->activate();
+			redraw();
+		}
+		break;
+	}
+	case STAGE_CONFIRM_SELL: {
+		debug(7, "ItemsMenu::setStage() - CONFIRM_SELL stage");
+		if (_removeConfirm) {
+			detachDialog(_removeConfirm);
+			_removeConfirm->clear();
+			delete _removeConfirm;
+			_removeConfirm = nullptr;
+		}
+		if (_character && _pendingSellItem) {
+			Common::String prompt = Common::String::format(
+				"Sell for %u?", (unsigned)_pendingSellValue);
+			HorizontalYesNoConfig ynCfg = {prompt, 13, 10, 15, 0};
+			_removeConfirm = new HorizontalYesNo("ItemsSellConfirm", ynCfg);
 			attachDialog(_removeConfirm);
 			_removeConfirm->activate();
 			redraw();

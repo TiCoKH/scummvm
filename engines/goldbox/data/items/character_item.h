@@ -99,6 +99,23 @@ struct CharacterItem {
     /// Get effect description (for special items)
     Common::String getEffectDescription() const;
 
+    /// Returns true when two items are the same stackable type and can be
+    /// joined. Mirrors the ITEM_Join match predicate: compares nameCode1/2/3,
+    /// typeIndex, bonus, saveBonus, cursed, and weight. Does NOT compare
+    /// readied, hidden, stackSize, or effects (effects[0] < 2 is a separate
+    /// join precondition checked by the caller).
+    bool operator==(const CharacterItem &other) const {
+        return nameCode1 == other.nameCode1 &&
+               nameCode2 == other.nameCode2 &&
+               nameCode3 == other.nameCode3 &&
+               typeIndex == other.typeIndex  &&
+               bonus     == other.bonus      &&
+               saveBonus == other.saveBonus  &&
+               cursed    == other.cursed     &&
+               weight    == other.weight;
+    }
+    bool operator!=(const CharacterItem &other) const { return !(*this == other); }
+
     /// Debug print for CharacterItem
     void debugPrint(int index = -1) const {
         if (index >= 0)
