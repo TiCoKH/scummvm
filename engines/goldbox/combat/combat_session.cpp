@@ -21,6 +21,8 @@
 
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/combat/combat_setup.h"
+#include "goldbox/data/items/character_item.h"
+#include "goldbox/data/rules/rules_types.h"
 
 // Forward declarations for combat-internal functions defined in combat_turn.cpp.
 namespace Goldbox { namespace Data { class PlayerCharacter; } }
@@ -337,6 +339,18 @@ void CombatSession::scrollViewport(TilePos target, uint8 radius) {
     _viewport.adjustToInclude(target, radius);
 }
 
+void CombatSession::buildFacingTargetList(Data::PlayerCharacter *ch, TargetList &result) {
+    if (!ch || !_context)
+        return;
+    const int idx = _table.findIndex(ch);
+    if (idx < 0)
+        return;
+    const TilePos pos = _table.getTilePos(idx);
+    const uint8 iconDim = _table.getSize(idx);
+    _context->buildTargetListCore(pos, iconDim, DIR_ANY, 0x7f);
+    result = _targetList;
+}
+
 void CombatSession::acknowledgeRoundEnd(bool continueEncounter) {
     if (_phase != PHASE_ROUND_END && _phase != PHASE_COMBAT_END)
         return;
@@ -632,6 +646,85 @@ bool CombatSession::applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
         cs.movePoints = 0;
 
     return true;
+}
+
+bool CombatSession::confirmAttackNonHostile(Data::PlayerCharacter *attacker,
+                                            Data::PlayerCharacter *target) {
+    // Mirrors COMBAT_ConfirmAttackNonHostile rule check.
+    // CHARACTER_isInParty returns CS_PARTY(0) for party members, CS_ENEMY(1) for enemies.
+    // The original test: targetIsPartyMember == attacker->combat_side
+    // means: same side → no confirmation needed.
+    if (!attacker || !target)
+        return true;
+    const uint8 targetSide = static_cast<uint8>(target->combatSide);
+    const uint8 attackerSide = static_cast<uint8>(attacker->combatSide);
+    if (targetSide == attackerSide || attacker->ai_control)
+        return true;
+    // Cross-side attack by player-controlled character: caller must prompt.
+    return false;
+}
+
+void CombatSession::makePartyHostile() {
+    // Mirrors the YES branch of COMBAT_ConfirmAttackNonHostile.
+    _globals.combatFlag1 = 1;  // BYTE_COMBAT_ALLY_ATTACK / D_unknownCombatFlag1
+
+    for (uint i = 0; i < _params.roster.size(); ++i) {
+        Data::PlayerCharacter *member = _params.roster[i];
+        if (!member)
+            continue;
+        if (member->healthStatus == Data::S_OKAY && member->npc > 0x7f) {
+            member->combatSide = Data::CS_ENEMY;
+            if (member->combatState)
+                member->combatState->target = nullptr;
+        }
+    }
+
+    makeContext().updateSideCount();
+}
+
+bool CombatSession::executeAttackOnTarget(Data::PlayerCharacter *attacker,
+                                          Data::PlayerCharacter *target,
+                                          bool immediateAttack) {
+    if (!attacker || !target || !attacker->combatState)
+        return false;
+
+    // Hostile-target gate.
+    if (immediateAttack && !confirmAttackNonHostile(attacker, target))
+        return false;
+
+    // Commit target position.
+    attacker->combatState->target = target;
+
+    if (!immediateAttack)
+        return true;
+
+    CombatContext ctx = makeContext();
+
+    // Multi-attack sweep path.
+    if (executeMultiAttack(attacker, target, ctx, _attackDelegate)) {
+        attacker->combatState->endTurn();
+        return true;
+    }
+
+    // Normal attack path.
+    ctx.applyAttackFacingChange(attacker, target);
+
+    // Determine ranged attack item.
+    Data::Items::CharacterItem *rangedItem = nullptr;
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(attacker);
+    if (adnd && adnd->hasRangedWeapon()) {
+        Data::Items::CharacterItem *candidate = nullptr;
+        if (adnd->getRangedAttackItem(&candidate) && candidate) {
+            if (adnd->isEquippedRangedWeapon()) {
+                const uint8 range = ctx.getTargetRange(attacker, target);
+                rangedItem = (range == 1) ? nullptr : candidate;
+            }
+        }
+    }
+
+    bool result = false;
+    resolveAttack(attacker, target, false, rangedItem, &result, _attackDelegate);
+    return result;
 }
 
 } // namespace Combat

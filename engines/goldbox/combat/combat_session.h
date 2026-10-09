@@ -254,6 +254,59 @@ public:
      */
     void scrollViewport(TilePos target, uint8 radius = 0xFF);
 
+    /**
+     * Mirrors COMBAT_BuildFacingTargetList.
+     * Builds the full reachable target list for attacker using maxRange=0x7f
+     * and DIR_ANY (no facing restriction). Populates result with the entries.
+     * Called by DIALOG_CombatAttack before entering the target-cycle loop.
+     */
+    void buildFacingTargetList(Data::PlayerCharacter *attacker, TargetList &result);
+
+    /**
+     * Mirrors COMBAT_ExecuteAttackOnTarget.
+     *
+     * Commits the selected target and, when immediateAttack=true, executes
+     * the full attack sequence:
+     *   1. COMBAT_ConfirmAttackNonHostile (hostile-target gate)
+     *   2. COMBAT_ExecuteMultiAttack (sweep path)
+     *   3. COMBAT_ApplyAttackFacingChange
+     *   4. Ranged-item determination (range==1 clears item)
+     *   5. COMBAT_ResolveAttack
+     *
+     * Returns true when the actor's turn is complete (attack resolved or
+     * multi-attack ended the turn). Returns false when the target was
+     * rejected (non-hostile gate failed).
+     *
+     * Called by DIALOG_CombatAttack after the player confirms a target.
+     */
+    bool executeAttackOnTarget(Data::PlayerCharacter *attacker,
+                               Data::PlayerCharacter *target,
+                               bool immediateAttack);
+
+    /**
+     * Mirrors COMBAT_ConfirmAttackNonHostile (rule layer only — no UI).
+     * Returns true when the attack may proceed without a player confirmation:
+     *   - target is on the same combat side as attacker, OR
+     *   - attacker is AI-controlled.
+     * Returns false when a player confirmation is required (cross-side attack
+     * by a player-controlled character). The caller (DIALOG_CombatAttack) is
+     * responsible for showing the "Attack Ally?" prompt and calling
+     * makePartyHostile() if the player confirms.
+     */
+    bool confirmAttackNonHostile(Data::PlayerCharacter *attacker,
+                                 Data::PlayerCharacter *target);
+
+    /**
+     * Mirrors the state-mutation half of COMBAT_ConfirmAttackNonHostile
+     * (the YES branch). Called by DIALOG_CombatAttack after the player
+     * confirms attacking a non-hostile target.
+     *
+     * Sets BYTE_COMBAT_ALLY_ATTACK / D_unknownCombatFlag1, converts all
+     * qualifying party members (status==OKAY, npc>0x7f) to CS_ENEMY,
+     * clears their combat targets, and recalculates side counts.
+     */
+    void makePartyHostile();
+
 private:
     friend void processAiMove(Data::PlayerCharacter *,
                               const Common::Array<Data::PlayerCharacter *> &,

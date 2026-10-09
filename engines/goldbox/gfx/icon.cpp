@@ -451,6 +451,7 @@ Pic *Icon::createFlipped(const Pic *source) const {
 	}
 
 	Pic *flipped = new Pic(source->w, source->h);
+	flipped->setTransparentIndex(source->getTransparentIndex());
 
 	// Mirror horizontally (left/right flip) for facing direction changes
 	for (int y = 0; y < source->h; ++y) {
@@ -460,8 +461,6 @@ Pic *Icon::createFlipped(const Pic *source) const {
 			dstRow[x] = srcRow[source->w - 1 - x];
 		}
 	}
-
-	// No mask to flip when using colorkey transparency
 
 	return flipped;
 }
