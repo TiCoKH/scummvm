@@ -712,7 +712,9 @@ void ADnDCharacter::onReadyItemEffect(
 }
 
 bool ADnDCharacter::isNpc() const {
-    return npc >= 0x80;
+    // npc encodes: bit 7 = NPC flag, bits 6-0 = morale value.
+    // Must cast to uint8 before testing; int8 >= 0x80 is always false.
+    return (static_cast<uint8>(npc) & 0x80) != 0;
 }
 
 } // namespace Data
