@@ -116,8 +116,8 @@ struct ValuableItems {
     // Exchange rates to common base unit (copper=1, silver=10, electrum=100,
     // gold=200, platinum=1000). Only the first 5 coin slots are convertible.
     static const uint16 kExchangeRates[5];
-    static const uint16 kGoldRate = 200;
-    static const int kCoinSlotCount = 5;
+    static constexpr uint16 kGoldRate = 200;
+    static constexpr int kCoinSlotCount = 5;
 
     Common::Array<uint16> values;
     ValuableItems() : values(VALUABLE_COUNT) {}
@@ -141,13 +141,14 @@ struct ValuableItems {
         return (sum + 100) / kGoldRate;
     }
 
-    // Set coins from a gold-piece value (zeroes all coin slots, stores as
-    // gold coins). Matches CHARACTER_SetCoinValueFromGold /
-    // COINPOOL_SetValueFromGold.
+    // Set coins from a gold-piece value (zeroes all coin slots, then stores
+    // bulk as platinum (goldValue/5) and remainder as gold (goldValue%5)).
+    // Matches CHARACTER_SetCoinValueFromGold / MONEYPOOL_SetValueFromGold.
     inline void setFromGoldValue(uint32 goldValue) {
         for (int i = 0; i < kCoinSlotCount; ++i)
             values[i] = 0;
-        values[VAL_GOLD] = (uint16)goldValue;
+        values[VAL_PLATINUM] = (uint16)(goldValue / 5);
+        values[VAL_GOLD]     = (uint16)(goldValue % 5);
     }
 
     // Add another ValuableItems' coin slots into this one (saturates at

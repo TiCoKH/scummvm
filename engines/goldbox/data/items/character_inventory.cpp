@@ -420,6 +420,11 @@ bool CharacterInventory::unequipItem(
     return true;
 }
 
+void CharacterInventory::appendCopy(const CharacterItem &sourceItem) {
+    _items.push_back(sourceItem);
+    _items.back().nextAddress = 0;
+}
+
 bool CharacterInventory::halveItem(CharacterItem *item) {
     if (!item)
         return false;

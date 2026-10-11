@@ -517,8 +517,7 @@ int ADnDCharacter::getCapacityModifier() const {
 	if (t <= 3)  return -350;
 	if (t <= 5)  return -250;
 	if (t <= 7)  return -150;
-	if (t <= 11) return 0;
-	if (t <= 13) return 100;
+	if (t <= 11) return 100;
 	if (t <= 15) return 200;
 	if (t == 16) return 350;
 	if (t <= 21) return 500 + (t - 17) * 250;
@@ -526,6 +525,20 @@ int ADnDCharacter::getCapacityModifier() const {
 	if (t == 27) return 7500;
 	if (t <= 30) return 9000 + (t - 28) * 3000;
 	return 0;
+}
+
+bool ADnDCharacter::cannotAcceptItem(const Goldbox::Data::Items::CharacterItem &item) {
+	recalcCombatStats();
+
+	uint32 itemWeight = item.weight;
+	if (item.stackSize != 0)
+		itemWeight *= item.stackSize;
+
+	const int capacityModifier = getCapacityModifier();
+	const uint32 totalEncumbrance = (uint32)encumbrance + itemWeight;
+
+	return numOfItems > 15
+		|| totalEncumbrance > (uint32)(1500 + capacityModifier);
 }
 
 void ADnDCharacter::setMovement() {

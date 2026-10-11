@@ -144,6 +144,7 @@ void ItemsMenu::deactivate() {
 	_pendingUseItem = nullptr;
 	_pendingSellItem = nullptr;
 	_pendingSellValue = 0;
+	_pendingIdentifyItem = nullptr;
 	_resultFlag = nullptr;
 
 	if (_scrollSpellMenu) {
@@ -217,6 +218,9 @@ void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
 		return;
 	case STAGE_SELECT_SCROLL_SPELL:
 		handleScrollSpellResult(result);
+		return;
+	case STAGE_CONFIRM_IDENTIFY:
+		handleIdentifyConfirmResult(result);
 		return;
 	case STAGE_ITEM_SELECTION:
 		// Fall through to main item action handling
@@ -552,12 +556,11 @@ void ItemsMenu::handleSellItem(Goldbox::Data::Items::CharacterItem *item) {
 }
 
 void ItemsMenu::handleIdentifyItem(Goldbox::Data::Items::CharacterItem *item) {
-	if (!item || !_character) {
+	if (!item || !_character)
 		return;
-	}
 
-	// TODO: Implement ITEM_Identify equivalent
-	// Reveal hidden item properties/effects
+	_pendingIdentifyItem = item;
+	setStage(STAGE_CONFIRM_IDENTIFY);
 }
 
 
@@ -733,6 +736,57 @@ void ItemsMenu::executeItemUse(Goldbox::Data::Items::CharacterItem *item,
 	redraw();
 }
 
+void ItemsMenu::handleIdentifyConfirmResult(const MenuResultMessage &result) {
+	const bool confirmed = result._success &&
+		(result._keyCode == Common::KEYCODE_y ||
+		 (result._hasIntValue && result._intValue == 1));
+
+	Goldbox::Data::Items::CharacterItem *item = _pendingIdentifyItem;
+	_pendingIdentifyItem = nullptr;
+
+	setStage(STAGE_ITEM_SELECTION);
+
+	if (!confirmed || !item || !_character)
+		return;
+
+	// CHARACTER_sumMoneyValue: character pays first.
+	const uint32 charGold = _character->valuableItems.getGoldValue();
+	bool isPaid = false;
+
+	if (charGold >= 200) {
+		_character->valuableItems.setFromGoldValue(charGold - 200);
+		isPaid = true;
+	} else {
+		// COINPOOL_SumGoldValue: fall back to party pool.
+		Goldbox::Data::ValuableItems &pool =
+			VmInterface::getTreasurePool().coins();
+		const uint32 poolGold = pool.getGoldValue();
+		if (poolGold >= 200) {
+			pool.setFromGoldValue(poolGold - 200);
+			isPaid = true;
+		} else {
+			displayMessage("Not enough money.");
+		}
+	}
+
+	if (!isPaid)
+		return;
+
+	if (item->hidden == 0) {
+		displayMessage(Common::String::format("%s: nothing new.",
+			item->getDisplayName().c_str()));
+	} else {
+		item->hidden = 0;
+		displayMessage(item->getListDisplayText(false, true));
+		if (_resultFlag)
+			*_resultFlag = true;
+	}
+
+	buildItemList();
+	buildItemsListMenu();
+	redraw();
+}
+
 void ItemsMenu::handleScrollSpellResult(const MenuResultMessage &result) {
 	Goldbox::Data::Items::CharacterItem *item = _pendingUseItem;
 	_pendingUseItem = nullptr;
@@ -841,20 +895,15 @@ void ItemsMenu::handleTradeSelectionResult(const MenuResultMessage &result) {
 	Goldbox::Data::Items::CharacterItem *itemToTrade = _pendingTradeItem;
 	_pendingTradeItem = nullptr;
 
-	// Return to item selection stage
 	setStage(STAGE_ITEM_SELECTION);
 
-	// Check if user cancelled or invalid result
-	if (!result._success || !result._hasIntValue || !itemToTrade || !_character) {
+	if (!result._success || !result._hasIntValue || !itemToTrade || !_character)
 		return;
-	}
 
-	// Get target character from party
 	const int targetIndex = result._intValue;
 	Common::List<Goldbox::Data::PlayerCharacter *> *party = VmInterface::getParty();
-	if (!party || targetIndex < 0 || targetIndex >= (int)party->size()) {
+	if (!party || targetIndex < 0 || targetIndex >= (int)party->size())
 		return;
-	}
 
 	Goldbox::Poolrad::Data::PoolradCharacter *tradeTarget = nullptr;
 	int idx = 0;
@@ -867,27 +916,28 @@ void ItemsMenu::handleTradeSelectionResult(const MenuResultMessage &result) {
 		++idx;
 	}
 
-	if (!tradeTarget || tradeTarget == _character) {
+	if (!tradeTarget || tradeTarget == _character)
 		return;
-	}
 
-	// Set the target character globally for potential future combat reuse
+	// Persist selected recipient (mirrors PTR_TO_CHARACTER = targetCharacter).
 	VmInterface::setTargetCharacter(tradeTarget);
 
-	// Attempt to transfer item
-	if (!tradeTarget->receiveItem(*itemToTrade)) {
+	// CHARACTER_checkItemFit: true means item cannot be accepted.
+	if (tradeTarget->cannotAcceptItem(*itemToTrade)) {
 		displayMessage("Overloaded");
 		return;
 	}
 
+	// ITEM_moveTo then ITEM_takeFrom — order matches original.
+	tradeTarget->inventory.appendCopy(*itemToTrade);
 	if (!_character->removeItem(itemToTrade)) {
-		warning("Trade: item added to target but removal from source failed");
+		warning("Trade: appendCopy succeeded but source removal failed");
 		return;
 	}
 
-	// Update character state and refresh UI
-	_character->recalcCombatStats();
+	// CHARACTER_recalcCombatStats for recipient only (original does not recalc source here).
 	tradeTarget->recalcCombatStats();
+
 	buildItemList();
 	buildItemsListMenu();
 	redraw();
@@ -1012,6 +1062,26 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 		attachDialog(_partySelector);
 		_partySelector->activate();
 		redraw();
+		break;
+	}
+	case STAGE_CONFIRM_IDENTIFY: {
+		debug(7, "ItemsMenu::setStage() - CONFIRM_IDENTIFY stage");
+		if (_removeConfirm) {
+			detachDialog(_removeConfirm);
+			_removeConfirm->clear();
+			delete _removeConfirm;
+			_removeConfirm = nullptr;
+		}
+		if (_character && _pendingIdentifyItem) {
+			const Common::String prompt = Common::String::format(
+				"Identify %s for 200gp?",
+				_pendingIdentifyItem->getDisplayName().c_str());
+			HorizontalYesNoConfig ynCfg = {prompt, 13, 10, 15, 0};
+			_removeConfirm = new HorizontalYesNo("ItemsIdentifyConfirm", ynCfg);
+			attachDialog(_removeConfirm);
+			_removeConfirm->activate();
+			redraw();
+		}
 		break;
 	}
 	case STAGE_SELECT_SCROLL_SPELL: {

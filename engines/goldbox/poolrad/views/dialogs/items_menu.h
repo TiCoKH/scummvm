@@ -69,7 +69,8 @@ public:
 		STAGE_CONFIRM_DROP,           // Drop confirmation dialog
 		STAGE_CONFIRM_SELL,           // Sell confirmation dialog
 		STAGE_SELECT_TRADE_TARGET,    // Party selector for trade
-		STAGE_SELECT_SCROLL_SPELL     // SpellsMenu for scroll/missile use
+		STAGE_SELECT_SCROLL_SPELL,    // SpellsMenu for scroll/missile use
+		STAGE_CONFIRM_IDENTIFY        // Identify confirmation dialog
 	};
 
 	ItemsMenu(const Common::String &name = "ItemsMenu");
@@ -103,6 +104,7 @@ private:
 	Goldbox::Data::Items::CharacterItem *_pendingUseItem = nullptr;
 	Goldbox::Data::Items::CharacterItem *_pendingSellItem = nullptr;
 	uint16 _pendingSellValue = 0;
+	Goldbox::Data::Items::CharacterItem *_pendingIdentifyItem = nullptr;
 	SpellsMenu *_scrollSpellMenu = nullptr;
 
 	void setStage(ItemsMenuStage stage);
@@ -140,6 +142,7 @@ private:
 	void handleSellConfirmResult(const MenuResultMessage &result);
 	void handleTradeSelectionResult(const MenuResultMessage &result);
 	void handleScrollSpellResult(const MenuResultMessage &result);
+	void handleIdentifyConfirmResult(const MenuResultMessage &result);
 	void executeItemUse(Goldbox::Data::Items::CharacterItem *item, uint8 spellId);
 };
 

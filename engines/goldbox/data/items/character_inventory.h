@@ -96,6 +96,12 @@ public:
     bool consumeItemUse(CharacterItem &item,
                         Common::Array<CharacterItem *> *equippedSlots = nullptr);
 
+    // Mirrors ITEM_moveTo: appends a copy of sourceItem to the end of the
+    // inventory list and clears nextAddress on the copy. No capacity check
+    // is performed; the caller is responsible for pre-validating with
+    // cannotAcceptItem() / canCarryItem() before calling this.
+    void appendCopy(const CharacterItem &sourceItem);
+
     // Mirrors ITEM_Halve: splits item's stack in half, inserting the new
     // split item directly after the original. Returns false if the stack
     // is too small to split (halfStack == 0).
