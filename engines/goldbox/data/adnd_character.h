@@ -251,6 +251,11 @@ public:
 	// Returns a value that adjusts the base carrying capacity.
 	int getCapacityModifier() const;
 
+	// Returns true when the character cannot accept the item.
+	// Rejects if item_num > 15 OR encumbrance + itemWeight > 1500 + capacityModifier.
+	// Mirrors original CHARACTER_checkItemFit (true = does not fit).
+	bool cannotAcceptItem(const Goldbox::Data::Items::CharacterItem &item);
+
 	// Apply encumbrance-based movement reduction.
 	// Reduces movement.current based on effective encumbrance (encumbrance - capacity modifier).
 	// Uses thresholds: >1024 -> cap at 3, >=769 -> cap at 6, >=513 -> cap at 9.
