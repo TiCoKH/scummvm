@@ -22,6 +22,7 @@
 #include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_attack_dialog.h"
+#include "goldbox/poolrad/views/dialogs/combat_spell_dialog.h"
 #include "goldbox/core/field_path.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
@@ -174,7 +175,7 @@ struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
 CombatView::CombatView()
     : View("Combat"), _needsFullRedraw(true), _combatMenu(nullptr),
       _combatMove(nullptr), _combatAttack(nullptr), _combatEnd(nullptr),
-      _activeDialog(nullptr), _currentInfoActor(nullptr),
+      _combatSpell(nullptr), _activeDialog(nullptr), _currentInfoActor(nullptr),
       _playerActionPending(false),
       _pendingPlayerAction(Combat::CombatSession::PA_NONE),
       _hasAiMessage(false), _aiFacingChar(nullptr), _aiFacingDir(DIR_N) {
@@ -182,6 +183,7 @@ CombatView::CombatView()
     _combatMove   = new Dialogs::CombatMoveDialog();
     _combatAttack = new Dialogs::CombatAttackDialog();
     _combatEnd    = new Dialogs::CombatEndDialog();
+    _combatSpell  = new Dialogs::CombatSpellDialog();
     _aiDelegate     = new CombatViewAiDelegate(this);
     _attackDelegate = new CombatViewAttackDelegate(this);
 }
@@ -191,6 +193,7 @@ CombatView::~CombatView() {
     delete _combatMove;
     delete _combatAttack;
     delete _combatEnd;
+    delete _combatSpell;
     delete _aiDelegate;
     delete _attackDelegate;
 }
@@ -401,6 +404,31 @@ void CombatView::onUpdate() {
                 continue;
             }
 
+            // PA_CAST is handled by CombatSpellDialog — wait for it to finish.
+            if (action == Combat::CombatSession::PA_CAST) {
+                ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
+                if (actor && _combatSpell) {
+                    _combatSpell->beginCast(actor);
+                    attachDialog(_combatSpell);
+                    setActiveDialog(_combatSpell);
+                    _needsFullRedraw = true;
+                    redraw();
+
+                    _playerActionPending = false;
+                    while (!_playerActionPending)
+                        if (!g_events->pumpModalInputFrame()) break;
+
+                    setActiveDialog(nullptr);
+                    detachDialog(_combatSpell);
+                    _playerActionPending = false;
+                }
+                if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
+                    _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
+                _currentInfoActor = nullptr;
+                _needsFullRedraw = true;
+                continue;
+            }
+
             // PA_ATTACK is handled by CombatAttackDialog — wait for it to finish.
             if (action == Combat::CombatSession::PA_ATTACK) {
                 ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
@@ -557,6 +585,18 @@ void CombatView::handleMenuResult(const MenuResultMessage &result) {
 
 // ---------------------------------------------------------------------------
 // Draw helpers
+
+// CastSpellViewDelegate
+
+void CombatView::focusCaster(::Goldbox::Data::PlayerCharacter *caster) {
+    _needsFullRedraw = true;
+    draw();
+    drawCombatInfo(caster);
+}
+
+void CombatView::showBeginsCasting(::Goldbox::Data::PlayerCharacter *caster) {
+    printCombatMessage(caster, "Begins Casting!");
+}
 
 void CombatView::refreshViewport(::Goldbox::Data::PlayerCharacter *ch,
         Direction direction) {

@@ -249,28 +249,38 @@ Data::PlayerCharacter *selectNextActor(
         return nullptr;
     }
 
-    // Find the enabled character with the lowest non-zero initiative that has
+    // Find the enabled character with the highest non-zero initiative that has
     // not yet acted (0xFF = acted this round; 0 = skipped/cancelled).
-    // Lower initiative acts first — mirrors original COMBAT_SelectNextActor.
+    // Ties are broken by a 1d100 roll (higher roll wins).
+    // Mirrors original COMBAT_SelectNextActor.
     Data::PlayerCharacter *best = nullptr;
-    uint8 bestInitiative = 0xFF;
+    uint8 bestInitiative = 0;
+    uint8 bestRoll = 0;
 
     for (uint i = 0; i < roster.size(); i++) {
         Data::PlayerCharacter *ch = roster[i];
         if (!ch || !ch->enabled || !ch->combatState)
             continue;
         const uint8 init = ch->combatState->initiative;
+        const uint8 roll = (uint8)VmInterface::rollDice(1, 100);
+        if (init == 0 || init == 0xFF) {
+            debug(0, "[selectNextActor]   [%u] '%s' enabled=%d init=%s",
+                i, ch->name.c_str(), (int)ch->enabled,
+                init == 0xFF ? "done" : "0");
+            continue;
+        }
         debug(0, "[selectNextActor]   [%u] '%s' enabled=%d init=%d",
             i, ch->name.c_str(), (int)ch->enabled, (int)init);
-        if (init == 0 || init == 0xFF)
-            continue;
-        if (init < bestInitiative) {
+        if ((int8)bestInitiative < (int8)init)
+            bestRoll = roll;
+        if ((int8)bestInitiative <= (int8)init && bestRoll <= roll) {
             bestInitiative = init;
+            bestRoll = roll;
             best = ch;
         }
     }
-    debug(0, "[selectNextActor] -> '%s' init=%d",
-        best ? best->name.c_str() : "NULL", (int)bestInitiative);
+    debug(0, "[selectNextActor] -> '%s' init=%d roll=%d",
+        best ? best->name.c_str() : "NULL", (int)bestInitiative, (int)bestRoll);
     return best;
 }
 

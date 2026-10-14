@@ -337,7 +337,7 @@ void ItemsMenu::buildActionMenu() {
 	_horizontalMenuLabels.push_back("Drop");
 
 	// Halve only when inventory has room for the split result (item_num < 16).
-	if ((int)_itemList.size() < 16)
+	if (_character->numOfItems < 16)
 		_horizontalMenuLabels.push_back("Halve");
 
 	_horizontalMenuLabels.push_back("Join");
@@ -447,15 +447,15 @@ void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
 		return;
 	}
 
+	// Original eligibility: missile/scroll OR (effects[1] != 0 && effects[2] < 0x80).
+	if (!item->isMissileOrScroll() && (item->effect2 == 0 || item->effect3 >= 0x80))
+		return;
+
 	if (item->isMissileOrScroll()) {
 		_pendingUseItem = item;
 		setStage(STAGE_SELECT_SCROLL_SPELL);
 		return;
 	}
-
-	// Other item: only usable when effects[1] != 0 && effects[2] < 0x80.
-	if (item->effect2 == 0 || item->effect3 >= 0x80)
-		return;
 
 	const uint8 spellId = item->getMagicItemSpellId();
 	if (spellId == 0)
@@ -478,16 +478,13 @@ void ItemsMenu::handleTradeItem(Goldbox::Data::Items::CharacterItem *item) {
 	if (!item || !_character)
 		return;
 
-	if (!isFreeToRemove(item))
+	if (!isFreeToRemove(item)) {
+		redraw();
 		return;
-
-	if (!hasTradeTarget())
-		return;
+	}
 
 	_pendingTradeItem = item;
 	setStage(STAGE_SELECT_TRADE_TARGET);
-
-	// Redraw is always requested after trade attempt, even on failure (spec).
 	redraw();
 }
 
@@ -495,17 +492,9 @@ void ItemsMenu::handleDropItem(Goldbox::Data::Items::CharacterItem *item) {
 	if (!item || !_character)
 		return;
 
-	if (!isFreeToRemove(item)) {
-		// If it's a missile/scroll with stored effect data, ask for confirmation.
-		if (item->readied == 0 && item->isMissileOrScroll() &&
-			(item->effect1 >= 0x80 || item->effect2 >= 0x80 || item->effect3 >= 0x80)) {
-			_pendingRemoveItem = item;
-			setStage(STAGE_CONFIRM_DROP);
-		}
+	if (!isFreeToRemove(item))
 		return;
-	}
 
-	// Freely removable item: still confirm before dropping.
 	_pendingRemoveItem = item;
 	setStage(STAGE_CONFIRM_DROP);
 }
@@ -597,15 +586,7 @@ bool ItemsMenu::isFreeToRemove(Goldbox::Data::Items::CharacterItem *item) {
 		return false;
 	}
 
-	if (!item->isMissileOrScroll())
-		return true;
-
-	// Missile/scroll-slot item: any effect byte >= 0x80 means stored spell data
-	// that may be lost — require confirmation before allowing removal.
-	if (item->effect1 < 0x80 && item->effect2 < 0x80 && item->effect3 < 0x80)
-		return true;
-
-	return false;
+	return true;
 }
 
 bool ItemsMenu::canSellItem(const Goldbox::Data::Items::CharacterItem *item) const {
@@ -772,14 +753,13 @@ void ItemsMenu::handleIdentifyConfirmResult(const MenuResultMessage &result) {
 	if (!isPaid)
 		return;
 
+	// _resultFlag is the combat loop-exit flag; identify only controls redraw.
 	if (item->hidden == 0) {
 		displayMessage(Common::String::format("%s: nothing new.",
 			item->getDisplayName().c_str()));
 	} else {
 		item->hidden = 0;
 		displayMessage(item->getListDisplayText(false, true));
-		if (_resultFlag)
-			*_resultFlag = true;
 	}
 
 	buildItemList();

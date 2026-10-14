@@ -32,6 +32,8 @@
 #include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_attack_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_end_dialog.h"
+#include "goldbox/poolrad/views/dialogs/combat_spell_dialog.h"
+#include "goldbox/combat/combat_turn.h"
 
 // Forward declarations — avoid pulling full headers into the Poolrad::Views
 // namespace where unqualified 'Data::' would resolve to Goldbox::Poolrad::Data.
@@ -63,7 +65,7 @@ namespace Views {
  * Responsible for: terrain/combatant rendering, damage animation,
  * viewport scroll input, and reacting to TickResult events from the session.
  */
-class CombatView : public View {
+class CombatView : public View, public Combat::CastSpellViewDelegate {
 public:
     CombatView();
     ~CombatView() override;
@@ -108,6 +110,10 @@ public:
 
     void drawCombatInfo(Goldbox::Data::PlayerCharacter *ch);
     void refreshViewport(Goldbox::Data::PlayerCharacter *ch, Direction direction);
+
+    // CastSpellViewDelegate
+    void focusCaster(Goldbox::Data::PlayerCharacter *caster) override;
+    void showBeginsCasting(Goldbox::Data::PlayerCharacter *caster) override;
     void suppressRedraw() { _needsRedraw = false; }
     void forceFullRedraw() { _needsFullRedraw = true; }
 
@@ -161,6 +167,7 @@ private:
     Dialogs::CombatMoveDialog   *_combatMove;
     Dialogs::CombatAttackDialog *_combatAttack;
     Dialogs::CombatEndDialog    *_combatEnd;
+    Dialogs::CombatSpellDialog  *_combatSpell;
     Dialogs::Dialog             *_activeDialog = nullptr;
 
     // --- Effect bridge (wired at setup time) ---

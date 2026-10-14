@@ -353,7 +353,11 @@ bool CharacterInventory::equipItem(
         equippedSlots.resize((uint)Slot::SLOT_COUNT);
 
     const ItemProperty &prop = item->prop();
-    const Slot itemSlot = static_cast<Slot>(prop.slotID);
+    // slotID values outside the valid slot range indicate held magic items
+    // (wands, rods, staves, etc.) that equip to S_MAIN_HAND.
+    const Slot itemSlot = (prop.slotID < (uint8)Slot::SLOT_COUNT)
+        ? static_cast<Slot>(prop.slotID)
+        : Slot::S_MAIN_HAND;
 
     if (itemSlot == Slot::S_NONE)
         return false;

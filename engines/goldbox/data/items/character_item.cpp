@@ -80,8 +80,9 @@ Common::String CharacterItem::getDisplayName() const {
         }
     }
 
-    // Add bonus indicator if it's greater than 0 and not hidden by bit 3
-    if (bonus > 0 && !(hidden & 0x8)) {
+    // Add bonus indicator if it's greater than 0, not hidden by bit 3,
+    // and not a wand/rod/staff (where bonus encodes max charges, not enchantment).
+    if (bonus > 0 && !(hidden & 0x8) && effect2 == 0) {
         result += Common::String::format(" +%d", bonus);
     }
 
@@ -136,14 +137,11 @@ bool CharacterItem::isScroll() const {
 }
 
 int CharacterItem::getCharges() const {
-    // For scrolls, the number of charges typically indicates number of spells
     if (isScroll())
         return effect1;
-
-    // For wands and similar items that use charges
-    if (effect3 < 128)
+    // Wands/rods/staves: effect1 = charges remaining, effect2 = spell ID
+    if (effect2 != 0 && effect3 < 128)
         return effect1;
-
     return 0;
 }
 
@@ -163,10 +161,11 @@ uint8 CharacterItem::getMagicItemSpellId() const {
     // Scroll/missile items select their spell interactively via SpellsMenu.
     if (isMissileOrScroll())
         return 0;
-    // effect1 holds the spell ID; effect2 < 0x80 means it is usable.
-    if (effect1 == 0 || effect2 >= 0x80)
+    // For wands/rods/staves (effect1 = charges, effect2 = spell ID):
+    // effect2 holds the spell ID; effect1 = 0 means no charges left.
+    if (effect1 == 0 || effect2 == 0)
         return 0;
-    uint8 spellId = effect1;
+    uint8 spellId = effect2;
     // Legacy magic-item spell IDs above 56 use a shifted range.
     if (spellId > 56)
         spellId -= 23;

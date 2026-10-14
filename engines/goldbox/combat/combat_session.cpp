@@ -235,7 +235,6 @@ CombatSession::TurnResult CombatSession::executeTurn() {
         CombatContext ctx = makeContext();
         moveByAI(_currentActor, ctx, _aiDelegate);
     }
-
     debug(0, "[COMBAT] moveByAI done for '%s'", _currentActor->name.c_str());
 
     // Restore selected-character context (mirrors PTR_SELECTED_CHAR = previousSelected).
