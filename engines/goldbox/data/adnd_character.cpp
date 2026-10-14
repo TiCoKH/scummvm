@@ -102,11 +102,10 @@ void ADnDCharacter::resolveEquippedItems() {
         debug(4, "ADnDCharacter::resolveEquippedItems: readied item[%u] displayName='%s' type=%u slot=%d prop.slotID=%u readied=%u nameCode=[%u,%u,%u]",
     		      (unsigned)itemIdx, displayName.c_str(), (unsigned)item.typeIndex, slot, (unsigned)prop.slotID, (unsigned)item.readied,
 		      (unsigned)item.nameCode1, (unsigned)item.nameCode2, (unsigned)item.nameCode3);
-		if (slot < 0 || slot >= EQUIPPED_SLOT_COUNT) {
-			debug(4, "WARNING: Equipped item '%s' has invalid slotID %d (corrupted save data?)",
-				  item.name.c_str(), slot);
-			continue;
-		}
+		// slotID values outside the valid slot range indicate held magic items
+		// (wands, rods, staves, etc.) that are readied in the main hand.
+		if (slot < 0 || slot >= EQUIPPED_SLOT_COUNT)
+			slot = (int)Goldbox::Data::Items::Slot::S_MAIN_HAND;
 
 		// For multiple-slot items (rings), place in first available slot
 		if (slot == (int)Goldbox::Data::Items::Slot::S_RING1 || 
@@ -399,7 +398,11 @@ ADnDCharacter::EquipScanResult ADnDCharacter::rebuildEquipmentSlots() {
 		CharacterItem *ptr = const_cast<CharacterItem *>(&ci);
 		const ItemProperty &p = ci.prop();
 		bool placed = false;
-		const int sid = (int)p.slotID;
+		// slotID values outside the valid slot range indicate held magic items
+		// (wands, rods, staves, etc.) that are readied in the main hand.
+		const int sid = (p.slotID < (uint8)Slot::SLOT_COUNT)
+			? (int)p.slotID
+			: (int)Slot::S_MAIN_HAND;
 
 		if (sid >= 0 && sid < 9) {
 			if (!equippedItems.slots[sid]) {
@@ -677,7 +680,9 @@ ADnDCharacter::ReadyItemResult ADnDCharacter::toggleReadyItem(
         if (canReady != RIR_SUCCESS)
             return canReady;
 
-        const Slot slot = static_cast<Slot>(item->prop().slotID);
+        const Slot rawSlot = static_cast<Slot>(item->prop().slotID);
+        const Slot slot = (item->prop().slotID < (uint8)Slot::SLOT_COUNT)
+            ? rawSlot : Slot::S_MAIN_HAND;
         if (!equipItem(item, slot))
             return RIR_SLOT_IN_USE;
 

@@ -437,13 +437,14 @@ void moveByAI(Data::PlayerCharacter *actor,
 
     // 6. Try using a magic item.
     if (tryUseItem(actor, ctx)) {
+        debug(0, "[AI] '%s' used magic item", actor->name.c_str());
         cs.endTurn();
         return;
     }
 
     // 7. Execute a pending spell (stored from a previous timed cast).
     if (cs.spellId != 0) {
-        // TODO: call useSpell(actor, cs.spellId, true) when implemented.
+        debug(0, "[AI] '%s' executing pending spell %d", actor->name.c_str(), (int)cs.spellId);
         cs.spellId = 0;
         cs.endTurn();
         return;
@@ -451,15 +452,20 @@ void moveByAI(Data::PlayerCharacter *actor,
 
     // 8. Try Turn Undead.
     if (tryTurnUndead(actor, ctx)) {
+        debug(0, "[AI] '%s' turned undead", actor->name.c_str());
         cs.endTurn();
         return;
     }
 
     // 9. Select and cast a spell from the spell book.
-    if (selectSpellFromBook(actor, ctx))
+    debug(0, "[AI] '%s' trying selectSpellFromBook", actor->name.c_str());
+    if (selectSpellFromBook(actor, ctx)) {
+        debug(0, "[AI] '%s' cast spell from book", actor->name.c_str());
         return;
+    }
 
     // 10. Ensure the AI has appropriate weapons equipped.
+    debug(0, "[AI] '%s' autoEquipWeapons", actor->name.c_str());
     autoEquipWeapons(dynamic_cast<Data::ADnDCharacter *>(actor), ctx, nullptr);
 
     // 11. Second control-reclaim opportunity before movement/attack.
@@ -860,15 +866,23 @@ void autoEquipWeapons(Data::ADnDCharacter *character,
     const bool hasRangedEquipment = (rangedAmmoItem != nullptr) || (missileType == 0x0A);
 
     // Choose ranged vs ordinary weapon.
+    // Prefer ranged when:
+    //   - a ranged weapon exists with ammo
+    //   - AND no adjacent targets exist (melee not possible)
+    //   - OR ranged score is more than double the ordinary score
+    // Fall back to ordinary when adjacent targets exist and melee is viable.
     CharacterItem *selectedWeapon = bestRanged;
 
-    bool chooseOrdinary = (bestRanged == nullptr) ||
-                          (bestRangedScore <= (ordinaryScore >> 1));
+    bool chooseOrdinary = (bestRanged == nullptr) || !hasRangedEquipment;
 
-    if (!chooseOrdinary && !hasRangedEquipment) {
+    if (!chooseOrdinary) {
+        // Check if any target is adjacent (range 1) — if so, prefer melee
+        // only when a melee weapon actually scores better than ranged.
         ctx.buildTargetList(character, 1);
-        if (!ctx.targetList.targetOrder.empty())
+        const bool hasAdjacentTarget = !ctx.targetList.targetOrder.empty();
+        if (hasAdjacentTarget && bestRangedScore <= ordinaryScore)
             chooseOrdinary = true;
+        // If no adjacent targets at all, keep ranged regardless of score.
     }
 
     if (chooseOrdinary)
@@ -1116,20 +1130,31 @@ bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx) {
     if (!actor || !actor->combatState)
         return false;
 
-    if (!actor->combatState->canUse)
+    if (!actor->combatState->canUse) {
+        debug(0, "[tryUseItem] '%s' canUse=false", actor->name.c_str());
         return false;
+    }
 
-    if (ctx.globals.sideCount[actor->combatSide] == 0)
+    if (ctx.globals.sideCount[actor->combatSide] == 0) {
+        debug(0, "[tryUseItem] '%s' sideCount=0", actor->name.c_str());
         return false;
+    }
 
-    if (!ctx.globals.magicEnabled)
+    // magicEnabled is the autospell toggle for party members under AI control.
+    // Enemy-side actors always act independently of that toggle.
+    const bool itemUseAllowed = (actor->combatSide == Data::CS_ENEMY) || ctx.globals.magicEnabled;
+    if (!itemUseAllowed) {
+        debug(0, "[tryUseItem] '%s' magicEnabled=false (party AI)", actor->name.c_str());
         return false;
+    }
 
     Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(actor);
     if (!adnd)
         return false;
 
     const uint8 searchPasses = (uint8)VmInterface::rollDice(1, 7);
+    debug(0, "[tryUseItem] '%s' scanning inventory count=%d searchPasses=%d",
+        actor->name.c_str(), adnd->inventory.count(), (int)searchPasses);
 
     Data::Items::CharacterItem *selectedItem = nullptr;
     uint8 priorityThreshold = 7;
@@ -1145,36 +1170,47 @@ bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx) {
 
             Data::Items::CharacterItem &item = *it;
 
-            if (item.isMissileOrScroll())
+            if (item.isMissileOrScroll()) {
+                debug(0, "[tryUseItem]   skip '%s' isMissileOrScroll", item.name.c_str());
                 continue;
+            }
 
-            // effect3 >= 0x80 means the item state is not usable.
-            if (item.effect3 >= 0x80)
+            if (item.effect3 >= 0x80) {
+                debug(0, "[tryUseItem]   skip '%s' effect3=0x%02x", item.name.c_str(), (int)item.effect3);
                 continue;
+            }
 
-            if (item.readied == 0)
+            if (item.readied == 0) {
+                debug(0, "[tryUseItem]   skip '%s' not readied", item.name.c_str());
                 continue;
+            }
 
-            // effect2 holds the spell/effect ID for magic items.
             uint8 spellId = item.effect2;
-            if (spellId == 0)
+            if (spellId == 0) {
+                debug(0, "[tryUseItem]   skip '%s' effect2=0", item.name.c_str());
                 continue;
+            }
 
-            // Normalize item-stored spell IDs above 0x38 (56) into the
-            // regular spell table range by subtracting 0x17 (23).
             if (spellId > 0x38)
                 spellId -= 0x17;
 
+            debug(0, "[tryUseItem]   candidate '%s' effect2=%d spellId=%d pass=%d threshold=%d",
+                item.name.c_str(), (int)item.effect2, (int)spellId, (int)pass, (int)priorityThreshold);
+
             if (isSpellEligibleForAI(actor, spellId, priorityThreshold, ctx))
                 selectedItem = &item;
+            else
+                debug(0, "[tryUseItem]   '%s' spellId=%d not eligible", item.name.c_str(), (int)spellId);
         }
     }
 
-    if (selectedItem == nullptr)
+    if (selectedItem == nullptr) {
+        debug(0, "[tryUseItem] '%s' no item selected", actor->name.c_str());
         return false;
+    }
 
+    debug(0, "[tryUseItem] '%s' selected item '%s'", actor->name.c_str(), selectedItem->name.c_str());
     // TODO: call ITEM_Use(selectedItem) when that function is implemented.
-    // The original ignores the return value; we return true unconditionally.
     return true;
 }
 
@@ -1205,7 +1241,9 @@ bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx) {
     uint8 selectedSpell = 0;
 
     // AI/autospell gate.
-    const bool aiAllowed = ((uint8)actor->npc > 0x7f) || ctx.globals.magicEnabled;
+    // magicEnabled is the autospell toggle for party members under AI control.
+    // Enemy-side actors always act independently of that toggle.
+    const bool aiAllowed = (actor->combatSide == Data::CS_ENEMY) || ctx.globals.magicEnabled;
     const bool sideActive = ctx.globals.sideCount[actor->combatSide] != 0;
 
     if (spellCount != 0 && aiAllowed && sideActive) {

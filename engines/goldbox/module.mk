@@ -117,6 +117,7 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/combat_target_command_dialog.o \
 	poolrad/views/dialogs/combat_manual_aim_dialog.o \
 	poolrad/views/dialogs/combat_end_dialog.o \
+	poolrad/views/dialogs/combat_spell_dialog.o \
 	poolrad/views/dialogs/door_dialog.o \
 	poolrad/views/dialogs/spell_book_dialog.o \
 	poolrad/views/dialogs/horizontal_input.o \
