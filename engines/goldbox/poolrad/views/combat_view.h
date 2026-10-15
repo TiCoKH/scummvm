@@ -191,6 +191,9 @@ private:
     bool _playerActionPending;
     Combat::CombatSession::PlayerAction _pendingPlayerAction;
 
+    // --- Autospell toggle (mirrors AUTOSPELL_STATUS) ---
+    bool _autoSpell = false;
+
     // --- AI delegate draw state (set before redraw(), consumed by draw()) ---
     Common::String _aiMessage;
     bool _hasAiMessage = false;

@@ -71,8 +71,11 @@ public:
         PA_FLEE,        // Flee combat
         PA_TURN,        // Turn Undead (cleric)
         PA_VIEW,        // View: inspect battlefield (loops back to menu)
-        PA_QUICK,       // Quick: auto-attack without targeting
+        PA_QUICK,       // Quick: auto-attack without targeting (current actor only)
+        PA_QUICK_ALL,   // Party quickfight: initiative=20, quickfight all party members
         PA_SUBMENU,     // Other: open combat submenu (Guard/Delay/Quit/Bandage/Speed)
+        PA_AUTOSPELL,   // Toggle autospell on/off (';' key)
+        PA_PARTY_MANUAL,// Space: clear ai_control for all party members with npc < 0x80
         PA_NONE         // skip turn without menu (disabled / pre-cast spell)
     };
 
