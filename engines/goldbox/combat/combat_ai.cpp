@@ -445,8 +445,7 @@ void moveByAI(Data::PlayerCharacter *actor,
     // 7. Execute a pending spell (stored from a previous timed cast).
     if (cs.spellId != 0) {
         debug(0, "[AI] '%s' executing pending spell %d", actor->name.c_str(), (int)cs.spellId);
-        cs.spellId = 0;
-        cs.endTurn();
+        resolvePendingSpell(actor, true, nullptr);
         return;
     }
 

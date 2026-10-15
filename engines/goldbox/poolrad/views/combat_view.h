@@ -44,6 +44,7 @@ class PlayerCharacter;
 namespace Items { struct CharacterItem; }
 namespace Effects {
 class EffectHostBridge;
+class EffectRuntime;
 } // namespace Effects
 } // namespace Data
 namespace Gfx {
@@ -175,6 +176,10 @@ private:
     // --- Effect bridge (wired at setup time) ---
     Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;
 
+    // Trigger-set evaluator handed to the session through CombatParams
+    // (ES7/8/15/18 hooks). Owned by the view.
+    Goldbox::Data::Effects::EffectRuntime *_effectRuntime = nullptr;
+
     // --- View delegates (owned, wired into session at setup time) ---
     Combat::AiMoveViewDelegate  *_aiDelegate     = nullptr;
     Combat::CombatViewDelegate  *_attackDelegate = nullptr;
@@ -223,6 +228,23 @@ private:
 private:
     // --- Internal methods ---
     void setActiveDialog(Dialogs::Dialog *dlg);
+
+    /** Focus the actor, refresh its info panel and (re)show the combat menu. */
+    void showCombatMenu(::Goldbox::Data::PlayerCharacter *actor);
+
+    /**
+     * Called after a player sub-dialog (move/cast/attack) returns. Mirrors
+     * DIALOG_CombatMain: returns the actor to the menu while its turn is
+     * not over, otherwise advances the session.
+     */
+    void finishPlayerAction();
+
+    /** Mirrors DIALOG_CombatEnd presentation (messages, "Continue Battle?"). */
+    void handleRoundEnd();
+
+    bool _roundEndAnswered = false;
+    bool _roundEndContinue = false;
+
     void drawViewport();
     void drawCombatants();
     void drawUI();

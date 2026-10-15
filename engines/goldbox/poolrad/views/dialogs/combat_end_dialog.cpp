@@ -28,69 +28,64 @@ namespace Views {
 namespace Dialogs {
 
 CombatEndDialog::CombatEndDialog()
-        : Dialog("CombatEnd"), _isCombatEnd(false), _canSurrender(false),
-          _awaitingInput(false) {
+        : Dialog("CombatEnd"), _continueYesNo(nullptr) {
+    setBounds(Window(0, 24, 39, 24));
+
+    HorizontalYesNoConfig cfg;
+    cfg.promptTxt       = "Continue Battle? ";
+    cfg.promptColor     = 15;
+    cfg.textColor       = 10;
+    cfg.selectColor     = 15;
+    cfg.backgroundColor = 8;
+    _continueYesNo = new HorizontalYesNo("CombatEndYesNo", cfg);
+    _continueYesNo->setParent(this);
 }
 
 CombatEndDialog::~CombatEndDialog() {
+    delete _continueYesNo;
 }
 
-void CombatEndDialog::prepare(bool isCombatEnd, bool canSurrender) {
-    _isCombatEnd  = isCombatEnd;
-    _canSurrender = canSurrender;
+void CombatEndDialog::prepare() {
+    if (_continueYesNo->isActive())
+        _continueYesNo->deactivate();
 }
 
 void CombatEndDialog::activate() {
     Dialog::activate();
-    _awaitingInput = false;
-
-    // Combat over or no surrender option: resolve immediately without input.
-    if (_isCombatEnd || !_canSurrender) {
-        postResult(!_isCombatEnd);
-        return;
-    }
-
-    // Show surrender prompt and wait for Y/N.
-    _awaitingInput = true;
+    _continueYesNo->activate();
 }
 
 void CombatEndDialog::deactivate() {
-    _awaitingInput = false;
+    if (_continueYesNo->isActive())
+        _continueYesNo->deactivate();
     Dialog::deactivate();
 }
 
 void CombatEndDialog::draw() {
-    if (!_awaitingInput)
+    if (!_isVisible)
         return;
-    Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 8);
-    s.writeStringC(0, 24, 10, "Surrender? YES NO");
+    _continueYesNo->setRedraw();
+    _continueYesNo->draw();
 }
 
 bool CombatEndDialog::msgKeypress(const KeypressMessage &msg) {
-    if (!_awaitingInput)
+    if (!_isActive)
         return false;
+    return _continueYesNo->msgKeypress(msg);
+}
 
-    char ascii = msg.ascii;
-    if (ascii >= 'a' && ascii <= 'z')
-        ascii -= 32;
+void CombatEndDialog::handleMenuResult(const MenuResultMessage &result) {
+    if (!result._hasIntValue || !_continueYesNo->isActive())
+        return;
 
-    if (ascii == 'Y' || msg.keycode == Common::KEYCODE_RETURN) {
-        postResult(false); // surrendered → don't continue
-        return true;
-    }
-    if (ascii == 'N' || msg.keycode == Common::KEYCODE_ESCAPE) {
-        postResult(true);  // declined surrender → continue
-        return true;
-    }
-    return true; // consume all keys while prompt is active
+    // HorizontalYesNo posts intValue 1 for YES and 0 for NO.
+    postResult(result._intValue == 1);
 }
 
 void CombatEndDialog::postResult(bool continueEncounter) {
-    _awaitingInput = false;
     deactivate();
-    // Post to "Combat" (CombatView) with PA_NONE intValue as sentinel,
-    // using _success to carry continueEncounter.
+    // Post to "Combat" (CombatView) with -1 as sentinel, using _success to
+    // carry continueEncounter.
     g_events->postMenuResult("Combat", continueEncounter,
         Common::KEYCODE_INVALID, -1, Common::String(), true, false);
 }

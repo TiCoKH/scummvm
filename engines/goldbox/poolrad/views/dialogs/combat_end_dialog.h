@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_COMBAT_END_DIALOG_H
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -30,41 +31,30 @@ namespace Views {
 namespace Dialogs {
 
 /**
- * End-of-round / end-of-combat interaction. Mirrors DIALOG_CombatEnd.
+ * "Continue Battle?" prompt shown at the end of a round when the party won
+ * (mirrors the DIALOG_InputYesNo call in DIALOG_CombatEnd).
  *
- * Activated by CombatView on EV_ROUND_END or EV_COMBAT_END.
- *
- * - EV_COMBAT_END (isCombatEnd=true): resolves immediately, posts
- *   _success=false so CombatView closes the encounter.
- *
- * - EV_ROUND_END (isCombatEnd=false): if canSurrender, shows a Y/N
- *   surrender prompt; otherwise resolves immediately with _success=true.
- *   Posts MenuResultMessage to "Combat" with _success=continueEncounter.
- *
- * The intValue sentinel -1 distinguishes this result from CombatMenuDialog
- * results in CombatView::handleMenuResult.
+ * Wraps a HorizontalYesNo. YES keeps the encounter going (posts
+ * _success=true); NO ends it (_success=false). Posts a MenuResultMessage to
+ * "Combat" with intValue -1 as a sentinel, handled by
+ * CombatView::handleMenuResult.
  */
 class CombatEndDialog : public Dialog {
 public:
     CombatEndDialog();
     ~CombatEndDialog() override;
 
-    /**
-     * Prepare before activation.
-     * isCombatEnd=true  → one side eliminated; no prompt.
-     * canSurrender      → show surrender Y/N prompt this round.
-     */
-    void prepare(bool isCombatEnd, bool canSurrender);
+    /** Prepare before activation. */
+    void prepare();
 
     void activate() override;
     void deactivate() override;
     void draw() override;
     bool msgKeypress(const KeypressMessage &msg) override;
+    void handleMenuResult(const MenuResultMessage &result) override;
 
 private:
-    bool _isCombatEnd;
-    bool _canSurrender;
-    bool _awaitingInput;
+    HorizontalYesNo *_continueYesNo;
 
     void postResult(bool continueEncounter);
 };

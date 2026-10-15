@@ -29,6 +29,9 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/effects/effect_handler_base.h"
+#include "goldbox/data/effects/effect_runtime.h"
+#include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/data/rules/rules_types.h"
@@ -199,6 +202,7 @@ CombatView::~CombatView() {
     delete _combatSubmenu;
     delete _aiDelegate;
     delete _attackDelegate;
+    delete _effectRuntime;
 }
 
 void CombatView::setup(const Combat::CombatParams &params) {
@@ -214,8 +218,20 @@ void CombatView::setup(const Combat::CombatParams &params) {
                                    g_engine->getDaxRandcom());
     }
 
+    if (!_effectRuntime) {
+        _effectRuntime = new ::Goldbox::Data::Effects::EffectRuntime(
+            ::Goldbox::Data::Effects::g_effectHandler, _bridge);
+    } else {
+        _effectRuntime->setHandler(::Goldbox::Data::Effects::g_effectHandler);
+        _effectRuntime->setHostBridge(_bridge);
+    }
+
     Combat::CombatParams p = params;
     p.tilePropertyProvider = &PoolradTilePropertyProvider::instance();
+    p.effectRuntime = _effectRuntime;
+    p.effectBridge = _bridge;
+    if (!p.vmGlobalLayout)
+        p.vmGlobalLayout = &Data::getPoolradGlobalVmLayout();
     _session.setup(p);
     _session.setViewDelegates(_aiDelegate, _attackDelegate);
     Combat::g_combatSession = &_session;
@@ -347,11 +363,22 @@ void CombatView::onUpdate() {
         debug(0, "[COMBATVIEW] loop top: phase=%d ended=%d",
             (int)phase, (int)_session.isEnded());
 
-        if (phase == Combat::CombatSession::PHASE_NONE ||
-                phase == Combat::CombatSession::PHASE_ROUND_END ||
-                phase == Combat::CombatSession::PHASE_COMBAT_END) {
+        if (phase == Combat::CombatSession::PHASE_NONE) {
             debug(0, "[COMBATVIEW] breaking: terminal phase=%d", (int)phase);
             break;
+        }
+
+        if (phase == Combat::CombatSession::PHASE_COMBAT_END) {
+            debug(0, "[COMBATVIEW] COMBAT_END -> close");
+            close();
+            break;
+        }
+
+        // Mirrors DIALOG_CombatEnd: round bookkeeping already ran in the
+        // session; the view shows messages and the "Continue Battle?" prompt.
+        if (phase == Combat::CombatSession::PHASE_ROUND_END) {
+            handleRoundEnd();
+            continue;
         }
 
         if (phase == Combat::CombatSession::PHASE_AWAITING_PLAYER) {
@@ -407,13 +434,9 @@ void CombatView::onUpdate() {
                     detachDialog(_combatMove);
                     _playerActionPending = false;
                 }
-                // Dialog called finishMoveAction() if actionComplete=true.
-                // For cancel/voluntary-done (actionComplete=false), advance
-                // the turn here so the session leaves PHASE_AWAITING_PLAYER.
-                if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
-                    _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
-                _currentInfoActor = nullptr;
-                _needsFullRedraw = true;
+                // Mirrors DIALOG_CombatMain looping on a false result: the
+                // actor returns to the menu unless the move ended its turn.
+                finishPlayerAction();
                 continue;
             }
 
@@ -435,10 +458,7 @@ void CombatView::onUpdate() {
                     detachDialog(_combatSpell);
                     _playerActionPending = false;
                 }
-                if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
-                    _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
-                _currentInfoActor = nullptr;
-                _needsFullRedraw = true;
+                finishPlayerAction();
                 continue;
             }
 
@@ -460,7 +480,12 @@ void CombatView::onUpdate() {
             // PA_AUTOSPELL: toggle autospell flag and show message; does not end turn.
             // submitPlayerAction(PA_AUTOSPELL) returns early without advancing turn.
             if (action == Combat::CombatSession::PA_AUTOSPELL) {
-                _autoSpell = !_autoSpell;
+                // AUTOSPELL_STATUS lives in the session globals so AI spell
+                // and item selection sees the same toggle.
+                Combat::CombatContext *ctx = _session.getContext();
+                if (ctx)
+                    ctx->globals.magicEnabled = !ctx->globals.magicEnabled;
+                _autoSpell = ctx && ctx->globals.magicEnabled;
                 printCombatMessage(nullptr,
                     _autoSpell ? "Magic On" : "Magic Off", 10);
                 _session.submitPlayerAction(Combat::CombatSession::PA_AUTOSPELL);
@@ -499,17 +524,12 @@ void CombatView::onUpdate() {
                     _playerActionPending = false;
                 }
                 // PA_SUBMENU cancel returns PA_SUBMENU; re-show main menu.
-                // PA_DONE from submenu ends the turn normally.
+                // PA_DONE from submenu ends the activation (Guard/Quit/Bandage
+                // already ended the turn; Delay left initiative at 1).
                 if (_pendingPlayerAction == Combat::CombatSession::PA_SUBMENU) {
                     _pendingPlayerAction = Combat::CombatSession::PA_NONE;
-                    // Re-show the main combat menu for this actor.
-                    if (!_activeDialog && _session.getCurrentActor()) {
-                        _combatMenu->beginMenu(_session.getCurrentActor(), &_session);
-                        attachDialog(_combatMenu);
-                        setActiveDialog(_combatMenu);
-                        _needsFullRedraw = true;
-                        redraw();
-                    }
+                    if (_session.getCurrentActor())
+                        showCombatMenu(_session.getCurrentActor());
                     continue;
                 }
                 if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
@@ -537,10 +557,7 @@ void CombatView::onUpdate() {
                     detachDialog(_combatAttack);
                     _playerActionPending = false;
                 }
-                if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
-                    _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
-                _currentInfoActor = nullptr;
-                _needsFullRedraw = true;
+                finishPlayerAction();
                 continue;
             }
 
@@ -561,6 +578,8 @@ void CombatView::onUpdate() {
                 Combat::CombatContext *ctx = _session.getContext();
                 if (actor && actor->ai_control && ctx)
                     moveByAI(actor, *ctx, _aiDelegate);
+                // The original reports the action complete regardless of
+                // initiative; an actor with initiative left is reselected.
                 if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
                     _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
                 _currentInfoActor = nullptr;
@@ -590,11 +609,8 @@ void CombatView::onUpdate() {
         }
 
         if (result.event == Combat::CombatSession::TurnResult::EV_ROUND_END) {
-            debug(0, "[COMBATVIEW] EV_ROUND_END -> acknowledgeRoundEnd");
-            _session.acknowledgeRoundEnd(true);
-            _needsFullRedraw = true;
-            redraw();
-            g_events->pumpModalInputFrame();
+            // Phase is now PHASE_ROUND_END; the loop top runs handleRoundEnd().
+            debug(0, "[COMBATVIEW] EV_ROUND_END");
             continue;
         }
 
@@ -628,31 +644,23 @@ void CombatView::onUpdate() {
                 ::Goldbox::Data::CombatAction *cs = actor ? actor->combatState : nullptr;
 
                 if (actor && !actor->enabled) {
-                    if (cs) cs->clear();
+                    // Mirrors DIALOG_CombatMain: disabled actor -> endActorTurn.
+                    if (cs) cs->endTurn();
                     _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
                     continue;
                 }
 
                 // Pending spell path (mirrors DIALOG_CombatMain pending-spell branch):
-                // copy spell ID, clear it, execute the spell, then end the turn.
+                // resolve the stored spell (without re-queuing it) and end the turn.
                 if (cs && cs->spellId != 0) {
-                    const uint8 pendingSpellId = cs->spellId;
-                    cs->spellId = 0;
-                    // Execute the pending spell via castSpell with aiControl=false.
-                    // The spell fires immediately (castTime already consumed last turn).
-                    Combat::castSpell(actor, pendingSpellId, false, this);
+                    Combat::resolvePendingSpell(actor, false, this);
                     _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
                     _currentInfoActor = nullptr;
                     _needsFullRedraw = true;
                     continue;
                 }
 
-                if (!_activeDialog) {
-                    _combatMenu->beginMenu(actor, &_session);
-                    attachDialog(_combatMenu);
-                    setActiveDialog(_combatMenu);
-                }
-                redraw();
+                showCombatMenu(actor);
                 // Loop back — next iteration hits PHASE_AWAITING_PLAYER and blocks.
             } else {
                 // AI actor: just draw the focused actor, no input pump.
@@ -672,27 +680,84 @@ void CombatView::onUpdate() {
     }
 }
 
-void CombatView::handleMenuResult(const MenuResultMessage &result) {
-    if (!result._hasIntValue)
+void CombatView::showCombatMenu(::Goldbox::Data::PlayerCharacter *actor) {
+    if (!actor)
+        return;
+    // Mirrors COMBAT_FocusCharacter + COMBATVIEW_drawCombatInfo before the menu.
+    _currentInfoActor = actor;
+    _needsFullRedraw = true;
+    if (!_activeDialog) {
+        _combatMenu->beginMenu(actor, &_session);
+        attachDialog(_combatMenu);
+        setActiveDialog(_combatMenu);
+    }
+    redraw();
+}
+
+void CombatView::finishPlayerAction() {
+    // The session may already have advanced (e.g. finishMoveAction).
+    if (_session.getPhase() != Combat::CombatSession::PHASE_AWAITING_PLAYER)
         return;
 
-    // CombatEndDialog sentinel.
-    if (result._intValue == -1) {
+    ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
+    if (actor && !_session.isActorTurnComplete(actor)) {
+        // DIALOG_CombatMain keeps looping while the action result is false.
+        showCombatMenu(actor);
+        return;
+    }
+
+    _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
+    _currentInfoActor = nullptr;
+    _needsFullRedraw = true;
+}
+
+void CombatView::handleRoundEnd() {
+    const Combat::CombatSession::RoundEndInfo info = _session.getRoundEndInfo();
+
+    _currentInfoActor = nullptr;
+    if (info.teammateDying)
+        printCombatMessage(nullptr, "Your Teammate is Dying", 10);
+    _needsFullRedraw = true;
+    redraw();
+
+    bool continueBattle = !info.exitCombat;
+    if (info.exitCombat && info.askContinue) {
+        // DIALOG_InputYesNo("Continue Battle?"): Y keeps the encounter going.
+        _roundEndAnswered = false;
+        _roundEndContinue = false;
+        _combatEnd->prepare();
+        attachDialog(_combatEnd);
+        setActiveDialog(_combatEnd);
+        redraw();
+        while (!_roundEndAnswered)
+            if (!g_events || !g_events->pumpModalInputFrame())
+                break;
         if (_activeDialog == static_cast<Dialogs::Dialog *>(_combatEnd)) {
             setActiveDialog(nullptr);
             detachDialog(_combatEnd);
         }
-        if (!result._success)
-            close();
-        else
-            _session.acknowledgeRoundEnd(true);
+        continueBattle = _roundEndAnswered && _roundEndContinue;
+    }
+
+    _session.acknowledgeRoundEnd(continueBattle);
+    _needsFullRedraw = true;
+    if (!continueBattle)
+        close();
+}
+
+void CombatView::handleMenuResult(const MenuResultMessage &result) {
+    if (!result._hasIntValue)
+        return;
+
+    // CombatEndDialog sentinel: answer to "Continue Battle?".
+    if (result._intValue == -1) {
+        _roundEndContinue = result._success;
+        _roundEndAnswered = true;
         return;
     }
 
-    if (!result._success)
-        return;
-
-    // Signal the blocking onUpdate() wait loop.
+    // Sub-dialogs report cancellation with _success == false; the wait loop
+    // must still be released so the actor returns to the menu.
     _pendingPlayerAction =
         static_cast<Combat::CombatSession::PlayerAction>(result._intValue);
     _playerActionPending = true;

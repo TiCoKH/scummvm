@@ -40,6 +40,7 @@ namespace Data {
 class PlayerCharacter;
 namespace Effects {
 class EffectRuntime;
+class EffectHostBridge;
 }
 }
 
@@ -88,6 +89,12 @@ struct CombatParams {
     Data::PlayerCharacter *nextChar;  // PTR_NEXT_CHAR (first character to act)
     const TilePropertyProvider *tilePropertyProvider; // game-specific tile props
     Data::Effects::EffectRuntime *effectRuntime;       // optional: for per-turn effect sets
+    Data::Effects::EffectHostBridge *effectBridge;     // optional: effect message sink
+
+    // Optional host callback mirroring TIME_AddUnits(1, minutes); invoked
+    // once per combat round from the end-of-round processing.
+    void (*advanceClockFn)(void *ctx, uint8 minutes);
+    void *advanceClockCtx;
 
     CombatParams()
         : partyCount(0), mapDirection(0), encounterDistance(2),
@@ -99,7 +106,8 @@ struct CombatParams {
           magicEnabled(false), slowMode(false), isAmbush(false),
           monsterLoadReady(false), combatTrigger(false),
           nextChar(nullptr), tilePropertyProvider(nullptr),
-          effectRuntime(nullptr) {}
+          effectRuntime(nullptr), effectBridge(nullptr),
+          advanceClockFn(nullptr), advanceClockCtx(nullptr) {}
 };
 
 /**
