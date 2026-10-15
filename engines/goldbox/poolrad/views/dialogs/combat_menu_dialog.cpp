@@ -151,14 +151,9 @@ void CombatMenuDialog::buildMenuModel() {
     _actions.push_back(Combat::CombatSession::PA_QUICK);
     _shortcuts.push_back('Q');
 
-    // Other — always present (submenu: Guard/Delay/Quit/Bandage/Speed).
-    labels.push_back("Other");
-    _actions.push_back(Combat::CombatSession::PA_SUBMENU);
-    _shortcuts.push_back('O');
-
-    // Done — always present (end turn).
+    // Done — opens submenu (Guard/Delay/Quit/Bandage/Speed).
     labels.push_back("Done");
-    _actions.push_back(Combat::CombatSession::PA_DONE);
+    _actions.push_back(Combat::CombatSession::PA_SUBMENU);
     _shortcuts.push_back('D');
 
     _menuModel.generateMenuItems(labels, true);
@@ -211,6 +206,29 @@ void CombatMenuDialog::draw() {
 bool CombatMenuDialog::msgKeypress(const KeypressMessage &msg) {
     if (!_isActive || !_horizontalMenu)
         return false;
+
+    // Raw key intercepts that bypass the HorizontalMenu.
+    // These mirror DIALOG_CombatMain's non-menu branches.
+
+    // Space: clear ai_control for all party members with npc < 0x80.
+    if (msg.keycode == Common::KEYCODE_SPACE) {
+        postActionResult(Combat::CombatSession::PA_PARTY_MANUAL);
+        return true;
+    }
+
+    // Semicolon: toggle autospell.
+    if (msg.ascii == ';') {
+        postActionResult(Combat::CombatSession::PA_AUTOSPELL);
+        return true;
+    }
+
+    // -26 (signed byte): party quickfight — set initiative=20 and quickfight all.
+    // In the original this is a raw menu return value of -26 (0xE6 as signed char).
+    // Map to F10 as a reasonable modern binding.
+    if (msg.keycode == Common::KEYCODE_F10) {
+        postActionResult(Combat::CombatSession::PA_QUICK_ALL);
+        return true;
+    }
 
     const bool wasActive = _horizontalMenu->isActive();
     const bool handled   = _horizontalMenu->msgKeypress(msg);

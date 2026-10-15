@@ -367,9 +367,19 @@ void CombatView::onUpdate() {
             _playerActionPending = false;
 
             // PA_VIEW: show battlefield without consuming the turn — loop back to menu.
+            // Mirrors original: VIEW_ViewCharacter() then COMBAT_RecalcPrimaryAttacks().
             if (action == Combat::CombatSession::PA_VIEW) {
                 _needsFullRedraw = true;
                 redraw();
+                // Recalculate primary attacks after viewing (mirrors original).
+                if (::Goldbox::Data::ADnDCharacter *adnd =
+                        dynamic_cast<::Goldbox::Data::ADnDCharacter *>(
+                            _session.getCurrentActor()))
+                    adnd->recalcCombatStats();
+                // Refocus actor and redraw combat info, then loop back to menu.
+                _needsFullRedraw = true;
+                if (_currentInfoActor)
+                    drawCombatInfo(_currentInfoActor);
                 continue;
             }
 
@@ -429,6 +439,44 @@ void CombatView::onUpdate() {
                     _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
                 _currentInfoActor = nullptr;
                 _needsFullRedraw = true;
+                continue;
+            }
+
+            // PA_USE: open items dialog, then recalculate primary attacks.
+            // Mirrors original: DIALOG_Items(&result) then COMBAT_RecalcPrimaryAttacks().
+            // TODO: replace stub with full ItemsDialog when implemented.
+            if (action == Combat::CombatSession::PA_USE) {
+                // Stub: recalc stats and loop back to menu (turn not consumed).
+                if (::Goldbox::Data::ADnDCharacter *adnd =
+                        dynamic_cast<::Goldbox::Data::ADnDCharacter *>(
+                            _session.getCurrentActor()))
+                    adnd->recalcCombatStats();
+                _needsFullRedraw = true;
+                if (_currentInfoActor)
+                    drawCombatInfo(_currentInfoActor);
+                continue;
+            }
+
+            // PA_AUTOSPELL: toggle autospell flag and show message; does not end turn.
+            // submitPlayerAction(PA_AUTOSPELL) returns early without advancing turn.
+            if (action == Combat::CombatSession::PA_AUTOSPELL) {
+                _autoSpell = !_autoSpell;
+                printCombatMessage(nullptr,
+                    _autoSpell ? "Magic On" : "Magic Off", 10);
+                _session.submitPlayerAction(Combat::CombatSession::PA_AUTOSPELL);
+                _needsFullRedraw = true;
+                if (_currentInfoActor)
+                    drawCombatInfo(_currentInfoActor);
+                continue;
+            }
+
+            // PA_PARTY_MANUAL: submitPlayerAction handles the state mutation and
+            // returns early (turn not consumed). Just redraw and loop back to menu.
+            if (action == Combat::CombatSession::PA_PARTY_MANUAL) {
+                _session.submitPlayerAction(Combat::CombatSession::PA_PARTY_MANUAL);
+                _needsFullRedraw = true;
+                if (_currentInfoActor)
+                    drawCombatInfo(_currentInfoActor);
                 continue;
             }
 
@@ -503,6 +551,23 @@ void CombatView::onUpdate() {
             }
             _currentInfoActor = nullptr;
 
+            // PA_QUICK: enable AI for current actor, then run AI immediately.
+            // Mirrors original: COMBAT_setQuickfight + COMBAT_MoveByAI.
+            if (action == Combat::CombatSession::PA_QUICK) {
+                _session.submitPlayerAction(Combat::CombatSession::PA_QUICK);
+                // Actor is now ai_control=true but still PHASE_AWAITING_PLAYER.
+                // Run AI turn directly (mirrors COMBAT_MoveByAI call in original).
+                ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
+                Combat::CombatContext *ctx = _session.getContext();
+                if (actor && actor->ai_control && ctx)
+                    moveByAI(actor, *ctx, _aiDelegate);
+                if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
+                    _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
+                _currentInfoActor = nullptr;
+                _needsFullRedraw = true;
+                continue;
+            }
+
             const Combat::CombatSession::TurnResult tickResult =
                 _session.submitPlayerAction(action);
             if (tickResult.event == Combat::CombatSession::TurnResult::EV_AI_ATTACK &&
@@ -567,10 +632,18 @@ void CombatView::onUpdate() {
                     _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
                     continue;
                 }
+
+                // Pending spell path (mirrors DIALOG_CombatMain pending-spell branch):
+                // copy spell ID, clear it, execute the spell, then end the turn.
                 if (cs && cs->spellId != 0) {
+                    const uint8 pendingSpellId = cs->spellId;
                     cs->spellId = 0;
-                    cs->clear();
+                    // Execute the pending spell via castSpell with aiControl=false.
+                    // The spell fires immediately (castTime already consumed last turn).
+                    Combat::castSpell(actor, pendingSpellId, false, this);
                     _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
+                    _currentInfoActor = nullptr;
+                    _needsFullRedraw = true;
                     continue;
                 }
 

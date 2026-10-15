@@ -308,6 +308,36 @@ CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action)
                 cs->target->combatSide == _currentActor->combatSide)
             cs->target = nullptr;
         break;
+    case PA_QUICK_ALL:
+        // Party quickfight: set initiative=20 for current actor, enable quickfight
+        // for every party member. The view layer calls moveByAI after this.
+        if (cs)
+            cs->initiative = 20;
+        for (uint i = 0; i < _params.roster.size(); ++i) {
+            Data::PlayerCharacter *member = _params.roster[i];
+            if (!member)
+                continue;
+            member->ai_control = true;
+            if (member->combatState && member->combatState->target &&
+                    member->combatState->target->combatSide == member->combatSide)
+                member->combatState->target = nullptr;
+        }
+        break;
+    case PA_PARTY_MANUAL:
+        // Space: clear ai_control for all party members with npc < 0x80.
+        // Does NOT end the turn — return immediately so the menu loops.
+        for (uint i = 0; i < _params.roster.size(); ++i) {
+            Data::PlayerCharacter *member = _params.roster[i];
+            if (member && (uint8)member->npc < 0x80)
+                member->ai_control = false;
+        }
+        return result;
+
+    case PA_AUTOSPELL:
+        // Autospell toggle: handled by view layer (presentation only).
+        // Does NOT end the turn — return immediately so the menu loops.
+        return result;
+
     default:
         break;
     }
