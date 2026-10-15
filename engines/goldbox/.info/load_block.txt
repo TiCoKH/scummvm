@@ -1,0 +1,45 @@
+	// Read STRUCT_POSITION: uint16 x + uint16 y + uint8 dir (5 bytes total).
+	// The system bank (not dumped above) holds the live position; restore below.
+	const uint16 posX        = in->readUint16LE();
+	const uint16 posY        = in->readUint16LE();
+	const uint8 posDir       = in->readByte();
+
+	// BYTE_VM_MAP_TYPE: dungeon/town (< 2) vs wilderness/combat (>= 2).
+	const uint8 vmMapType = in->readByte();
+
+	// BYTE_GAME_STATE: the saved GameState enum value.
+	const uint8 byteGameState = in->readByte();
+
+	// Character table: count byte + 8 Ã— 0x29-byte Pascal-style base filenames
+	// (length byte + up to 0x28 chars).
+	const uint8 characterCount = in->readByte();
+	byte characterTable[0x148];
+	in->read(characterTable, sizeof(characterTable));
+
+	debug(2, "PoolradEngine::loadGameSlotX86 tail posX=%u posY=%u dir=%u mapType=%u gameState=%u charCount=%u",
+		(unsigned)posX, (unsigned)posY, (unsigned)posDir,
+		(unsigned)vmMapType, (unsigned)byteGameState,
+		(unsigned)characterCount);
+	debug(2, "PoolradEngine::loadGameSlotX86 decoded gameState=%u (%s)",
+		(unsigned)byteGameState,
+		(byteGameState == GS_START_MENU) ? "GS_START_MENU" : "runtime/ingame");
+
+	delete in;
+	in = nullptr;
+
+	// -------------------------------------------------------------------------
+	// Post-load: restore system bank position (not included in VM bank dumps).
+	// -------------------------------------------------------------------------
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr,
+		static_cast<uint8>(posX & 0xFF));
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr,
+		static_cast<uint8>(posY & 0xFF));
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr,
+		posDir);
+	mem->write8(layout.vmGlobalField(kVmGlobalFieldMapWallType).vmAddr,
+		vmMapType);
+
+	// Reset party count in VM memory before rebuilding the party list.
+	m
