@@ -479,13 +479,13 @@ bool CombatContext::isTargetInArc(Direction direction,
 // handleDisengagementReactions helpers
 // ---------------------------------------------------------------------------
 
-Direction CombatContext::getFacingToward(const Data::PlayerCharacter *target,
-                                         const Data::PlayerCharacter *attacker) const {
-    const TilePos targetPos   = table.getCharacterPos(target);
-    const TilePos attackerPos = table.getCharacterPos(attacker);
+Direction CombatContext::getFacingToward(const Data::PlayerCharacter *character,
+                                         const Data::PlayerCharacter *target) const {
+    const TilePos characterPos = table.getCharacterPos(character);
+    const TilePos targetPos = table.getCharacterPos(target);
 
     Direction facing = DIR_N;
-    while (!isTargetInArc(facing, attackerPos, targetPos))
+    while (!isTargetInArc(facing, targetPos, characterPos))
         facing = static_cast<Direction>(facing + 1);
     return facing;
 }
@@ -593,7 +593,7 @@ bool CombatContext::selectTargetForAction(Data::PlayerCharacter *ch,
             --attempts;
 
             // Random candidate from 1..targetCount (1-based roll).
-            const uint8 roll = (uint8)VmInterface::rollDice(targetCount, 1);
+            const uint8 roll = (uint8)VmInterface::rollDice(1, targetCount);
             if (roll == 0 || roll > targetCount)
                 continue;
 
@@ -665,7 +665,8 @@ static uint8 selectEngagementAttack(Data::PlayerCharacter *enemy) {
 void CombatContext::handleDisengagementReactions(
         Data::PlayerCharacter *currentCharacter,
         Direction moveDirection,
-        void (*drawCombatInfoCallback)(Data::PlayerCharacter *)) {
+        void (*drawCombatInfoCallback)(Data::PlayerCharacter *),
+        CombatViewDelegate *attackView) {
 
     if (!currentCharacter || !currentCharacter->enabled)
         return;
@@ -777,7 +778,7 @@ void CombatContext::handleDisengagementReactions(
 
                 bool attackSuccess = false;
                 resolveAttack(enemy, currentCharacter, true, nullptr,
-                              &attackSuccess, nullptr);
+                              &attackSuccess, attackView);
 
                 enemy->combatState->target = savedTarget;
                 attackResolved = true;
@@ -810,7 +811,7 @@ bool CombatContext::checkBackstab(const Data::PlayerCharacter *attacker,
         return false;
 
     return static_cast<Direction>(target->combatState->direction) ==
-           getFacingToward(attacker, target);
+           getFacingToward(target, attacker);
 }
 
 void CombatContext::applyAttackFacingChange(Data::PlayerCharacter *attacker,
@@ -829,7 +830,8 @@ void CombatContext::applyAttackFacingChange(Data::PlayerCharacter *attacker,
 }
 
 void CombatContext::handleGuardReactions(Data::PlayerCharacter *ch,
-                                         void (*viewCallback)(Data::PlayerCharacter *)) {
+                                         void (*viewCallback)(Data::PlayerCharacter *),
+                                         CombatViewDelegate *attackView) {
     if (!ch)
         return;
 
@@ -855,7 +857,7 @@ void CombatContext::handleGuardReactions(Data::PlayerCharacter *ch,
         applyAttackFacingChange(guard, ch);
 
         bool attackResult = false;
-        resolveAttack(guard, ch, false, nullptr, &attackResult, nullptr);
+        resolveAttack(guard, ch, false, nullptr, &attackResult, attackView);
     }
 }
 

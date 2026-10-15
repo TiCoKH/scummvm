@@ -285,19 +285,6 @@ void CombatManualAimDialog::confirmTarget() {
     _result.x      = _cursorX;
     _result.y      = _cursorY;
 
-    bool attackResult = false;
-    if (_withWeapon && _session && _attacker && _selectedCharacter)
-        attackResult = _session->executeAttackOnTarget(_attacker, _selectedCharacter, true);
-    else
-        attackResult = _valid;
-
-    if (!attackResult) {
-        // Attack failed — reset and let the player try again.
-        _result = ManualAimResult();
-        buildCommandMenu();
-        return;
-    }
-
     if (g_events)
         g_events->postMenuResult("CombatAttack", true,
                                  Common::KEYCODE_RETURN,

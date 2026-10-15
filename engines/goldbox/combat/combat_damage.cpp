@@ -68,6 +68,9 @@ DamageResult applyDamage(CombatContext &ctx,
     result.wasKilled = dataResult.killed;
     result.isDying = (ch->healthStatus == Data::S_DYING);
 
+    if (result.finalDamage > 0 && ch->combatState)
+        ch->combatState->canCast = false;
+
     if (result.wentDown) {
         // Legacy logic decremented SIDE_MEMBERS immediately.
         // Here side counts are derived from roster, so refresh once the

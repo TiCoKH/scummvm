@@ -28,6 +28,7 @@
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/events.h"
 #include "goldbox/gfx/surface.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -131,6 +132,8 @@ void CombatSubmenuDialog::draw() {
 bool CombatSubmenuDialog::msgKeypress(const KeypressMessage &msg) {
     if (!_isActive)
         return false;
+    debug(0, "[COMBAT_SUBMENU] keypress key=%d ascii=%d speedActive=%d",
+        (int)msg.keycode, (int)msg.ascii, (int)_speedDialog->isActive());
     if (_speedDialog->isActive())
         return _speedDialog->msgKeypress(msg);
     if (!_horizontalMenu)
@@ -139,6 +142,11 @@ bool CombatSubmenuDialog::msgKeypress(const KeypressMessage &msg) {
 }
 
 void CombatSubmenuDialog::handleMenuResult(const MenuResultMessage &result) {
+    debug(0, "[COMBAT_SUBMENU] result success=%d key=%d hasInt=%d int=%d",
+        (int)result._success, (int)result._keyCode,
+        (int)result._hasIntValue,
+        result._hasIntValue ? result._intValue : -1);
+
     // Result from GameSpeedDialog: resume submenu.
     if (result._targetViewName == "CombatSubmenu") {
         _speedDialog->deactivate();
@@ -152,9 +160,18 @@ void CombatSubmenuDialog::handleMenuResult(const MenuResultMessage &result) {
         return;
     }
 
-    char key = static_cast<char>(result._keyCode);
+    char key = 0;
+    if (result._hasIntValue && result._intValue >= 0 &&
+            result._intValue < (int)_menuModel.items.size()) {
+        key = _menuModel.items[result._intValue].shortcut;
+    } else {
+        key = static_cast<char>(result._keyCode);
+    }
     if (key >= 'a' && key <= 'z')
         key = static_cast<char>(key - 32);
+
+    debug(0, "[COMBAT_SUBMENU] selected option='%c' actor='%s'",
+        key ? key : '?', _actor ? _actor->name.c_str() : "NONE");
 
     if (key == 'G' && _hasGuard && _actor) {
         // Guard: endTurn() then set guarding. Presentation via CombatView.

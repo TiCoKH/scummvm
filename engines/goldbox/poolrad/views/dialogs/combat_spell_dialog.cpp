@@ -24,6 +24,7 @@
 #include "goldbox/combat/combat_turn.h"
 #include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/events.h"
+#include "goldbox/vm_interface.h"
 #include "common/debug.h"
 
 namespace Goldbox {
@@ -45,9 +46,16 @@ CombatSpellDialog::~CombatSpellDialog() {
 void CombatSpellDialog::beginCast(Goldbox::Data::PlayerCharacter *actor) {
     _actor = actor;
     _selectedSpell = 0;
+    debug(0, "[COMBATSPELL] beginCast actor='%s'",
+        _actor ? _actor->name.c_str() : "NONE");
 }
 
 void CombatSpellDialog::activate() {
+    Goldbox::Data::PlayerCharacter *selected =
+        VmInterface::getSelectedCharacter();
+    debug(0, "[COMBATSPELL] activate actor='%s' selected='%s'",
+        _actor ? _actor->name.c_str() : "NONE",
+        selected ? selected->name.c_str() : "NONE");
     Dialog::activate();
     _spellsMenu->configure(SpellsMenu::SL_IN_MEMORY, SpellsMenu::SA_CAST);
     _spellsMenu->activate();
@@ -68,17 +76,29 @@ bool CombatSpellDialog::msgKeypress(const KeypressMessage &msg) {
 
 void CombatSpellDialog::handleMenuResult(const MenuResultMessage &result) {
     _selectedSpell = 0;
+    debug(0, "[COMBATSPELL] result success=%d hasInt=%d int=%d actor='%s'",
+        (int)result._success, (int)result._hasIntValue,
+        result._hasIntValue ? result._intValue : -1,
+        _actor ? _actor->name.c_str() : "NONE");
     if (!result._success || !result._hasIntValue || !_actor) {
         finishCast(false);
         return;
     }
 
-    _selectedSpell = static_cast<uint8>(result._intValue);
-    debug(0, "[SPELL] selected spell %d", (int)_selectedSpell);
+    _selectedSpell = static_cast<uint8>(_spellsMenu->getSelectedSpell());
+    if (_selectedSpell == Goldbox::Data::Spells::SP_NONE) {
+        debug(0, "[COMBATSPELL] selection result had no selected spell");
+        finishCast(false);
+        return;
+    }
+    debug(0, "[COMBATSPELL] selected legacyIndex=%d spell=%u actor='%s'",
+        result._intValue, (unsigned)_selectedSpell, _actor->name.c_str());
     finishCast(true);
 }
 
 void CombatSpellDialog::finishCast(bool actionComplete) {
+    debug(0, "[COMBATSPELL] finishCast complete=%d selectedSpell=%u",
+        (int)actionComplete, (unsigned)_selectedSpell);
     deactivate();
     if (_parent)
         g_events->postMenuResult(

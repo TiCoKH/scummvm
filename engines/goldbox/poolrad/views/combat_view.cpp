@@ -104,6 +104,11 @@ struct CombatViewAiDelegate : public Combat::AiMoveViewDelegate {
         present();
     }
 
+    void redrawAfterMove(::Goldbox::Data::PlayerCharacter *ch) override {
+        _view->setAiInfoActor(ch);
+        present(0);
+    }
+
     void drawCombatInfo(::Goldbox::Data::PlayerCharacter *ch) override {
         _view->setAiInfoActor(ch);
         present();
@@ -167,9 +172,18 @@ struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
         } else {
             _view->printCombatMessage(attacker,
                 Common::String::format("Hits for %d!", damageDisplay), 10);
-            if (damage > 0)
-                _view->applyDamageMessage(target, damage,
-                    ::Goldbox::Data::DAMAGE_NORMAL, false);
+            if (damage > 0) {
+                const Combat::CombatContext *ctx =
+                    VmInterface::getCombatContext();
+                if (!ctx) {
+                    warning("[COMBATVIEW] attack display has no combat context");
+                    return;
+                }
+                _view->drawDamage(target,
+                    ctx->globals.behaviorFlags == Combat::CombatGlobals::DMG_MAGIC,
+                    ::Goldbox::Data::DamageUtils::buildDamageMessage(
+                        damageDisplay, ctx->globals.behaviorFlags));
+            }
         }
     }
 };
@@ -263,12 +277,13 @@ bool CombatView::msgFocus(const FocusMessage &msg) {
         g_engine->getGameText().clearMessageArea();
     _needsFullRedraw = true;
     redraw();
-    onUpdate();
+    if (!_viewingCharacter)
+        onUpdate();
     return true;
 }
 
 bool CombatView::msgUnfocus(const UnfocusMessage &msg) {
-    if (Combat::g_combatSession == &_session)
+    if (!_viewingCharacter && Combat::g_combatSession == &_session)
         Combat::g_combatSession = nullptr;
     return View::msgUnfocus(msg);
 }
@@ -402,21 +417,38 @@ void CombatView::onUpdate() {
 
             const Combat::CombatSession::PlayerAction action = _pendingPlayerAction;
             _playerActionPending = false;
+            debug(0, "[COMBATVIEW] player action=%d actor='%s'",
+                (int)action, _session.getCurrentActor()
+                    ? _session.getCurrentActor()->name.c_str() : "NONE");
 
-            // PA_VIEW: show battlefield without consuming the turn — loop back to menu.
-            // Mirrors original: VIEW_ViewCharacter() then COMBAT_RecalcPrimaryAttacks().
+            // VIEW_ViewCharacter inspects the acting character, not the map.
             if (action == Combat::CombatSession::PA_VIEW) {
-                _needsFullRedraw = true;
-                redraw();
-                // Recalculate primary attacks after viewing (mirrors original).
+                setActiveDialog(nullptr);
+                detachDialog(_combatMenu);
+                ::Goldbox::Data::PlayerCharacter *savedSelected =
+                    VmInterface::getSelectedCharacter();
+                debug(0, "[COMBATVIEW] opening ViewCharacter for '%s'",
+                    _session.getCurrentActor()->name.c_str());
+                VmInterface::setSelectedCharacter(_session.getCurrentActor());
+                _viewingCharacter = true;
+                addView("ViewCharacter");
+                while (g_events->focusedView() &&
+                        g_events->focusedView() != this) {
+                    if (!g_events->pumpModalInputFrame())
+                        break;
+                }
+                _viewingCharacter = false;
+                VmInterface::setSelectedCharacter(savedSelected);
+                if (g_events->focusedView() != this)
+                    break;
+
                 if (::Goldbox::Data::ADnDCharacter *adnd =
                         dynamic_cast<::Goldbox::Data::ADnDCharacter *>(
-                            _session.getCurrentActor()))
+                            _session.getCurrentActor())) {
                     adnd->recalcCombatStats();
-                // Refocus actor and redraw combat info, then loop back to menu.
-                _needsFullRedraw = true;
-                if (_currentInfoActor)
-                    drawCombatInfo(_currentInfoActor);
+                    Combat::recalcPrimaryAttacks(adnd);
+                }
+                finishPlayerAction();
                 continue;
             }
 
@@ -453,7 +485,15 @@ void CombatView::onUpdate() {
             // PA_CAST is handled by CombatSpellDialog — wait for it to finish.
             if (action == Combat::CombatSession::PA_CAST) {
                 ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
+                ::Goldbox::Data::PlayerCharacter *savedSelected =
+                    VmInterface::getSelectedCharacter();
+                debug(0, "[COMBATVIEW] cast begin actor='%s' selected='%s'",
+                    actor ? actor->name.c_str() : "NONE",
+                    savedSelected ? savedSelected->name.c_str() : "NONE");
                 if (actor && _combatSpell) {
+                    // Legacy COMBAT_CastSpell uses PTR_SELECTED_CHAR; the
+                    // spell menu also reads the selected character directly.
+                    VmInterface::setSelectedCharacter(actor);
                     _combatSpell->beginCast(actor);
                     attachDialog(_combatSpell);
                     setActiveDialog(_combatSpell);
@@ -461,9 +501,13 @@ void CombatView::onUpdate() {
                     redraw();
 
                     _playerActionPending = false;
-                    while (!_playerActionPending)
+                    _lastResultSuccess = false;
+                    while (!_playerActionPending) {
                         if (!g_events->pumpModalInputFrame()) break;
+                    }
 
+                    debug(0, "[COMBATVIEW] cast selector returned pending=%d success=%d",
+                        (int)_playerActionPending, (int)_lastResultSuccess);
                     setActiveDialog(nullptr);
                     detachDialog(_combatSpell);
                     _playerActionPending = false;
@@ -471,11 +515,22 @@ void CombatView::onUpdate() {
                     // Cast outside the dialog's event handler so targeting
                     // can aim interactively (COMBAT_CastSpell).
                     const uint8 chosenSpell = _combatSpell->getSelectedSpell();
+                    debug(0, "[COMBATVIEW] cast selection actor='%s' spell=%u",
+                        actor->name.c_str(), (unsigned)chosenSpell);
                     if (chosenSpell != 0) {
+                        debug(0, "[COMBATVIEW] resolving spell=%u for '%s'",
+                            (unsigned)chosenSpell, actor->name.c_str());
                         Combat::castSpell(actor, chosenSpell, false, this);
                         _currentInfoActor = actor;
                         _needsFullRedraw = true;
                     }
+                    VmInterface::setSelectedCharacter(savedSelected);
+                    debug(0, "[COMBATVIEW] cast finished actor='%s' selected restored='%s'",
+                        actor->name.c_str(),
+                        savedSelected ? savedSelected->name.c_str() : "NONE");
+                } else {
+                    debug(0, "[COMBATVIEW] cast skipped actor=%p dialog=%p",
+                        (void *)actor, (void *)_combatSpell);
                 }
                 finishPlayerAction();
                 continue;
@@ -527,6 +582,8 @@ void CombatView::onUpdate() {
             // PA_SUBMENU is handled by CombatSubmenuDialog — wait for it to finish.
             if (action == Combat::CombatSession::PA_SUBMENU) {
                 ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
+                debug(0, "[COMBATVIEW] opening submenu actor='%s'",
+                    actor ? actor->name.c_str() : "NONE");
                 if (actor && _combatSubmenu) {
                     _combatSubmenu->beginSubmenu(actor);
                     attachDialog(_combatSubmenu);
@@ -535,9 +592,14 @@ void CombatView::onUpdate() {
                     redraw();
 
                     _playerActionPending = false;
-                    while (!_playerActionPending)
+                    debug(0, "[COMBATVIEW] submenu active; waiting for result");
+                    while (!_playerActionPending) {
                         if (!g_events->pumpModalInputFrame()) break;
+                    }
 
+                    debug(0, "[COMBATVIEW] submenu returned pending=%d action=%d success=%d",
+                        (int)_playerActionPending, (int)_pendingPlayerAction,
+                        (int)_lastResultSuccess);
                     setActiveDialog(nullptr);
                     detachDialog(_combatSubmenu);
                     _playerActionPending = false;
@@ -596,7 +658,7 @@ void CombatView::onUpdate() {
                 ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
                 Combat::CombatContext *ctx = _session.getContext();
                 if (actor && actor->ai_control && ctx)
-                    moveByAI(actor, *ctx, _aiDelegate);
+                    moveByAI(actor, *ctx, _aiDelegate, _attackDelegate);
                 // The original reports the action complete regardless of
                 // initiative; an actor with initiative left is reselected.
                 if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
@@ -702,6 +764,9 @@ void CombatView::onUpdate() {
 void CombatView::showCombatMenu(::Goldbox::Data::PlayerCharacter *actor) {
     if (!actor)
         return;
+    debug(0, "[COMBATVIEW] showCombatMenu actor='%s' activeDialog='%s'",
+        actor->name.c_str(),
+        _activeDialog ? _activeDialog->getName().c_str() : "NONE");
     // Mirrors COMBAT_FocusCharacter + COMBATVIEW_drawCombatInfo before the menu.
     _currentInfoActor = actor;
     _needsFullRedraw = true;
@@ -715,10 +780,19 @@ void CombatView::showCombatMenu(::Goldbox::Data::PlayerCharacter *actor) {
 
 void CombatView::finishPlayerAction() {
     // The session may already have advanced (e.g. finishMoveAction).
-    if (_session.getPhase() != Combat::CombatSession::PHASE_AWAITING_PLAYER)
+    if (_session.getPhase() != Combat::CombatSession::PHASE_AWAITING_PLAYER) {
+        debug(0, "[COMBATVIEW] finishPlayerAction skipped phase=%d",
+            (int)_session.getPhase());
         return;
+    }
 
     ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
+    debug(0, "[COMBATVIEW] finishPlayerAction actor='%s' complete=%d init=%d spell=%d",
+        actor ? actor->name.c_str() : "NONE",
+        (int)_session.isActorTurnComplete(actor),
+        actor && actor->combatState
+            ? (int)(int8)actor->combatState->initiative : -1,
+        actor && actor->combatState ? (int)actor->combatState->spellId : -1);
     if (actor && !_session.isActorTurnComplete(actor)) {
         // DIALOG_CombatMain keeps looping while the action result is false.
         showCombatMenu(actor);
@@ -765,6 +839,10 @@ void CombatView::handleRoundEnd() {
 }
 
 void CombatView::handleMenuResult(const MenuResultMessage &result) {
+    debug(0, "[COMBATVIEW] menu result success=%d key=%d hasInt=%d int=%d",
+        (int)result._success, (int)result._keyCode,
+        (int)result._hasIntValue,
+        result._hasIntValue ? result._intValue : -1);
     if (!result._hasIntValue)
         return;
 
@@ -998,12 +1076,13 @@ void CombatView::drawCombatants() {
         int pixY = kViewportY + localRow * kTileSize;
         Gfx::IconManager *iconMgr = VmInterface::getIconManager();
 
-        // Draw selection cursor under the character (cursor first, icon on top).
+        // Draw the frame first so it does not obscure the character sprite.
         if (ch == _session.getCurrentActor() && iconMgr &&
                 !iconMgr->isSlotEmpty(Gfx::SLOT_SELECTFRAME)) {
             const Gfx::Pic *cursor = iconMgr->getReadyPic(Gfx::SLOT_SELECTFRAME);
             if (cursor)
-                cursor->trDraw(&s, pixX, pixY, Gfx::Icon::TRANSPARENT_COLOR_INDEX);
+                cursor->trDraw(&s, pixX, pixY,
+                    Gfx::Icon::TRANSPARENT_COLOR_INDEX);
         }
 
         if (slotId != 0 && iconMgr && !iconMgr->isSlotEmpty(slotId)) {
@@ -1019,6 +1098,7 @@ void CombatView::drawCombatants() {
             _combatRenderer.drawIcon(ch->iconData, Gfx::ICON_STATE_READY,
                                      dir, pixX, pixY, &s);
         }
+
     }
 }
 
@@ -1372,6 +1452,14 @@ void CombatView::drawMovementAnimation(
     // Draw icon — alternate ready/attack state across the frame cycle.
     const uint8 slotId = ch->iconData.iconSlotId;
     Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+    if (ch == _session.getCurrentActor() && iconMgr &&
+            !iconMgr->isSlotEmpty(Gfx::SLOT_SELECTFRAME)) {
+        const Gfx::Pic *cursor = iconMgr->getReadyPic(Gfx::SLOT_SELECTFRAME);
+        if (cursor)
+            cursor->trDraw(screen, px.x, px.y,
+                Gfx::Icon::TRANSPARENT_COLOR_INDEX);
+    }
+
     if (slotId != 0 && iconMgr && !iconMgr->isSlotEmpty(slotId)) {
         const Gfx::Pic *pic = (animFrame < kAnimFrameCount / 2)
             ? iconMgr->getReadyPic(slotId)

@@ -212,6 +212,7 @@ private:
     // Set by handleMenuResult() while onUpdate() is blocking in the player-input wait loop.
     bool _playerActionPending;
     Combat::CombatSession::PlayerAction _pendingPlayerAction;
+    bool _viewingCharacter = false;
 
     // --- Autospell toggle (mirrors AUTOSPELL_STATUS) ---
     bool _autoSpell = false;

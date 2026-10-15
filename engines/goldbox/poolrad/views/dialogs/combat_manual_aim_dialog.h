@@ -47,11 +47,11 @@ namespace Dialogs {
  *   - Each step: LOS check, range check, tile passability, character lookup,
  *     ranged-weapon validation (when withWeapon=true).
  *   - "Target" command confirms; "Exit" cancels; "Center" re-centers viewport.
- *   - On confirmation with withWeapon=true, calls
- *     CombatSession::executeAttackOnTarget().
+ *   - Returns the selection to CombatAttackDialog, which owns ally
+ *     confirmation and attack execution.
  *
  * Posts MenuResultMessage to "CombatAttack":
- *   _success=true  + _intValue=1  → attack executed / target selected
+ *   _success=true  + _intValue=1  → target selected
  *   _success=false               → cancelled
  */
 class CombatManualAimDialog : public Dialog {
@@ -70,7 +70,7 @@ public:
     /**
      * Prepare for a manual aim session.
      * initialTarget: cursor starts here (may be nullptr → use attacker pos).
-     * withWeapon:    true = ranged-weapon validation + attack execution.
+     * withWeapon:    true = ranged-weapon validation.
      * emptyAllowed:  true = empty tile is a valid selection.
      * maxRange:      maximum attack range.
      */

@@ -28,6 +28,7 @@
 #include "goldbox/poolrad/data/poolrad_spell_mapping.h"
 #include "goldbox/data/spells/spell_metadata.h"
 #include "goldbox/vm_interface.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -84,6 +85,10 @@ void SpellsMenu::activate() {
     _character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
         VmInterface::getSelectedCharacter()
     );
+    debug(0, "[SPELLMENU] activate name='%s' actor='%s' location=%d action=%d",
+        getName().c_str(),
+        _character ? _character->name.c_str() : "NONE",
+        (int)_location, (int)_action);
     _selectedLegacyIndex = -1;
     _selectedSpell = Goldbox::Data::Spells::SP_NONE;
     _selectedSpellName.clear();
@@ -91,6 +96,9 @@ void SpellsMenu::activate() {
 
     buildSpellList();
     buildPromptOptions();
+    debug(0, "[SPELLMENU] ready actor='%s' entries=%u menuRows=%u",
+        _character ? _character->name.c_str() : "NONE",
+        (unsigned)_spellEntries.size(), (unsigned)_spellMenuList.items.size());
 
     if (_verticalMenu) {
         _verticalMenu->setPromptOptions(&_horizontalMenuLabels);
@@ -197,6 +205,10 @@ void SpellsMenu::handleMenuResult(const MenuResultMessage &result) {
     _selectedLegacyIndex = _spellEntries[entryIdx].legacyIndex;
     _selectedSpell = _spellEntries[entryIdx].spellId;
     _selectedSpellName = Goldbox::Spells::getSpellName(_selectedSpell);
+    debug(0, "[SPELLMENU] selected actor='%s' legacyIndex=%d spell=%u name='%s'",
+        _character ? _character->name.c_str() : "NONE",
+        _selectedLegacyIndex, (unsigned)_selectedSpell,
+        _selectedSpellName.c_str());
 
     // SA_SCRIBE: record the source scroll item for the caller.
     if (_action == SA_SCRIBE &&
@@ -385,8 +397,10 @@ void SpellsMenu::appendSpellEntry(int legacyIndex,
 }
 
 void SpellsMenu::handleExit() {
-    debug(3, "SpellsMenu::handleExit() name='%s' parent='%s'",
+    debug(0, "[SPELLMENU] exit name='%s' actor='%s' entries=%u parent='%s'",
         getName().c_str(),
+        _character ? _character->name.c_str() : "NONE",
+        (unsigned)_spellEntries.size(),
         _parent ? _parent->getName().c_str() : "(null)");
     _selectedLegacyIndex = -1;
     _selectedSpell = Goldbox::Data::Spells::SP_NONE;
