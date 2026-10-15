@@ -151,6 +151,11 @@ void CombatMenuDialog::buildMenuModel() {
     _actions.push_back(Combat::CombatSession::PA_QUICK);
     _shortcuts.push_back('Q');
 
+    // Other — always present (submenu: Guard/Delay/Quit/Bandage/Speed).
+    labels.push_back("Other");
+    _actions.push_back(Combat::CombatSession::PA_SUBMENU);
+    _shortcuts.push_back('O');
+
     // Done — always present (end turn).
     labels.push_back("Done");
     _actions.push_back(Combat::CombatSession::PA_DONE);

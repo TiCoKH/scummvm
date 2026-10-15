@@ -33,6 +33,7 @@
 #include "goldbox/poolrad/views/dialogs/combat_attack_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_end_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_spell_dialog.h"
+#include "goldbox/poolrad/views/dialogs/combat_submenu_dialog.h"
 #include "goldbox/combat/combat_turn.h"
 
 // Forward declarations — avoid pulling full headers into the Poolrad::Views
@@ -168,6 +169,7 @@ private:
     Dialogs::CombatAttackDialog *_combatAttack;
     Dialogs::CombatEndDialog    *_combatEnd;
     Dialogs::CombatSpellDialog  *_combatSpell;
+    Dialogs::CombatSubmenuDialog *_combatSubmenu;
     Dialogs::Dialog             *_activeDialog = nullptr;
 
     // --- Effect bridge (wired at setup time) ---

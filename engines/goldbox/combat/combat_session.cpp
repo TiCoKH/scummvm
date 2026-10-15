@@ -300,7 +300,14 @@ CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action)
     case PA_CAST:
     case PA_USE:
     case PA_MOVE:
+        break;
     case PA_QUICK:
+        // Mirrors COMBAT_setQuickfight: enable AI control, clear same-side target.
+        _currentActor->ai_control = true;
+        if (cs && cs->target &&
+                cs->target->combatSide == _currentActor->combatSide)
+            cs->target = nullptr;
+        break;
     default:
         break;
     }
