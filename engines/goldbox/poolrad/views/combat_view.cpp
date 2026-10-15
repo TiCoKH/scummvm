@@ -175,15 +175,17 @@ struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
 CombatView::CombatView()
     : View("Combat"), _needsFullRedraw(true), _combatMenu(nullptr),
       _combatMove(nullptr), _combatAttack(nullptr), _combatEnd(nullptr),
-      _combatSpell(nullptr), _activeDialog(nullptr), _currentInfoActor(nullptr),
+      _combatSpell(nullptr), _combatSubmenu(nullptr), _activeDialog(nullptr),
+      _currentInfoActor(nullptr),
       _playerActionPending(false),
       _pendingPlayerAction(Combat::CombatSession::PA_NONE),
       _hasAiMessage(false), _aiFacingChar(nullptr), _aiFacingDir(DIR_N) {
-    _combatMenu   = new Dialogs::CombatMenuDialog();
-    _combatMove   = new Dialogs::CombatMoveDialog();
-    _combatAttack = new Dialogs::CombatAttackDialog();
-    _combatEnd    = new Dialogs::CombatEndDialog();
-    _combatSpell  = new Dialogs::CombatSpellDialog();
+    _combatMenu    = new Dialogs::CombatMenuDialog();
+    _combatMove    = new Dialogs::CombatMoveDialog();
+    _combatAttack  = new Dialogs::CombatAttackDialog();
+    _combatEnd     = new Dialogs::CombatEndDialog();
+    _combatSpell   = new Dialogs::CombatSpellDialog();
+    _combatSubmenu = new Dialogs::CombatSubmenuDialog();
     _aiDelegate     = new CombatViewAiDelegate(this);
     _attackDelegate = new CombatViewAttackDelegate(this);
 }
@@ -194,6 +196,7 @@ CombatView::~CombatView() {
     delete _combatAttack;
     delete _combatEnd;
     delete _combatSpell;
+    delete _combatSubmenu;
     delete _aiDelegate;
     delete _attackDelegate;
 }
@@ -421,6 +424,45 @@ void CombatView::onUpdate() {
                     setActiveDialog(nullptr);
                     detachDialog(_combatSpell);
                     _playerActionPending = false;
+                }
+                if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
+                    _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
+                _currentInfoActor = nullptr;
+                _needsFullRedraw = true;
+                continue;
+            }
+
+            // PA_SUBMENU is handled by CombatSubmenuDialog — wait for it to finish.
+            if (action == Combat::CombatSession::PA_SUBMENU) {
+                ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
+                if (actor && _combatSubmenu) {
+                    _combatSubmenu->beginSubmenu(actor);
+                    attachDialog(_combatSubmenu);
+                    setActiveDialog(_combatSubmenu);
+                    _needsFullRedraw = true;
+                    redraw();
+
+                    _playerActionPending = false;
+                    while (!_playerActionPending)
+                        if (!g_events->pumpModalInputFrame()) break;
+
+                    setActiveDialog(nullptr);
+                    detachDialog(_combatSubmenu);
+                    _playerActionPending = false;
+                }
+                // PA_SUBMENU cancel returns PA_SUBMENU; re-show main menu.
+                // PA_DONE from submenu ends the turn normally.
+                if (_pendingPlayerAction == Combat::CombatSession::PA_SUBMENU) {
+                    _pendingPlayerAction = Combat::CombatSession::PA_NONE;
+                    // Re-show the main combat menu for this actor.
+                    if (!_activeDialog && _session.getCurrentActor()) {
+                        _combatMenu->beginMenu(_session.getCurrentActor(), &_session);
+                        attachDialog(_combatMenu);
+                        setActiveDialog(_combatMenu);
+                        _needsFullRedraw = true;
+                        redraw();
+                    }
+                    continue;
                 }
                 if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
                     _session.submitPlayerAction(Combat::CombatSession::PA_NONE);

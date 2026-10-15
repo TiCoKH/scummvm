@@ -907,5 +907,65 @@ bool castSpell(Data::PlayerCharacter *actor,
     return true;
 }
 
+bool guardingAction(Data::PlayerCharacter *actor, CombatViewDelegate *view) {
+    if (!actor || !actor->combatState)
+        return false;
+
+    // Preserve original order: endTurn before setting guarding flag.
+    actor->combatState->endTurn();
+    actor->combatState->guarding = true;
+
+    if (view)
+        view->drawAttackResult(actor, nullptr, 0, 0, 0, 2); // reuse delegate for message
+    // TODO: route through a proper message delegate once available.
+    // For now, callers that have a CombatView can call printCombatMessage directly.
+
+    return true;
+}
+
+bool checkDoBandage(bool performBandage, CombatViewDelegate *view) {
+    if (!g_combatSession)
+        return false;
+
+    const Common::Array<Data::PlayerCharacter *> &roster =
+        g_combatSession->getParams().roster;
+
+    bool foundEligible = false;
+
+    for (uint i = 0; i < roster.size(); ++i) {
+        Data::PlayerCharacter *ch = roster[i];
+        if (!ch)
+            continue;
+
+        const Data::CombatAction *cs = ch->combatState;
+        const bool isEligible =
+            cs && !cs->notInTeam &&
+            ch->combatSide == Data::CS_PARTY &&
+            ch->healthStatus == Data::S_DYING;
+
+        if (!isEligible)
+            continue;
+
+        foundEligible = true;
+
+        if (!performBandage)
+            continue;
+
+        ch->healthStatus = Data::S_UNCONSCIOUS;
+        ch->combatState->bleeding = 0;
+
+        // Presentation: "is bandaged" message.
+        if (view)
+            view->drawAttackResult(ch, nullptr, 0, 0, 0, 1);
+        // TODO: route through a proper showBandagedMessage() once a message
+        //       delegate is added to CombatViewDelegate.
+
+        // Only one character is bandaged per invocation.
+        performBandage = false;
+    }
+
+    return foundEligible;
+}
+
 } // namespace Combat
 } // namespace Goldbox

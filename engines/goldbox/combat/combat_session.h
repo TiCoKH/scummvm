@@ -72,6 +72,7 @@ public:
         PA_TURN,        // Turn Undead (cleric)
         PA_VIEW,        // View: inspect battlefield (loops back to menu)
         PA_QUICK,       // Quick: auto-attack without targeting
+        PA_SUBMENU,     // Other: open combat submenu (Guard/Delay/Quit/Bandage/Speed)
         PA_NONE         // skip turn without menu (disabled / pre-cast spell)
     };
 

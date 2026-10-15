@@ -328,6 +328,38 @@ bool castSpell(Data::PlayerCharacter *actor,
                bool aiControl,
                CastSpellViewDelegate *view);
 
+/**
+ * Mirrors COMBAT_Guarding.
+ *
+ * Calls endTurn() on actor, sets guarding=true, displays "Guarding" message.
+ * Returns the result of endTurn (always true in the engine).
+ * Operation order is preserved: endTurn before guarding flag.
+ *
+ * @param actor   The guarding character
+ * @param view    View delegate for the "Guarding" message (may be nullptr)
+ */
+bool guardingAction(Data::PlayerCharacter *actor, CombatViewDelegate *view);
+
+/**
+ * Mirrors COMBAT_CheckDoBandage.
+ *
+ * Scans the combat roster for party characters with status S_DYING and
+ * not_in_team==false.
+ *
+ * Check-only mode (performBandage=false): returns true if any eligible
+ * character exists; no state mutation.
+ *
+ * Action mode (performBandage=true): changes the first eligible character
+ * from S_DYING to S_UNCONSCIOUS, clears bleeding, displays the bandage
+ * message via view. Continues scanning but bandages at most one character.
+ *
+ * Returns true if at least one eligible character was found.
+ *
+ * @param performBandage  false = availability check, true = perform action
+ * @param view            View delegate for the bandage message (may be nullptr)
+ */
+bool checkDoBandage(bool performBandage, CombatViewDelegate *view);
+
 } // namespace Combat
 } // namespace Goldbox
 
