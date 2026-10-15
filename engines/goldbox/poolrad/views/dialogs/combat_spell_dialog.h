@@ -38,12 +38,11 @@ namespace Dialogs {
  *
  * Mirrors COMBAT_CastSpell:
  *   1. Opens SpellsMenu (SL_IN_MEMORY / SA_CAST) for spell selection.
- *   2. On selection, delegates to Combat::castSpell() (combat_turn.h) with
- *      aiControl=false and CombatView as the CastSpellViewDelegate.
- *      That function handles the camp-only check, immediate/delayed dispatch,
- *      focusCaster, and showBeginsCasting presentation.
- *   3. Posts MenuResultMessage to parent with _intValue = PA_CAST
- *      when the turn is consumed, or PA_NONE on cancel/rejection.
+ *   2. On selection, stores the spell id; CombatView then calls
+ *      Combat::castSpell() (combat_turn.h) outside the event handler so
+ *      the cast can aim interactively (targeting blocks on the view).
+ *   3. Posts MenuResultMessage to parent: _success=true with the selection,
+ *      or _success=false on cancel.
  */
 class CombatSpellDialog : public Dialog {
 public:
@@ -53,6 +52,9 @@ public:
     /** Called by CombatView before attaching. */
     void beginCast(Goldbox::Data::PlayerCharacter *actor);
 
+    /** Spell chosen by the player (0 when cancelled). */
+    uint8 getSelectedSpell() const { return _selectedSpell; }
+
     void activate() override;
     void deactivate() override;
     void draw() override;
@@ -61,6 +63,7 @@ public:
 
 private:
     Goldbox::Data::PlayerCharacter *_actor;
+    uint8 _selectedSpell;
 
     SpellsMenu *_spellsMenu;
 

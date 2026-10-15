@@ -2248,6 +2248,23 @@ void checkCloudEffect(Goldbox::Data::PlayerCharacter &ch,
     }
 }
 
+bool checkUnaffectedEffect(Goldbox::Data::PlayerCharacter &ch,
+                           const EffectHandlerBase *handler,
+                           EffectHostBridge *bridge,
+                           Goldbox::Combat::CombatGlobals *combat,
+                           uint8 effectId, uint16 duration, uint8 power,
+                           bool immediate, bool checkSave, bool saved,
+                           const char *message) {
+    Effect dummy;
+    dummy.id          = effectId;
+    dummy.durationMin = duration;
+    dummy.power       = power;
+    dummy.immediate   = immediate ? 1 : 0;
+    EffectCall c(EFF_ADD, dummy, ch, combat, bridge, nullptr, handler);
+    return checkUnaffected(c, effectId, duration, power, immediate,
+        checkSave, saved, message);
+}
+
 EffectHandler::EffectHandler() {
     setupHandlers();
 }

@@ -44,6 +44,7 @@ uint8 getOpposingSideMaxReach(const Data::PlayerCharacter *ch,
 #include "goldbox/data/effects/effect_handler_base.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/poolrad/effect_handler.h"
+#include "goldbox/spells/spell_casting.h"
 #include "goldbox/vm_interface.h"
 #include "common/debug.h"
 
@@ -71,6 +72,9 @@ CombatSession::CombatSession()
 }
 
 CombatSession::~CombatSession() {
+    if (Spells::g_spellCasting &&
+            Spells::g_spellCasting->getCombatTargeter() == &_spellTargeter)
+        Spells::g_spellCasting->setCombatTargeter(nullptr);
     if (g_combatSession == this)
         g_combatSession = nullptr;
 }
@@ -79,6 +83,9 @@ void CombatSession::setup(const CombatParams &params) {
     _params = params;
     _globals.turnCounter = 0;
     _phase = PHASE_SETUP;
+
+    if (Spells::g_spellCasting)
+        Spells::g_spellCasting->setCombatTargeter(&_spellTargeter);
 
     if (_params.tilePropertyProvider)
         _battlefieldMap.setTilePropertyProvider(_params.tilePropertyProvider);

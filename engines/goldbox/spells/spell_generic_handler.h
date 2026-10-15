@@ -52,7 +52,8 @@ public:
 	static SpellCastResult applyToTargets(const SpellContext &context,
 	                                      const SpellDefinition &definition,
 	                                      const TargetSelection &targets,
-	                                      uint8 effectPowerOverride);
+	                                      uint8 effectPowerOverride,
+	                                      bool effectImmediate = false);
 };
 
 } // namespace Spells

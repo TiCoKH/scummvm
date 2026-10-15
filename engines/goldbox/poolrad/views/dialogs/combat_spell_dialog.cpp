@@ -32,7 +32,7 @@ namespace Views {
 namespace Dialogs {
 
 CombatSpellDialog::CombatSpellDialog()
-    : Dialog("CombatSpell"), _actor(nullptr),
+    : Dialog("CombatSpell"), _actor(nullptr), _selectedSpell(0),
       _spellsMenu(nullptr) {
     _spellsMenu = new SpellsMenu("CombatSpellsMenu");
     subView(_spellsMenu);
@@ -44,6 +44,7 @@ CombatSpellDialog::~CombatSpellDialog() {
 
 void CombatSpellDialog::beginCast(Goldbox::Data::PlayerCharacter *actor) {
     _actor = actor;
+    _selectedSpell = 0;
 }
 
 void CombatSpellDialog::activate() {
@@ -66,22 +67,15 @@ bool CombatSpellDialog::msgKeypress(const KeypressMessage &msg) {
 }
 
 void CombatSpellDialog::handleMenuResult(const MenuResultMessage &result) {
-    if (!result._success) {
+    _selectedSpell = 0;
+    if (!result._success || !result._hasIntValue || !_actor) {
         finishCast(false);
         return;
     }
 
-    if (!result._hasIntValue || !_actor) {
-        finishCast(false);
-        return;
-    }
-
-    const uint8 spellId = static_cast<uint8>(result._intValue);
-    CombatView *view = dynamic_cast<CombatView *>(_parent);
-
-    const bool consumed = Combat::castSpell(_actor, spellId, false, view);
-    debug(0, "[SPELL] castSpell: spell %d consumed=%d", (int)spellId, (int)consumed);
-    finishCast(consumed);
+    _selectedSpell = static_cast<uint8>(result._intValue);
+    debug(0, "[SPELL] selected spell %d", (int)_selectedSpell);
+    finishCast(true);
 }
 
 void CombatSpellDialog::finishCast(bool actionComplete) {

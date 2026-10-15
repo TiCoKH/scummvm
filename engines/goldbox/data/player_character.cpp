@@ -109,6 +109,13 @@ bool PlayerCharacter::hasNegativeEffect() const {
     return false;
 }
 
+bool PlayerCharacter::isStatusEffectId(uint8 effectId) {
+    for (uint i = 0; i < ARRAYSIZE(kStatusEffects); ++i)
+        if (kStatusEffects[i] == effectId)
+            return true;
+    return false;
+}
+
 void PlayerCharacter::heal(uint8 amount) {
     hitPoints.current = MIN<uint8>(hitPoints.max, hitPoints.current + amount);
 }

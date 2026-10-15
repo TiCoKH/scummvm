@@ -24,6 +24,7 @@
 #include "common/array.h"
 #include "common/str.h"
 #include "common/types.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/data/damage_system.h"
 
 namespace Goldbox {
@@ -68,6 +69,49 @@ public:
             Goldbox::Data::PlayerCharacter *&picked) = 0;
 };
 
+// Interactive aiming hook for player-controlled combat casts (mirrors the
+// COMBAT_AttackTarget call in COMBAT_spellTargetSelection). Implemented by
+// the combat view; may be null, in which case the combat targeter falls back
+// to an automatic choice.
+class ISpellAimer {
+public:
+    virtual ~ISpellAimer() {}
+
+    // Aim at a combatant (tileMode == false) or at a tile for a burst
+    // (tileMode == true). range is SPELL_ComputeRange in tiles. On success
+    // returns true with tile set and target set when a combatant was chosen.
+    // Returns false when the player cancelled.
+    virtual bool aim(Goldbox::Data::PlayerCharacter *caster, uint8 spellId,
+            uint8 range, bool tileMode,
+            Goldbox::Data::PlayerCharacter *&target, TilePos &tile) = 0;
+};
+
+// Presentation hook fired once targeting succeeded, before the memorized slot
+// is spent and the spell handler runs (the caster animation block of
+// ACTION_UseSpell). May be null.
+class ISpellCastObserver {
+public:
+    virtual ~ISpellCastObserver() {}
+
+    virtual void onSpellTargeted(Goldbox::Data::PlayerCharacter *caster,
+            uint8 spellId, TilePos targetTile) = 0;
+
+    // Per-target projectile (effect quad, sound, path) used by multi-target
+    // spells such as Hold Person.
+    virtual void onSpellProjectile(Goldbox::Data::PlayerCharacter *caster,
+            Goldbox::Data::PlayerCharacter *target) {
+        (void)caster;
+        (void)target;
+    }
+
+    // Message shown by a spell handler (e.g. "Creates a noxious cloud").
+    virtual void onSpellMessage(Goldbox::Data::PlayerCharacter *caster,
+            const Common::String &text) {
+        (void)caster;
+        (void)text;
+    }
+};
+
 struct SpellContext {
     Goldbox::Data::PlayerCharacter *caster;
     Goldbox::Data::Spells::SpellBook *spellBook;
@@ -86,6 +130,16 @@ struct SpellContext {
     // May be null; selection then fails with CAST_INVALID_TARGET.
     ISpellTargetPicker *targetPicker;
 
+    // Optional combat aiming hook for player-controlled casts.
+    ISpellAimer *aimer;
+
+    // Optional presentation hook fired after successful targeting.
+    ISpellCastObserver *observer;
+
+    // True when the caster is AI controlled (selects targets automatically
+    // and aborts instead of prompting).
+    bool aiControl;
+
     // Optional — non-null only during combat. Passed to GenericSpellHandler
     // for attack-roll checks and effect-set evaluation.
     Goldbox::Combat::CombatGlobals *combat;
@@ -100,8 +154,9 @@ struct SpellContext {
 
     SpellContext() : caster(nullptr), spellBook(nullptr),
         effectSystem(nullptr), inCombat(false), casterLevel(0),
-        targetPicker(nullptr), combat(nullptr), damageSystem(nullptr),
-        fromMagicItem(false) {}
+        targetPicker(nullptr), aimer(nullptr), observer(nullptr),
+        aiControl(false),
+        combat(nullptr), damageSystem(nullptr), fromMagicItem(false) {}
 };
 
 } // namespace Spells

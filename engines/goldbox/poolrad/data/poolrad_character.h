@@ -141,6 +141,11 @@ public:
 
     bool meetsClassRequirements() const;
     bool haveMemorizedSpell() const;
+
+    // Original-array hooks (slot holds the spell id; values >= 0x80 are
+    // spells still scheduled to memorize and do not count).
+    bool isSpellMemorized(uint8 spellId) const override;
+    bool removeMemorizedSpell(uint8 spellId) override;
     bool hasItems() const;
     bool hasValuables() const;
     void finalizeName();

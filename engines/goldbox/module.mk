@@ -52,6 +52,7 @@ MODULE_OBJS = \
 	data/spells/spell_book.o \
 	data/spells/spell_metadata.o \
 	spells/spell_aoe.o \
+	spells/spell_apply.o \
 	spells/spell_casting.o \
 	spells/spell_handlers.o \
 	spells/spell_registry.o \
@@ -82,6 +83,7 @@ MODULE_OBJS = \
 	combat/combat_setup.o \
 	combat/combat_turn.o \
 	combat/combat_ai.o \
+	combat/combat_spell_targeter.o \
 	combat/combat_session.o \
 	combat/combatant_table.o \
 	combat/combat_placement.o \

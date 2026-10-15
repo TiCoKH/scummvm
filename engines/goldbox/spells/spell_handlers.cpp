@@ -41,6 +41,7 @@
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/spells/spell_generic_handler.h"
+#include "goldbox/spells/spell_apply.h"
 #include "goldbox/spells/spell_aoe.h"
 
 namespace Goldbox {
@@ -82,6 +83,40 @@ SpellCastResult CureLightWoundsHandler::execute(const SpellContext &context,
     return SpellCastResult(CAST_OK);
 }
 
+// --- Bless (ID01) / Curse (ID02) / Cause Light Wounds (ID04) ---
+SpellCastResult BlessHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (!context.caster)
+        return SpellCastResult(CAST_ERROR);
+    return applyToSide(context, definition, targets,
+        context.caster->combatSide, definition.effectMessage);
+}
+
+SpellCastResult CurseHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    if (!context.caster)
+        return SpellCastResult(CAST_ERROR);
+    const Goldbox::Data::CombatSide side =
+        (context.caster->combatSide == Goldbox::Data::CS_PARTY)
+        ? Goldbox::Data::CS_ENEMY : Goldbox::Data::CS_PARTY;
+    return applyToSide(context, definition, targets, side,
+        definition.effectMessage);
+}
+
+SpellCastResult CauseLightWoundsHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    const uint8 damage = Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(1, 8)) : 4;
+
+    SpellApplyParams params;
+    params.baseDamage = damage;
+    params.behaviorFlags = 8;
+    return applyOnTargets(context, definition, targets, params);
+}
+
 // --- Burning Hands (ID09) ---
 // Deals casterLevel points of fire damage to all targets (no saving throw).
 SpellCastResult BurningHandsHandler::execute(const SpellContext &context,
@@ -91,19 +126,10 @@ SpellCastResult BurningHandsHandler::execute(const SpellContext &context,
     if (targets.targetCharacters.empty())
         return SpellCastResult(CAST_INVALID_TARGET);
 
-    const uint8 damage = context.casterLevel > 0 ? context.casterLevel : 1;
-
-    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
-        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
-        if (!target)
-            continue;
-
-        if (context.damageSystem)
-            context.damageSystem->applyLegacy(*target, damage,
-                Goldbox::Data::DAMAGE_NORMAL, false);
-    }
-
-    return SpellCastResult(CAST_OK);
+    SpellApplyParams params;
+    params.baseDamage = context.casterLevel;
+    params.behaviorFlags = 9;
+    return applyOnTargets(context, definition, targets, params);
 }
 
 // --- Charm Person (ID10) ---
@@ -284,7 +310,7 @@ SpellCastResult FriendsHandler::execute(const SpellContext &context,
         MIN<uint16>(oldCharisma + roll, 25));
     context.caster->abilities.charisma.current = newCharisma;
 
-    return GenericSpellHandler::applyToTargets(context, definition, targets, oldCharisma);
+    return GenericSpellHandler::applyToTargets(context, definition, targets, oldCharisma, true);
 }
 
 // --- Magic Missile (ID15) ---
@@ -303,16 +329,10 @@ SpellCastResult MagicMissileHandler::execute(const SpellContext &context,
         static_cast<uint8>(Goldbox::g_engine->rollDice(damageLevel, 4)) : damageLevel;
     const uint8 baseDamage = static_cast<uint8>(damageLevel + roll);
 
-    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
-        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
-        if (!target)
-            continue;
-        if (context.damageSystem)
-            context.damageSystem->applyLegacy(*target, baseDamage,
-                Goldbox::Data::DAMAGE_NORMAL, false, 8);
-    }
-
-    return SpellCastResult(CAST_OK);
+    SpellApplyParams params;
+    params.baseDamage = baseDamage;
+    params.behaviorFlags = 8;
+    return applyOnTargets(context, definition, targets, params);
 }
 
 // --- Shield (ID19) ---
@@ -336,16 +356,10 @@ SpellCastResult ShockingGraspHandler::execute(const SpellContext &context,
         static_cast<uint8>(Goldbox::g_engine->rollDice(1, 8)) : 4;
     const uint8 baseDamage = static_cast<uint8>(context.casterLevel + roll);
 
-    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
-        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
-        if (!target)
-            continue;
-        if (context.damageSystem)
-            context.damageSystem->applyLegacy(*target, baseDamage,
-                Goldbox::Data::DAMAGE_NORMAL, false, 12);
-    }
-
-    return SpellCastResult(CAST_OK);
+    SpellApplyParams params;
+    params.baseDamage = baseDamage;
+    params.behaviorFlags = 12;
+    return applyOnTargets(context, definition, targets, params);
 }
 
 // --- Sleep (ID21) ---
@@ -365,6 +379,10 @@ SpellCastResult SleepHandler::execute(const SpellContext &context,
     for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
         Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
         if (!target)
+            continue;
+
+        // Animated (undead) targets are immune.
+        if (target->healthStatus == Goldbox::Data::S_ANIMATED)
             continue;
 
         // Already sleeping — skip.
@@ -432,13 +450,15 @@ SpellCastResult HoldPersonHandler::execute(const SpellContext &context,
     else if (count == 2)  saveAdj = -1;
     else                  saveAdj = 0;   // 3 or 4 targets
 
-    const uint16 duration = static_cast<uint16>(
-        definition.entry->fixedDuration +
-        definition.entry->perLvlDuration * context.casterLevel);
+    const uint8 duration = computeSpellDuration(
+        static_cast<uint8>(definition.id), context.casterLevel,
+        context.inCombat);
+    const bool usesSave = definition.entry->savingEffect !=
+        Goldbox::Data::Spells::DMG_NO_SAVE;
 
     Goldbox::Data::Effects::EffectHostBridge *bridge =
         context.effectSystem->getHostBridge();
-    Goldbox::Data::Effects::EffectHandlerBase *handler =
+    const Goldbox::Data::Effects::EffectHandlerBase *handler =
         context.effectSystem->getHandler();
 
     // Iterate in reverse to match original target-list traversal order.
@@ -447,33 +467,29 @@ SpellCastResult HoldPersonHandler::execute(const SpellContext &context,
         if (!target)
             continue;
 
-        // Non-standard size/type targets are immune.
-        const Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
-            dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(target);
-        const uint8 monsterType = poolrad ? poolrad->monsterType : 0;
-        if (monsterType > 1 || target->iconDimension > 1) {
-            if (bridge)
-                bridge->postEffectMessage(target, "is unaffected", true);
-            continue;
-        }
+        // The highest-index target is processed first and gets no projectile;
+        // every other target does.
+        if (i + 1 < count && context.observer && context.caster)
+            context.observer->onSpellProjectile(context.caster, target);
 
-        // Saving throw.
         Goldbox::Data::ADnDCharacter *adnd =
             dynamic_cast<Goldbox::Data::ADnDCharacter *>(target);
-        const bool saved = adnd && Goldbox::Data::Rules::checkSavingThrow(
+        bool saved = adnd && Goldbox::Data::Rules::checkSavingThrow(
             *adnd, context.combat, handler, bridge,
             definition.entry->saveType, saveAdj);
 
-        if (saved)
-            continue;
+        // Non-standard size/type targets always save.
+        const Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
+            dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(target);
+        const uint8 monsterType = poolrad ? poolrad->monsterType : 0;
+        if (monsterType > 1 || target->iconDimension > 1)
+            saved = true;
 
-        context.effectSystem->addOrRefreshEffect(
-            *target->getEffects(), *target,
-            definition.entry->effectId, duration,
-            context.casterLevel, true);
-
-        if (bridge)
-            bridge->postEffectMessage(target, "is held", true);
+        // UTIL_CheckUnaffected: "is Unaffected" when saved, otherwise the
+        // effect is added (not immediate) with the caster level as power.
+        Goldbox::Poolrad::checkUnaffectedEffect(*target, handler, bridge,
+            context.combat, definition.entry->effectId, duration,
+            context.casterLevel, false, usesSave, saved, "is held");
     }
 
     return SpellCastResult(CAST_OK);
@@ -540,7 +556,7 @@ SpellCastResult SlowPoisonHandler::execute(const SpellContext &context,
     // Apply the Slow Poison effect (effectPowerOverride=0xFF mirrors level override 0xFF).
     TargetSelection single;
     single.targetCharacters.push_back(target);
-    GenericSpellHandler::applyToTargets(context, definition, single, 0xFF);
+    GenericSpellHandler::applyToTargets(context, definition, single, 0xFF, true);
 
     // Fire EFF_REMOVE on raw effect 0x4E to perform the poison-state transition.
     if (handler) {
@@ -608,7 +624,7 @@ SpellCastResult SpiritualHammerHandler::execute(const SpellContext &context,
         return SpellCastResult(CAST_ERROR);
 
     SpellCastResult result =
-        GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+        GenericSpellHandler::applyToTargets(context, definition, targets, 0, true);
     if (result.status != CAST_OK)
         return result;
 
@@ -648,13 +664,8 @@ SpellCastResult MirrorImageHandler::execute(const SpellContext &context,
 // the effect ticks out. Then applies initial nausea to all combatants currently
 // occupying the four cloud cells.
 //
-// TODO: presentation layer not yet implemented.
-//   Original sequence after cloud creation:
-//     TEXT_drawIntoMsgBox(caster, "Creates a noxious cloud", 10, false)
-//     COMBAT_RedrawViewport(centerX, centerY, 0xFF, 8)
-//     GAME_waitDelayTime()
-//     SCREEN_clearMsgArea()
-//   Wire this up once the viewport/message subsystems are available.
+// After the cloud is created the caster's "Creates a noxious cloud" message
+// is shown through the cast observer (which also redraws the viewport).
 SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -712,6 +723,10 @@ SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
 
         Goldbox::Poolrad::checkCloudEffect(*occupant, handler, bridge);
     }
+
+    if (context.observer)
+        context.observer->onSpellMessage(context.caster,
+            "Creates a noxious cloud");
 
     return SpellCastResult(CAST_OK);
 }
@@ -1030,21 +1045,36 @@ SpellCastResult BestowCurseHandler::execute(const SpellContext &context,
 }
 
 // --- Haste (ID48) / Slow (ID55) shared helper ---
-// Filters targets to casterLevel slots on the requested side.
-// A target is retained only when removeEffectById succeeds (prerequisite
-// removal). The spell is then applied to retained targets via
-// GenericSpellHandler::applyToTargets, followed by ES_SAVING_THROW_MODS
-// on each retained target.
+// Mirrors SPELL_ApplyEffectToLimitedTargets. Filters targets to casterLevel
+// slots on the requested side. A target that carries the opposing effect is
+// cured of it ("is Cured") and dropped; the rest get the spell via
+// GenericSpellHandler::applyToTargets, followed by ES_COMBAT_RATE_MODIFIER
+// (set 18) on each retained target.
 SpellCastResult HasteSlowHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
     if (!context.effectSystem)
         return SpellCastResult(CAST_ERROR);
 
-    const Goldbox::Data::CombatSide wantedSide =
-        _targetEnemies ? Goldbox::Data::CS_ENEMY : Goldbox::Data::CS_PARTY;
+    if (!context.caster)
+        return SpellCastResult(CAST_ERROR);
 
-    uint8 remaining = context.casterLevel > 0 ? context.casterLevel : 1;
+    // Haste: the caster's own side. Slow: CHARACTER_isInParty(caster) used as
+    // the side id, i.e. the opposing side.
+    const Goldbox::Data::CombatSide casterSide = context.caster->combatSide;
+    const Goldbox::Data::CombatSide opposingSide =
+        (casterSide == Goldbox::Data::CS_PARTY)
+        ? Goldbox::Data::CS_ENEMY : Goldbox::Data::CS_PARTY;
+    const Goldbox::Data::CombatSide wantedSide =
+        _targetEnemies ? opposingSide : casterSide;
+
+    Goldbox::Data::Effects::EffectHostBridge *bridge =
+        context.effectSystem->getHostBridge();
+
+    // SPELL_ApplyEffectToLimitedTargets: at most casterLevel targets of the
+    // wanted side. A target that had the opposing effect is cured of it and
+    // dropped; the rest receive the new effect.
+    uint8 remaining = context.casterLevel;
 
     TargetSelection filtered;
     for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
@@ -1055,10 +1085,18 @@ SpellCastResult HasteSlowHandler::execute(const SpellContext &context,
         --remaining;
 
         Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
-        if (fx && context.effectSystem->removeEffectById(
-                *target, *fx, _removeEffectId))
-            filtered.targetCharacters.push_back(target);
+        if (fx && fx->hasEffect(_removeEffectId)) {
+            if (bridge)
+                bridge->postEffectMessage(target, "is Cured", true);
+            context.effectSystem->removeEffectById(*target, *fx,
+                _removeEffectId);
+            continue;
+        }
+        filtered.targetCharacters.push_back(target);
     }
+
+    if (context.combat)
+        context.combat->multiTarget = true;
 
     if (filtered.targetCharacters.empty())
         return SpellCastResult(CAST_OK);
@@ -1066,7 +1104,7 @@ SpellCastResult HasteSlowHandler::execute(const SpellContext &context,
     SpellCastResult result =
         GenericSpellHandler::applyToTargets(context, definition, filtered, 0);
 
-    // Post-application: fire ES_SAVING_THROW_MODS on each retained target.
+    // Post-application: effect set 18 (combat rate) on each retained target.
     Goldbox::Data::Effects::EffectRuntime *runtime =
         context.effectSystem->getRuntime();
     if (runtime) {
@@ -1077,7 +1115,7 @@ SpellCastResult HasteSlowHandler::execute(const SpellContext &context,
             Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
             if (fx)
                 runtime->checkEffectSet(
-                    Goldbox::Data::Effects::ES_SAVING_THROW_MODS,
+                    Goldbox::Data::Effects::ES_COMBAT_RATE_MODIFIER,
                     *fx, *target, context.combat);
         }
     }
@@ -1141,16 +1179,13 @@ SpellCastResult FireballHandler::execute(const SpellContext &context,
         Goldbox::Combat::CombatContext *ctx =
             Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr;
         if (ctx) {
-            const int cx = targets.tileX;
-            const int cy = targets.tileY;
-            for (int i = 0; i < Goldbox::Combat::CombatantTable::MAX_COMBATANTS; ++i) {
-                Goldbox::Data::PlayerCharacter *ch = ctx->table.getCharacter(i);
-                if (!ch || !ch->isAlive())
-                    continue;
-                const int dx = ctx->table.getTileCol(i) - cx;
-                const int dy = ctx->table.getTileRow(i) - cy;
-                // Chebyshev distance <= 2 (radius 2 matches original).
-                if (ABS(dx) <= 2 && ABS(dy) <= 2)
+            ctx->buildTargetListCore(TilePos((uint8)targets.tileX,
+                                             (uint8)targets.tileY),
+                                     1, DIR_ANY, 2);
+            for (uint i = 0; i < ctx->targetList.entries.size(); ++i) {
+                Goldbox::Data::PlayerCharacter *ch =
+                    ctx->table.getCharacter(ctx->targetList.entries[i].idx);
+                if (ch)
                     aoeTargets.targetCharacters.push_back(ch);
             }
         }
@@ -1163,28 +1198,14 @@ SpellCastResult FireballHandler::execute(const SpellContext &context,
     if (effectiveTargets.targetCharacters.empty())
         return SpellCastResult(CAST_OK);
 
-    for (uint i = 0; i < effectiveTargets.targetCharacters.size(); ++i) {
-        Goldbox::Data::PlayerCharacter *target = effectiveTargets.targetCharacters[i];
-        if (!target)
-            continue;
+    // SPELL_MULTI_TARGET is set for the whole spell.
+    if (context.combat)
+        context.combat->multiTarget = true;
 
-        // Saving throw vs spell: success halves damage.
-        bool saved = false;
-        Goldbox::Data::ADnDCharacter *adnd =
-            dynamic_cast<Goldbox::Data::ADnDCharacter *>(target);
-        if (adnd && context.effectSystem)
-            saved = Goldbox::Data::Rules::checkSavingThrow(
-                *adnd, context.combat,
-                context.effectSystem->getHandler(),
-                context.effectSystem->getHostBridge(),
-                Goldbox::Data::Spells::SVS_SPELL, 0);
-
-        const Goldbox::Data::DamageModifier mod =
-            saved ? Goldbox::Data::DAMAGE_HALF : Goldbox::Data::DAMAGE_NORMAL;
-        context.damageSystem->applyLegacy(*target, baseDamage, mod, saved, 9);
-    }
-
-    return SpellCastResult(CAST_OK);
+    SpellApplyParams params;
+    params.baseDamage = baseDamage;
+    params.behaviorFlags = 9;
+    return applyOnTargets(context, definition, effectiveTargets, params);
 }
 
 // --- Dispel Magic (ID41 / ID46) ---
@@ -1257,7 +1278,7 @@ SpellCastResult DispelMagicHandler::execute(const SpellContext &context,
 SpellCastResult CauseDiseaseHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
-    return GenericSpellHandler::applyToTargets(context, definition, targets, 0);
+    return GenericSpellHandler::applyToTargets(context, definition, targets, 0, true);
 }
 
 // --- Spell ID58 (SP_MI2) ---

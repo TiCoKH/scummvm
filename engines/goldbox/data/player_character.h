@@ -210,6 +210,17 @@ public:
 	// Returns true if any negative (debilitating) status effect is active.
 	bool hasNegativeEffect() const;
 
+	// Returns true if effectId is one of the debilitating status effects
+	// tracked by hasNegativeEffect().
+	static bool isStatusEffectId(uint8 effectId);
+
+	// Memorized-spell storage hooks. Mirror SPELL_HaveMemorized and
+	// CHARACTER_removeMemorizedSpell: games that memorize spells override
+	// these; spellId is the original spell id (1-based table index).
+	virtual bool isSpellMemorized(uint8 /*spellId*/) const { return false; }
+	// Removes ONE memorized instance. Returns true if one was removed.
+	virtual bool removeMemorizedSpell(uint8 /*spellId*/) { return false; }
+
 	// Apply a strength change (buff or debuff) to this character.
 	// Encodes new_str/new_ext_str into *outEncoded (bit 7 = active marker).
 	// Returns true if a buff was applied, false if a debuff.

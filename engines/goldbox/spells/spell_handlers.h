@@ -34,7 +34,8 @@ enum SpellCastStatus {
     CAST_INVALID_TARGET,
     CAST_NOT_ALLOWED,
     CAST_NO_HANDLER,
-    CAST_ERROR
+    CAST_ERROR,
+    CAST_ABORTED    // targeting failed or was cancelled before the cast
 };
 
 struct SpellCastResult {
@@ -61,6 +62,30 @@ public:
 
 // ID03 Cure Light Wounds: heals 1d8 HP on each target.
 class CureLightWoundsHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID01 Bless: applies to the caster's side only (SPELL_ApplyToTargetList).
+class BlessHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID02 Curse: applies to the opposing side only.
+class CurseHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID04 Cause Light Wounds: 1d8 damage via SPELL_ApplyOnTargets (behavior 8).
+class CauseLightWoundsHandler : public ISpellHandler {
 public:
     SpellCastResult execute(const SpellContext &context,
                             const SpellDefinition &definition,

@@ -20,6 +20,9 @@
 
 #include "goldbox/spells/spell_casting.h"
 #include "goldbox/data/spells/spell_book.h"
+#include "goldbox/data/player_character.h"
+#include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/engine.h"
@@ -70,10 +73,67 @@ uint8 computeSpellDuration(uint8 spellId, uint8 casterLevel, bool inCombat) {
 
 SpellCastingService *g_spellCasting = nullptr;
 
+uint8 getSpellCastingLevel(const Goldbox::Data::PlayerCharacter *caster,
+        uint8 spellId, bool fromMagicItem) {
+    const Common::Array<Goldbox::Data::Spells::SpellEntry> &entries =
+        Goldbox::Data::Rules::getSpellEntries();
+    if (spellId >= entries.size())
+        return 0;
+
+    const Goldbox::Data::Spells::SpellClass spellClass =
+        entries[spellId].spellClass;
+    const Goldbox::Data::ADnDCharacter *adnd =
+        dynamic_cast<const Goldbox::Data::ADnDCharacter *>(caster);
+
+    uint8 level = 0;
+    switch (spellClass) {
+    case Goldbox::Data::Spells::SC_CLERIC:
+        level = adnd ? adnd->levels[Goldbox::Data::C_CLERIC] : 0;
+        break;
+    case Goldbox::Data::Spells::SC_MAGICUSER:
+        level = adnd ? adnd->levels[Goldbox::Data::C_MAGICUSER] : 0;
+        break;
+    case Goldbox::Data::Spells::SC_ITEM:
+        level = 12;
+        break;
+    default:
+        break;
+    }
+
+    if (fromMagicItem && spellClass != Goldbox::Data::Spells::SC_ITEM)
+        level = 6;
+    return level;
+}
+
+uint8 computeSpellRange(uint8 spellId, uint8 casterLevel,
+        bool fromMagicItem) {
+    const Common::Array<Goldbox::Data::Spells::SpellEntry> &entries =
+        Goldbox::Data::Rules::getSpellEntries();
+    if (spellId >= entries.size())
+        return 0;
+    const Goldbox::Data::Spells::SpellEntry &entry = entries[spellId];
+
+    uint8 range;
+    if (fromMagicItem)
+        range = static_cast<uint8>(entry.perLvlRange * 6 + entry.fixedRange);
+    else
+        range = static_cast<uint8>(entry.fixedRange +
+            entry.perLvlRange * casterLevel);
+
+    if (range == 0 && entry.areaOfEffect != 0)
+        range = 1;
+    if (range == 0xFF)
+        range = 1;
+    return range;
+}
+
 SpellCastingService::SpellCastingService()
     : _combatTargeter(nullptr), _nonCombatTargeter(nullptr) {
     g_spellCasting = this;
     _registry.setHandler(kHandlerCureLightWounds, &_cureLightWoundsHandler);
+    _registry.setHandler(kHandlerBless,           &_blessHandler);
+    _registry.setHandler(kHandlerCurse,           &_curseHandler);
+    _registry.setHandler(kHandlerCauseLightWounds, &_causeLightWoundsHandler);
     _registry.setHandler(kHandlerBurningHands,    &_burningHandsHandler);
     _registry.setHandler(kHandlerCharmPerson,     &_charmPersonHandler);
     _registry.setHandler(kHandlerEnlarge,         &_enlargeHandler);
@@ -114,6 +174,12 @@ SpellCastingService::SpellCastingService()
     _registry.setHandler(kHandlerRestore,            &_restoreHandler);
     _registry.setHandler(kHandlerBreathWeapon,       &_breathWeaponHandler);
 
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_BLESS,
+        kHandlerBless);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CURSE,
+        kHandlerCurse);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CAUSE_LT_WOUNDS,
+        kHandlerCauseLightWounds);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_CURE_LT_WOUNDS,
         kHandlerCureLightWounds);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL1_BURNING_HANDS,
@@ -221,7 +287,35 @@ SpellCastResult SpellCastingService::castSpell(SpellContext &context,
 
     TargetSelection targets;
     if (!targeter->selectTarget(context, *definition, targets))
-        return SpellCastResult(CAST_INVALID_TARGET);
+        return SpellCastResult(CAST_ABORTED);
+
+    // Caster animation/sound (ACTION_UseSpell), then UTIL_RemoveBlur.
+    if (context.observer && context.caster)
+        context.observer->onSpellTargeted(context.caster,
+            static_cast<uint8>(spell),
+            TilePos(static_cast<uint8>(targets.tileX),
+                    static_cast<uint8>(targets.tileY)));
+    if (context.caster) {
+        if (Goldbox::Data::Effects::CharacterEffects *fx =
+                context.caster->getEffects()) {
+            const uint8 blurId = Goldbox::Data::Rules::getBlurEffectId();
+            if (blurId != Goldbox::Data::Rules::EFFECT_ID_NONE)
+                fx->eraseEffectById(blurId);
+        }
+    }
+
+    // Mirrors ACTION_UseSpell: the memorized slot is spent once targeting
+    // succeeded and before the spell handler runs (magic items keep theirs).
+    if (!context.fromMagicItem) {
+        const uint8 spellId = static_cast<uint8>(spell);
+        const bool removed = context.caster &&
+            context.caster->removeMemorizedSpell(spellId);
+        if (!removed && context.spellBook) {
+            const uint8 count = context.spellBook->getMemorized(spell);
+            if (count > 0)
+                context.spellBook->setMemorized(spell, count - 1);
+        }
+    }
 
     // kHandlerGeneric spells (the vast majority) have no dedicated
     // handler registered; GenericSpellHandler drives their saving throw +
@@ -230,13 +324,7 @@ SpellCastResult SpellCastingService::castSpell(SpellContext &context,
     if (!handler)
         handler = &_fallbackHandler;
 
-    SpellCastResult result = handler->execute(context, *definition, targets);
-    if (result.status == CAST_OK && context.spellBook) {
-        uint8 count = context.spellBook->getMemorized(spell);
-        if (count > 0)
-            context.spellBook->setMemorized(spell, count - 1);
-    }
-    return result;
+    return handler->execute(context, *definition, targets);
 }
 
 void SpellCastingService::setCombatTargeter(ISpellTargeter *targeter) {
@@ -249,8 +337,18 @@ void SpellCastingService::setNonCombatTargeter(ISpellTargeter *targeter) {
 
 SpellCastResult SpellCastingService::validate(const SpellContext &context,
         const SpellDefinition &definition) const {
+    // Magic item spells never come from a memorized slot.
+    if (context.fromMagicItem)
+        return SpellCastResult(CAST_OK);
+
+    // Preferred source: the character's own memorized slots (the list the
+    // spell menu and AI choose from).
+    const uint8 spellId = static_cast<uint8>(definition.id);
+    if (context.caster && context.caster->isSpellMemorized(spellId))
+        return SpellCastResult(CAST_OK);
+
     if (!context.spellBook)
-        return SpellCastResult(CAST_ERROR);
+        return SpellCastResult(CAST_NOT_MEMORIZED);
 
     if (!context.spellBook->isKnown(definition.id))
         return SpellCastResult(CAST_NOT_KNOWN);

@@ -41,6 +41,7 @@ public:
 
     void setCombatTargeter(ISpellTargeter *targeter);
     void setNonCombatTargeter(ISpellTargeter *targeter);
+    ISpellTargeter *getCombatTargeter() const { return _combatTargeter; }
 
     SpellRegistry &registry() { return _registry; }
     const SpellRegistry &registry() const { return _registry; }
@@ -55,6 +56,9 @@ private:
     ISpellTargeter *_nonCombatTargeter;
     GenericSpellHandler _fallbackHandler;
     CureLightWoundsHandler _cureLightWoundsHandler;
+    BlessHandler _blessHandler;
+    CurseHandler _curseHandler;
+    CauseLightWoundsHandler _causeLightWoundsHandler;
     BurningHandsHandler _burningHandsHandler;
     CharmPersonHandler _charmPersonHandler;
     EnlargeHandler _enlargeHandler;

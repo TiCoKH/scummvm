@@ -187,6 +187,15 @@ CombatView::CombatView()
     _combatMove    = new Dialogs::CombatMoveDialog();
     _combatAttack  = new Dialogs::CombatAttackDialog();
     _combatEnd     = new Dialogs::CombatEndDialog();
+    {
+        Dialogs::HorizontalYesNoConfig cfg;
+        cfg.promptTxt       = "Abort Spell? ";
+        cfg.promptColor     = 15;
+        cfg.textColor       = 10;
+        cfg.selectColor     = 15;
+        cfg.backgroundColor = 8;
+        _abortYesNo = new Dialogs::HorizontalYesNo("CombatAbortSpell", cfg);
+    }
     _combatSpell   = new Dialogs::CombatSpellDialog();
     _combatSubmenu = new Dialogs::CombatSubmenuDialog();
     _aiDelegate     = new CombatViewAiDelegate(this);
@@ -198,6 +207,7 @@ CombatView::~CombatView() {
     delete _combatMove;
     delete _combatAttack;
     delete _combatEnd;
+    delete _abortYesNo;
     delete _combatSpell;
     delete _combatSubmenu;
     delete _aiDelegate;
@@ -457,6 +467,15 @@ void CombatView::onUpdate() {
                     setActiveDialog(nullptr);
                     detachDialog(_combatSpell);
                     _playerActionPending = false;
+
+                    // Cast outside the dialog's event handler so targeting
+                    // can aim interactively (COMBAT_CastSpell).
+                    const uint8 chosenSpell = _combatSpell->getSelectedSpell();
+                    if (chosenSpell != 0) {
+                        Combat::castSpell(actor, chosenSpell, false, this);
+                        _currentInfoActor = actor;
+                        _needsFullRedraw = true;
+                    }
                 }
                 finishPlayerAction();
                 continue;
@@ -749,6 +768,13 @@ void CombatView::handleMenuResult(const MenuResultMessage &result) {
     if (!result._hasIntValue)
         return;
 
+    // Answer of the "Abort Spell?" yes/no (1 = YES, 0 = NO).
+    if (_awaitingAbortAnswer) {
+        _abortAnswer = (result._intValue == 1);
+        _abortAnswered = true;
+        return;
+    }
+
     // CombatEndDialog sentinel: answer to "Continue Battle?".
     if (result._intValue == -1) {
         _roundEndContinue = result._success;
@@ -758,9 +784,68 @@ void CombatView::handleMenuResult(const MenuResultMessage &result) {
 
     // Sub-dialogs report cancellation with _success == false; the wait loop
     // must still be released so the actor returns to the menu.
+    _lastResultSuccess = result._success;
     _pendingPlayerAction =
         static_cast<Combat::CombatSession::PlayerAction>(result._intValue);
     _playerActionPending = true;
+}
+
+bool CombatView::aim(::Goldbox::Data::PlayerCharacter *caster, uint8 spellId,
+        uint8 range, bool tileMode,
+        ::Goldbox::Data::PlayerCharacter *&target, TilePos &tile) {
+    (void)spellId;
+    target = nullptr;
+    if (!_combatAttack || !caster || !g_events)
+        return false;
+
+    if (_activeDialog)
+        setActiveDialog(nullptr);
+
+    _combatAttack->beginSpellAim(caster, &_session, range, tileMode);
+    attachDialog(_combatAttack);
+    setActiveDialog(_combatAttack);
+    _needsFullRedraw = true;
+    redraw();
+
+    _playerActionPending = false;
+    _lastResultSuccess = false;
+    while (!_playerActionPending)
+        if (!g_events->pumpModalInputFrame()) break;
+
+    const bool chosen = _playerActionPending && _lastResultSuccess;
+    if (chosen) {
+        target = _combatAttack->getAimTarget();
+        tile = _combatAttack->getAimTile();
+    }
+
+    setActiveDialog(nullptr);
+    detachDialog(_combatAttack);
+    _playerActionPending = false;
+    _needsFullRedraw = true;
+    return chosen;
+}
+
+bool CombatView::confirmAbortSpell() {
+    if (!_abortYesNo || !g_events)
+        return true;
+
+    _awaitingAbortAnswer = true;
+    _abortAnswered = false;
+    _abortAnswer = false;
+
+    attachDialog(_abortYesNo);
+    setActiveDialog(_abortYesNo);
+    redraw();
+    while (!_abortAnswered)
+        if (!g_events->pumpModalInputFrame()) break;
+
+    setActiveDialog(nullptr);
+    detachDialog(_abortYesNo);
+    _awaitingAbortAnswer = false;
+    _needsFullRedraw = true;
+
+    // Closing the game while the prompt is up counts as aborting.
+    return !_abortAnswered || _abortAnswer;
 }
 
 // ---------------------------------------------------------------------------
@@ -776,6 +861,77 @@ void CombatView::focusCaster(::Goldbox::Data::PlayerCharacter *caster) {
 
 void CombatView::showBeginsCasting(::Goldbox::Data::PlayerCharacter *caster) {
     printCombatMessage(caster, "Begins Casting!");
+}
+
+void CombatView::showSpellCastEffect(::Goldbox::Data::PlayerCharacter *caster,
+        uint8 spellId, TilePos target) {
+    if (!caster || !g_engine)
+        return;
+
+    Combat::CombatContext *ctx = _session.getContext();
+    const Combat::CombatantTable &table = _session.getTable();
+    const int casterIdx = table.findIndex(caster);
+    if (!ctx || casterIdx < 0)
+        return;
+
+    const TilePos casterTile(table.getTileCol(casterIdx),
+                             table.getTileRow(casterIdx));
+    if (!isValidTilePos(target))
+        target = casterTile;
+
+    // Effect quad 0x12 at the caster, then turn toward the target tile.
+    const Combat::ViewportPos vpos =
+        _session.getViewport().getCharacterViewportPosition(table, casterIdx);
+    renderEffectTile(0x12, 0, kViewportX + vpos.column * kTileSize,
+                     kViewportY + vpos.row * kTileSize);
+
+    Direction facing = DIR_NONE;
+    for (uint8 d = 0; d < 8; ++d) {
+        if (Combat::CombatContext::isTargetInArc(static_cast<Direction>(d),
+                target, casterTile)) {
+            facing = static_cast<Direction>(d);
+            break;
+        }
+    }
+    if (facing != DIR_NONE)
+        ctx->setCharacterFacing(caster, facing);
+
+    // Spells 0x2F and 0x33 have their own sound; the rest use effect 3.
+    if (spellId == 0x2F)
+        g_engine->soundPlay(0x0C);
+    else if (spellId == 0x33)
+        g_engine->soundPlay(0x09);
+    else
+        g_engine->soundPlay(0x03);
+
+    animateMovementPath(casterTile, target, 0, 0x1E);
+}
+
+void CombatView::showSpellProjectile(
+        ::Goldbox::Data::PlayerCharacter *caster,
+        ::Goldbox::Data::PlayerCharacter *target) {
+    if (!caster || !target || !g_engine)
+        return;
+    const Combat::CombatantTable &table = _session.getTable();
+    const int casterIdx = table.findIndex(caster);
+    const int targetIdx = table.findIndex(target);
+    if (casterIdx < 0 || targetIdx < 0)
+        return;
+
+    g_engine->soundPlay(0x03);
+    const Combat::ViewportPos vpos =
+        _session.getViewport().getCharacterViewportPosition(table, casterIdx);
+    renderEffectTile(0x12, 0, kViewportX + vpos.column * kTileSize,
+                     kViewportY + vpos.row * kTileSize);
+    animateMovementPath(
+        TilePos(table.getTileCol(casterIdx), table.getTileRow(casterIdx)),
+        TilePos(table.getTileCol(targetIdx), table.getTileRow(targetIdx)),
+        0, 0x1E);
+}
+
+void CombatView::showSpellMessage(::Goldbox::Data::PlayerCharacter *caster,
+        const Common::String &text) {
+    printCombatMessage(caster, text, 10);
 }
 
 void CombatView::refreshViewport(::Goldbox::Data::PlayerCharacter *ch,
