@@ -35,7 +35,8 @@ namespace Dialogs {
 CombatAttackDialog::CombatAttackDialog()
     : Dialog("CombatAttack"), _attacker(nullptr), _session(nullptr),
       _targetIndex(0), _state(STATE_TARGET_COMMAND),
-      _pendingTarget(nullptr) {
+      _pendingTarget(nullptr), _spellMode(false), _tileMode(false),
+      _spellRange(0xFF), _aimTarget(nullptr), _aimTile(0, 0) {
     _targetCommand = new CombatTargetCommandDialog();
     _manualAim     = new CombatManualAimDialog();
 
@@ -59,6 +60,10 @@ void CombatAttackDialog::beginAttack(Goldbox::Data::PlayerCharacter *attacker,
     _attacker    = attacker;
     _session     = session;
     _targetIndex = 0;
+    _spellMode   = false;
+    _tileMode    = false;
+    _spellRange  = 0xFF;
+    _aimTarget   = nullptr;
 
     _targetList.targetOrder.clear();
     if (_attacker && _session)
@@ -69,10 +74,38 @@ void CombatAttackDialog::beginAttack(Goldbox::Data::PlayerCharacter *attacker,
         _targetIndex = 1;
 }
 
+void CombatAttackDialog::beginSpellAim(
+        Goldbox::Data::PlayerCharacter *caster,
+        Combat::CombatSession *session, uint8 range, bool tileMode) {
+    beginAttack(caster, session);
+    _spellMode  = true;
+    _tileMode   = tileMode;
+    _spellRange = range;
+
+    // Only targets within the spell's range can be cycled through.
+    Combat::CombatContext *ctx = session ? session->getContext() : nullptr;
+    if (ctx && caster) {
+        Combat::TargetList inRange;
+        for (uint i = 0; i < _targetList.targetOrder.size(); ++i) {
+            Goldbox::Data::PlayerCharacter *candidate =
+                session->getTable().getCharacter(_targetList.targetOrder[i]);
+            if (candidate &&
+                    ctx->getTargetRange(caster, candidate) <= range)
+                inRange.targetOrder.push_back(_targetList.targetOrder[i]);
+        }
+        _targetList.targetOrder = inRange.targetOrder;
+        _targetIndex = _targetList.targetOrder.empty() ? 0 : 1;
+    }
+}
+
 void CombatAttackDialog::activate() {
     Dialog::activate();
-    if (_targetIndex > 0)
+    if (_spellMode && _tileMode)
+        enterManualAim();
+    else if (_targetIndex > 0)
         enterTargetCommand();
+    else if (_spellMode)
+        enterManualAim();  // nothing in range: let the player pick a spot
     else
         finishAttack(false);  // no targets — cancel immediately
 }
@@ -137,6 +170,15 @@ void CombatAttackDialog::handleMenuResult(const MenuResultMessage &result) {
             enterManualAim();
             break;
         case 'T': {
+            // Spell aiming only records the choice; nothing is executed.
+            if (_spellMode) {
+                Goldbox::Data::PlayerCharacter *chosen = currentTarget();
+                _aimTarget = chosen;
+                if (chosen && _session)
+                    _aimTile = _session->getTable().getCharacterPos(chosen);
+                finishAttack(chosen != nullptr);
+                break;
+            }
             // Confirm: check if target requires ally-attack confirmation.
             Goldbox::Data::PlayerCharacter *target = currentTarget();
             if (target && _session &&
@@ -160,6 +202,12 @@ void CombatAttackDialog::handleMenuResult(const MenuResultMessage &result) {
     } else if (_state == STATE_MANUAL_AIM) {
         // Results from CombatManualAimDialog.
         if (_manualAim->isActive()) {
+            if (_spellMode && result._success) {
+                const CombatManualAimDialog::ManualAimResult &aim =
+                    _manualAim->getResult();
+                _aimTarget = aim.target;
+                _aimTile = TilePos(aim.x, aim.y);
+            }
             _manualAim->deactivate();
             detachDialog(_manualAim);
         }
@@ -227,7 +275,9 @@ void CombatAttackDialog::enterTargetCommand() {
         return;
     }
 
-    _targetCommand->beginTargetCommand(_attacker, target, 0xFF, false, _session);
+    _targetCommand->beginTargetCommand(_attacker, target,
+                                       _spellMode ? _spellRange : 0xFF,
+                                       false, _session);
     attachDialog(_targetCommand);
     _targetCommand->activate();
 }
@@ -240,7 +290,9 @@ void CombatAttackDialog::enterManualAim() {
 
     _state = STATE_MANUAL_AIM;
 
-    _manualAim->beginManualAim(_attacker, currentTarget(), 0xFF, true, false, _session);
+    _manualAim->beginManualAim(_attacker, currentTarget(),
+                               _spellMode ? _spellRange : 0xFF,
+                               !_spellMode, _spellMode, _session);
     attachDialog(_manualAim);
     _manualAim->activate();
 }

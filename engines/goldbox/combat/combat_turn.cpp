@@ -31,6 +31,11 @@
 #include "common/debug.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
+#include "goldbox/data/effects/effect_system.h"
+#include "goldbox/data/effects/effect_handler_base.h"
+#include "goldbox/data/damage_system.h"
+#include "goldbox/spells/spell_casting.h"
+#include "goldbox/spells/spell_duration.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/data/items/base_items.h"
@@ -860,11 +865,87 @@ bool useSpell(Data::PlayerCharacter *actor,
               uint8 spellId,
               bool aiControl,
               CastSpellViewDelegate *view) {
-    (void)aiControl;
-    (void)view;
-    // TODO: resolve through the spell subsystem once combat targeting and
-    // spell book wiring exist.
-    return actor && spellId != 0;
+    Spells::SpellCastingService *service = Spells::g_spellCasting;
+    CombatContext *cc = VmInterface::getCombatContext();
+    if (!actor || spellId == 0 || !service || !cc)
+        return false;
+
+    // SPELL_showUseMessage (combat): "Casts a Spell".
+    if (view)
+        view->showSpellMessage(actor, "Casts a Spell");
+
+    Data::Effects::EffectSystem effectSystem(Data::Effects::g_effectHandler,
+        cc->params.effectBridge, cc->params.effectRuntime);
+    Data::DamageSystem damageSystem(cc->params.effectBridge);
+
+    Spells::SpellContext ctx;
+    ctx.caster = actor;
+    ctx.inCombat = true;
+    ctx.aiControl = aiControl;
+    ctx.casterLevel = Spells::getSpellCastingLevel(actor, spellId, false);
+    ctx.effectSystem = &effectSystem;
+    ctx.damageSystem = &damageSystem;
+    ctx.combat = &cc->globals;
+    ctx.aimer = view ? view->getSpellAimer() : nullptr;
+
+    // Forwards the post-targeting presentation block to the view.
+    struct CastObserver : public Spells::ISpellCastObserver {
+        CastSpellViewDelegate *view;
+        explicit CastObserver(CastSpellViewDelegate *v) : view(v) {}
+        void onSpellTargeted(Data::PlayerCharacter *caster, uint8 id,
+                             TilePos target) override {
+            if (view)
+                view->showSpellCastEffect(caster, id, target);
+        }
+        void onSpellMessage(Data::PlayerCharacter *caster,
+                            const Common::String &text) override {
+            if (view)
+                view->showSpellMessage(caster, text);
+        }
+        void onSpellProjectile(Data::PlayerCharacter *caster,
+                               Data::PlayerCharacter *target) override {
+            if (view)
+                view->showSpellProjectile(caster, target);
+        }
+    } observer(view);
+    ctx.observer = &observer;
+
+    const Common::Array<Data::PlayerCharacter *> &roster = cc->params.roster;
+    for (uint i = 0; i < roster.size(); ++i) {
+        Data::PlayerCharacter *member = roster[i];
+        if (!member || !member->enabled)
+            continue;
+        if (member->combatSide == actor->combatSide)
+            ctx.allies.push_back(member);
+        else
+            ctx.enemies.push_back(member);
+    }
+
+    // BYTE_SPELL_INPORCESS is visible to handlers for the whole cast.
+    cc->globals.activeSpellId = spellId;
+    Spells::SpellCastResult result(Spells::CAST_ABORTED);
+    for (;;) {
+        result = service->castSpell(ctx,
+            static_cast<Data::Spells::Spells>(spellId));
+        if (result.status != Spells::CAST_ABORTED)
+            break;
+        // Targeting failed: a player may retry, the AI gives up at once.
+        if (aiControl || !ctx.aimer || !view || view->confirmAbortSpell())
+            break;
+    }
+    cc->globals.activeSpellId = 0;
+    cc->globals.multiTarget = false;
+
+    if (result.status == Spells::CAST_OK)
+        return true;
+
+    // Targeting failed: ACTION_UseSpell aborts the cast and the spell is lost.
+    if (result.status == Spells::CAST_ABORTED) {
+        if (view)
+            view->showSpellMessage(nullptr, "Spell Aborted");
+        actor->removeMemorizedSpell(spellId);
+    }
+    return false;
 }
 
 bool resolvePendingSpell(Data::PlayerCharacter *actor,
@@ -895,12 +976,16 @@ bool castSpell(Data::PlayerCharacter *actor,
     const Data::Spells::SpellEntry &spell = spells[spellId];
 
     // Reject spells that cannot be cast during combat (c_avail == 0).
-    if (spell.whenCast == Data::Spells::IN_CAMP)
-        return false;
+    const bool campOnly = (spell.whenCast == Data::Spells::IN_CAMP);
+    if (campOnly && view)
+        view->showSpellMessage(nullptr, "Camp Only Spell");
 
     // Player-controlled casting refreshes the combat presentation.
     if (!aiControl && view)
         view->focusCaster(actor);
+
+    if (campOnly)
+        return false;
 
     // Integer division: cast_time / 3 gives initiative units consumed.
     const uint8 castingTime = spell.castTime / 3;
@@ -912,8 +997,8 @@ bool castSpell(Data::PlayerCharacter *actor,
         return true;
     }
 
-    // Timed spell: enter casting state.
-    if (!aiControl && view)
+    // Timed spell: enter casting state (the message is shown for AI too).
+    if (view)
         view->showBeginsCasting(actor);
 
     actor->combatState->spellId = spellId;

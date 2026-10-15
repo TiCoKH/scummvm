@@ -34,7 +34,9 @@
 #include "goldbox/poolrad/views/dialogs/combat_end_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_spell_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_submenu_dialog.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/combat/combat_turn.h"
+#include "goldbox/spells/spell_context.h"
 
 // Forward declarations — avoid pulling full headers into the Poolrad::Views
 // namespace where unqualified 'Data::' would resolve to Goldbox::Poolrad::Data.
@@ -67,7 +69,8 @@ namespace Views {
  * Responsible for: terrain/combatant rendering, damage animation,
  * viewport scroll input, and reacting to TickResult events from the session.
  */
-class CombatView : public View, public Combat::CastSpellViewDelegate {
+class CombatView : public View, public Combat::CastSpellViewDelegate,
+                   public ::Goldbox::Spells::ISpellAimer {
 public:
     CombatView();
     ~CombatView() override;
@@ -116,6 +119,20 @@ public:
     // CastSpellViewDelegate
     void focusCaster(Goldbox::Data::PlayerCharacter *caster) override;
     void showBeginsCasting(Goldbox::Data::PlayerCharacter *caster) override;
+    void showSpellMessage(Goldbox::Data::PlayerCharacter *caster,
+                          const Common::String &text) override;
+    bool confirmAbortSpell() override;
+    void showSpellCastEffect(Goldbox::Data::PlayerCharacter *caster,
+                             uint8 spellId, TilePos target) override;
+    void showSpellProjectile(Goldbox::Data::PlayerCharacter *caster,
+                             Goldbox::Data::PlayerCharacter *target) override;
+    ::Goldbox::Spells::ISpellAimer *getSpellAimer() override { return this; }
+
+    // Spells::ISpellAimer — blocks on the aim dialog until the player picks
+    // a target/tile or cancels.
+    bool aim(Goldbox::Data::PlayerCharacter *caster, uint8 spellId,
+             uint8 range, bool tileMode,
+             Goldbox::Data::PlayerCharacter *&target, TilePos &tile) override;
     void suppressRedraw() { _needsRedraw = false; }
     void forceFullRedraw() { _needsFullRedraw = true; }
 
@@ -244,6 +261,15 @@ private:
 
     bool _roundEndAnswered = false;
     bool _roundEndContinue = false;
+
+    // "Abort Spell?" prompt state (see confirmAbortSpell).
+    Dialogs::HorizontalYesNo *_abortYesNo = nullptr;
+    bool _awaitingAbortAnswer = false;
+    bool _abortAnswered = false;
+    bool _abortAnswer = false;
+
+    // Success flag of the last sub-dialog result (cancel vs. confirm).
+    bool _lastResultSuccess = true;
 
     void drawViewport();
     void drawCombatants();

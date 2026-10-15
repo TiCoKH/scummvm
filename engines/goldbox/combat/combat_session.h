@@ -27,6 +27,7 @@
 #include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/combat/combat_context.h"
+#include "goldbox/combat/combat_spell_targeter.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/combat_placement.h"
 #include "goldbox/combat/combat_viewport.h"
@@ -359,6 +360,10 @@ private:
     TargetList      _targetList;  // TARGET_LIST / TARGET_COUNT / ARRAY_TARGET_ORDER
 
     Common::ScopedPtr<CombatContext> _context;
+
+    // Combat spell target selection; registered with the spell service for
+    // the lifetime of this session.
+    CombatSpellTargeter _spellTargeter;
 
     Data::PlayerCharacter *_currentActor;
     // True when setup() found a side with no members (original exit_flag

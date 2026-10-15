@@ -395,6 +395,35 @@ bool PoolradCharacter::haveMemorizedSpell() const {
 	return spellBook.hasAnyMemorized();
 }
 
+bool PoolradCharacter::isSpellMemorized(uint8 spellId) const {
+	if (spellId == 0 || spellId >= 0x80)
+		return false;
+	for (int i = 0; i < POOLRAD_MEMORIZED_SIZE; ++i) {
+		if (spells.memorizedSpells[i] == spellId)
+			return true;
+	}
+	return false;
+}
+
+bool PoolradCharacter::removeMemorizedSpell(uint8 spellId) {
+	if (spellId == 0 || spellId >= 0x80)
+		return false;
+	for (int i = 0; i < POOLRAD_MEMORIZED_SIZE; ++i) {
+		if (spells.memorizedSpells[i] != spellId)
+			continue;
+		spells.memorizedSpells[i] = 0;
+
+		// Keep the SpellBook counts in step with the legacy slot array.
+		const Goldbox::Data::Spells::Spells spell =
+			static_cast<Goldbox::Data::Spells::Spells>(spellId);
+		const uint8 count = spellBook.getMemorized(spell);
+		if (count > 0)
+			spellBook.setMemorized(spell, count - 1);
+		return true;
+	}
+	return false;
+}
+
 bool PoolradCharacter::hasItems() const {
 	return getInventory().count() != 0;
 }

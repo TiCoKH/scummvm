@@ -60,6 +60,19 @@ public:
     void beginAttack(Goldbox::Data::PlayerCharacter *attacker,
                      Combat::CombatSession *session);
 
+    /**
+     * Aim for a spell instead of an attack (mirrors the COMBAT_AttackTarget
+     * call in COMBAT_spellTargetSelection): nothing is executed, the chosen
+     * combatant/tile is recorded. tileMode starts in free-cursor mode so an
+     * empty tile can be chosen for a burst.
+     */
+    void beginSpellAim(Goldbox::Data::PlayerCharacter *caster,
+                       Combat::CombatSession *session,
+                       uint8 range, bool tileMode);
+
+    Goldbox::Data::PlayerCharacter *getAimTarget() const { return _aimTarget; }
+    TilePos getAimTile() const { return _aimTile; }
+
     void activate() override;
     void deactivate() override;
     void draw() override;
@@ -84,6 +97,13 @@ private:
     CombatManualAimDialog     *_manualAim;
     HorizontalYesNo           *_allyConfirm;
     Goldbox::Data::PlayerCharacter *_pendingTarget;  // target awaiting ally-attack confirmation
+
+    // Spell aiming mode (see beginSpellAim).
+    bool  _spellMode;
+    bool  _tileMode;
+    uint8 _spellRange;
+    Goldbox::Data::PlayerCharacter *_aimTarget;
+    TilePos _aimTile;
 
     // --- Helpers ---
     void cycleTarget(int direction);  // +1 = next, -1 = previous

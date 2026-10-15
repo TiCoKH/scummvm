@@ -45,6 +45,9 @@ enum HandlerId {
     kHandlerSlow,                // ID55: remove raw haste (0x27) from casterLevel enemies
     kHandlerInvisibilityShared,
     kHandlerCureLightWounds,    // ID03: heal 1d8 HP
+    kHandlerBless,              // ID01: caster's side, skips targets in melee
+    kHandlerCurse,              // ID02: opposing side only
+    kHandlerCauseLightWounds,   // ID04: 1d8 damage, behavior 8
     kHandlerBurningHands,       // ID09: damage = caster level
     kHandlerCharmPerson,        // ID10: type/size check + charm effect
     kHandlerEnlarge,             // ID12: strength buff by caster level

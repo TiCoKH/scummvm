@@ -24,6 +24,12 @@
 #include "common/scummsys.h"
 
 namespace Goldbox {
+namespace Data {
+class PlayerCharacter;
+}
+}
+
+namespace Goldbox {
 namespace Spells {
 
 // Mirrors SPELL_ComputeDuration: returns the 8-bit duration for a spell.
@@ -31,6 +37,16 @@ namespace Spells {
 // SpellEntry table formula: fixedDuration + perLvlDuration * casterLevel.
 // inCombat is only relevant for spell ID 0x3F (63).
 uint8 computeSpellDuration(uint8 spellId, uint8 casterLevel, bool inCombat);
+
+// Mirrors SPELL_GetCastingLevel: cleric/mage level by spell class, 12 for
+// item-class spells, and 6 for non-item spells cast from a magic item.
+uint8 getSpellCastingLevel(const Goldbox::Data::PlayerCharacter *caster,
+        uint8 spellId, bool fromMagicItem);
+
+// Mirrors SPELL_ComputeRange: fixedRange + perLvlRange * level (item casts
+// use a fixed level of 6), with 0 promoted to 1 for area spells and 0xFF
+// (attack-roll marker) treated as 1.
+uint8 computeSpellRange(uint8 spellId, uint8 casterLevel, bool fromMagicItem);
 
 } // namespace Spells
 } // namespace Goldbox

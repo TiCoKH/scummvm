@@ -24,11 +24,18 @@
 
 #include "common/scummsys.h"
 #include "common/array.h"
+#include "common/str.h"
+#include "goldbox/core/coords.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/items/character_item.h"
 
 namespace Goldbox {
+
+namespace Spells {
+class ISpellAimer;
+}
+
 namespace Combat {
 
 struct CombatGlobals;
@@ -300,6 +307,41 @@ struct CastSpellViewDelegate {
 
     /** Display "Begins Casting" message for a timed spell. */
     virtual void showBeginsCasting(Data::PlayerCharacter *caster) = 0;
+
+    /**
+     * Show a short spell message ("Casts a Spell", "Spell Aborted",
+     * "Camp Only Spell"). caster may be nullptr for prompt-line messages.
+     */
+    virtual void showSpellMessage(Data::PlayerCharacter *caster,
+                                  const Common::String &text) {
+        (void)caster;
+        (void)text;
+    }
+
+    /** Interactive aiming hook for player casts; nullptr = automatic. */
+    virtual Spells::ISpellAimer *getSpellAimer() { return nullptr; }
+
+    /**
+     * Caster animation after targeting (effect tile, turn toward the target,
+     * sound, projectile path). Mirrors the presentation block of
+     * ACTION_UseSpell.
+     */
+    virtual void showSpellCastEffect(Data::PlayerCharacter *caster,
+                                     uint8 spellId, TilePos target) {
+        (void)caster;
+        (void)spellId;
+        (void)target;
+    }
+
+    /** Projectile from caster to one extra target of a multi-target spell. */
+    virtual void showSpellProjectile(Data::PlayerCharacter *caster,
+                                     Data::PlayerCharacter *target) {
+        (void)caster;
+        (void)target;
+    }
+
+    /** "Abort Spell?" prompt after failed targeting. True = abort. */
+    virtual bool confirmAbortSpell() { return true; }
 };
 
 /**

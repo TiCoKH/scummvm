@@ -43,6 +43,20 @@ void checkCloudEffect(Goldbox::Data::PlayerCharacter &ch,
                       Goldbox::Data::Effects::EffectHandlerBase *handler,
                       Goldbox::Data::Effects::EffectHostBridge *bridge);
 
+/**
+ * Public entry to UTIL_CheckUnaffected: runs the immunity guard set, posts
+ * "is Unaffected" when blocked (or when checkSave && saved), otherwise
+ * refreshes or adds the effect and posts message. Returns true when the
+ * effect was applied.
+ */
+bool checkUnaffectedEffect(Goldbox::Data::PlayerCharacter &ch,
+                           const Goldbox::Data::Effects::EffectHandlerBase *handler,
+                           Goldbox::Data::Effects::EffectHostBridge *bridge,
+                           Goldbox::Combat::CombatGlobals *combat,
+                           uint8 effectId, uint16 duration, uint8 power,
+                           bool immediate, bool checkSave, bool saved,
+                           const char *message);
+
 class EffectHandler : public Goldbox::Data::Effects::EffectHandlerBase {
 public:
     EffectHandler();
