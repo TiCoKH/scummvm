@@ -1,0 +1,753 @@
+SECTION 11.4.1 - Script Flag List
+---------------------------------
+
+The game scripts use 256 16-bit flags ($4A00 to $4AFF in the game scripts) to
+hold most non-character game state.  They are almost always treated as unsigned
+8-bit integers, even though they can hold 16-bit integers and are effectively
+bytes with 16 bits.
+
+$4A00 to $4A1F are reset to 0 every time a new script is loaded.
+$4A20 to $4AFF are not automatically reset; sometimes the game scripts do.
+
+In the save file (SAVGAM?.DAT; ? is the letter of the save), $4A00 corresponds
+to 0x201 in the save file.  So to convert the below addresses to save file
+addresses:
+  (1) subtract 0x4A00
+  (2) multiply by 2
+  (3) add 0x201
+
+$4A00 Shared flag:
+      Slums: 255 got message from entering map
+      Sokal Keep 1: 255 destroyed elf skeleton
+      Mendor's Library 2: 1 philosophy section entered
+      Kovel Mansion T3: 1 trap encountered
+      Yarash's Pyramid Level 1 13: 1 found book
+      Stojanow Gate 9: 1 encountered man with wagon
+      Valjevo Castle Inner Tower 7: 1 Genheeris's office entered
+$4A01 Shared flag:
+      Civilized Area 2: 1 party now allowed to board boat
+      Podal Plaza: number of base monsters in random encounter
+      Mendor's Library 3: 1 mathematics section entered
+      Kovel Mansion T4: 1 trap encountered
+      Kobold Caves 1: 1 dealt with pit
+      Buccaneer Base: 1 saw heir to Bivant
+      Valhingen Graveyard: count of new random skeletons for current visit
+      Stojanow Gate:
+        bit 1 location 1 entered
+        bit 2 location 2 entered
+$4A02 Shared flag:
+      Podal Plaza: random encounter base monster ID
+      Mendor's Library 4: 1 history section entered
+      Kovel Mansion T5: 1 trap encountered
+      Temple of Bane 7: 1 destroyed altar to Bane
+      Cadorna Textile House 5: 255 hobgoblins defeated
+      Kobold Caves 2: 1 found kobold's drawing
+      Valhingen Graveyard: count of new random zombies for current visit
+$4A03 Shared flag:
+      Sokal Keep: random encounter counter
+      Podal Plaza: random encounter number of monster leaders
+      Mendor's Library 5: 1 rhetoric section entered
+      Kovel Mansion T6: 1 trap encountered
+      Kobold Caves 3:
+        1 kobold escorts party
+        2 deadfall trap disarmed
+      Buccaneer Base 6: 255 purchased pass
+      Valhingen Graveyard: number of wights in next random encounter
+$4A04 Shared flag:
+      Slums 3 Ohlo's quest:
+        250 agreed to retrieve potion
+        255 returned potion
+      Podal Plaza: random encounter index
+      Mendor's Location 8:
+        1 entered
+        2 found jar under floorboards
+      Kovel Mansion T7: 1 trap encountered
+      Kobold Caves 4: 1 dealt with net trap
+      Buccaneer Base 10: 255 animals released
+$4A05 Shared flag:
+      Civilized Area 14: 1 met arena master during this visit
+      Sokal Keep 11: 1 chapel entered
+      Mendor's Library:
+        bit 1 location 6 entered
+        bit 2 location 7 entered
+      Cadorna Textile House 13: 255 destroyed body of hobgoblin
+      Kovel Mansion T8: 1 trap encountered
+      Kobold Caves 5: 1 dealt with spike trap
+      Buccaneer Base 10: timer for releasing animals (counts up to 60)
+      Valhingen Graveyard: count of new skeletons for current visit
+$4A06 Shared flag:
+      Sokal Keep 6: 1 blacksmith entered
+      Mendor's Library 9: 1 entered
+      Cadorna Textile House 3: 255 entered
+      Valhingen Graveyard: count of new zombies for current visit
+$4A07 Shared flag:
+      Civilized Area: 1 fought city hall guards
+      Sokal Keep 5: 1 fungus room entered
+      Mendor's Library 10: 1 entered
+      Kovel Mansion: backstab switch
+$4A08 Shared flag:
+      Slums 5: 250 got message
+      Sokal Keep 10: 1 entered
+      Mendor's Library 12: 1 study entered
+      Podal Plaza: random encounter monster movement
+      Cadorna Textile House 14: 255 entered
+      Valhingen Graveyard 15: 1 spectre can appear in current visit
+$4A09 Shared flag:
+      Sokal Keep 13: 1 entered
+      Mendor's Library 14: 1 entered
+      Cadorna Textile House 16: 255 entered
+      Valhingen Graveyard: count of new random wights for current visit
+$4A0A Shared flag:
+      Mendor's Library 15: 1 entered
+      Podal Plaza: random encounter monster morale
+      Valhingen Graveyard 18: 1 spectre can appear in current visit
+$4A0B Shared flag:
+      Slums 8: 255 killed gypsy
+      Sokal Keep 8: 255 huge scorpions defeated
+      Mendor's Library 16: 1 entered
+      Valhingen Graveyard 22: 1 spectre can appear in current visit
+$4A0C Shared flag:
+      Mendor's Library 18: 1 entered
+      Cadorna Textile House 4: 255 entered
+$4A0D Shared flag:
+      Sokal Keep 4: 1 stable entered
+      Valhingen Graveyard 18: 1 zombie-generating spectre defeated
+$4A0E Shared flag:
+      Sokal Keep 6: 255 poisonous frogs defeated
+      Wealthy Area/Temple of Bane: 1 encountering special 4-orc patrol
+      Kobold Caves 13: 1 found crude map (Journal Entry 28)
+      Zhentil Keep Outpost 3: 1 attacked guards outside room before dinner
+      Valhingen Graveyard 3: 1 skeletons defeated
+$4A0F Shared flag:
+      Slums 11: 255 entered
+      Kuto's Well Catacombs 13:
+        250 treasure available (Norris the Gray defeated)
+        255 treasure found
+      Cadorna Textile House 23: 1 diary page found
+      Temple of Bane:
+        1 orc guards defeated
+        2 leaving temple
+      Kobold Caves 15: 1 entered
+      Zhentil Keep Outpost: 1 dwarf fighter defeated
+$4A10 Shared flag:
+      Kuto's Well/Kuto's Well Catacombs: 1 in catacombs
+      Buccaneer Base 5: 1 purchased heir to Bivant
+      Zhentil Keep Outpost 3: 1 night after dinner
+      Valhingen Graveyard 19: 1 mummies defeated
+$4A11 Shared flag:
+      Civilized Area 20: 1 currently in tavern
+      Buccaneer Base 11: slave pen guards defeated
+      Kobold Caves 19: 1 entered
+$4A12 Shared flag:
+      Kuto's Well Catacombs 9: 255 arrows fired by kobolds
+      Kobold Caves 21: 1 entered
+      Valhingen Graveyard 14: 1 took noxious fumes damage
+$4A13 Shared flag:
+      Sokal Keep 12: 255 encountered Ferran Martinez
+      Kuto's Well Catacombs 10: 255 arrows fired by kobolds
+      Kovel Mansion trap:
+        0 trap set off
+        1 nothing done with trap
+        2 trap disarmed
+      Kobold Caves 22: 1 entered
+      Buccaneer Base E: 1 main gate guards defeated
+      Zhentil Keep Outpost 6: 1 dinner over
+      Valhingen Graveyard 15: 1 skeleton-generating spectre defeated
+$4A14 Shared flag:
+      Slums 16: 255 entered
+      Kuto's Well Catacombs 11: 255 arrows fired by kobolds
+      Zhentil Keep Outpost 3: count of guards defeated after first wave
+      Valhingen Graveyard 22: 1 wight-generating spectre defeated
+$4A15 Shared flag:
+      Kovel Mansion: 14 trap disarmed
+      Wilderness: 1 resting
+      Valhingen Graveyard 28: 1 vampire defeated 1st time
+$4A16 Shared flag:
+      Slums: adjustable monster morale
+      Kovel Mansion 15: 255 pair of thieves encountered
+$4A17 Shared flag:
+      Slums: 255 Old Rope Guild entered
+      Cadorna Textile House 24: 1 treasure opened
+      Zhentil Keep Outpost: alarm counter
+$4A18 Shared flag
+      Wealthy Area/Temple of Bane: number of regular monsters
+      Zhentil Keep Outpost: 128 escorted inside
+      Valhingen Graveyard 23: spectres defeated
+$4A19 Shared flag:
+      Slums 19: 255 merchant is gone
+      Sokal Keep: 1 gave password to undead patrol
+      Kuto's Well 20: 255 encountered kobolds
+      Podal Plaza: orc priest timer
+      Kovel Mansion 16: 1 thief ambush defeated
+      Zhentil Keep Outpost 6: 1 discussed Bishop Braccio
+$4A1A Shared flag:
+      Kuto's Well: 200 rest interrupted
+      Buccaneer Base: random combat counter
+      Zhentil Keep Outpost 6: 1 discussed Tyranthraxus
+$4A1B Shared flag:
+      Wealthy Area/Temple of Bane: number of monster leaders
+      Buccaneer Base: 1 killed captain
+      Zhentil Keep Outpost 6: 1 discussed Pool of Radiance
+      Valhingen Graveyard: used to calculate number of skeletons/zombies/wights
+$4A1C Shared flag:
+      Zhentil Keep Outpost 6: 1 discussed Ulrich Eberhard
+      Valhingen Graveyard 21: 1 took stinging damage
+$4A1D Shared flag:
+      Slums 19: 1 attacked merchant
+      Zhentil Keep Outpost 6 discussion counter
+$4A1E 1 Zhentil Keep Outpost E1: attacked by guards in commotion
+$4A1F 255 Kuto's Well Catacombs 6 found secret door
+$4A20 unused
+$4A21 255 Sokal Keep 17 treasure taken
+$4A22 1-10 Kuto's Well random encounter counter
+      255 Kuto's Well cleared (set to this if this value reaches 10)
+$4A23 bit 1 Kuto's Well kobolds guarding well defeated
+      bit 2 Kuto's Well 22 hag gave advice
+      bit 4 Kuto's Well 22 treasure taken
+      bit 8 Kuto's Well 21 lizardman and giant lizards defeated
+      bit 16 Kuto's Well 21 door forced open
+$4A24 255 Norris the Gray encountered
+$4A25 unknown (checked in Sokal Keep, but never set anywhere)
+$4A26 255 Sokal Keep 12 dealt with Ferran Martinez
+$4A27 255 Sokal Keep diary location known
+$4A28 255 Sokal Keep 15 treasure found
+$4A29 255 Sokal Keep 16 treasure taken
+$4A2A 1 Wealthy Area/Temple of Bane encountered and did not fight 4-orc patrol
+$4A2B unused
+$4A2C unused
+$4A2D bit 1 Temple of Bane 1 treasure taken
+      bit 2 Temple of Bane 2 treasure taken
+      bit 4 Temple of Bane 3 treasure taken
+$4A2E bit 1 Wealthy Area 1 treasure taken
+      bit 2 Wealthy Area 2 treasure taken
+      bit 4 Wealthy Area 3 treasure taken
+      bit 8 Wealthy Area 4 treasure taken
+      bit 16 Wealthy Area 6 ogre and orcs defeated
+      bit 32 Wealthy Area 7 entered
+$4A2F bit 1 Mendor's Library 2 found Fyerdeth's Discourses on Power
+      bit 2 Mendor's Library 2 found Urgund's Description of Darkness
+      bit 4 Mendor's Library 4 found Lex Geographica
+      bit 8 Mendor's Library 4 found The History of the North
+      bit 16 Mendor's Library 4 found The Grand Historian's Records of the Arts
+        of War
+      bit 32 Mendor's Library 8 found potions of extra healing
+      bit 64 Mendor's Library 13 found manual of bodily health
+      bit 128 Mendor's Library 2 found at least one nearly worthless book
+$4A30 Mendor's Library 2 nearly worthless book discovery counter (max 5)
+$4A31 bit 1 Mendor's Library 11 mad man encountered
+      bit 2 Mendor's Library 11 mad man joined
+      bit 4 Mendor's Library 14 eastern gold sheets found
+      bit 8 Mendor's Library 14 western gold sheets found
+      bit 16 Mendor's Library 14 southern gold sheets found
+      bit 32 Mendor's Library E3 spectre defeated
+      bit 64 Mendor's Library 5 basilisk defeated
+      bit 128 Mendor's Library 18 kobolds encountered
+$4A32 Mendor's Library 1 green slime counter
+$4A33 unused
+$4A34 1-10 Podal Plaza random encounter counter (not incremented if >=64)
+      bit 64: Podal Plaza entered while on mission
+$4A35 Podal Plaza mission tracker:
+        0 not yet begun
+        1 chose "Disguise Party as Monsters"
+        2 chose "Sneak, Remaining Unseen"
+        254 auction ended
+        255 chose "Stride Boldly Forward" or lost stealth; or mission done
+$4A36 Podal Plaza rumor counter (max 4)
+$4A37 Podal Plaza 2 tavern tracker:
+        1 killed buccaneer
+        2 fought tavern patrons
+        3 tavern abandoned
+$4A38 Podal Plaza 6 orc priest of Bane tracker:
+        1 talked to orc priest
+        2 fought orc priest
+$4A39 Valhingen Graveyard Skeleton Kill Score
+$4A3A Valhingen Graveyard Zombie Kill Score
+$4A3B Valhingen Graveyard Wight Kill Score
+$4A3C Valhingen Graveyard Spectre Kill Score
+$4A3D 1 Valhingen Graveyard 8 juju zombie defeated
+$4A3E 1 Valhingen Graveyard 5 giant skeleton defeated
+$4A3F 1 Valhingen Graveyard 12 wraith defeated
+$4A40 unused
+$4A41 250 Valhingen Graveyard 28 vampire defeated 1st time
+      255 Valhingen Graveyard 25 vampire defeated 2nd time
+$4A42 bit 1 if <= 3 Valhingen Graveyard 22 spectre defeated at least once
+      bit 2 if <= 3 Valhingen Graveyard 23 spectres defeated at least once
+      250 Valhingen Graveyard 26 mage joined
+      255 Valhingen Graveyard mage or vampire defeated
+$4A43 251 Valhingen Graveyard 25 coffin sanctified
+$4A44 bit 1 Wealthy Area 9 orcs defeated
+      bit 2 Wealthy Area 10 orcs defeated
+$4A45 Kovel Mansion count of thieves killed
+$4A46 bit 1 Kovel Mansion 13 casket A opened
+      bit 2 Kovel Mansion 13 casket B opened
+      bit 4 Kovel Mansion 13 casket C opened
+      bit 8 Kovel Mansion 13 casket D opened
+$4A47 bit 1 Kovel Mansion 9 treasure found
+      bit 4 Kovel Mansion 11 treasure found
+      bit 8 Kovel Mansion 12 treasure found
+      bit 32 Kovel Mansion 14 treasure found
+$4A48 bit 1 Kovel Mansion 17 entered
+      bit 2 Kovel Mansion 18 thieves defeated
+      bit 4 Kovel Mansion 19 entered
+      bit 8 Kovel Mansion 20 entered
+$4A49 255 Valhingen Graveyard 5 treasure taken
+$4A4A 255 Valhingen Graveyard 28 treasure taken
+$4A4B bit 128 Yarash's Pyramid Level 1 12 hole created in wall
+$4A4C bit 1 Yarash's Pyramid Level 1 south wandering stirges defeated
+      bit 2 Yarash's Pyramid Level 1 south wandering driders defeated
+      bit 4 Yarash's Pyramid Level 1 south wandering minotaurs defeated
+      bit 8 Yarash's Pyramid Level 1 south wandering elves defeated
+      bit 16 Yarash's Pyramid Level 1 south wandering kobolds defeated
+      bit 32 Yarash's Pyramid Level 1 south wandering human fighters defeated
+$4A4D Yarash's Pyramid bit flags for rocks thrown through teleporters
+$4A4E bit 1 Yarash's Pyramid Level 1 north wandering human fighters defeated
+      bit 2 Yarash's Pyramid Level 1 north wandering displacer beasts defeated
+      bit 4 Yarash's Pyramid Level 1 north wandering dwarf fighters defeated
+      bit 8 Yarash's Pyramid Level 1 north wandering lizardmen defeated
+      bit 16 Yarash's Pyramid Level 1 north wandering thieves defeated
+      bit 32 Yarash's Pyramid Level 1 north wandering driders defeated
+$4A4F Yarash's Pyramid Levels 2 and 3 bit flags for secret doors
+$4A50 Yarash's Pyramid Level 3 26 dial setting:
+        0 blue
+        1 copper
+        2 silver
+        3 gold
+$4A51 bit 1 Yarash's Pyramid Level 2 6 lizardmen encountered
+      bit 2 Yarash's Pyramid Level 2 8 entered
+      bit 4 Yarash's Pyramid Level 2 10 entered
+      bit 8 Yarash's Pyramid Level 2 17 mutant lizardmen defeated
+      bit 16 Yarash's Pyramid Level 2 1 entered
+      bit 32 Yarash's Pyramid Level 2 18 found notebook
+      bit 64 Yarash's Pyramid Level 3 22 passed horrible monster
+      bit 128 Yarash's Pyramid Level 3 23 machinery destroyed
+$4A52 bit 1 Yarash's Pyramid Level 3 24 friendly resolution with lizardmen
+      bit 2 Yarash's Pyramid Level 3 24 hostile resolution with lizardmen
+      bit 4 Yarash's Pyramid Level 3 25 Yarash defeated
+      bit 8 Yarash's Pyramid Level 3 19 treasure found
+      bit 16 Yarash's Pyramid Level 3 20 treasure found
+      bit 32 Yarash's Pyramid Level 3 21 treasure found
+      bit 64 Yarash's Pyramid Level 3 27 entered
+      bit 128 Yarash's Pyramid Level 3 27 searched
+$4A53 to $4A58 unused
+$4A59 unknown (set in Zhentil Keep Outpost, but never checked anywhere)
+$4A5A 1 Zhentil Keep Outpost 5 defeated
+$4A5B unused
+$4A5C unused
+$4A5D Lizardman Keep lizardman kill counter (max 50)
+$4A5E bit 1 Lizardman Keep Catacombs P1 treasure found
+      bit 2 Lizardman Keep Catacombs P2 treasure found
+      bit 4 Lizardman Keep Catacombs P3 treasure found
+      bit 8 Lizardman Keep Catacombs P4 treasure found
+      bit 16 Lizardman Keep Catacombs P5 treasure found
+      bit 32 Lizardman Keep Catacombs P6 treasure found
+      bit 64 Lizardman Keep Catacombs P7 treasure found
+      bit 128 Lizardman Keep Catacombs P8 treasure found
+$4A5F Lizardman Keep giant lizard kill counter (doesn't work right)
+$4A60 bit 1 Lizardman Keep 16 treasure found
+      bit 2 Lizardman Keep 1 lizardmen and giant lizard defeated
+      bit 4 Lizardman Keep 10 lizardmen and giant lizards defeated
+      bit 8 Lizardman Keep 3 giant lizards defeated
+$4A61 bit 1 Lizardman Keep P first time visiting any pool
+      bit 2 Lizardman Keep 1 storeroom entered
+      bit 4 Lizardman Keep 10 central keep entered
+      bit 8 Lizardman Keep 3 servants' quarters entered
+$4A62 Valjevo Castle hour that alarm started to ring
+$4A63 Valjevo Castle minute that alarm started to ring
+$4A64 Valjevo Castle hour that alarm will stop ringing (0 if none, 24 for 0)
+$4A65 bit 1 Valjevo Castle 1 party successfully disguised
+      bit 2 Valjevo Castle 20 mess hall entered
+      bit 4 Valjevo Castle 17 dealt with hill giants
+      bit 8 Valjevo Castle 18 treasure found
+      bit 16 Valjevo Castle 16 fire giants defeated
+      bit 32 Valjevo Castle 14 long sword +2 flame tongue taken
+      bit 64 Valjevo Castle Hedge Maze 5 false Tyranthraxus gone
+      bit 128 Valjevo Castle 7 hill giants defeated
+$4A66 bit 2 Valjevo Castle 13 Cadorna following party
+      bit 4 Valjevo Castle Hedge Maze 1 Al-Hyam Dazid gone
+      bit 8 Valjevo Castle 9 fighter defeated
+      bit 16 Valjevo Castle 21 fire giants defeated
+      bit 32 Valjevo Castle 22 read paper with passwords
+      bit 64 Valjevo Castle Hedge Maze 6 trolls defeated
+      bit 128 Valjevo Castle 24 gnoll killed
+$4A67 bit 1 Valjevo Castle 1 talked to gnoll
+      bit 2 Valjevo Castle 26 officers defeated
+      bit 4 Valjevo Castle 26 entered at night
+      bit 8 Valjevo Castle 26 read Cadorna report
+      bit 16 Valjevo Castle 26 read flaming aura report
+      bit 32 Valjevo Castle 26 read barbarian report
+      bit 64 Valjevo Castle 21 got passwords from fire giants
+$4A68 Valjevo Castle 25 report reading counter
+$4A69 bit 1 Valjevo Castle 1 washerwomen killed
+      bit 2 Valjevo Castle 1 got disguise from washerwomen
+      bit 4 Valjevo Castle 2 treasure taken
+      bit 8 Valjevo Castle 2 smith and fire giants defeated
+      bit 16 Valjevo Castle 3 coal storeroom entered
+      bit 32 Valjevo Castle Hedge Maze 3 hill giants defeated
+      bit 64 Valjevo Castle 4 smokehouse entered
+      bit 128 Valjevo Castle 10 clerics of Bane defeated
+$4A6A bit 1 Valjevo Castle 11 altar of Bane took silver
+      bit 2 Valjevo Castle 11 altar of Bane took swords
+      bit 4 Valjevo Castle 10 temple of Bane discovered as impostor
+      bit 8 Valjevo Castle 10 temple of Bane conversation flag
+      bit 16 Valjevo Castle 27 deserted building entered
+      bit 32 Valjevo Castle 12 building with ceiling cave-in entered
+      bit 64 Valjevo Castle E6 (Northwest) guards suspicious
+      bit 128 Valjevo Castle E6 (Southeast) guards suspicious
+$4A6B bit 1 Valjevo Castle 5a hill giants defeated
+      bit 2 Valjevo Castle 5b hill giants defeated
+      bit 4 Valjevo Castle 5c hill giants defeated
+      bit 8 completed commission #13 (Zhentil Keep Outpost)
+      bit 16 Valjevo Castle 13 Cadorna released
+      bit 32 Valjevo Castle 13 Cadorna killed
+      bit 64 Valjevo Castle 15 defeated
+      bit 128 Valjevo Castle Hedge Maze 2 fire giants defeated
+$4A6C bit 1 Valjevo Castle 6a gold found
+      bit 2 Valjevo Castle 6b gold found
+      bit 4 Valjevo Castle 6c gold found
+      bit 8 Valjevo Castle Inner Tower secret door flag
+      bit 16 Valjevo Castle Inner Tower 5 medusa defeated
+      bit 32 Valjevo Castle Inner Tower 6 messenger defeated
+      bit 64 Valjevo Castle Inner Tower 6 messenger called away
+$4A6D bit 1 Valjevo Castle Inner Tower 7 Genheeris joined
+      bit 2 Valjevo Castle Inner Tower 7 Genheeris killed
+      bit 4 Valjevo Castle Inner Tower 8 level 8 fighters defeated
+      bit 8 Valjevo Castle Inner Tower 8 entered
+      bit 16 Valjevo Castle Inner Tower 8 Tyranthraxus defeated
+$4A6E to $4A71 unused
+$4A72 unused (mistakenly set in Valjevo Castle Inner Tower; never checked)
+$4A73 128 Cadorna Textile House 17 Skullcrusher freed
+      255 Cadorna Textile House 17 Skullcrusher no longer here
+$4A74 1 Cadorna Textile House 1 circumvented or defeated
+      2 Cadorna Textile House 18 Grishnak defeated
+$4A75 255 Cadorna Textile House 21 ogre leading hobgoblins defeated
+$4A76 unused
+$4A77 bit 1 Stojanow Gate 12 entered facing south
+      bit 2 Stojanow Gate 13 entered facing south
+      bit 4 Stojanow Gate 1 western guard tower defeated
+      bit 8 Stojanow Gate 2 eastern guard tower defeated
+      bit 16 Stojanow Gate bugbears defeated
+      bit 32 Stojanow Gate 4 entered
+      bit 64 Stojanow Gate 9 acquired wagon
+$4A78 Stojanow Gate bugbear attitude:
+        0 not suspicious
+        1 less suspicious
+        2 more suspicious
+        3 hostile
+$4A79 to $4A7B unused
+$4A7C bit 1 Nomad Camp accepted offer of hospitality, quest is ongoing
+      bit 2 Nomad Camp fighting nomads
+      bit 4 Nomad Camp defeated Hassad or the kobolds
+      bit 8 Nomad Camp received Hassad's treasure
+$4A7D Nomad Camp feast tracker:
+        1 awaiting feast
+        2 feast ongoing
+        3 feast over
+$4A7E Nomad Camp kobold encounter counter (max 3)
+$4A7F Nomad Camp nomad encounter counter (max 3)
+$4A80 Slums random encounter and gypsy counter (apparently manipulated outside
+      of scripts)
+$4A81 Slums Ohlo quest tracker:
+        250 merchant gave potion
+        255 took potion back to Ohlo
+$4A82 unused
+$4A83 255 Slums 16 treasure found
+$4A84 unused
+$4A85 255 Slums 6 defeated
+$4A86 unused
+$4A87 bit 1 Diogenes asks you to retrieve the efreeti bottle
+      bit 2 Diogenes sees the efreeti bottle
+      bit 128 Diogenes upset because you tried to attack him
+$4A88 255 Valhingen Graveyard 8 treasure taken
+$4A89 255 Valhingen Graveyard 12 treasure taken
+$4A8A unused
+$4A8B 128 Buccaneer Base heir to Bivant abandoned
+      255 Buccaneer Base base captured
+$4A8C 255 Received heir to Bivant commission
+$4A8D 1 Kobold Caves 9 wave 1 defeated
+      2 Kobold Caves 9 reached wave 2
+      3 Kobold Caves 9 reached wave 3
+      4 Kobold Caves 9 wave 3 defeated
+      5 Kobold Caves 20 kobold king guards defeated
+      6 Kobold Caves 11 found dead kobold king
+      7 Kobold Caves 27 treasure found
+$4A8E 1 Kobold Caves 17 wyvern defeated
+      2 Kobold Caves 26 treasure found
+$4A8F to $4A95 Valhingen Graveyard undead kill reward trackers
+$4A96 255 Valhingen Graveyard mission accepted
+$4A97 254 Asked to talk to Cadorna about Cadorna Textile House mission
+      255 Cadorna Textile House mission received
+$4A98 254 Asked to talk to Cadorna about Zhentil Keep diplomatic mission
+      255 Zhentil Keep diplomatic mission received
+$4A99 254 Asked to talk to Werner von Urslingen
+      255 Stojanow Gate mission received
+$4A9A 254 Asked to talk to entire council
+      255 Valjevo Castle mission received
+$4A9B 254 Asked to talk to Bishop Braccio
+$4A9C 128 Temple of Bane mission received
+      255 Dirten joined the party
+$4A9D unused
+$4A9E 255 Wilderness entered lair
+$4A9F 1 Wilderness found Nomad Camp
+$4AA0 bit 1 Wilderness found Lizardman Keep
+      bit 2 Wilderness found Kobold Caves
+$4AA1 1 Wilderness saw Diogenes from afar
+      255 Wilderness saw Diogenes fly into cave
+$4AA2 255 Wilderness left Yarash's Pyramid after clearing it
+$4AA3 to $4AA5 unused
+$4AA6 254 Norris the Gray defeated
+      255 Norris the Gray defeat rewarded
+$4AA7 254 Sokal Keep 12 dealt with Ferran Martinez
+      255 Sokal Keep mission rewarded for success
+$4AA8 254 Wealthy Area cleared
+      255 Wealthy Area clear rewarded
+$4AA9 Buccaneer Base heir to Bivant mission tracker:
+        1 heir to Bivant purchased
+        128 mission failed
+        254 heir to Bivant stolen
+        255 mission ended
+$4AAA 254 found Fyerdeth's Discourses on Power
+      255 rewarded for finding Fyerdeth's Discourses on Power
+$4AAB 254 found Urgund's Description of Darkness
+      255 rewarded for finding Urgund's Description of Darkness
+$4AAC 254 found Lex Geographica
+      255 rewarded for finding Lex Geographica
+$4AAD 254 found The History of the North
+      255 rewarded for finding The History of the North
+$4AAE 254 found The Grand Historian's Records of the Arts of War
+      255 rewarded for finding The Grand Historian's Records of the Arts of War
+$4AAF 254 found one of the other nearly worthless books in Mendor's Library
+      255 rewarded for finding one of the other nearly worthless books
+$4AB0 1 Podal Plaza mission received
+      254 Podal Plaza mission successful
+      255 Podal Plaza mission rewarded for success
+$4AB1 254 Valhingen Graveyard mission successful
+      255 Valhingen Graveyard mission rewarded for success
+$4AB2 254 Kovel Mansion mission successful (set if $4A45 >= 21)
+      255 Kovel Mansion mission rewarded for success
+$4AB3 254 Yarash mission successful
+      255 Yarash mission rewarded for success
+$4AB4 1 Zhentil Keep Outpost defeated commandant
+      253 Left Zhentil Keep Outpost after defeating commandant
+      254 Returned from Zhentil Keep Outpost mission
+      255 Set to this after council tells you about 254
+$4AB5 254 Lizardman mission successful
+      255 Lizardman mission rewarded for success
+$4AB6 254 Kobold mission successful
+      255 Kobold mission rewarded for success
+$4AB7 254 Nomad mission successful
+      255 Nomad mission rewarded for success
+$4AB8 254 Cadorna treasure returned
+      255 Cadorna treasure mission ended
+$4AB9 254 Stojanow Gate mission successful
+      255 Stojanow Gate mission rewarded for success
+$4ABA 254 Tyranthraxus defeated
+      255 Tyranthraxus defeat rewarded
+$4ABB 1-25 Counter for Slums random and set encounters
+      254 Slums mission successful (set to this if this value reaches 25)
+      255 Slums mission rewarded for success
+$4ABC unused
+$4ABD 254 Temple of Bane mission successful
+      255 Temple of Bane mission rewarded for success
+$4ABE 254 Zhentil Keep Outpost mission success, or Cadorna proved as traitor
+      255 Zhentil Keep Outpost mission rewarded for success
+$4ABF 254 Porphyrys Cadorna killed
+      255 Porphyrys Cadorna killed acknowledged
+$4AC0 1 angered Phlan
+$4AC1 Council reward quest tracker (maximum 10, only some quests count)
+$4AC2 255 Mendor's Library mission rewarded for success
+$4AC3 unused
+$4AC4 Civilized Area boat trip destination:
+        0 Sokal Keep
+        1 East Wilderness (35,29)
+        2 West Wilderness (20,29)
+        3 Bay (26,27)
+        4 none
+$4AC5 1 Civilized Area met Rolf
+$4AC6 unknown (set in Civilized Area, but never checked anywhere)
+$4AC7 2 Kobold Caves 6 killed kobold
+      255 Kobold Caves used large entrance to enter
+$4AC8 1 Cadorna treasure acquired (seal intact)
+      128 Cadorna treasure acquired (seal broken)
+      255 Cadorna treasure returned or Civilized Area 27 encountered
+$4AC9 unused
+$4ACA 255 Slums 1 orcs defeated
+$4ACB 255 Slums 2 goblin leader and goblin guards defeated
+$4ACC 255 Slums 5 treasure found
+$4ACD 255 Slums 9 orc leaders and orcs defeated
+$4ACE 250 Slums 10 hobgoblins defeated
+      255 Slums 10 treasure found
+$4ACF 255 Slums 13 orc leaders and orcs defeated
+$4AD0 255 Slums 14 ogre, gnolls, and hobgoblin leaders defeated
+$4AD1 unused
+$4AD2 1 Nomad Camp left nomads prematurely
+$4AD3 1 Kobold Caves 12 encountered efreeti
+$4AD4 1 Kobold Caves 14 Princess Fatima no longer present
+$4AD5 255 Valhingen Graveyard assisted by efreeti
+$4AD6 255 Slums 12 treasure found
+$4AD7 255 Sokal Keep 9 orcs and hobgoblins defeated
+$4AD8 255 Slums 15 goblin leaders and goblin guards defeated
+$4AD9 255 Slums 20 ogres and trolls defeated
+$4ADA unused
+$4ADB Kuto's Well well status
+$4ADC to $4ADF unused
+$4AE0 1 running "game won" script
+$4AE1 255 Cadorna Textile House 2 hobgoblins defeated
+$4AE2 255 Cadorna Textile House 6 entered
+$4AE3 255 Cadorna Textile House 8 hobgoblins defeated
+$4AE4 Cadorna Textile House random combat counter (maximum 10)
+$4AE5 1 Kobold Caves 18 found kobold
+$4AE6 254 Cadorna Textile House cleared
+      255 Cadorna Textile House clear rewarded
+$4AE7 254 Podal Plaza cleared
+      255 Podal Plaza clear rewarded
+$4AE8 unused
+$4AE9 unused
+$4AEA Kovel Mansion 10 cabinet A:
+        1 opened
+        2 failed to pick lock
+        3 left
+$4AEB Kovel Mansion 10 cabinet B: as $4AEA
+$4AEC Kovel Mansion 10 cabinet C: as $4AEA
+$4AED Kovel Mansion 12: as $4AEA
+$4AEE Kovel Mansion 13 casket A: as $4AEA
+$4AEF Kovel Mansion 13 casket B: as $4AEA
+$4AF0 Kovel Mansion 13 casket C: as $4AEA
+$4AF1 Kovel Mansion 13 casket D: as $4AEA
+$4AF2 1 Valhingen Graveyard 13 skeletons defeated
+      11 Valhingen Graveyard 5 giant skeleton defeated
+$4AF3 1 Valhingen Graveyard 16 zombies defeated
+      11 Valhingen Graveyard 8 juju zombie defeated
+$4AF4 1 Valhingen Graveyard 10 wights defeated
+      10 Valhingen Graveyard 12 wraith defeated
+$4AF5 1 Valhingen Graveyard 13 skeletons defeated
+$4AF6 1 Valhingen Graveyard 16 zombies defeated
+$4AF7 1 Valhingen Graveyard 20 wights defeated
+$4AF8 1 Valhingen Graveyard 24 treasure found
+$4AF9 to $4AFF unused
+
+SECTION 11.4.2 - Other Script Addresses
+---------------------------------------
+
+These addresses are also referenced in the ECL scripts.
+
+A "character" is a specific character that is either currently selected in the
+UI, or is chosen by the LOAD CHARACTER, WHO, or SPELL ECL commands.
+
+$2C90 (calling this redraws the first-person view; often used to reset it)
+$49C3 X-coordinate (outdoors)
+$49C4 Y-coordinate (outdoors)
+$49C5 Map ID
+$49C7 Minute of the turn (minutes ones digit)
+$49C8 Turn of the hour (minutes tens digit)
+$49C9 Hour of the day
+$49CA Day of the month
+$49CB Month of the year
+$49CC Elapsed years
+$49E6 0 indoors
+      1 outdoors
+$49F0 X-coordinate (previous)
+$49F1 Y-coordinate (previous)
+$49F2 Previous script ID
+$49FB 1 Automap will not work
+$49FC Game speed
+$49FD Color of sky (standard 16-color palette: 11 = sky blue, etc.)
+$49FE Color of ceiling (standard 16-color palette)
+$6B00 Character name
+$6B15 Character Intelligence
+$6B16 Character Wisdom
+$6B17 Character Dexterity
+$6B18 Character Constitution
+$6B19 Character Charisma
+$6B20 Character memorized spell table
+$6B72 Character race
+$6B73 Character class
+$6B76 Character maximum hit points
+$6B9A Character saving throw vs. paralyzation, poison or death
+$6B9B Character saving throw vs. petrification or polymorph
+$6B9C Character saving throw vs. rod, staff or wand
+$6B9D Character saving throw vs. breath weapon
+$6B9E Character saving throw vs. spell
+$6BA5 Character thief skill: Pick Pocket
+$6BA6 Character thief skill: Open Locks
+$6BA7 Character thief skill: Find/Remove Traps
+$6BA8 Character thief skill: Move Silently
+$6BA9 Character thief skill: Hide in Shadows
+$6BAA Character thief skill: Hear Noise
+$6BAB Character thief skill: Climb Walls
+$6BAC Character thief skill: Read Languages
+$6BB8 Morale and NPC status:
+        lower 7 bits: morale
+        bit 128: set if NPC
+$6BBB Character copper
+$6BBD Character silver
+$6BBF Character electrum
+$6BC1 Character gold
+$6BC3 Character platinum
+$6BC5 Character gems
+$6BC7 Character jewelry
+$6BC9 Character magic-user levels
+$6BCA Character cleric levels
+$6BCB Character thief levels
+$6BCC Character fighter levels
+$6BCD Character druid levels
+$6BCE Character monk levels
+$6BCF Character paladin levels
+$6BD0 Character ranger levels
+$6BD6 Character sex
+$6BD8 Character alignment
+$6C00 Character status:
+        0 Character does not exist or is unconscious
+        1 Character is okay
+        128+status Character has status effect
+$6C0C Character combat behavior:
+        0 Allied, Controlled
+        128 Allied, Uncontrolled
+        129 Enemy
+$6C19 Character current hit points
+$6C1B Character movement
+$6DA8 Bitmask for classes trainable in a training hall
+$6DB1 Currently selected character
+$6DC1 Monster distance
+$6DC6 Morale threshold (monsters start checking morale once this % of their
+      strength is gone; 100 means monsters always fight to the death)
+$6DC7 Last combat result:
+        0 Victory
+        129 Ran away
+$6DC8 Last combat number of monsters killed
+$6DC9 255 Party cannot change X or Y coordinates by moving forward
+$6DCA 1 Search mode on
+$6DCB Surprise for next combat:
+        0 Neither side surprised
+        1 Monsters surprise party
+        2 Party surprises monsters
+        3 Monsters and party surprise each other
+$6DCF Charisma bonus of party spokesperson (from Statistic: Charisma table)
+$6DD2 Time you may be able to rest uninterrupted (in minutes, divided by 5)
+      0 means you cannot be interrupted
+$6DD3 % chance rest is interrupted
+$6DD5 1 Party to leave current map
+$6DE1 Picture loading (255 means none)
+$6DE2 1 Party about to enter temple
+$6DE3 1 Next combat does not provide any items
+$6E12 Disk number
+$6E33 1 Party attacked allies during the last fight
+$6E3E Party size
+$6E6C 1 Party about to enter shop
+$6E6D Shop buying price multiplier (16 is standard)
+$6E70 signed 8-bit ad hoc combat bonus to monster THAC0 in next combat
+$6E71 signed 8-bit ad hoc combat bonus to party THAC0 and damage in next combat
+$6E72 signed 8-bit ad hoc combat modifier to party movement in next combat
+$6EF6 Unknown shop modifier (1 is standard)
+$8000 (calling this starts a character-vs-character duel)
+
+$8001 (calling this starts a character-vs-monster duel)
+$C04B X-coordinate (current)
+$C04C Y-coordinate (current)
+$C04D Party facing:
+        0 north
+        1 east
+        2 south
+        3 west
+$C04E Door/wall of current square
+$C04F Event number of current square (upper 1-3 bits are often flags)
+
