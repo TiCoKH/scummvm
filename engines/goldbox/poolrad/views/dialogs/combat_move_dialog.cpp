@@ -23,6 +23,7 @@
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/combat/combatant_table.h"
+#include "goldbox/data/adnd_character.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/events.h"
 #include "goldbox/gfx/surface.h"
@@ -41,7 +42,9 @@ CombatMoveDialog::CombatMoveDialog()
       _origMovePoints(0), _origDirection(0),
       _origPos(),
       _state(STATE_MOVE),
-      _fleeYesNo(nullptr) {
+      _fleeYesNo(nullptr),
+      _allyConfirm(nullptr),
+      _pendingTarget(nullptr) {
     setBounds(Window(0, 24, 39, 24));
 
     HorizontalYesNoConfig cfg;
@@ -51,10 +54,14 @@ CombatMoveDialog::CombatMoveDialog()
     cfg.selectColor     = 15;
     cfg.backgroundColor = 8;
     _fleeYesNo = new HorizontalYesNo("CombatMoveFleeYesNo", cfg);
+
+    cfg.promptTxt = "Attack Ally?";
+    _allyConfirm = new HorizontalYesNo("CombatMoveAllyConfirm", cfg);
 }
 
 CombatMoveDialog::~CombatMoveDialog() {
     delete _fleeYesNo;
+    delete _allyConfirm;
 }
 
 void CombatMoveDialog::beginMove(Goldbox::Data::PlayerCharacter *ch) {
@@ -65,6 +72,7 @@ void CombatMoveDialog::beginMove(Goldbox::Data::PlayerCharacter *ch) {
     // Save original state for cancel/restore (mirrors orig_move/orig_facing/orig_x/orig_y).
     _origMovePoints = ch->combatState->movePoints;
     _origDirection  = ch->combatState->direction;
+    _pendingTarget  = nullptr;
 
     const Combat::CombatantTable &table =
         Combat::g_combatSession->getTable();
@@ -79,6 +87,9 @@ void CombatMoveDialog::activate() {
 void CombatMoveDialog::deactivate() {
     if (_fleeYesNo->isActive())
         _fleeYesNo->deactivate();
+    if (_allyConfirm->isActive())
+        _allyConfirm->deactivate();
+    _pendingTarget = nullptr;
     Dialog::deactivate();
 }
 
@@ -87,6 +98,10 @@ void CombatMoveDialog::draw() {
         return;
     if (_state == STATE_FLEE && _fleeYesNo->isActive()) {
         _fleeYesNo->draw();
+        return;
+    }
+    if (_state == STATE_ATTACK_CONFIRM && _allyConfirm->isActive()) {
+        _allyConfirm->draw();
         return;
     }
     drawMovementMenu();
@@ -98,6 +113,8 @@ bool CombatMoveDialog::msgKeypress(const KeypressMessage &msg) {
 
     if (_state == STATE_FLEE)
         return _fleeYesNo->msgKeypress(msg);
+    if (_state == STATE_ATTACK_CONFIRM)
+        return _allyConfirm->msgKeypress(msg);
 
     if (!_character || !_character->combatState)
         return false;
@@ -131,25 +148,43 @@ bool CombatMoveDialog::msgKeypress(const KeypressMessage &msg) {
 }
 
 void CombatMoveDialog::handleMenuResult(const MenuResultMessage &result) {
-    // Only the flee yes/no sub-dialog posts here.
-    if (_state != STATE_FLEE)
-        return;
-
-    _fleeYesNo->deactivate();
-    _state = STATE_MOVE;
-
     if (!Combat::g_combatSession || !_character)
         return;
 
-    if (result._hasIntValue && result._intValue == 1) {
-        // YES — attempt to flee.
-        const bool escaped = Combat::g_combatSession->flee(_character);
-        // flee() calls setCharacterStatus(S_RUNNING) on success, which ends
-        // the turn. Either way the move action is complete.
-        finishAction(escaped);
+    if (_state == STATE_FLEE) {
+        _fleeYesNo->deactivate();
+        _state = STATE_MOVE;
+
+        if (result._hasIntValue && result._intValue == 1) {
+            // YES — attempt to flee.
+            const bool escaped = Combat::g_combatSession->flee(_character);
+            // Fleeing ends the turn whether or not the attempt succeeds.
+            finishAction(escaped);
+        } else {
+            redraw();
+        }
+        return;
     }
-    // NO — fall back to movement loop; redraw the movement menu.
-    redraw();
+
+    if (_state != STATE_ATTACK_CONFIRM)
+        return;
+
+    _allyConfirm->deactivate();
+    _state = STATE_MOVE;
+
+    Goldbox::Data::PlayerCharacter *target = _pendingTarget;
+    _pendingTarget = nullptr;
+    if (result._success && result._hasIntValue && result._intValue == 1 &&
+            target) {
+        Combat::g_combatSession->makePartyHostile();
+        if (Combat::g_combatSession->executeAttackOnTarget(
+                    _character, target, true, true))
+            finishAction(true);
+        else
+            redraw();
+    } else {
+        redraw();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -194,9 +229,7 @@ void CombatMoveDialog::handleDirectionInput(uint8 direction) {
     if (occupant != 0) {
         // Adjacent tile is occupied: enter action-select interaction.
         // The actor has already turned to face the target (above).
-        // TODO: wire DIALOG_ActionSelect when implemented.
-        // For now, end the move action so the turn can proceed.
-        finishAction(false);
+        handleActionSelect(occupant);
         return;
     }
 
@@ -222,9 +255,8 @@ void CombatMoveDialog::handleDirectionInput(uint8 direction) {
         if (_animateFn)
             _animateFn(step.fromPos, step.toPos, _character, _animateCtx);
 
-        // Negative effect acquired after movement ends the turn immediately
-        // (mirrors CHARACTER_HasNegativeEffect check after ApplyMoveStep).
-        if (_character->hasNegativeEffect() || !_character->enabled) {
+        if (step.actionComplete || _character->hasNegativeEffect() ||
+                !_character->enabled) {
             finishAction(true);
             return;
         }
@@ -232,7 +264,11 @@ void CombatMoveDialog::handleDirectionInput(uint8 direction) {
         break;
 
     case Combat::CombatSession::MoveStepResult::MS_DISABLED:
-        // Disengagement reaction disabled the actor before the step.
+        // Reactions or post-move effects may disable the actor after moving.
+        if (_animateFn &&
+                (step.fromPos.col != step.toPos.col ||
+                 step.fromPos.row != step.toPos.row))
+            _animateFn(step.fromPos, step.toPos, _character, _animateCtx);
         finishAction(true);
         break;
 
@@ -249,6 +285,43 @@ void CombatMoveDialog::handleDirectionInput(uint8 direction) {
         enterFleePrompt();
         break;
     }
+}
+
+void CombatMoveDialog::handleActionSelect(int occupantIndex) {
+    if (!Combat::g_combatSession || !_character)
+        return;
+
+    Goldbox::Data::PlayerCharacter *target =
+        Combat::g_combatSession->getTable().getCharacter(occupantIndex - 1);
+    if (!target)
+        return;
+
+    Goldbox::Data::ADnDCharacter *adnd =
+        dynamic_cast<Goldbox::Data::ADnDCharacter *>(_character);
+    if (adnd && adnd->hasRangedWeapon() &&
+            !adnd->isEquippedRangedWeapon()) {
+        PromptMessageConfig cfg;
+        cfg.message = "Equip ranged weapon first.";
+        cfg.textColor = 15;
+        cfg.backgroundColor = 8;
+        attachDialog(new PromptMessage("CombatMoveEquipRanged", cfg));
+        return;
+    }
+
+    Combat::CombatSession &session = *Combat::g_combatSession;
+    if (!session.confirmAttackNonHostile(_character, target)) {
+        _pendingTarget = target;
+        _state = STATE_ATTACK_CONFIRM;
+        _allyConfirm->setParent(this);
+        _allyConfirm->activate();
+        redraw();
+        return;
+    }
+
+    if (session.executeAttackOnTarget(_character, target, true))
+        finishAction(true);
+    else
+        redraw();
 }
 
 void CombatMoveDialog::handleCancel() {

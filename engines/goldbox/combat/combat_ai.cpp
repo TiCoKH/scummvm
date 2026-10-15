@@ -41,6 +41,7 @@
 #include "goldbox/data/spells/spell.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/vm_interface.h"
+#include "common/debug.h"
 #include "common/util.h"
 
 namespace Goldbox {
@@ -96,14 +97,12 @@ static uint8 rollDamage(const Data::PlayerCharacter *attacker) {
  * Returns true if the movement step is affordable (movementCost <= movePoints).
  * Sets *outMoveResult to a non-zero value for the morale-failure running
  * condition (destination is at the map edge).
- * Sets *outDirection to the candidate direction that was evaluated.
  *
  * @param actor          Character attempting the move
  * @param attempt        Which candidate (1-5)
  * @param desiredDir     Base direction toward target (or flee direction)
  * @param ctx            Live combat context (for ground info and tile props)
  * @param outMoveResult  Secondary output: non-zero signals running condition
- * @param outDirection   The candidate direction that was evaluated
  */
 static bool checkMoveStep(Data::PlayerCharacter *actor,
                            uint8 attempt,
@@ -123,26 +122,40 @@ static bool checkMoveStep(Data::PlayerCharacter *actor,
     ctx.getGroundInfo(actor, candidateDir, &groundInfo, &tileId);
 
     // No tile at destination: out of bounds.
-    if (tileId == 0)
+    if (tileId == 0) {
+        debug(0, "[AI] step rejected '%s': dir=%u out-of-bounds",
+            actor->name.c_str(), (unsigned)candidateDir);
+        *outMoveResult = 1;
         return false;
+    }
 
     // Destination occupied.
-    if (groundInfo != 0)
+    if (groundInfo != 0) {
+        debug(0, "[AI] step rejected '%s': dir=%u occupied=%d tile=%u",
+            actor->name.c_str(), (unsigned)candidateDir, groundInfo,
+            (unsigned)tileId);
         return false;
+    }
 
     const TilePropertyProvider *tileProps = ctx.params.tilePropertyProvider;
-    if (!tileProps)
+    if (!tileProps) {
+        debug(0, "[AI] step rejected '%s': no tile-property provider",
+            actor->name.c_str());
         return false;
+    }
 
     const TileProp *prop = tileProps->getTileProp(tileId - 1);
-    if (!prop || prop->passable <= 0)
+    if (!prop || prop->passable <= 0) {
+        debug(0, "[AI] step rejected '%s': dir=%u impassable tile=%u",
+            actor->name.c_str(), (unsigned)candidateDir, (unsigned)tileId);
         return false;
+    }
 
     // passable is a movement cost factor, not a boolean.
     // cardinal = 2, diagonal = 3; total cost = directionCost * moveCostFactor.
     const uint8 moveCostFactor = (uint8)prop->passable;
     const uint8 directionCost  = (candidateDir & 1) ? 3 : 2;
-    uint8 movementCost = directionCost * moveCostFactor;
+    uint16 movementCost = directionCost * moveCostFactor;
 
     // Cloud tile (0x1E): make the step unaffordable unless the character
     // already has one of the immunity effects (0x20, 0x1E, 0x6F, 0x7D).
@@ -154,8 +167,13 @@ static bool checkMoveStep(Data::PlayerCharacter *actor,
         }
     }
 
-    if (movementCost > actor->combatState->movePoints)
+    if (movementCost > actor->combatState->movePoints) {
+        debug(0, "[AI] step rejected '%s': dir=%u cost=%u remaining=%u",
+            actor->name.c_str(), (unsigned)candidateDir,
+            (unsigned)movementCost,
+            (unsigned)actor->combatState->movePoints);
         return false;
+    }
 
     // Morale-failure running: signal when destination is at the map edge.
     if (actor->combatState->moralFailure) {
@@ -248,6 +266,10 @@ static bool concludeAiTurn(Data::PlayerCharacter *actor) {
     const Data::ADnDCharacter *adnd = dynamic_cast<const Data::ADnDCharacter *>(actor);
     const bool hasRanged = adnd ? adnd->hasRangedWeapon() : false;
 
+    debug(0, "[AI] conclude '%s': initiative=%u move=%u negative=%d ranged=%d",
+        actor->name.c_str(), (unsigned)cs.initiative,
+        (unsigned)cs.movePoints, actor->hasNegativeEffect(), hasRanged);
+
     if (!actor->hasNegativeEffect() && !hasRanged && cs.initiative != 0) {
         cs.endTurn();
         cs.guarding = true;
@@ -266,7 +288,8 @@ void processAiMove(Data::PlayerCharacter *actor,
                    const Common::Array<Data::PlayerCharacter *> &roster,
                    char key,
                    CombatContext &ctx,
-                   AiMoveViewDelegate *view) {
+                   AiMoveViewDelegate *view,
+                   CombatViewDelegate *attackView) {
     if (!actor || !actor->combatState)
         return;
 
@@ -321,7 +344,9 @@ void processAiMove(Data::PlayerCharacter *actor,
 
     if (!actionFinished) {
         // Direction table lookup happens here (post-loop), mirroring original.
-        const uint8 selectedDirection = calcAiDirection(cs.aiState, attempt, desiredDirection);
+        const uint8 selectedDirection = attempt < 6
+            ? calcAiDirection(cs.aiState, attempt, desiredDirection)
+            : globals.aiDirection;
 
         // All attempts failed, or selected direction reverses stored AI direction.
         if (attempt == 6 ||
@@ -358,8 +383,13 @@ void processAiMove(Data::PlayerCharacter *actor,
         return;
     }
 
-    if (actionFinished)
+    if (actionFinished) {
+        debug(0, "[AI] move blocked '%s': desired=%u attempts=%u failures=%u move=%u",
+            actor->name.c_str(), (unsigned)desiredDirection,
+            (unsigned)attempt, (unsigned)globals.aiFailureCount,
+            (unsigned)cs.movePoints);
         return;
+    }
 
     // Apply the selected facing.
     if (view)
@@ -370,7 +400,7 @@ void processAiMove(Data::PlayerCharacter *actor,
     // Disengagement reactions (movement away from an engaged enemy).
     ctx.handleDisengagementReactions(
         actor,
-        static_cast<Direction>(cs.direction));
+        static_cast<Direction>(cs.direction), nullptr, attackView);
 
     if (!actor->enabled) {
         cs.endTurn();
@@ -378,8 +408,18 @@ void processAiMove(Data::PlayerCharacter *actor,
     }
 
     // Apply one movement step (includes cloud check and guard reactions).
-    if (g_combatSession)
+    const TilePos from = ctx.table.getCharacterPos(actor);
+    const uint8 moveBefore = cs.movePoints;
+    const bool moved = g_combatSession &&
         g_combatSession->applyMoveStep(actor, globals.aiDirection);
+    const TilePos to = ctx.table.getCharacterPos(actor);
+    debug(0, "[AI] move '%s': dir=%u (%u,%u)->(%u,%u) budget=%u->%u moved=%d enabled=%d",
+        actor->name.c_str(), (unsigned)globals.aiDirection,
+        (unsigned)from.col, (unsigned)from.row,
+        (unsigned)to.col, (unsigned)to.row,
+        (unsigned)moveBefore, (unsigned)cs.movePoints, moved, actor->enabled);
+    if (moved && view)
+        view->redrawAfterMove(actor);
 
     if (!actor->enabled)
         cs.endTurn();
@@ -391,7 +431,8 @@ void processAiMove(Data::PlayerCharacter *actor,
 
 void moveByAI(Data::PlayerCharacter *actor,
               CombatContext &ctx,
-              AiMoveViewDelegate *view) {
+              AiMoveViewDelegate *view,
+              CombatViewDelegate *attackView) {
     if (!actor || !actor->combatState)
         return;
 
@@ -476,10 +517,19 @@ void moveByAI(Data::PlayerCharacter *actor,
         const bool hasTarget =
             ctx.selectTargetForAction(actor, 0xFF, true, false);
 
+        const TilePos pos = ctx.table.getCharacterPos(actor);
+        const TilePos targetPos = cs.target
+            ? ctx.table.getCharacterPos(cs.target) : TilePos();
+        debug(0, "[AI] target '%s': pos=(%u,%u) target='%s' pos=(%u,%u) found=%d initiative=%u move=%u",
+            actor->name.c_str(), (unsigned)pos.col, (unsigned)pos.row,
+            cs.target ? cs.target->name.c_str() : "NONE",
+            (unsigned)targetPos.col, (unsigned)targetPos.row,
+            hasTarget, (unsigned)cs.initiative, (unsigned)cs.movePoints);
+
         if (!hasTarget || cs.initiative < 1)
             turnHandled = (concludeAiTurn(actor), true);
         else
-            turnHandled = processAiTurn(actor, ctx, view);
+            turnHandled = processAiTurn(actor, ctx, view, attackView);
     }
 }
 
@@ -489,7 +539,8 @@ void moveByAI(Data::PlayerCharacter *actor,
 
 bool processAiTurn(Data::PlayerCharacter *actor,
                    CombatContext &ctx,
-                   AiMoveViewDelegate *view) {
+                   AiMoveViewDelegate *view,
+                   CombatViewDelegate *attackView) {
     if (!actor || !actor->combatState)
         return true;
 
@@ -521,7 +572,8 @@ bool processAiTurn(Data::PlayerCharacter *actor,
             while (cs.movePoints != 0 &&
                    (int8)cs.initiative > 0 &&
                    (int8)cs.initiative < 20) {
-                processAiMove(actor, ctx.params.roster, 0, ctx, view);
+                processAiMove(actor, ctx.params.roster, 0, ctx, view,
+                    attackView);
             }
         }
 
@@ -590,7 +642,8 @@ bool processAiTurn(Data::PlayerCharacter *actor,
             if (targetCount == 0) {
                 // No candidates at all: try selecting a distant target and move.
                 if (ctx.selectTargetForAction(actor, 0xFF, false, false)) {
-                    processAiMove(actor, ctx.params.roster, 0, ctx, view);
+                    processAiMove(actor, ctx.params.roster, 0, ctx, view,
+                        attackView);
                 } else {
                     turnComplete = concludeAiTurn(actor);
                 }
@@ -627,6 +680,12 @@ bool processAiTurn(Data::PlayerCharacter *actor,
             }
         }
 
+        debug(0, "[AI] decision '%s': target='%s' range=%u reach=%u attack=%d initiative=%u move=%u",
+            actor->name.c_str(), target ? target->name.c_str() : "NONE",
+            target ? (unsigned)ctx.getTargetRange(actor, target) : 0xFF,
+            (unsigned)attackRange, canAttack, (unsigned)cs.initiative,
+            (unsigned)cs.movePoints);
+
         // --- Attack the selected target ---
         if (canAttack && target) {
             const Direction facing = ctx.getFacingToward(actor, target);
@@ -639,8 +698,7 @@ bool processAiTurn(Data::PlayerCharacter *actor,
 
             // Multi-attack attempt.
             const bool multiHandled = executeMultiAttack(
-                actor, target, ctx,
-                nullptr /* view delegate handled separately */);
+                actor, target, ctx, attackView);
 
             if (multiHandled) {
                 turnComplete = concludeAiTurn(actor);
@@ -660,8 +718,7 @@ bool processAiTurn(Data::PlayerCharacter *actor,
                 }
 
                 resolveAttack(actor, target, false, attackItem,
-                              &turnComplete,
-                              nullptr /* view delegate */);
+                              &turnComplete, attackView);
 
                 if (!turnComplete && !target->enabled)
                     turnComplete = true;
@@ -799,6 +856,7 @@ void autoEquipWeapons(Data::ADnDCharacter *character,
     CharacterItem *bestOffhand  = nullptr;
     uint8 bestRangedScore  = 1;
     uint8 bestOffhandScore = 0;
+    bool rangeUsable = false;
 
     for (CharacterItem &item : character->inventory.items()) {
         const ItemProperty &prop = item.prop();
@@ -835,13 +893,12 @@ void autoEquipWeapons(Data::ADnDCharacter *character,
         }
     }
 
-    // Determine whether the best ranged weapon is usable (range>=2 and
-    // MF_BOW|MF_THROWING both set, i.e. missileType & 0x14 == 0x14).
-    // Null out bestRanged if it fails so downstream logic treats it as absent.
+    // This flag determines whether proximity alone favors switching back to
+    // melee. Preserve the ranged candidate: the original can still select it
+    // when ammunition is available and no adjacent target is present.
     if (bestRanged) {
         const ItemProperty &rp = bestRanged->prop();
-        if (rp.range < 2 || (rp.missileType & 0x14) != 0x14)
-            bestRanged = nullptr;
+        rangeUsable = rp.range >= 2 && (rp.missileType & 0x14) == 0x14;
     }
 
     // Determine associated ammunition.
@@ -864,28 +921,30 @@ void autoEquipWeapons(Data::ADnDCharacter *character,
     // Special original-game exception: missileType 0x0A is valid without ammo.
     const bool hasRangedEquipment = (rangedAmmoItem != nullptr) || (missileType == 0x0A);
 
-    // Choose ranged vs ordinary weapon.
-    // Prefer ranged when:
-    //   - a ranged weapon exists with ammo
-    //   - AND no adjacent targets exist (melee not possible)
-    //   - OR ranged score is more than double the ordinary score
-    // Fall back to ordinary when adjacent targets exist and melee is viable.
-    CharacterItem *selectedWeapon = bestRanged;
+    // Mirrors AI_AutoEquipWeapons: ranged weapons must score above half the
+    // ordinary weapon and be supplied with ammunition. If rangeUsable is
+    // false, prefer melee only when a target is adjacent.
+    bool chooseOrdinary = bestRanged == nullptr ||
+        bestRangedScore <= (ordinaryScore >> 1) || !hasRangedEquipment;
 
-    bool chooseOrdinary = (bestRanged == nullptr) || !hasRangedEquipment;
-
-    if (!chooseOrdinary) {
-        // Check if any target is adjacent (range 1) — if so, prefer melee
-        // only when a melee weapon actually scores better than ranged.
+    if (!chooseOrdinary && !rangeUsable) {
         ctx.buildTargetList(character, 1);
         const bool hasAdjacentTarget = !ctx.targetList.targetOrder.empty();
-        if (hasAdjacentTarget && bestRangedScore <= ordinaryScore)
+        if (hasAdjacentTarget)
             chooseOrdinary = true;
-        // If no adjacent targets at all, keep ranged regardless of score.
     }
 
-    if (chooseOrdinary)
-        selectedWeapon = bestOrdinary;
+    CharacterItem *selectedWeapon =
+        chooseOrdinary ? bestOrdinary : bestRanged;
+    debug(0, "[AI] equip '%s': current=%d ranged=%d range=%u missile=0x%02x score=%u ammo=%d rangeUsable=%d melee=%d selected=%d",
+        character->name.c_str(),
+        curWeapon ? (int)curWeapon->typeIndex : -1,
+        bestRanged ? (int)bestRanged->typeIndex : -1,
+        bestRanged ? (unsigned)bestRanged->prop().range : 0,
+        bestRanged ? (unsigned)bestRanged->prop().missileType : 0,
+        (unsigned)bestRangedScore, hasRangedEquipment, rangeUsable,
+        bestOrdinary ? (int)bestOrdinary->typeIndex : -1,
+        selectedWeapon ? (int)selectedWeapon->typeIndex : -1);
 
     // Weapon switching restrictions.
     bool canChangeWeapon = true;
@@ -950,6 +1009,13 @@ void autoEquipWeapons(Data::ADnDCharacter *character,
 
     if (equipmentChanged && drawCombatInfoCallback)
         drawCombatInfoCallback(character);
+
+    const CharacterItem *equipped =
+        character->getEquippedItem(Slot::S_MAIN_HAND);
+    debug(0, "[AI] equip result '%s': main=%d range=%u missile=0x%02x",
+        character->name.c_str(), equipped ? (int)equipped->typeIndex : -1,
+        equipped ? (unsigned)equipped->prop().range : 0,
+        equipped ? (unsigned)equipped->prop().missileType : 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1231,8 +1297,15 @@ bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx) {
             dynamic_cast<const Data::ADnDCharacter *>(actor);
         if (adnd) {
             for (uint8 i = 0; i < kMemSpellCount; ++i) {
-                if (adnd->spells.memorizedSpells[i] != 0)
-                    spellList[spellCount++] = adnd->spells.memorizedSpells[i];
+                const uint8 spellId = adnd->spells.memorizedSpells[i];
+                if (spellId == 0)
+                    continue;
+                if (spellId >= Data::Rules::getSpellEntries().size()) {
+                    debug(0, "[AI] spell scan '%s': ignore invalid slot=%u id=%u",
+                        actor->name.c_str(), (unsigned)i, (unsigned)spellId);
+                    continue;
+                }
+                spellList[spellCount++] = spellId;
             }
         }
     }
@@ -1244,6 +1317,11 @@ bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx) {
     // Enemy-side actors always act independently of that toggle.
     const bool aiAllowed = (actor->combatSide == Data::CS_ENEMY) || ctx.globals.magicEnabled;
     const bool sideActive = ctx.globals.sideCount[actor->combatSide] != 0;
+
+    debug(0, "[AI] spell scan '%s': canCast=%d memorized=%u aiAllowed=%d sideActive=%d magicEnabled=%d",
+        actor->name.c_str(), (int)actor->combatState->canCast,
+        (unsigned)spellCount, (int)aiAllowed, (int)sideActive,
+        (int)ctx.globals.magicEnabled);
 
     if (spellCount != 0 && aiAllowed && sideActive) {
         const uint8 searchRounds = (uint8)VmInterface::rollDice(1, 7);
@@ -1260,16 +1338,29 @@ bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx) {
                 const uint8 roll = (uint8)VmInterface::rollDice(1, (int)spellCount);
                 const uint8 spellId = spellList[roll - 1];
 
-                if (isSpellEligibleForAI(actor, spellId, priorityThreshold, ctx))
+                const bool eligible =
+                    isSpellEligibleForAI(actor, spellId, priorityThreshold, ctx);
+                debug(0, "[AI] spell candidate '%s': id=%u threshold=%u eligible=%d",
+                    actor->name.c_str(), (unsigned)spellId,
+                    (unsigned)priorityThreshold, (int)eligible);
+                if (eligible)
                     selectedSpell = spellId;
             }
         }
     }
 
-    if (selectedSpell == 0)
+    if (selectedSpell == 0) {
+        debug(0, "[AI] spell scan '%s': no eligible spell selected",
+            actor->name.c_str());
         return false;
+    }
 
-    return castSpell(actor, selectedSpell, true, nullptr);
+    const bool cast = castSpell(actor, selectedSpell, true, nullptr);
+    debug(0, "[AI] spell scan '%s': selected=%u cast=%d initiative=%u pending=%u",
+        actor->name.c_str(), (unsigned)selectedSpell, (int)cast,
+        (unsigned)actor->combatState->initiative,
+        (unsigned)actor->combatState->spellId);
+    return cast;
 }
 
 // ---------------------------------------------------------------------------

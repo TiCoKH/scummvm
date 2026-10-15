@@ -38,6 +38,7 @@ namespace Combat {
 
 struct CombatContext;
 struct CombatGlobals;
+struct CombatViewDelegate;
 
 /**
  * Result of an AI turn execution.
@@ -81,6 +82,9 @@ struct AiMoveViewDelegate {
     virtual void updateCharacterFacingAndRedraw(Data::PlayerCharacter *ch,
                                                 uint8 direction) = 0;
 
+    /** Redraw after the character's position has changed. */
+    virtual void redrawAfterMove(Data::PlayerCharacter *ch) = 0;
+
     /** Draw combat info panel for character. */
     virtual void drawCombatInfo(Data::PlayerCharacter *ch) = 0;
 
@@ -110,12 +114,13 @@ struct AiMoveViewDelegate {
  *  11. handleAiControlInput  — second control-reclaim opportunity
  *  12. movement/attack loop  — processAiTurn until turn complete
  *
- * Presentation callbacks are routed through AiMoveViewDelegate.
- * Pass nullptr to skip all presentation.
+ * Movement and attack presentation use their respective view delegates.
+ * Pass nullptr to skip presentation.
  */
 void moveByAI(Data::PlayerCharacter *actor,
               CombatContext &ctx,
-              AiMoveViewDelegate *view);
+              AiMoveViewDelegate *view,
+              CombatViewDelegate *attackView = nullptr);
 
 /**
  * Mirrors COMBAT_ProcessAITurn.
@@ -127,12 +132,13 @@ void moveByAI(Data::PlayerCharacter *actor,
  * Returns true when AI processing has ended (control released or turn
  * complete); false if the caller should continue driving the AI.
  *
- * Presentation callbacks are routed through AiMoveViewDelegate.
+ * Movement and attack presentation use their respective view delegates.
  * Pass nullptr to skip all presentation (e.g. unit tests).
  */
 bool processAiTurn(Data::PlayerCharacter *actor,
                    CombatContext &ctx,
-                   AiMoveViewDelegate *view);
+                   AiMoveViewDelegate *view,
+                   CombatViewDelegate *attackView = nullptr);
 
 /**
  * Execute one AI-controlled combatant's turn.
@@ -195,7 +201,8 @@ void processAiMove(Data::PlayerCharacter *actor,
                    const Common::Array<Data::PlayerCharacter *> &roster,
                    char key,
                    CombatContext &ctx,
-                   AiMoveViewDelegate *view);
+                   AiMoveViewDelegate *view,
+                   CombatViewDelegate *attackView = nullptr);
 
 /**
  * Mirrors AI_FindNearbyWoundedAlly.

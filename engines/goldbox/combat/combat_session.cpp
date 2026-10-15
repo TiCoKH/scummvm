@@ -176,6 +176,40 @@ CombatSession::TurnResult CombatSession::executeTurn() {
 
     result.actor = _currentActor;
 
+    // The AI focus frame is a presentation pause between turn setup and
+    // execution. Do not apply turn-start effects or reset transient state a
+    // second time when the AI phase resumes.
+    if (_phase == PHASE_AI_TURN) {
+        debug(0, "[COMBAT] -> moveByAI for '%s'", _currentActor->name.c_str());
+        CombatContext ctx = makeContext();
+        moveByAI(_currentActor, ctx, _aiDelegate, _attackDelegate);
+        debug(0, "[COMBAT] moveByAI done for '%s'", _currentActor->name.c_str());
+
+        _globals.attacker = _previousAttacker;
+        _previousAttacker = nullptr;
+
+        _currentActor = makeContext().selectNextActor();
+        debug(0, "[COMBAT] next actor after AI: %s",
+            _currentActor ? _currentActor->name.c_str() : "NULL");
+        _phase = PHASE_PLAYER_TURN;
+
+        if (_currentActor == nullptr) {
+            processRoundEnd();
+            _phase = PHASE_ROUND_END;
+            result.event = TurnResult::EV_ROUND_END;
+            debug(0, "[COMBAT] -> EV_ROUND_END (no more actors)");
+        } else {
+            result.event = TurnResult::EV_ACTOR_FOCUSED;
+            result.actor = _currentActor;
+            const int idx = _table.findIndex(_currentActor);
+            result.actorSize = (idx >= 0) ? _table.getSize(idx) : 1;
+            debug(0, "[COMBAT] -> EV_ACTOR_FOCUSED (post-AI) for '%s' side=%d ai=%d",
+                _currentActor->name.c_str(),
+                (int)_currentActor->combatSide, (int)_currentActor->ai_control);
+        }
+        return result;
+    }
+
     // Mirrors COMBAT_ExecuteTurn pre-gate block.
     // Returns false if an effect cancelled the turn.
     if (!applyTurnStartEffects(_currentActor)) {
@@ -246,42 +280,6 @@ CombatSession::TurnResult CombatSession::executeTurn() {
             _currentActor->combatState ? (int)_currentActor->combatState->initiative : -1);
         _phase = PHASE_AI_TURN;
         return result;
-    }
-
-    // Second call: run the AI turn.
-    debug(0, "[COMBAT] -> moveByAI for '%s'", _currentActor->name.c_str());
-    {
-        CombatContext ctx = makeContext();
-        moveByAI(_currentActor, ctx, _aiDelegate);
-    }
-    debug(0, "[COMBAT] moveByAI done for '%s'", _currentActor->name.c_str());
-
-    // Restore selected-character context (mirrors PTR_SELECTED_CHAR = previousSelected).
-    _globals.attacker = _previousAttacker;
-
-    // --- Advance to next actor ---
-    _currentActor = makeContext().selectNextActor();
-    debug(0, "[COMBAT] next actor after AI: %s",
-        _currentActor ? _currentActor->name.c_str() : "NULL");
-
-    // Reset to PHASE_PLAYER_TURN so the next actor (AI or player) goes
-    // through the full executeTurn() focus path on the next call.
-    _phase = PHASE_PLAYER_TURN;
-
-    if (_currentActor == nullptr) {
-        processRoundEnd();
-        _phase = PHASE_ROUND_END;
-        result.event = TurnResult::EV_ROUND_END;
-        debug(0, "[COMBAT] -> EV_ROUND_END (no more actors)");
-    } else {
-        // Signal the view to focus the next actor before the next executeTurn() call.
-        result.event = TurnResult::EV_ACTOR_FOCUSED;
-        result.actor = _currentActor;
-        const int idx = _table.findIndex(_currentActor);
-        result.actorSize = (idx >= 0) ? _table.getSize(idx) : 1;
-        debug(0, "[COMBAT] -> EV_ACTOR_FOCUSED (post-AI) for '%s' side=%d ai=%d",
-            _currentActor->name.c_str(),
-            (int)_currentActor->combatSide, (int)_currentActor->ai_control);
     }
 
     return result;
@@ -408,6 +406,10 @@ void CombatSession::buildFacingTargetList(Data::PlayerCharacter *ch, TargetList 
     const uint8 iconDim = _table.getSize(idx);
     _context->buildTargetListCore(pos, iconDim, DIR_ANY, 0x7f);
     result = _targetList;
+    for (uint i = 0; i < result.entries.size(); ++i)
+        result.targetOrder.push_back(result.entries[i].idx);
+    debug(0, "[COMBAT] facing targets for '%s': count=%u",
+        ch->name.c_str(), (unsigned)result.targetOrder.size());
 }
 
 void CombatSession::acknowledgeRoundEnd(bool continueEncounter) {
@@ -551,31 +553,32 @@ CombatSession::MoveStepResult CombatSession::performMoveStep(
         return result;
     }
 
-    // Advance-engage check (mirrors tryAdvanceEngage).
-    // Deduct movement cost and update position via table.
-    const uint8 cost = getTilePassability(tileId);
-    ch->combatState->movePoints -= cost;
-
-    // Compute destination tile.
     const int idx = _table.findIndex(ch);
-    if (idx >= 0) {
-        const int8 dx = ::Goldbox::kDirDeltaX[direction];
-        const int8 dy = ::Goldbox::kDirDeltaY[direction];
-        TilePos cur = _table.getTilePos(idx);
-        TilePos newPos((uint8)(cur.col + dx), (uint8)(cur.row + dy));
-        result.fromPos = cur;
-        result.toPos   = newPos;
-        _table.setPosition(idx, newPos);
-        _table.rebuildOccupancy();
-        scrollViewport(newPos, 2);
-    }
-
-    if (!ch->enabled) {
-        if (ch->combatState) ch->combatState->clear();
+    if (idx < 0) {
         result.kind = MoveStepResult::MS_DISABLED;
         result.actionComplete = true;
         return result;
     }
+
+    result.fromPos = _table.getTilePos(idx);
+    result.toPos = result.fromPos;
+
+    CombatContext ctx = makeContext();
+    ctx.handleDisengagementReactions(ch, static_cast<Direction>(direction),
+        nullptr, _attackDelegate);
+    if (!ch->enabled) {
+        ch->combatState->endTurn();
+        result.kind = MoveStepResult::MS_DISABLED;
+        result.actionComplete = true;
+        return result;
+    }
+
+    if (!applyMoveStep(ch, direction)) {
+        result.kind = MoveStepResult::MS_BLOCKED;
+        return result;
+    }
+
+    result.toPos = _table.getTilePos(idx);
 
     // Status check (mirrors checkAndApplyStatus / hasNegativeEffect).
     if (_params.effectRuntime && ch->getEffects()) {
@@ -585,8 +588,11 @@ CombatSession::MoveStepResult CombatSession::performMoveStep(
     }
 
     if (!ch->enabled) {
-        if (ch->combatState) ch->combatState->clear();
+        ch->combatState->endTurn();
         result.kind = MoveStepResult::MS_DISABLED;
+        result.actionComplete = true;
+    } else if (ch->hasNegativeEffect()) {
+        ch->combatState->movePoints = 0;
         result.actionComplete = true;
     }
 
@@ -746,7 +752,10 @@ bool CombatSession::applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
 
     VmInterface::soundPlay(0x0B);
 
-    // Cloud tile nausea check.
+    // Guard reactions (opportunity/counter attacks).
+    _context->handleGuardReactions(ch, viewCallback, _attackDelegate);
+
+    // Cloud effects occur after guard reactions, as in the original move flow.
     {
         int dummyOccupant = 0;
         uint8 dstTile = 0;
@@ -755,9 +764,6 @@ bool CombatSession::applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
             Goldbox::Poolrad::checkCloudEffect(*ch,
                 Data::Effects::g_effectHandler, _params.effectBridge);
     }
-
-    // Guard reactions (opportunity/counter attacks).
-    _context->handleGuardReactions(ch, viewCallback);
 
     // Preserve remaining movement unless the character became disabled
     // or acquired a negative effect.
@@ -769,17 +775,15 @@ bool CombatSession::applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
 
 bool CombatSession::confirmAttackNonHostile(Data::PlayerCharacter *attacker,
                                             Data::PlayerCharacter *target) {
-    // Mirrors COMBAT_ConfirmAttackNonHostile rule check.
-    // CHARACTER_isInParty returns CS_PARTY(0) for party members, CS_ENEMY(1) for enemies.
-    // The original test: targetIsPartyMember == attacker->combat_side
-    // means: same side → no confirmation needed.
+    // CHARACTER_isInParty returns a boolean, not the CS_PARTY enum value:
+    // the original comparison permits opposing sides without confirmation.
     if (!attacker || !target)
         return true;
     const uint8 targetSide = static_cast<uint8>(target->combatSide);
     const uint8 attackerSide = static_cast<uint8>(attacker->combatSide);
-    if (targetSide == attackerSide || attacker->ai_control)
+    if (targetSide != attackerSide || attacker->ai_control)
         return true;
-    // Cross-side attack by player-controlled character: caller must prompt.
+    // Same-side attack by player-controlled character: caller must prompt.
     return false;
 }
 
@@ -803,12 +807,14 @@ void CombatSession::makePartyHostile() {
 
 bool CombatSession::executeAttackOnTarget(Data::PlayerCharacter *attacker,
                                           Data::PlayerCharacter *target,
-                                          bool immediateAttack) {
+                                          bool immediateAttack,
+                                          bool nonHostileConfirmed) {
     if (!attacker || !target || !attacker->combatState)
         return false;
 
     // Hostile-target gate.
-    if (immediateAttack && !confirmAttackNonHostile(attacker, target))
+    if (immediateAttack && !nonHostileConfirmed &&
+            !confirmAttackNonHostile(attacker, target))
         return false;
 
     // Commit target position.

@@ -45,13 +45,14 @@ namespace Dialogs {
  *   - Displays the movement budget menu each step.
  *   - Reads directional input (numpad / arrow keys).
  *   - Handles cancel (restores original position/facing).
- *   - Handles flee (nested Yes/No prompt).
+ *   - Handles flee and ally-attack confirmation prompts.
  *   - Delegates to CombatSession for all data mutations.
  *   - Posts MenuResultMessage to "Combat" when the action ends.
  *
  * Sub-states:
- *   STATE_MOVE    — waiting for direction key
- *   STATE_FLEE    — waiting for Yes/No flee confirmation
+ *   STATE_MOVE           — waiting for direction key
+ *   STATE_FLEE           — waiting for Yes/No flee confirmation
+ *   STATE_ATTACK_CONFIRM — waiting for ally-attack confirmation
  */
 class CombatMoveDialog : public Dialog {
 public:
@@ -76,7 +77,7 @@ public:
     void handleMenuResult(const MenuResultMessage &result) override;
 
 private:
-    enum State { STATE_MOVE, STATE_FLEE };
+    enum State { STATE_MOVE, STATE_FLEE, STATE_ATTACK_CONFIRM };
 
     Goldbox::Data::PlayerCharacter *_character;
 
@@ -88,6 +89,8 @@ private:
     State _state;
 
     HorizontalYesNo *_fleeYesNo;
+    HorizontalYesNo *_allyConfirm;
+    Goldbox::Data::PlayerCharacter *_pendingTarget;
 
     AnimateStepFn _animateFn  = nullptr;
     void         *_animateCtx = nullptr;
@@ -98,6 +101,7 @@ private:
     static uint8 decodeDirection(const KeypressMessage &msg);
 
     void handleDirectionInput(uint8 direction);
+    void handleActionSelect(int occupantIndex);
     void handleCancel();
     void enterFleePrompt();
     void finishAction(bool actionComplete);

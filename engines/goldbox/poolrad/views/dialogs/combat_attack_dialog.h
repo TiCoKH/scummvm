@@ -111,6 +111,7 @@ private:
 
     void enterTargetCommand();
     void enterManualAim();
+    void attackTarget(Goldbox::Data::PlayerCharacter *target);
 
     void finishAttack(bool actionComplete);
 };

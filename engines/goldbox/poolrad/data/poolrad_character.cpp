@@ -127,6 +127,10 @@ void PoolradCharacter::initialize() {
 	npc = 0;
 	modified = 0;
 	spellRegainRate = 0;
+	for (uint i = 0; i < POOLRAD_MEMORIZED_SIZE; ++i)
+		spells.memorizedSpells[i] = 0;
+	for (uint i = 0; i < POOLRAD_KNOWN_SIZE; ++i)
+		spells.knownSpells[i] = 0;
 
 	// Initialize current rolls to zero
 	curPrimaryRoll.attacks = 0;

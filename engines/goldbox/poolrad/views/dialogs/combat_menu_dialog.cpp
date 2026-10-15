@@ -200,7 +200,7 @@ void CombatMenuDialog::draw() {
     if (!_isVisible || !_horizontalMenu)
         return;
     Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 8);
+    s.clearBox(0, 0, 39, 0, 8);
     _horizontalMenu->setRedraw();
     _horizontalMenu->draw();
 }

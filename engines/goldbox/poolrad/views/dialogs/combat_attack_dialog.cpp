@@ -154,6 +154,21 @@ void CombatAttackDialog::handleMenuResult(const MenuResultMessage &result) {
     if (!result._hasIntValue)
         return;
 
+    if (_allyConfirm->isActive()) {
+        _allyConfirm->deactivate();
+        detachDialog(_allyConfirm);
+        Goldbox::Data::PlayerCharacter *target = _pendingTarget;
+        _pendingTarget = nullptr;
+        if (result._success && result._intValue == 1 && _session && target) {
+            _session->makePartyHostile();
+            _session->executeAttackOnTarget(_attacker, target, true, true);
+            finishAttack(true);
+        } else {
+            finishAttack(false);
+        }
+        return;
+    }
+
     if (_state == STATE_TARGET_COMMAND) {
         // Results from CombatTargetCommandDialog.
         const char cmd = (char)result._intValue;
@@ -179,19 +194,7 @@ void CombatAttackDialog::handleMenuResult(const MenuResultMessage &result) {
                 finishAttack(chosen != nullptr);
                 break;
             }
-            // Confirm: check if target requires ally-attack confirmation.
-            Goldbox::Data::PlayerCharacter *target = currentTarget();
-            if (target && _session &&
-                    !_session->confirmAttackNonHostile(_attacker, target)) {
-                // Cross-side attack by player: show "Attack Ally?" prompt.
-                _pendingTarget = target;
-                attachDialog(_allyConfirm);
-                _allyConfirm->activate();
-            } else {
-                if (target && _session)
-                    _session->executeAttackOnTarget(_attacker, target, true);
-                finishAttack(true);
-            }
+            attackTarget(currentTarget());
             break;
         }
         case 'E':
@@ -200,35 +203,18 @@ void CombatAttackDialog::handleMenuResult(const MenuResultMessage &result) {
             break;
         }
     } else if (_state == STATE_MANUAL_AIM) {
-        // Results from CombatManualAimDialog.
-        if (_manualAim->isActive()) {
-            if (_spellMode && result._success) {
-                const CombatManualAimDialog::ManualAimResult &aim =
-                    _manualAim->getResult();
-                _aimTarget = aim.target;
-                _aimTile = TilePos(aim.x, aim.y);
-            }
-            _manualAim->deactivate();
-            detachDialog(_manualAim);
-        }
-        if (result._success)
-            finishAttack(true);
-        else
+        const CombatManualAimDialog::ManualAimResult aim =
+            _manualAim->getResult();
+        _manualAim->deactivate();
+        detachDialog(_manualAim);
+        if (!result._success) {
             finishAttack(false);
-    } else if (_allyConfirm->isActive()) {
-        // Results from HorizontalYesNo "Attack Ally?".
-        _allyConfirm->deactivate();
-        detachDialog(_allyConfirm);
-        if (result._success) {
-            // Player confirmed: mutate combat state then execute.
-            _session->makePartyHostile();
-            if (_pendingTarget)
-                _session->executeAttackOnTarget(_attacker, _pendingTarget, true);
-            _pendingTarget = nullptr;
+        } else if (_spellMode) {
+            _aimTarget = aim.target;
+            _aimTile = TilePos(aim.x, aim.y);
             finishAttack(true);
         } else {
-            _pendingTarget = nullptr;
-            finishAttack(false);
+            attackTarget(aim.target);
         }
     }
 }
@@ -295,6 +281,24 @@ void CombatAttackDialog::enterManualAim() {
                                !_spellMode, _spellMode, _session);
     attachDialog(_manualAim);
     _manualAim->activate();
+}
+
+void CombatAttackDialog::attackTarget(Goldbox::Data::PlayerCharacter *target) {
+    if (!target || !_session) {
+        finishAttack(false);
+        return;
+    }
+
+    if (!_session->confirmAttackNonHostile(_attacker, target)) {
+        _pendingTarget = target;
+        attachDialog(_allyConfirm);
+        _allyConfirm->activate();
+        redraw();
+        return;
+    }
+
+    _session->executeAttackOnTarget(_attacker, target, true);
+    finishAttack(true);
 }
 
 void CombatAttackDialog::finishAttack(bool actionComplete) {

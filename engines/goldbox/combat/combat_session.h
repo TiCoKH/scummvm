@@ -307,21 +307,26 @@ public:
      * multi-attack ended the turn). Returns false when the target was
      * rejected (non-hostile gate failed).
      *
+     * nonHostileConfirmed may only be set after an affirmative ally-attack
+     * confirmation; it bypasses the repeated gate for that attack.
+     *
      * Called by DIALOG_CombatAttack after the player confirms a target.
      */
     bool executeAttackOnTarget(Data::PlayerCharacter *attacker,
                                Data::PlayerCharacter *target,
-                               bool immediateAttack);
+                               bool immediateAttack,
+                               bool nonHostileConfirmed = false);
 
     /**
      * Mirrors COMBAT_ConfirmAttackNonHostile (rule layer only — no UI).
      * Returns true when the attack may proceed without a player confirmation:
-     *   - target is on the same combat side as attacker, OR
+     *   - target is on the opposing combat side, OR
      *   - attacker is AI-controlled.
-     * Returns false when a player confirmation is required (cross-side attack
+     * Returns false when a player confirmation is required (same-side attack
      * by a player-controlled character). The caller (DIALOG_CombatAttack) is
      * responsible for showing the "Attack Ally?" prompt and calling
-     * makePartyHostile() if the player confirms.
+     * makePartyHostile() if the player confirms, then passing
+     * nonHostileConfirmed=true to executeAttackOnTarget().
      */
     bool confirmAttackNonHostile(Data::PlayerCharacter *attacker,
                                  Data::PlayerCharacter *target);
@@ -340,7 +345,8 @@ public:
 private:
     friend void processAiMove(Data::PlayerCharacter *,
                               const Common::Array<Data::PlayerCharacter *> &,
-                              char, CombatContext &, AiMoveViewDelegate *);
+                              char, CombatContext &, AiMoveViewDelegate *,
+                              CombatViewDelegate *);
 
     struct TryFleeResult {
         bool actionComplete;

@@ -292,8 +292,11 @@ void resolveAttack(Data::PlayerCharacter *attacker,
                    bool *result,
                    CombatViewDelegate *view) {
     CombatContext *ctx = VmInterface::getCombatContext();
-    if (!ctx || !attacker->combatState || !target->combatState)
+    if (!ctx || !attacker || !target || !attacker->combatState ||
+            !target->combatState || !result) {
+        warning("[ATTACK] resolveAttack: missing combat context or actor state");
         return;
+    }
 
     Data::CombatAction &acs = *attacker->combatState;
     Data::CombatAction &tcs = *target->combatState;
@@ -327,6 +330,13 @@ void resolveAttack(Data::PlayerCharacter *attacker,
 
     // Phase 5: animate equipped ranged weapon with typeIndex 0x2F.
     Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(attacker);
+    debug(0, "[ATTACK] '%s' -> '%s': range=%u slot=%u attacks=%u/%u hp=%d view=%d",
+        attacker->name.c_str(), target->name.c_str(),
+        (unsigned)ctx->getTargetRange(attacker, target),
+        (unsigned)acs.attackId,
+        adnd ? (unsigned)adnd->curPrimaryRoll.attacks : 0,
+        adnd ? (unsigned)adnd->curSecondaryRoll.attacks : 0,
+        (int)target->hitPoints.current, view != nullptr);
     if (adnd) {
         Data::Items::CharacterItem *weapon =
             adnd->getEquippedItem(Data::Items::Slot::S_MAIN_HAND);
@@ -494,6 +504,9 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
                 ++globals.attackDisplayCount[slot];
 
                 bool hit = rollToHit(attacker, target, targetAC);
+                debug(0, "[ATTACK] '%s' -> '%s': slot=%u ac=%u hit=%d",
+                    attacker->name.c_str(), target->name.c_str(),
+                    (unsigned)slot, (unsigned)targetAC, hit);
 
                 if (hit || target->hasNegativeEffect()) {
                     ++globals.attackRollSlots[slot];
@@ -518,8 +531,12 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
             }
         }
 
-        if (!attackHit)
+        if (!attackHit) {
             VmInterface::soundPlay(0x0A);
+            if (view)
+                view->drawAttackResult(attacker, target, attackResultMode,
+                    0, 0, 0);
+        }
 
         // All slots exhausted?
         *result = true;
@@ -571,8 +588,13 @@ void rollAttackDamage(Data::PlayerCharacter *attacker,
     }
 
     globals.damage = (uint8)CLIP(total, 1, 255);
-    applyDamage(*ctx, target, globals.damage, DAMAGE_NORMAL, false,
-                ctx->params.effectRuntime);
+    const DamageResult damageResult = applyDamage(*ctx, target,
+        globals.damage, DAMAGE_NORMAL, false, ctx->params.effectRuntime);
+    debug(0, "[ATTACK] damage to '%s': rolled=%u applied=%u hp=%d enabled=%d",
+        target->name.c_str(), (unsigned)globals.damage,
+        (unsigned)damageResult.finalDamage, (int)target->hitPoints.current,
+        target->enabled);
+    globals.damage = damageResult.finalDamage;
 }
 
 void adjustAcForFacingAndRange(Data::PlayerCharacter *attacker,

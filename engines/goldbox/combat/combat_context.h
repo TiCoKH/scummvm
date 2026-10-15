@@ -37,6 +37,7 @@ class PlayerCharacter;
 namespace Combat {
 
 struct CombatParams;
+struct CombatViewDelegate;
 class CombatantTable;
 class BattlefieldMap;
 class CombatViewport;
@@ -143,12 +144,11 @@ struct CombatContext {
                                TilePos attackerPos, TilePos targetPos);
 
     /**
-     * Returns the first Direction (scanning N through NW) such that
-     * targetPos falls within the arc when attacker faces that direction.
+     * Returns the direction character faces toward target.
      * Mirrors COMBAT_GetFacingToward.
      */
-    Direction getFacingToward(const Data::PlayerCharacter *target,
-                              const Data::PlayerCharacter *attacker) const;
+    Direction getFacingToward(const Data::PlayerCharacter *character,
+                              const Data::PlayerCharacter *target) const;
 
     /**
      * Returns whether the character's combat footprint is within the
@@ -174,10 +174,12 @@ struct CombatContext {
      * eligible enemy against currentCharacter.
      * Calls drawCombatInfoCallback(currentCharacter) after each resolved
      * attack if currentCharacter is still enabled; pass nullptr to skip.
+     * attackView presents reaction attacks without changing their rules.
      */
     void handleDisengagementReactions(Data::PlayerCharacter *currentCharacter,
                                 Direction moveDirection,
-                                void (*drawCombatInfoCallback)(Data::PlayerCharacter *) = nullptr);
+                                void (*drawCombatInfoCallback)(Data::PlayerCharacter *) = nullptr,
+                                CombatViewDelegate *attackView = nullptr);
 
     /**
      * Reset per-turn CombatAction fields for one character.
@@ -261,10 +263,11 @@ struct CombatContext {
      * After char_ptr successfully moves, builds the target list and triggers
      * a guarding attack from each eligible opponent against char_ptr.
      * Calls viewCallback(char_ptr) before each attack for viewport redraw;
-     * pass nullptr to skip.
+     * pass nullptr to skip. attackView presents each guard attack.
      */
     void handleGuardReactions(Data::PlayerCharacter *ch,
-                              void (*viewCallback)(Data::PlayerCharacter *) = nullptr);
+                              void (*viewCallback)(Data::PlayerCharacter *) = nullptr,
+                              CombatViewDelegate *attackView = nullptr);
 };
 
 } // namespace Combat
