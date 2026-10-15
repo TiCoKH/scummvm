@@ -125,7 +125,10 @@ public:
     /**
      * Submit the player's chosen action for the current party actor.
      * Only valid when phase == PHASE_AWAITING_PLAYER.
-     * Executes the action, marks the actor as done, advances to next actor.
+     * Applies the action's own state change and advances to the next actor.
+     * The actor's initiative is not forced: actions that consume the turn
+     * call endTurn() themselves, and an actor with initiative left (Delay,
+     * quickfight-all) is reselected like in COMBAT_MainLoop.
      */
     TurnResult submitPlayerAction(PlayerAction action);
 
@@ -215,14 +218,36 @@ public:
      */
     bool flee(Data::PlayerCharacter *ch);
 
-    /** Mark actor as having acted and advance to next actor. */
+    /** Mark actor's move action finished (ends its turn) and advance. */
     TurnResult finishMoveAction(Data::PlayerCharacter *ch);
+
+    /**
+     * True when the actor's activation is over and the session should
+     * advance (disabled, initiative <= 0, or a timed spell is pending).
+     * When false, the view returns the actor to the combat menu, mirroring
+     * DIALOG_CombatMain looping while its result is false.
+     */
+    bool isActorTurnComplete(const Data::PlayerCharacter *ch) const;
+
+    /** True when the VM no-magic flag (G_NoMagicFlag) is set. */
+    bool isMagicSuppressed() const;
 
     /** The party actor currently waiting for player input. nullptr if none. */
     Data::PlayerCharacter *getCurrentActor() const { return _currentActor; }
 
     Phase getPhase() const { return _phase; }
     bool isEnded() const { return _phase == PHASE_ENDED; }
+
+    /**
+     * Summary of the end-of-round processing (mirrors the out-parameters of
+     * DIALOG_CombatEnd). Valid while phase == PHASE_ROUND_END.
+     */
+    struct RoundEndInfo {
+        bool exitCombat     = false; // one side has no active members
+        bool askContinue    = false; // party alive, enemies gone: "Continue Battle?"
+        bool teammateDying  = false; // show "Your Teammate is Dying"
+    };
+    const RoundEndInfo &getRoundEndInfo() const { return _roundEnd; }
 
     /**
      * Acknowledge the end-of-round or end-of-combat interaction and
@@ -336,6 +361,10 @@ private:
     Common::ScopedPtr<CombatContext> _context;
 
     Data::PlayerCharacter *_currentActor;
+    // True when setup() found a side with no members (original exit_flag
+    // check before the first round).
+    bool _exitAtRoundStart = false;
+    RoundEndInfo _roundEnd;
     // Saved PTR_SELECTED_CHAR value across PHASE_AWAITING_PLAYER pause.
     // Mirrors the previousSelected local in COMBAT_ExecuteTurn.
     Data::PlayerCharacter *_previousAttacker = nullptr;
@@ -346,6 +375,14 @@ private:
     CombatContext makeContext();
     CombatContext makeContext() const;
     uint8 readAndClearAmbushFlags() const;
+
+    /**
+     * Mirrors DIALOG_CombatEnd (data part): advances the clock, bumps the
+     * turn counter, refreshes hostile health, runs ES19 + cloud effects,
+     * progresses dying characters, and recomputes side counts. Fills
+     * _roundEnd for the view.
+     */
+    void processRoundEnd();
 
     /**
      * Turn-start effect processing (first half of COMBAT_ExecuteTurn,

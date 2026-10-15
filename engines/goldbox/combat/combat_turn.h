@@ -87,14 +87,14 @@ void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster);
 /**
  * Select the next character to act this round.
  *
- * Mirrors COMBAT_SelectNextActor: returns the enabled character with the
- * highest non-zero initiative value that has not yet acted (initiative 0xFF =
- * acted; 0 = skipped/cancelled). Ties are broken by a 1d100 roll (higher wins).
- * Returns nullptr when all characters have acted (round complete) or a
- * side has no members.
+ * Mirrors COMBAT_SelectNextActor: returns the character with the highest
+ * positive initiative (signed byte; <= 0 means done) after rolling 1d100
+ * for every roster member; ties are broken by the higher roll. Returns
+ * nullptr when no character has initiative left (round complete). Side
+ * counts are not consulted: DIALOG_CombatEnd decides whether combat ends.
  *
  * @param roster   Full combat roster
- * @param globals  Combat globals (reads sideCount to detect round end)
+ * @param globals  Combat globals (unused, kept for API stability)
  * @return         Next actor, or nullptr if the round is over
  */
 Data::PlayerCharacter *selectNextActor(
@@ -327,6 +327,33 @@ bool castSpell(Data::PlayerCharacter *actor,
                uint8 spellId,
                bool aiControl,
                CastSpellViewDelegate *view);
+
+/**
+ * Mirrors ACTION_UseSpell (spell resolution hook).
+ *
+ * Single entry point for resolving a spell during combat. The spell
+ * subsystem (targeting, saving throws, effect application) is not wired
+ * into combat yet, so this currently only reports success; both castSpell()
+ * (immediate spells) and resolvePendingSpell() route through it so the
+ * integration only has to be done here.
+ *
+ * @return True when the spell was resolved
+ */
+bool useSpell(Data::PlayerCharacter *actor,
+              uint8 spellId,
+              bool aiControl,
+              CastSpellViewDelegate *view);
+
+/**
+ * Mirrors the pending-spell branch of DIALOG_CombatMain / COMBAT_MoveByAI:
+ * copies combatState->spellId, clears it, calls useSpell() and ends the
+ * actor's turn. Does not re-queue the spell (unlike castSpell()).
+ *
+ * @return True when a pending spell was resolved
+ */
+bool resolvePendingSpell(Data::PlayerCharacter *actor,
+                         bool aiControl,
+                         CastSpellViewDelegate *view);
 
 /**
  * Mirrors COMBAT_Guarding.

@@ -242,31 +242,27 @@ void initAllTurnStates(Common::Array<Data::PlayerCharacter *> &roster) {
 Data::PlayerCharacter *selectNextActor(
         const Common::Array<Data::PlayerCharacter *> &roster,
         const CombatGlobals &globals) {
-    // Both sides must still have members for combat to continue.
-    if (globals.sideCount[0] == 0 || globals.sideCount[1] == 0) {
-        debug(0, "[selectNextActor] sideCount[0]=%d sideCount[1]=%d -> nullptr",
-            (int)globals.sideCount[0], (int)globals.sideCount[1]);
-        return nullptr;
-    }
+    // The original does not gate on side counts here: the round plays out
+    // and DIALOG_CombatEnd decides whether combat is over.
+    (void)globals;
 
-    // Find the enabled character with the highest non-zero initiative that has
-    // not yet acted (0xFF = acted this round; 0 = skipped/cancelled).
-    // Ties are broken by a 1d100 roll (higher roll wins).
-    // Mirrors original COMBAT_SelectNextActor.
+    // Find the character with the highest positive initiative that has not
+    // yet acted (initiative <= 0 as a signed byte means done/cancelled).
+    // Every roster member consumes a 1d100 roll, and ties are broken by a
+    // higher roll winning. Mirrors original COMBAT_SelectNextActor.
     Data::PlayerCharacter *best = nullptr;
     uint8 bestInitiative = 0;
     uint8 bestRoll = 0;
 
     for (uint i = 0; i < roster.size(); i++) {
         Data::PlayerCharacter *ch = roster[i];
-        if (!ch || !ch->enabled || !ch->combatState)
+        if (!ch || !ch->combatState)
             continue;
         const uint8 init = ch->combatState->initiative;
         const uint8 roll = (uint8)VmInterface::rollDice(1, 100);
-        if (init == 0 || init == 0xFF) {
-            debug(0, "[selectNextActor]   [%u] '%s' enabled=%d init=%s",
-                i, ch->name.c_str(), (int)ch->enabled,
-                init == 0xFF ? "done" : "0");
+        if ((int8)init <= 0) {
+            debug(0, "[selectNextActor]   [%u] '%s' enabled=%d init=done",
+                i, ch->name.c_str(), (int)ch->enabled);
             continue;
         }
         debug(0, "[selectNextActor]   [%u] '%s' enabled=%d init=%d",
@@ -860,6 +856,30 @@ bool checkSurrender(Data::PlayerCharacter *ch,
     return false;
 }
 
+bool useSpell(Data::PlayerCharacter *actor,
+              uint8 spellId,
+              bool aiControl,
+              CastSpellViewDelegate *view) {
+    (void)aiControl;
+    (void)view;
+    // TODO: resolve through the spell subsystem once combat targeting and
+    // spell book wiring exist.
+    return actor && spellId != 0;
+}
+
+bool resolvePendingSpell(Data::PlayerCharacter *actor,
+                         bool aiControl,
+                         CastSpellViewDelegate *view) {
+    if (!actor || !actor->combatState || actor->combatState->spellId == 0)
+        return false;
+
+    const uint8 spellId = actor->combatState->spellId;
+    actor->combatState->spellId = 0;
+    useSpell(actor, spellId, aiControl, view);
+    actor->combatState->endTurn();
+    return true;
+}
+
 bool castSpell(Data::PlayerCharacter *actor,
                uint8 spellId,
                bool aiControl,
@@ -887,7 +907,7 @@ bool castSpell(Data::PlayerCharacter *actor,
 
     if (castingTime == 0) {
         // Immediate spell: execute and end the actor's turn.
-        // TODO: call useSpell(actor, spellId, aiControl) when implemented.
+        useSpell(actor, spellId, aiControl, view);
         actor->combatState->endTurn();
         return true;
     }

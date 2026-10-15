@@ -515,6 +515,10 @@ VmResult PoolradEngineHostImpl::startCombat() {
     params.geo = &_engine->getRuntimeGeo();
     params.nextChar = _engine->_nextCharacter;
     params.eclMemory = _memory;
+    params.advanceClockCtx = this;
+    params.advanceClockFn = [](void *ctx, uint8 minutes) {
+        static_cast<PoolradEngineHostImpl *>(ctx)->advanceClock(minutes);
+    };
 
     const RuntimeExchange *exchange = _engine->getRuntimeExchange();
     RuntimeMapSnapshot snapshot;

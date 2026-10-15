@@ -89,9 +89,11 @@ void CombatMenuDialog::beginMenu(Goldbox::Data::PlayerCharacter *actor,
             }
         }
     }
+    // G_NoMagicFlag is the world "no magic" state; autospell (magicEnabled)
+    // is an unrelated toggle.
     _hasCast = hasSpells &&
                cs && cs->canCast &&
-               session->getGlobals().magicEnabled;
+               !session->isMagicSuppressed();
 
     // Turn Undead: cleric level > 0 and hasn't already turned this round.
     if (adnd) {

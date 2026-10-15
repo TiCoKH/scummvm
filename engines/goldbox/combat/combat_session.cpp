@@ -37,9 +37,11 @@ uint8 getOpposingSideMaxReach(const Data::PlayerCharacter *ch,
 #include "goldbox/core/vm_layout.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/ecl/ecl_memory.h"
+#include "goldbox/ecl/opcode_handlers.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
+#include "goldbox/data/effects/effect_handler_base.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/vm_interface.h"
@@ -82,7 +84,14 @@ void CombatSession::setup(const CombatParams &params) {
         _battlefieldMap.setTilePropertyProvider(_params.tilePropertyProvider);
 
     setupCombat(_params, _globals, _battlefieldMap, _table,
-                _placement, _viewport, nullptr);
+                _placement, _viewport, _params.effectRuntime);
+
+    // Mirrors COMBAT_MainLoop: exit before the first round when a side is
+    // already empty.
+    _globals.updateSideCount(_params.roster);
+    _exitAtRoundStart = (_globals.sideCount[0] == 0 ||
+                         _globals.sideCount[1] == 0);
+    _roundEnd = RoundEndInfo();
 
     _phase = PHASE_PLAYER_TURN;
     _currentActor = nullptr;
@@ -112,11 +121,10 @@ CombatSession::TurnResult CombatSession::executeTurn() {
         _globals.updateSideCount(_params.roster);
         debug(0, "[COMBAT] round start: sideCount[PARTY]=%d sideCount[ENEMY]=%d",
             (int)_globals.sideCount[0], (int)_globals.sideCount[1]);
-        if (_globals.sideCount[0] == 0 || _globals.sideCount[1] == 0) {
-            _globals.turnCounter++;
+        if (_exitAtRoundStart) {
             _phase = PHASE_COMBAT_END;
             result.event = TurnResult::EV_COMBAT_END;
-            debug(0, "[COMBAT] -> EV_COMBAT_END (one side empty)");
+            debug(0, "[COMBAT] -> EV_COMBAT_END (one side empty at setup)");
             return result;
         }
 
@@ -141,6 +149,12 @@ CombatSession::TurnResult CombatSession::executeTurn() {
         _currentActor = initCtx.selectNextActor();
         debug(0, "[COMBAT] first actor selected: %s",
             _currentActor ? _currentActor->name.c_str() : "NULL");
+        if (_currentActor == nullptr) {
+            processRoundEnd();
+            _phase = PHASE_ROUND_END;
+            result.event = TurnResult::EV_ROUND_END;
+            return result;
+        }
     }
 
     if (_currentActor == nullptr) {
@@ -163,8 +177,7 @@ CombatSession::TurnResult CombatSession::executeTurn() {
             _currentActor->combatState ? (int)_currentActor->combatState->initiative : -1);
         _currentActor = makeContext().selectNextActor();
         if (_currentActor == nullptr) {
-            _globals.turnCounter++;
-            updateHostileHealthPercent(_table, _globals);
+            processRoundEnd();
             _phase = PHASE_ROUND_END;
             result.event = TurnResult::EV_ROUND_END;
         }
@@ -194,15 +207,14 @@ CombatSession::TurnResult CombatSession::executeTurn() {
             *_currentActor->getEffects(), *_currentActor, &_globals);
 
     // Second initiative gate: ES15 may have cancelled the turn.
-    if (_currentActor->combatState->initiative == 0) {
+    if ((int8)_currentActor->combatState->initiative <= 0) {
         debug(0, "[COMBAT] ES15 zeroed initiative for '%s', skipping",
             _currentActor->name.c_str());
         _globals.attacker = _previousAttacker;
         _currentActor = makeContext().selectNextActor();
         result.event = TurnResult::EV_NONE;
         if (_currentActor == nullptr) {
-            _globals.turnCounter++;
-            updateHostileHealthPercent(_table, _globals);
+            processRoundEnd();
             _phase = PHASE_ROUND_END;
             result.event = TurnResult::EV_ROUND_END;
         }
@@ -250,8 +262,7 @@ CombatSession::TurnResult CombatSession::executeTurn() {
     _phase = PHASE_PLAYER_TURN;
 
     if (_currentActor == nullptr) {
-        _globals.turnCounter++;
-        updateHostileHealthPercent(_table, _globals);
+        processRoundEnd();
         _phase = PHASE_ROUND_END;
         result.event = TurnResult::EV_ROUND_END;
         debug(0, "[COMBAT] -> EV_ROUND_END (no more actors)");
@@ -284,15 +295,20 @@ CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action)
 
     switch (action) {
     case PA_DONE:
-        // End turn without acting — no state change needed.
+        // Done submenu already applied its own state (Guard/Delay/Quit/Bandage).
         break;
     case PA_FLEE:
-        if (cs) cs->fleeing = true;
+        if (cs) {
+            cs->fleeing = true;
+            cs->endTurn();
+        }
         break;
-    case PA_TURN:
-        // Turn Undead: mark as used this round; actual resolution handled by caller.
-        if (cs) cs->turnedUndead = true;
+    case PA_TURN: {
+        // Mirrors COMBAT_TurnUndead followed by COMBAT_endActorTurn.
+        CombatContext turnCtx = makeContext();
+        turnUndead(_currentActor, turnCtx, nullptr);
         break;
+    }
     case PA_VIEW:
         // View battlefield: no state change; caller loops back to menu.
         break;
@@ -309,8 +325,9 @@ CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action)
             cs->target = nullptr;
         break;
     case PA_QUICK_ALL:
-        // Party quickfight: set initiative=20 for current actor, enable quickfight
-        // for every party member. The view layer calls moveByAI after this.
+        // Party quickfight: initiative=20 (normalised to 19 when the actor is
+        // reselected) and quickfight for every combatant. The turn is not
+        // ended; the actor is reselected and runs as AI.
         if (cs)
             cs->initiative = 20;
         for (uint i = 0; i < _params.roster.size(); ++i) {
@@ -342,9 +359,9 @@ CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action)
         break;
     }
 
-    // Mark actor as having acted this round.
-    if (cs)
-        cs->initiative = 0xFF;
+    // The actor's initiative is left as set by the action: actions that
+    // consume the turn already called endTurn(); an actor that still has
+    // positive initiative (Delay, quickfight-all, timed cast) is reselected.
 
     // Restore selected-character context set in executeTurn() (mirrors PTR_SELECTED_CHAR = previousSelected).
     _globals.attacker = _previousAttacker;
@@ -354,8 +371,7 @@ CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action)
     _currentActor = makeContext().selectNextActor();
 
     if (_currentActor == nullptr) {
-        _globals.turnCounter++;
-        updateHostileHealthPercent(_table, _globals);
+        processRoundEnd();
         _phase = PHASE_ROUND_END;
         result.event = TurnResult::EV_ROUND_END;
         debug(0, "[COMBAT] submitPlayerAction -> EV_ROUND_END");
@@ -399,6 +415,45 @@ void CombatSession::acknowledgeRoundEnd(bool continueEncounter) {
     _currentActor = nullptr;
 }
 
+void CombatSession::processRoundEnd() {
+    // TIME_AddUnits(1, 1)
+    if (_params.advanceClockFn)
+        _params.advanceClockFn(_params.advanceClockCtx, 1);
+
+    _globals.turnCounter++;
+    updateHostileHealthPercent(_table, _globals);
+
+    for (uint i = 0; i < _params.roster.size(); ++i) {
+        Data::PlayerCharacter *ch = _params.roster[i];
+        if (!ch)
+            continue;
+
+        if (_params.effectRuntime && ch->getEffects())
+            _params.effectRuntime->checkEffectSet(
+                Data::Effects::ES_SPELL_POST_PROCESS,
+                *ch->getEffects(), *ch, &_globals);
+
+        Goldbox::Poolrad::checkCloudEffect(*ch,
+            Data::Effects::g_effectHandler, _params.effectBridge);
+
+        // Dying characters bleed one step per round and die after 9.
+        if (ch->healthStatus == Data::S_DYING && ch->combatState) {
+            ch->combatState->bleeding++;
+            if (ch->combatState->bleeding > 9)
+                ch->healthStatus = Data::S_DEAD;
+        }
+    }
+
+    _roundEnd = RoundEndInfo();
+    _roundEnd.teammateDying = checkDoBandage(false, nullptr);
+
+    makeContext().updateSideCount();
+    _roundEnd.exitCombat = (_globals.sideCount[0] == 0 ||
+                            _globals.sideCount[1] == 0);
+    _roundEnd.askContinue = (_globals.sideCount[0] != 0 &&
+                             _globals.sideCount[1] == 0);
+}
+
 bool CombatSession::applyTurnStartEffects(Data::PlayerCharacter *ch) {
     if (!ch || !ch->combatState)
         return false;
@@ -416,9 +471,13 @@ bool CombatSession::applyTurnStartEffects(Data::PlayerCharacter *ch) {
             Data::Effects::ES_POST_MOVEMENT_TILE,
             *ch->getEffects(), *ch, &_globals);
 
-    // First initiative gate.
-    if (cs.initiative == 0)
+    // First initiative gate: signed byte, so <= 0 means done/cancelled.
+    if ((int8)cs.initiative <= 0)
         return false;
+
+    // Quickfight-all marks the actor with 20; normalise like the original.
+    if (cs.initiative == 20)
+        cs.initiative = 19;
 
     return true;
 }
@@ -613,8 +672,24 @@ bool CombatSession::flee(Data::PlayerCharacter *ch) {
 
 CombatSession::TurnResult CombatSession::finishMoveAction(Data::PlayerCharacter *ch) {
     if (ch && ch->combatState)
-        ch->combatState->initiative = 0xFF;
+        ch->combatState->endTurn();
     return submitPlayerAction(PA_NONE);
+}
+
+bool CombatSession::isActorTurnComplete(
+        const Data::PlayerCharacter *ch) const {
+    if (!ch || !ch->enabled || !ch->combatState)
+        return true;
+    const Data::CombatAction &cs = *ch->combatState;
+    return (int8)cs.initiative <= 0 || cs.spellId != 0;
+}
+
+bool CombatSession::isMagicSuppressed() const {
+    if (!_params.eclMemory)
+        return false;
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+    const uint16 addr = layout.vmField(kVmFieldNoMagicFlag).vmAddr;
+    return _params.eclMemory->read8(addr) != 0;
 }
 
 bool CombatSession::applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
@@ -670,7 +745,8 @@ bool CombatSession::applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
         uint8 dstTile = 0;
         _context->getGroundInfo(ch, 0xFF, &dummyOccupant, &dstTile);
         if (dstTile == Combat::CloudEffectManager::kTileCloud)
-            Goldbox::Poolrad::checkCloudEffect(*ch, nullptr, nullptr);
+            Goldbox::Poolrad::checkCloudEffect(*ch,
+                Data::Effects::g_effectHandler, _params.effectBridge);
     }
 
     // Guard reactions (opportunity/counter attacks).

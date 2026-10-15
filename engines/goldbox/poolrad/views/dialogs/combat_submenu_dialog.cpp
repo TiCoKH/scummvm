@@ -176,6 +176,8 @@ void CombatSubmenuDialog::handleMenuResult(const MenuResultMessage &result) {
 
     if (key == 'Q') {
         // Quit: end actor turn.
+        if (_actor && _actor->combatState)
+            _actor->combatState->endTurn();
         endTurn();
         return;
     }
@@ -183,6 +185,8 @@ void CombatSubmenuDialog::handleMenuResult(const MenuResultMessage &result) {
     if (key == 'B' && _hasBandage) {
         // Bandage: perform bandage (ignoring its return value), then end turn.
         Combat::checkDoBandage(true, nullptr);
+        if (_actor && _actor->combatState)
+            _actor->combatState->endTurn();
         endTurn();
         return;
     }
