@@ -230,8 +230,16 @@ void initCharacterTurnState(Data::PlayerCharacter *ch) {
             if (VmLayout::isValid(field))
                 ambushFlags = eclMemory->read8(field.vmAddr);
         }
-        if (isSideAmbushed(ch->combatSide, ambushFlags))
+        if (isSideAmbushed(ch->combatSide, ambushFlags)) {
+            const int8 initiativeBeforeAmbush =
+                static_cast<int8>(cs.initiative);
             cs.initiative -= 6;
+            debug(0, "[COMBAT] ambush: '%s' side=%d flags=0x%02x "
+                "initiative=%d->%d",
+                ch->name.c_str(), (int)ch->combatSide,
+                (unsigned)ambushFlags, (int)initiativeBeforeAmbush,
+                (int)(int8)cs.initiative);
+        }
         if ((int8)cs.initiative < 0 || cs.initiative > 20)
             cs.initiative = 0;
     }
@@ -266,12 +274,18 @@ Data::PlayerCharacter *selectNextActor(
         const uint8 init = ch->combatState->initiative;
         const uint8 roll = (uint8)VmInterface::rollDice(1, 100);
         if ((int8)init <= 0) {
-            debug(0, "[selectNextActor]   [%u] '%s' enabled=%d init=done",
-                i, ch->name.c_str(), (int)ch->enabled);
+            debug(0, "[selectNextActor]   [%u] '%s' side=%d ai=%d "
+                "enabled=%d hp=%d status=%d init=done",
+                i, ch->name.c_str(), (int)ch->combatSide,
+                (int)ch->ai_control, (int)ch->enabled,
+                ch->hitPoints.current, (int)ch->healthStatus);
             continue;
         }
-        debug(0, "[selectNextActor]   [%u] '%s' enabled=%d init=%d",
-            i, ch->name.c_str(), (int)ch->enabled, (int)init);
+        debug(0, "[selectNextActor]   [%u] '%s' side=%d ai=%d "
+            "enabled=%d hp=%d status=%d init=%d",
+            i, ch->name.c_str(), (int)ch->combatSide,
+            (int)ch->ai_control, (int)ch->enabled,
+            ch->hitPoints.current, (int)ch->healthStatus, (int)init);
         if ((int8)bestInitiative < (int8)init)
             bestRoll = roll;
         if ((int8)bestInitiative <= (int8)init && bestRoll <= roll) {
@@ -525,8 +539,13 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
                                 static_cast<Data::Effects::EffectSet>(slot + 1),
                                 *attacker->getEffects(), *attacker, &globals);
 
-                    if (!target->enabled)
+                    // Mirrors COMBAT_ApplyDamageMessage: the hit result is
+                    // shown before COMBAT_HandleDeathOnMap removes the target.
+                    if (!target->enabled) {
                         stopAttacking = true;
+                        if (g_combatSession)
+                            g_combatSession->handleCharacterDown(target);
+                    }
                 }
             }
         }
@@ -886,11 +905,14 @@ bool checkSurrender(Data::PlayerCharacter *ch,
 bool useSpell(Data::PlayerCharacter *actor,
               uint8 spellId,
               bool aiControl,
-              CastSpellViewDelegate *view) {
+              CastSpellViewDelegate *view,
+              bool fromMagicItem) {
     Spells::SpellCastingService *service = Spells::g_spellCasting;
     CombatContext *cc = VmInterface::getCombatContext();
-    if (!actor || spellId == 0 || !service || !cc)
+    if (!actor || spellId == 0 || !service || !cc) {
+        warning("Combat::useSpell: missing actor, spell, service or context");
         return false;
+    }
 
     // SPELL_showUseMessage (combat): "Casts a Spell".
     if (view)
@@ -904,7 +926,9 @@ bool useSpell(Data::PlayerCharacter *actor,
     ctx.caster = actor;
     ctx.inCombat = true;
     ctx.aiControl = aiControl;
-    ctx.casterLevel = Spells::getSpellCastingLevel(actor, spellId, false);
+    ctx.fromMagicItem = fromMagicItem;
+    ctx.casterLevel =
+        Spells::getSpellCastingLevel(actor, spellId, fromMagicItem);
     ctx.effectSystem = &effectSystem;
     ctx.damageSystem = &damageSystem;
     ctx.combat = &cc->globals;
@@ -958,6 +982,9 @@ bool useSpell(Data::PlayerCharacter *actor,
     cc->globals.activeSpellId = 0;
     cc->globals.multiTarget = false;
 
+    debug(0, "[SPELL] '%s': spell=%u item=%d level=%u status=%d",
+        actor->name.c_str(), (unsigned)spellId, fromMagicItem,
+        (unsigned)ctx.casterLevel, (int)result.status);
     if (result.status == Spells::CAST_OK)
         return true;
 
@@ -965,7 +992,8 @@ bool useSpell(Data::PlayerCharacter *actor,
     if (result.status == Spells::CAST_ABORTED) {
         if (view)
             view->showSpellMessage(nullptr, "Spell Aborted");
-        actor->removeMemorizedSpell(spellId);
+        if (!fromMagicItem)
+            actor->removeMemorizedSpell(spellId);
     }
     return false;
 }

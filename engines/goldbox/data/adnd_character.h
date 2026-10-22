@@ -206,6 +206,11 @@ public:
 	// Character type helpers (legacy npc flag: < 0x80 player, >= 0x80 NPC)
 	bool isNpc() const;
 
+    // Games with a distinct legacy spell buffer override this accessor.
+    virtual const uint8 *getMemorizedSpells() const {
+        return spells.memorizedSpells;
+    }
+
 	// Virtual destructor to ensure proper cleanup in derived classes.
 	virtual ~ADnDCharacter() {}
 

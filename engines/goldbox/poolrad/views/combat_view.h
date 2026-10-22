@@ -136,6 +136,25 @@ public:
     void suppressRedraw() { _needsRedraw = false; }
     void forceFullRedraw() { _needsFullRedraw = true; }
 
+    // --- Viewport update API ---
+    // Hold time for a visible icon/state change (AI step, facing, attack
+    // result, dying icon). Mirrors the original TIME_Wait pacing.
+    static const uint32 kStateChangeDelayMs = 300;
+
+    /**
+     * Single entry point for presenting a combat frame: full redraw of
+     * viewport, combatants, info panel and pending overlay, flip to the
+     * screen, then hold for delayMs.
+     */
+    void presentFrame(uint32 delayMs = kStateChangeDelayMs);
+
+    /**
+     * Presentation half of COMBAT_HandleDeathOnMap: scroll ch into view,
+     * overlay the dying icon on its footprint and hold it. Message text
+     * already on screen is kept (no full redraw).
+     */
+    void drawCharacterDying(Goldbox::Data::PlayerCharacter *ch);
+
     // State setters called by AI/attack delegates before redraw().
     void setAiMessage(const Common::String &msg) {
         _aiMessage = msg;
@@ -232,6 +251,11 @@ private:
     static const int kViewportPixelH =
         Combat::CombatViewport::VIEW_ROWS * kTileSize;
     static const uint8 kBackgroundColor = 8;
+
+    // Original loads COMSPR blocks 0-11 into icon slots 13-24; the dying
+    // icon drawn by COMBAT_HandleDeathOnMap is slot 24 (COMSPR block 11).
+    static const uint8 kDyingIconSlot  = 24;
+    static const uint8 kDyingIconBlock = 11;
 
     // --- Window layout (character coords, matching original SCREEN_DrawWindow calls) ---
     static const int kWin1Left   = 1;

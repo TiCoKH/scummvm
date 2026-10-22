@@ -1563,14 +1563,16 @@ SpellCastResult SpellID63Handler::execute(const SpellContext &context,
 }
 
 // --- Spell ID65 (SP_MI9) ---
-// effectPower = rollDiceAttack(2,4)+2; applies via generic path with behavior 8.
+// Deals rollDiceAttack(2,4)+2 damage with behavior 8.
 SpellCastResult SpellID65Handler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
-    const uint8 roll = Goldbox::g_engine ?
-        static_cast<uint8>(Goldbox::g_engine->rollDice(2, 4)) : 5;
-    const uint8 effectPower = static_cast<uint8>(roll + 2);
-    return GenericSpellHandler::applyToTargets(context, definition, targets, effectPower);
+    const uint8 damage = static_cast<uint8>(2 +
+        (Goldbox::g_engine ? Goldbox::g_engine->rollDice(2, 4) : 5));
+    SpellApplyParams params;
+    params.baseDamage = damage;
+    params.behaviorFlags = 8;
+    return applyOnTargets(context, definition, targets, params);
 }
 
 // --- Restore (ID56) ---

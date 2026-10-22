@@ -41,6 +41,7 @@ namespace Combat {
 
 struct AiMoveViewDelegate;
 struct CombatViewDelegate;
+struct CastSpellViewDelegate;
 
 /**
  * Owns all combat state and drives the round loop.
@@ -87,7 +88,8 @@ public:
             EV_ACTOR_FOCUSED,   // Actor selected; view should scroll to actor and refresh status panel
             EV_AI_ATTACK,       // AI actor attacked; damage/target valid
             EV_ROUND_END,       // All actors acted; round counter incremented
-            EV_COMBAT_END       // One side eliminated; session is PHASE_ENDED
+            EV_COMBAT_END,      // One side eliminated; session is PHASE_ENDED
+            EV_ACTOR_SKIPPED    // Turn cancelled; continue with the next actor
         };
 
         Event                    event     = EV_NONE;
@@ -104,14 +106,16 @@ public:
     void setup(const CombatParams &params);
 
     /**
-     * Set view delegates for AI and attack presentation callbacks.
-     * Both may be nullptr to suppress all presentation (e.g. unit tests).
+     * Set view delegates for AI, attack and spell presentation callbacks.
+     * All may be nullptr to suppress presentation (e.g. unit tests).
      * Must be called after setup() and before the first tick().
      */
     void setViewDelegates(AiMoveViewDelegate *aiDelegate,
-                          CombatViewDelegate *attackDelegate) {
+                          CombatViewDelegate *attackDelegate,
+                          CastSpellViewDelegate *spellDelegate = nullptr) {
         _aiDelegate     = aiDelegate;
         _attackDelegate = attackDelegate;
+        _spellDelegate  = spellDelegate;
     }
 
     /**
@@ -127,6 +131,7 @@ public:
      * Submit the player's chosen action for the current party actor.
      * Only valid when phase == PHASE_AWAITING_PLAYER.
      * Applies the action's own state change and advances to the next actor.
+     * Quick instead hands the current activation to PHASE_AI_TURN.
      * The actor's initiative is not forced: actions that consume the turn
      * call endTurn() themselves, and an actor with initiative left (Delay,
      * quickfight-all) is reselected like in COMBAT_MainLoop.
@@ -211,6 +216,13 @@ public:
     };
     SetStatusResult setCharacterStatus(Data::PlayerCharacter *ch,
                                        uint8 status);
+
+    /**
+     * Mirrors COMBAT_HandleDeathOnMap state changes for a disabled character.
+     * Ends the turn, removes its footprint and records a party ground marker
+     * without removing the character from the roster. Safe to call repeatedly.
+     */
+    void handleCharacterDown(Data::PlayerCharacter *ch);
 
     /**
      * Attempt to flee combat for a party character.
@@ -382,6 +394,7 @@ private:
 
     AiMoveViewDelegate  *_aiDelegate     = nullptr;
     CombatViewDelegate  *_attackDelegate = nullptr;
+    CastSpellViewDelegate *_spellDelegate = nullptr;
 
     CombatContext makeContext();
     CombatContext makeContext() const;

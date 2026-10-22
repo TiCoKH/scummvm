@@ -104,6 +104,12 @@ public:
             bool applyModifier,
             uint8 behaviorFlags = 0) const;
 
+    /**
+     * Text shown when target is disabled by damage: "is killed",
+     * "Goes Down" or "Goes Down and is Dying". Empty while enabled.
+     */
+    static Common::String buildDownMessage(const PlayerCharacter &target);
+
 private:
     Effects::EffectHostBridge *_bridge;
 };

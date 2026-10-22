@@ -41,6 +41,8 @@
 #include "goldbox/data/spells/spell.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/spells/spell_casting.h"
+#include "goldbox/spells/spell_duration.h"
 #include "common/debug.h"
 #include "common/util.h"
 
@@ -432,7 +434,8 @@ void processAiMove(Data::PlayerCharacter *actor,
 void moveByAI(Data::PlayerCharacter *actor,
               CombatContext &ctx,
               AiMoveViewDelegate *view,
-              CombatViewDelegate *attackView) {
+              CombatViewDelegate *attackView,
+              CastSpellViewDelegate *spellView) {
     if (!actor || !actor->combatState)
         return;
 
@@ -477,7 +480,7 @@ void moveByAI(Data::PlayerCharacter *actor,
         return;
 
     // 6. Try using a magic item.
-    if (tryUseItem(actor, ctx)) {
+    if (tryUseItem(actor, ctx, spellView)) {
         debug(0, "[AI] '%s' used magic item", actor->name.c_str());
         cs.endTurn();
         return;
@@ -486,7 +489,7 @@ void moveByAI(Data::PlayerCharacter *actor,
     // 7. Execute a pending spell (stored from a previous timed cast).
     if (cs.spellId != 0) {
         debug(0, "[AI] '%s' executing pending spell %d", actor->name.c_str(), (int)cs.spellId);
-        resolvePendingSpell(actor, true, nullptr);
+        resolvePendingSpell(actor, true, spellView);
         return;
     }
 
@@ -499,7 +502,7 @@ void moveByAI(Data::PlayerCharacter *actor,
 
     // 9. Select and cast a spell from the spell book.
     debug(0, "[AI] '%s' trying selectSpellFromBook", actor->name.c_str());
-    if (selectSpellFromBook(actor, ctx)) {
+    if (selectSpellFromBook(actor, ctx, spellView)) {
         debug(0, "[AI] '%s' cast spell from book", actor->name.c_str());
         return;
     }
@@ -860,6 +863,16 @@ void autoEquipWeapons(Data::ADnDCharacter *character,
 
     for (CharacterItem &item : character->inventory.items()) {
         const ItemProperty &prop = item.prop();
+        debug(0, "[AI] equipment '%s': item='%s' type=%u slot=%u "
+            "class=0x%02x allowed=0x%02x range=%u missile=0x%02x "
+            "ready=%u stack=%u cursed=%u",
+            character->name.c_str(), item.getDisplayName().c_str(),
+            (unsigned)item.typeIndex, (unsigned)prop.slotID,
+            (unsigned)prop.classMask,
+            (unsigned)character->getAllowedItemClassMask(),
+            (unsigned)prop.range, (unsigned)prop.missileType,
+            (unsigned)item.readied, (unsigned)item.stackSize,
+            (unsigned)item.cursed);
 
         if (static_cast<Slot>(prop.slotID) == Slot::S_MAIN_HAND &&
             (prop.classMask & character->getAllowedItemClassMask()) != 0) {
@@ -1096,18 +1109,19 @@ bool findNearbyWoundedAlly(Data::PlayerCharacter *attacker,
 }
 
 // ---------------------------------------------------------------------------
-// hasEnemyTargetForSpell  (mirrors AI_HasEnemyTargetForSpell)
+// hasAllyInSpellArea  (mirrors AI_HasEnemyTargetForSpell)
 // ---------------------------------------------------------------------------
 
 /**
- * Builds a target list centered at pos using spell.targetType as the
- * footprint/iconSize code and DIR_ANY as the arc, then returns true if
- * at least one resulting target is on the opposing side from actor.
+ * Builds a target list centered at pos with the spell's AI area radius.
+ * CHARACTER_isInParty in the original returns true for the party, whose
+ * combat-side value is zero: comparing side against that boolean detects
+ * friendly fire, not an opposing-side target.
  *
  * Called by isSpellEligibleForAI when spell.minAITargets != 0; the spell
  * is rejected when this returns true for any entry in the target list.
  */
-static bool hasEnemyTargetForSpell(Data::PlayerCharacter *actor,
+static bool hasAllyInSpellArea(Data::PlayerCharacter *actor,
                                    TilePos pos,
                                    const Data::Spells::SpellEntry &spell,
                                    CombatContext &ctx) {
@@ -1115,21 +1129,21 @@ static bool hasEnemyTargetForSpell(Data::PlayerCharacter *actor,
     saved.entries.swap(ctx.targetList.entries);
     saved.targetOrder.swap(ctx.targetList.targetOrder);
 
-    ctx.buildTargetListCore(pos, (uint8)spell.targetType, DIR_ANY, spell.fixedRange);
+    ctx.buildTargetListCore(pos, 1, DIR_ANY, spell.minAITargets);
 
-    bool hasEnemy = false;
+    bool hasAlly = false;
     for (uint i = 0; i < ctx.targetList.entries.size(); ++i) {
         const Data::PlayerCharacter *target =
             ctx.table.getCharacter(ctx.targetList.entries[i].idx);
-        if (target && target->combatSide != actor->combatSide) {
-            hasEnemy = true;
+        if (target && target->combatSide == actor->combatSide) {
+            hasAlly = true;
             break;
         }
     }
 
     saved.entries.swap(ctx.targetList.entries);
     saved.targetOrder.swap(ctx.targetList.targetOrder);
-    return hasEnemy;
+    return hasAlly;
 }
 
 // ---------------------------------------------------------------------------
@@ -1139,7 +1153,8 @@ static bool hasEnemyTargetForSpell(Data::PlayerCharacter *actor,
 bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
                           uint8 spellId,
                           uint8 priorityThreshold,
-                          CombatContext &ctx) {
+                          CombatContext &ctx,
+                          bool fromMagicItem) {
     using namespace Data::Spells;
 
     const Common::Array<SpellEntry> &spells = Data::Rules::getSpellEntries();
@@ -1151,21 +1166,22 @@ bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
     if (priorityThreshold > spell.priority)
         return false;
 
-    // Spell must be offensive or be SP_CL1_CURE_LT_WOUNDS (id 3).
+    // Non-offensive spells need no enemy target.
     if (spellId != (uint8)SP_CL1_CURE_LT_WOUNDS && spell.isOffensive == 0)
-        return false;
+        return true;
 
-    // SP_CL1_CURE_LT_WOUNDS is rejected when a nearby wounded ally exists
-    // (caster's tile + 8 neighbours). The spell is only eligible when no
-    // ally in range needs healing — counterintuitive but matches original.
+    // Healing qualifies immediately when an adjacent ally needs it.
     if (spellId == (uint8)SP_CL1_CURE_LT_WOUNDS) {
         Data::PlayerCharacter *adj = nullptr;
         if (findNearbyWoundedAlly(actor, ctx, &adj) && adj != nullptr)
-            return false;
+            return true;
     }
 
-    // Build target list using the spell's fixed range.
-    ctx.buildTargetList(actor, spell.fixedRange);
+    const uint8 casterLevel =
+        Goldbox::Spells::getSpellCastingLevel(actor, spellId, fromMagicItem);
+    const uint8 range =
+        Goldbox::Spells::computeSpellRange(spellId, casterLevel, fromMagicItem);
+    ctx.buildTargetList(actor, range);
     const uint8 targetCount = (uint8)ctx.targetList.targetOrder.size();
 
     if (targetCount == 0)
@@ -1176,11 +1192,11 @@ bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
         return true;
 
     // minAITargets != 0: reject the spell if any target in the list has an
-    // opposing-side character within the spell's area.
+    // allied character within the spell's area.
     const Common::Array<uint8> order = ctx.targetList.targetOrder;
     for (uint i = 0; i < order.size(); ++i) {
         const TilePos targetPos = ctx.table.getTilePos(order[i]);
-        if (hasEnemyTargetForSpell(actor, targetPos, spell, ctx))
+        if (hasAllyInSpellArea(actor, targetPos, spell, ctx))
             return false;
     }
 
@@ -1191,7 +1207,8 @@ bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
 // tryUseItem  (mirrors AI_TryUseItem)
 // ---------------------------------------------------------------------------
 
-bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx) {
+bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx,
+                CastSpellViewDelegate *view) {
     if (!actor || !actor->combatState)
         return false;
 
@@ -1234,38 +1251,38 @@ bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx) {
              ++it) {
 
             Data::Items::CharacterItem &item = *it;
+            const Common::String itemName = item.getDisplayName();
 
             if (item.isMissileOrScroll()) {
-                debug(0, "[tryUseItem]   skip '%s' isMissileOrScroll", item.name.c_str());
+                debug(0, "[tryUseItem]   skip '%s' isMissileOrScroll", itemName.c_str());
                 continue;
             }
 
             if (item.effect3 >= 0x80) {
-                debug(0, "[tryUseItem]   skip '%s' effect3=0x%02x", item.name.c_str(), (int)item.effect3);
+                debug(0, "[tryUseItem]   skip '%s' effect3=0x%02x", itemName.c_str(), (int)item.effect3);
                 continue;
             }
 
             if (item.readied == 0) {
-                debug(0, "[tryUseItem]   skip '%s' not readied", item.name.c_str());
+                debug(0, "[tryUseItem]   skip '%s' not readied", itemName.c_str());
                 continue;
             }
 
-            uint8 spellId = item.effect2;
+            const uint8 spellId = item.getMagicItemSpellId();
             if (spellId == 0) {
-                debug(0, "[tryUseItem]   skip '%s' effect2=0", item.name.c_str());
+                debug(0, "[tryUseItem]   skip '%s': charges=%u effect2=%u",
+                    itemName.c_str(), (unsigned)item.effect1,
+                    (unsigned)item.effect2);
                 continue;
             }
-
-            if (spellId > 0x38)
-                spellId -= 0x17;
 
             debug(0, "[tryUseItem]   candidate '%s' effect2=%d spellId=%d pass=%d threshold=%d",
-                item.name.c_str(), (int)item.effect2, (int)spellId, (int)pass, (int)priorityThreshold);
+                itemName.c_str(), (int)item.effect2, (int)spellId, (int)pass, (int)priorityThreshold);
 
-            if (isSpellEligibleForAI(actor, spellId, priorityThreshold, ctx))
+            if (isSpellEligibleForAI(actor, spellId, priorityThreshold, ctx, true))
                 selectedItem = &item;
             else
-                debug(0, "[tryUseItem]   '%s' spellId=%d not eligible", item.name.c_str(), (int)spellId);
+                debug(0, "[tryUseItem]   '%s' spellId=%d not eligible", itemName.c_str(), (int)spellId);
         }
     }
 
@@ -1274,8 +1291,24 @@ bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx) {
         return false;
     }
 
-    debug(0, "[tryUseItem] '%s' selected item '%s'", actor->name.c_str(), selectedItem->name.c_str());
-    // TODO: call ITEM_Use(selectedItem) when that function is implemented.
+    const uint8 spellId = selectedItem->getMagicItemSpellId();
+    debug(0, "[tryUseItem] '%s' using '%s': type=%u spell=%u charges=%u",
+        actor->name.c_str(), selectedItem->getDisplayName().c_str(),
+        (unsigned)selectedItem->typeIndex, (unsigned)spellId,
+        (unsigned)selectedItem->effect1);
+    const bool used = useSpell(actor, spellId, true, view, true);
+    if (!used) {
+        debug(0, "[tryUseItem] '%s' item spell %u failed",
+            actor->name.c_str(), (unsigned)spellId);
+        return false;
+    }
+
+    const bool removed = adnd->inventory.consumeItemUse(
+        *selectedItem, &adnd->equippedItems.slots);
+    debug(0, "[tryUseItem] '%s' spell=%u resolved: removed=%d charges=%u",
+        actor->name.c_str(), (unsigned)spellId, removed,
+        removed ? 0 : (unsigned)selectedItem->effect1);
+    adnd->recalcCombatStats();
     return true;
 }
 
@@ -1283,7 +1316,8 @@ bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx) {
 // selectSpellFromBook  (mirrors AI_SelectSpellFromBook)
 // ---------------------------------------------------------------------------
 
-bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx) {
+bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx,
+                         CastSpellViewDelegate *view) {
     if (!actor || !actor->combatState)
         return false;
 
@@ -1296,8 +1330,9 @@ bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx) {
         const Data::ADnDCharacter *adnd =
             dynamic_cast<const Data::ADnDCharacter *>(actor);
         if (adnd) {
+            const uint8 *memorizedSpells = adnd->getMemorizedSpells();
             for (uint8 i = 0; i < kMemSpellCount; ++i) {
-                const uint8 spellId = adnd->spells.memorizedSpells[i];
+                const uint8 spellId = memorizedSpells[i];
                 if (spellId == 0)
                     continue;
                 if (spellId >= Data::Rules::getSpellEntries().size()) {
@@ -1355,7 +1390,7 @@ bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx) {
         return false;
     }
 
-    const bool cast = castSpell(actor, selectedSpell, true, nullptr);
+    const bool cast = castSpell(actor, selectedSpell, true, view);
     debug(0, "[AI] spell scan '%s': selected=%u cast=%d initiative=%u pending=%u",
         actor->name.c_str(), (unsigned)selectedSpell, (int)cast,
         (unsigned)actor->combatState->initiative,

@@ -142,16 +142,25 @@ CombatSession::TurnResult CombatSession::executeTurn() {
             Data::PlayerCharacter *ch = _params.roster[i];
             if (!ch) continue;
             uint8 init = ch->combatState ? ch->combatState->initiative : 0;
-            debug(0, "  roster[%u] '%s' side=%d ai=%d enabled=%d initiative=%d",
+            debug(0, "  roster[%u] '%s' side=%d ai=%d enabled=%d "
+                "hp=%d status=%d initiative=%d",
                 i, ch->name.c_str(), (int)ch->combatSide,
-                (int)ch->ai_control, (int)ch->enabled, (int)init);
+                (int)ch->ai_control, (int)ch->enabled,
+                ch->hitPoints.current, (int)ch->healthStatus, (int)init);
         }
         // Clear D_CombatIsAmbush after all initiatives are rolled.
         if (_params.eclMemory && _params.vmGlobalLayout) {
             const VmFieldLocation field =
                 _params.vmGlobalLayout->field(kVmGlobalFieldCombatIsAmbush);
-            if (VmLayout::isValid(field))
+            if (VmLayout::isValid(field)) {
+                const uint8 ambushFlags =
+                    _params.eclMemory->read8(field.vmAddr);
                 _params.eclMemory->write8(field.vmAddr, 0);
+                if (ambushFlags != 0)
+                    debug(0, "[COMBAT] cleared ambush flags=0x%02x after "
+                        "initiative initialization",
+                        (unsigned)ambushFlags);
+            }
         }
         _currentActor = initCtx.selectNextActor();
         debug(0, "[COMBAT] first actor selected: %s",
@@ -182,7 +191,8 @@ CombatSession::TurnResult CombatSession::executeTurn() {
     if (_phase == PHASE_AI_TURN) {
         debug(0, "[COMBAT] -> moveByAI for '%s'", _currentActor->name.c_str());
         CombatContext ctx = makeContext();
-        moveByAI(_currentActor, ctx, _aiDelegate, _attackDelegate);
+        moveByAI(_currentActor, ctx, _aiDelegate, _attackDelegate,
+            _spellDelegate);
         debug(0, "[COMBAT] moveByAI done for '%s'", _currentActor->name.c_str());
 
         _globals.attacker = _previousAttacker;
@@ -217,6 +227,7 @@ CombatSession::TurnResult CombatSession::executeTurn() {
             _currentActor->name.c_str(),
             _currentActor->combatState ? (int)_currentActor->combatState->initiative : -1);
         _currentActor = makeContext().selectNextActor();
+        result.event = TurnResult::EV_ACTOR_SKIPPED;
         if (_currentActor == nullptr) {
             processRoundEnd();
             _phase = PHASE_ROUND_END;
@@ -252,8 +263,9 @@ CombatSession::TurnResult CombatSession::executeTurn() {
         debug(0, "[COMBAT] ES15 zeroed initiative for '%s', skipping",
             _currentActor->name.c_str());
         _globals.attacker = _previousAttacker;
+        _previousAttacker = nullptr;
         _currentActor = makeContext().selectNextActor();
-        result.event = TurnResult::EV_NONE;
+        result.event = TurnResult::EV_ACTOR_SKIPPED;
         if (_currentActor == nullptr) {
             processRoundEnd();
             _phase = PHASE_ROUND_END;
@@ -323,12 +335,15 @@ CombatSession::TurnResult CombatSession::submitPlayerAction(PlayerAction action)
     case PA_MOVE:
         break;
     case PA_QUICK:
-        // Mirrors COMBAT_setQuickfight: enable AI control, clear same-side target.
+        // Continue this activation as AI without rerunning turn-start effects.
         _currentActor->ai_control = true;
         if (cs && cs->target &&
                 cs->target->combatSide == _currentActor->combatSide)
             cs->target = nullptr;
-        break;
+        _phase = PHASE_AI_TURN;
+        debug(0, "[COMBAT] Quick -> PHASE_AI_TURN for current actor '%s'",
+            _currentActor->name.c_str());
+        return result;
     case PA_QUICK_ALL:
         // Party quickfight: initiative=20 (normalised to 19 when the actor is
         // reselected) and quickfight for every combatant. The turn is not
@@ -461,6 +476,10 @@ void CombatSession::processRoundEnd() {
                             _globals.sideCount[1] == 0);
     _roundEnd.askContinue = (_globals.sideCount[0] != 0 &&
                              _globals.sideCount[1] == 0);
+    debug(0, "[COMBAT] round end: sideCount[PARTY]=%d sideCount[ENEMY]=%d "
+        "exitCombat=%d askContinue=%d",
+        (int)_globals.sideCount[0], (int)_globals.sideCount[1],
+        (int)_roundEnd.exitCombat, (int)_roundEnd.askContinue);
 }
 
 bool CombatSession::applyTurnStartEffects(Data::PlayerCharacter *ch) {
@@ -677,6 +696,51 @@ CombatSession::SetStatusResult CombatSession::setCharacterStatus(
     }
 
     return result;
+}
+
+void CombatSession::handleCharacterDown(Data::PlayerCharacter *ch) {
+    if (!ch || ch->enabled || _phase == PHASE_NONE || _phase == PHASE_ENDED)
+        return;
+
+    if (ch->combatState)
+        ch->combatState->endTurn();
+
+    const int idx = _table.findIndex(ch);
+    if (idx < 0 || _table.getSize(idx) == 0)
+        return;
+
+    if (_attackDelegate)
+        _attackDelegate->drawCharacterDying(ch);
+
+    const TilePos pos = _table.getTilePos(idx);
+    if (ch->combatState && !ch->combatState->notInTeam) {
+        bool recorded = false;
+        for (uint i = 0; i < _globals.downedMembers.size(); ++i) {
+            if (_globals.downedMembers[i].character == ch) {
+                recorded = true;
+                break;
+            }
+        }
+        if (!recorded) {
+            const uint8 savedTile = _battlefieldMap.getRawTile(pos);
+            _globals.downedMembers.push_back(
+                CombatGlobals::DownedMemberRecord(ch, pos, savedTile));
+            ++_globals.membersOnGround;
+            if (savedTile != CloudEffectManager::kTileCloud)
+                _battlefieldMap.setRawTile(
+                    pos, CombatantTable::TILE_DOWNED_MEMBER);
+        }
+    }
+
+    _table.setSize(idx, 0);
+    _table.rebuildOccupancy();
+    debug(0, "[COMBAT] down: '%s' index=%d status=%d pos=(%u,%u) "
+        "footprint removed, turn ended",
+        ch->name.c_str(), idx, (int)ch->healthStatus,
+        (unsigned)pos.col, (unsigned)pos.row);
+
+    if (_attackDelegate)
+        _attackDelegate->presentViewport(0);
 }
 
 bool CombatSession::flee(Data::PlayerCharacter *ch) {

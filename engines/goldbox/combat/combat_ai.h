@@ -39,6 +39,7 @@ namespace Combat {
 struct CombatContext;
 struct CombatGlobals;
 struct CombatViewDelegate;
+struct CastSpellViewDelegate;
 
 /**
  * Result of an AI turn execution.
@@ -114,13 +115,14 @@ struct AiMoveViewDelegate {
  *  11. handleAiControlInput  — second control-reclaim opportunity
  *  12. movement/attack loop  — processAiTurn until turn complete
  *
- * Movement and attack presentation use their respective view delegates.
+ * Movement, attack and spell presentation use their respective view delegates.
  * Pass nullptr to skip presentation.
  */
 void moveByAI(Data::PlayerCharacter *actor,
               CombatContext &ctx,
               AiMoveViewDelegate *view,
-              CombatViewDelegate *attackView = nullptr);
+              CombatViewDelegate *attackView = nullptr,
+              CastSpellViewDelegate *spellView = nullptr);
 
 /**
  * Mirrors COMBAT_ProcessAITurn.
@@ -221,7 +223,7 @@ void processAiMove(Data::PlayerCharacter *actor,
  * Returns false and sets *outTarget = nullptr when none exists.
  *
  * Used by isSpellEligibleForAI() to gate SP_CL1_CURE_LT_WOUNDS:
- * that spell is only eligible when NO nearby wounded ally exists.
+ * that spell can be used immediately when a nearby wounded ally exists.
  */
 bool findNearbyWoundedAlly(Data::PlayerCharacter *attacker,
                         CombatContext &ctx,
@@ -233,25 +235,23 @@ bool findNearbyWoundedAlly(Data::PlayerCharacter *attacker,
  * Returns true when spellId is eligible for AI use at the given
  * priorityThreshold:
  *   1. spell.priority >= priorityThreshold
- *   2. spell is offensive OR is SP_CL1_CURE_LT_WOUNDS (id 3)
- *   3. SP_CL1_CURE_LT_WOUNDS is rejected when a nearby wounded ally exists
- *      (caster's tile + 8 neighbours); use it only when no ally needs healing
- *   4. ctx.buildTargetList() must find at least one target
- *   5. when spell.minAITargets != 0, each target is validated via
- *      a per-target enemy check (AI_HasEnemyTargetForSpell — TBD)
+ *   2. non-offensive spells and healing with a nearby wounded ally qualify
+ *   3. otherwise at least one target must be within computed spell range
+ *   4. when spell.minAITargets != 0, the area must not catch allies
  *
  * Side effect: calls ctx.buildTargetList(), which mutates ctx.targetList.
  */
 bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
                           uint8 spellId,
                           uint8 priorityThreshold,
-                          CombatContext &ctx);
+                          CombatContext &ctx,
+                          bool fromMagicItem = false);
 
 /**
  * Mirrors AI_SelectSpellFromBook.
  *
- * Builds a compact list of memorized spells from actor->spells.memorizedSpells
- * (21 entries, gated by combatState->canCast), then performs a randomized
+ * Builds a compact list from the character's game-specific memorized-spell
+ * array (21 entries, gated by combatState->canCast), then performs a randomized
  * priority-descending search:
  *   - rolls 1d7 to determine the number of search rounds
  *   - priority threshold starts at 7 and decrements each round
@@ -265,7 +265,8 @@ bool isSpellEligibleForAI(Data::PlayerCharacter *actor,
  *
  * Returns true when a spell was successfully cast.
  */
-bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx);
+bool selectSpellFromBook(Data::PlayerCharacter *actor, CombatContext &ctx,
+                         CastSpellViewDelegate *view = nullptr);
 
 /**
  * Mirrors AI_TryTurnUndead.
@@ -329,14 +330,15 @@ void turnUndead(Data::PlayerCharacter *cleric,
  * and uses the first one found. Eligibility is gated by:
  *   - combatState->canUse
  *   - ctx.globals.sideCount[actor->combatSide] != 0
- *   - ctx.globals.magicEnabled
+ *   - enemy side OR ctx.globals.magicEnabled (party autospell)
  *
  * Rolls 1d7 to determine how many priority levels (7 down to 7-roll+1)
  * are searched. Within each pass the first eligible item wins.
  *
  * Returns true when an item was used.
  */
-bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx);
+bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx,
+                CastSpellViewDelegate *view = nullptr);
 
 /**
  * Compute a weapon desirability score for AI auto-equip selection.

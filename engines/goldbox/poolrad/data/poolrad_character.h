@@ -146,6 +146,9 @@ public:
     // spells still scheduled to memorize and do not count).
     bool isSpellMemorized(uint8 spellId) const override;
     bool removeMemorizedSpell(uint8 spellId) override;
+    const uint8 *getMemorizedSpells() const override {
+        return spells.memorizedSpells;
+    }
     bool hasItems() const;
     bool hasValuables() const;
     void finalizeName();
@@ -263,4 +266,3 @@ private:
 } // namespace Goldbox
 
     #endif // GOLDBOX_POOLRAD_DATA_POOLRAD_CHARACTER_H
-

@@ -251,9 +251,10 @@ public:
 	}
 
 	int rollDice(int number, int sides) {
+		assert(number >= 0 && sides > 0);
 		int total = 0;
 		for (int i = 0; i < number; ++i) {
-			total += getRandomNumber(sides) + 1;
+			total += getRandomNumber(sides - 1) + 1;
 		}
 		return total;
 	}

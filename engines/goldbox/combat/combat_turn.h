@@ -237,6 +237,19 @@ struct CombatViewDelegate {
                                   uint8 damage,
                                   uint8 damageDisplay,
                                   uint8 resultType) = 0;
+
+    /**
+     * Presentation half of COMBAT_HandleDeathOnMap: overlay the dying icon
+     * on ch's footprint and hold it on screen. Called by
+     * CombatSession::handleCharacterDown before the footprint is removed.
+     */
+    virtual void drawCharacterDying(Data::PlayerCharacter *ch) {}
+
+    /**
+     * Present the current battlefield state (viewport, combatants, info
+     * panel) and hold it for delayMs. Mirrors COMBAT_RedrawViewport.
+     */
+    virtual void presentViewport(uint32 delayMs) {}
 };
 
 /**
@@ -361,7 +374,7 @@ struct CastSpellViewDelegate {
  *
  * @param actor     The casting character (globals.attacker / PTR_SELECTED_CHAR)
  * @param spellId   Non-zero spell to cast
- * @param aiControl True when called from AI (suppresses view callbacks)
+ * @param aiControl True when called from AI (uses automatic targeting)
  * @param view      View delegate (may be nullptr)
  * @return          True when the action was consumed (spell cast or queued)
  */
@@ -373,18 +386,17 @@ bool castSpell(Data::PlayerCharacter *actor,
 /**
  * Mirrors ACTION_UseSpell (spell resolution hook).
  *
- * Single entry point for resolving a spell during combat. The spell
- * subsystem (targeting, saving throws, effect application) is not wired
- * into combat yet, so this currently only reports success; both castSpell()
- * (immediate spells) and resolvePendingSpell() route through it so the
- * integration only has to be done here.
+ * Resolves targeting, presentation and spell effects for both memorized
+ * spells and magic items. Magic items use their casting level and do not
+ * consume a memorized slot.
  *
  * @return True when the spell was resolved
  */
 bool useSpell(Data::PlayerCharacter *actor,
               uint8 spellId,
               bool aiControl,
-              CastSpellViewDelegate *view);
+              CastSpellViewDelegate *view,
+              bool fromMagicItem = false);
 
 /**
  * Mirrors the pending-spell branch of DIALOG_CombatMain / COMBAT_MoveByAI:

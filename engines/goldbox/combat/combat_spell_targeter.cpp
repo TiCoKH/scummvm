@@ -28,6 +28,7 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/spells/spell_duration.h"
 #include "goldbox/vm_interface.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Combat {
@@ -95,6 +96,13 @@ bool selectAutomatically(const Spells::SpellContext &ctx, CombatContext &cc,
         if (acceptable) {
             pick.target = candidate;
             pick.tile = candidatePos;
+            if (spellId == static_cast<uint8>(Data::Spells::SP_MI9))
+                debug(0, "[SPELL TARGET] '%s' spell=%u range=%u target='%s' "
+                    "side=%u pos=(%u,%u)",
+                    caster->name.c_str(), (unsigned)spellId, (unsigned)range,
+                    candidate->name.c_str(),
+                    (unsigned)candidate->combatSide,
+                    (unsigned)candidatePos.col, (unsigned)candidatePos.row);
             return true;
         }
     }

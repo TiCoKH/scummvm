@@ -136,13 +136,20 @@ DamageResult DamageSystem::apply(PlayerCharacter &target,
         result.spellLostMessage = "lost a spell";
     }
 
-    if (result.wentDown) {
-        result.downMessage = result.killed ? "is killed" : "Goes Down";
-        if (!result.killed && target.healthStatus == Goldbox::Data::S_DYING)
-            result.downMessage += " and is Dying";
-    }
+    if (result.wentDown)
+        result.downMessage = buildDownMessage(target);
 
     return result;
+}
+
+Common::String DamageSystem::buildDownMessage(const PlayerCharacter &target) {
+    if (target.enabled)
+        return Common::String();
+    if (isKilledStatus(target.healthStatus))
+        return "is killed";
+    if (target.healthStatus == Goldbox::Data::S_DYING)
+        return "Goes Down and is Dying";
+    return "Goes Down";
 }
 
 DamageResult DamageSystem::applyLegacy(PlayerCharacter &target,

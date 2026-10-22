@@ -21,6 +21,7 @@
 
 #include "goldbox/spells/spell_apply.h"
 
+#include "common/debug.h"
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/combat/combat_turn.h"
@@ -82,6 +83,7 @@ SpellCastResult applyOnTargets(const SpellContext &context,
         if (!target)
             continue;
 
+        const uint8 hpBefore = target->hitPoints.current;
         Goldbox::Data::ADnDCharacter *adnd =
             dynamic_cast<Goldbox::Data::ADnDCharacter *>(target);
 
@@ -111,6 +113,14 @@ SpellCastResult applyOnTargets(const SpellContext &context,
                 static_cast<Goldbox::Data::DamageModifier>(entry.savingEffect),
                 saved, params.behaviorFlags);
         }
+        if (spellId == static_cast<uint8>(
+                    Goldbox::Data::Spells::SP_MI9))
+            debug(0, "[SPELL EFFECT] spell=%u target='%s' side=%u damage=%u "
+                "saved=%d hp=%u->%u",
+                (unsigned)spellId, target->name.c_str(),
+                (unsigned)target->combatSide, (unsigned)baseDamage,
+                (int)saved, (unsigned)hpBefore,
+                (unsigned)target->hitPoints.current);
 
         if (entry.effectId != 0) {
             const uint8 duration = computeSpellDuration(spellId,

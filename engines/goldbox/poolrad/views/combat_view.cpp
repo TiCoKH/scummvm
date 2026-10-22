@@ -63,19 +63,8 @@ struct CombatViewAiDelegate : public Combat::AiMoveViewDelegate {
     CombatView *_view;
     explicit CombatViewAiDelegate(CombatView *v) : _view(v) {}
 
-    // Let the normal frame loop draw and flip — mirrors the ECL→InGameView pattern.
-    // redraw() sets _needsRedraw so drawElements()→draw() renders correctly,
-    // then pumpModalInputFrame() calls drawElements()+update() to show it.
-    void present(uint32 delayMs = 300) {
-        if (!g_events)
-            return;
-        _view->forceFullRedraw();
-        _view->draw();
-        if (g_events->getScreen()) {
-            g_events->getScreen()->makeAllDirty();
-            g_events->getScreen()->update();
-        }
-        g_system->delayMillis(delayMs);
+    void present(uint32 delayMs = CombatView::kStateChangeDelayMs) {
+        _view->presentFrame(delayMs);
     }
 
     void drawMoveRemaining(uint8 moveHalf) override {
@@ -131,29 +120,16 @@ struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
     CombatView *_view;
     explicit CombatViewAttackDelegate(CombatView *v) : _view(v) {}
 
-    void flipScreen(uint32 delayMs = 0) {
-        if (!g_events)
-            return;
-        _view->forceFullRedraw();
-        _view->draw();
-        if (g_events->getScreen()) {
-            g_events->getScreen()->makeAllDirty();
-            g_events->getScreen()->update();
-        }
-        if (delayMs > 0)
-            g_system->delayMillis(delayMs);
-    }
-
     void drawCombatInfo(::Goldbox::Data::PlayerCharacter *attacker) override {
         _view->setAiInfoActor(attacker);
-        flipScreen(200);
+        _view->presentFrame();
     }
 
     void updateCharacterFacingAndRedraw(::Goldbox::Data::PlayerCharacter *ch,
                                         uint8 direction, uint8 /*redrawMode*/,
                                         bool restoreOld) override {
         _view->setAiCharacterFacing(ch, static_cast<Direction>(direction));
-        flipScreen(150);
+        _view->presentFrame();
     }
 
     void animateRangedAttack(::Goldbox::Data::PlayerCharacter *attacker,
@@ -185,6 +161,21 @@ struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
                         damageDisplay, ctx->globals.behaviorFlags));
             }
         }
+
+        // Mirrors COMBAT_ApplyDamageMessage: TIME_Wait after the result,
+        // then the down text that stays up during the dying icon.
+        g_system->delayMillis(CombatView::kStateChangeDelayMs);
+        if (target && !target->enabled)
+            _view->printCombatMessage(target,
+                ::Goldbox::Data::DamageSystem::buildDownMessage(*target));
+    }
+
+    void drawCharacterDying(::Goldbox::Data::PlayerCharacter *ch) override {
+        _view->drawCharacterDying(ch);
+    }
+
+    void presentViewport(uint32 delayMs) override {
+        _view->presentFrame(delayMs);
     }
 };
 
@@ -257,7 +248,7 @@ void CombatView::setup(const Combat::CombatParams &params) {
     if (!p.vmGlobalLayout)
         p.vmGlobalLayout = &Data::getPoolradGlobalVmLayout();
     _session.setup(p);
-    _session.setViewDelegates(_aiDelegate, _attackDelegate);
+    _session.setViewDelegates(_aiDelegate, _attackDelegate, this);
     Combat::g_combatSession = &_session;
 
     _tilemap.render(_session.getBattlefieldMap(), _tileCache,
@@ -265,8 +256,11 @@ void CombatView::setup(const Combat::CombatParams &params) {
 
     // Load selection cursor frame from COMSPR block 25 (mirrors set_icon SLOT_SELECTFRAME).
     Gfx::IconManager *iconMgr = VmInterface::getIconManager();
-    if (iconMgr)
+    if (iconMgr) {
         iconMgr->loadIcon(Gfx::SLOT_SELECTFRAME, Gfx::ICON_KIND_SPRITE, 25);
+        iconMgr->loadIcon(kDyingIconSlot, Gfx::ICON_KIND_SPRITE,
+                          kDyingIconBlock);
+    }
 
     _needsFullRedraw = true;
 }
@@ -649,25 +643,6 @@ void CombatView::onUpdate() {
             }
             _currentInfoActor = nullptr;
 
-            // PA_QUICK: enable AI for current actor, then run AI immediately.
-            // Mirrors original: COMBAT_setQuickfight + COMBAT_MoveByAI.
-            if (action == Combat::CombatSession::PA_QUICK) {
-                _session.submitPlayerAction(Combat::CombatSession::PA_QUICK);
-                // Actor is now ai_control=true but still PHASE_AWAITING_PLAYER.
-                // Run AI turn directly (mirrors COMBAT_MoveByAI call in original).
-                ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
-                Combat::CombatContext *ctx = _session.getContext();
-                if (actor && actor->ai_control && ctx)
-                    moveByAI(actor, *ctx, _aiDelegate, _attackDelegate);
-                // The original reports the action complete regardless of
-                // initiative; an actor with initiative left is reselected.
-                if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
-                    _session.submitPlayerAction(Combat::CombatSession::PA_NONE);
-                _currentInfoActor = nullptr;
-                _needsFullRedraw = true;
-                continue;
-            }
-
             const Combat::CombatSession::TurnResult tickResult =
                 _session.submitPlayerAction(action);
             if (tickResult.event == Combat::CombatSession::TurnResult::EV_AI_ATTACK &&
@@ -687,6 +662,14 @@ void CombatView::onUpdate() {
         if (result.event == Combat::CombatSession::TurnResult::EV_NONE) {
             debug(0, "[COMBATVIEW] EV_NONE -> break");
             break;
+        }
+
+        if (result.event ==
+                Combat::CombatSession::TurnResult::EV_ACTOR_SKIPPED) {
+            debug(0, "[COMBATVIEW] actor turn cancelled -> continue");
+            _currentInfoActor = nullptr;
+            _needsFullRedraw = true;
+            continue;
         }
 
         if (result.event == Combat::CombatSession::TurnResult::EV_ROUND_END) {
@@ -1155,12 +1138,24 @@ void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
         _bridge->postEffectMessage(ch, r.spellLostMessage, true);
 
     if (r.wentDown) {
-        if (_bridge)
+        const bool inCombat =
+            _session.getPhase() != Combat::CombatSession::PHASE_NONE &&
+            !_session.isEnded();
+        if (inCombat)
+            printCombatMessage(ch, r.downMessage);
+        else if (_bridge)
             _bridge->postEffectMessage(ch, r.downMessage, false);
 
-        if (r.killed)
-            handleDeathOnMap(ch);
-        else if (_bridge)
+        if (inCombat) {
+            ch->clearStatusEffects();
+            Combat::CombatContext *ctx = _session.getContext();
+            if (ctx && ctx->params.effectRuntime && ch->getEffects())
+                ctx->params.effectRuntime->checkEffectSet(
+                    ::Goldbox::Data::Effects::ES_ON_DEATH,
+                    *ch->getEffects(), *ch, &ctx->globals);
+            if (!ch->enabled)
+                handleDeathOnMap(ch);
+        } else if (_bridge)
             _bridge->requestRefresh(
                 ::Goldbox::Data::Effects::EffectHostBridge::RF_VIEWPORT);
     }
@@ -1171,11 +1166,74 @@ void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
 }
 
 void CombatView::handleDeathOnMap(::Goldbox::Data::PlayerCharacter *ch) {
-    (void)ch;
+    _session.handleCharacterDown(ch);
     _needsFullRedraw = true;
     if (_bridge)
         _bridge->requestRefresh(
             ::Goldbox::Data::Effects::EffectHostBridge::RF_VIEWPORT);
+}
+
+void CombatView::presentFrame(uint32 delayMs) {
+    if (!g_events)
+        return;
+    _needsFullRedraw = true;
+    draw();
+    if (g_events->getScreen()) {
+        g_events->getScreen()->makeAllDirty();
+        g_events->getScreen()->update();
+    }
+    if (delayMs > 0)
+        g_system->delayMillis(delayMs);
+}
+
+void CombatView::drawCharacterDying(::Goldbox::Data::PlayerCharacter *ch) {
+    if (!ch || !g_events)
+        return;
+
+    const Combat::CombatantTable &table = _session.getTable();
+    const int idx = table.findIndex(ch);
+    if (idx < 0 || table.getSize(idx) == 0)
+        return;
+
+    Combat::CombatContext *ctx = _session.getContext();
+    if (ctx && !ctx->isCharacterInBounds(ch, true)) {
+        _session.scrollViewport(table.getTilePos(idx));
+        drawViewport();
+        drawCombatants();
+    }
+
+    Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+    const Gfx::Pic *pic = (iconMgr && !iconMgr->isSlotEmpty(kDyingIconSlot))
+        ? iconMgr->getReadyPic(kDyingIconSlot) : nullptr;
+    debug(0, "[COMBATVIEW] dying icon for '%s' index=%d size=%u icon=%d",
+        ch->name.c_str(), idx, (unsigned)table.getSize(idx), pic != nullptr);
+
+    if (pic) {
+        const Combat::ViewportPos vpos =
+            _session.getViewport().getCharacterViewportPosition(table, idx);
+        Surface s = getSurface();
+        for (uint8 slot = 0; slot < 4; ++slot) {
+            Combat::FootprintOffsetPair off;
+            if (!Combat::CombatContext::getFootprintOffset(
+                    table.getSize(idx), slot, off))
+                continue;
+            const int col = vpos.column + off.col;
+            const int row = vpos.row + off.row;
+            if (col < 0 || row < 0 ||
+                    col >= Combat::CombatViewport::VIEW_COLS ||
+                    row >= Combat::CombatViewport::VIEW_ROWS)
+                continue;
+            pic->trDraw(&s, kViewportX + col * kTileSize,
+                        kViewportY + row * kTileSize,
+                        pic->getTransparentIndex());
+        }
+    }
+
+    if (g_events->getScreen()) {
+        g_events->getScreen()->makeAllDirty();
+        g_events->getScreen()->update();
+    }
+    g_system->delayMillis(kStateChangeDelayMs);
 }
 
 void CombatView::drawDamage(::Goldbox::Data::PlayerCharacter *ch,
