@@ -23,28 +23,21 @@
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_STORE_DIALOG_H
 
 #include "goldbox/core/menu_item.h"
-#include "common/list.h"
-#include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 
 namespace Goldbox {
-namespace Data {
-class PlayerCharacter;
-namespace Items {
-struct CharacterItem;
-}
-}
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-class PartySelector;
 class PromptMessage;
 class VerticalMenu;
 
 /**
  * Item shop dialog (DIALOG_Shop equivalent).
- * Primary action: Buy (B) — opens item purchase sub-menu.
+ * Primary action: Buy (B) opens the item purchase sub-menu.
+ * Purchases copy stock to the selected character without depleting it.
+ * Payment uses that character's coins, or the pool if it alone can pay.
  * Exit text references "the Shopkeeper".
  */
 class StoreDialog : public ShopBaseDialog {
@@ -52,6 +45,7 @@ public:
     StoreDialog(const Common::String &name = "Store");
     ~StoreDialog() override;
 
+    void deactivate() override;
     bool msgKeypress(const KeypressMessage &msg) override;
     void handleMenuResult(const MenuResultMessage &result) override;
     void draw() override;
@@ -61,37 +55,23 @@ protected:
     void onShopActivate() override;
 
 private:
-    // Exchange rates and gold conversion now live in ValuableItems.
-
     enum BuyStage {
         BUY_NONE = 0,
-        BUY_SELECTOR,
-        BUY_RECEIVE
+        BUY_SELECTOR
     };
     BuyStage _buyStage;
 
     MenuItemList _shopMenuItems;
     Common::Array<Common::String> _buyPromptOpts;
     VerticalMenu *_shopSelector;
-    PartySelector *_partySelector;
     PromptMessage *_activePrompt;
-    Goldbox::Data::Items::CharacterItem *_pendingItem;
 
     void buildShopItemList();
-    void restoreItemDisplayText();
     void openBuySelector();
     void closeBuySelector();
     void handleShopSelectorResult(const MenuResultMessage &result);
     void attemptBuy();
-    void handleReceiveResult(const MenuResultMessage &result);
-    void deductFromParty(uint32 cost);
-    void deductFromPool(uint32 cost);
     void showMessage(const Common::String &msg);
-
-    static uint32 sumPartyGoldValue(
-        const Common::List<Goldbox::Data::PlayerCharacter *> &party);
-    static Goldbox::Data::ValuableItems collectPartyCoins(
-        const Common::List<Goldbox::Data::PlayerCharacter *> &party);
 };
 
 } // namespace Dialogs

@@ -517,10 +517,12 @@ void ADnDCharacter::finalizeArmorClass(AcComponents &ac) {
 
 int ADnDCharacter::getCapacityModifier() const {
 	int t = getStrengthTier();
+	if (t == 0)  return 0;
 	if (t <= 3)  return -350;
 	if (t <= 5)  return -250;
 	if (t <= 7)  return -150;
-	if (t <= 11) return 100;
+	if (t <= 11) return 0;
+	if (t <= 13) return 100;
 	if (t <= 15) return 200;
 	if (t == 16) return 350;
 	if (t <= 21) return 500 + (t - 17) * 250;

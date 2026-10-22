@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
+#include "common/debug.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
@@ -37,6 +38,23 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
+
+namespace {
+
+void debugShopCoins(const Common::String &shopName, const char *phase,
+        const char *owner, const Goldbox::Data::ValuableItems &coins) {
+    using namespace Goldbox::Data;
+    debug(1, "[Shop:%s] %s %s: copper=%u silver=%u electrum=%u "
+        "gold=%u platinum=%u gems=%u jewelry=%u goldValue=%u weight=%u",
+        shopName.c_str(), phase, owner,
+        (unsigned)coins[VAL_COPPER], (unsigned)coins[VAL_SILVER],
+        (unsigned)coins[VAL_ELECTRUM], (unsigned)coins[VAL_GOLD],
+        (unsigned)coins[VAL_PLATINUM], (unsigned)coins[VAL_GEMS],
+        (unsigned)coins[VAL_JEWELRY], (unsigned)coins.getGoldValue(),
+        (unsigned)coins.getTotalWeight());
+}
+
+} // namespace
 
 ShopBaseDialog::ShopBaseDialog(const Common::String &name,
         const ShopBaseConfig &config)
@@ -75,9 +93,11 @@ void ShopBaseDialog::activate() {
 
     onShopActivate();
     recreateHorizontalMenu();
+    debugShopMoney("activate");
 }
 
 void ShopBaseDialog::deactivate() {
+    debugShopMoney("deactivate");
     if (_horizontalMenu) {
         _horizontalMenu->deactivate();
         delete _horizontalMenu;
@@ -217,6 +237,10 @@ bool ShopBaseDialog::msgKeypress(const KeypressMessage &msg) {
     if (!_isActive)
         return false;
 
+    debug(1, "[Shop:%s] keypress: stage=%d key=%d ascii=%u",
+        getName().c_str(), (int)_stage, (int)msg.keycode,
+        (unsigned)msg.ascii);
+
     if (_promptMessage && _promptMessage->isActive()) {
         _promptMessage->handleKeypress(msg);
         return true;
@@ -293,6 +317,9 @@ bool ShopBaseDialog::msgKeypress(const KeypressMessage &msg) {
 }
 
 void ShopBaseDialog::handleMenuKey(char key) {
+    debug(1, "[Shop:%s] action: key='%c' stage=%d",
+        getName().c_str(), key, (int)_stage);
+    debugShopMoney("before-action");
     switch (key) {
     case 'B':
         if (_shopType == SHOP_STORE)
@@ -330,6 +357,7 @@ void ShopBaseDialog::handleMenuKey(char key) {
 }
 
 void ShopBaseDialog::actionView() {
+    debugShopMoney("view-character");
     if (_parent)
         g_events->postMenuResult(_parent->getName(), true,
             Common::KEYCODE_v, 0, Common::String(), true, false);
@@ -344,6 +372,7 @@ void ShopBaseDialog::actionPool() {
         VmInterface::getParty();
     Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     pool.poolMoneyFromParty(*party);
+    debugShopMoney("after-pool");
     refreshScreen();
 }
 
@@ -352,6 +381,7 @@ void ShopBaseDialog::actionShare() {
         VmInterface::getParty();
     Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     pool.shareMoneyToParty(*party);
+    debugShopMoney("after-share");
     refreshScreen();
 }
 
@@ -410,6 +440,7 @@ void ShopBaseDialog::actionExit() {
 }
 
 void ShopBaseDialog::commitExit() {
+    debugShopMoney("exit");
     _exitFlag = true;
     if (_exitConfirmMenu) {
         _exitConfirmMenu->deactivate();
@@ -439,6 +470,11 @@ void ShopBaseDialog::closeExitConfirm() {
 }
 
 void ShopBaseDialog::handleMenuResult(const MenuResultMessage &result) {
+    debug(1, "[Shop:%s] menu-result: stage=%d success=%d key=%d "
+        "hasValue=%d value=%d",
+        getName().c_str(), (int)_stage, (int)result._success,
+        (int)result._keyCode, (int)result._hasIntValue,
+        result._hasIntValue ? (int)result._intValue : -1);
     switch (_stage) {
     case STAGE_TAKE_SELECTOR:
         handleTakeSelectorResult(result);
@@ -470,6 +506,31 @@ void ShopBaseDialog::getTreasurePoolFlags(bool &hasMoney, bool &hasItems) const 
     const Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
     hasMoney = pool.hasAnyCoin();
     hasItems = pool.hasItems();
+}
+
+void ShopBaseDialog::debugShopMoney(const char *phase) const {
+    if (!g_engine) {
+        debug(1, "[Shop:%s] %s: no engine", getName().c_str(), phase);
+        return;
+    }
+
+    Goldbox::Poolrad::Data::PoolradCharacter *character =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
+            VmInterface::getSelectedCharacter());
+    if (character) {
+        debug(1, "[Shop:%s] %s character=%p name='%s' items=%d "
+            "encumbrance=%u",
+            getName().c_str(), phase, static_cast<void *>(character),
+            character->name.c_str(), character->getInventory().count(),
+            (unsigned)character->encumbrance);
+        debugShopCoins(getName(), phase, "character",
+            character->valuableItems);
+    } else {
+        debug(1, "[Shop:%s] %s: no Poolrad character selected",
+            getName().c_str(), phase);
+    }
+    debugShopCoins(getName(), phase, "pool",
+        VmInterface::getTreasurePool().coins());
 }
 
 void ShopBaseDialog::refreshScreen() {

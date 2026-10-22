@@ -220,6 +220,7 @@ public:
     // Returns true when the character can receive/carry the item.
     // Rules: max 16 items total (0..15 valid before add), and
     // encumbrance + itemWeight <= (1500 + capacity modifier).
+    // Class restrictions apply to readying, not receiving items.
     bool canReceiveItemLegacy(const Goldbox::Data::Items::CharacterItem &item);
 	// Legacy receive-item operation (checkOverloaded equivalent).
 	// Combines fit-check + add + recalc in one atomic operation.

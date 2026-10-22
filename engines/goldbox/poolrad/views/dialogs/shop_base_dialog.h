@@ -125,6 +125,9 @@ protected:
      */
     void getTreasurePoolFlags(bool &hasMoney, bool &hasItems) const;
 
+    /** Trace selected character and pool balances at debug level 1. */
+    void debugShopMoney(const char *phase) const;
+
     /**
      * Check if detect magic spell is available (Treasure only).
      * Default returns false.

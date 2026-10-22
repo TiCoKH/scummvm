@@ -143,6 +143,9 @@ void ViewCharacterView::syncSelectedCharacter(bool forceRefresh) {
     }
 
     _character = selectedCharacter;
+    if (_character)
+        _character->recalcCombatStats();
+    buildMenu();
     if (_profileDialog) {
         _profileDialog->activate();
     }
@@ -206,8 +209,7 @@ void ViewCharacterView::draw() {
     }
 
     debug(6, "ViewCharacterView::draw() - drawing PROFILE stage");
-    // Profile stage: rebuild menu and draw both profile and menu
-    buildMenu();
+    // Profile stage: draw both profile and menu.
     if (_profileDialog) {
         _profileDialog->draw();
     }
@@ -338,6 +340,7 @@ void ViewCharacterView::setStage(ViewCharacterState stage) {
     switch (_stage) {
     case VC_STATE_PROFILE:
         debug(6, "ViewCharacterView::setStage() - setting PROFILE stage");
+        buildMenu();
         if (_itemsMenu) {
             detachDialog(_itemsMenu);
         }

@@ -755,6 +755,9 @@ uint16 EclVM::readVmMemory(uint16 vmAddr) const {
         return value;
     }
 
+    if (readDatBankValue(vmAddr, value))
+        return value;
+
     // All word-addressed banks (regions 0-4, including System) store one
     // logical value per VM address in the low byte. The original VM treats
     // these as 16-bit words but only the low byte carries meaningful data
@@ -765,6 +768,44 @@ uint16 EclVM::readVmMemory(uint16 vmAddr) const {
 
 uint16 EclVM::readMemory(uint16 vmAddr) const {
     return readVmMemory(vmAddr);
+}
+
+bool EclVM::readDatBankValue(uint16 vmAddr, uint16 &value) const {
+    // VM_ReadDatBlockVar reads these fields from PTR_SELECTED_CHAR. Their
+    // writes update the character directly in onDatBankWrite, so reading the
+    // flat VM byte would return stale or truncated values.
+    if (!_config || getMemoryRegion(vmAddr) != 1)
+        return false;
+
+    const uint16 localOffset =
+        (uint16)(vmAddr - _config->getCharacterBase());
+    Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(
+        VmInterface::getSelectedCharacter());
+    if (!adnd)
+        return false;
+
+    switch (localOffset) {
+    case 0xB8:
+        value = (uint16)(uint8)adnd->npc;
+        return true;
+    case 0xBB:
+        value = adnd->valuableItems[Data::VAL_COPPER];
+        return true;
+    case 0xBD:
+        value = adnd->valuableItems[Data::VAL_SILVER];
+        return true;
+    case 0xBF:
+        value = adnd->valuableItems[Data::VAL_ELECTRUM];
+        return true;
+    case 0xC1:
+        value = adnd->valuableItems[Data::VAL_GOLD];
+        return true;
+    case 0xC3:
+        value = adnd->valuableItems[Data::VAL_PLATINUM];
+        return true;
+    default:
+        return false;
+    }
 }
 
 void EclVM::onDatBankWrite(uint16 vmAddr, uint16 value,
@@ -809,6 +850,10 @@ void EclVM::onDatBankWrite(uint16 vmAddr, uint16 value,
         return;
 
     Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(pc);
+
+    if (localOffset >= 0xBB && localOffset <= 0xC3)
+        debug(1, "[ECL:DAT] coin write: offset=0x%X value=%u character='%s'",
+            (unsigned)localOffset, (unsigned)value, pc->name.c_str());
 
     switch (localOffset) {
     case 0xB8: {

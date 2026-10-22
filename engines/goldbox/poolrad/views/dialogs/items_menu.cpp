@@ -105,6 +105,9 @@ void ItemsMenu::activate() {
 		VmInterface::getSelectedCharacter()
 	);
 
+	if (_character)
+		_character->recalcCombatStats();
+
 	buildActionMenu();
 	buildItemList();
 	buildItemsListMenu();

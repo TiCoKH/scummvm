@@ -299,6 +299,7 @@ private:
 
     uint8 getMemoryRegion(uint16 vmAddr) const;
     uint16 readVmMemory(uint16 vmAddr) const;
+    bool readDatBankValue(uint16 vmAddr, uint16 &value) const;
     void onDatBankWrite(uint16 vmAddr, uint16 value,
         SyscallHandler *syscalls);
 
