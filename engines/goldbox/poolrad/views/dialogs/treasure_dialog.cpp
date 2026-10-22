@@ -22,7 +22,6 @@
 #include "goldbox/poolrad/views/dialogs/treasure_dialog.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/vm_interface.h"
-#include "goldbox/runtime/treasure_pool.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -57,7 +56,7 @@ bool TreasureDialog::hasDetectSpell() const {
 
     bool hasItems = false;
     bool hasMoney = false;
-    const_cast<TreasureDialog *>(this)->getShopFlags(hasItems, hasMoney);
+    getTreasurePoolFlags(hasMoney, hasItems);
     if (!hasItems)
         return false;
 
@@ -73,12 +72,6 @@ bool TreasureDialog::hasDetectSpell() const {
 
 void TreasureDialog::actionDetect() {
     // TODO: ACTION_UseSpell(_detectSpellType, false, false, ...)
-}
-
-void TreasureDialog::getShopFlags(bool &hasItems, bool &hasMoney) {
-    const Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
-    hasItems = pool.hasItems();
-    hasMoney = pool.hasAnyCoin();
 }
 
 } // namespace Dialogs

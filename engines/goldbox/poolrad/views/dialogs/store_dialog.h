@@ -59,7 +59,6 @@ public:
 protected:
     void actionPrimary() override;
     void onShopActivate() override;
-    void getShopFlags(bool &hasItems, bool &hasMoney) override;
 
 private:
     // Exchange rates and gold conversion now live in ValuableItems.

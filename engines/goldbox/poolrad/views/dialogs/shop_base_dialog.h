@@ -25,6 +25,7 @@
 #include "goldbox/core/menu_item.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -117,12 +118,12 @@ protected:
     virtual void onShopActivate() {}
 
     /**
-     * Query whether items/money remain in the shop/treasure pool.
-     * Subclass must implement to check game state.
-     * @param hasItems  Set true if unclaimed items exist
-     * @param hasMoney  Set true if unclaimed money exists
+     * Query the shared treasure pool for money and item presence.
+     * Direct equivalent of SHOP_getTreasurePoolFlags: checks all seven
+     * coin denominations and whether the item list is non-empty.
+     * Pure query — does not mutate pool state or draw anything.
      */
-    virtual void getShopFlags(bool &hasItems, bool &hasMoney) = 0;
+    void getTreasurePoolFlags(bool &hasMoney, bool &hasItems) const;
 
     /**
      * Check if detect magic spell is available (Treasure only).
@@ -157,14 +158,19 @@ private:
         STAGE_TAKE_SELECTOR,
         STAGE_TAKE_AMOUNT,
         STAGE_APPRAISE_MENU,
-        STAGE_APPRAISE_KEEP_SELL
+        STAGE_APPRAISE_KEEP_SELL,
+        STAGE_EXIT_CONFIRM
     };
     Stage _stage;
+
+    HorizontalYesNo *_exitConfirmMenu;
 
     void buildMenuModel();
     void recreateHorizontalMenu();
     void refreshScreen();
     void handleMenuKey(char key);
+    void commitExit();
+    void closeExitConfirm();
 
     // --- Take action state ---
     static const char *kValuableNames[Goldbox::Data::VALUABLE_COUNT];

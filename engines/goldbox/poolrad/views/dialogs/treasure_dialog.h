@@ -42,7 +42,6 @@ public:
 
 protected:
     void actionDetect() override;
-    void getShopFlags(bool &hasItems, bool &hasMoney) override;
     bool hasDetectSpell() const override;
 
 private:

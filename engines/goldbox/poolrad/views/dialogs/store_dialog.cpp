@@ -60,12 +60,7 @@ StoreDialog::~StoreDialog() {
 void StoreDialog::onShopActivate() {
     _buyStage = BUY_NONE;
     _pendingItem = nullptr;
-}
-
-void StoreDialog::getShopFlags(bool &hasItems, bool &hasMoney) {
-    const Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
-    hasItems = pool.hasItems();
-    hasMoney = pool.hasAnyCoin();
+    buildShopItemList();
 }
 
 void StoreDialog::actionPrimary() {

@@ -93,12 +93,6 @@ TempleDialog::~TempleDialog() {
     delete _healPrompt;
 }
 
-void TempleDialog::getShopFlags(bool &hasItems, bool &hasMoney) {
-    const Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
-    hasItems = pool.hasItems();
-    hasMoney = pool.hasAnyCoin();
-}
-
 // --- Primary action ---
 
 void TempleDialog::actionPrimary() {

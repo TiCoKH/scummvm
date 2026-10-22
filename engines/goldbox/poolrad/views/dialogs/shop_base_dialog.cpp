@@ -22,6 +22,7 @@
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
@@ -47,7 +48,7 @@ ShopBaseDialog::ShopBaseDialog(const Common::String &name,
       _takeSelectedType(Goldbox::Data::VAL_COPPER),
       _appraiseMenu(nullptr), _appraiseKeepSellMenu(nullptr),
       _appraiseValue(0), _appraiseType(APPRAISE_GEM),
-      _appraiseSellOnly(false) {
+      _appraiseSellOnly(false), _exitConfirmMenu(nullptr) {
     setBounds(Window(0, 0, 39, 24));
 }
 
@@ -58,6 +59,7 @@ ShopBaseDialog::~ShopBaseDialog() {
     delete _appraiseMenu;
     delete _appraiseKeepSellMenu;
     delete _promptMessage;
+    delete _exitConfirmMenu;
 }
 
 void ShopBaseDialog::activate() {
@@ -65,6 +67,11 @@ void ShopBaseDialog::activate() {
     _exitFlag = false;
     _appraiseDone = false;
     _stage = STAGE_MENU;
+
+    if (_exitConfirmMenu) {
+        delete _exitConfirmMenu;
+        _exitConfirmMenu = nullptr;
+    }
 
     onShopActivate();
     recreateHorizontalMenu();
@@ -84,7 +91,7 @@ void ShopBaseDialog::buildMenuModel() {
     _menuModel.items.clear();
     _menuModel.currentSelection = 0;
 
-    getShopFlags(_hasItems, _hasMoney);
+    getTreasurePoolFlags(_hasMoney, _hasItems);
 
     Common::Array<Common::String> menuStrings;
 
@@ -189,6 +196,10 @@ void ShopBaseDialog::draw() {
             _appraiseKeepSellMenu->draw();
         }
         return;
+    case STAGE_EXIT_CONFIRM:
+        if (_exitConfirmMenu && _exitConfirmMenu->isActive())
+            _exitConfirmMenu->draw();
+        return;
     default:
         break;
     }
@@ -227,6 +238,10 @@ bool ShopBaseDialog::msgKeypress(const KeypressMessage &msg) {
     case STAGE_APPRAISE_KEEP_SELL:
         if (_appraiseKeepSellMenu && _appraiseKeepSellMenu->isActive())
             return _appraiseKeepSellMenu->msgKeypress(msg);
+        return true;
+    case STAGE_EXIT_CONFIRM:
+        if (_exitConfirmMenu && _exitConfirmMenu->isActive())
+            return _exitConfirmMenu->msgKeypress(msg);
         return true;
     default:
         break;
@@ -360,11 +375,67 @@ void ShopBaseDialog::actionAppraise() {
 }
 
 void ShopBaseDialog::actionExit() {
+    bool hasItems, hasMoney;
+    getTreasurePoolFlags(hasMoney, hasItems);
+
+    if (!hasMoney) {
+        commitExit();
+        return;
+    }
+
+    // Pool/items remain — show shopkeeper warning and Y/N confirmation.
+    _stage = STAGE_EXIT_CONFIRM;
+
+    Surface s = getSurface();
+    s.clearBox(0, 17, 39, 22, 0);
+    s.writeStringC(0, 17, 10, _config.exitConfirmLine1);
+    s.writeStringC(0, 18, 10, _config.exitConfirmLine2);
+
+    if (_exitConfirmMenu) {
+        delete _exitConfirmMenu;
+        _exitConfirmMenu = nullptr;
+    }
+
+    HorizontalYesNoConfig cfg;
+    cfg.promptTxt = "";
+    cfg.promptColor = 13;
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.backgroundColor = 0;
+
+    _exitConfirmMenu = new HorizontalYesNo("ShopExitConfirm", cfg);
+    setDialogParent(_exitConfirmMenu, this);
+    _exitConfirmMenu->activate();
+    redraw();
+}
+
+void ShopBaseDialog::commitExit() {
     _exitFlag = true;
+    if (_exitConfirmMenu) {
+        _exitConfirmMenu->deactivate();
+        delete _exitConfirmMenu;
+        _exitConfirmMenu = nullptr;
+    }
     if (_parent)
         g_events->postMenuResult(_parent->getName(), true,
             Common::KEYCODE_e, 0, Common::String(), true, false);
     deactivate();
+}
+
+void ShopBaseDialog::closeExitConfirm() {
+    if (_exitConfirmMenu) {
+        _exitConfirmMenu->deactivate();
+        delete _exitConfirmMenu;
+        _exitConfirmMenu = nullptr;
+    }
+    _stage = STAGE_MENU;
+
+    // Clear the confirmation text area (rows 17-22).
+    Surface s = getSurface();
+    s.clearBox(0, 17, 39, 22, 0);
+
+    recreateHorizontalMenu();
+    redraw();
 }
 
 void ShopBaseDialog::handleMenuResult(const MenuResultMessage &result) {
@@ -381,14 +452,30 @@ void ShopBaseDialog::handleMenuResult(const MenuResultMessage &result) {
     case STAGE_APPRAISE_KEEP_SELL:
         handleKeepSellResult(result);
         return;
+    case STAGE_EXIT_CONFIRM: {
+        // Y (intValue==1) => leave; N/ESC => cancel and clear confirmation UI
+        bool confirmed = result._hasIntValue && result._intValue == 1;
+        if (confirmed)
+            commitExit();
+        else
+            closeExitConfirm();
+        return;
+    }
     default:
         break;
     }
 }
 
+void ShopBaseDialog::getTreasurePoolFlags(bool &hasMoney, bool &hasItems) const {
+    const Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
+    hasMoney = pool.hasAnyCoin();
+    hasItems = pool.hasItems();
+}
+
 void ShopBaseDialog::refreshScreen() {
-    // Redraw main screen layout after actions that modify display
-    // (Buy, Take, Appraise success).
+    if (g_events)
+        g_events->postEclStateMessage(EclVmMessage::ST_SCREEN_REFRESH, 0,
+            EclVmMessage::VT_UINT8);
     redraw();
 }
 

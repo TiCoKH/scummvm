@@ -60,7 +60,6 @@ public:
 
 protected:
     void actionPrimary() override;
-    void getShopFlags(bool &hasItems, bool &hasMoney) override;
 
 private:
     enum HealStage {
