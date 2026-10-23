@@ -26,18 +26,17 @@
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/poolrad/views/dialogs/valuable_transfer_dialog.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-class HorizontalInput;
 class HorizontalMenu;
 class PartyList;
 class PromptMessage;
 class TextBoxDialog;
-class VerticalMenu;
 
 /**
  * Enumeration of shop/service location types.
@@ -72,7 +71,7 @@ struct ShopBaseConfig {
  *
  * Common actions handled by base:
  *  - View (V): View selected character
- *  - Take/Trade (T): Trade valuable / take treasure item
+ *  - Take (T): Select a pooled valuable, enter an amount, repeat until empty
  *  - Pool (P): Pool party money
  *  - Share (S): Share party money
  *  - Appraise (A): Identify items (Shop/Temple only)
@@ -158,8 +157,7 @@ private:
 
     enum Stage {
         STAGE_MENU = 0,
-        STAGE_TAKE_SELECTOR,
-        STAGE_TAKE_AMOUNT,
+        STAGE_TAKE,
         STAGE_APPRAISE_MENU,
         STAGE_APPRAISE_KEEP_SELL,
         STAGE_EXIT_CONFIRM
@@ -175,22 +173,11 @@ private:
     void commitExit();
     void closeExitConfirm();
 
-    // --- Take action state ---
-    static const char *kValuableNames[Goldbox::Data::VALUABLE_COUNT];
-    MenuItemList _takeMenuItems;
-    Common::Array<Common::String> _takePromptOpts;
-    Common::Array<Goldbox::Data::ValuableType> _takeSlotMap;
-    VerticalMenu *_takeSelector;
-    HorizontalInput *_takeInput;
-    Goldbox::Data::ValuableType _takeSelectedType;
+    // ACTION_TakeFromMoneyPool, hosted as a reusable child dialog.
+    TreasurePoolTakeSource _takeSource;
+    ValuableTransferDialog *_takeDialog;
 
-    void openTakeSelector();
-    void closeTakeSelector();
-    void buildTakeMenuItems();
-    void openTakeAmountInput();
-    void handleTakeSelectorResult(const MenuResultMessage &result);
-    void handleTakeAmountResult(const MenuResultMessage &result);
-    bool poolHasValuables() const;
+    void handleTakeResult(const MenuResultMessage &result);
 
     // --- Appraise action state ---
     enum AppraiseType { APPRAISE_GEM = 0, APPRAISE_JEWELRY };

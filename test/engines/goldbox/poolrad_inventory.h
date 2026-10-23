@@ -24,11 +24,14 @@
 
 #include <cxxtest/TestSuite.h>
 
+class SpanTestSuite;
+
 #include "common/memstream.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/runtime/treasure_pool.h"
 
 /**
- * Exercises the legacy receive path without loading game progression tables.
+ * Exercises legacy item and money receiving without game progression tables.
  */
 class PoolradInventoryTestSuite : public CxxTest::TestSuite {
     class Character : public Goldbox::Poolrad::Data::PoolradCharacter {
@@ -176,6 +179,143 @@ public:
         TS_ASSERT_EQUALS(viewInventory.count(), 2);
         TS_ASSERT_EQUALS(viewInventory[0].weight, 10);
         TS_ASSERT_EQUALS(viewInventory[1].weight, 20);
+    }
+
+    void testTakeTransfersEachValuableWithoutConversion() {
+        using namespace Goldbox::Data;
+        using Goldbox::Runtime::TreasurePool;
+        for (int i = 0; i < VALUABLE_COUNT; ++i) {
+            Character character;
+            TreasurePool pool;
+            const ValuableType type = (ValuableType)i;
+            pool.setCoin(type, 20);
+            character.valuableItems[type] = 3;
+
+            TS_ASSERT_EQUALS(pool.takeMoney(character, type, 7),
+                TreasurePool::TAKE_MONEY_OK);
+            TS_ASSERT_EQUALS(character.valuableItems[type], 10);
+            TS_ASSERT_EQUALS(pool.coin(type), 13);
+            TS_ASSERT_EQUALS(character.encumbrance, 10);
+            TS_ASSERT(pool.hasAnyCoin());
+            for (int j = 0; j < VALUABLE_COUNT; ++j) {
+                if (j != i) {
+                    TS_ASSERT_EQUALS(pool.coin((ValuableType)j), 0);
+                    TS_ASSERT_EQUALS(
+                        character.valuableItems[(ValuableType)j], 0);
+                }
+            }
+        }
+    }
+
+    void testTakeRejectsOverloadWithoutPartialTransfer() {
+        using namespace Goldbox::Data;
+        using Goldbox::Runtime::TreasurePool;
+        Character character;
+        character.inventory.appendCopy(makeItem(1490));
+        TreasurePool pool;
+        pool.setCoin(VAL_GOLD, 20);
+
+        TS_ASSERT_EQUALS(pool.takeMoney(character, VAL_GOLD, 11),
+            TreasurePool::TAKE_MONEY_OVERLOADED);
+        TS_ASSERT_EQUALS(character.valuableItems[VAL_GOLD], 0);
+        TS_ASSERT_EQUALS(pool.coin(VAL_GOLD), 20);
+        TS_ASSERT_EQUALS(character.encumbrance, 1490);
+
+        TS_ASSERT_EQUALS(pool.takeMoney(character, VAL_GOLD, 10),
+            TreasurePool::TAKE_MONEY_OK);
+        TS_ASSERT_EQUALS(character.valuableItems[VAL_GOLD], 10);
+        TS_ASSERT_EQUALS(pool.coin(VAL_GOLD), 10);
+        TS_ASSERT_EQUALS(character.encumbrance, 1500);
+    }
+
+    void testTakeClampsToPoolBalanceAndExitsOnlyWhenAllSlotsEmpty() {
+        using namespace Goldbox::Data;
+        using Goldbox::Runtime::TreasurePool;
+        Character character;
+        TreasurePool pool;
+        pool.setCoin(VAL_GOLD, 4);
+        pool.setCoin(VAL_JEWELRY, 2);
+
+        TS_ASSERT_EQUALS(pool.takeMoney(character, VAL_GOLD, 8),
+            TreasurePool::TAKE_MONEY_OK);
+        TS_ASSERT_EQUALS(character.valuableItems[VAL_GOLD], 4);
+        TS_ASSERT_EQUALS(pool.coin(VAL_GOLD), 0);
+        TS_ASSERT(pool.hasAnyCoin());
+        TS_ASSERT_EQUALS(pool.takeMoney(character, VAL_JEWELRY, 2),
+            TreasurePool::TAKE_MONEY_OK);
+        TS_ASSERT_EQUALS(character.valuableItems[VAL_JEWELRY], 2);
+        TS_ASSERT(!pool.hasAnyCoin());
+        TS_ASSERT_EQUALS(character.encumbrance, 6);
+    }
+
+    void testTakeZeroLeavesBalancesUnchanged() {
+        using namespace Goldbox::Data;
+        using Goldbox::Runtime::TreasurePool;
+        Character character;
+        TreasurePool pool;
+        pool.setCoin(VAL_PLATINUM, 8);
+        character.valuableItems[VAL_PLATINUM] = 2;
+
+        TS_ASSERT_EQUALS(pool.takeMoney(character, VAL_PLATINUM, 0),
+            TreasurePool::TAKE_MONEY_OK);
+        TS_ASSERT_EQUALS(pool.coin(VAL_PLATINUM), 8);
+        TS_ASSERT_EQUALS(character.valuableItems[VAL_PLATINUM], 2);
+        TS_ASSERT_EQUALS(character.encumbrance, 2);
+    }
+
+    void testTakeUsesStrengthCapacityAndIgnoresItemCount() {
+        using namespace Goldbox::Data;
+        using Goldbox::Runtime::TreasurePool;
+        Character character;
+        character.abilities.strength.current = 3;
+        for (int i = 0; i < 16; ++i)
+            character.inventory.appendCopy(makeItem(0));
+        TreasurePool pool;
+        pool.setCoin(VAL_GEMS, 1200);
+
+        TS_ASSERT_EQUALS(pool.takeMoney(character, VAL_GEMS, 1151),
+            TreasurePool::TAKE_MONEY_OVERLOADED);
+        TS_ASSERT_EQUALS(pool.takeMoney(character, VAL_GEMS, 1150),
+            TreasurePool::TAKE_MONEY_OK);
+        TS_ASSERT_EQUALS(character.valuableItems[VAL_GEMS], 1150);
+        TS_ASSERT_EQUALS(pool.coin(VAL_GEMS), 50);
+        TS_ASSERT_EQUALS(character.numOfItems, 16);
+    }
+
+    void testTakeLargeAmountDoesNotWrapEncumbrance() {
+        using namespace Goldbox::Data;
+        using Goldbox::Runtime::TreasurePool;
+        Character character;
+        character.inventory.appendCopy(makeItem(1000));
+        TreasurePool pool;
+        pool.setCoin(VAL_COPPER, 0xFFFF);
+
+        TS_ASSERT_EQUALS(pool.takeMoney(character, VAL_COPPER, 0xFFFF),
+            TreasurePool::TAKE_MONEY_OVERLOADED);
+        TS_ASSERT_EQUALS(pool.coin(VAL_COPPER), 0xFFFF);
+        TS_ASSERT_EQUALS(character.valuableItems[VAL_COPPER], 0);
+        TS_ASSERT_EQUALS(character.encumbrance, 1000);
+    }
+
+    void testTakeIncludesBagAdjustedExistingWeight() {
+        using namespace Goldbox::Data;
+        using Goldbox::Runtime::TreasurePool;
+        Character character;
+        Goldbox::Data::Items::CharacterItem bag = makeItem(100);
+        bag.nameCode1 = 186;
+        bag.readied = 1;
+        character.inventory.appendCopy(bag);
+        character.inventory.appendCopy(makeItem(5800));
+        TreasurePool pool;
+        pool.setCoin(VAL_SILVER, 601);
+
+        TS_ASSERT_EQUALS(pool.takeMoney(character, VAL_SILVER, 601),
+            TreasurePool::TAKE_MONEY_OVERLOADED);
+        TS_ASSERT_EQUALS(pool.takeMoney(character, VAL_SILVER, 600),
+            TreasurePool::TAKE_MONEY_OK);
+        TS_ASSERT_EQUALS(pool.coin(VAL_SILVER), 1);
+        TS_ASSERT_EQUALS(character.valuableItems[VAL_SILVER], 600);
+        TS_ASSERT_EQUALS(character.encumbrance, 1500);
     }
 };
 

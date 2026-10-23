@@ -20,6 +20,8 @@
  */
 
 #include "goldbox/runtime/treasure_pool.h"
+#include "common/debug.h"
+#include "goldbox/data/adnd_character.h"
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
@@ -59,6 +61,30 @@ bool TreasurePool::hasItems() const {
 
 bool TreasurePool::isEmpty() const {
     return !hasAnyCoin() && !hasItems();
+}
+
+TreasurePool::TakeMoneyResult TreasurePool::takeMoney(
+        Data::ADnDCharacter &character, Data::ValuableType type,
+        uint16 amount) {
+    if (type < Data::VAL_COPPER || type >= Data::VALUABLE_COUNT) {
+        warning("TreasurePool::takeMoney: invalid valuable type %d", type);
+        return TAKE_MONEY_INVALID_TYPE;
+    }
+
+    character.recalcCombatStats();
+    const uint32 capacity = 1500 + character.getCapacityModifier();
+    if ((uint32)character.encumbrance + amount > capacity)
+        return TAKE_MONEY_OVERLOADED;
+
+    amount = MIN<uint16>(amount, _coins[type]);
+    const uint32 balance = (uint32)character.valuableItems[type] + amount;
+    if (balance > 0xFFFF)
+        return TAKE_MONEY_OVERFLOW;
+
+    character.valuableItems[type] = (uint16)balance;
+    _coins[type] -= amount;
+    character.recalcCombatStats();
+    return TAKE_MONEY_OK;
 }
 
 bool TreasurePool::poolMoneyFromParty(

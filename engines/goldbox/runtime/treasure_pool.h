@@ -29,6 +29,7 @@
 
 namespace Goldbox {
 namespace Data {
+class ADnDCharacter;
 class PlayerCharacter;
 namespace Items {
 struct CharacterItem;
@@ -74,6 +75,22 @@ public:
     bool isEmpty() const;
 
     // --- Money operations (Pool/Share) ---
+
+    enum TakeMoneyResult {
+        TAKE_MONEY_OK,
+        TAKE_MONEY_OVERLOADED,
+        TAKE_MONEY_OVERFLOW,
+        TAKE_MONEY_INVALID_TYPE
+    };
+
+    /**
+     * CHARACTER_addCoin: reject an overloaded request, then clamp to the
+     * pool balance and transfer that denomination atomically. All seven
+     * valuables weigh one unit each; nothing is converted to gold.
+     * Recalculates character stats after a successful transfer.
+     */
+    TakeMoneyResult takeMoney(Data::ADnDCharacter &character,
+        Data::ValuableType type, uint16 amount);
 
     /**
      * Strips all coins from party members and adds them to the pool.
