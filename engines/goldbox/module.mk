@@ -122,6 +122,9 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/combat_end_dialog.o \
 	poolrad/views/dialogs/combat_spell_dialog.o \
 	poolrad/views/dialogs/combat_submenu_dialog.o \
+	poolrad/views/dialogs/combat_info_dialog.o \
+	poolrad/views/dialogs/combat_message_box_dialog.o \
+	poolrad/views/dialogs/combat_viewport_dialog.o \
 	poolrad/views/dialogs/game_speed_dialog.o \
 	poolrad/views/dialogs/door_dialog.o \
 	poolrad/views/dialogs/spell_book_dialog.o \

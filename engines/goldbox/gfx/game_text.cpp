@@ -39,7 +39,7 @@ GameText::GameText(Engine *engine) : _engine(engine), _characterName(),
 		_characterNameColor(kPartyNameColor),
 		_pageStart(0), _renderPos(0), _startX(1), _startY(17),
 		_endX(38), _endY(22), _nameX(1), _nameY(17), _cursorX(1), _cursorY(17),
-		_textColor(kTextColor),
+		_textColor(kTextColor), _backgroundColor(0),
 		_combat(false), _waitingForKey(false), _active(false) {
 }
 
@@ -110,6 +110,14 @@ bool GameText::advanceWord() {
 
 void GameText::showMessage(Data::PlayerCharacter *character,
 		const Common::String &message, uint8 line, bool withDelay) {
+	showMessage(character, message, line,
+			_engine && _engine->getGameState() == GS_COMBAT
+				? COMBAT_MESSAGE : INGAME_MESSAGE, withDelay);
+}
+
+void GameText::showMessage(Data::PlayerCharacter *character,
+		const Common::String &message, uint8 line, MessageArea area,
+		bool withDelay) {
 	_characterName.clear();
 	_characterNameColor = kPartyNameColor;
 	if (character) {
@@ -122,7 +130,7 @@ void GameText::showMessage(Data::PlayerCharacter *character,
 	_text = message;
 	_pageStart = 0;
 	_renderPos = 0;
-	_combat = _engine && _engine->getGameState() == GS_COMBAT;
+	_combat = area == COMBAT_MESSAGE;
 	_startX = _combat ? 23 : 1;
 	_startY = _combat ? line + 1 : line + 2;
 	_nameX = _combat ? 23 : 1;
@@ -132,6 +140,7 @@ void GameText::showMessage(Data::PlayerCharacter *character,
 	_cursorX = _startX;
 	_cursorY = _startY;
 	_textColor = _combat ? 28 : kTextColor;
+	_backgroundColor = _combat ? 8 : 0;
 	_waitingForKey = false;
 	_active = true;
 	(void)withDelay;
@@ -157,6 +166,7 @@ void GameText::setText(const Common::String &text, bool clearBox) {
 		_cursorX = _startX;
 		_cursorY = _startY;
 		_textColor = kTextColor;
+		_backgroundColor = 0;
 		_combat = false;
 		_waitingForKey = false;
 		_active = true;
@@ -190,9 +200,9 @@ void GameText::draw(Surface &surface) const {
 	if (!_active)
 		return;
 	if (_combat)
-		surface.clearBox(_nameX, _nameY, _endX, _endY, 0);
+		surface.clearBox(_nameX, _nameY, _endX, _endY, _backgroundColor);
 	else
-		surface.clearBox(_startX, _startY, _endX, _endY, 0);
+		surface.clearBox(_startX, _startY, _endX, _endY, _backgroundColor);
 	drawCharacterName(surface);
 	drawRange(surface);
 }

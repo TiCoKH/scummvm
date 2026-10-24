@@ -25,9 +25,9 @@
 #include "goldbox/poolrad/views/view.h"
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/data/damage_system.h"
-#include "goldbox/gfx/battlefield_tilemap.h"
-#include "goldbox/gfx/combat_tile_cache.h"
-#include "goldbox/gfx/combat_renderer.h"
+#include "goldbox/poolrad/views/dialogs/combat_info_dialog.h"
+#include "goldbox/poolrad/views/dialogs/combat_message_box_dialog.h"
+#include "goldbox/poolrad/views/dialogs/combat_viewport_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_attack_dialog.h"
@@ -49,9 +49,6 @@ class EffectHostBridge;
 class EffectRuntime;
 } // namespace Effects
 } // namespace Data
-namespace Gfx {
-class Pic;
-} // namespace Gfx
 namespace Combat {
 struct AiMoveViewDelegate;
 struct CombatViewDelegate;
@@ -63,14 +60,20 @@ namespace Poolrad {
 namespace Views {
 
 /**
- * Tactical combat view — presentation and input only.
+ * Tactical combat view — coordinator between the combat backend and the UI.
  *
- * Owns a CombatSession for all combat logic and state.
- * Responsible for: terrain/combatant rendering, damage animation,
- * viewport scroll input, and reacting to TickResult events from the session.
+ * Owns a CombatSession for all combat logic and state, and is the only
+ * object the backend delegates talk to. Presentation is split into three
+ * screen regions (original SCREEN_drawCombatWindows layout):
+ * - CombatViewportDialog:   left window, battlefield and animations
+ * - CombatMessageBoxDialog: right window, actor info and combat messages
+ * - CombatInfoDialog:       bottom line, menus/prompts and info text
+ * The view applies game-state changes (facing, damage, turn flow) and then
+ * forwards presentation to the matching region.
  */
 class CombatView : public View, public Combat::CastSpellViewDelegate,
-                   public ::Goldbox::Spells::ISpellAimer {
+                   public ::Goldbox::Spells::ISpellAimer,
+                   public Dialogs::CombatInfoHost {
 public:
     CombatView();
     ~CombatView() override;
@@ -156,13 +159,15 @@ public:
     void drawCharacterDying(Goldbox::Data::PlayerCharacter *ch);
 
     // State setters called by AI/attack delegates before redraw().
+    void clearCombatMessage() {
+        _messageBox->clearMessage();
+    }
     void setAiMessage(const Common::String &msg) {
-        _aiMessage = msg;
-        _hasAiMessage = true;
+        _info->showInfo(msg);
         _needsFullRedraw = true;
     }
     void setAiInfoActor(Goldbox::Data::PlayerCharacter *ch) {
-        _currentInfoActor = ch;
+        _messageBox->setActor(ch);
         _needsFullRedraw = true;
     }
     void setAiCharacterFacing(Goldbox::Data::PlayerCharacter *ch, Direction dir) {
@@ -183,12 +188,17 @@ public:
     const Combat::BattlefieldMap &debugBattlefieldMap() const {
         return _session.getBattlefieldMap();
     }
-    const Gfx::BattlefieldTilemap &debugTilemap() const {
-        return _tilemap;
+    const ::Goldbox::Gfx::BattlefieldTilemap &debugTilemap() const {
+        return _viewport->getTilemap();
     }
-    const Gfx::CombatTileCache &debugTileCache() const {
-        return _tileCache;
+    const ::Goldbox::Gfx::CombatTileCache &debugTileCache() const {
+        return _viewport->getTileCache();
     }
+
+    // Dialogs::CombatInfoHost — prompt content stays a child of this view
+    // so its menu results are posted to "Combat".
+    void attachPromptContent(Dialogs::Dialog *content) override;
+    void detachPromptContent(Dialogs::Dialog *content) override;
     const Combat::CombatantTable &debugCombatantTable() const {
         return _session.getTable();
     }
@@ -200,14 +210,18 @@ private:
     // --- Backend ---
     Combat::CombatSession _session;
 
-    // --- Dialogs ---
+    // --- Screen regions (owned; drawn by draw() in a fixed order) ---
+    Dialogs::CombatViewportDialog   *_viewport;
+    Dialogs::CombatMessageBoxDialog *_messageBox;
+    Dialogs::CombatInfoDialog       *_info;
+
+    // --- Prompt content dialogs (shown through _info) ---
     Dialogs::CombatMenuDialog   *_combatMenu;
     Dialogs::CombatMoveDialog   *_combatMove;
     Dialogs::CombatAttackDialog *_combatAttack;
     Dialogs::CombatEndDialog    *_combatEnd;
     Dialogs::CombatSpellDialog  *_combatSpell;
     Dialogs::CombatSubmenuDialog *_combatSubmenu;
-    Dialogs::Dialog             *_activeDialog = nullptr;
 
     // --- Effect bridge (wired at setup time) ---
     Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;
@@ -220,12 +234,7 @@ private:
     Combat::AiMoveViewDelegate  *_aiDelegate     = nullptr;
     Combat::CombatViewDelegate  *_attackDelegate = nullptr;
 
-    // --- Rendering ---
-    Gfx::BattlefieldTilemap _tilemap;
-    Gfx::CombatTileCache    _tileCache;
-    Gfx::CombatRenderer     _combatRenderer;
-    bool                    _needsFullRedraw;
-    ::Goldbox::Data::PlayerCharacter *_currentInfoActor;
+    bool _needsFullRedraw;
 
     // --- Player action synchronization ---
     // Set by handleMenuResult() while onUpdate() is blocking in the player-input wait loop.
@@ -236,40 +245,33 @@ private:
     // --- Autospell toggle (mirrors AUTOSPELL_STATUS) ---
     bool _autoSpell = false;
 
-    // --- AI delegate draw state (set before redraw(), consumed by draw()) ---
-    Common::String _aiMessage;
-    bool _hasAiMessage = false;
+    // --- Pending AI facing (applied to game state by draw()) ---
     ::Goldbox::Data::PlayerCharacter *_aiFacingChar = nullptr;
     Direction _aiFacingDir = DIR_N;
 
-    // --- Layout constants ---
-    static const int kViewportX = 8;
-    static const int kViewportY = 8;
-    static const int kTileSize  = 24;
-    static const int kViewportPixelW =
-        Combat::CombatViewport::VIEW_COLS * kTileSize;
-    static const int kViewportPixelH =
-        Combat::CombatViewport::VIEW_ROWS * kTileSize;
     static const uint8 kBackgroundColor = 8;
-
-    // Original loads COMSPR blocks 0-11 into icon slots 13-24; the dying
-    // icon drawn by COMBAT_HandleDeathOnMap is slot 24 (COMSPR block 11).
-    static const uint8 kDyingIconSlot  = 24;
-    static const uint8 kDyingIconBlock = 11;
 
     // --- Window layout (character coords, matching original SCREEN_DrawWindow calls) ---
     static const int kWin1Left   = 1;
     static const int kWin1Top    = 1;
     static const int kWin1Right  = 21;
     static const int kWin1Bottom = 21;
-    static const int kWin2Left   = 23;
-    static const int kWin2Top    = 1;
-    static const int kWin2Right  = 38;
-    static const int kWin2Bottom = 21;
+    static const int kWin2Left   = Dialogs::CombatMessageBoxDialog::kLeft;
+    static const int kWin2Top    = Dialogs::CombatMessageBoxDialog::kTop;
+    static const int kWin2Right  = Dialogs::CombatMessageBoxDialog::kRight;
+    static const int kWin2Bottom = Dialogs::CombatMessageBoxDialog::kBottom;
 
-private:
-    // --- Internal methods ---
-    void setActiveDialog(Dialogs::Dialog *dlg);
+    bool _roundEndAnswered = false;
+    bool _roundEndContinue = false;
+
+    // "Abort Spell?" prompt state (see confirmAbortSpell).
+    Dialogs::HorizontalYesNo *_abortYesNo = nullptr;
+    bool _awaitingAbortAnswer = false;
+    bool _abortAnswered = false;
+    bool _abortAnswer = false;
+
+    // Success flag of the last sub-dialog result (cancel vs. confirm).
+    bool _lastResultSuccess = true;
 
     /** Focus the actor, refresh its info panel and (re)show the combat menu. */
     void showCombatMenu(::Goldbox::Data::PlayerCharacter *actor);
@@ -284,61 +286,18 @@ private:
     /** Mirrors DIALOG_CombatEnd presentation (messages, "Continue Battle?"). */
     void handleRoundEnd();
 
-    bool _roundEndAnswered = false;
-    bool _roundEndContinue = false;
-
-    // "Abort Spell?" prompt state (see confirmAbortSpell).
-    Dialogs::HorizontalYesNo *_abortYesNo = nullptr;
-    bool _awaitingAbortAnswer = false;
-    bool _abortAnswered = false;
-    bool _abortAnswer = false;
-
-    // Success flag of the last sub-dialog result (cancel vs. confirm).
-    bool _lastResultSuccess = true;
-
-    void drawViewport();
-    void drawCombatants();
+    /** Clear the screen and draw both combat window frames. */
     void drawUI();
-    void drawDamageFrame(const Goldbox::Gfx::Pic *frame, int pixX, int pixY,
-                         Graphics::ManagedSurface *dst);
 
-    // --- Movement animation ---
+    /**
+     * Move the camera onto ch if its footprint is not fully visible.
+     * Returns true if the camera moved (nothing is redrawn).
+     */
+    bool centerCameraOn(::Goldbox::Data::PlayerCharacter *ch);
 
-    struct MovementAnimStep {
-        ScreenPos finePos;  // fine-grid position relative to viewport top-left
-    };
-
-    Common::Array<MovementAnimStep> buildMovementAnimationPath(
-        TilePos start, TilePos end);
-
-    void drawMovementAnimation(const ScreenPos &finePos, uint8 animFrame,
-                               uint8 frameDelay,
-                               Goldbox::Data::PlayerCharacter *ch,
-                               Gfx::IconDirection iconDir,
-                               Graphics::ManagedSurface *screen);
-
-    static uint8 getNextAnimationFrame(uint8 frame) {
-        return (frame + 1) % kAnimFrameCount;
-    }
-
-    void animateMovementPath(TilePos start, TilePos end,
-                             uint8 initialFrame = 0,
-                             uint8 frameDelay = 46);
-
-    void renderEffectTile(uint8 blockId, int frameIdx,
-                          int pixX, int pixY, bool withLayer = false);
-
-    void redrawViewportAt(TilePos center);
-
-    Common::Point fineToPixel(ScreenPos fine) const {
-        return Common::Point(kViewportX + fine.col * (kTileSize / kFinePerTile),
-                             kViewportY + fine.row * (kTileSize / kFinePerTile));
-    }
-
-    static const int      kFinePerTile        = 3;
-    static const int      kAnimFrameCount     = 4;
-    static const int      kPanTiles           = 3;
-    static const uint8    kDefaultFrameDelay  = 46;
+    /** Animate a move and schedule a full redraw afterwards. */
+    void animateMovement(TilePos from, TilePos to,
+                         ::Goldbox::Data::PlayerCharacter *ch);
 };
 
 } // namespace Views

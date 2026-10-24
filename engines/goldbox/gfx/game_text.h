@@ -59,6 +59,7 @@ private:
 	uint8 _cursorX;
 	uint8 _cursorY;
 	int _textColor;
+	uint8 _backgroundColor;
 	bool _combat;
 	bool _waitingForKey;
 	bool _active;
@@ -68,6 +69,11 @@ private:
 	bool advanceWord();
 
 public:
+	enum MessageArea {
+		INGAME_MESSAGE,
+		COMBAT_MESSAGE
+	};
+
 	explicit GameText(Engine *engine);
 
 	/** Return true for the legacy TEXT_BlockPrint word delimiters. */
@@ -79,6 +85,15 @@ public:
 	/** Render a legacy TEXT_drawIntoMsgBox message. */
 	void showMessage(Data::PlayerCharacter *character,
 			const Common::String &message, uint8 line, bool withDelay = false);
+
+	/**
+	 * Render using the calling dialog's area, independently of game state.
+	 * Combat uses cols 23-38, through row 21, on background color 8;
+	 * in-game messages use cols 1-38, through row 22, on black.
+	 */
+	void showMessage(Data::PlayerCharacter *character,
+			const Common::String &message, uint8 line, MessageArea area,
+			bool withDelay = false);
 
 	/** Start ordinary ECL text in the normal message area. */
 	void printText(const Common::String &text, bool clearBox = false);

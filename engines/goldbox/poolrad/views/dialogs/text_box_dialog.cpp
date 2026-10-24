@@ -62,6 +62,17 @@ void TextBoxDialog::setText(const Common::String &text, bool clearBox) {
 	redraw();
 }
 
+void TextBoxDialog::showMessage(::Goldbox::Data::PlayerCharacter *speaker,
+		const Common::String &text, uint8 row, bool timed) {
+	_frameCounter = 0;
+	_pendingDrawStep = false;
+	_framesPerWord = VmInterface::getTextDelay();
+	if (_gameText)
+		_gameText->showMessage(speaker, text, row,
+				GameText::INGAME_MESSAGE, timed);
+	redraw();
+}
+
 void TextBoxDialog::draw() {
 	if (!_isVisible || !_gameText)
 		return;

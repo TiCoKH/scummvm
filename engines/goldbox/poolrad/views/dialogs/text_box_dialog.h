@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_TEXT_BOX_DIALOG_H
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/poolrad/views/dialogs/message_box_api.h"
 #include "common/str.h"
 
 namespace Goldbox {
@@ -37,7 +38,7 @@ namespace Dialogs {
  * GameText owns TEXT_BlockPrint-compatible wrapping and paging state. This
  * dialog owns activation, redraws, pacing, and keyboard acknowledgement.
  */
-class TextBoxDialog : public Dialog {
+class TextBoxDialog : public Dialog, public MessageBoxApi {
 public:
     static const int kDefaultTextColor = 10;
 
@@ -66,7 +67,13 @@ public:
     /**
      * Returns true while text is still being rendered or waiting for key.
      */
-    bool isBusy() const;
+    bool isBusy() const override;
+
+    // MessageBoxApi
+    void showMessage(::Goldbox::Data::PlayerCharacter *speaker,
+                     const Common::String &text, uint8 row,
+                     bool timed) override;
+    void clearMessage() override { clearText(); }
 
     void activate() override;
     void draw() override;
