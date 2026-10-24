@@ -110,6 +110,7 @@ MODULE_OBJS = \
 	poolrad/views/create_character_view.o \
 	poolrad/views/add_character_view.o \
 	poolrad/views/view_character_view.o \
+	poolrad/views/modify_character_view.o \
 	poolrad/views/in_game_view.o \
 	poolrad/views/combat_view.o \
 	poolrad/views/dialogs/dialog.o \

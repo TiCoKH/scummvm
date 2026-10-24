@@ -43,7 +43,7 @@ const uint8 CharacterProfile::kBodyDaxBlockIds[12] = {
 using Common::String;
 
 CharacterProfile::CharacterProfile(const Common::String &name)
-    : Dialog(name), _poolradPc(nullptr) {
+    : Dialog(name), _poolradPc(nullptr), _highlightedStat(-1) {
     // Pane rendering uses getSurface(Window), which relies on initialized
     // inner bounds. Set full text-screen bounds for this dialog.
     setBounds(Window(0, 0, 39, 24));
@@ -104,6 +104,17 @@ void CharacterProfile::redrawCombat() {
     drawCombat();
 }
 
+void CharacterProfile::setHighlightedStat(int index) {
+    if (index < -1 || index > 6)
+        return;
+    if (_highlightedStat == index)
+        return;
+
+    _highlightedStat = index;
+    redrawStats();
+    redrawCombat();
+}
+
 // Clear and redraw only the name area (row 1, name and NPC indicator)
 void CharacterProfile::redrawName() {
     if (!_poolradPc)
@@ -136,8 +147,14 @@ void CharacterProfile::drawIdentity() {
 
 void CharacterProfile::drawStats() {
     Surface s = getSurface(kPaneStats);
-    s.writeStringC(0, 0, 10, "STR");
-    s.writeStringC(4, 0, 10, String::format("%d", _poolradPc->abilities.strength.current));
+    const int strengthColor = _highlightedStat == 0 ? 15 : 10;
+    const int intelligenceColor = _highlightedStat == 1 ? 15 : 10;
+    const int wisdomColor = _highlightedStat == 2 ? 15 : 10;
+    const int dexterityColor = _highlightedStat == 3 ? 15 : 10;
+    const int constitutionColor = _highlightedStat == 4 ? 15 : 10;
+    const int charismaColor = _highlightedStat == 5 ? 15 : 10;
+    s.writeStringC(0, 0, strengthColor, "STR");
+    s.writeStringC(4, 0, strengthColor, String::format("%d", _poolradPc->abilities.strength.current));
     uint8 strEx = _poolradPc->abilities.strException.current;
     if (strEx > 0 && strEx <= 100) {
         String strExStr;
@@ -145,18 +162,18 @@ void CharacterProfile::drawStats() {
             strExStr = "(00)";
         else
             strExStr = String::format("(%02d)", strEx);
-        s.writeStringC(6, 0, 10, strExStr);
+        s.writeStringC(6, 0, strengthColor, strExStr);
     }
-    s.writeStringC(0, 1, 10, "INT");
-    s.writeStringC(4, 1, 10, String::format("%d", _poolradPc->abilities.intelligence.current));
-    s.writeStringC(0, 2, 10, "WIS");
-    s.writeStringC(4, 2, 10, String::format("%d", _poolradPc->abilities.wisdom.current));
-    s.writeStringC(0, 3, 10, "DEX");
-    s.writeStringC(4, 3, 10, String::format("%d", _poolradPc->abilities.dexterity.current));
-    s.writeStringC(0, 4, 10, "CON");
-    s.writeStringC(4, 4, 10, String::format("%d", _poolradPc->abilities.constitution.current));
-    s.writeStringC(0, 5, 10, "CHA");
-    s.writeStringC(4, 5, 10, String::format("%d", _poolradPc->abilities.charisma.current));
+    s.writeStringC(0, 1, intelligenceColor, "INT");
+    s.writeStringC(4, 1, intelligenceColor, String::format("%d", _poolradPc->abilities.intelligence.current));
+    s.writeStringC(0, 2, wisdomColor, "WIS");
+    s.writeStringC(4, 2, wisdomColor, String::format("%d", _poolradPc->abilities.wisdom.current));
+    s.writeStringC(0, 3, dexterityColor, "DEX");
+    s.writeStringC(4, 3, dexterityColor, String::format("%d", _poolradPc->abilities.dexterity.current));
+    s.writeStringC(0, 4, constitutionColor, "CON");
+    s.writeStringC(4, 4, constitutionColor, String::format("%d", _poolradPc->abilities.constitution.current));
+    s.writeStringC(0, 5, charismaColor, "CHA");
+    s.writeStringC(4, 5, charismaColor, String::format("%d", _poolradPc->abilities.charisma.current));
 }
 
 void CharacterProfile::drawValuables() {
@@ -199,8 +216,9 @@ void CharacterProfile::drawCombat() {
     Surface s = getSurface(kPaneCombat);
     s.writeStringC(0, 0, 15, "AC");
     s.writeStringC(3, 0, 10, String::format("%d", _poolradPc->armorClass.getCurrent()));
-    s.writeStringC(0, 1, 15, "HP");
-    s.writeStringC(3, 1, 10, String::format("%d", _poolradPc->hitPoints.current));
+    const int hpColor = _highlightedStat == 6 ? 15 : 10;
+    s.writeStringC(0, 1, hpColor, "HP");
+    s.writeStringC(3, 1, hpColor, String::format("%d", _poolradPc->hitPoints.current));
     s.writeStringC(8, 0, 15, "THAC0");
     s.writeStringC(14, 0, 10, String::format("%d", _poolradPc->thac0.getCurrent()));
 	s.writeStringC(7, 1, 15, "Damage");
@@ -271,4 +289,3 @@ Common::String CharacterProfile::formatDamageText() const {
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox
-

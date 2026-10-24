@@ -189,6 +189,9 @@ public:
     // Recalculate spell slots for cleric and magic-user from the level progression
     // table. Called as part of recalcCombatStats whenever levels may have changed.
     void recalcSpellSlots();
+    // Rebuild cleric spell slots from level and Wisdom, without accumulating
+    // Wisdom bonuses across repeated stat recalculations.
+    void addClericBonusSpells();
 
     // Roll and apply initial age using rules for class/race and multiclass mapping.
     void rollInitialAge();

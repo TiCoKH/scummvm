@@ -36,6 +36,7 @@ public:
     void redrawValuables();
     void redrawCombat();
     void redrawName();
+    void setHighlightedStat(int index);
     void drawIdentity();
     void drawName();
     void drawStats();
@@ -52,6 +53,7 @@ private:
     static const uint8 kHeadDaxBlockIds[14];
     // Body DAX block IDs: portrait body ID (1-12) -> DAX block ID
     static const uint8 kBodyDaxBlockIds[12];
+    int _highlightedStat;
 
     /**
      * Format damage text in "XdY" or "XdY+Z" format.

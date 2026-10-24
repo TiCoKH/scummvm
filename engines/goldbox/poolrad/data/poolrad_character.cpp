@@ -520,6 +520,40 @@ void PoolradCharacter::recalcSpellSlots() {
 		spellSlots.magicUser.level2 = ms.level2;
 		spellSlots.magicUser.level3 = ms.level3;
 	}
+
+}
+
+void PoolradCharacter::addClericBonusSpells() {
+	const uint8 clericLvl = levels.levels[Goldbox::Data::C_CLERIC];
+	if (clericLvl == 0)
+		return;
+
+	Goldbox::Data::SpellSlots clericSlots = { 1, 0, 0 };
+	if (clericLvl > 1) {
+		const uint8 row = (clericLvl >= 3) ? (clericLvl - 3) : 0;
+		clericSlots = Goldbox::Data::Rules::getSpellSlotsForClassAtRow(
+			Goldbox::Data::C_CLERIC, row);
+	}
+
+	const uint8 wisdom = abilities.wisdom.current;
+	if (clericSlots.level1 > 0) {
+		if (wisdom >= 13)
+			++clericSlots.level1;
+		if (wisdom >= 14)
+			++clericSlots.level1;
+	}
+	if (clericSlots.level2 > 0) {
+		if (wisdom >= 15)
+			++clericSlots.level2;
+		if (wisdom >= 16)
+			++clericSlots.level2;
+	}
+	if (clericSlots.level3 > 0 && wisdom >= 17)
+		++clericSlots.level3;
+
+	spellSlots.cleric.level1 = clericSlots.level1;
+	spellSlots.cleric.level2 = clericSlots.level2;
+	spellSlots.cleric.level3 = clericSlots.level3;
 }
 
 void PoolradCharacter::recalcCombatStats() {
