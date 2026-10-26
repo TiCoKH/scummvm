@@ -24,65 +24,13 @@
 
 #include "common/scummsys.h"
 #include "common/mutex.h"
+#include "common/path.h"
 #include "audio/audiostream.h"
 #include "audio/mixer.h"
-#include "audio/softsynth/pcspk.h"
-#include "goldbox/sound/sound_data.h"
+#include "goldbox/sound/sn76496.h"
+#include "goldbox/sound/sound_segment.h"
 
 namespace Goldbox {
-
-/**
- * Timer frequency: original PIT divisor 0x13B1 = 5041.
- * Actual Hz = 1193182 / 5041 ~ 236.7 Hz.
- */
-static const int kTimerFrequency = 237;
-
-/**
- * Per-channel playback state.
- * Mirrors the original 0x30-byte DOS channel structure.
- */
-struct SoundChannel {
-    bool active;
-    uint16 pc;           ///< Current stream position (segment-relative addr)
-
-    int16 freq;          ///< +0x04: base frequency
-    int16 freqDelta;     ///< +0x06: frequency change per tick
-    int16 outFreq;       ///< +0x08: final output frequency
-    int16 volume;        ///< +0x0A: current volume
-    int16 volDelta;      ///< +0x0C: volume change per tick
-    uint16 duration;     ///< +0x00: ticks remaining
-
-    uint16 delayTimer;   ///< +0x14: one-shot envelope reset timer
-    uint8 tempoMult;     ///< +0x10: duration multiplier
-    int16 transpose;     ///< +0x12: note offset
-
-    // Envelope (reads directly from blob)
-    uint16 envBase;      ///< +0x16: segment addr of envelope data
-    uint16 envOffset;    ///< +0x18: current byte offset into envelope
-    uint16 envTicks;     ///< +0x1A: ticks until next envelope step
-
-    // Vibrato (reads waveform directly from blob)
-    uint16 vibTable;     ///< +0x1C: segment addr of waveform LUT
-    uint16 vibPos;       ///< +0x1E: phase position
-    uint16 vibSpeed;     ///< +0x20: phase advance per tick
-    int16 vibDepth;      ///< +0x22: amplitude multiplier
-    uint16 vibWrap;      ///< +0x24: phase wrap length
-
-    uint16 loopCtr;      ///< +0x26: primary loop counter
-    uint16 loopCtr2;     ///< +0x28: secondary loop counter
-
-    void reset() {
-        active = false;
-        pc = 0;
-        freq = 0; freqDelta = 0; outFreq = 0;
-        volume = 0; volDelta = 0; duration = 0;
-        delayTimer = 0; tempoMult = 0; transpose = 0;
-        envBase = 0; envOffset = 0; envTicks = 0;
-        vibTable = 0; vibPos = 0; vibSpeed = 0;
-        vibDepth = 0; vibWrap = 0;
-        loopCtr = 0; loopCtr2 = 0;
-    }
-};
 
 /**
  * Sound output mode.
@@ -94,52 +42,101 @@ enum SoundMode {
 };
 
 /**
- * Goldbox PC Speaker / Tandy sound driver.
+ * Goldbox PC speaker / Tandy sound driver.
  *
- * Reads command streams directly from a raw binary blob (the dumped
- * sound segment). All pointers in the data self-resolve via
- * SoundData::toOffset().
+ * A port of the original DOS driver: a 236.7 Hz timer interrupt runs a
+ * bytecode sequencer over 4 channels, whose state lives in the original
+ * sound data segment (loaded from sound.dat). The result is
+ * sent to an emulated PIT channel 2 / PC speaker gate or to an emulated
+ * SN76496 compatible chip at register level.
  */
 class GoldboxSoundDriver : public Audio::AudioStream {
 public:
-    GoldboxSoundDriver(Audio::Mixer *mixer, const SoundData *data,
-            SoundMode mode);
+    GoldboxSoundDriver(Audio::Mixer *mixer, SoundMode mode);
     ~GoldboxSoundDriver() override;
 
-    void init();
-    void playSong(uint8 songId);
+    /**
+     * Load the sound data segment from a sound.dat file and start the
+     * output stream. Initializes like the original SetSound startup.
+     * @return false if the sound data could not be loaded
+     */
+    bool init(const Common::Path &dataFile);
+
+    /** SOUND_Play: 0 = sound off, 1 = sound on, 0xFF = silence,
+     *  n >= 2 = play sound table entry n - 1. */
+    void play(uint8 sound);
+
+    /** SOUND_Setup: 0 = continuous mode, > 0 = short blip mode. */
+    void setup(uint16 flag);
+
+    /** Raw access to WORD_SOUND_FLAG (written by ECL scripts). */
+    void setSoundFlag(uint16 flag);
+    uint16 getSoundFlag() const { return _soundFlag; }
+
     void stopAll();
-    void setSpeakerEnabled(bool enabled);
 
     // AudioStream interface
     int readBuffer(int16 *buffer, const int numSamples) override;
     bool isStereo() const override { return false; }
-    int getRate() const override { return _outputRate; }
+    int getRate() const override { return (int)_outputRate; }
     bool endOfData() const override { return false; }
 
 private:
+    struct Bank {
+        uint16 freqBase;
+        uint16 chanBase;
+        uint16 soundTable;
+        uint8 owner[4];
+    };
+
     Audio::Mixer *_mixer;
     Audio::SoundHandle _handle;
     Common::Mutex _mutex;
 
-    const SoundData *_data;
+    SoundSegment _seg;
+    SoundSegmentLayout _layout;
     SoundMode _mode;
-    bool _speakerEnabled;
-    int _outputRate;
+    uint32 _outputRate;
+    bool _ready;
 
-    SoundChannel _channels[kSoundChannels];
-    Audio::PCSpeakerStream *_spkStreams[kSoundChannels];
+    Bank _speaker;
+    Bank _tandy;
+    uint16 _soundId;       ///< WORD_SOUND_ID
+    uint8 _speakerEnable;  ///< BYTE_SPEAKER_ENABLE
+    uint16 _curChannel;    ///< PTR_CURRENT_CHANNEL
+    uint16 _subReturn;     ///< PTR_SUB_RET_ADDR
+    uint16 _soundFlag;     ///< WORD_SOUND_FLAG
 
-    int _tickAccumulator;
-    static const uint32 kTickLengthUs = 1000000 / kTimerFrequency;
+    bool _timerRunning;
+    uint32 _timerAccumulator;
+    int _blipTicks;
 
-    void tick();
-    void tickChannel(SoundChannel &ch);
-    void loadNextCommands(SoundChannel &ch);
-    void processEnvelope(SoundChannel &ch);
-    void loadSong(uint8 songIndex);
-    void silenceAll();
-    void queueChannelAudio(int chIdx);
+    // PC speaker: PIT channel 2 divisor and port 61h bits 0-1
+    uint16 _pitDivisor;
+    uint8 _speakerGate;
+    uint32 _pitPhase;
+    uint32 _pitAccumulator;
+
+    Sn76496 _psg;
+
+    byte read8(uint16 addr) const;
+    uint16 read16(uint16 addr) const;
+    void write16(uint16 addr, uint16 value);
+
+    void startTimer();
+    void stopTimer();
+    void silence();
+
+    void loadSound(Bank &bank, uint16 id);
+    void loadActive(uint16 id);
+    void timerTick();
+    void speakerDma();
+    void tandyDma();
+    void writeTandySilence();
+    void advanceChannel(Bank &bank, uint16 si, int index);
+    void soundStart(Bank &bank, uint16 si, int index);
+    void resetChannel(uint16 si);
+    int16 speakerSample();
 };
 
 } // namespace Goldbox

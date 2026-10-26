@@ -90,7 +90,9 @@ MODULE_OBJS = \
 	combat/combat_viewport.o \
 	combat/battlefield_map.o \
 	combat/cloud_effect_manager.o \
+	sound/sn76496.o \
 	sound/sound_driver.o \
+	sound/sound_segment.o \
 	poolrad/poolrad.o \
 	poolrad/poolrad_runtime_exchange.o \
 	poolrad/effect_handler.o \
@@ -113,6 +115,7 @@ MODULE_OBJS = \
 	poolrad/views/modify_character_view.o \
 	poolrad/views/in_game_view.o \
 	poolrad/views/combat_view.o \
+	poolrad/views/game_over_view.o \
 	poolrad/views/dialogs/dialog.o \
 	poolrad/views/dialogs/combat_menu_dialog.o \
 	poolrad/views/dialogs/combat_move_dialog.o \

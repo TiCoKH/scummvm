@@ -87,7 +87,11 @@ public:
     void draw() override;
 
     void drawTerrain();
-    void drawCombatants();
+    void drawCombatants(
+        ::Goldbox::Data::PlayerCharacter *skipCharacter = nullptr);
+
+    /** Keep an actor's attack pose across result and animation redraws. */
+    void setAttackPose(::Goldbox::Data::PlayerCharacter *ch, bool attacking);
 
     /** Center the camera on a tile and redraw the viewport. */
     void centerOn(TilePos center);
@@ -141,6 +145,9 @@ private:
     ::Goldbox::Gfx::BattlefieldTilemap _tilemap;
     ::Goldbox::Gfx::CombatTileCache _tileCache;
     ::Goldbox::Gfx::CombatRenderer _combatRenderer;
+    Common::Array<::Goldbox::Data::PlayerCharacter *> _attackingCharacters;
+
+    bool isAttacking(::Goldbox::Data::PlayerCharacter *ch) const;
 
     bool cellOf(::Goldbox::Data::PlayerCharacter *ch,
                 Common::Point &pix) const;

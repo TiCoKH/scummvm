@@ -445,13 +445,9 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 			view->onEnter(next);
 		break;
 	case GS_END_GAME:
-		debug(2, "PoolradEngine::onGameStateEnter -> replaceView(Title, true) [END_GAME]");
-		// Placeholder: go back to title; layout irrelevant.
-		replaceView("Title", true);
-		view = dynamic_cast<Views::View *>(findView("Title"));
-		if (view) {
-			view->onEnter(next);
-		}
+		debug(2, "PoolradEngine::onGameStateEnter -> GameOver [END_GAME]");
+		getGameText().clearMessageArea();
+		replaceView(findView("GameOver"), true);
 		break;
 	default:
 		debug(2, "PoolradEngine::onGameStateEnter no explicit view mapping for state=%d",

@@ -624,14 +624,18 @@ void InGameView::handleMenuResult(const MenuResultMessage &result) {
 		if (result._hasIntValue &&
 				result._intValue == Dialogs::DoorDialog::kDoorOpened) {
 			// Door opened — play step sound and advance forward.
-			if (g_engine)
+			if (g_engine) {
+				g_engine->soundSetup(10);
 				g_engine->soundPlay(0x0B);
+			}
 			stepForward();
 			queueCommand(kCmdMove);
 		} else {
 			// Door blocked — play blocked sound.
-			if (g_engine)
+			if (g_engine) {
+				g_engine->soundSetup(10);
 				g_engine->soundPlay(0x08);
+			}
 		}
 		redraw();
 		return;

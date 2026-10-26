@@ -286,6 +286,9 @@ private:
     /** Mirrors DIALOG_CombatEnd presentation (messages, "Continue Battle?"). */
     void handleRoundEnd();
 
+    /** Route party defeat to the terminal screen, not back to the map. */
+    void finishCombat();
+
     /** Clear the screen and draw both combat window frames. */
     void drawUI();
 

@@ -208,14 +208,14 @@ struct CombatViewDelegate {
     virtual void drawCombatInfo(Data::PlayerCharacter *attacker) = 0;
 
     /**
-     * Update character facing and redraw.
-     * redrawMode 0 = restore old tiles, 1 = draw current.
+     * Update character facing and redraw: iconFrame 0 = ready, 1 = attack.
+     * noRedraw clears the pose and restores tiles without drawing the actor.
      * Mirrors CombatView::updateCharacterFacingAndRedraw.
      */
     virtual void updateCharacterFacingAndRedraw(Data::PlayerCharacter *ch,
                                                 uint8 direction,
-                                                uint8 redrawMode,
-                                                bool restoreOld) = 0;
+                                                uint8 iconFrame,
+                                                bool noRedraw) = 0;
 
     /** Animate a ranged attack from attacker to target using item. */
     virtual void animateRangedAttack(Data::PlayerCharacter *attacker,

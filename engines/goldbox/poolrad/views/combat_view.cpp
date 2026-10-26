@@ -118,10 +118,16 @@ struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
     }
 
     void updateCharacterFacingAndRedraw(::Goldbox::Data::PlayerCharacter *ch,
-                                        uint8 direction, uint8 /*redrawMode*/,
-                                        bool restoreOld) override {
-        _view->setAiCharacterFacing(ch, static_cast<Direction>(direction));
-        _view->presentFrame();
+                                        uint8 direction, uint8 iconFrame,
+                                        bool noRedraw) override {
+        _view->updateCharacterFacingAndRedraw(ch,
+            static_cast<Direction>(direction), iconFrame, noRedraw);
+        // Flash the attack pose, then hold the ready pose during results.
+        if (iconFrame == 1 && !noRedraw) {
+            g_system->delayMillis(100);
+            _view->updateCharacterFacingAndRedraw(ch,
+                static_cast<Direction>(direction), 0, false);
+        }
     }
 
     void animateRangedAttack(::Goldbox::Data::PlayerCharacter *attacker,
@@ -156,7 +162,8 @@ struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
 
         // Mirrors COMBAT_ApplyDamageMessage: TIME_Wait after the result,
         // then the down text that stays up during the dying icon.
-        g_system->delayMillis(CombatView::kStateChangeDelayMs);
+        g_system->delayMillis(
+            static_cast<uint32>(VmInterface::getTextDelay()) * 225);
         if (target && !target->enabled)
             _view->printCombatMessage(target,
                 ::Goldbox::Data::DamageSystem::buildDownMessage(*target));
@@ -271,7 +278,7 @@ bool CombatView::msgUnfocus(const UnfocusMessage &msg) {
 
 bool CombatView::msgKeypress(const KeypressMessage &msg) {
     if (_session.isEnded()) {
-        close();
+        finishCombat();
         return true;
     }
 
@@ -357,7 +364,7 @@ void CombatView::onUpdate() {
 
         if (phase == Combat::CombatSession::PHASE_COMBAT_END) {
             debug(0, "[COMBATVIEW] COMBAT_END -> close");
-            close();
+            finishCombat();
             break;
         }
 
@@ -633,7 +640,7 @@ void CombatView::onUpdate() {
 
         if (result.event == Combat::CombatSession::TurnResult::EV_COMBAT_END) {
             debug(0, "[COMBATVIEW] EV_COMBAT_END -> close");
-            close();
+            finishCombat();
             break;
         }
 
@@ -767,7 +774,26 @@ void CombatView::handleRoundEnd() {
     _session.acknowledgeRoundEnd(continueBattle);
     _needsFullRedraw = true;
     if (!continueBattle)
-        close();
+        finishCombat();
+}
+
+void CombatView::finishCombat() {
+    _info->closeContent();
+    _messageBox->setActor(nullptr);
+    const Combat::CombatParams &params = _session.getParams();
+    for (int i = 0; i < params.partyCount; ++i) {
+        const ::Goldbox::Data::PlayerCharacter *ch = params.roster[i];
+        if (!ch || ch->combatSide != ::Goldbox::Data::CS_PARTY)
+            continue;
+        // Fleeing members survive even though they are no longer enabled.
+        if (ch->healthStatus == ::Goldbox::Data::S_OKAY ||
+                ch->healthStatus == ::Goldbox::Data::S_ANIMATED ||
+                ch->healthStatus == ::Goldbox::Data::S_RUNNING) {
+            close();
+            return;
+        }
+    }
+    g_engine->setGameState(GS_END_GAME);
 }
 
 void CombatView::handleMenuResult(const MenuResultMessage &result) {
@@ -1119,27 +1145,24 @@ void CombatView::updateCharacterFacingAndRedraw(
     if (!ctx)
         return;
 
+    _viewport->setAttackPose(ch, iconFrame != 0 && !noRedraw);
+    // Cleanup still clears the pose if a projectile scrolled it offscreen.
+    if (noRedraw && !ctx->isCharacterInBounds(ch, false))
+        return;
+
     // Scroll viewport to include the full footprint if needed.
     if (!ctx->isCharacterInBounds(ch, true))
         _viewport->centerOn(_session.getTable().getCharacterPos(ch));
 
-    const Direction oldDirection =
-        static_cast<Direction>(ch->combatState ? ch->combatState->direction : 0);
-
-    // Restore entity tiles when the coarse facing group changes,
-    // a non-idle frame is requested, or the final draw is suppressed.
-    // direction >> 2 groups the 8 directions into two mirror groups.
-    if (((oldDirection >> 2) != (direction >> 2)) ||
-        iconFrame != 0 ||
-        noRedraw) {
-        _viewport->draw();
-    }
-
     ctx->setCharacterFacing(ch, direction);
-
+    // Erase the previous silhouette before drawing either icon phase.
+    _viewport->drawTerrain();
+    _viewport->drawCombatants(noRedraw ? ch : nullptr);
     if (!noRedraw && ctx->isCharacterInBounds(ch, true)) {
-        _viewport->drawCombatants();
-        g_system->updateScreen();
+        if (g_events && g_events->getScreen()) {
+            g_events->getScreen()->makeAllDirty();
+            g_events->getScreen()->update();
+        }
     }
 }
 

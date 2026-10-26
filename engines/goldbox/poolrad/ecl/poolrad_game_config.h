@@ -22,6 +22,7 @@
 #ifndef GOLDBOX_POOLRAD_ECL_POOLRAD_GAME_CONFIG_H
 #define GOLDBOX_POOLRAD_ECL_POOLRAD_GAME_CONFIG_H
 
+#include "goldbox/engine.h"
 #include "goldbox/ecl/game_config.h"
 #include "goldbox/ecl/opcode_handlers.h"
 #include "goldbox/ecl/opcode_table.h"
@@ -119,6 +120,14 @@ public:
         static const uint16 kWalldefSlot1Addr = 0x6C91; // DAT+0x322
         static const uint16 kWalldefSlot2Addr = 0x6C92; // DAT+0x324
         static const uint16 kWalldefSlot3Addr = 0x6C93; // DAT+0x326
+        static const uint16 kSoundFlagAddr = 0x03DE;    // WORD_SOUND_FLAG
+
+        if (vmAddr == kSoundFlagAddr) {
+            // Mirror into the sound driver; the normal write still happens.
+            if (g_engine)
+                g_engine->setSoundFlag(ioValue);
+            return false;
+        }
 
         uint8 slot = 0;
         if (vmAddr == kWalldefSlot1Addr)

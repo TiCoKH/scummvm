@@ -85,8 +85,14 @@ void Engine::setup() {
 
 	// Initialize sound driver (unless sound is off)
 	if (_soundMode != kSoundOff) {
-		_soundDriver = new GoldboxSoundDriver(_mixer, nullptr, _soundMode);
-		_soundDriver->init();
+		// The original sound driver data segment, extracted to sound.dat
+		_soundDriver = new GoldboxSoundDriver(_mixer, _soundMode);
+		if (_soundDriver->init(Common::Path("sound.dat"))) {
+			_soundDriver->setup(100);
+		} else {
+			delete _soundDriver;
+			_soundDriver = nullptr;
+		}
 	}
 
 	if (!initializeGameData())
@@ -217,11 +223,26 @@ Common::Error Engine::syncGame(Common::Serializer &s) {
 	return Common::kNoError;
 }
 
-void Engine::soundPlay(uint8 songId) {
+void Engine::soundPlay(uint8 soundIndex) {
 	if (_soundMode == kSoundOff || !_soundDriver)
 		return;
 
-	_soundDriver->playSong(songId);
+	// ARRAY_SOUND_MAP = { 0xFF, 0, 1, 2, ... }
+	_soundDriver->play(soundIndex == 0 ? 0xFF : soundIndex - 1);
+}
+
+void Engine::soundSetup(uint16 flag) {
+	if (_soundDriver)
+		_soundDriver->setup(flag);
+}
+
+void Engine::setSoundFlag(uint16 flag) {
+	if (_soundDriver)
+		_soundDriver->setSoundFlag(flag);
+}
+
+uint16 Engine::getSoundFlag() const {
+	return _soundDriver ? _soundDriver->getSoundFlag() : 0;
 }
 
 } // End of namespace Goldbox

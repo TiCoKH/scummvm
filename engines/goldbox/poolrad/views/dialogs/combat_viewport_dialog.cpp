@@ -83,6 +83,7 @@ CombatViewportDialog::CombatViewportDialog()
 }
 
 void CombatViewportDialog::loadTileset(bool isDungeon) {
+    _attackingCharacters.clear();
     if (isDungeon) {
         _tileCache.loadDungeon(g_engine->getDaxDungcom(),
                                g_engine->getDaxRandcom());
@@ -136,7 +137,32 @@ void CombatViewportDialog::drawTerrain() {
     _tilemap.blitTo(&s, Common::Point(kViewportX, kViewportY), srcRect);
 }
 
-void CombatViewportDialog::drawCombatants() {
+bool CombatViewportDialog::isAttacking(
+        ::Goldbox::Data::PlayerCharacter *ch) const {
+    for (uint i = 0; i < _attackingCharacters.size(); ++i) {
+        if (_attackingCharacters[i] == ch)
+            return true;
+    }
+    return false;
+}
+
+void CombatViewportDialog::setAttackPose(
+        ::Goldbox::Data::PlayerCharacter *ch, bool attacking) {
+    if (!ch)
+        return;
+    for (uint i = 0; i < _attackingCharacters.size(); ++i) {
+        if (_attackingCharacters[i] == ch) {
+            if (!attacking)
+                _attackingCharacters.remove_at(i);
+            return;
+        }
+    }
+    if (attacking)
+        _attackingCharacters.push_back(ch);
+}
+
+void CombatViewportDialog::drawCombatants(
+        ::Goldbox::Data::PlayerCharacter *skipCharacter) {
     if (!_session)
         return;
 
@@ -157,9 +183,10 @@ void CombatViewportDialog::drawCombatants() {
             continue;
 
         ::Goldbox::Data::PlayerCharacter *ch = table.getCharacter(i);
-        if (!ch)
+        if (!ch || ch == skipCharacter)
             continue;
 
+        const bool attacking = isAttacking(ch);
         ::Goldbox::Gfx::IconDirection dir = ::Goldbox::Gfx::ICON_DIRECTION_RIGHT;
         if (ch->combatState) {
             uint8 facing = ch->combatState->direction;
@@ -186,16 +213,22 @@ void CombatViewportDialog::drawCombatants() {
 
         if (slotId != 0 && iconMgr && !iconMgr->isSlotEmpty(slotId)) {
             ::Goldbox::Gfx::Icon *icon = iconMgr->getIcon(slotId);
-            const ::Goldbox::Gfx::Pic *pic = icon
-                ? (dir == ::Goldbox::Gfx::ICON_DIRECTION_LEFT
-                    ? icon->getReadyIconFlipped()
-                    : icon->getReadyIcon())
-                : nullptr;
+            const ::Goldbox::Gfx::Pic *pic = nullptr;
+            if (icon) {
+                if (dir == ::Goldbox::Gfx::ICON_DIRECTION_LEFT)
+                    pic = attacking ? icon->getActionIconFlipped()
+                                    : icon->getReadyIconFlipped();
+                else
+                    pic = attacking ? icon->getActionIcon()
+                                    : icon->getReadyIcon();
+            }
             if (pic)
                 pic->trDraw(&s, pixX, pixY, pic->getTransparentIndex());
         } else {
             _combatRenderer.drawIcon(ch->iconData,
-                                     ::Goldbox::Gfx::ICON_STATE_READY,
+                                     attacking
+                                         ? ::Goldbox::Gfx::ICON_STATE_ATTACK
+                                         : ::Goldbox::Gfx::ICON_STATE_READY,
                                      dir, pixX, pixY, &s);
         }
     }

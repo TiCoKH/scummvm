@@ -882,9 +882,14 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
     }
 
     case 0xBA03:
-        // Original: sound indirection through WORD_SOUND_FLAG -> sound 11/12.
-        // TODO: wire mapped sound bank/state once sound flag field mapping is
-        // available in VmGlobalLayout/RuntimeLayout.
+        // Original: sound indirection through WORD_SOUND_FLAG.
+        if (_engine) {
+            const uint16 flag = _engine->getSoundFlag();
+            if (flag == 8)
+                _engine->soundPlay(0x0B);
+            else if (flag == 10)
+                _engine->soundPlay(0x0C);
+        }
         return VM_OK;
 
     case 0xC01E: {
@@ -1479,6 +1484,8 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
         _asyncCombatPending = false;
         _asyncCombatWasActivated = false;
         clearMonsters();
+        if (_engine && _engine->getGameState() == GS_END_GAME)
+            return VM_HALTED;
         return VM_OK;
     }
 
@@ -1755,10 +1762,9 @@ bool PoolradEngineHostImpl::tryOpenDoor() {
 }
 
 void PoolradEngineHostImpl::playSound(uint8 soundId) {
-    // TODO: Wire to ScummVM audio mixer once sound system is implemented.
-    // Original: PlaySound(ARRAY_SOUND_MAP[soundId]) / WORD_SOUND_ID_N.
-    debug(3, "PoolradEngineHostImpl::playSound: sound %u requested",
-        (unsigned)soundId);
+    // Original: SOUND_Play(ARRAY_SOUND_MAP[soundId])
+    if (_engine)
+        _engine->soundPlay(soundId);
 }
 
 /**

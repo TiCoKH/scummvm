@@ -405,10 +405,12 @@ void resolveAttack(Data::PlayerCharacter *attacker,
         acs.endTurn();
     }
 
-    // Phase 11: restore attacker facing if visible.
-    if (ctx->isCharacterInBounds(attacker, false) && view) {
+    // Phase 11: clear the attack pose, then redraw the ready icon if visible.
+    if (view) {
         view->updateCharacterFacingAndRedraw(attacker, acs.direction, 1, true);
-        view->updateCharacterFacingAndRedraw(attacker, acs.direction, 0, false);
+        if (ctx->isCharacterInBounds(attacker, false))
+            view->updateCharacterFacingAndRedraw(
+                attacker, acs.direction, 0, false);
     }
 }
 

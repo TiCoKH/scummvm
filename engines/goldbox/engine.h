@@ -123,18 +123,28 @@ public:
 	uint8 _horizonColor = 0;
 	uint8 _floorColor = 0;
 
-	/**
-	 * Play a sound effect or song by ID.
-	 * Matches the original SOUND_Play(s_id) convention:
-	 *   0    = stop all, disable speaker
-	 *   1    = enable speaker (unmute)
-	 *   0xFF = stop songs, keep speaker enabled
-	 *   2+   = play song (1-based index)
-	 */
 	bool isInSpellProcess() const { return _inSpellProcess; }
 	void setInSpellProcess(bool active) { _inSpellProcess = active; }
 
-	void soundPlay(uint8 songId);
+	/**
+	 * Play a sound by ARRAY_SOUND_MAP index, like the original
+	 * SOUND_Play(ARRAY_SOUND_MAP[index]):
+	 *   0  = silence
+	 *   1  = sound off (mute)
+	 *   2  = sound on (unmute)
+	 *   3+ = play sound table entry (index - 2)
+	 */
+	void soundPlay(uint8 soundIndex);
+
+	/**
+	 * SOUND_Setup: 0 starts continuous playback (sounds keep playing
+	 * until the next non-zero setup); non-zero selects short blip mode.
+	 */
+	void soundSetup(uint16 flag);
+
+	/** WORD_SOUND_FLAG, also written by ECL scripts. */
+	void setSoundFlag(uint16 flag);
+	uint16 getSoundFlag() const;
 
 	/**
 	 * Returns the current sound mode.
