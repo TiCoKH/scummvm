@@ -33,6 +33,9 @@ const uint16 kSoundDatVersion = 1;
 const uint32 kSoundDatHeaderSize = 26;
 const uint16 kFlagNoteAnyChannel = 0x01;
 const uint16 kFlagSafeReturn = 0x02;
+const uint16 kFlagNoteDurationTable = 0x04;
+const uint16 kNoteDurationTableOffset = 0x00BA;
+const uint16 kNoteDurationTableSize = 19;
 const uint32 kChannelBankSize = 8 * 0x30;
 const uint32 kFreqTableSize = 12 * 2;
 
@@ -82,13 +85,19 @@ bool SoundSegment::loadFromStream(Common::SeekableReadStream &f,
     layout.tandyFreq = f.readUint16LE();
     layout.tandyChannels = f.readUint16LE();
     layout.tandySounds = f.readUint16LE();
-    layout.noteAnyChannel = (flags & kFlagNoteAnyChannel) != 0;
     layout.safeReturn = (flags & kFlagSafeReturn) != 0;
+    layout.noteDurationTable = (flags & kFlagNoteDurationTable) != 0;
+    layout.noteAnyChannel = (flags & kFlagNoteAnyChannel) != 0 ||
+        layout.noteDurationTable;
     uint16 dataStart = f.readUint16LE();
     uint16 dataLength = f.readUint16LE();
 
     uint32 soundTableSize = (uint32)layout.numSounds * 8;
     if (layout.numSounds == 0 || !fits(dataStart, dataLength) ||
+            (layout.noteDurationTable &&
+                (dataStart > kNoteDurationTableOffset ||
+                    dataStart + dataLength <
+                        kNoteDurationTableOffset + kNoteDurationTableSize)) ||
             f.size() - f.pos() < dataLength ||
             !fits(layout.speakerFreq, kFreqTableSize) ||
             !fits(layout.tandyFreq, kFreqTableSize) ||

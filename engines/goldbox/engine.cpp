@@ -80,16 +80,27 @@ void Engine::setup() {
 	} else if (modeStr.equalsIgnoreCase("speaker")) {
 		_soundMode = kSoundPCSpeaker;
 	} else {
+		if (!modeStr.empty() && !modeStr.equalsIgnoreCase("tandy"))
+			warning("Goldbox: invalid sound_mode '%s'; using Tandy",
+				modeStr.c_str());
 		_soundMode = kSoundTandy;
 	}
 
 	// Initialize sound driver (unless sound is off)
 	if (_soundMode != kSoundOff) {
-		// The original sound driver data segment, extracted to sound.dat
+		const Common::String version = ConfMan.get("sound_version");
+		const char *dataFile = "sound.dat";
+		if (version == "1.0") {
+			dataFile = "sound-v10.dat";
+		} else if (!version.empty() && version != "1.3") {
+			warning("Goldbox: invalid sound_version '%s'; using v1.3",
+				version.c_str());
+		}
 		_soundDriver = new GoldboxSoundDriver(_mixer, _soundMode);
-		if (_soundDriver->init(Common::Path("sound.dat"))) {
+		if (_soundDriver->init(Common::Path(dataFile))) {
 			_soundDriver->setup(100);
 		} else {
+			warning("Goldbox: could not initialize sound using %s", dataFile);
 			delete _soundDriver;
 			_soundDriver = nullptr;
 		}

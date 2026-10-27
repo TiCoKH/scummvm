@@ -385,13 +385,22 @@ void GoldboxSoundDriver::soundStart(Bank &bank, uint16 si, int index) {
 
         const byte cmd = read8(di++);
         if (events || cmd < 0xFA) {
-            // Note event: [channel:3 | ...][note:7 | end:1][length]
+            // Note event: [channel:3 | x:5][note:7 | end:1][length], where
+            // v1.0 uses x as a duration index and has no length byte
             const uint8 target = cmd >> 5;
             const uint16 ch = (uint16)(bank.chanBase + target * kChannelSize);
             const uint8 tempo = read16(si + CH_TEMPO) & 0xFF;
-            const uint8 length = read8(di + 1);
-            const uint16 duration = (tempo <= 1) ? length :
-                (uint16)(tempo * length);
+            uint16 duration;
+            if (_layout.noteDurationTable) {
+                const uint8 multiplier = tempo ? tempo : 1;
+                const uint8 durationIndex = cmd & 0x1F;
+                duration = (uint16)(multiplier *
+                    read8(0x00BA + durationIndex));
+            } else {
+                const uint8 length = read8(di + 1);
+                duration = (tempo <= 1) ? length :
+                    (uint16)(tempo * length);
+            }
             write16(si + CH_DURATION, duration);
 
             uint16 note = read8(di) & 0x7F;
@@ -400,8 +409,11 @@ void GoldboxSoundDriver::soundStart(Bank &bank, uint16 si, int index) {
                 write16(ch + CH_DURATION, duration);
                 if (_layout.noteAnyChannel) {
                     const uint16 gap = read16(ch + CH_GAP);
-                    write16(ch + CH_RELEASE,
-                        duration >= gap ? duration - gap : 0);
+                    const uint16 release = duration - gap;
+                    if (_layout.noteDurationTable || duration >= gap)
+                        write16(ch + CH_RELEASE, release);
+                    else
+                        write16(ch + CH_RELEASE, 0);
                 } else {
                     write16(ch + CH_RELEASE, duration);
                 }
@@ -421,8 +433,9 @@ void GoldboxSoundDriver::soundStart(Bank &bank, uint16 si, int index) {
                 write16(ch + CH_OUT_FREQ, freq);
             }
 
+            // v1.0 events have no length byte: [channel:3 | duration:5][note]
             const byte flags = read8(di);
-            di += 2;
+            di += _layout.noteDurationTable ? 1 : 2;
             if (flags & 0x80)
                 done = true;
             events = true;

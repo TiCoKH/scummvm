@@ -36,7 +36,7 @@ const GoldboxGameDescription gameDescriptions[] = {
 			Common::EN_ANY,
 			Common::kPlatformDOS,
 			ADGF_UNSTABLE,
-			GUIO1(GUIO_NONE)
+			GUIO2(GAMEOPTION_ORIGINAL_SAVELOAD, GAMEOPTION_SOUND_MODE)
 		},
 		GAMETYPE_POOLRAD
 	},

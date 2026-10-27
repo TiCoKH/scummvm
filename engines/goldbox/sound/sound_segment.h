@@ -44,17 +44,21 @@ struct SoundSegmentLayout {
 
     /**
      * Note events address any channel of the bank and subtract the target
-     * channel's +0x10 gap from the note length (later builds). Earlier
-     * builds only apply note events to channel 0 of the bank.
+     * channel's +0x10 gap from the note length. The duration-table format
+     * also enables this behavior.
      */
     bool noteAnyChannel;
+
+    /** Note-event low bits index the duration table at segment offset 0xBA. */
+    bool noteDurationTable;
 
     /** FB (return) clears the return address and ends on a null return. */
     bool safeReturn;
 
     SoundSegmentLayout() : speakerFreq(0), speakerChannels(0),
         speakerSounds(0), tandyFreq(0), tandyChannels(0), tandySounds(0),
-        numSounds(0), noteAnyChannel(false), safeReturn(false) {}
+        numSounds(0), noteAnyChannel(false), noteDurationTable(false),
+        safeReturn(false) {}
 };
 
 /**
