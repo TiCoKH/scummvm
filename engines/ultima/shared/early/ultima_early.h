@@ -62,7 +62,7 @@ class Resources;
 
 namespace Gfx {
 class Screen;
-class Ultima::Shared::Gfx::TownsScreen;
+class TownsScreen;
 }
 
 class UltimaEarlyEngine : public Engine, public EventsCallback {
@@ -86,7 +86,7 @@ public:
 	MouseCursor *_mouseCursor;
 	Gfx::Screen *_screen;
 	EventsManager *_events;
-	Ultima::Shared::Gfx::TownsScreen *_townsScreen;
+	Gfx::TownsScreen *_townsScreen;
 public:
 	UltimaEarlyEngine(OSystem *syst, const UltimaGameDescription *gameDesc);
 	~UltimaEarlyEngine() override;
@@ -149,6 +149,8 @@ public:
 	 * Returns the game type being played
 	 */
 	GameId getGameId() const;
+
+	Common::Platform getGamePlatform() const;
 
 	/**
 	 * Returns true if the game is running an enhanced version

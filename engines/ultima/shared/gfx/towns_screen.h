@@ -61,11 +61,16 @@ public:
 	void drawRectangleSC(Point ps, int w, int h, int color);
 	void setWritePage(int page);
 	void drawWindow(Common::String name);
+	/**
+	 * Draw a quarter circle between perpendicular axis endpoints, in either order.
+	 * The radius must be positive and the enclosing quadrant must fit the layer.
+	 */
 	void drawArc(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius);
 	void drawFan(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius);
 	void addDirtyRect(int x, int y, int w, int h);
 	void displayPage(int flags);
 	void scrollLayers(int flags, int offset, bool fast);
+	/** Compose dirty regions of the enabled pages into the backend screen. */
 	void update();
 	bool isScrolling(int direction, int threshold = 0) const { return (direction == 0) ? _scrollRemainder != threshold : (direction == 1 ? _scrollRemainder > threshold : _scrollRemainder < threshold); }
 
@@ -91,7 +96,7 @@ private:
 		uint8 scaleH;
 		bool onTop;
 		bool enabled;
-		bool ready;
+		bool ready = false;
 	} _page[2];
 
 #ifdef USE_RGB_COLOR
@@ -111,8 +116,8 @@ private:
 	TownsScreenLayer *_writePage;
 	OSystem *_system;
 
-	void TownsScreen::drawCornerPoints(int xc, int yc, int x, int y, byte corner);
-	void TownsScreen::drawCirclePoints(int xc, int yc, int x, int y);
+	void drawCornerPoints(int xc, int yc, int x, int y, byte corner);
+	void drawCirclePoints(int xc, int yc, int x, int y);
 };
 
 } // End of namespace Gfx

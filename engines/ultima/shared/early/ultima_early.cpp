@@ -33,6 +33,7 @@
 #include "ultima/shared/engine/resources.h"
 #include "ultima/shared/core/mouse_cursor.h"
 #include "ultima/shared/gfx/screen.h"
+#include "ultima/shared/gfx/towns_screen.h"
 
 #ifndef RELEASE_BUILD
 #include "ultima/ultima1/game.h"
@@ -49,14 +50,16 @@ UltimaEarlyEngine::UltimaEarlyEngine(OSystem *syst, const UltimaGameDescription 
 	g_vm = this;
 	_mouseCursor = nullptr;
 	_screen = nullptr;
+	_townsScreen = nullptr;
+	_events = nullptr;
 }
 
 UltimaEarlyEngine::~UltimaEarlyEngine() {
 	delete _events;
 	delete _game;
 	delete _mouseCursor;
-	delete _screen;
 	delete _townsScreen;
+	delete _screen;
 }
 
 bool UltimaEarlyEngine::initialize() {
@@ -134,6 +137,10 @@ Graphics::Screen *UltimaEarlyEngine::getScreen() const {
 
 GameId UltimaEarlyEngine::getGameId() const {
 	return _gameDescription->gameId;
+}
+
+Common::Platform UltimaEarlyEngine::getGamePlatform() const {
+	return _gameDescription->desc.platform;
 }
 
 bool UltimaEarlyEngine::isEnhanced() const {

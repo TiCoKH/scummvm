@@ -25,6 +25,7 @@
 #include "ultima/shared/early/ultima_early.h"
 #include "ultima/shared/gfx/font.h"
 #include "ultima/shared/gfx/screen.h"
+#include "ultima/shared/gfx/towns_screen.h"
 #include "graphics/palette.h"
 
 namespace Ultima {
