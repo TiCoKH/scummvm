@@ -41,14 +41,16 @@ protected:
 
 public:
 	/**
-	 * Decode an image.
+	 * Decode an uncompressed, single-strip FM Towns TIFF image.
+	 * Packed 32K-color images retain their native B5R5G5 format and
+	 * superimpose bit (not alpha); use the surface format for RGB conversion.
 	 * @param[in] filepath          file name.
 	 * @param[out] dest         if successful, surface will contain the image
 	 *                          data (storage is allocated via create).
 	 * @return false in case of an error
 	 *
-	 * @remark This function does not free the image buffer passed to it,
-	 *         it is the callers responsibility to do so.
+	 * @remark On success, the destination's previous image buffer is freed.
+	 *         The caller owns the replacement buffer.
 	 */
 
 	static bool loadTIFFImage(const Common::String &filepath, Graphics::Surface *dest);

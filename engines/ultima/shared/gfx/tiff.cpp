@@ -20,9 +20,7 @@
  */
 
 #include "ultima/shared/gfx/tiff.h"
-#include "ultima/shared/core/file.h"
 #include "common/util.h"
-#include "common/memstream.h"
 
 namespace Image {
 namespace Ultima {
@@ -32,7 +30,6 @@ namespace Gfx {
 
 TIFFDecoder::TIFFDecoder() {
 	_surface = 0;
-	_palette = 0;
 
 	destroy();
 }
@@ -48,237 +45,210 @@ void TIFFDecoder::destroy() {
 		_surface = 0;
 	}
 
-	if (_palette) {
-		delete[] _palette;
-		_palette = 0;
-	}
+	_palette.clear();
 
 	memset(&_header, 0, sizeof(TownsHeader));
 	_byte_order = TIFFBO_UNKNOWN;
 	_bits_per_pixel = TIFF_NOTSET;
-	_sample_per_pixel = 0;
-	_paletteColorCount = 0;
+	_sample_per_pixel = 1;
 	_photometric_int = 255;
-	_compression = TIFF_COMPRESSION_NOTSET;
+	_compression = TIFF_COMPRESSION_NONE;
+	_width = _height = 0;
+	_offset = _stripByteCount = 0;
+	_fill_order = 1;
+	_min_sample = _max_sample = 0;
+	_numRelevantPlanes = 0;
 }
 
 bool TIFFDecoder::loadStream(Common::SeekableReadStream &stream) {
 	destroy();
 
-	loadHeader(stream);
-	processImageFileDirectory();
-	loadBitmap(stream);
-
-	while (1) {
-		if (stream.size() < stream.pos() + 8)
-			break;
-		if (stream.eos())
-			break;
+	if (!loadHeader(stream) || !processImageFileDirectory() || !loadBitmap(stream)) {
+		destroy();
+		return false;
 	}
-
 	return true;
 }
 
-void TIFFDecoder::loadHeader(Common::SeekableReadStream &stream) {
+bool TIFFDecoder::loadHeader(Common::SeekableReadStream &stream) {
+	if (stream.size() < 8 || !stream.seek(0)) {
+		warning("Invalid FM Towns TIFF header");
+		return false;
+	}
+
 	_header.head.tiff_magic = stream.readUint16BE();
-	_header.head.tiff_version = stream.readUint16BE();
-	if (_header.head.tiff_version == 42){
-		switch (_header.head.tiff_magic)
-		{
-		case ID_II:
-			_byte_order = TIFFBO_BIGENDIAN;
-			break;
-		case ID_MM:
-			_byte_order = TIFFBO_LITTLEENDIAN;
+	switch (_header.head.tiff_magic) {
+	case ID_II:
+		_byte_order = TIFFBO_LITTLEENDIAN;
+		break;
+	case ID_MM:
+		_byte_order = TIFFBO_BIGENDIAN;
+		break;
+	default:
+		warning("Invalid FM Towns TIFF byte order");
+		return false;
+	}
+
+	const bool bigEndian = _byte_order == TIFFBO_BIGENDIAN;
+	Common::SeekableReadStreamEndianWrapper reader(&stream, bigEndian);
+	_header.head.tiff_version = reader.readUint16();
+	_header.head.tiff_diroff = reader.readUint32();
+	if (_header.head.tiff_version != VERSION || _header.head.tiff_diroff < 8 ||
+			_header.head.tiff_diroff > stream.size() - 2 ||
+			!stream.seek(_header.head.tiff_diroff)) {
+		warning("Invalid FM Towns TIFF directory offset or version");
+		return false;
+	}
+
+	_header.ifdnum = reader.readUint16();
+	if (_header.ifdnum > ARRAYSIZE(_header.tags) ||
+			stream.size() - stream.pos() < _header.ifdnum * 12 + 4) {
+		warning("Invalid or oversized FM Towns TIFF directory");
+		return false;
+	}
+
+	for (uint16 ifd = 0; ifd < _header.ifdnum; ++ifd) {
+		IFDEntry &entry = _header.tags[ifd];
+		entry.tag = reader.readUint16();
+		entry.type = reader.readUint16();
+		entry.count = reader.readUint32();
+		entry.value = reader.readUint32();
+		if (entry.type == TIFF_SHORT && entry.count == 1)
+			entry.value = bigEndian ? entry.value >> 16 : entry.value & 0xffff;
+	}
+	if (stream.err() || stream.eos()) {
+		warning("Error reading FM Towns TIFF directory");
+		return false;
+	}
+	return true;
+}
+
+bool TIFFDecoder::processImageFileDirectory() {
+	for (uint16 ifd = 0; ifd < _header.ifdnum; ++ifd) {
+		const IFDEntry &entry = _header.tags[ifd];
+		switch (entry.tag) {
+		case TIFFTAG_IMAGEWIDTH:
+		case TIFFTAG_IMAGELENGTH:
+		case TIFFTAG_BITSPERSAMPLE:
+		case TIFFTAG_COMPRESSION:
+		case TIFFTAG_PHOTOMETRIC:
+		case TIFFTAG_SAMPLESPERPIXEL:
+		case TIFFTAG_FILLORDER:
+		case TIFFTAG_STRIPOFFSETS:
+		case TIFFTAG_STRIPBYTECOUNTS:
+			if (entry.count != 1 || (entry.type != TIFF_SHORT && entry.type != TIFF_LONG)) {
+				warning("Unsupported FM Towns TIFF tag %u", entry.tag);
+				return false;
+			}
 			break;
 		default:
-			warning("Unknown byteordered TIFF-file, force to Intel type");
-			_byte_order = TIFFBO_BIGENDIAN;
+			continue;
+		}
+
+		switch (entry.tag) {
+		case TIFFTAG_IMAGEWIDTH:
+		case TIFFTAG_IMAGELENGTH:
+			if (!entry.value || entry.value > 0x7fff) {
+				warning("Invalid FM Towns TIFF dimensions");
+				return false;
+			}
+			if (entry.tag == TIFFTAG_IMAGEWIDTH)
+				_width = entry.value;
+			else
+				_height = entry.value;
+			break;
+		case TIFFTAG_BITSPERSAMPLE:
+			if (entry.value != TIFF_16 && entry.value != TIFF_256 && entry.value != TIFF_32K) {
+				warning("Unsupported FM Towns TIFF bits per sample");
+				return false;
+			}
+			_bits_per_pixel = entry.value;
+			break;
+		case TIFFTAG_COMPRESSION:
+			if (entry.value != TIFF_COMPRESSION_NONE) {
+				warning("Unsupported FM Towns TIFF compression");
+				return false;
+			}
+			_compression = entry.value;
+			break;
+		case TIFFTAG_PHOTOMETRIC:
+			if (entry.value > 3) {
+				warning("Unsupported FM Towns TIFF photometric interpretation");
+				return false;
+			}
+			_photometric_int = entry.value;
+			break;
+		case TIFFTAG_SAMPLESPERPIXEL:
+			if (entry.value != 1) {
+				warning("Unsupported FM Towns TIFF samples per pixel");
+				return false;
+			}
+			_sample_per_pixel = entry.value;
+			break;
+		case TIFFTAG_FILLORDER:
+			if (entry.value != 1) {
+				warning("Unsupported FM Towns TIFF fill order");
+				return false;
+			}
+			_fill_order = entry.value;
+			break;
+		case TIFFTAG_STRIPOFFSETS:
+			_offset = entry.value;
+			break;
+		case TIFFTAG_STRIPBYTECOUNTS:
+			_stripByteCount = entry.value;
 			break;
 		}
-		warning("Unknown version TIFF-file, force to only possible value");
-		_header.head.tiff_version = 42;
 	}
 
-	if (_byte_order == TIFFBO_BIGENDIAN) {
-		_header.head.tiff_diroff = stream.readUint32BE();
-		_header.ifdnum = stream.readUint16BE();
+	if (!_width || !_height || !_offset || _bits_per_pixel == TIFF_NOTSET ||
+			(_bits_per_pixel == TIFF_32K && _photometric_int != 1)) {
+		warning("Invalid or unsupported FM Towns TIFF image description");
+		return false;
 	}
-	else {
-		_header.head.tiff_diroff = stream.readUint32LE();
-		_header.ifdnum = stream.readUint16BE();
-	}
-
-	if (_header.head.tiff_diroff != stream.pos()){
-		stream.seek( _header.head.tiff_diroff, SEEK_SET );
-	}
-
-	for (short ifd = 0; ifd < _header.ifdnum; ifd++) {
-		if (_byte_order == TIFFBO_BIGENDIAN) {
-			_header.tags[ifd].tag = stream.readUint16BE();
-			_header.tags[ifd].type = stream.readUint16BE();
-			_header.tags[ifd].count = stream.readUint32BE();
-			_header.tags[ifd].value = stream.readUint32BE();
-		}
-		else {
-			_header.tags[ifd].tag = stream.readUint16LE();
-			_header.tags[ifd].type = stream.readUint16LE();
-			_header.tags[ifd].count = stream.readUint32LE();
-			_header.tags[ifd].value = stream.readUint32LE();
-		}
-		if (ifd == 15) {
-			warning("Current TIFF-file reader support only 16 IFD Entry (FMTowns default), futher tags will be dropped");
-			break;
-		}
-	}
+	return true;
 }
 
-void  TIFFDecoder::processImageFileDirectory() {
-
-	for (short ifd = 0; ifd < _header.ifdnum; ifd++) {
-
-		switch (_header.tags[ifd].tag) {
-			case TIFFTAG_NEWSUBFILETYPE:
-				break;
-			case TIFFTAG_SUBFILETYPE:
-				break;
-			case TIFFTAG_IMAGEWIDTH:
-				_width = _header.tags[ifd].value;
-				break;
-			case TIFFTAG_IMAGELENGTH:
-				_height = _header.tags[ifd].value;
-				break;
-			case TIFFTAG_BITSPERSAMPLE:
-				setBitsPerPixel( _header.tags[ifd].value );
-				break;
-			case TIFFTAG_COMPRESSION:
-				_compression = _header.tags[ifd].value;
-				if (_compression != (TIFF_COMPRESSION_NONE || TIFF_COMPRESSION_LZW)){
-					warning("Unknown or unsupported compression");
-				}
-				break;
-			case TIFFTAG_FILLORDER:
-			 _fill_order = _header.tags[ifd].value;
-			 if (_fill_order != (1 || 2)){
-					warning("Unknown fill order");
-				}
-				break;
-			case TIFFTAG_STRIPOFFSETS:
-				_offset = _header.tags[ifd].value;
-				break;
-			case TIFFTAG_ORIENTATION:
-				// TODO, not handled now 
-				break;
-			case TIFFTAG_MINSAMPLEVALUE:
-				_min_sample = _header.tags[ifd].value;
-				break;
-			case TIFFTAG_MAXSAMPLEVALUE:
-				_max_sample = _header.tags[ifd].value;
-				break;
-			case TIFFTAG_XRESOLUTION:
-				// TODO, not handled now
-				break;
-			case TIFFTAG_YRESOLUTION:
-				// TODO, not handled now
-				break;
-			case TIFFTAG_PLANARCONFIG:
-				// TODO, not handled now
-				break;
-
-		}
+bool TIFFDecoder::loadBitmap(Common::SeekableReadStream &stream) {
+	const uint32 rowBytes = (uint32(_width) * _bits_per_pixel + 7) / 8;
+	const uint32 dataLength = rowBytes * _height;
+	if (_offset > stream.size() || dataLength > stream.size() - _offset ||
+			(_stripByteCount && (_stripByteCount < dataLength || _stripByteCount > stream.size() - _offset)) ||
+			!stream.seek(_offset)) {
+		warning("Truncated FM Towns TIFF pixel data");
+		return false;
 	}
-}
-
-void TIFFDecoder::setBitsPerPixel( long value ) {
-	
-	for (short ifd = 0; ifd < _header.ifdnum; ifd++) {
-		if (_header.tags[ifd].tag == TIFFTAG_SAMPLESPERPIXEL ){
-			_sample_per_pixel = _header.tags[ifd].value;
-		}
-		if (_header.tags[ifd].tag == TIFFTAG_PHOTOMETRIC ){
-			_photometric_int = _header.tags[ifd].value;
-		}
-	}
-	switch (value)
-	{
-	case 1:
-		_bits_per_pixel = TIFF_MONO;
-		if (_sample_per_pixel != 1){
-			warning("Bilevel image SamplesPerPixel value is must be 1");
-			_sample_per_pixel = 1;
-		}
-		if (_photometric_int != 0){
-			warning("Bilevel image PhotometricInterpretation value is must be 1");
-			_photometric_int = 0;
-		}
-		break;
-	case TIFF_16:
-		_bits_per_pixel = TIFF_16;
-		if (_sample_per_pixel != 1){
-			warning("4bit palette image SamplesPerPixel value is must be 1");
-			_sample_per_pixel = 1;
-		}
-		break;
-	case TIFF_32K:
-		_bits_per_pixel = TIFF_32K;
-		if (_sample_per_pixel != 1){
-			warning("16bit palette image SamplesPerPixel value is must be 1");
-			_sample_per_pixel = 1;
-		}
-		break;
-	default:
-		warning("Unhandled BitPerPixel value");
-		break;
-	}
-}
-
-void TIFFDecoder::loadBitmap(Common::SeekableReadStream &stream) {
-
-	stream.seek( _offset, SEEK_SET );
 
 	_surface = new Graphics::Surface();
-	uint32 data_lenght;
+	_surface->create(_width, _height, _bits_per_pixel == TIFF_32K ?
+		Graphics::PixelFormat(2, 5, 5, 5, 0, 5, 10, 0, 0) :
+		Graphics::PixelFormat::createFormatCLUT8());
 
-	uint32 outSize = _width * _height;
-	byte *data;
-	
-	switch (_bits_per_pixel)
-	{
-	case TIFF_16:
-		_surface->create( _width, _height, Graphics::PixelFormat::createFormatCLUT8() );
-		data = (byte *)_surface->getPixels();
-		byte packedpixel;
-		data_lenght = ((_width + 1) / 2) * _height;
-		for(int i = 0; i < data_lenght; i++) {
-			packedpixel = stream.readByte();
-			*data++ = packedpixel & 0x0F;
-			*data++ = packedpixel >> 4;
+	for (uint16 y = 0; y < _height; ++y) {
+		if (_bits_per_pixel == TIFF_32K) {
+			uint16 *dest = static_cast<uint16 *>(_surface->getBasePtr(0, y));
+			for (uint16 x = 0; x < _width; ++x)
+				dest[x] = stream.readUint16LE();
+		} else {
+			byte *dest = static_cast<byte *>(_surface->getBasePtr(0, y));
+			if (_bits_per_pixel == TIFF_16) {
+				for (uint16 x = 0; x < _width; x += 2) {
+					const byte packedPixel = stream.readByte();
+					dest[x] = packedPixel & 0x0f;
+					if (x + 1 < _width)
+						dest[x + 1] = packedPixel >> 4;
+				}
+			} else if (stream.read(dest, rowBytes) != rowBytes) {
+				warning("Error reading FM Towns TIFF pixels");
+				return false;
+			}
 		}
-		break;
-
-	case TIFF_256:
-		_surface->create( _width, _height, Graphics::PixelFormat::createFormatCLUT8() );
-		data = (byte *)_surface->getPixels();
-		data_lenght = _width * _height;
-		data = (byte *)stream.readStream(data_lenght);
-		/*
-		for(int i = 0; i <= data_lenght; i++) {
-			*data++ = stream.readByte();
-		}
-		*/
-		break;
- 
-	case TIFF_32K:
-		_surface->create( _width, _height, Graphics::PixelFormat(2, 5, 5, 5, 0, 5, 10, 0, 0) );
-		data = (byte *)_surface->getPixels();
-		data_lenght = _width * _height * 2;
-		data = (byte *)stream.readStream(data_lenght);
-		break;
-	default:
-		warning("Unsupported pit per pixel");
-
 	}
-
+	if (stream.err() || stream.eos()) {
+		warning("Error reading FM Towns TIFF pixels");
+		return false;
+	}
+	return true;
 }
 
 } // End of namespace Gfx 

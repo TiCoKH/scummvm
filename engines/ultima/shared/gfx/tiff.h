@@ -31,8 +31,6 @@
 #include "common/str.h"
 #include "image/image_decoder.h"
 
-#include "ultima/shared/std/containers.h"
-
 /*-------------------------*/
 /* TIFF format definition  */
 /*-------------------------*/
@@ -125,7 +123,13 @@ namespace Gfx {
  * @defgroup image_tiff TIFF decoder (FMTowns specific)
  * @ingroup image
  *
- * @brief Decoder for images encoded as Tagged Image File Format (TIFF) FMTowns specific.
+ * @brief Decoder for uncompressed, single-strip FM Towns TIFF images.
+ *
+ * A single 16-bit grayscale sample denotes packed FM Towns color, not luminance.
+ * The little-endian pixel payload is independent of the directory byte order.
+ * The surface retains the native B5R5G5 words, including the superimpose bit
+ * (bit 15). It has no alpha channel; PixelFormat conversion expands RGB to
+ * 8-bit channels without interpreting the superimpose bit as transparency.
  *
  * Used in engines:
  * - Ultima 1 (FMTowns)
@@ -139,19 +143,19 @@ public:
 /* structure of TIFF head  */
 /*-------------------------*/
 typedef struct {
-	short tiff_magic;      /* magic number (defines byte order) */
-	short tiff_version;    /* TIFF version number */
-	long  tiff_diroff;     /* byte offset to first directory */
+	uint16 tiff_magic;      /* magic number (defines byte order) */
+	uint16 tiff_version;    /* TIFF version number */
+	uint32 tiff_diroff;     /* byte offset to first directory */
 } TIFFHeaderClassic;
 
 /*-------------------------*/
 /* structure of IFD field  */
 /*-------------------------*/
 typedef struct {
-	short tag;
-	short type;
-	long  count;
-	long  value;
+	uint16 tag;
+	uint16 type;
+	uint32 count;
+	uint32 value;
 } IFDEntry;
 
 /*----------------------------*/
@@ -176,7 +180,7 @@ typedef struct {
 /*------------------------------------------*/
 typedef struct {
 	TIFFHeaderClassic		head           ; /* header                     8 */
-	short          			ifdnum         ; /* ifd offset                10 */
+	uint16          		ifdnum         ; /* ifd offset                10 */
 	IFDEntry				tags[15]       ; /* tags                     238 */
 	char	       			_pad1[18]      ; /* padding                  256 */
 	unsigned short 			pal16[3][16]   ; /* 16c palette              352 */
@@ -191,12 +195,12 @@ typedef struct {
 	virtual ~TIFFDecoder();
 
 	// ImageDecoder API
-	void destroy();
-	bool loadStream(Common::SeekableReadStream &stream);
+	void destroy() override;
+	bool loadStream(Common::SeekableReadStream &stream) override;
 	const TownsHeader *getHeader() const { return &_header; }
-	const Graphics::Surface *getSurface() const { return _surface; }
-	const byte *getPalette() const { return _palette; }
-	uint16 getPaletteColorCount() const { return _paletteColorCount; }
+	const Graphics::Surface *getSurface() const override { return _surface; }
+	const Graphics::Palette &getPalette() const override { return _palette; }
+	uint16 getPaletteColorCount() const { return _palette.size(); }
 private:
 
 	typedef enum {
@@ -215,17 +219,15 @@ private:
 	byte _fill_order;
 	byte _min_sample;
 	byte _max_sample;
-	byte *_palette;
-	uint16 _offset;
-	uint16 _paletteColorCount;
+	Graphics::Palette _palette;
+	uint32 _offset;
+	uint32 _stripByteCount;
 	uint8 _numRelevantPlanes;
 
 
-	void loadHeader(Common::SeekableReadStream &stream);
-	void processImageFileDirectory();
-	void setBitsPerPixel(long value);
-	void loadPalette(Common::SeekableReadStream &stream, const uint32 size);
-	void loadBitmap(Common::SeekableReadStream &stream);
+	bool loadHeader(Common::SeekableReadStream &stream);
+	bool processImageFileDirectory();
+	bool loadBitmap(Common::SeekableReadStream &stream);
 };
 /** @} */
 } // End of namespace Gfx 
