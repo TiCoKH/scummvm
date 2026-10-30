@@ -303,6 +303,8 @@ dists/emscripten/libs/
 dists/emscripten/games/
 dists/emscripten/emsdk-*
 
+dists/android/
+
 #Ignore Atari/FreeMiNT files
 scummvm.prg
 
@@ -316,3 +318,5 @@ __pycache__/
 #Ignore Claude instruction files
 CLAUDE.md
 .claude
+
+**/.info/

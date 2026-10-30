@@ -21,7 +21,7 @@
 
 #include "ultima/shared/gfx/tiff_loader.h"
 #include "ultima/shared/gfx/tiff.h"
-#include "ultima/shared/core/file.h"
+#include "common/file.h"
 #include "common/util.h"
 
 namespace Ultima {
@@ -30,10 +30,14 @@ namespace Gfx {
 
 bool TIFFLoader::loadTIFFImage(const Common::String &filepath, Graphics::Surface *dest) {
 	assert(dest);
-	Shared::File source{Common::Path(filepath)};
+	Common::File source;
+	if (!source.open(Common::Path(filepath))) {
+		warning("Could not open TIFF image '%s'", filepath.c_str());
+		return false;
+	}
 	Image::Ultima::Shared::Gfx::TIFFDecoder tiff;
 	if (!tiff.loadStream(source)) {
-		error("Error while reading TIFF image '%s'", filepath.c_str());
+		warning("Error while reading TIFF image '%s'", filepath.c_str());
 		return false;
 	}
 	const Graphics::Surface *sourceSurface = tiff.getSurface();

@@ -44,10 +44,11 @@ public:
 	 * Decode an uncompressed, single-strip FM Towns TIFF image.
 	 * Packed 32K-color images retain their native B5R5G5 format and
 	 * superimpose bit (not alpha); use the surface format for RGB conversion.
+	 * Indexed images contain palette indices and use the engine's active palette.
 	 * @param[in] filepath          file name.
 	 * @param[out] dest         if successful, surface will contain the image
 	 *                          data (storage is allocated via create).
-	 * @return false in case of an error
+	 * @return false on open or decode failure, leaving dest unchanged
 	 *
 	 * @remark On success, the destination's previous image buffer is freed.
 	 *         The caller owns the replacement buffer.

@@ -22,10 +22,12 @@
 #include "common/scummsys.h"
 #include "common/config-manager.h"
 #include "common/debug-channels.h"
+#include "common/fs.h"
 #include "common/system.h"
 #include "common/translation.h"
 #include "graphics/thumbnail.h"
 #include "graphics/scaler.h"
+#include "gui/message.h"
 #include "gui/saveload.h"
 #include "ultima/shared/early/ultima_early.h"
 #include "ultima/shared/early/game.h"
@@ -75,8 +77,11 @@ bool UltimaEarlyEngine::initialize() {
 	SearchMan.add("ultima", res);
 
 	_events = new EventsManager(this);
-	if (g_vm->getGamePlatform() == Common::kPlatformFMTowns)
-	{
+	if (getGamePlatform() == Common::kPlatformFMTowns) {
+		const Common::FSNode gameDir(ConfMan.getPath("path"));
+		const Common::FSNode graphicsDir = gameDir.getParent().getChild("GRAPH");
+		if (graphicsDir.exists() && graphicsDir.isDirectory())
+			SearchMan.addDirectory("ultima-towns-graphics", graphicsDir);
 		_screen = new Gfx::Screen(640, 480);
 
 		_townsScreen = new Gfx::TownsScreen(_screen);
@@ -100,8 +105,14 @@ bool UltimaEarlyEngine::initialize() {
 	// If requested, load a savegame instead of showing the intro
 	if (ConfMan.hasKey("save_slot")) {
 		int saveSlot = ConfMan.getInt("save_slot");
-		if (saveSlot >= 0 && saveSlot <= 999)
-			loadGameState(saveSlot);
+		if (saveSlot >= 0 && saveSlot <= 999) {
+			if (getGamePlatform() == Common::kPlatformFMTowns) {
+				GUI::MessageDialog dialog(_("FM Towns save loading is not implemented yet."));
+				runDialog(dialog);
+			} else {
+				loadGameState(saveSlot);
+			}
+		}
 	}
 
 	return true;
@@ -118,6 +129,9 @@ Common::Error UltimaEarlyEngine::run() {
 }
 
 bool UltimaEarlyEngine::hasFeature(EngineFeature f) const {
+	if (getGamePlatform() == Common::kPlatformFMTowns &&
+			(f == kSupportsLoadingDuringRuntime || f == kSupportsSavingDuringRuntime))
+		return false;
 	return
 		(f == kSupportsReturnToLauncher) ||
 		(f == kSupportsLoadingDuringRuntime) ||
@@ -159,6 +173,8 @@ Game *UltimaEarlyEngine::createGame() const {
 }
 
 Common::Error UltimaEarlyEngine::loadGameStream(Common::SeekableReadStream *stream) {
+	if (getGamePlatform() == Common::kPlatformFMTowns)
+		return Common::Error(Common::kReadingFailed, _("FM Towns save loading is not implemented yet."));
 	// Read in the game's data
 	Common::Serializer s(stream, nullptr);
 	_game->synchronize(s);
@@ -166,6 +182,8 @@ Common::Error UltimaEarlyEngine::loadGameStream(Common::SeekableReadStream *stre
 }
 
 Common::Error UltimaEarlyEngine::saveGameStream(Common::WriteStream *stream, bool) {
+	if (getGamePlatform() == Common::kPlatformFMTowns)
+		return Common::Error(Common::kWritingFailed, _("FM Towns saving is not implemented yet."));
 	// Write out the game's data
 	Common::Serializer s(nullptr, stream);
 	_game->synchronize(s);
@@ -173,10 +191,20 @@ Common::Error UltimaEarlyEngine::saveGameStream(Common::WriteStream *stream, boo
 }
 
 bool UltimaEarlyEngine::canLoadGameStateCurrently(Common::U32String *msg) {
+	if (getGamePlatform() == Common::kPlatformFMTowns) {
+		if (msg)
+			*msg = _("FM Towns save loading is not implemented yet.");
+		return false;
+	}
 	return _game->canLoadGameStateCurrently(msg);
 }
 
 bool UltimaEarlyEngine::canSaveGameStateCurrently(Common::U32String *msg) {
+	if (getGamePlatform() == Common::kPlatformFMTowns) {
+		if (msg)
+			*msg = _("FM Towns saving is not implemented yet.");
+		return false;
+	}
 	return _game->canSaveGameStateCurrently(msg);
 }
 

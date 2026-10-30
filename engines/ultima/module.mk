@@ -128,6 +128,7 @@ MODULE_OBJS += \
 	ultima1/u1dialogs/transports.o \
 	ultima1/u1dialogs/weaponry.o \
 	ultima1/u1gfx/drawing_support.o \
+	ultima1/u1gfx/fmt/view_towns_title.o \
 	ultima1/u1gfx/info.o \
 	ultima1/u1gfx/sprites.o \
 	ultima1/u1gfx/status.o \

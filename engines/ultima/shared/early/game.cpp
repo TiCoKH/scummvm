@@ -103,6 +103,9 @@ void Game::setFMTownsPalette() {
 	{0x00,0x00,0x00}, {0x00,0x00,0x00}, {0x0A,0x78,0x78}, {0xFF,0xFF,0x50}, {0x14,0xC8,0x28}, {0x00,0x28,0xE8}, {0xFF,0x00,0x00}, {0xFF,0xFF,0xFF}
 	};
 	g_vm->_townsScreen->setWritePage(0);
+	g_vm->_screen->setPalette(&FMTOWNS_16COLOR_DEFAULT[0][0], 0, 16);
+	_textColor = _whiteColor = 15;
+	_bgColor = 0;
 	g_vm->_townsScreen->setPalette(&FMTOWNS_16COLOR_DEFAULT[0][0]);
 	g_vm->_townsScreen->setWritePage(1);
 	g_vm->_townsScreen->setPalette(&FMTOWNS_16COLOR_DEFAULT[0][0]);

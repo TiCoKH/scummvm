@@ -23,13 +23,15 @@
 #include "common/endian.h"
 #include "common/config-manager.h"
 #include "common/rect.h"
-#include "common/math.h"
+#include "graphics/palette.h"
+#include "graphics/paletteman.h"
 
 namespace Ultima {
 namespace Shared {
 namespace Gfx {
 
 TownsScreen::TownsScreen(Screen *scr) : _width(0), _height(0), _pitch(0), _pixelFormat(scr->format), _scrollOffset(0), _scrollRemainder(0), _numDirtyRects(0) {
+	_system = g_system;
 	Graphics::Surface *s = scr->surfacePtr();
 	_width = s->w;
 	_height = s->h;
@@ -45,21 +47,23 @@ TownsScreen::~TownsScreen() {
 }
 
 void TownsScreen::setupLayer(int width, int height, int scaleW, int scaleH, int numCol) {
-	if (numCol >> 15)
-		error("TownsScreen::setupLayer(): No more than 32767 colors supported.");
-
-	if (width <= 0 || height <= 0 || numCol < 16)
+	if (width <= 0 || height <= 0 || width > 32767 || height > 32767 ||
+			scaleW < 1 || scaleW > 2 || scaleH < 1 || scaleH > 2 ||
+			(numCol != 16 && numCol != 256 && numCol != 32768))
 		error("TownsScreen::setupLayer(): Invalid width/height/number of colors setting.");
 
-	_writePage->layer.w = width;
-	_writePage->layer.h = height;
 	_writePage->bpp = ((numCol - 1) & 0xff00) ? 2 : 1;
-	_writePage->layer.pitch = width * _writePage->bpp;
-	_writePage->layer.create(width,height);
+	_writePage->layer.create(width, height, _writePage->bpp == 2 ?
+		Graphics::PixelFormat(2, 5, 5, 5, 0, 5, 10, 0, 0) :
+		Graphics::PixelFormat::createFormatCLUT8());
 	_writePage->scaleW = scaleW;
 	_writePage->scaleH = scaleH;
 	_writePage->numCol = numCol;
 	_writePage->hScroll = 0;
+	_writePage->foreColor = 0;
+	_writePage->backColor = 0;
+	_writePage->fillColor = 0;
+	_writePage->transColor = 0;
 	_writePage->enabled = true;
 	_page[0].onTop = true;
 	_page[1].onTop = !_page[0].enabled;
@@ -111,7 +115,6 @@ void TownsScreen::drawWindow(Common::String name) {
 
 }
 
-/* Sholud be better mathematical way to decide arc boundaries but now I just need quarters it's works */
 void TownsScreen::drawCornerPoints(int xc, int yc, int x, int y, byte corner) {
 	switch (corner) {
 		case 1: // down-right
@@ -123,12 +126,12 @@ void TownsScreen::drawCornerPoints(int xc, int yc, int x, int y, byte corner) {
 			_writePage->layer.setPixel(xc-y, yc+x, _writePage->foreColor);
 			break;
 		case 3: // up-left
-			_writePage->layer.setPixel(xc+x, yc-y, _writePage->foreColor);
-			_writePage->layer.setPixel(xc+y, yc-x, _writePage->foreColor);
-			break;
-		case 4: // up-right
 			_writePage->layer.setPixel(xc-x, yc-y, _writePage->foreColor);
 			_writePage->layer.setPixel(xc-y, yc-x, _writePage->foreColor);
+			break;
+		case 4: // up-right
+			_writePage->layer.setPixel(xc+x, yc-y, _writePage->foreColor);
+			_writePage->layer.setPixel(xc+y, yc-x, _writePage->foreColor);
 			break;
 	}
 }
@@ -145,21 +148,45 @@ void TownsScreen::drawCirclePoints(int xc, int yc, int x, int y) {
 }
 
 void TownsScreen::drawArc(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius) {
+	const int startDx = int(start_x) - center_x;
+	const int startDy = int(start_y) - center_y;
+	const int endDx = int(end_x) - center_x;
+	const int endDy = int(end_y) - center_y;
+	const bool horizontalStart = startDy == 0 && ABS(startDx) == radius;
+	const bool verticalStart = startDx == 0 && ABS(startDy) == radius;
+	const bool horizontalEnd = endDy == 0 && ABS(endDx) == radius;
+	const bool verticalEnd = endDx == 0 && ABS(endDy) == radius;
+	if (radius <= 0 || !((horizontalStart && verticalEnd) || (verticalStart && horizontalEnd))) {
+		warning("TownsScreen::drawArc(): Expected perpendicular quarter-circle endpoints");
+		return;
+	}
+
+	const int dx = horizontalStart ? startDx : endDx;
+	const int dy = verticalStart ? startDy : endDy;
+	const int left = center_x + MIN(dx, 0);
+	const int top = center_y + MIN(dy, 0);
+	const int right = center_x + MAX(dx, 0);
+	const int bottom = center_y + MAX(dy, 0);
+	if (!_writePage->ready || left < 0 || top < 0 ||
+			right >= _writePage->layer.w || bottom >= _writePage->layer.h) {
+		warning("TownsScreen::drawArc(): Quarter circle outside the active layer");
+		return;
+	}
+
+	const byte corner = dy > 0 ? (dx > 0 ? 1 : 2) : (dx < 0 ? 3 : 4);
 	int x = 0, y = radius;
 	int d = 3 - 2 * radius;
-	drawCornerPoints(xc, yc, x, y, corner);
-	while (y >= x)
-	{
-		x++;
-		if (d > 0)
-		{
-			y--;
+	while (x <= y) {
+		drawCornerPoints(center_x, center_y, x, y, corner);
+		if (d > 0) {
 			d = d + 4 * (x - y) + 10;
-		}
-		else
+			--y;
+		} else {
 			d = d + 4 * x + 6;
-		drawCornerPoints(xc, yc, x, y, corner);
+		}
+		++x;
 	}
+	addDirtyRect(left, top, right - left + 1, bottom - top + 1);
 }
 
 void TownsScreen::clearLayer(int layer) {
@@ -170,7 +197,8 @@ void TownsScreen::clearLayer(int layer) {
 	if (!l->ready)
 		return;
 
-	_dirtyRects.push_back(Common::Rect(_width - 1, _height - 1));
+	l->layer.clear(l->backColor);
+	_dirtyRects.push_back(Common::Rect(_width, _height));
 	_numDirtyRects = kFullRedraw;
 }
 
@@ -194,8 +222,14 @@ uint8 *TownsScreen::getLayerPixels(int layer, int x, int y) const {
 	if (layer < 0 || layer > 1)
 		return nullptr;
 
-	if (!_writePage->ready)
+	const TownsScreenLayer &page = _page[layer];
+	if (!page.ready)
 		return nullptr;
+	if (x < 0 || y < 0 || x >= page.layer.w || y >= page.layer.h) {
+		warning("TownsScreen::getLayerPixels(): Coordinates outside the requested layer");
+		return nullptr;
+	}
+	return const_cast<uint8 *>(static_cast<const uint8 *>(page.layer.getBasePtr(x, y)));
 }
 
 void TownsScreen::addDirtyRect(int x, int y, int w, int h) {
@@ -205,13 +239,13 @@ void TownsScreen::addDirtyRect(int x, int y, int w, int h) {
 	if (_numDirtyRects == kDirtyRectsMax) {
 		// full redraw
 		_dirtyRects.clear();
-		_dirtyRects.push_back(Common::Rect(_width - 1, _height - 1));
+		_dirtyRects.push_back(Common::Rect(_width, _height));
 		_numDirtyRects++;
 		return;
 	}
 
-	int x2 = x + w - 1;
-	int y2 = y + h - 1;
+	int x2 = x + w;
+	int y2 = y + h;
 
 	assert(x >= 0 && y >= 0 && x2 <= _width && y2 <= _height);
 
@@ -268,16 +302,82 @@ void TownsScreen::displayPage(int flags) {
 	_page[1].onTop = !_page[0].enabled;
 
 	_dirtyRects.clear();
-	_dirtyRects.push_back(Common::Rect(_width - 1, _height - 1));
+	_dirtyRects.push_back(Common::Rect(_width, _height));
 	_numDirtyRects = kFullRedraw;
 
-	Graphics::Surface *s = _system->lockScreen();
-	assert(s);
-	memset(s->getPixels(), 0, _pitch * _height);
-	_system->unlockScreen();
 	update();
 
 	_system->updateScreen();
+}
+
+void TownsScreen::update() {
+	if (_dirtyRects.empty())
+		return;
+
+	const Graphics::PixelFormat format = _system->getScreenFormat();
+	Graphics::Palette palette;
+	for (int i = 0; i < 2; ++i) {
+		const TownsScreenLayer &page = _page[i];
+		if (!page.ready || !page.enabled)
+			continue;
+		if (page.layer.format.isCLUT8()) {
+			const Graphics::Palette *colors = page.layer.grabPalette();
+			if (!colors || colors->size() < page.numCol)
+				error("TownsScreen::update(): No palette for page %d", i);
+			if (format.isCLUT8()) {
+				if (!palette.empty() && !palette.equals(*colors))
+					error("TownsScreen::update(): Different page palettes require an RGB screen");
+				palette = *colors;
+			}
+		} else if (format.isCLUT8()) {
+			error("TownsScreen::update(): Packed-color pages require an RGB screen");
+		}
+	}
+	if (!palette.empty())
+		_system->getPaletteManager()->setPalette(palette.data(), 0, palette.size());
+
+	Graphics::Surface *dest = _system->lockScreen();
+	if (!dest)
+		error("TownsScreen::update(): Unable to lock the backend screen");
+	for (const Common::Rect &dirty : _dirtyRects) {
+		Common::Rect rect = dirty;
+		rect.clip(Common::Rect(MIN(_width, int(dest->w)), MIN(_height, int(dest->h))));
+		for (int y = rect.top; y < rect.bottom; ++y) {
+			for (int x = rect.left; x < rect.right; ++x) {
+				uint32 color = format.isCLUT8() ? 0 : format.RGBToColor(0, 0, 0);
+				// Page 0 is the foreground when both pages are enabled.
+				for (int i = 1; i >= 0; --i) {
+					const TownsScreenLayer &page = _page[i];
+					if (!page.ready || !page.enabled || x >= page.layer.w * page.scaleW ||
+							y >= page.layer.h * page.scaleH)
+						continue;
+					const int sx = (x / page.scaleW + page.hScroll) % page.layer.w;
+					const int sy = y / page.scaleH;
+					const uint32 pixel = page.layer.rawSurface().getPixel(sx, sy);
+					if (page.onTop && page.layer.format.isCLUT8() && pixel == page.transColor)
+						continue;
+					if (format.isCLUT8()) {
+						color = pixel;
+					} else {
+						byte r, g, b;
+						if (page.layer.format.isCLUT8()) {
+							const Graphics::Palette *colors = page.layer.grabPalette();
+							if (pixel >= colors->size())
+								error("TownsScreen::update(): Palette index outside page %d palette", i);
+							colors->get(pixel, r, g, b);
+						} else {
+							page.layer.format.colorToRGB(pixel, r, g, b);
+						}
+						color = format.RGBToColor(r, g, b);
+					}
+				}
+				dest->setPixel(x, y, color);
+			}
+		}
+	}
+	_system->unlockScreen();
+	_dirtyRects.clear();
+	_numDirtyRects = 0;
 }
 
 void TownsScreen::scrollLayers(int flags, int offset, bool fast) {
@@ -289,10 +389,10 @@ void TownsScreen::scrollLayers(int flags, int offset, bool fast) {
 	int step = (_scrollRemainder > 0) ? -1 : 1;
 
 	_scrollRemainder += step;
-	_scrollOffset = (_scrollOffset + step) % _page[0].layer.w;
+	_scrollOffset = (_scrollOffset + step + _page[0].layer.w) % _page[0].layer.w;
 
 	_dirtyRects.clear();
-	_dirtyRects.push_back(Common::Rect(_width - 1, _height - 1));
+	_dirtyRects.push_back(Common::Rect(_width, _height));
 	_numDirtyRects = kFullRedraw;
 
 	for (int i = 0; i < 2; ++i) {

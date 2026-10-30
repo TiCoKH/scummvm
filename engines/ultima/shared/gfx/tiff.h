@@ -130,6 +130,9 @@ namespace Gfx {
  * The surface retains the native B5R5G5 words, including the superimpose bit
  * (bit 15). It has no alpha channel; PixelFormat conversion expands RGB to
  * 8-bit channels without interpreting the superimpose bit as transparency.
+ * Indexed surfaces use the engine's active palette; getPalette() is empty.
+ * FM Towns 4-bit pixels are low-nibble first, including FillOrder=2 assets.
+ * Decoded image storage is limited to 64 MiB.
  *
  * Used in engines:
  * - Ultima 1 (FMTowns)
@@ -138,91 +141,32 @@ namespace Gfx {
 
 class TIFFDecoder : public ImageDecoder {
 public:
-
-/*-------------------------*/
-/* structure of TIFF head  */
-/*-------------------------*/
-typedef struct {
-	uint16 tiff_magic;      /* magic number (defines byte order) */
-	uint16 tiff_version;    /* TIFF version number */
-	uint32 tiff_diroff;     /* byte offset to first directory */
-} TIFFHeaderClassic;
-
-/*-------------------------*/
-/* structure of IFD field  */
-/*-------------------------*/
-typedef struct {
-	uint16 tag;
-	uint16 type;
-	uint32 count;
-	uint32 value;
-} IFDEntry;
-
-/*----------------------------*/
-/* structure of Rational data */
-/*----------------------------*/
-typedef struct  {
-	long  value_c ;
-	long  value_m ;
-} Rational;
-
-/*-------------------------*/
-/* MaxSampleValue          */
-/*-------------------------*/
-typedef struct {
-	short strip1 ;
-	short strip2 ;
-	short strip3 ;
-} MaxValue;
-
-/*------------------------------------------*/
-/* Definition of TOWNS standard TIFF header */
-/*------------------------------------------*/
-typedef struct {
-	TIFFHeaderClassic		head           ; /* header                     8 */
-	uint16          		ifdnum         ; /* ifd offset                10 */
-	IFDEntry				tags[15]       ; /* tags                     238 */
-	char	       			_pad1[18]      ; /* padding                  256 */
-	unsigned short 			pal16[3][16]   ; /* 16c palette              352 */
-	char           			_pad2[16*9-12] ; /* padding                  484 */
-	MaxValue       			MaxSValue      ; /* MaxSampleValue           490 */
-	short	       			bpp[3]         ; /* SamplesPerPixel 24bit    496 */
-	Rational       			xres,yres      ; /* resolution X,Y           512 */
-	unsigned short 			pal256[3][256] ; /* 256c palette            2048 */
-} TownsHeader;
-
 	TIFFDecoder();
 	virtual ~TIFFDecoder();
 
 	// ImageDecoder API
 	void destroy() override;
 	bool loadStream(Common::SeekableReadStream &stream) override;
-	const TownsHeader *getHeader() const { return &_header; }
 	const Graphics::Surface *getSurface() const override { return _surface; }
 	const Graphics::Palette &getPalette() const override { return _palette; }
 	uint16 getPaletteColorCount() const { return _palette.size(); }
 private:
-
-	typedef enum {
-		TIFFBO_UNKNOWN = 0, TIFFBO_BIGENDIAN = 1, TIFFBO_LITTLEENDIAN = 2,
-	} TIFFByteOrder;
-
-	TIFFByteOrder _byte_order;
-	TownsHeader _header;
+	struct IFDEntry {
+		uint16 tag;
+		uint16 type;
+		uint32 count;
+		uint32 value;
+	};
+	Common::Array<IFDEntry> _tags;
 	Graphics::Surface *_surface;
 	uint16 _width;
 	uint16 _height;
 	byte _bits_per_pixel;
-	byte _sample_per_pixel;
 	byte _photometric_int;
-	byte _compression;
 	byte _fill_order;
-	byte _min_sample;
-	byte _max_sample;
 	Graphics::Palette _palette;
 	uint32 _offset;
 	uint32 _stripByteCount;
-	uint8 _numRelevantPlanes;
 
 
 	bool loadHeader(Common::SeekableReadStream &stream);

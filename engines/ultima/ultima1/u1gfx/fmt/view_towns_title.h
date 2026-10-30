@@ -22,9 +22,8 @@
 #ifndef ULTIMA_ULTIMA1_GFX_FMT_VIEW_TOWNS_TITLE_H
 #define ULTIMA_ULTIMA1_GFX_FMT_VIEW_TOWNS_TITLE_H
 
-#include "ultima/shared/gfx/visual_container.h"
-#include "ultima/shared/gfx/bitmap.h"
-#include "graphics/managed_surface.h"
+#include "ultima/shared/gfx/visual_item.h"
+#include "graphics/surface.h"
 
 namespace Ultima {
 namespace Ultima1 {
@@ -35,8 +34,8 @@ using Shared::CKeypressMsg;
 using Shared::CFrameMsg;
 
 /**
- * This class implements the FMTowns title screen, which shows the copyright screens and Ultima dragon screen,
- * as well as the main menu
+ * FM Towns title/menu presentation using original indexed assets.
+ * Menu text and sequencing are provisional; gameplay views are not implemented.
  */
 class ViewTownsTitle : public Shared::Gfx::VisualItem {
 	DECLARE_MESSAGE_MAP;
@@ -44,7 +43,7 @@ class ViewTownsTitle : public Shared::Gfx::VisualItem {
 	bool KeypressMsg(CKeypressMsg *msg);
 	bool FrameMsg(CFrameMsg *msg);
 private:
-	Graphics::Surface _top_header, _main_border, info_line, _ut1_title, _ut1_dragon, _ut1_knight1, _ut1_knight2, _ut1_knight3;
+	Graphics::Surface _top_header, _ut1_title, _ut1_dragon, _ut1_knight1, _ut1_knight2, _ut1_knight3;
 	enum TitleMode { TITLEMODE_BASE, TITLEMODE_DRAGON, TITLEMODE_TRADEMARKS, TITLEMODE_PRESENTS, TITLEMODE_MAIN_MENU };
 	TitleMode _mode;
 	uint32 _expiryTime;
@@ -65,10 +64,8 @@ private:
 	 */
 	void drawCastleView();
 
-	/**
-	 * Animates the castle flags
-	 */
-	void drawCastleFlag(Shared::Gfx::VisualSurface &s, int xp);
+	void drawImage(const Graphics::Surface &image, int y);
+	void drawText(const Common::String &text, int y);
 
 	/**
 	 * Draws the trademarks view
@@ -81,16 +78,6 @@ private:
 	void drawMainMenu();
 
 	/**
-	 * Sets up the palette for the castle view
-	 */
-	void setCastlePalette();
-
-	/**
-	 * Sets up the palette for the title views
-	 */
-	void setTitlePalette();
-
-	/**
 	 * Sets the current mode (display) within the title
 	 */
 	void setMode(TitleMode mode);
@@ -101,6 +88,7 @@ public:
 	 * Constructor
 	 */
 	ViewTownsTitle(Shared::TreeItem *parent = nullptr);
+	~ViewTownsTitle() override;
 
 	/**
 	 * Draw the game screen
@@ -109,7 +97,7 @@ public:
 };
 
 } // End of namespace U1Gfx
-} // End of namespace Shared
+} // End of namespace Ultima1
 } // End of namespace Ultima
 
 #endif

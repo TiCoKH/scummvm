@@ -41,9 +41,13 @@ namespace Ultima1 {
 
 EMPTY_MESSAGE_MAP(Ultima1Game, Shared::Game);
 
-Ultima1Game::Ultima1Game() : Shared::Game(), _quests(this) {
-	_res = new GameResources();
-	_map = new Maps::Ultima1Map(this);
+Ultima1Game::Ultima1Game() : Shared::Game(), _res(nullptr), _demoView(nullptr),
+		_gameView(nullptr), _titleView(nullptr), _charGenView(nullptr), _quests(this) {
+	// Towns currently has a title/menu view only, not a DOS gameplay view.
+	if (g_vm->getGamePlatform() != Common::kPlatformFMTowns) {
+		_res = new GameResources();
+		_map = new Maps::Ultima1Map(this);
+	}
 
 	_textCursor = new U1Gfx::U1TextCursor(_textColor, _bgColor);
 	g_vm->_screen->setCursor(_textCursor);
@@ -60,10 +64,7 @@ Ultima1Game::Ultima1Game() : Shared::Game(), _quests(this) {
 		_videoMode = VIDEOMODE_FMT;
 		setFMTownsPalette();
 		setFMTownsWindows();
-		//_demoView = new U1Gfx::ViewDemo(this);
-		_titleView = nullptr;
-		_gameView = nullptr;
-		_charGenView = nullptr;
+		_titleView = new U1Gfx::ViewTownsTitle(this);
 	} else {
 		setEGAPalette();
 		_gameView = new U1Gfx::ViewGame(this);
@@ -81,6 +82,8 @@ Ultima1Game::~Ultima1Game() {
 
 	delete _map;
 	delete _gameView;
+	if (_videoMode == VIDEOMODE_FMT)
+		delete _titleView;
 	delete _party;
 }
 
@@ -95,18 +98,17 @@ void Ultima1Game::synchronize(Common::Serializer &s) {
 void Ultima1Game::starting(bool isLoading) {
 	Shared::Game::starting(isLoading);
 
-	_res->load();
-	_party = new Party(this);
-	if (_videoMode == VIDEOMODE_FMT)
-	{
-		_gameView->setView(isLoading ? "Game" : "Demo");
+	if (_videoMode == VIDEOMODE_FMT) {
+		setView("TownsTitle");
 	} else {
+		_res->load();
+		_party = new Party(this);
 		_gameView->setView(isLoading ? "Game" : "Title");
 	}
 }
 
 bool Ultima1Game::canSaveGameStateCurrently(Common::U32String *msg) {
-	return _currentView->getName() == "Game";
+	return _currentView && _currentView->getName() == "Game";
 }
 
 void Ultima1Game::giveTreasure(int coins, int v2) {

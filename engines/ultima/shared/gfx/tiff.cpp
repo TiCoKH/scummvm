@@ -47,17 +47,12 @@ void TIFFDecoder::destroy() {
 
 	_palette.clear();
 
-	memset(&_header, 0, sizeof(TownsHeader));
-	_byte_order = TIFFBO_UNKNOWN;
+	_tags.clear();
 	_bits_per_pixel = TIFF_NOTSET;
-	_sample_per_pixel = 1;
 	_photometric_int = 255;
-	_compression = TIFF_COMPRESSION_NONE;
 	_width = _height = 0;
 	_offset = _stripByteCount = 0;
 	_fill_order = 1;
-	_min_sample = _max_sample = 0;
-	_numRelevantPlanes = 0;
 }
 
 bool TIFFDecoder::loadStream(Common::SeekableReadStream &stream) {
@@ -76,39 +71,38 @@ bool TIFFDecoder::loadHeader(Common::SeekableReadStream &stream) {
 		return false;
 	}
 
-	_header.head.tiff_magic = stream.readUint16BE();
-	switch (_header.head.tiff_magic) {
+	bool bigEndian;
+	switch (stream.readUint16BE()) {
 	case ID_II:
-		_byte_order = TIFFBO_LITTLEENDIAN;
+		bigEndian = false;
 		break;
 	case ID_MM:
-		_byte_order = TIFFBO_BIGENDIAN;
+		bigEndian = true;
 		break;
 	default:
 		warning("Invalid FM Towns TIFF byte order");
 		return false;
 	}
 
-	const bool bigEndian = _byte_order == TIFFBO_BIGENDIAN;
 	Common::SeekableReadStreamEndianWrapper reader(&stream, bigEndian);
-	_header.head.tiff_version = reader.readUint16();
-	_header.head.tiff_diroff = reader.readUint32();
-	if (_header.head.tiff_version != VERSION || _header.head.tiff_diroff < 8 ||
-			_header.head.tiff_diroff > stream.size() - 2 ||
-			!stream.seek(_header.head.tiff_diroff)) {
+	const uint16 version = reader.readUint16();
+	const uint32 directoryOffset = reader.readUint32();
+	if (version != VERSION || directoryOffset < 8 ||
+			directoryOffset > stream.size() - 2 ||
+			!stream.seek(directoryOffset)) {
 		warning("Invalid FM Towns TIFF directory offset or version");
 		return false;
 	}
 
-	_header.ifdnum = reader.readUint16();
-	if (_header.ifdnum > ARRAYSIZE(_header.tags) ||
-			stream.size() - stream.pos() < _header.ifdnum * 12 + 4) {
+	const uint16 tagCount = reader.readUint16();
+	if (tagCount > 4096 || stream.size() - stream.pos() < tagCount * 12 + 4) {
 		warning("Invalid or oversized FM Towns TIFF directory");
 		return false;
 	}
 
-	for (uint16 ifd = 0; ifd < _header.ifdnum; ++ifd) {
-		IFDEntry &entry = _header.tags[ifd];
+	_tags.resize(tagCount);
+	for (uint16 ifd = 0; ifd < tagCount; ++ifd) {
+		IFDEntry &entry = _tags[ifd];
 		entry.tag = reader.readUint16();
 		entry.type = reader.readUint16();
 		entry.count = reader.readUint32();
@@ -124,8 +118,7 @@ bool TIFFDecoder::loadHeader(Common::SeekableReadStream &stream) {
 }
 
 bool TIFFDecoder::processImageFileDirectory() {
-	for (uint16 ifd = 0; ifd < _header.ifdnum; ++ifd) {
-		const IFDEntry &entry = _header.tags[ifd];
+	for (const IFDEntry &entry : _tags) {
 		switch (entry.tag) {
 		case TIFFTAG_IMAGEWIDTH:
 		case TIFFTAG_IMAGELENGTH:
@@ -169,7 +162,6 @@ bool TIFFDecoder::processImageFileDirectory() {
 				warning("Unsupported FM Towns TIFF compression");
 				return false;
 			}
-			_compression = entry.value;
 			break;
 		case TIFFTAG_PHOTOMETRIC:
 			if (entry.value > 3) {
@@ -183,10 +175,9 @@ bool TIFFDecoder::processImageFileDirectory() {
 				warning("Unsupported FM Towns TIFF samples per pixel");
 				return false;
 			}
-			_sample_per_pixel = entry.value;
 			break;
 		case TIFFTAG_FILLORDER:
-			if (entry.value != 1) {
+			if (entry.value != 1 && entry.value != 2) {
 				warning("Unsupported FM Towns TIFF fill order");
 				return false;
 			}
@@ -202,6 +193,7 @@ bool TIFFDecoder::processImageFileDirectory() {
 	}
 
 	if (!_width || !_height || !_offset || _bits_per_pixel == TIFF_NOTSET ||
+			(_fill_order == 2 && _bits_per_pixel != TIFF_16) ||
 			(_bits_per_pixel == TIFF_32K && _photometric_int != 1)) {
 		warning("Invalid or unsupported FM Towns TIFF image description");
 		return false;
@@ -212,6 +204,11 @@ bool TIFFDecoder::processImageFileDirectory() {
 bool TIFFDecoder::loadBitmap(Common::SeekableReadStream &stream) {
 	const uint32 rowBytes = (uint32(_width) * _bits_per_pixel + 7) / 8;
 	const uint32 dataLength = rowBytes * _height;
+	const uint32 decodedSize = uint32(_width) * _height * (_bits_per_pixel == TIFF_32K ? 2 : 1);
+	if (decodedSize > 64 * 1024 * 1024) {
+		warning("FM Towns TIFF exceeds the 64 MiB decoded-image limit");
+		return false;
+	}
 	if (_offset > stream.size() || dataLength > stream.size() - _offset ||
 			(_stripByteCount && (_stripByteCount < dataLength || _stripByteCount > stream.size() - _offset)) ||
 			!stream.seek(_offset)) {
