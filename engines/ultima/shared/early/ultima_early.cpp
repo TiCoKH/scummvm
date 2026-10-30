@@ -86,10 +86,8 @@ bool UltimaEarlyEngine::initialize() {
 		_screen = new Gfx::Screen(640, 480, townScreenFormat, true);
 
 		_townsScreen = new Gfx::TownsScreen(_screen);
-		_townsScreen->setWritePage(0);
-		_townsScreen->setupLayer(640, 480, 1, 1, 16);
-		_townsScreen->setWritePage(1);
-		_townsScreen->setupLayer(640, 480, 1, 1, 32768);
+		_townsScreen->setupPage(0, 640, 480, 1, 1, 16);
+		_townsScreen->setupPage(1, 640, 480, 1, 1, 32768);
 	} else {
 		_screen = new Gfx::Screen();
 		_townsScreen = nullptr;

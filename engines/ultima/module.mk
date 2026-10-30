@@ -81,6 +81,7 @@ MODULE_OBJS += \
 	shared/gfx/viewport_map.o \
 	shared/gfx/visual_container.o \
 	shared/gfx/visual_item.o \
+	shared/views/intro_towns_graphics.o \
 	shared/views/intro_view.o \
 	shared/gfx/visual_surface.o \
 	shared/maps/map.o \

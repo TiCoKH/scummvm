@@ -49,11 +49,8 @@ public:
 	}
 
 	void setDisplayPage(int32 legacyMode) override {
-		if (legacyMode != 2)
+		if (!g_vm->_townsScreen->setLegacyDisplayPage(legacyMode))
 			error("Unsupported FM Towns intro display mode %d", legacyMode);
-		// The intro needs its text plane over the slide plane; TownsScreen uses
-		// one enable bit per layer, so both pages are enabled here.
-		g_vm->_townsScreen->displayPage(3);
 	}
 
 	void prepareTextBox(uint8 boxIndex) override {
@@ -85,7 +82,6 @@ public:
 
 	void present() override {
 		_view.composePage0();
-		g_vm->_townsScreen->addDirtyRect(0, 0, 640, 480);
 		g_vm->_townsScreen->update();
 		g_system->updateScreen();
 	}
@@ -167,21 +163,27 @@ void ViewTownsDemo::startIntro(const GameResources &resources) {
 }
 
 bool ViewTownsDemo::drawSlide(uint8 slideIndex) {
-	if (slideIndex >= ARRAYSIZE(_slides))
+	if (slideIndex >= ARRAYSIZE(_slides)) {
+		warning("ViewTownsDemo::drawSlide(): Invalid slide %u", slideIndex);
 		return false;
+	}
 
 	const Graphics::Surface &slide = _slides[slideIndex];
 	const int x = 31;
 	const int y = 16;
 	if (x + slide.w > g_vm->_townsScreen->getLayerWidth(1) ||
-			y + slide.h > g_vm->_townsScreen->getLayerHeight(1))
+			y + slide.h > g_vm->_townsScreen->getLayerHeight(1)) {
+		warning("ViewTownsDemo::drawSlide(): Slide does not fit page 1");
 		return false;
+	}
 
 	g_vm->_townsScreen->clearLayer(1);
-	uint8 *dest = g_vm->_townsScreen->getLayerPixels(1, x, y);
-	const int destPitch = g_vm->_townsScreen->getLayerPitch(1);
-	for (int row = 0; row < slide.h; ++row)
-		memcpy(dest + row * destPitch, slide.getBasePtr(0, row), slide.w * 2);
+	g_vm->_townsScreen->setWritePage(1);
+	// Decoded surfaces contain native-endian pixels; putPixelBlock takes raw LE data.
+	g_vm->_townsScreen->getWriteSurface().copyRectToSurface(slide, x, y,
+			Common::Rect(slide.w, slide.h));
+	g_vm->_townsScreen->invalidateRect(x, y, slide.w, slide.h);
+	g_vm->_townsScreen->setWritePage(0);
 
 	_textSurface.clear(0);
 	return true;
@@ -193,18 +195,17 @@ void ViewTownsDemo::drawDemoString(const Common::String &text, int x, int y) {
 }
 
 void ViewTownsDemo::composePage0() {
-	const int pitch = g_vm->_townsScreen->getLayerPitch(0);
-	uint8 *dest = g_vm->_townsScreen->getLayerPixels(0, 0, 0);
-	if (!dest)
-		error("FM Towns text layer is not initialized");
+	g_vm->_townsScreen->setWritePage(0);
+	Graphics::ManagedSurface &page = g_vm->_townsScreen->getWriteSurface();
+	uint8 *dest = static_cast<uint8 *>(page.getPixels());
 
 	for (int y = 0; y < 480; ++y) {
 		const uint8 *src = static_cast<const uint8 *>(_textSurface.getBasePtr(0, y / 2));
-		memcpy(dest + y * pitch, src, 640);
+		memcpy(dest + y * page.pitch, src, 640);
 	}
 
-	for (int y = 0; y < _header.h; ++y)
-		memcpy(dest + y * pitch, _header.getBasePtr(0, y), _header.w);
+	page.copyRectToSurface(_header, 0, 0, Common::Rect(_header.w, _header.h));
+	g_vm->_townsScreen->invalidateRect(0, 0, 640, 480);
 }
 
 void ViewTownsDemo::drawMainMenu() {
@@ -218,10 +219,7 @@ void ViewTownsDemo::drawMainMenu() {
 	drawDemoString(_demoText[19].substr(1), 160, 128);
 	drawDemoString(_("r) Replay demo"), 160, 152);
 	drawDemoString(_("q) Quit"), 160, 168);
-	composePage0();
-	g_vm->_townsScreen->addDirtyRect(0, 0, 640, 480);
-	g_vm->_townsScreen->update();
-	g_system->updateScreen();
+	_introPort->present();
 }
 
 void ViewTownsDemo::finishIntro() {

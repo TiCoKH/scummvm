@@ -24,12 +24,11 @@
 
 #include "common/system.h"
 #include "common/list.h"
-#include "common/hashmap.h"
+#include "common/str.h"
 
 #include "graphics/managed_surface.h"
+#include "graphics/screen.h"
 #include "ultima/shared/core/rect.h"
-#include "ultima/shared/core/towns_window.h"
-#include "ultima/shared/gfx/visual_surface.h"
 
 namespace Ultima {
 namespace Shared {
@@ -44,17 +43,65 @@ public:
 		kFullRedraw = (kDirtyRectsMax + 1)
 	};
 public:
-	TownsScreen(Screen *scr);
+	TownsScreen(Graphics::Screen *scr);
 	~TownsScreen();
 
 	void setupLayer(int width, int height, int scaleW, int scaleH, int numCol);
+	/** Initialize a page without changing the selected write page. */
+	void setupPage(int page, int width, int height, int scaleW, int scaleH, int numCol);
+	int getWritePage() const { return _writePage == &_page[1] ? 1 : 0; }
+	/** Visibility mask: bit 0 = page 0, bit 1 = page 1. Page 0 has priority. Does not present. */
+	void setVisiblePages(uint8 mask);
+	/**
+	 * Map an original GFX_setDisplayPage mode to an EGB_displayPage visibility mask.
+	 * The original wrapper calls EGB_displayPage(work, 0, mode + 1), with mode 3
+	 * mapped to 0: 0 = page 0, 1 = page 1, 2 = both (page 0 on top), 3 = none.
+	 * Returns -1 for an unknown mode.
+	 */
+	static int legacyDisplayPageMask(int mode);
+	/** Apply a GFX_setDisplayPage mode. Does not present. */
+	bool setLegacyDisplayPage(int mode);
+	uint8 getVisiblePages() const;
 	void clearLayer(int layer);
 	void setPalette(const byte *colors);
+	void setPaletteForPage(int page, const byte *rgb, uint16 start, uint16 count);
+	void setPaletteEntry(int page, uint16 index, byte red, byte green, byte blue);
+	/** Update entries 1..15, preserving entry 0. Input is 16 RGB triplets. */
+	void applyDefaultPalette4bit(const byte *rgb);
 	void setForegroundColor(uint16 colorID);
 	void setBackgroundColor(uint16 colorID);
 	void setSurfaceFillColor(uint16 colorID);
 	void setTransparentColor(uint16 colorID);
+	void setTransparentColorEnabled(int page, bool enabled);
+	/** Nonzero raster operations are recorded but rejected when drawing. */
+	void setWriteMode(uint16 mode) { _writeMode = mode; }
+	uint16 getWriteMode() const { return _writeMode; }
+	void setFontStyle(uint16 style) { _fontStyle = style; }
+	uint16 getFontStyle() const { return _fontStyle; }
+	enum EGBPaintMode {
+		kPaintBorderSolid = 0x0002,
+		kPaintFillSolid = 0x0020
+	};
+	void setPaintMode(uint16 mode) { _paintMode = mode; }
+	uint16 getPaintMode() const { return _paintMode; }
+	/** Endpoints must be on the active page; offscreen line clipping is not implemented. */
 	void drawLine(int x1, int y1, int x2, int y2);
+	/** Inclusive endpoints; temporarily enables solid fill. */
+	void drawFilledRectangle(int x1, int y1, int x2, int y2);
+	/** Sets foreground/fill colors and temporarily uses write mode zero. */
+	void drawColoredRectangle(int x1, int y1, int x2, int y2, uint16 color);
+	/**
+	 * Tightly packed rows: low nibble first at 4bpp, little-endian at 16bpp.
+	 * Packed words retain bit 15; it is not interpreted as conventional alpha.
+	 */
+	bool putPixelBlock(const byte *src, uint32 srcSize, int x, int y,
+		int width, int height, uint8 sourceBitsPerPixel);
+	/** Raw move within an inclusive, surface-clipped region; no EGB viewport. */
+	void scrollRegion(int x1, int y1, int x2, int y2,
+		int deltaX, int deltaY, bool fillExposed);
+	Graphics::ManagedSurface &getWriteSurface();
+	/** Invalidate active-page coordinates, accounting for page scaling/scroll. */
+	void invalidateRect(int x, int y, int width, int height);
 	void drawRectangle(Rect rect);
 	void drawRectangleC(Rect rect, int color);
 	void drawRectangleS(Point ps, int w, int h);
@@ -62,10 +109,17 @@ public:
 	void setWritePage(int page);
 	void drawWindow(Common::String name);
 	/**
-	 * Draw a quarter circle between perpendicular axis endpoints, in either order.
-	 * The radius must be positive and the enclosing quadrant must fit the layer.
+	 * EGB_arc parameter block {cx, cy, sx, sy, ex, ey, r}: start/end are vectors
+	 * relative to the center. The arc sweeps from start to end in increasing
+	 * screen angle (clockwise with y down). Equal directions draw a full circle.
+	 * Pixel-exact EGB rasterization is not verified; a midpoint circle is used.
 	 */
 	void drawArc(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius);
+	/**
+	 * EGB_fan with the same parameter block as drawArc. kPaintFillSolid fills the
+	 * sector with the fill color; kPaintBorderSolid draws the arc and both radii in
+	 * the foreground color. Other paint bits are ignored with a warning.
+	 */
 	void drawFan(int16 center_x, int16 center_y, int16 start_x, int16 start_y, int16 end_x, int16 end_y, int16 radius);
 	void addDirtyRect(int x, int y, int w, int h);
 	void displayPage(int flags);
@@ -85,18 +139,19 @@ public:
 private:
 	struct TownsScreenLayer {
 		Graphics::ManagedSurface layer;
-		uint16 bpp;
-		uint16 numCol;
-		uint16 hScroll;
-		uint16 foreColor;
-		uint16 backColor;
-		uint16 fillColor;
-		uint16 transColor;
-		uint8 scaleW;
-		uint8 scaleH;
-		bool onTop;
-		bool enabled;
+		uint16 bpp = 0;
+		uint16 numCol = 0;
+		uint16 hScroll = 0;
+		uint16 foreColor = 0;
+		uint16 backColor = 0;
+		uint16 fillColor = 0;
+		uint16 transColor = 0;
+		uint8 scaleW = 1;
+		uint8 scaleH = 1;
+		bool onTop = false;
+		bool enabled = false;
 		bool ready = false;
+		bool transparentEnabled = false;
 	} _page[2];
 
 #ifdef USE_RGB_COLOR
@@ -112,12 +167,21 @@ private:
 	Graphics::PixelFormat _pixelFormat;
 
 	int _numDirtyRects;
+	uint16 _paintMode;
+	uint16 _writeMode;
+	uint16 _fontStyle;
 	Common::List<Common::Rect> _dirtyRects;
 	TownsScreenLayer *_writePage;
 	OSystem *_system;
 
-	void drawCornerPoints(int xc, int yc, int x, int y, byte corner);
 	void drawCirclePoints(int xc, int yc, int x, int y);
+	void drawRectangleWithMode(int x1, int y1, int x2, int y2, uint16 mode);
+	void markFullDirty();
+	bool canDraw(const char *operation) const;
+	void plotPixelClipped(int x, int y, uint16 color);
+	void plotLineClipped(int x1, int y1, int x2, int y2, uint16 color);
+	void plotArcOutline(int xc, int yc, int sx, int sy, int ex, int ey, int radius, uint16 color);
+	static bool isInArcSweep(int px, int py, int sx, int sy, int ex, int ey);
 };
 
 } // End of namespace Gfx
