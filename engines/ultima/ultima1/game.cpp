@@ -43,9 +43,9 @@ EMPTY_MESSAGE_MAP(Ultima1Game, Shared::Game);
 
 Ultima1Game::Ultima1Game() : Shared::Game(), _res(nullptr), _demoView(nullptr),
 		_gameView(nullptr), _titleView(nullptr), _charGenView(nullptr), _quests(this) {
+	_res = new GameResources();
 	// Towns currently has a title/menu view only, not a DOS gameplay view.
 	if (g_vm->getGamePlatform() != Common::kPlatformFMTowns) {
-		_res = new GameResources();
 		_map = new Maps::Ultima1Map(this);
 	}
 
@@ -64,7 +64,7 @@ Ultima1Game::Ultima1Game() : Shared::Game(), _res(nullptr), _demoView(nullptr),
 		_videoMode = VIDEOMODE_FMT;
 		setFMTownsPalette();
 		setFMTownsWindows();
-		_titleView = new U1Gfx::ViewTownsTitle(this);
+		_demoView = new U1Gfx::ViewTownsDemo(this);
 	} else {
 		setEGAPalette();
 		_gameView = new U1Gfx::ViewGame(this);
@@ -83,8 +83,11 @@ Ultima1Game::~Ultima1Game() {
 	delete _map;
 	delete _gameView;
 	if (_videoMode == VIDEOMODE_FMT)
+		delete _demoView;
+	if (_videoMode == VIDEOMODE_FMT)
 		delete _titleView;
 	delete _party;
+	delete _res;
 }
 
 void Ultima1Game::synchronize(Common::Serializer &s) {
@@ -99,7 +102,9 @@ void Ultima1Game::starting(bool isLoading) {
 	Shared::Game::starting(isLoading);
 
 	if (_videoMode == VIDEOMODE_FMT) {
-		setView("TownsTitle");
+		_res->load();
+		static_cast<U1Gfx::ViewTownsDemo *>(_demoView)->startIntro(*_res);
+		setView("TownsIntro");
 	} else {
 		_res->load();
 		_party = new Party(this);

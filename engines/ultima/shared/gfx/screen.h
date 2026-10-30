@@ -59,6 +59,7 @@ class Screen: public Graphics::Screen {
 private:
 	Cursor *_cursor;
 	bool _drawCursor;
+	bool _externallyComposited;
 public:
 	/**
 	 * Constructor
@@ -70,6 +71,8 @@ public:
 	 * Constructor with width, height 
 	 */
 	Screen(int w, int h);
+	Screen(int w, int h, const Graphics::PixelFormat &backendFormat,
+		bool externallyComposited);
 
 	/**
 	 * Updates the screen by copying any affected areas to the system

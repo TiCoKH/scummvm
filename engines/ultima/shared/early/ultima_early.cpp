@@ -82,13 +82,14 @@ bool UltimaEarlyEngine::initialize() {
 		const Common::FSNode graphicsDir = gameDir.getParent().getChild("GRAPH");
 		if (graphicsDir.exists() && graphicsDir.isDirectory())
 			SearchMan.addDirectory("ultima-towns-graphics", graphicsDir);
-		_screen = new Gfx::Screen(640, 480);
+		const Graphics::PixelFormat townScreenFormat(2, 5, 6, 5, 0, 11, 5, 0, 0);
+		_screen = new Gfx::Screen(640, 480, townScreenFormat, true);
 
 		_townsScreen = new Gfx::TownsScreen(_screen);
 		_townsScreen->setWritePage(0);
 		_townsScreen->setupLayer(640, 480, 1, 1, 16);
 		_townsScreen->setWritePage(1);
-		_townsScreen->setupLayer(640, 480, 1, 1, 16);
+		_townsScreen->setupLayer(640, 480, 1, 1, 32768);
 	} else {
 		_screen = new Gfx::Screen();
 		_townsScreen = nullptr;

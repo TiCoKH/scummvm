@@ -26,16 +26,27 @@ namespace Ultima {
 namespace Shared {
 namespace Gfx {
 
-Screen::Screen(): Graphics::Screen(320, 200), _cursor(nullptr), _drawCursor(false) {
+Screen::Screen(): Graphics::Screen(320, 200), _cursor(nullptr), _drawCursor(false),
+		_externallyComposited(false) {
 	initGraphics(320, 200);
 }
 
-Screen::Screen(int w, int h): Graphics::Screen(w, h), _cursor(nullptr), _drawCursor(false) {
+Screen::Screen(int w, int h): Graphics::Screen(w, h), _cursor(nullptr), _drawCursor(false),
+		_externallyComposited(false) {
 	initGraphics(w, h);
 }
 
+Screen::Screen(int w, int h, const Graphics::PixelFormat &backendFormat,
+		bool externallyComposited) :
+		Graphics::Screen(w, h), _cursor(nullptr), _drawCursor(false),
+		_externallyComposited(externallyComposited) {
+	initGraphics(w, h, &backendFormat);
+}
 
 void Screen::update() {
+	if (_externallyComposited)
+		return;
+
 	_drawCursor = false;
 
 	if (_cursor) {

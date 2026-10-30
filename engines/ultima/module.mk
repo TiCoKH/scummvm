@@ -81,6 +81,7 @@ MODULE_OBJS += \
 	shared/gfx/viewport_map.o \
 	shared/gfx/visual_container.o \
 	shared/gfx/visual_item.o \
+	shared/views/intro_view.o \
 	shared/gfx/visual_surface.o \
 	shared/maps/map.o \
 	shared/maps/map_base.o \
@@ -128,6 +129,7 @@ MODULE_OBJS += \
 	ultima1/u1dialogs/transports.o \
 	ultima1/u1dialogs/weaponry.o \
 	ultima1/u1gfx/drawing_support.o \
+	ultima1/u1gfx/fmt/view_towns_demo.o \
 	ultima1/u1gfx/fmt/view_towns_title.o \
 	ultima1/u1gfx/info.o \
 	ultima1/u1gfx/sprites.o \
