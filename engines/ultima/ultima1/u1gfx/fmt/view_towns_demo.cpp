@@ -16,6 +16,9 @@
 #include "ultima/shared/gfx/screen.h"
 #include "ultima/shared/gfx/tiff_loader.h"
 #include "ultima/shared/gfx/towns_screen.h"
+#ifdef USE_SJIS
+#include "graphics/sjis.h"
+#endif
 #include "common/array.h"
 #include "common/events.h"
 #include "common/system.h"
@@ -110,6 +113,11 @@ ViewTownsDemo::ViewTownsDemo(Shared::TreeItem *parent) :
 		Shared::Gfx::VisualItem("TownsIntro", Rect(0, 0, 640, 480), parent),
 		_textSurface(640, 240), _introPort(new TownsIntroPort(*this)),
 		_intro(nullptr), _menuVisible(false), _textX(32), _textY(48) {
+#ifdef USE_SJIS
+	_sjisFont = Graphics::FontSJIS::createFont(Common::kPlatformFMTowns);
+	if (!_sjisFont)
+		warning("FM Towns SJIS font not available (FMT_FNT.ROM or SJIS.FNT missing)");
+#endif
 	if (!loadImage("HEADTTL.TIF", _header) || _header.w != 640 ||
 			_header.h != 24 || !_header.format.isCLUT8())
 		error("Could not load FM Towns intro header");
@@ -126,6 +134,9 @@ ViewTownsDemo::ViewTownsDemo(Shared::TreeItem *parent) :
 ViewTownsDemo::~ViewTownsDemo() {
 	delete _intro;
 	delete _introPort;
+#ifdef USE_SJIS
+	delete _sjisFont;
+#endif
 	_header.free();
 	for (Graphics::Surface &slide : _slides)
 		slide.free();
@@ -190,6 +201,25 @@ bool ViewTownsDemo::drawSlide(uint8 slideIndex) {
 }
 
 void ViewTownsDemo::drawDemoString(const Common::String &text, int x, int y) {
+#ifdef USE_SJIS
+	if (_sjisFont) {
+		const byte *p = reinterpret_cast<const byte *>(text.c_str());
+		int cx = x;
+		while (*p) {
+			uint16 ch;
+			if ((*p >= 0x81 && *p <= 0x9F) || (*p >= 0xE0 && *p <= 0xEF)) {
+				if (!p[1]) break;
+				ch = (p[0] << 8) | p[1];
+				p += 2;
+			} else {
+				ch = *p++;
+			}
+			_sjisFont->drawChar(_textSurface.rawSurface(), ch, cx, y, 15, 0);
+			cx += _sjisFont->getCharWidth(ch);
+		}
+		return;
+	}
+#endif
 	Shared::Point pos(x, y);
 	getGame()->getFont()->writeString(_textSurface, text, pos, 15, 0);
 }

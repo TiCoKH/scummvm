@@ -72,6 +72,7 @@ MODULE_OBJS += \
 	shared/gfx/popup.o \
 	shared/gfx/screen.o \
 	shared/gfx/sprites.o \
+	shared/gfx/text_box.o \
 	shared/gfx/text_cursor.o \
 	shared/gfx/text_input.o \
 	shared/gfx/tiff.o \
@@ -82,6 +83,7 @@ MODULE_OBJS += \
 	shared/gfx/visual_container.o \
 	shared/gfx/visual_item.o \
 	shared/views/intro_towns_graphics.o \
+	shared/views/intro_towns_port.o \
 	shared/views/intro_view.o \
 	shared/gfx/visual_surface.o \
 	shared/maps/map.o \

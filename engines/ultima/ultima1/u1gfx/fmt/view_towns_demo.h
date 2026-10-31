@@ -16,6 +16,10 @@
 #include "graphics/managed_surface.h"
 #include "graphics/surface.h"
 
+#ifdef USE_SJIS
+namespace Graphics { class FontSJIS; }
+#endif
+
 namespace Ultima {
 namespace Ultima1 {
 
@@ -47,6 +51,9 @@ class ViewTownsDemo : public Shared::Gfx::VisualItem {
 	bool _menuVisible;
 	int _textX;
 	int _textY;
+#ifdef USE_SJIS
+	Graphics::FontSJIS *_sjisFont;
+#endif
 
 	bool loadImage(const Common::String &name, Graphics::Surface &image);
 	bool drawSlide(uint8 slideIndex);
