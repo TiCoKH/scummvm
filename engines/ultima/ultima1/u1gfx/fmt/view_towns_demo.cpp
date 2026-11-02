@@ -59,7 +59,9 @@ public:
 	void prepareTextBox(uint8 boxIndex) override {
 		if (boxIndex != 0)
 			error("Unsupported FM Towns intro text box %u", boxIndex);
-		_view._textSurface.clear(0);
+		// Clear the text area on page 0 (rows 48..479, below the 24-pixel header)
+		g_vm->_townsScreen->setWritePage(0);
+		g_vm->_townsScreen->drawColoredRectangle(0, 24, 639, 479, 0);
 	}
 
 	void printTextBoxString(uint8 boxIndex, const char *bytes) override {
@@ -72,19 +74,19 @@ public:
 		if (boxIndex != 0)
 			error("Unsupported FM Towns intro text box %u", boxIndex);
 		_view._textX = 32;
-		_view._textY += 8;
+		_view._textY += 16;
 	}
 
 	void resetBoxTo(uint8 boxIndex, int32 arg1, int32 arg2) override {
 		if (boxIndex != 0 || arg1 != 0 || arg2 != 0)
 			error("Unsupported FM Towns intro text box reset");
-		_view._textSurface.clear(0);
+		g_vm->_townsScreen->setWritePage(0);
+		g_vm->_townsScreen->drawColoredRectangle(0, 24, 639, 479, 0);
 		_view._textX = 32;
 		_view._textY = 48;
 	}
 
 	void present() override {
-		_view.composePage0();
 		g_vm->_townsScreen->update();
 		g_system->updateScreen();
 	}
@@ -111,7 +113,7 @@ END_MESSAGE_MAP()
 
 ViewTownsDemo::ViewTownsDemo(Shared::TreeItem *parent) :
 		Shared::Gfx::VisualItem("TownsIntro", Rect(0, 0, 640, 480), parent),
-		_textSurface(640, 240), _introPort(new TownsIntroPort(*this)),
+		_introPort(new TownsIntroPort(*this)),
 		_intro(nullptr), _menuVisible(false), _textX(32), _textY(48) {
 #ifdef USE_SJIS
 	_sjisFont = Graphics::FontSJIS::createFont(Common::kPlatformFMTowns);
@@ -190,17 +192,22 @@ bool ViewTownsDemo::drawSlide(uint8 slideIndex) {
 
 	g_vm->_townsScreen->clearLayer(1);
 	g_vm->_townsScreen->setWritePage(1);
-	// Decoded surfaces contain native-endian pixels; putPixelBlock takes raw LE data.
 	g_vm->_townsScreen->getWriteSurface().copyRectToSurface(slide, x, y,
 			Common::Rect(slide.w, slide.h));
 	g_vm->_townsScreen->invalidateRect(x, y, slide.w, slide.h);
-	g_vm->_townsScreen->setWritePage(0);
 
-	_textSurface.clear(0);
+	// Restore page 0 header and clear text area
+	g_vm->_townsScreen->setWritePage(0);
+	g_vm->_townsScreen->getWriteSurface().copyRectToSurface(
+			_header, 0, 0, Common::Rect(_header.w, _header.h));
+	g_vm->_townsScreen->invalidateRect(0, 0, _header.w, _header.h);
+	g_vm->_townsScreen->drawColoredRectangle(0, 24, 639, 479, 0);
 	return true;
 }
 
 void ViewTownsDemo::drawDemoString(const Common::String &text, int x, int y) {
+	g_vm->_townsScreen->setWritePage(0);
+	Graphics::ManagedSurface &page = g_vm->_townsScreen->getWriteSurface();
 #ifdef USE_SJIS
 	if (_sjisFont) {
 		const byte *p = reinterpret_cast<const byte *>(text.c_str());
@@ -214,32 +221,21 @@ void ViewTownsDemo::drawDemoString(const Common::String &text, int x, int y) {
 			} else {
 				ch = *p++;
 			}
-			_sjisFont->drawChar(_textSurface.rawSurface(), ch, cx, y, 15, 0);
+			_sjisFont->drawChar(page.rawSurface(), ch, cx, y, 15, 0);
 			cx += _sjisFont->getCharWidth(ch);
 		}
+		g_vm->_townsScreen->invalidateRect(x, y, cx - x, 16);
 		return;
 	}
 #endif
 	Shared::Point pos(x, y);
-	getGame()->getFont()->writeString(_textSurface, text, pos, 15, 0);
-}
-
-void ViewTownsDemo::composePage0() {
-	g_vm->_townsScreen->setWritePage(0);
-	Graphics::ManagedSurface &page = g_vm->_townsScreen->getWriteSurface();
-	uint8 *dest = static_cast<uint8 *>(page.getPixels());
-
-	for (int y = 0; y < 480; ++y) {
-		const uint8 *src = static_cast<const uint8 *>(_textSurface.getBasePtr(0, y / 2));
-		memcpy(dest + y * page.pitch, src, 640);
-	}
-
-	page.copyRectToSurface(_header, 0, 0, Common::Rect(_header.w, _header.h));
-	g_vm->_townsScreen->invalidateRect(0, 0, 640, 480);
+	getGame()->getFont()->writeString(page, text, pos, 15, 0);
+	g_vm->_townsScreen->invalidateRect(x, y, text.size() * 8, 8);
 }
 
 void ViewTownsDemo::drawMainMenu() {
-	_textSurface.clear(0);
+	g_vm->_townsScreen->setWritePage(0);
+	g_vm->_townsScreen->drawColoredRectangle(0, 24, 639, 479, 0);
 	drawDemoString(_demoText[13], 248, 28);
 	drawDemoString(_demoText[14], 264, 52);
 	drawDemoString(_demoText[15], 264, 60);

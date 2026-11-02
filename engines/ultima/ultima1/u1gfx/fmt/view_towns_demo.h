@@ -43,7 +43,6 @@ class ViewTownsDemo : public Shared::Gfx::VisualItem {
 
 	Graphics::Surface _header;
 	Graphics::Surface _slides[4];
-	Graphics::ManagedSurface _textSurface;
 	Common::String _demoText[Shared::Views::IntroAssets::kTextCount];
 	Shared::Views::IntroAssets _introAssets;
 	TownsIntroPort *_introPort;
@@ -57,7 +56,6 @@ class ViewTownsDemo : public Shared::Gfx::VisualItem {
 
 	bool loadImage(const Common::String &name, Graphics::Surface &image);
 	bool drawSlide(uint8 slideIndex);
-	void composePage0();
 	void drawDemoString(const Common::String &text, int x, int y);
 	void drawMainMenu();
 	void setDemoStrings(const GameResources &resources);
