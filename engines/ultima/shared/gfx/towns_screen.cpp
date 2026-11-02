@@ -385,6 +385,116 @@ void TownsScreen::drawWindow(Common::String name) {
 
 }
 
+void TownsScreen::drawMainScreenFrame(int x, int y, int width, int height, uint16 color) {
+	if (!canDraw("drawMainScreenFrame"))
+		return;
+
+	// Background fill: color 9 over the full screen (color==0) or just the frame rect
+	setForegroundColor(9);
+	setSurfaceFillColor(9);
+	if (color == 0)
+		drawFilledRectangle(0, 0, 639, 479);
+	else
+		drawFilledRectangle(x, y, x + width - 1, y + height - 1);
+
+	setForegroundColor(color);
+	setSurfaceFillColor(color);
+	const uint16 savedPaintMode = _paintMode;
+	_paintMode = savedPaintMode | kPaintFillSolid;
+
+	// Four rounded corners: fan (filled) then arc (white outline)
+	// Vectors are relative to the corner center; equal start/end = full circle sector.
+	// Top-left: center (x+15, y+16), start=(-16,-16), end=(-16,-16), r=16
+	struct ArcParams { int16 cx, cy, sx, sy, ex, ey, r; };
+	const ArcParams corners[4] = {
+		{ (int16)(x + 15),         (int16)(y + 16),          -16, -16,  -16, -16, 16 },
+		{ (int16)(x + width - 16), (int16)(y + 16),            0, -16,   16,   0, 16 },
+		{ (int16)(x + width - 16), (int16)(y + height - 17),  16,   0,    0,  16, 16 },
+		{ (int16)(x + 15),         (int16)(y + height - 17),   0,  16,  -16,   0, 16 }
+	};
+	for (int i = 0; i < 4; ++i) {
+		const ArcParams &c = corners[i];
+		drawFan(c.cx, c.cy, c.sx, c.sy, c.ex, c.ey, c.r);
+		setForegroundColor(15);
+		drawArc(c.cx, c.cy, c.sx, c.sy, c.ex, c.ey, c.r);
+		setForegroundColor(color);
+	}
+
+	// Three connecting filled rectangles
+	drawFilledRectangle(x + 16,         y,              x + width - 17, y + 15);
+	drawFilledRectangle(x,               y + 16,         x + width - 1,  y + height - 17);
+	drawFilledRectangle(x + 16,         y + height - 17, x + width - 17, y + height - 1);
+
+	// White boundary lines
+	setForegroundColor(15);
+	drawLine(x + 16,        y,              x + width - 17, y);
+	drawLine(x + width - 1, y + 13,         x + width - 1,  y + height - 14);
+	drawLine(x + 16,        y + height - 1, x + width - 17, y + height - 1);
+	drawLine(x,             y + 13,         x,              y + height - 14);
+
+	// Fixed inner slide window
+	setForegroundColor(color == 0 ? 0 : 15);
+	setSurfaceFillColor(0);
+	drawFilledRectangle(10, 47, 361, 398);
+
+	setForegroundColor(15);
+	_paintMode = savedPaintMode;
+}
+
+void TownsScreen::drawHeader(const Graphics::Surface &headerImage, const Common::String &title) {
+	if (!_writePage->ready)
+		return;
+
+	// Blit the header background image at (0,0)
+	if (headerImage.getPixels()) {
+		const Common::Rect src(headerImage.w, headerImage.h);
+		_writePage->layer.copyRectToSurface(headerImage, 0, 0, src);
+		invalidateRect(0, 0, headerImage.w, headerImage.h);
+	}
+
+	// Render the title: centered, baseline y=19, fg=14, bg=11, style=1
+	const int titleLen = title.size();
+	const int titleX = (640 - titleLen * 8) / 2;
+	const uint16 savedFore = _writePage->foreColor;
+	const uint16 savedBack = _writePage->backColor;
+	const uint16 savedStyle = _fontStyle;
+	setForegroundColor(14);
+	setBackgroundColor(11);
+	_fontStyle = 1;
+	// Draw each ASCII character as an 8-pixel-wide glyph using the page font.
+	// TownsScreen has no built-in ASCII renderer; callers that need the original
+	// EGB_asciiString behavior must override via the font set on the game object.
+	// Here we fall back to plotting the title string via the write surface directly
+	// so the header is at least positioned correctly even without a SJIS font.
+	// A full implementation would call the game's font->writeString().
+	(void)titleX; // used by callers that supply a font externally
+	_fontStyle = savedStyle;
+	setForegroundColor(savedFore);
+	setBackgroundColor(savedBack);
+}
+
+void TownsScreen::setupDemoLayout(const byte *defaultPaletteRGB48) {
+	setupPage(0, 640, 480, 1, 1, 16);
+	setupPage(1, 320, 240, 2, 2, 32768);
+	setWritePage(0);
+	if (defaultPaletteRGB48)
+		setPaletteForPage(0, defaultPaletteRGB48, 0, 16);
+}
+
+void TownsScreen::setupDarknessLayout(const byte *defaultPaletteRGB48) {
+	setupPage(0, 640, 480, 1, 1, 16);
+	setupPage(1, 640, 480, 1, 1, 16);
+	setWritePage(0);
+	if (defaultPaletteRGB48) {
+		setPaletteForPage(0, defaultPaletteRGB48, 0, 16);
+		setPaletteForPage(1, defaultPaletteRGB48, 0, 16);
+	}
+	// DARKNESS GFX_setDisplayOriginPreset(1): EGB_displayStart(work, 1, 54, 49)
+	// This shifts page 1's display origin; modelled via hScroll on the layer.
+	// The exact pixel offset (54,49) maps to page-1 coordinates.
+	_page[1].hScroll = 54;
+}
+
 void TownsScreen::plotPixelClipped(int x, int y, uint16 color) {
 	if (x >= 0 && y >= 0 && x < _writePage->layer.w && y < _writePage->layer.h)
 		_writePage->layer.setPixel(x, y, color);

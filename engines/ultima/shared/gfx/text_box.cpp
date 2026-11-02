@@ -40,8 +40,8 @@ bool TextBox::initialize(const TextBoxConfig &config) {
 	_state.y = config.y;
 	_state.width = config.width;
 	_state.height = config.height;
-	_state.maxColumns = MIN(config.requestedColumns, (config.width - 14) / 8);
-	_state.maxRows = MIN(config.requestedRows, (config.height - 19) / 16);
+	_state.maxColumns = MIN(config.requestedColumns, (config.width - 6) / 8);
+	_state.maxRows = MIN(config.requestedRows, (config.height - 4) / 16);
 	_state.unknownState = -1;
 	_state.fontColor = config.fontColor;
 	_state.fontStyle = 0;
@@ -66,6 +66,10 @@ void TextBox::drawFrame() {
 	_screen.drawLine(right, _state.y + 2, right, bottom - 2);
 	_screen.drawLine(_state.x + 2, bottom, right - 2, bottom);
 	_screen.drawLine(_state.x, _state.y + 2, _state.x, bottom - 2);
+	// Inset rectangle: border foreground with background fill
+	_screen.setForegroundColor(_state.borderColor);
+	_screen.setSurfaceFillColor(_state.backgroundColor);
+	_screen.drawFilledRectangle(_state.x + 1, _state.y + 1, right - 1, bottom - 1);
 	_state.needsRedraw = false;
 }
 

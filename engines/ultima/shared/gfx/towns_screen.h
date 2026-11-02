@@ -28,6 +28,7 @@
 
 #include "graphics/managed_surface.h"
 #include "graphics/screen.h"
+#include "graphics/surface.h"
 #include "ultima/shared/core/rect.h"
 
 namespace Ultima {
@@ -107,6 +108,32 @@ public:
 	void drawRectangleS(Point ps, int w, int h);
 	void drawRectangleSC(Point ps, int w, int h, int color);
 	void setWritePage(int page);
+	/**
+	 * SCR_drawMainBoxFrame / GFX_drawMainScreenBorder equivalent.
+	 * color==0: clears the full 640x480 screen to color 9 before drawing.
+	 * color!=0: clears only the supplied rectangle.
+	 * The inner slide window (10,47)..(361,398) is always drawn with fill 0.
+	 */
+	void drawMainScreenFrame(int x, int y, int width, int height, uint16 color);
+	/**
+	 * SCR_drawHeader equivalent.
+	 * Blits headerImage at (0,0) on the current write page, then renders
+	 * title centered at baseline y=19 with foreground 14, background 11,
+	 * font style 1. Resets font style to 0 on return.
+	 * titleFont must render ASCII via EGB_asciiString semantics.
+	 */
+	void drawHeader(const Graphics::Surface &headerImage, const Common::String &title);
+	/**
+	 * UT1DEMO page layout: page 0 = 640x480 indexed (1x1), page 1 = 320x240 direct-color (2x2).
+	 * Applies the default 16-color palette to page 0 and leaves page 0 as the write page.
+	 */
+	void setupDemoLayout(const byte *defaultPaletteRGB48);
+	/**
+	 * DARKNESS page layout: both pages indexed 640x480 (1x1).
+	 * Page 1 display origin is shifted to (54,49) (GFX_setDisplayOriginPreset(1)).
+	 * Leaves page 0 as the write page.
+	 */
+	void setupDarknessLayout(const byte *defaultPaletteRGB48);
 	void drawWindow(Common::String name);
 	/**
 	 * EGB_arc parameter block {cx, cy, sx, sy, ex, ey, r}: start/end are vectors

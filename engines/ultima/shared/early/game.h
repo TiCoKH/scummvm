@@ -120,6 +120,11 @@ public:
 	void setFMTownsPalette();
 
 	/**
+	 * Returns the FMTowns default 16-color palette (48 bytes, RGB triplets).
+	 */
+	static const byte *getFMTownsPalette();
+
+	/**
 	 * Sets an FMTowns window configuration
 	 */
 	void setFMTownsWindows();

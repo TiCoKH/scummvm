@@ -34,75 +34,67 @@ namespace {
 
 const uint32 kMillisPerDemoDelayUnit = 10;
 
+// UT1DEMO box 0: GFX_initTextBox(0, 29, 362, 592, 52, 71, 2, 15, 15, 10)
+// pixelX = box.x + 4 + col*8 => first glyph x = 29+4 = 33
+// baseline = box.y + 17 + row*16 => first glyph baseline = 362+17 = 379
+const Shared::Gfx::TextBoxConfig kBox0Config = [] {
+	Shared::Gfx::TextBoxConfig c;
+	c.x = 29;
+	c.y = 362;
+	c.width = 592;
+	c.height = 52;
+	c.requestedColumns = 71;
+	c.requestedRows = 2;
+	c.fontColor = 15;
+	c.borderColor = 15;
+	c.backgroundColor = 10;
+	c.textBackgroundMode = -1;
+	return c;
+}();
+
 } // End of anonymous namespace
 
-class TownsIntroPort : public Shared::Views::IntroPort {
-	ViewTownsDemo &_view;
-
+class DemoSjisRasterizer : public Shared::Gfx::SjisTextRasterizer {
 public:
-	explicit TownsIntroPort(ViewTownsDemo &view) : _view(view) {}
+#ifdef USE_SJIS
+	explicit DemoSjisRasterizer(Graphics::FontSJIS *font) : _font(font) {}
+#else
+	explicit DemoSjisRasterizer(void *) {}
+#endif
 
-	bool drawSlide(uint8 slideIndex) override {
-		return _view.drawSlide(slideIndex);
-	}
-
-	void applyTextBoxFont(uint8 boxIndex) override {
-		if (boxIndex != 0)
-			error("Unsupported FM Towns intro text box %u", boxIndex);
-	}
-
-	void setDisplayPage(int32 legacyMode) override {
-		if (!g_vm->_townsScreen->setLegacyDisplayPage(legacyMode))
-			error("Unsupported FM Towns intro display mode %d", legacyMode);
-	}
-
-	void prepareTextBox(uint8 boxIndex) override {
-		if (boxIndex != 0)
-			error("Unsupported FM Towns intro text box %u", boxIndex);
-		// Clear the text area on page 0 (rows 48..479, below the 24-pixel header)
-		g_vm->_townsScreen->setWritePage(0);
-		g_vm->_townsScreen->drawColoredRectangle(0, 24, 639, 479, 0);
-	}
-
-	void printTextBoxString(uint8 boxIndex, const char *bytes) override {
-		if (boxIndex != 0)
-			error("Unsupported FM Towns intro text box %u", boxIndex);
-		_view.drawDemoString(Common::String(bytes), _view._textX, _view._textY);
-	}
-
-	void advanceTextBoxLine(uint8 boxIndex) override {
-		if (boxIndex != 0)
-			error("Unsupported FM Towns intro text box %u", boxIndex);
-		_view._textX = 32;
-		_view._textY += 16;
-	}
-
-	void resetBoxTo(uint8 boxIndex, int32 arg1, int32 arg2) override {
-		if (boxIndex != 0 || arg1 != 0 || arg2 != 0)
-			error("Unsupported FM Towns intro text box reset");
-		g_vm->_townsScreen->setWritePage(0);
-		g_vm->_townsScreen->drawColoredRectangle(0, 24, 639, 479, 0);
-		_view._textX = 32;
-		_view._textY = 48;
-	}
-
-	void present() override {
-		g_vm->_townsScreen->update();
-		g_system->updateScreen();
-	}
-
-	void clearPendingKeyboard() override {
-		Common::Array<Common::Event> pending;
-		Common::Event event;
-		Common::EventManager *eventManager = g_system->getEventManager();
-		while (eventManager->pollEvent(event)) {
-			if (event.type != Common::EVENT_KEYDOWN &&
-					event.type != Common::EVENT_KEYUP)
-				pending.push_back(event);
+	void drawSjisBytes(Shared::Gfx::TownsScreen &screen, int16 x, int16 baselineY,
+			const byte *sjis, uint16 byteLength) override {
+		Graphics::ManagedSurface &surf = screen.getWriteSurface();
+#ifdef USE_SJIS
+		if (_font) {
+			const byte *p = sjis;
+			const byte *end = sjis + byteLength;
+			int cx = x;
+			while (p < end) {
+				uint16 ch;
+				if ((*p >= 0x81 && *p <= 0x9F) || (*p >= 0xE0 && *p <= 0xEF)) {
+					if (p + 1 >= end) break;
+					ch = (p[0] << 8) | p[1];
+					p += 2;
+				} else {
+					ch = *p++;
+				}
+				_font->drawChar(surf.rawSurface(), ch, cx, baselineY - 15, 15, 0);
+				cx += _font->getCharWidth(ch);
+			}
+			return;
 		}
-		for (uint i = 0; i < pending.size(); ++i)
-			eventManager->pushEvent(pending[i]);
+#endif
+		// Fallback: treat bytes as ASCII via the game font
+		Shared::Point pos(x, baselineY - 7);
+		Common::String str(reinterpret_cast<const char *>(sjis), byteLength);
+		g_vm->_game->getFont()->writeString(surf, str, pos, 15, 0);
 	}
+
+private:
+#ifdef USE_SJIS
+	Graphics::FontSJIS *_font;
+#endif
 };
 
 BEGIN_MESSAGE_MAP(ViewTownsDemo, Shared::Gfx::VisualItem)
@@ -113,13 +105,25 @@ END_MESSAGE_MAP()
 
 ViewTownsDemo::ViewTownsDemo(Shared::TreeItem *parent) :
 		Shared::Gfx::VisualItem("TownsIntro", Rect(0, 0, 640, 480), parent),
-		_introPort(new TownsIntroPort(*this)),
-		_intro(nullptr), _menuVisible(false), _textX(32), _textY(48) {
+		_intro(nullptr), _menuVisible(false) {
 #ifdef USE_SJIS
 	_sjisFont = Graphics::FontSJIS::createFont(Common::kPlatformFMTowns);
 	if (!_sjisFont)
 		warning("FM Towns SJIS font not available (FMT_FNT.ROM or SJIS.FNT missing)");
+	_rasterizer = new DemoSjisRasterizer(_sjisFont);
+#else
+	_rasterizer = new DemoSjisRasterizer(nullptr);
 #endif
+
+	g_vm->_townsScreen->setWritePage(0);
+	_box0 = new Shared::Gfx::TextBox(*g_vm->_townsScreen, *_rasterizer);
+	if (!_box0->initialize(kBox0Config))
+		error("ViewTownsDemo: Failed to initialize text box 0");
+
+	_graphics = new Shared::Views::IntroTownsGraphics(*g_vm->_townsScreen,
+			Shared::Game::getFMTownsPalette());
+	_introPort = new Shared::Views::IntroTownsPort(*_graphics, *_box0, *this);
+
 	if (!loadImage("HEADTTL.TIF", _header) || _header.w != 640 ||
 			_header.h != 24 || !_header.format.isCLUT8())
 		error("Could not load FM Towns intro header");
@@ -130,12 +134,22 @@ ViewTownsDemo::ViewTownsDemo(Shared::TreeItem *parent) :
 	for (uint i = 0; i < ARRAYSIZE(names); ++i) {
 		if (!loadImage(names[i], _slides[i]) || _slides[i].format.bytesPerPixel != 2)
 			error("Could not load FM Towns intro slide '%s'", names[i]);
+		Shared::Views::IntroSlideRaster raster;
+		raster.pixels = static_cast<const byte *>(_slides[i].getPixels());
+		raster.dataBytes = _slides[i].pitch * _slides[i].h;
+		raster.width = _slides[i].w;
+		raster.height = _slides[i].h;
+		raster.bitsPerPixel = 16;
+		_graphics->setSlideRaster(i, raster);
 	}
 }
 
 ViewTownsDemo::~ViewTownsDemo() {
 	delete _intro;
 	delete _introPort;
+	delete _graphics;
+	delete _box0;
+	delete _rasterizer;
 #ifdef USE_SJIS
 	delete _sjisFont;
 #endif
@@ -170,6 +184,9 @@ void ViewTownsDemo::startIntro(const GameResources &resources) {
 	_intro = new Shared::Views::IntroView(*_introPort, _introAssets,
 			kMillisPerDemoDelayUnit);
 	_menuVisible = false;
+	g_vm->_townsScreen->setWritePage(0);
+	g_vm->_townsScreen->drawMainScreenFrame(0, 24, 640, 400, 0);
+	g_vm->_townsScreen->drawHeader(_header, Common::String());
 	_intro->start(getGame()->getMillis());
 	if (_intro->state() == Shared::Views::IntroView::kFailed)
 		error("Could not start FM Towns intro sequence");
@@ -196,56 +213,53 @@ bool ViewTownsDemo::drawSlide(uint8 slideIndex) {
 			Common::Rect(slide.w, slide.h));
 	g_vm->_townsScreen->invalidateRect(x, y, slide.w, slide.h);
 
-	// Restore page 0 header and clear text area
 	g_vm->_townsScreen->setWritePage(0);
-	g_vm->_townsScreen->getWriteSurface().copyRectToSurface(
-			_header, 0, 0, Common::Rect(_header.w, _header.h));
-	g_vm->_townsScreen->invalidateRect(0, 0, _header.w, _header.h);
-	g_vm->_townsScreen->drawColoredRectangle(0, 24, 639, 479, 0);
+	g_vm->_townsScreen->drawMainScreenFrame(0, 24, 640, 400, 0);
+	g_vm->_townsScreen->drawHeader(_header, Common::String());
+	_box0->prepare();
 	return true;
 }
 
-void ViewTownsDemo::drawDemoString(const Common::String &text, int x, int y) {
+void ViewTownsDemo::drawDemoString(const Common::String &text) {
 	g_vm->_townsScreen->setWritePage(0);
-	Graphics::ManagedSurface &page = g_vm->_townsScreen->getWriteSurface();
-#ifdef USE_SJIS
-	if (_sjisFont) {
-		const byte *p = reinterpret_cast<const byte *>(text.c_str());
-		int cx = x;
-		while (*p) {
-			uint16 ch;
-			if ((*p >= 0x81 && *p <= 0x9F) || (*p >= 0xE0 && *p <= 0xEF)) {
-				if (!p[1]) break;
-				ch = (p[0] << 8) | p[1];
-				p += 2;
-			} else {
-				ch = *p++;
-			}
-			_sjisFont->drawChar(page.rawSurface(), ch, cx, y, 15, 0);
-			cx += _sjisFont->getCharWidth(ch);
-		}
-		g_vm->_townsScreen->invalidateRect(x, y, cx - x, 16);
-		return;
-	}
-#endif
-	Shared::Point pos(x, y);
-	getGame()->getFont()->writeString(page, text, pos, 15, 0);
-	g_vm->_townsScreen->invalidateRect(x, y, text.size() * 8, 8);
+	_box0->printSjis(text.c_str());
 }
 
 void ViewTownsDemo::drawMainMenu() {
 	g_vm->_townsScreen->setWritePage(0);
-	g_vm->_townsScreen->drawColoredRectangle(0, 24, 639, 479, 0);
-	drawDemoString(_demoText[13], 248, 28);
-	drawDemoString(_demoText[14], 264, 52);
-	drawDemoString(_demoText[15], 264, 60);
-	drawDemoString(_demoText[16], 264, 68);
-	drawDemoString(_demoText[17].substr(1), 160, 96);
-	drawDemoString(_demoText[18].substr(1), 160, 112);
-	drawDemoString(_demoText[19].substr(1), 160, 128);
-	drawDemoString(_("r) Replay demo"), 160, 152);
-	drawDemoString(_("q) Quit"), 160, 168);
+	_box0->prepare();
+	_box0->setCursor(0, 0);
+	_box0->printSjis(_demoText[13].c_str());
+	_box0->advanceLine();
+	_box0->printSjis(_demoText[14].c_str());
+	_box0->advanceLine();
+	_box0->printSjis(_demoText[15].c_str());
+	_box0->advanceLine();
+	_box0->printSjis(_demoText[16].c_str());
+	_box0->advanceLine();
+	_box0->printSjis(_demoText[17].substr(1).c_str());
+	_box0->advanceLine();
+	_box0->printSjis(_demoText[18].substr(1).c_str());
+	_box0->advanceLine();
+	_box0->printSjis(_demoText[19].substr(1).c_str());
+	_box0->advanceLine();
+	_box0->printSjis(_("r) Replay demo").encode().c_str());
+	_box0->advanceLine();
+	_box0->printSjis(_("q) Quit").encode().c_str());
 	_introPort->present();
+}
+
+void ViewTownsDemo::clearPendingKeyPresses() {
+	Common::Array<Common::Event> pending;
+	Common::Event event;
+	Common::EventManager *eventManager = g_system->getEventManager();
+	while (eventManager->pollEvent(event)) {
+		if (event.type != Common::EVENT_KEYDOWN &&
+				event.type != Common::EVENT_KEYUP)
+			pending.push_back(event);
+	}
+	for (uint i = 0; i < pending.size(); ++i)
+		eventManager->pushEvent(pending[i]);
 }
 
 void ViewTownsDemo::finishIntro() {

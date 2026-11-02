@@ -48,7 +48,7 @@ public:
 		_textColor = text_c;
 		_borderColor = border_c;
 		_backColor = back_c;
-		if(((x_size-6) / 6) < max_c) _maxChars = (x_size-6) / 6;
+		if(((x_size-6) / 8) < max_c) _maxChars = (x_size-6) / 8;
 		else _maxChars = max_c;
 		if(((y_size-4) / 16) < max_l) _maxLines = (y_size-4) / 16;
 		else _maxLines = max_l;

@@ -98,17 +98,17 @@ void Game::setEGAPalette(const byte *palette) {
 }
 
 void Game::setFMTownsPalette() {
+	g_vm->_townsScreen->setupDemoLayout(getFMTownsPalette());
+	_textColor = _whiteColor = 15;
+	_bgColor = 0;
+}
+
+const byte *Game::getFMTownsPalette() {
 	static const byte FMTOWNS_16COLOR_DEFAULT[16][3] = {
 	{0x00,0x00,0x00}, {0x00,0x00,0xFF}, {0xFF,0x00,0x00}, {0x00,0x00,0x00}, {0x00,0xFF,0x00}, {0x00,0xFF,0xFF}, {0xFF,0xFF,0x00}, {0xFF,0xFF,0xFF},
 	{0x00,0x00,0x00}, {0x00,0x00,0x00}, {0x0A,0x78,0x78}, {0xFF,0xFF,0x50}, {0x14,0xC8,0x28}, {0x00,0x28,0xE8}, {0xFF,0x00,0x00}, {0xFF,0xFF,0xFF}
 	};
-	// UT1DEMO page layout: page 0 = 640x480 indexed UI, page 1 = 320x240 direct-color slides (2x2 scale)
-	g_vm->_townsScreen->setupPage(0, 640, 480, 1, 1, 16);
-	g_vm->_townsScreen->setupPage(1, 320, 240, 2, 2, 32768);
-	g_vm->_townsScreen->setWritePage(0);
-	_textColor = _whiteColor = 15;
-	_bgColor = 0;
-	g_vm->_townsScreen->setPaletteForPage(0, &FMTOWNS_16COLOR_DEFAULT[0][0], 0, 16);
+	return &FMTOWNS_16COLOR_DEFAULT[0][0];
 }
 
 void Game::setFMTownsWindows() {
