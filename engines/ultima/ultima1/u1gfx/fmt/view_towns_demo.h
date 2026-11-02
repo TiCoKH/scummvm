@@ -15,8 +15,8 @@
 #include "ultima/shared/views/intro_view.h"
 #include "ultima/shared/views/intro_towns_graphics.h"
 #include "ultima/shared/views/intro_towns_port.h"
+#include "ultima/ultima1/u1gfx/fmt/fmtowns_resources.h"
 #include "common/str.h"
-#include "graphics/managed_surface.h"
 #include "graphics/surface.h"
 
 #ifdef USE_SJIS
@@ -47,6 +47,7 @@ class ViewTownsDemo : public Shared::Gfx::VisualItem,
 	Graphics::Surface _slides[4];
 	Common::String _demoText[Shared::Views::IntroAssets::kTextCount];
 	Shared::Views::IntroAssets _introAssets;
+	FMTownsResources _fmtRes;
 #ifdef USE_SJIS
 	Graphics::FontSJIS *_sjisFont;
 #endif
@@ -56,6 +57,7 @@ class ViewTownsDemo : public Shared::Gfx::VisualItem,
 	Shared::Views::IntroTownsPort *_introPort;
 	Shared::Views::IntroView *_intro;
 	bool _menuVisible;
+	Common::String _headerTitle;
 
 	bool loadImage(const Common::String &name, Graphics::Surface &image);
 	bool drawSlide(uint8 slideIndex);

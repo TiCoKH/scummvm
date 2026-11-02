@@ -129,7 +129,7 @@ static const UltimaGameDescription GAME_DESCRIPTIONS[] = {
 					   "maptown.mp1", "37aa42ad4279a40be703883645d3793e", 26208),
 			Common::JA_JPN,
 			Common::kPlatformFMTowns,
-			ADGF_UNSTABLE,
+			ADGF_UNSTABLE | ADGF_ADDENGLISH,
 			GUI_OPTIONS_ULTIMA1_FMT
 		},
 		GAME_ULTIMA1,

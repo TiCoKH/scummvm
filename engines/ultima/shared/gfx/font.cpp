@@ -52,6 +52,12 @@ void Font::writeChar(Graphics::ManagedSurface &surface, unsigned char c, Point &
 		byte color, byte bgColor) {
 	assert(c >= _startingChar && c <= _endingChar);
 	const byte *charP = _data + (c - _startingChar) * 8;
+	if (pt.x < 0 || pt.y < 0 || pt.x + 8 > surface.w || pt.y + 8 > surface.h) {
+		warning("Font::writeChar: c=%u out of bounds x=%d y=%d surfW=%d surfH=%d",
+			(uint)c, pt.x, pt.y, surface.w, surface.h);
+		pt.x += 8;
+		return;
+	}
 	Graphics::Surface s = surface.getSubArea(Common::Rect(pt.x, pt.y, pt.x + 8, pt.y + 8));
 
 	for (int y = 0; y < 8; ++y) {

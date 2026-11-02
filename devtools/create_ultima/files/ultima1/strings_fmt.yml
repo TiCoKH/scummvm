@@ -1,0 +1,824 @@
+# strings_fmt.yml — FM Towns (DARKNESS) Ultima I localized strings
+# Encoding: UTF-8
+#
+# Each entry has two language keys:
+#   en: English text  (original array[0])
+#   ja: Japanese text (original array[1], SJIS-derived)
+#
+# Custom font glyphs (original 0xEB 0xNN two-byte sequences) are stored as
+# Unicode PUA codepoints U+E000..U+E0FF.  The mapping is direct:
+#   original byte pair  0xEB 0x1A  ->  U+E01A  (written \uE01A in YAML)
+#
+# The engine helper fmtUtf8ToSjis() converts these back to raw bytes at
+# runtime before passing to the DARKNESS text renderer.
+#
+# Values marked "TODO" need the actual text filled in from the game binary.
+
+common:
+  header:
+    en: "Ultima Trilogy I,II,III"
+    ja: ""
+
+intro:
+  header:
+    en: "Episode I : The First Age of Darkness" # decoded="Episode I : The First Age of Darkness"
+    ja: ""
+  slide1_1:
+    en: "The first tale...."
+    ja: "最初の物語・・・・" # decoded="最初の物語・・・・"
+  slide1_2:
+    en: "  Warm sunshine streams down from above, and the breeze is gentle and sweet."
+    ja: "　暖かい日差しが降り注ぎ、風は穏やかだった。" # decoded="　暖かい日差しが降り注ぎ、風は穏やかだった。"
+  slide1_3:
+    en: "On the wind is carried the sound of a lute..."
+    ja: "その風にのって、リュートの音が響いてくる・・・。" # decoded="その風にのって、リュートの音が響いてくる・・・。"
+  slide1_4:
+    en: "  You look to see a lone old bard seated in the shade of the trees on the outskirts of town, conversing quietly with several villagers."
+    ja: "　見ると、村はずれの木陰に一人の年老いた吟遊詩人が座り、村人達に静かに語っていた。" # decoded="　見ると、村はずれの木陰に一人の年老いた吟遊詩人が座り、村人達に静かに語っていた。"
+  slide1_5:
+    en: "  You come closer, adding yourself to the circle of townsfolk."
+    ja: "　君は近づき、村人の輪の中に加わった。" # decoded="　君は近づき、村人の輪の中に加わった。"
+  slide1_6:
+    en: "To the sound of his lute, in a soft voice, the bard begins to spin his tale."
+    ja: "リュ−トの音色にあわせて、吟遊詩人が静かに語り始めた。" # decoded="リュ−トの音色にあわせて、吟遊詩人が静かに語り始めた。"
+  slide2_1:
+    en: "  This is the first of our tales. It took place in a time now long, long ago..."
+    ja: "　初めの物語。それは、もう遠い昔の話・・・。" # decoded="　初めの物語。それは、もう遠い昔の話・・・。"
+  slide2_2:
+    en: "  In a time when this land was still called Sosaria... still fractured... still ruled by a number of feudal lords."
+    ja: "　それは、まだこの土地が「ソーサリア」と呼ばれ、未だ統一されず、何人もの領主たちによって治められていた頃のこと。" # decoded="　それは、まだこの土地が「ソーサリア」と呼ばれ、未だ統一されず、何人もの領主たちによって治められていた頃のこと。"
+  slide2_3:
+    en: "  Our forefathers loved this land – tilled its earth; made their homes atop it; and died upon it."
+    ja: "　我等の祖先はこの大地をこよなく愛し、耕し、生きて、そして死んでいった。" # decoded="　我等の祖先はこの大地をこよなく愛し、耕し、生きて、そして死んでいった。"
+  slide2_4:
+    en: "Many lived lives of peace; others, of strife."
+    ja: "多くの者は幸せの中で、そして他の者は戦いの中で。" # decoded="多くの者は幸せの中で、そして他の者は戦いの中で。"
+  slide2_5:
+    en: "  Conflict between the rapacious feudal lords was constant, but for the most part, the days of peace remained unbroken."
+    ja: "  欲深かな領主の間の争いは絶えなかったが、概ね平和な日々が続いていた。" # decoded="  欲深かな領主の間の争いは絶えなかったが、概ね平和な日々が続いていた。"
+  slide2_6:
+    en: "  But when did it all end..."
+    ja: "  しかし、それはいつのことだったのだろう" # decoded="  しかし、それはいつのことだったのだろう"
+  slide2_7:
+    en: "...?" 
+    ja: "・・・？" # decoded="・・・？"
+  slide2_8:
+    en: "  When did the hand of evil lash out at our beautiful land of Sosaria, so abundantly blessed, and rain down upon us calamity after calamity?"
+    ja: "  恵み多き豊かな大地、美しき我がソーサリアの国に邪悪なる者の手により、災厄が降り注ぎ始めたのは・・・。" # decoded="  恵み多き豊かな大地、美しき我がソーサリアの国に邪悪なる者の手により、災厄が降り注ぎ始めたのは・・・。"
+  slide3_1:
+    en: "  As the people were assailed by endless catastrophe, horrible beasts ran rampant through Sosaria's villages, often leaving little but ruins in their wake."
+    ja: "　度重なる災いにより、ソーサリアの村々は恐るべき怪物たちに踏みにじられ、その多くが廃墟と化してしまった。" # decoded="　度重なる災いにより、ソーサリアの村々は恐るべき怪物たちに踏みにじられ、その多くが廃墟と化してしまった。"
+  slide3_2:
+    en: "  These were all caused by the appearance of Mondain – the name we now have all come to despise."
+    ja: "　それは、今なお忌まわしき名として知られる「モンデイン」の出現により引き起こされたものだったのだ。" # decoded="　それは、今なお忌まわしき名として知られる「モンデイン」の出現により引き起こされたものだったのだ。"
+  slide3_2b:
+    en: "The monsters he unleashed besieged the castles and burned the villages to the ground. The people fled their homes in panic, and the feudal lords cared only about protecting their own keeps."
+    ja: "　モンデインの解き放した化物どもは、城を襲い、村を焼き払った。人々は逃げ惑い、領主たちは自らの城を守るのみであった。" # decoded="　モンデインの解き放した化物どもは、城を襲い、村を焼き払った。人々は逃げ惑い、領主たちは自らの城を守るのみであった。"
+  slide3_3:
+    en: "  Only one among them – a deeply wise young king by the name of"
+    ja: "　しかし、その中でただ一人・・・若く英知に満ちた王、" # decoded="　しかし、その中でただ一人・・・若く英知に満ちた王、"
+  slide3_4:
+    en: "Lord British – dreamt of a Sosaria united as a peaceful realm..."
+    ja: "「ロード・ブリティッシュ」は、ソーサリアの平和と統一を望んでいた・・・。" # decoded="「ロード・ブリティッシュ」は、ソーサリアの平和と統一を望んでいた・・・。"
+  slide4_1:
+    en: "  A hero was summoned by the king's own hand, and a hero answered his plea."
+    ja: "　王の手により勇者が召喚され、勇者はその要請を受けた。" # decoded="　王の手により勇者が召喚され、勇者はその要請を受けた。"
+  slide4_2:
+    en: "The chosen one now set out on the king's quest – to vanquish the great evil of Mondain!"
+    ja: "運命に選ばれたる勇者は、邪悪強大なるモンデインを倒さんと、今、旅立つ！" # decoded="運命に選ばれたる勇者は、邪悪強大なるモンデインを倒さんと、今、旅立つ！"
+
+combat:
+  attacked_by:
+    en: "TODO"   # efs_Attacked_by
+    ja: "TODO"
+  attacks:
+    en: "TODO"   # efs_attacks
+    ja: "TODO"
+  hit:
+    en: "TODO"   # efs_Hit
+    ja: "TODO"
+  missed:
+    en: "TODO"   # efs_Missed
+    ja: "TODO"
+  damage:
+    en: "TODO"   # efs_damage
+    ja: "TODO"
+  killed:
+    en: "TODO"   # efs_killed / efs_Killed_the
+    ja: "TODO"
+  armor_destroyed:
+    en: "TODO"   # efs_Armor_destroyed
+    ja: "TODO"
+  mental_attack:
+    en: "TODO"   # efs_Mental_attack
+    ja: "TODO"
+  miss:
+    en: "TODO"   # efs_Miss
+    ja: "TODO"
+  hit_stats_reduced:
+    en: "TODO"   # efs_Hit_stats_are_reduced
+    ja: "TODO"
+
+movement:
+  north:
+    en: "TODO"   # efs_North
+    ja: "TODO"
+  south:
+    en: "TODO"   # efs_South
+    ja: "TODO"
+  east:
+    en: "TODO"   # efs_East
+    ja: "TODO"
+  west:
+    en: "TODO"   # efs_West
+    ja: "TODO"
+  blocked:
+    en: "TODO"   # efs_Blocked
+    ja: "TODO"
+  forward:
+    en: "TODO"   # efs_Forward
+    ja: "TODO"
+  left_turn:
+    en: "TODO"   # efs_Left_turn
+    ja: "TODO"
+  right_turn:
+    en: "TODO"   # efs_Right_turn
+    ja: "TODO"
+  back_turn:
+    en: "TODO"   # efs_Back_turn
+    ja: "TODO"
+  path_blocked:
+    en: "TODO"   # efs_path_blocked
+    ja: "TODO"
+  wall_blocks:
+    en: "TODO"   # efs_Wall_blocks_your_way
+    ja: "TODO"
+
+world:
+  entering:
+    en: "TODO"   # efs_Entering
+    ja: "TODO"
+  the_city_of:
+    en: "TODO"   # efs_the_city_of
+    ja: "TODO"
+  you_are_at_sea:
+    en: "TODO"   # efs_You_are_at_sea
+    ja: "TODO"
+  you_are_in_woods:
+    en: "TODO"   # efs_You_are_in_the_woods
+    ja: "TODO"
+  you_are_in_lands:
+    en: "TODO"   # efs_You_are_in_the_lands
+    ja: "TODO"
+  head:
+    en: "TODO"   # efs_HEAD
+    ja: "TODO"
+
+dungeon:
+  dungeon_level:
+    en: "TODO"   # efs_L  (level indicator prefix)
+    ja: "TODO"
+  go_upstairs:
+    en: "TODO"   # efs_Go_upstairs
+    ja: "TODO"
+  go_downstairs:
+    en: "TODO"   # efs_Go_downstairs
+    ja: "TODO"
+  up_to_level:
+    en: "TODO"   # efs_up_to_level
+    ja: "TODO"
+  down_to_level:
+    en: "TODO"   # efs_down_to_level
+    ja: "TODO"
+  you_exited_dungeon:
+    en: "TODO"   # efs_You_exited_the_dungeon
+    ja: "TODO"
+  ladder_created:
+    en: "TODO"   # efs_Ladder_created
+    ja: "TODO"
+  force_field:
+    en: "TODO"   # efs_Force_field
+    ja: "TODO"
+
+items:
+  inventory:
+    en: "TODO"   # efs_Inventory
+    ja: "TODO"
+  get:
+    en: "TODO"   # efs_Get
+    ja: "TODO"
+  drop:
+    en: "TODO"   # efs_Drop
+    ja: "TODO"
+  found_key:
+    en: "TODO"   # efs_Thou_hast_found_a_key
+    ja: "TODO"
+  no_key:
+    en: "TODO"   # efs_Thou_hast_not_a_key
+    ja: "TODO"
+  incorrect_key:
+    en: "TODO"   # efs_Thou_hast_not_the_correct_key
+    ja: "TODO"
+  door_is_open:
+    en: "TODO"   # efs_Opened_the_door / efs_The_door_is_open
+    ja: "TODO"
+  thou_dost_find:
+    en: "TODO"   # efs_Thou_dost_find
+    ja: "TODO"
+  thou_dost_gain:
+    en: "TODO"   # efs_Thou_dost_gain
+    ja: "TODO"
+  open:
+    en: "TODO"   # efs_Open
+    ja: "TODO"
+  opened:
+    en: "TODO"   # efs_opened
+    ja: "TODO"
+  chest:
+    en: "TODO"   # efs_Chest
+    ja: "TODO"
+  coffin:
+    en: "TODO"   # efs_Coffin
+    ja: "TODO"
+  set_off_trap:
+    en: "TODO"   # efs_Thou_hast_set_off_a_trap
+    ja: "TODO"
+  cant_leave_it_here:
+    en: "TODO"   # efs_Thy_canst_not_leave_it_here
+    ja: "TODO"
+
+weapons:
+  weapon:
+    en: "TODO"   # efs_Weapon
+    ja: "TODO"
+  armour:
+    en: "TODO"   # efs_Armour
+    ja: "TODO"
+  ready:
+    en: "TODO"   # efs_Ready
+    ja: "TODO"
+  weap_label:
+    en: "TODO"   # efs_Weap  (status column label)
+    ja: "TODO"
+  armr_label:
+    en: "TODO"   # efs_Armr  (status column label)
+    ja: "TODO"
+
+spells:
+  cast:
+    en: "TODO"   # efs_Cast
+    ja: "TODO"
+  shazam:
+    en: "TODO"   # efs_Shazam
+    ja: "TODO"
+  alakazot:
+    en: "TODO"   # efs_Alakazot
+    ja: "TODO"
+  no_effect:
+    en: "TODO"   # efs_Hmmm_no_effect
+    ja: "TODO"
+  failed:
+    en: "TODO"   # efs_Failed
+    ja: "TODO"
+  teleported:
+    en: "TODO"   # efs_Teleported
+    ja: "TODO"
+  field_created:
+    en: "TODO"   # efs_Field_created
+    ja: "TODO"
+  field_destroyed:
+    en: "TODO"   # efs_Field_destroyed
+    ja: "TODO"
+  monster_removed:
+    en: "TODO"   # efs_Monster_removed
+    ja: "TODO"
+  used_up_spell:
+    en: "TODO"   # efs_You_ve_used_up_that_spell
+    ja: "TODO"
+  dungeon_spell_only:
+    en: "TODO"   # efs_Failed_dungeon_spell_only
+    ja: "TODO"
+  spell_label:
+    en: "TODO"   # efs_spell
+    ja: "TODO"
+
+stats:
+  name_label:
+    en: "TODO"   # efs_Name
+    ja: "TODO"
+  a_level:
+    en: "TODO"   # efs_A_level
+    ja: "TODO"
+  sex_label:
+    en: "TODO"   # efs_Sex
+    ja: "TODO"
+  race_label:
+    en: "TODO"   # efs_Race
+    ja: "TODO"
+  type_label:
+    en: "TODO"   # efs_Type
+    ja: "TODO"
+  strength:
+    en: "TODO"   # efs_Strength
+    ja: "TODO"
+  agility:
+    en: "TODO"   # efs_Agility
+    ja: "TODO"
+  stamina:
+    en: "TODO"   # efs_Stamina
+    ja: "TODO"
+  charisma:
+    en: "TODO"   # efs_Charisma
+    ja: "TODO"
+  wisdom:
+    en: "TODO"   # efs_Wisdom
+    ja: "TODO"
+  intelligence:
+    en: "TODO"   # efs_Inteligence
+    ja: "TODO"
+  hit_points:
+    en: "TODO"   # efs_Hit_points
+    ja: "TODO"
+  experience:
+    en: "TODO"   # efs_Experience
+    ja: "TODO"
+  food_label:
+    en: "TODO"   # efs_Food
+    ja: "TODO"
+  gold_label:
+    en: "TODO"   # efs_Gold
+    ja: "TODO"
+  hp_ex_label:
+    en: "TODO"   # efs_Hp_ex  (column header)
+    ja: "TODO"
+  fd_cn_label:
+    en: "TODO"   # efs_Fd_cn  (column header)
+    ja: "TODO"
+
+currency:
+  copper_pence:
+    en: "TODO"   # efs_Copper_pence
+    ja: "TODO"
+  silver_pieces:
+    en: "TODO"   # efs_Silver_pieces
+    ja: "TODO"
+  gold_crowns:
+    en: "TODO"   # efs_Gold_crowns
+    ja: "TODO"
+  enemy_vessels:
+    en: "TODO"   # efs_Enemy_vessels
+    ja: "TODO"
+
+race_sex_class:
+  race_human:
+    en: "TODO"   # efs_H_uman
+    ja: "TODO"
+  race_elf:
+    en: "TODO"   # efs_E_lf
+    ja: "TODO"
+  race_dwarf:
+    en: "TODO"   # efs_D_warf
+    ja: "TODO"
+  race_bobbit:
+    en: "TODO"   # efs_B_obbit
+    ja: "TODO"
+  sex_male:
+    en: "TODO"   # efs_M_ale
+    ja: "TODO"
+  sex_female:
+    en: "TODO"   # efs_F_emale
+    ja: "TODO"
+  class_fighter:
+    en: "TODO"   # efs_F_ighter
+    ja: "TODO"
+  class_cleric:
+    en: "TODO"   # efs_C_leric
+    ja: "TODO"
+  class_wizard:
+    en: "TODO"   # efs_W_izard
+    ja: "TODO"
+  class_thief:
+    en: "TODO"   # efs_T_hief
+    ja: "TODO"
+
+trade:
+  buy_sell:
+    en: "TODO"   # efs_Buy_sell
+    ja: "TODO"
+  buy:
+    en: "TODO"   # efs_Buy
+    ja: "TODO"
+  sell:
+    en: "TODO"   # efs_Sell
+    ja: "TODO"
+  sold:
+    en: "TODO"   # efs_Sold
+    ja: "TODO"
+  nothing:
+    en: "TODO"   # efs_nothing
+    ja: "TODO"
+  none_here:
+    en: "TODO"   # efs_none_here
+    ja: "TODO"
+  nothing_here:
+    en: "TODO"   # efs_nothing_here
+    ja: "TODO"
+  cant_afford:
+    en: "TODO"   # efs_too_much_money
+    ja: "TODO"
+  not_by_counter:
+    en: "TODO"   # efs_Thou_art_not_by_a_counter
+    ja: "TODO"
+  transact:
+    en: "TODO"   # efs_Transact
+    ja: "TODO"
+  pence:
+    en: "TODO"   # efs_pence
+    ja: "TODO"
+  copper:
+    en: "TODO"   # efs_copper
+    ja: "TODO"
+  silver:
+    en: "TODO"   # efs_silver
+    ja: "TODO"
+  gold:
+    en: "TODO"   # efs_gold
+    ja: "TODO"
+  food_packs:
+    en: "TODO"   # efs_Packs_of
+    ja: "TODO"
+  food_cost:
+    en: "TODO"   # efs_0I_food_cost
+    ja: "TODO"
+  how_many:
+    en: "TODO"   # efs_How_many_dost
+    ja: "TODO"
+  how_much:
+    en: "TODO"   # efs_How_much
+    ja: "TODO"
+  sorry_no_spells:
+    en: "TODO"   # efs_buy_spells
+    ja: "TODO"
+  no_weaponry_sell:
+    en: "TODO"   # efs_Thou_hast_no_ewaponry_to_sell
+    ja: "TODO"
+  no_armour_sell:
+    en: "TODO"   # efs_Thou_hast_no_armour_to_sell
+    ja: "TODO"
+  come_back_when:
+    en: "TODO"   # efs_Come_back_when
+    ja: "TODO"
+  money_to_spend:
+    en: "TODO"   # efs_money_to_spend
+    ja: "TODO"
+
+king:
+  with_king:
+    en: "TODO"   # efs_Transact_with_king
+    ja: "TODO"
+  he_is_not_here:
+    en: "TODO"   # efs_He_is_not_here
+    ja: "TODO"
+  he_rejects_offer:
+    en: "TODO"   # efs_He_rejects_thine_offer
+    ja: "TODO"
+  no_kings_permission:
+    en: "TODO"   # efs_Thou_hast_not_the_king_s
+    ja: "TODO"
+  quest_completed:
+    en: "TODO"   # efs_A_quest_has_been_completed
+    ja: "TODO"
+  for_this_give_thee:
+    en: "TODO"   # efs_For_this_i_will_give_thee
+    ja: "TODO"
+  hit_points_reward:
+    en: "TODO"   # efs_hit_points (reward context)
+    ja: "TODO"
+  point:
+    en: "TODO"   # efs_point
+    ja: "TODO"
+
+npc:
+  none_will_talk:
+    en: "TODO"   # efs_None_will_talk_to_thee
+    ja: "TODO"
+  noise:
+    en: "TODO"   # efs_Noise
+    ja: "TODO"
+  yell:
+    en: "TODO"   # efs_Yell
+    ja: "TODO"
+  word:
+    en: "TODO"   # efs_Word
+    ja: "TODO"
+  bard_sings:
+    en: "TODO"   # efs_Iolo_the_bard_sings
+    ja: "TODO"
+  bard_song:
+    en: "TODO"   # efs_Ho_eyoh_he_hum
+    ja: "TODO"
+  jester_sings:
+    en: "TODO"   # efs_Gwino_the_jester
+    ja: "TODO"
+  jester_song:
+    en: "TODO"   # efs_sings_i_ve
+    ja: "TODO"
+  bard_stole:
+    en: "TODO"   # efs_Iolo_stole_something
+    ja: "TODO"
+  jester_stole:
+    en: "TODO"   # efs_The_jester_stole_something
+    ja: "TODO"
+  thief_stole:
+    en: "TODO"   # efs_Thief_stole_a
+    ja: "TODO"
+  gremlin_stole:
+    en: "TODO"   # efs_A_gremlin_stole_some_food
+    ja: "TODO"
+
+transport:
+  board:
+    en: "TODO"   # efs_Board
+    ja: "TODO"
+  mount:
+    en: "TODO"   # efs_Mount
+    ja: "TODO"
+  exit_craft:
+    en: "TODO"   # efs_X_it_thy_craft_first
+    ja: "TODO"
+  nothing_to_board:
+    en: "TODO"   # efs_Nothing_to_board
+    ja: "TODO"
+  cannot_operate:
+    en: "TODO"   # efs_operate_the_craft
+    ja: "TODO"
+
+space:
+  fire:
+    en: "TODO"   # efs_Fire
+    ja: "TODO"
+  speed:
+    en: "TODO"   # efs_Speed
+    ja: "TODO"
+  sector_scan:
+    en: "TODO"   # efs_Sector_scan
+    ja: "TODO"
+  hyperjump:
+    en: "TODO"   # efs_HyperJump
+    ja: "TODO"
+  lightspeed:
+    en: "TODO"   # efs_Lightspeed
+    ja: "TODO"
+  completed:
+    en: "TODO"   # efs_Completed
+    ja: "TODO"
+  center:
+    en: "TODO"   # efs_Center
+    ja: "TODO"
+  pass:
+    en: "TODO"   # efs_Pass
+    ja: "TODO"
+  no_fuel:
+    en: "TODO"   # efs_No_fuel
+    ja: "TODO"
+  not_enough_fuel:
+    en: "TODO"   # efs_Not_enough_fuel
+    ja: "TODO"
+  docked_welcome:
+    en: "TODO"   # efs_Docked_welcome
+    ja: "TODO"
+  to_base:
+    en: "TODO"   # efs_to_base
+    ja: "TODO"
+  shield_label:
+    en: "TODO"   # efs_Shld  (HUD label)
+    ja: "TODO"
+  fuel_label:
+    en: "TODO"   # efs_Fuel  (HUD label)
+    ja: "TODO"
+  exp_label:
+    en: "TODO"   # efs_Exp   (HUD label)
+    ja: "TODO"
+  coin_label:
+    en: "TODO"   # efs_Coin  (HUD label)
+    ja: "TODO"
+  enemy_label:
+    en: "TODO"   # efs_Enmy  (HUD label)
+    ja: "TODO"
+  space_ace:
+    en: "TODO"   # efs_Space_ace
+    ja: "TODO"
+  rank_of:
+    en: "TODO"   # efs_rank_of
+    ja: "TODO"
+  achieved_rank:
+    en: "TODO"   # efs_Thou_hast_achieved_the_rank
+    ja: "TODO"
+
+roster:
+  register_label:
+    en: "TODO"   # efs_Register
+    ja: "TODO"
+  empty:
+    en: "TODO"   # efs_Empty
+    ja: "TODO"
+  generate_character:
+    en: "TODO"   # efs_Generate_character
+    ja: "TODO"
+  create:
+    en: "TODO"   # efs_Create
+    ja: "TODO"
+  created:
+    en: "TODO"   # efs_Created
+    ja: "TODO"
+  terminate:
+    en: "TODO"   # efs_Terminate
+    ja: "TODO"
+  terminated:
+    en: "TODO"   # efs_Terminated
+    ja: "TODO"
+  look_at_character:
+    en: "TODO"   # efs_Look_at_a_character
+    ja: "TODO"
+  select_player:
+    en: "TODO"   # efs_Select_player
+    ja: "TODO"
+  select_with_arrows:
+    en: "TODO"   # efs_Select_with_arrows
+    ja: "TODO"
+  selected:
+    en: "TODO"   # efs_Selected
+    ja: "TODO"
+  no_one_there:
+    en: "TODO"   # efs_No_one_there
+    ja: "TODO"
+  not_empty:
+    en: "TODO"   # efs_Not_empty
+    ja: "TODO"
+  points_label:
+    en: "TODO"   # efs_Points_2i
+    ja: "TODO"
+  canceled:
+    en: "TODO"   # efs_Canceled
+    ja: "TODO"
+  option:
+    en: "TODO"   # efs_Option
+    ja: "TODO"
+  more:
+    en: "TODO"   # efs_More
+    ja: "TODO"
+  ztats:
+    en: "TODO"   # efs_Ztats
+    ja: "TODO"
+
+ui:
+  huh:
+    en: "TODO"   # efs_Huh
+    ja: "TODO"
+  what:
+    en: "TODO"   # efs_what
+    ja: "TODO"
+  ok:
+    en: "TODO"   # efs_Ok
+    ja: "TODO"
+  yes:
+    en: "TODO"   # efs_YES
+    ja: "TODO"
+  no:
+    en: "TODO"   # efs_NO
+    ja: "TODO"
+  done:
+    en: "TODO"   # efs_Done
+    ja: "TODO"
+  press_space:
+    en: "TODO"   # efs_Press_space
+    ja: "TODO"
+  press_space_continue:
+    en: "TODO"   # efs_Press_space_to_continue
+    ja: "TODO"
+  push_y_n:
+    en: "TODO"   # efs_Push_y_for_yes_or_n_for_no
+    ja: "TODO"
+  save_game:
+    en: "TODO"   # efs_save_game
+    ja: "TODO"
+  now_saving:
+    en: "TODO"   # efs_now_saving
+    ja: "TODO"
+  saved:
+    en: "TODO"   # efs_saved
+    ja: "TODO"
+  aborted:
+    en: "TODO"   # efs_aboted
+    ja: "TODO"
+  wait_saving_roster:
+    en: "TODO"   # efs_Wait_saving_roster_data
+    ja: "TODO"
+  mode_english:
+    en: "TODO"   # efs_mode_english
+    ja: "TODO"
+  bgm_on:
+    en: "TODO"   # efs_BGM_on
+    ja: "TODO"
+  bgm_off:
+    en: "TODO"   # efs_BGM_off
+    ja: "TODO"
+  se_on:
+    en: "TODO"   # efs_SE_on
+    ja: "TODO"
+  se_off:
+    en: "TODO"   # efs_SE_off
+    ja: "TODO"
+  volume:
+    en: "TODO"   # efs_Volume
+    ja: "TODO"
+  music_test:
+    en: "TODO"   # efs_Music_test
+    ja: "TODO"
+  se_test:
+    en: "TODO"   # efs_SE_test
+    ja: "TODO"
+
+error:
+  short_of_memory:
+    en: "TODO"   # efs_Short_of_memory
+    ja: "TODO"
+  cd_not_ready:
+    en: "TODO"   # efs_CD_is_not_ready
+    ja: "TODO"
+  cd_disconnected:
+    en: "TODO"   # efs_CD_disconnected
+    ja: "TODO"
+  cd_hardware_error:
+    en: "TODO"   # efs_CD_harware_error
+    ja: "TODO"
+  cd_system_error:
+    en: "TODO"   # efs_CD_system_error
+    ja: "TODO"
+  media_error:
+    en: "TODO"   # efs_Media_error
+    ja: "TODO"
+  write_protected:
+    en: "TODO"   # efs_Write_protected_push_space
+    ja: "TODO"
+  warning_protected:
+    en: "TODO"   # efs_WARNING_writeprotected
+    ja: "TODO"
+  drive_not_ready:
+    en: "TODO"   # efs_Drive_is_not_ready_push_space
+    ja: "TODO"
+  sound_init_error:
+    en: "TODO"   # efs_Sound_init_error
+    ja: "TODO"
+  pcm_load_error:
+    en: "TODO"   # efs_PCM_data_load_error
+    ja: "TODO"
+  data_save_error:
+    en: "TODO"   # efs_Data_save_error
+    ja: "TODO"
+
+mondain:
+  mondain:
+    en: "TODO"   # efs_Mondain
+    ja: "TODO"
+  mondain_is_dead:
+    en: "TODO"   # efs_Mondain_is_dead
+    ja: "TODO"
+  mondain_casts:
+    en: "TODO"   # efs_Mondain_casts
+    ja: "TODO"
+  magic_missile:
+    en: "TODO"   # efs_magic_missile
+    ja: "TODO"
+  mind_blaster:
+    en: "TODO"   # efs_mind_blaster
+    ja: "TODO"
+  psionic_shock:
+    en: "TODO"   # efs_psionic_shock
+    ja: "TODO"
+  thou_art_victorious:
+    en: "TODO"   # efs_THOU_art_victorious
+    ja: "TODO"
+  thou_art_dead:
+    en: "TODO"   # efs_THOU_art_dead
+    ja: "TODO"
+  attempting_resurrection:
+    en: "TODO"   # efs_Attempting_resurrection
+    ja: "TODO"
+
+princess:
+  princess:
+    en: "TODO"   # efs_Princess
+    ja: "TODO"
+  thou_hast_saved:
+    en: "TODO"   # efs_Thou_hast_saved
+    ja: "TODO"
+  the_princess:
+    en: "TODO"   # efs_the_princess
+    ja: "TODO"
+  she_giveth_thee:
+    en: "TODO"   # efs_She_giveth_thee
+    ja: "TODO"
+  hit_points_4ii:
+    en: "TODO"   # efs_4IIhit_points
+    ja: "TODO"

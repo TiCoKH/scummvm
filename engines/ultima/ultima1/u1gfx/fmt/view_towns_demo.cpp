@@ -8,7 +8,11 @@
  */
 
 #include "ultima/ultima1/u1gfx/fmt/view_towns_demo.h"
+#include "ultima/ultima1/u1gfx/fmt/fmtowns_resources.h"
 #include "ultima/ultima1/core/resources.h"
+#include "common/config-manager.h"
+#include "common/language.h"
+#include "common/str-enc.h"
 #include "ultima/ultima1/game.h"
 #include "ultima/shared/early/ultima_early.h"
 #include "ultima/shared/early/game.h"
@@ -32,7 +36,7 @@ namespace U1Gfx {
 
 namespace {
 
-const uint32 kMillisPerDemoDelayUnit = 10;
+const uint32 kMillisPerDemoDelayUnit = 100;
 
 // UT1DEMO box 0: GFX_initTextBox(0, 29, 362, 592, 52, 71, 2, 15, 15, 10)
 // pixelX = box.x + 4 + col*8 => first glyph x = 29+4 = 33
@@ -74,12 +78,15 @@ public:
 				uint16 ch;
 				if ((*p >= 0x81 && *p <= 0x9F) || (*p >= 0xE0 && *p <= 0xEF)) {
 					if (p + 1 >= end) break;
-					ch = (p[0] << 8) | p[1];
+					// FontSJIS expects lead byte in low byte, trail byte in high byte
+					ch = p[0] | (p[1] << 8);
 					p += 2;
 				} else {
 					ch = *p++;
 				}
-				_font->drawChar(surf.rawSurface(), ch, cx, baselineY - 15, 15, 0);
+				const int glyphTop = baselineY - (int)_font->getFontHeight() + 1;
+				_font->drawChar(surf.getBasePtr(cx, glyphTop), ch,
+						surf.pitch, surf.format.bytesPerPixel, 15, 0, -1, -1);
 				cx += _font->getCharWidth(ch);
 			}
 			return;
@@ -162,9 +169,22 @@ bool ViewTownsDemo::loadImage(const Common::String &name, Graphics::Surface &ima
 	return Shared::Gfx::TIFFLoader::loadTIFFImage(name, &image);
 }
 
+static Common::String toSjis(const char *utf8) {
+	if (!utf8 || !*utf8)
+		return Common::String();
+	return Common::convertFromU32String(
+		Common::convertToU32String(utf8, Common::kUtf8),
+		Common::kWindows932);
+}
+
 void ViewTownsDemo::setDemoStrings(const GameResources &resources) {
-	for (uint i = 0; i < 13; ++i)
-		_demoText[i] = resources.TITLE_MESSAGES[i];
+	const bool isJapanese =
+		Common::parseLanguage(ConfMan.get("language")) == Common::JA_JPN;
+
+	for (uint i = 0; i < 13; ++i) {
+		const char *ja = isJapanese ? _fmtRes.INTRO_SLIDE_JA[i].c_str() : nullptr;
+		_demoText[i] = (ja && *ja) ? toSjis(ja) : resources.TITLE_MESSAGES[i];
+	}
 	for (uint i = 0; i < 7; ++i)
 		_demoText[13 + i] = resources.MAIN_MENU_TEXT[i];
 
@@ -184,12 +204,13 @@ void ViewTownsDemo::startIntro(const GameResources &resources) {
 	_intro = new Shared::Views::IntroView(*_introPort, _introAssets,
 			kMillisPerDemoDelayUnit);
 	_menuVisible = false;
+	_headerTitle = FMTownsResources::str(
+			_fmtRes.INTRO_HEADER_EN, _fmtRes.INTRO_HEADER_JA);
 	g_vm->_townsScreen->setWritePage(0);
 	g_vm->_townsScreen->drawMainScreenFrame(0, 24, 640, 400, 0);
-	g_vm->_townsScreen->drawHeader(_header, Common::String());
+	debug("startIntro: calling drawHeader title='%s'", _headerTitle.c_str());
+	g_vm->_townsScreen->drawHeader(_header, _headerTitle, _sjisFont);
 	_intro->start(getGame()->getMillis());
-	if (_intro->state() == Shared::Views::IntroView::kFailed)
-		error("Could not start FM Towns intro sequence");
 }
 
 bool ViewTownsDemo::drawSlide(uint8 slideIndex) {
@@ -215,7 +236,8 @@ bool ViewTownsDemo::drawSlide(uint8 slideIndex) {
 
 	g_vm->_townsScreen->setWritePage(0);
 	g_vm->_townsScreen->drawMainScreenFrame(0, 24, 640, 400, 0);
-	g_vm->_townsScreen->drawHeader(_header, Common::String());
+	debug("drawSlide %u: calling drawHeader", slideIndex);
+	g_vm->_townsScreen->drawHeader(_header, _headerTitle, _sjisFont);
 	_box0->prepare();
 	return true;
 }

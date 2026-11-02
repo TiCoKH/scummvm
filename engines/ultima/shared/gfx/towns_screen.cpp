@@ -20,12 +20,18 @@
  */
 
 #include "ultima/shared/gfx/towns_screen.h"
+#include "ultima/shared/early/ultima_early.h"
+#include "ultima/shared/early/game.h"
+#include "ultima/shared/gfx/font.h"
 #include "common/endian.h"
 #include "common/config-manager.h"
 #include "common/rect.h"
 #include "common/textconsole.h"
 #include "graphics/palette.h"
 #include "graphics/paletteman.h"
+#ifdef USE_SJIS
+#include "graphics/sjis.h"
+#endif
 
 namespace Ultima {
 namespace Shared {
@@ -475,36 +481,51 @@ void TownsScreen::drawMainScreenFrame(int x, int y, int width, int height, uint1
 	_paintMode = savedPaintMode;
 }
 
-void TownsScreen::drawHeader(const Graphics::Surface &headerImage, const Common::String &title) {
+void TownsScreen::drawHeader(const Graphics::Surface &headerImage, const Common::String &title,
+		void *sjisFont) {
 	if (!_writePage->ready)
 		return;
 
-	// Blit the header background image at (0,0)
 	if (headerImage.getPixels()) {
 		const Common::Rect src(headerImage.w, headerImage.h);
 		_writePage->layer.copyRectToSurface(headerImage, 0, 0, src);
 		invalidateRect(0, 0, headerImage.w, headerImage.h);
 	}
 
-	// Render the title: centered, baseline y=19, fg=14, bg=11, style=1
-	const int titleLen = title.size();
+	if (title.empty())
+		return;
+
+#ifdef USE_SJIS
+	if (sjisFont) {
+		Graphics::FontSJIS *font = static_cast<Graphics::FontSJIS *>(sjisFont);
+		font->toggleFatPrint(true);
+		const uint glyphW = font->getCharWidth('A');
+		const uint glyphH = font->getFontHeight();
+		const int titleLen = (int)title.size();
+		const int titleX = (640 - titleLen * (int)glyphW) / 2;
+		const int titleY = (24 - (int)glyphH) / 2;
+		Graphics::ManagedSurface &surf = _writePage->layer;
+		int cx = titleX;
+		for (int i = 0; i < titleLen; ++i) {
+			const uint16 ch = (byte)title[i];
+			font->drawChar(surf.getBasePtr(cx, titleY), ch,
+					surf.pitch, surf.format.bytesPerPixel, 14, 11, -1, -1);
+			cx += font->getCharWidth(ch);
+		}
+		font->toggleFatPrint(false);
+		invalidateRect(titleX, titleY, titleLen * (int)glyphW, (int)glyphH);
+		return;
+	}
+#endif
+
+	Shared::Gfx::Font *font = g_vm->_game->getFont();
+	if (!font)
+		return;
+	const int titleLen = (int)title.size();
 	const int titleX = (640 - titleLen * 8) / 2;
-	const uint16 savedFore = _writePage->foreColor;
-	const uint16 savedBack = _writePage->backColor;
-	const uint16 savedStyle = _fontStyle;
-	setForegroundColor(14);
-	setBackgroundColor(11);
-	_fontStyle = 1;
-	// Draw each ASCII character as an 8-pixel-wide glyph using the page font.
-	// TownsScreen has no built-in ASCII renderer; callers that need the original
-	// EGB_asciiString behavior must override via the font set on the game object.
-	// Here we fall back to plotting the title string via the write surface directly
-	// so the header is at least positioned correctly even without a SJIS font.
-	// A full implementation would call the game's font->writeString().
-	(void)titleX; // used by callers that supply a font externally
-	_fontStyle = savedStyle;
-	setForegroundColor(savedFore);
-	setBackgroundColor(savedBack);
+	Point pt(titleX, 12);
+	font->writeString(_writePage->layer, title, pt, 14, 11);
+	invalidateRect(titleX, 12, titleLen * 8, (int)font->lineHeight());
 }
 
 void TownsScreen::setupDemoLayout(const byte *defaultPaletteRGB48) {

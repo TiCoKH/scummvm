@@ -59,23 +59,29 @@ void TextBox::drawFrame() {
 
 	const int right = _state.x + _state.width - 1;
 	const int bottom = _state.y + _state.height - 1;
+	// Step 1: fill interior with background color
 	_screen.drawColoredRectangle(_state.x + 1, _state.y + 1,
 			right - 1, bottom - 1, _state.backgroundColor);
+	// Step 2: draw border outline only (no fill) with border color
 	_screen.setForegroundColor(_state.borderColor);
+	const uint16 savedPaintMode = _screen.getPaintMode();
+	_screen.setPaintMode(TownsScreen::kPaintBorderSolid);
+	_screen.drawFilledRectangle(_state.x + 1, _state.y + 1, right - 1, bottom - 1);
+	_screen.setPaintMode(savedPaintMode);
+	// Step 3: four straight edge lines for the rounded-corner frame
 	_screen.drawLine(_state.x + 2, _state.y, right - 2, _state.y);
 	_screen.drawLine(right, _state.y + 2, right, bottom - 2);
 	_screen.drawLine(_state.x + 2, bottom, right - 2, bottom);
 	_screen.drawLine(_state.x, _state.y + 2, _state.x, bottom - 2);
-	// Inset rectangle: border foreground with background fill
-	_screen.setForegroundColor(_state.borderColor);
-	_screen.setSurfaceFillColor(_state.backgroundColor);
-	_screen.drawFilledRectangle(_state.x + 1, _state.y + 1, right - 1, bottom - 1);
 	_state.needsRedraw = false;
 }
 
 void TextBox::prepare() {
 	if (!_initialized)
 		return;
+
+	if (_state.needsRedraw)
+		drawFrame();
 
 	_screen.drawColoredRectangle(_state.x + 2, _state.y + 2,
 			_state.x + _state.width - 3, _state.y + _state.height - 3,

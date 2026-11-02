@@ -128,7 +128,8 @@ public:
 	 * font style 1. Resets font style to 0 on return.
 	 * titleFont must render ASCII via EGB_asciiString semantics.
 	 */
-	void drawHeader(const Graphics::Surface &headerImage, const Common::String &title);
+	void drawHeader(const Graphics::Surface &headerImage, const Common::String &title,
+			void *sjisFont = nullptr);
 	/**
 	 * UT1DEMO page layout: page 0 = 640x480 indexed (1x1), page 1 = 320x240 direct-color (2x2).
 	 * Applies the default 16-color palette to page 0 and leaves page 0 as the write page.
