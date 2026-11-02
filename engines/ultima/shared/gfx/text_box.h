@@ -80,6 +80,39 @@ public:
 	void advanceLine();
 	void scrollUpOneLine();
 	void setCursor(int32 column, int32 row);
+	/**
+	 * GFX_drawBoxBorder: if needsRedraw is false (box is visible), erases the
+	 * full box rectangle with the given color, resets textBackgroundMode to -1
+	 * and marks needsRedraw true. No-op when the box is already hidden.
+	 */
+	void hide(uint16 eraseColor);
+	/**
+	 * SCR_fillBoxArea: fill a text-cell region with the box background color.
+	 * Coordinates are in cell units; the pixel rect is
+	 *   x1 = box.x + 4 + xCell*8,  y1 = box.y + 2 + yCell*16
+	 *   x2 = box.x + 11 + xEnd*8,  y2 = box.y + 17 + yEnd*16
+	 */
+	void fillArea(int32 xCell, int32 yCell, int32 xEnd, int32 yEnd);
+	/**
+	 * SCR_clearBoxArea: apply the selection/highlight raster operation
+	 * (writeMode=4, paintMode=0x422, fg=15, fill=15) over a cell region,
+	 * then restore the box font/fill colors and the global write/paint modes.
+	 * Same pixel mapping as fillArea.
+	 */
+	void highlightArea(int32 xCell, int32 yCell, int32 xEnd, int32 yEnd);
+	/**
+	 * TEXT_printMappedAscii: convert each ASCII byte through the DARKNESS
+	 * extended-glyph table and render the resulting 2-byte SJIS code at the
+	 * current cursor position, advancing by 2 columns per glyph.
+	 * Unmapped characters (table entry == 0) are silently skipped.
+	 * Wraps and scrolls identically to printSjis.
+	 */
+	void printMappedAscii(const char *text);
+	/**
+	 * GFX_putCharDataIntoBox: render a single 16x16 glyph supplied as raw
+	 * pixel data at the current cursor position without advancing the cursor.
+	 */
+	void putCharData(const byte *glyphData);
 
 private:
 	static bool isLeadByte(byte ch);

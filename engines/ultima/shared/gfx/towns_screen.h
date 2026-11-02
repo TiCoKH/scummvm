@@ -63,6 +63,12 @@ public:
 	/** Apply a GFX_setDisplayPage mode. Does not present. */
 	bool setLegacyDisplayPage(int mode);
 	uint8 getVisiblePages() const;
+	/**
+	 * EGB_displayStart(work, page, x, y): set the display origin for a page.
+	 * The compositor places the page's top-left pixel at screen position (x, y),
+	 * clipping rather than wrapping. Distinct from hScroll (source scroll).
+	 */
+	void setDisplayOrigin(int page, int16 x, int16 y);
 	void clearLayer(int layer);
 	void setPalette(const byte *colors);
 	void setPaletteForPage(int page, const byte *rgb, uint16 start, uint16 count);
@@ -168,7 +174,9 @@ private:
 		Graphics::ManagedSurface layer;
 		uint16 bpp = 0;
 		uint16 numCol = 0;
-		uint16 hScroll = 0;
+		uint16 hScroll = 0;     ///< Source scroll offset (scrollLayers)
+		int16 originX = 0;      ///< EGB_displayStart destination X (display origin)
+		int16 originY = 0;      ///< EGB_displayStart destination Y (display origin)
 		uint16 foreColor = 0;
 		uint16 backColor = 0;
 		uint16 fillColor = 0;

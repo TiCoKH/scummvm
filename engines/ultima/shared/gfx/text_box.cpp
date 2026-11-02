@@ -204,6 +204,144 @@ void TextBox::setCursor(int32 column, int32 row) {
 	_state.cursorRow = row;
 }
 
+void TextBox::hide(uint16 eraseColor) {
+	if (!_initialized || _state.needsRedraw)
+		return;
+
+	_screen.drawColoredRectangle(_state.x, _state.y,
+			_state.x + _state.width - 1, _state.y + _state.height - 1, eraseColor);
+	_screen.setForegroundColor(15);
+	_screen.setSurfaceFillColor(15);
+	_state.textBackgroundMode = -1;
+	_state.needsRedraw = true;
+}
+
+void TextBox::fillArea(int32 xCell, int32 yCell, int32 xEnd, int32 yEnd) {
+	if (!_initialized)
+		return;
+
+	const int x1 = _state.x + 4 + xCell * 8;
+	const int y1 = _state.y + 2 + yCell * 16;
+	const int x2 = _state.x + 11 + xEnd * 8;
+	const int y2 = _state.y + 17 + yEnd * 16;
+	_screen.setForegroundColor(_state.backgroundColor);
+	_screen.setSurfaceFillColor(_state.backgroundColor);
+	_screen.drawFilledRectangle(x1, y1, x2, y2);
+	_screen.setForegroundColor(_state.fontColor);
+}
+
+void TextBox::highlightArea(int32 xCell, int32 yCell, int32 xEnd, int32 yEnd) {
+	if (!_initialized)
+		return;
+
+	const int x1 = _state.x + 4 + xCell * 8;
+	const int y1 = _state.y + 2 + yCell * 16;
+	const int x2 = _state.x + 11 + xEnd * 8;
+	const int y2 = _state.y + 17 + yEnd * 16;
+	const uint16 savedWriteMode = _screen.getWriteMode();
+	const uint16 savedPaintMode = _screen.getPaintMode();
+	// SCR_clearBoxArea: writeMode=4 (XOR), paintMode=0x422 (fill+border+area).
+	// The 0x400 EGB area-mode bit has no software equivalent; the XOR effect
+	// is carried entirely by writeMode=4 acting on the fill operation.
+	_screen.setWriteMode(4);
+	_screen.setPaintMode(TownsScreen::kPaintFillSolid | TownsScreen::kPaintBorderSolid);
+	_screen.setForegroundColor(15);
+	_screen.setSurfaceFillColor(15);
+	_screen.drawFilledRectangle(x1, y1, x2, y2);
+	_screen.setForegroundColor(_state.fontColor);
+	_screen.setSurfaceFillColor(_state.backgroundColor);
+	_screen.setWriteMode(savedWriteMode);
+	_screen.setPaintMode(savedPaintMode);
+}
+
+// ASCII-to-SJIS mapping table from TEXT_drawMappedExtendedGlyph / DARKNESS reference.
+static uint16 mappedAsciiToSjis(char ch) {
+	switch (ch) {
+	case ' ':  return 0x8140;
+	case '!':  return 0xeb74;
+	case '/':  return 0x815e;
+	case '0':  return 0x824f; // -0x7f15 as unsigned 16-bit
+	case '1':  return 0xeb76;
+	case '2':  return 0xeb77;
+	case '3':  return 0xeb78;
+	case '4':  return 0xeb79;
+	case '5':  return 0xeb7a;
+	case '6':  return 0xeb7b;
+	case '7':  return 0xeb7c;
+	case '8':  return 0xeb7d;
+	case '9':  return 0xeb7e;
+	case ':':  return 0x8146;
+	case '?':  return 0xeb75;
+	case 'A':  return 0xeb40;
+	case 'B':  return 0xeb41;
+	case 'C':  return 0xeb42;
+	case 'D':  return 0xeb43;
+	case 'E':  return 0xeb44;
+	case 'F':  return 0xeb45;
+	case 'G':  return 0xeb46;
+	case 'H':  return 0xeb47;
+	case 'I':  return 0xeb48;
+	case 'J':  return 0xeb49;
+	case 'K':  return 0xeb4a;
+	case 'L':  return 0xeb4b;
+	case 'M':  return 0xeb4c;
+	case 'N':  return 0xeb4d;
+	case 'O':  return 0xeb4e;
+	case 'P':  return 0xeb4f;
+	case 'Q':  return 0xeb50;
+	case 'R':  return 0xeb51;
+	case 'S':  return 0xeb52;
+	case 'T':  return 0xeb53;
+	case 'U':  return 0xeb54;
+	case 'V':  return 0xeb55;
+	case 'W':  return 0xeb56;
+	case 'X':  return 0xeb57;
+	case 'Y':  return 0xeb58;
+	case 'Z':  return 0xeb59;
+	default:   return 0;
+	}
+}
+
+void TextBox::printMappedAscii(const char *text) {
+	if (!_initialized || !text)
+		return;
+
+	for (; *text; ++text) {
+		if (_state.cursorColumn + 1 > _state.maxColumns) {
+			_state.cursorColumn = 0;
+			if (_state.cursorRow == _state.maxRows)
+				scrollUpOneLine();
+			else
+				++_state.cursorRow;
+		}
+		const uint16 sjis = mappedAsciiToSjis(*text);
+		if (sjis) {
+			const int x = _state.x + 4 + _state.cursorColumn * 8;
+			const int baselineY = _state.y + 17 + _state.cursorRow * 16;
+			const byte pair[2] = { byte(sjis >> 8), byte(sjis & 0xff) };
+			_rasterizer.drawSjisBytes(_screen, static_cast<int16>(x),
+					static_cast<int16>(baselineY), pair, 2);
+			_screen.invalidateRect(x, baselineY - 15, 16, 16);
+		}
+		_state.cursorColumn += 2;
+	}
+}
+
+void TextBox::putCharData(const byte *glyphData) {
+	if (!_initialized || !glyphData)
+		return;
+
+	// GFX_putCharDataIntoBox positions via EGB_asciiString then draws a 16x16
+	// raw glyph via EGB_anyChar. We pass the data through the rasterizer as a
+	// 2-byte SJIS sequence; callers supplying actual raw pixel data should use
+	// getWriteSurface() directly and call invalidateRect themselves.
+	const int x = _state.x + 4 + _state.cursorColumn * 8;
+	const int baselineY = _state.y + 17 + _state.cursorRow * 16;
+	_rasterizer.drawSjisBytes(_screen, static_cast<int16>(x),
+			static_cast<int16>(baselineY), glyphData, 2);
+	_screen.invalidateRect(x, baselineY - 15, 16, 16);
+}
+
 } // namespace Gfx
 } // namespace Shared
 } // namespace Ultima

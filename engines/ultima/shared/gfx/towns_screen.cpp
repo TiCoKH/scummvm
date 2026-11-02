@@ -78,6 +78,8 @@ void TownsScreen::setupLayer(int width, int height, int scaleW, int scaleH, int 
 	_writePage->scaleH = scaleH;
 	_writePage->numCol = numCol;
 	_writePage->hScroll = 0;
+	_writePage->originX = 0;
+	_writePage->originY = 0;
 	_writePage->foreColor = 0;
 	_writePage->backColor = 0;
 	_writePage->fillColor = 0;
@@ -125,6 +127,16 @@ int TownsScreen::legacyDisplayPageMask(int mode) {
 	if (mode < 0 || mode > 3)
 		return -1;
 	return mode == 3 ? 0 : mode + 1;
+}
+
+void TownsScreen::setDisplayOrigin(int page, int16 x, int16 y) {
+	if (page < 0 || page > 1) {
+		warning("TownsScreen::setDisplayOrigin(): Invalid page %d", page);
+		return;
+	}
+	_page[page].originX = x;
+	_page[page].originY = y;
+	markFullDirty();
 }
 
 bool TownsScreen::setLegacyDisplayPage(int mode) {
@@ -213,8 +225,16 @@ void TownsScreen::setTransparentColorEnabled(int page, bool enabled) {
 }
 
 bool TownsScreen::canDraw(const char *operation) const {
-	if (!_writePage->ready || _writeMode != 0) {
-		warning("TownsScreen::%s(): Page not initialized or unsupported write mode %u", operation, _writeMode);
+	if (!_writePage->ready) {
+		warning("TownsScreen::%s(): Page not initialized", operation);
+		return false;
+	}
+	// Supported write modes:
+	//   0 = normal replace (EGB default)
+	//   4 = XOR (SCR_clearBoxArea highlight raster)
+	//   9 = replace-with-transparency (DARKNESS default; equivalent to 0 for indexed pages)
+	if (_writeMode != 0 && _writeMode != 4 && _writeMode != 9) {
+		warning("TownsScreen::%s(): Unsupported write mode %u", operation, _writeMode);
 		return false;
 	}
 	return true;
@@ -243,8 +263,19 @@ void TownsScreen::drawRectangleWithMode(int x1, int y1, int x2, int y2, uint16 m
 	const Common::Rect rect = clipInclusiveRect(x1, y1, x2, y2, _writePage->layer.w, _writePage->layer.h);
 	if (rect.isEmpty())
 		return;
-	if (mode & kPaintFillSolid)
-		_writePage->layer.fillRect(rect, _writePage->fillColor);
+	if (mode & kPaintFillSolid) {
+		if (_writeMode == 4) {
+			// XOR fill: invert every pixel in the region
+			Graphics::Surface &surface = *_writePage->layer.surfacePtr();
+			const uint32 xorMask = (_writePage->bpp == 1) ? 0xff : 0xffff;
+			for (int y = rect.top; y < rect.bottom; ++y) {
+				for (int x = rect.left; x < rect.right; ++x)
+					surface.setPixel(x, y, surface.getPixel(x, y) ^ xorMask);
+			}
+		} else {
+			_writePage->layer.fillRect(rect, _writePage->fillColor);
+		}
+	}
 	if (mode & kPaintBorderSolid) {
 		// Clip the original edges, rather than inventing borders at clipped bounds.
 		Graphics::Surface &surface = *_writePage->layer.surfacePtr();
@@ -366,7 +397,10 @@ void TownsScreen::invalidateRect(int x, int y, int width, int height) {
 		markFullDirty();
 		return;
 	}
-	addDirtyRect(rect.left * _writePage->scaleW, rect.top * _writePage->scaleH,
+	// Translate page coordinates to screen coordinates using the display origin.
+	const int screenX = rect.left * _writePage->scaleW + _writePage->originX;
+	const int screenY = rect.top  * _writePage->scaleH + _writePage->originY;
+	addDirtyRect(screenX, screenY,
 			rect.width() * _writePage->scaleW, rect.height() * _writePage->scaleH);
 }
 
@@ -490,9 +524,8 @@ void TownsScreen::setupDarknessLayout(const byte *defaultPaletteRGB48) {
 		setPaletteForPage(1, defaultPaletteRGB48, 0, 16);
 	}
 	// DARKNESS GFX_setDisplayOriginPreset(1): EGB_displayStart(work, 1, 54, 49)
-	// This shifts page 1's display origin; modelled via hScroll on the layer.
-	// The exact pixel offset (54,49) maps to page-1 coordinates.
-	_page[1].hScroll = 54;
+	// Sets the display origin for page 1 — the page appears offset on screen.
+	setDisplayOrigin(1, 54, 49);
 }
 
 void TownsScreen::plotPixelClipped(int x, int y, uint16 color) {
@@ -754,11 +787,18 @@ void TownsScreen::update() {
 				// Page 0 is the foreground when both pages are enabled.
 				for (int i = 1; i >= 0; --i) {
 					const TownsScreenLayer &page = _page[i];
-					if (!page.ready || !page.enabled || x >= page.layer.w * page.scaleW ||
-							y >= page.layer.h * page.scaleH)
+					if (!page.ready || !page.enabled)
 						continue;
-					const int sx = (x / page.scaleW + page.hScroll) % page.layer.w;
-					const int sy = y / page.scaleH;
+					// Display origin: page pixel (0,0) appears at screen (originX, originY).
+					// Source scroll (hScroll) shifts the source within the page surface.
+					const int px = x - page.originX;
+					const int py = y - page.originY;
+					if (px < 0 || py < 0)
+						continue;
+					const int sx = (px / page.scaleW + page.hScroll) % page.layer.w;
+					const int sy = py / page.scaleH;
+					if (sx >= page.layer.w || sy >= page.layer.h)
+						continue;
 					const uint32 pixel = page.layer.rawSurface().getPixel(sx, sy);
 					if (page.onTop && page.transparentEnabled && page.layer.format.isCLUT8() &&
 							pixel == page.transColor)
