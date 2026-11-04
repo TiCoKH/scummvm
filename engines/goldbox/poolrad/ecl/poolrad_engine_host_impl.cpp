@@ -64,6 +64,10 @@
 #include "goldbox/ecl/opcode_handlers.h"
 #include "goldbox/ecl/runtime_layout.h"
 #include "goldbox/ecl/npc_recruitment.h"
+#include "goldbox/ecl/encounter_rules.h"
+#include "goldbox/poolrad/encounter_operation.h"
+#include "goldbox/data/player_character.h"
+#include "goldbox/data/effects/effect.h"
 
 namespace {
 
@@ -1575,6 +1579,186 @@ VmResult PoolradEngineHostImpl::spriteOff() {
     if (!_engine)
         return VM_OK;
     _engine->getEncounterSpriteCache().clear();
+    return VM_OK;
+}
+
+// GB13-002: present one horizontal hotkey menu synchronously and return the
+// selected index (or -1 on break). Shared by the PARLAY menu and each
+// encounter decision-loop iteration. Mirrors the synchronous horizontalMenu()
+// pump; it never writes VM memory itself so a reopened prompt costs no write.
+int16 PoolradEngineHostImpl::_runEncounterHotkeyMenu(
+        const Common::Array<Common::String> &options) {
+    if (options.empty() || !_engine || !g_events)
+        return -1;
+
+    UIElement *focused = g_events->focusedView();
+    if (!focused)
+        return -1;
+
+    Goldbox::MenuItemList parsed = buildLegacyHorizontalMenuModel(options);
+
+    Views::Dialogs::HorizontalMenuConfig cfg;
+    cfg.menuItemList = &parsed;
+    cfg.allowNumPad = true;
+    cfg.suppressUnhandledKeys = true;
+    cfg.backgroundColor = 0;
+    cfg.singleItemMode = false;
+    cfg.promptTxt = "";
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.promptColor = 15;
+
+    Common::String sinkName = Common::String::format("EclEncMenuSink_%u",
+        ++kModalMenuSinkCounter);
+    AsyncMenuResultSink *sink = new AsyncMenuResultSink(sinkName, focused);
+    Views::Dialogs::HorizontalMenu *menu =
+        new Views::Dialogs::HorizontalMenu("EclEncHorizontalMenu", cfg);
+    sink->subView(menu);
+    menu->activate();
+    menu->redraw();
+
+    while (menu->isActive() && !sink->done) {
+        if (!g_events->pumpModalInputFrame())
+            break;
+    }
+
+    const int16 result = (sink->done && sink->success && sink->value >= 0)
+        ? static_cast<int16>(sink->value)
+        : static_cast<int16>(-1);
+    delete sink;
+    return result;
+}
+
+int16 PoolradEngineHostImpl::parlayMenu(
+        const Common::Array<Common::String> &attitudes) {
+    // The original parley menu has no cancel: it always resolves to one of the
+    // five attitudes. Reuse the synchronous hotkey menu; the ECL handler writes
+    // the chosen attitude VALUE (not the index) to the destination.
+    const int16 sel = _runEncounterHotkeyMenu(attitudes);
+    return (sel < 0) ? 0 : sel;
+}
+
+VmResult PoolradEngineHostImpl::encounterMenu(
+        const Common::Array<uint8> &operands) {
+    // GB13-002: drive the owned encounter request through the PURE transition
+    // (ecl/encounter_rules) using the real party for MoveExtremes and the live
+    // monster distance. The decision loop here is synchronous: WAIT/ADVANCE/
+    // PARLAY-close reopen the hotkey menu with NO VM write, and the single
+    // outcome write + encounter/message flag clear happen exactly once when the
+    // loop terminates.
+    //
+    // INTEGRATION-ONLY: the async VM_YIELD reopen across UI frames (routing the
+    // reopen through the GB13-009 pending-operation seam instead of this inline
+    // pump) and the per-distance monster-stage redraw are presentation wiring
+    // that still needs the live dialog stack; the outcome logic itself runs
+    // entirely through the tested pure core.
+    if (!_engine || !_memory)
+        return VM_ERROR;
+    if (operands.size() < 13)
+        return VM_ERROR;
+
+    // Unpack the fixed layout produced by handle_0x29_ENCOUNTER_MENU.
+    const uint8 monsterId     = operands[0];
+    const uint8 requestedDist = operands[1];
+    const uint8 monsterPicId  = operands[2];
+    const uint16 destAddr = static_cast<uint16>(operands[3]
+        | (static_cast<uint16>(operands[4]) << 8));
+    Common::Array<uint8> resp;
+    for (uint8 i = 0; i < 5; ++i)
+        resp.push_back(operands[static_cast<uint>(5 + i)]);
+    const uint8 fleePar = operands[10];
+    const uint8 fleeMon = operands[11];
+    const uint8 msgCount = operands[12];
+
+    Common::Array<Common::String> messages;
+    uint pos = 13;
+    for (uint8 m = 0; m < msgCount && pos <= operands.size(); ++m) {
+        Common::String s;
+        while (pos < operands.size() && operands[pos] != 0) {
+            s += static_cast<char>(operands[pos]);
+            ++pos;
+        }
+        ++pos; // skip NUL terminator
+        messages.push_back(s);
+    }
+    while (messages.size() < 3)
+        messages.push_back(Common::String());
+
+    EncounterOperation op;
+    op.build(monsterId, requestedDist, monsterPicId, destAddr, resp, messages,
+        fleePar, fleeMon);
+
+    // MoveExtremes over the live party (no status filter on movement).
+    Common::Array<ECL::MoveExtremeMember> members;
+    if (Common::List<Goldbox::Data::PlayerCharacter *> *party =
+            VmInterface::getParty()) {
+        for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it =
+                party->begin(); it != party->end(); ++it) {
+            Goldbox::Data::PlayerCharacter *ch = *it;
+            if (!ch)
+                continue;
+            ECL::MoveExtremeMember mem;
+            mem.movementCur = ch->movement.current;
+            if (const Goldbox::Data::Effects::CharacterEffects *fx =
+                    ch->getEffects()) {
+                mem.hasted = fx->hasEffect(Goldbox::Data::Effects::E_HASTE);
+                mem.slowed = fx->hasEffect(Goldbox::Data::Effects::E_SLOW);
+            }
+            members.push_back(mem);
+        }
+    }
+    const ECL::MoveExtremes extremes = ECL::computeMoveExtremes(members);
+
+    // The computed stage distance already sits in the monster-distance global
+    // (written by drawEncounterStage); the operation clamps it to the
+    // requested distance, matching MaxMonsterDist + the requested-distance cap.
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+    const uint8 stageDist = static_cast<uint8>(_memory->read8(
+        layout.vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr));
+    const uint8 view3dFlag = _memory->read8(
+        layout.vmField(kVmFieldIndoorModeFlag).vmAddr);
+
+    op.begin(stageDist, view3dFlag, extremes);
+
+    // Decision loop. Each reopen re-presents the hotkey menu with no VM write.
+    const int kMaxIterations = 64; // guard against a malformed response table
+    for (int iter = 0; iter < kMaxIterations && !op.isComplete(); ++iter) {
+        Common::Array<Common::String> menuOptions;
+        menuOptions.push_back("COMBAT");
+        menuOptions.push_back("WAIT");
+        menuOptions.push_back("FLEE");
+        menuOptions.push_back(op.usesParleyMenu() ? "PARLAY" : "ADVANCE");
+
+        const int16 rawSel = _runEncounterHotkeyMenu(menuOptions);
+        if (rawSel < 0)
+            break; // dialog broke; do not write a faked outcome
+
+        const uint8 prevDist = op.monsterDist();
+        const ECL::EncounterStep step =
+            op.applySelection(static_cast<uint8>(rawSel));
+
+        // Redraw the monster stage when a close-distance reopen changed it.
+        if (!step.terminal && step.redisplay
+                && step.monsterDist != prevDist) {
+            _memory->write16LE(layout.vmGlobalField(
+                kVmGlobalFieldMonsterDistance).vmAddr, step.monsterDist);
+            redrawEncounterStage(step.monsterDist);
+        }
+    }
+
+    // Single terminal write + flag clear (only when the loop terminated).
+    if (op.isComplete()) {
+        _memory->write16LE(op.destAddr(), op.outcome());
+    }
+
+    // Clear the bottom message row regardless of outcome (ClearRect parity).
+    Graphics::Screen *screen = _engine ? _engine->getScreen() : nullptr;
+    if (screen) {
+        Goldbox::Surface screenSurface(*screen,
+            Common::Rect(0, 0, screen->w, screen->h));
+        screenSurface.clearBox(0, 24, 39, 24, 0);
+    }
+    _updateViewState();
     return VM_OK;
 }
 

@@ -103,6 +103,8 @@ public:
     VmResult displayPicture(uint8 picID) override;
     VmResult drawEncounterStage(uint8 resourceId, uint8 distanceCap,
         uint8 variantId) override;
+    int16 parlayMenu(const Common::Array<Common::String> &attitudes) override;
+    VmResult encounterMenu(const Common::Array<uint8> &operands) override;
     VmResult redrawEncounterStage(uint8 newDistance) override;
     VmResult spriteOff() override;
     int16 horizontalMenu(const Common::Array<Common::String> &options) override;
@@ -225,6 +227,11 @@ private:
     // GB13-006: keep the VM character window (party count + selected-pc index)
     // coherent with the engine party list and selection in one place.
     void _syncPartyWindow(Goldbox::Data::PlayerCharacter *selection);
+
+    // GB13-002: present one synchronous encounter/parley hotkey menu and return
+    // the selected index (-1 on break). Writes no VM memory, so a reopened
+    // encounter prompt costs no premature write.
+    int16 _runEncounterHotkeyMenu(const Common::Array<Common::String> &options);
 
     // Skybox background layer colors (set by GFX_SetDefaultColors,
     // updated from VM $49FD/$49FE when scripts change them).

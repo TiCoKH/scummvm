@@ -51,10 +51,6 @@ namespace Poolrad {
 
 namespace {
 
-static bool isWildernessMapId(uint8 mapId) {
-	return mapId == 0x19 || mapId == 0x1A || mapId == 0x1B;
-}
-
 static char toUpperAscii(char c) {
 	if (c >= 'a' && c <= 'z')
 		return static_cast<char>(c - ('a' - 'A'));
@@ -1023,15 +1019,36 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// Original GB_EngineMain only enters with GS_DUNGEON_MAP or GS_WILDERNESS_MAP.
 	// Other states (CAMPING, SHOP, COMBAT) are transient sub-loops that always
 	// resume into a map state. Resolve to the correct map state on load.
+	// GB13-021: reconstruct the authoritative location TYPE from the persisted
+	// active script id + indoor/3D-view flag (the location type and coords,
+	// not re-derived from the indoor flag alone). A transient sub-loop state
+	// (CAMPING/SHOP/COMBAT) always resumes into the map state its location
+	// implies.
+	const uint8 loadedMapId = mem->read8(layout.vmField(kVmFieldSavedEclId).vmAddr);
+	const uint8 loadedIndoorFlag =
+		mem->read8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr);
+	const uint8 loadedView3dFlag = (loadedIndoorFlag != 0) ? 1 : 0;
+	_location.kind = LocationContext::classify(loadedMapId, loadedView3dFlag);
+	_location.syncRegion();
+	_location.activeEclId = loadedMapId;
+	_location.activeGeoId = loadedMapId;
+	_location.dungeonPos = MapPos(
+		static_cast<int8>(mem->read8(
+			layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr)),
+		static_cast<int8>(mem->read8(
+			layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr)));
+	_location.dungeonDir =
+		mem->read8(layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr) & 0x03;
+	_location.wildernessPos = TilePos(
+		mem->read8(layout.vmField(kVmFieldWildernessX).vmAddr),
+		mem->read8(layout.vmField(kVmFieldWildernessY).vmAddr));
+	_location.indoorRender = (loadedIndoorFlag != 0);
+	_hasSavedCallerLocation = false;
+
 	GameState resolvedState = static_cast<GameState>(byteGameState);
 	if (resolvedState != GS_DUNGEON_MAP && resolvedState != GS_WILDERNESS_MAP
 			&& resolvedState != GS_START_MENU) {
-		const uint8 loadedMapId = mem->read8(layout.vmField(kVmFieldSavedEclId).vmAddr);
-		const uint8 indoorFlag = mem->read8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr);
-		if (isWildernessMapId(loadedMapId) && indoorFlag == 0)
-			resolvedState = GS_WILDERNESS_MAP;
-		else
-			resolvedState = GS_DUNGEON_MAP;
+		resolvedState = mapStateForLocation(_location);
 		debug(2, "PoolradEngine::loadGameSlotX86 resolved transient state %u -> %u",
 			(unsigned)byteGameState, (unsigned)resolvedState);
 	}
@@ -1155,6 +1172,32 @@ VmResult PoolradEngine::executeEclAtScriptAddress(uint16 scriptPc,
 	return r;
 }
 
+GameState PoolradEngine::mapStateForLocation(const LocationContext &ctx) {
+	// GB13-021: the map state a location implies, used for service return
+	// instead of unconditionally choosing GS_DUNGEON_MAP. Wilderness kinds
+	// (west/central/east) resume GS_WILDERNESS_MAP; dungeon resumes
+	// GS_DUNGEON_MAP.
+	return ctx.isWilderness() ? GS_WILDERNESS_MAP : GS_DUNGEON_MAP;
+}
+
+void PoolradEngine::saveCallerLocation() {
+	// Capture the caller location before a camp/shop/temple/battle sub-loop so
+	// its EXIT can resume the map state it came from (GB13-021 AC 3).
+	_savedCallerLocation = _location;
+	_hasSavedCallerLocation = true;
+}
+
+bool PoolradEngine::restoreCallerLocation() {
+	// Restore the saved caller location on service EXIT. A NEW ECL transition
+	// does not call this; it replaces _location via initializeMapRuntimeForState
+	// instead.
+	if (!_hasSavedCallerLocation)
+		return false;
+	_location = _savedCallerLocation;
+	_hasSavedCallerLocation = false;
+	return true;
+}
+
 bool PoolradEngine::isMapRuntimeState(GameState state) const {
 	return state == GS_DUNGEON_MAP || state == GS_WILDERNESS_MAP
 		|| state == GS_SHOP || state == GS_CAMPING
@@ -1212,7 +1255,25 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 
 	const uint8 mapId = snapshot.mapId;
 	_legacySharedState.byteMapId = mapId;
-	if (isWildernessMapId(mapId) && !snapshot.indoorMode)
+
+	// GB13-021 NewEclDone: start every on-load entry as Dungeon, then assign a
+	// wilderness kind ONLY when the 3D-view flag is zero (indoor flag clear)
+	// AND the active script id is one of the three wilderness scripts
+	// (25/26/27 = 0x19/0x1A/0x1B). classify() is the single boundary; it
+	// distinguishes west/central/east (region 0/13/26) rather than collapsing
+	// them. The authoritative location context is the TYPE owner; the game
+	// state and mapType are derived from it.
+	const uint8 view3dFlag = snapshot.indoorMode ? 1 : 0;
+	_location.kind = LocationContext::classify(mapId, view3dFlag);
+	_location.syncRegion();
+	_location.activeEclId = mapId;
+	_location.activeGeoId = snapshot.mapId;
+	_location.dungeonPos = snapshot.dungeonPos;
+	_location.dungeonDir = snapshot.dungeonDir & 0x03;
+	_location.wildernessPos = snapshot.wildernessPos;
+	_location.indoorRender = snapshot.indoorMode;
+
+	if (_location.isWilderness())
 		_legacySharedState.byteGameState = GS_WILDERNESS_MAP;
 	else
 		_legacySharedState.byteGameState = state;

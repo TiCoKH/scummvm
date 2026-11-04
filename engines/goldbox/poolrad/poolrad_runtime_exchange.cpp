@@ -24,6 +24,7 @@
 #include "goldbox/core/coords.h"
 #include "goldbox/ecl/runtime_layout.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
+#include "goldbox/poolrad/location_context.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 
@@ -57,7 +58,17 @@ bool PoolradRuntimeExchange::captureMapSnapshot(
 	out.mapId = mem->read8(vmLayout.field(kVmFieldSavedEclId).vmAddr);
 	out.indoorMode =
 		(mem->read8(vmLayout.field(kVmFieldIndoorModeFlag).vmAddr) != 0);
-	out.mapType = mem->read8(vmLayout.field(kVmFieldIndoorModeFlag).vmAddr);
+	// GB13-021: mapType is the location TYPE, DISTINCT from the indoor-render
+	// flag (previously both read the same kVmFieldIndoorModeFlag byte, which
+	// made wilderness types 2/3/4 unreachable). Derive it from the location
+	// kind: classify by the active ECL/map id and the 3D-view flag (indoor
+	// byte) at one boundary, then map kind -> legacy numeric 1/2/3/4. This is a
+	// read-only derivation; no VM state is written.
+	{
+		const uint8 view3dFlag = out.indoorMode ? 1 : 0;
+		const LocationKind kind = LocationContext::classify(out.mapId, view3dFlag);
+		out.mapType = LocationContext(kind).toLegacyMapType();
+	}
 	out.wallNibble = mem->read8(globalLayout.field(kVmGlobalFieldMapWallType).vmAddr);
 	out.eventId = mem->read8(globalLayout.field(kVmGlobalFieldMapSquareInfo).vmAddr);
 

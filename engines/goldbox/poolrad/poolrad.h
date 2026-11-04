@@ -33,6 +33,7 @@
 #include "goldbox/poolrad/ecl/poolrad_game_config.h"
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/ecl/runtime_layout.h"
+#include "goldbox/poolrad/location_context.h"
 #include "goldbox/data/daxblock.h"
 #include "common/ptr.h"
 //#include "goldbox/poolrad/data/character.h"
@@ -116,6 +117,20 @@ private:
 
 	LegacySharedRuntimeState _legacySharedState;
 
+	/**
+	 * GB13-021 — authoritative location TYPE owner.
+	 *
+	 * _location holds the live location kind/region/coords independent of the
+	 * indoor render flag. NewEclDone (initializeMapRuntimeForState) assigns it;
+	 * RuntimeMapSnapshot.mapType is derived from it. _savedCallerLocation keeps
+	 * the caller location across a camp/shop/temple/battle sub-loop so a
+	 * service EXIT returns to the caller's location instead of unconditionally
+	 * choosing GS_DUNGEON_MAP. _hasSavedCallerLocation guards the slot.
+	 */
+	LocationContext _location;
+	LocationContext _savedCallerLocation;
+	bool            _hasSavedCallerLocation = false;
+
 	bool isMapRuntimeState(GameState state) const;
 	Views::InGameView *getInGameView();
 	void initializeMapRuntimeForState(GameState state);
@@ -149,6 +164,26 @@ public:
 	ECL::AddressSpace *getEclMemory();
 	const ECL::AddressSpace *getEclMemory() const;
 	bool captureRuntimeMapSnapshot(::Goldbox::RuntimeMapSnapshot &snapshot) const;
+
+	/** GB13-021 authoritative location context (TYPE owner). */
+	const LocationContext &getLocationContext() const { return _location; }
+	void setLocationContext(const LocationContext &ctx) { _location = ctx; }
+
+	/**
+	 * Save/restore the caller location across a service sub-loop so a
+	 * camp/shop/temple/battle EXIT resumes the map state it came from. A NEW
+	 * ECL transition replaces the location instead and does NOT restore.
+	 */
+	void saveCallerLocation();
+	bool restoreCallerLocation();
+	bool hasSavedCallerLocation() const { return _hasSavedCallerLocation; }
+
+	/**
+	 * Map state (GS_DUNGEON_MAP vs GS_WILDERNESS_MAP) implied by a location
+	 * context's kind. Used by the service-return path instead of
+	 * unconditionally choosing GS_DUNGEON_MAP.
+	 */
+	static GameState mapStateForLocation(const LocationContext &ctx);
 	Data::DaxBlockGeo *getGeoBlockById(uint8 mapId);
 	Data::DaxBlockGeo *getActiveGeoBlock();
 	void initGameDefaults();

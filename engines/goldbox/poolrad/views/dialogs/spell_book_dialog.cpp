@@ -96,6 +96,7 @@ SpellBookDialog::SpellBookDialog()
     // Active-effect display (SPELL_ScrollRead): a scrollable read-only list.
     VerticalMenuConfig dispCfg;
     dispCfg.promptTxt = "";
+    dispCfg.promptOptions = nullptr;
     dispCfg.menuItemList = &_displayModel;
     dispCfg.headColor = 13;
     dispCfg.textColor = 10;

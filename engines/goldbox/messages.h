@@ -223,6 +223,11 @@ struct EclVmMessage : public Message {
 		SC_SPRITE_OFF,
 		SC_DELAY,
 		SC_PRINT_ASYNC,
+		// GB13-002 encounter decisions / parley / surprise.
+		SC_ENCOUNTER_MENU,
+		SC_PARLAY,
+		SC_PARTY_SURPRISE,
+		SC_SURPRISE,
 		// Diagnostic: an opcode handler was reached but its behavior is not
 		// yet implemented (GB13-001). The handler frames its operands and
 		// reports this rather than silently reporting success.

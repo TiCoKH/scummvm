@@ -36,6 +36,7 @@
 #include "goldbox/ecl/rune_presentation.h"
 #include "goldbox/ecl/ecl_string_writer.h"
 #include "goldbox/ecl/scripted_damage.h"
+#include "goldbox/ecl/encounter_rules.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -1021,22 +1022,68 @@ static int handle_0x21_LOAD_AREA_GEO(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x22: PARTY SURPRISE <address1> <address2>
+// GB13-002: port EclPartySurprise (eclvm.pas:784). Scans the party for a ranger
+// or cleric-ranger with NO status filter (the original has no status check, so
+// an incapacitated/dead ranger still counts). Writes mod1 (1 when a ranger is
+// present, else 0) to operand 1 and mod2 (always 0) to operand 2 — the 1/0 or
+// 0/0 pair, replacing the old fixed 2/2. The ranger predicate lives in the pure
+// encounter_rules core so it is unit-provable without a live party.
 static int handle_0x22_PARTY_SURPRISE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
     vm.getOperand(2);
-    vm.writeVmMemory(vm.getOpWord(1), 2, syscalls);
-    vm.writeVmMemory(vm.getOpWord(2), 2, syscalls);
+    const uint16 addr1 = vm.getOpWord(1);
+    const uint16 addr2 = vm.getOpWord(2);
+
+    Common::Array<uint8> classIds;
+    if (Common::List<Data::PlayerCharacter *> *party = VmInterface::getParty()) {
+        for (Common::List<Data::PlayerCharacter *>::const_iterator it =
+                party->begin(); it != party->end(); ++it) {
+            if (*it)
+                classIds.push_back((*it)->classType);
+        }
+    }
+
+    const PartySurpriseResult result = resolvePartySurprise(classIds);
+    vm.writeVmMemory(addr1, result.mod1, syscalls);
+    vm.writeVmMemory(addr2, result.mod2, syscalls);
     return VM_OK;
 }
 
-// 0x23: SURPRISE <address1> <address2> <var1> <var2>
+// GB13-002: live two-d6 source for the surprise roll. Both rolls go through the
+// engine RNG (FxEngine.RollDice(1, 6) parity); the deterministic draw order and
+// the both-success overwrite live entirely in resolveSurprise(), which the
+// tests drive with a recorded source.
+class LiveSurpriseRollSource : public ISurpriseRollSource {
+public:
+    uint8 rollD6() override {
+        const int r = VmInterface::rollDice(1, 6);
+        return (r < 1) ? 1 : static_cast<uint8>(r);
+    }
+};
+
+// 0x23: SURPRISE <var1> <var2> <var3> <var4>
+// GB13-002: port EclSurprise (eclvm.pas:814). All four operands are value
+// operands (GetEclVar). The signed threshold arithmetic, the exact r1-then-r2
+// draw order and the ORIGINAL both-success overwrite (a double success of 3 is
+// overwritten with 2) live in the pure encounter_rules core so they are
+// unit-provable; the result is written to the ambush global, matching the
+// original WriteGbvm(C_Gbvm.SURPRISE, result) — it does NOT write the operand
+// addresses.
 static int handle_0x23_SURPRISE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(4);
-    // TODO: Roll dice using readVar(3)/readVar(4) and calculate surprise
-    mem.write8(getOpcodeLayout().vmGlobalField(kVmGlobalFieldCombatIsAmbush).vmAddr, 0);
+
+    SurpriseOperands ops;
+    for (uint8 i = 0; i < 4; ++i)
+        ops.v[i] = static_cast<uint8>(vm.readVar(static_cast<uint8>(i + 1)));
+
+    LiveSurpriseRollSource source;
+    const uint8 result = resolveSurprise(ops, source);
+
+    mem.write8(getOpcodeLayout().vmGlobalField(
+        kVmGlobalFieldCombatIsAmbush).vmAddr, result);
     return VM_OK;
 }
 
@@ -1314,17 +1361,71 @@ static int handle_0x28_ROB(EclVM &vm, AddressSpace &mem,
 //   PC; the encounter decision loop itself is implemented under GB13-002.
 static int handle_0x29_ENCOUNTER_MENU(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
     vm.getOperand(14);
 
-    // Preserve the operand-4 destination and the three decoded strings for the
-    // GB13-002 decision loop; decoding them here also validates framing.
-    const uint16 destAddr = vm.getOpWord(4);
-    (void)destAddr;
+    // Decode all fourteen operand roles (GB13-001 framing / GB13-008 roles):
+    //   1  monster id        (value)
+    //   2  requested distance (value)
+    //   3  monster picture id (value)
+    //   4  destination        (literal VM address word)
+    //   5..9  response-table values (value)
+    //   10..12 three message strings (packed strings)
+    //   13 party-flee threshold (value)
+    //   14 monster-flee threshold (value)
+    const uint8 monsterId     = static_cast<uint8>(vm.readVar(1));
+    const uint8 requestedDist = static_cast<uint8>(vm.readVar(2));
+    const uint8 monsterPicId  = static_cast<uint8>(vm.readVar(3));
+    const uint16 destAddr     = vm.getOpWord(4);
+    const uint8 fleePar       = static_cast<uint8>(vm.readVar(13));
+    const uint8 fleeMon       = static_cast<uint8>(vm.readVar(14));
+
+    // Pack the decoded request into an owned byte array for the host, using a
+    // fixed, documented layout. The host (PoolradEngineHostImpl::encounterMenu)
+    // reconstructs the owned EncounterOperation from this, so the ECL layer
+    // never passes a pointer into decoder scratch and never depends on poolrad.
+    //
+    //   [0]    monster id
+    //   [1]    requested distance
+    //   [2]    monster picture id
+    //   [3]    destination address low byte
+    //   [4]    destination address high byte
+    //   [5..9] response-table values (operands 5..9)
+    //   [10]   party-flee threshold
+    //   [11]   monster-flee threshold
+    //   [12]   message-string count that follow (always 3)
+    // followed by the three NUL-terminated message strings.
+    Common::Array<uint8> operands;
+    operands.push_back(monsterId);
+    operands.push_back(requestedDist);
+    operands.push_back(monsterPicId);
+    operands.push_back(static_cast<uint8>(destAddr & 0xFF));
+    operands.push_back(static_cast<uint8>((destAddr >> 8) & 0xFF));
+    for (uint8 i = 0; i < 5; ++i)
+        operands.push_back(static_cast<uint8>(vm.readVar(static_cast<uint8>(5 + i))));
+    operands.push_back(fleePar);
+    operands.push_back(fleeMon);
+    operands.push_back(3);
+    for (uint8 i = 0; i < 3; ++i) {
+        const Common::String msg = vm.readString(static_cast<uint8>(10 + i));
+        for (uint j = 0; j < msg.size(); ++j)
+            operands.push_back(static_cast<uint8>(msg[j]));
+        operands.push_back(0);
+    }
+
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+        const VmResult result = host->encounterMenu(operands);
+        if (g_events) {
+            g_events->postEclSyscallMessage(vm.getPC(), 0x29,
+                EclVmMessage::SC_ENCOUNTER_MENU,
+                static_cast<int16>(result));
+        }
+        return result;
+    }
 
     if (g_events) {
         g_events->postEclSyscallMessage(vm.getPC(), 0x29,
-            static_cast<uint16>(EclVmMessage::SC_UNIMPLEMENTED_OPCODE),
+            static_cast<uint16>(EclVmMessage::SC_ENCOUNTER_MENU),
             static_cast<int16>(VM_OK));
     }
     return VM_OK;
@@ -1384,11 +1485,42 @@ static int handle_0x2B_HORIZONTAL_MENU(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x2C: PARLAY <haughty> <sly> <nice> <meek> <abusive> <address>
+// GB13-002: port EclParlay (eclvm.pas:1250). Operands 1..5 are value operands
+// carrying the attitude result value for each menu entry (HAUGHTY, SLY, NICE,
+// MEEK, ABUSIVE order); operand 6 is the destination address. The player picks
+// an attitude from the five-entry horizontal menu and the chosen operand value
+// v[sel] is written to the destination. These attitude VALUES are deliberately
+// DISTINCT from the menu indexes and from the encounter loop's outcome code.
 static int handle_0x2C_PARLAY(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
     vm.getOperand(6);
-    vm.writeVmMemory(vm.getOpWord(6), 0, syscalls); // TODO: parlay dialog
+
+    uint8 attitudeValues[5];
+    for (uint8 i = 0; i < 5; ++i)
+        attitudeValues[i] = static_cast<uint8>(vm.readVar(static_cast<uint8>(i + 1)));
+    const uint16 destAddr = vm.getOpWord(6);
+
+    // Fixed attitude labels in the original HAUGHTY/SLY/NICE/MEEK/ABUSIVE order.
+    Common::Array<Common::String> attitudes;
+    attitudes.push_back("HAUGHTY");
+    attitudes.push_back("SLY");
+    attitudes.push_back("NICE");
+    attitudes.push_back("MEEK");
+    attitudes.push_back("ABUSIVE");
+
+    int16 sel = 0;
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+        sel = host->parlayMenu(attitudes);
+
+    // The original always resolves to a chosen attitude (the menu has no
+    // cancel); clamp defensively to the 0..4 range and write the chosen value.
+    if (sel < 0)
+        sel = 0;
+    if (sel > 4)
+        sel = 4;
+
+    vm.writeVmMemory(destAddr, attitudeValues[sel], syscalls);
     return VM_OK;
 }
 

@@ -33,6 +33,7 @@
 #include "goldbox/poolrad/views/dialogs/temple_dialog.h"
 #include "goldbox/poolrad/views/dialogs/treasure_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
+#include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/combat/damage_utils.h"
@@ -966,9 +967,12 @@ void InGameView::exitCamp(bool wasInterrupted) {
 	if (_campMenuDialog && _campMenuDialog->isActive())
 		_campMenuDialog->deactivate();
 
-	// Restore previous dungeon state via engine.
+	// GB13-021: return to the CALLER's location, not unconditionally
+	// GS_DUNGEON_MAP. A camp sub-loop keeps the same location context, so the
+	// map state is whatever the location kind implies (dungeon or wilderness).
 	if (g_engine) {
-		g_engine->setGameState(GS_DUNGEON_MAP);
+		g_engine->setGameState(
+			PoolradEngine::mapStateForLocation(g_engine->getLocationContext()));
 		if (g_events) {
 			g_events->postEclStateMessage(EclVmMessage::ST_INGAME_MENU_VISIBLE,
 				1, EclVmMessage::VT_UINT8);
@@ -1028,9 +1032,12 @@ void InGameView::exitShop() {
 	if (exchange)
 		exchange->signalAsync(RuntimeExchange::kAsyncShopDone);
 
-	// Restore previous dungeon state via engine.
+	// GB13-021: a shop/temple EXIT returns to the CALLER's location, not
+	// unconditionally GS_DUNGEON_MAP. The service sub-loop did not change the
+	// location context, so the map state follows the location kind.
 	if (g_engine) {
-		g_engine->setGameState(GS_DUNGEON_MAP);
+		g_engine->setGameState(
+			PoolradEngine::mapStateForLocation(g_engine->getLocationContext()));
 		if (g_events) {
 			g_events->postEclStateMessage(EclVmMessage::ST_INGAME_MENU_VISIBLE,
 				1, EclVmMessage::VT_UINT8);

@@ -31,6 +31,7 @@ MODULE_OBJS = \
 	ecl/npc_recruitment.o \
 	ecl/rune_presentation.o \
 	ecl/scripted_damage.o \
+	ecl/encounter_rules.o \
 	ecl/ecl_string_writer.o \
 	data/player_character.o \
 	data/adnd_character.o \
@@ -100,6 +101,8 @@ MODULE_OBJS = \
 	sound/sound_driver.o \
 	sound/sound_segment.o \
 	poolrad/poolrad.o \
+	poolrad/location_context.o \
+	poolrad/encounter_operation.o \
 	poolrad/poolrad_runtime_exchange.o \
 	poolrad/effect_handler.o \
 	poolrad/spell_preparation.o \
