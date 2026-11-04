@@ -26,6 +26,7 @@ MODULE_OBJS = \
 	ecl/ecl_vm.o \
 	ecl/opcode_handlers.o \
 	ecl/opcode_table.o \
+	ecl/pending_operation.o \
 	ecl/operand_roles.o \
 	ecl/rune_presentation.o \
 	data/player_character.o \

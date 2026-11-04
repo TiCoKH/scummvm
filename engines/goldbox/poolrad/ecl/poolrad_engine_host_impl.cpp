@@ -1479,7 +1479,7 @@ VmResult PoolradEngineHostImpl::findSpell(uint8 spellId, uint16 memberAddr,
                 dynamic_cast<Poolrad::Data::PoolradCharacter *>(character);
             if (poolChar) {
                 const uint8 *memorized = poolChar->getMemorizedSpells();
-                for (int slot = 0; slot < POOLRAD_MEMORIZED_SIZE; ++slot) {
+                for (int slot = 0; slot < 21; ++slot) {
                     if (memorized[slot] == spellId) {
                         foundSlot = static_cast<uint8>(slot);
                         memberIndex = idx;

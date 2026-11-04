@@ -122,7 +122,7 @@ EclVM::EclVM(GameConfig *config, SyscallHandler *syscalls)
     : _config(config), _syscalls(syscalls), _memory(config),
             _pc(config ? config->getScriptVmStart()
                     : ECLMemoryLayout::ECL_START_DEFAULT),
-            _scriptId(0xFF), _opStartPc(0), _nextInsnPc(0) {
+            _scriptId(0xFF), _opStartPc(0), _nextInsnPc(0), _resumePc(0) {
     memset(_opValues, 0, sizeof(_opValues));
     memset(_opTypes, 0, sizeof(_opTypes));
     if (_config) {
@@ -467,6 +467,15 @@ VmResult EclVM::executeInstruction(uint8 opcode, uint16 currentPc) {
         // If handler didn't override nextPc, advance past operands.
         if (nextPc == static_cast<uint16>(currentPc + 1))
             nextPc = _nextInsnPc;
+
+        // GB13-009 (8.1): record the decoder-produced resume PC explicitly so a
+        // PendingOperation can carry it. INVARIANT: on VM_YIELD the VM suspends
+        // with this PC RECORDED; the owning operation's tail + phase advance must
+        // run BEFORE that PC is fetched, and the VM must never both re-execute the
+        // opcode and finalize its mutation. This remains behavior-preserving today:
+        // the current begin-async-then-fallback flow still advances the PC here;
+        // the full finish-tail-before-fetch re-sequencing of 0x24 is task 8.3.
+        _resumePc = nextPc;
         setPC(nextPc);
     }
 

@@ -28,6 +28,7 @@
 #include "common/ptr.h"
 #include "goldbox/ecl/ecl_syscall_impl.h"
 #include "goldbox/ecl/ecl_memory.h"
+#include "goldbox/ecl/pending_operation.h"
 
 namespace Goldbox {
 
@@ -181,6 +182,14 @@ private:
     bool _monstersAppendedToParty = false;
     Common::Array<uint8> _monsterIconSlots;
     uint8 _nextMonsterIconSlot = 26;
+
+    // GB13-009 (8.1): host-owned typed pending-operation stack. Introduced
+    // ALONGSIDE the per-kind async booleans below; it generalizes them and the
+    // hasPendingAsync()/isPendingAsyncReady()/finalizePendingAsync() hooks.
+    // 8.1 wires the stack in without removing the booleans so current async
+    // menu/shop/combat/delay/print flows keep working unchanged. The booleans
+    // are migrated/retired in 8.2/8.3.
+    ECL::PendingOperationStack _pendingOps;
 
     // Async VM_YIELD state for horizontal menu.
     bool _asyncMenuPending = false;

@@ -140,6 +140,16 @@ public:
     uint16 getNextInsnPc() const { return _nextInsnPc; }
 
     /**
+     * Return the resume PC recorded for the most recent VM_OK / VM_YIELD
+     * instruction (the resolved next-instruction PC the VM fetches next).
+     *
+     * GB13-009 (8.1): a PendingOperation stores this recorded PC at yield time
+     * and the VM resumes there only AFTER the operation's tail has run. See
+     * executeInstruction() for the advance-on-yield invariant.
+     */
+    uint16 getResumePc() const { return _resumePc; }
+
+    /**
      * Decode N operands from VM flat memory at the current instruction PC.
      * Mirrors original VM_GetOprand(N): reads type tag + bytes from script stream,
      * builds _opValues[1..N] (decoded words) and _opTypes[1..N] (type tags).
@@ -268,6 +278,7 @@ private:
     uint8  _opTypes[kMaxOperands + 1];
     uint16 _opStartPc;
     uint16 _nextInsnPc; // PC past last operand = next instruction start
+    uint16 _resumePc;   // GB13-009: recorded resume PC for VM_OK/VM_YIELD
 
     // Instruction trace buffer. Built by getOperand(), flushed by step().
     Common::String _traceBuf;
