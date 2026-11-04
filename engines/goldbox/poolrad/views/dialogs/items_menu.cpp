@@ -742,11 +742,11 @@ void ItemsMenu::handleIdentifyConfirmResult(const MenuResultMessage &result) {
 		isPaid = true;
 	} else {
 		// COINPOOL_SumGoldValue: fall back to party pool.
-		Goldbox::Data::ValuableItems &pool =
-			VmInterface::getTreasurePool().coins();
-		const uint32 poolGold = pool.getGoldValue();
+		Goldbox::Runtime::TreasurePool &pool =
+			VmInterface::getTreasurePool();
+		const uint32 poolGold = pool.poolGoldValue();
 		if (poolGold >= 200) {
-			pool.setFromGoldValue(poolGold - 200);
+			pool.setPoolFromGoldValue(poolGold - 200);
 			isPaid = true;
 		} else {
 			displayMessage("Not enough money.");
@@ -859,8 +859,9 @@ void ItemsMenu::handleSellConfirmResult(const MenuResultMessage &result) {
 			_character->valuableItems[Goldbox::Data::VAL_PLATINUM] += platAmount;
 		} else {
 			_character->valuableItems[Goldbox::Data::VAL_PLATINUM] += platCapacity;
-			Goldbox::VmInterface::getTreasurePool().coins()[Goldbox::Data::VAL_PLATINUM] +=
-				platAmount - platCapacity;
+			Goldbox::VmInterface::getTreasurePool().addCoinWide(
+				Goldbox::Data::VAL_PLATINUM,
+				(uint32)(platAmount - platCapacity));
 		}
 		displayMessage("Overloaded!");
 	} else {

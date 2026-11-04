@@ -302,7 +302,7 @@ void TempleDialog::handlePayConfirmResult(const MenuResultMessage &result) {
         deductGoldFromCharacter(ch, cost);
     } else {
     Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
-        uint32 poolGold = pool.coins().getGoldValue();
+        uint32 poolGold = pool.poolGoldValue();
         if (poolGold < cost) {
             showHealMessage("Not enough money");
             _healStage = HEAL_SELECTOR;
@@ -522,8 +522,8 @@ void TempleDialog::deductGoldFromCharacter(
 
 void TempleDialog::deductGoldFromPool(uint32 cost) {
     Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
-    uint32 poolGold = pool.coins().getGoldValue();
-    pool.coins().setFromGoldValue(poolGold - cost);
+    uint32 poolGold = pool.poolGoldValue();
+    pool.setPoolFromGoldValue(poolGold - cost);
 }
 
 // --- Event routing ---

@@ -208,9 +208,8 @@ void StoreDialog::attemptBuy() {
 
     const uint32 charMoney = ch->valuableItems.getGoldValue();
     const bool payFromCharacter = charMoney >= price;
-    Goldbox::Data::ValuableItems &payment = payFromCharacter
-        ? ch->valuableItems : pool.coins();
-    const uint32 availableMoney = payment.getGoldValue();
+    const uint32 availableMoney = payFromCharacter
+        ? charMoney : pool.poolGoldValue();
     debug(1, "[Shop:%s] buy-payment: source=%s characterGold=%u "
         "availableGold=%u price=%u",
         getName().c_str(), payFromCharacter ? "character" : "pool",
@@ -235,7 +234,10 @@ void StoreDialog::attemptBuy() {
         "expectedRemainder=%u",
         getName().c_str(), payFromCharacter ? "character" : "pool",
         (unsigned)availableMoney, (unsigned)price, (unsigned)remainingMoney);
-    payment.setFromGoldValue(remainingMoney);
+    if (payFromCharacter)
+        ch->valuableItems.setFromGoldValue(remainingMoney);
+    else
+        pool.setPoolFromGoldValue(remainingMoney);
     debugShopMoney("buy:after-payment");
     ch->recalcCombatStats();
     debugShopMoney("buy:after-recalc");

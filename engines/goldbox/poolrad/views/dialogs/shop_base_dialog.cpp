@@ -52,6 +52,24 @@ void debugShopCoins(const Common::String &shopName, const char *phase,
         (unsigned)coins.getTotalWeight());
 }
 
+// Pool overload: the pool balance is 32-bit per denomination (GB13-027), so
+// log the wide values directly rather than narrowing through ValuableItems.
+void debugShopCoins(const Common::String &shopName, const char *phase,
+        const char *owner, const Goldbox::Runtime::TreasurePool &pool) {
+    using namespace Goldbox::Data;
+    uint32 weight = 0;
+    for (int i = 0; i < VALUABLE_COUNT; ++i)
+        weight += pool.coinWide((ValuableType)i);
+    debug(1, "[Shop:%s] %s %s: copper=%u silver=%u electrum=%u "
+        "gold=%u platinum=%u gems=%u jewelry=%u goldValue=%u weight=%u",
+        shopName.c_str(), phase, owner,
+        (unsigned)pool.coinWide(VAL_COPPER), (unsigned)pool.coinWide(VAL_SILVER),
+        (unsigned)pool.coinWide(VAL_ELECTRUM), (unsigned)pool.coinWide(VAL_GOLD),
+        (unsigned)pool.coinWide(VAL_PLATINUM), (unsigned)pool.coinWide(VAL_GEMS),
+        (unsigned)pool.coinWide(VAL_JEWELRY), (unsigned)pool.poolGoldValue(),
+        (unsigned)weight);
+}
+
 } // namespace
 
 ShopBaseDialog::ShopBaseDialog(const Common::String &name,
@@ -528,7 +546,7 @@ void ShopBaseDialog::debugShopMoney(const char *phase) const {
             getName().c_str(), phase);
     }
     debugShopCoins(getName(), phase, "pool",
-        VmInterface::getTreasurePool().coins());
+        VmInterface::getTreasurePool());
 }
 
 void ShopBaseDialog::refreshScreen() {

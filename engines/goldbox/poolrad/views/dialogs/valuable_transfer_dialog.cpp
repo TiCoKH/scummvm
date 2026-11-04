@@ -69,22 +69,22 @@ Common::String TreasurePoolTakeSource::transfer(ValuableType type,
         (unsigned)ch->valuableItems.values[type],
         (unsigned)pool.coin(type), (unsigned)ch->encumbrance);
 
-    const Runtime::TreasurePool::TakeMoneyResult result =
+    const Runtime::TreasurePool::MoneyTransfer result =
         pool.takeMoney(*ch, type, amount);
 
-    debug(1, "[ValuableTransfer:PoolTake] after: result=%d character=%u "
-        "pool=%u encumbrance=%u", (int)result,
+    debug(1, "[ValuableTransfer:PoolTake] after: status=%d requested=%u "
+        "transferred=%u remainder=%u character=%u pool=%u encumbrance=%u",
+        (int)result.status, (unsigned)result.requested,
+        (unsigned)result.transferred, (unsigned)result.remainder,
         (unsigned)ch->valuableItems.values[type],
         (unsigned)pool.coin(type), (unsigned)ch->encumbrance);
 
-    switch (result) {
-    case Runtime::TreasurePool::TAKE_MONEY_OK:
+    switch (result.status) {
+    case Runtime::TreasurePool::MoneyTransfer::TRANSFER_OK:
         return Common::String();
-    case Runtime::TreasurePool::TAKE_MONEY_OVERLOADED:
+    case Runtime::TreasurePool::MoneyTransfer::TRANSFER_OVERLOADED:
         return "Overloaded";
-    case Runtime::TreasurePool::TAKE_MONEY_OVERFLOW:
-        return "Too many valuables.";
-    case Runtime::TreasurePool::TAKE_MONEY_INVALID_TYPE:
+    case Runtime::TreasurePool::MoneyTransfer::TRANSFER_INVALID_TYPE:
     default:
         return "Invalid valuable type.";
     }
