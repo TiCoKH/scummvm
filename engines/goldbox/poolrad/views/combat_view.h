@@ -34,6 +34,7 @@
 #include "goldbox/poolrad/views/dialogs/combat_end_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_spell_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_submenu_dialog.h"
+#include "goldbox/poolrad/views/dialogs/items_menu.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/combat/combat_turn.h"
 #include "goldbox/spells/spell_context.h"
@@ -233,6 +234,11 @@ private:
     Dialogs::CombatEndDialog    *_combatEnd;
     Dialogs::CombatSpellDialog  *_combatSpell;
     Dialogs::CombatSubmenuDialog *_combatSubmenu;
+
+    // GB13-013: the shared inventory dialog for the combat Use action. Opened
+    // with IUO_COMBAT and this view as the cast delegate so an item cast uses
+    // the interactive combat targeter; its typed result decides turn advance.
+    Dialogs::ItemsMenu          *_combatItems;
 
     // --- Effect bridge (wired at setup time) ---
     Goldbox::Data::Effects::EffectHostBridge *_bridge = nullptr;

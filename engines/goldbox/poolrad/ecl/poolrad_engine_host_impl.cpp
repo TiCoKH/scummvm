@@ -49,6 +49,7 @@
 #include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/runtime/treasure_pool.h"
+#include "goldbox/poolrad/post_combat.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
@@ -501,6 +502,10 @@ VmResult PoolradEngineHostImpl::startCombat() {
     if (_loadedMonsters.empty())
         return VmResult::VM_OK;
 
+    // GB13-010: arm the exactly-once settlement for THIS battle, so two
+    // consecutive fights each settle once.
+    _combatSettled = false;
+
     Common::Array<Goldbox::Data::PlayerCharacter *> combatRoster;
     Common::List<Goldbox::Data::PlayerCharacter *> &party =
         _engine->getParty();
@@ -684,6 +689,127 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
         : kMonsterSlotStart;
 
     return VmResult::VM_OK;
+}
+
+// GB13-010 — adapter: an engine dice source for the pure settlement core.
+// Forwards to the real VM RNG so the live loot-item inclusion uses the same
+// sequence as the rest of combat. Tests drive the core with their own RNG.
+namespace {
+struct HostPostCombatRng : public Goldbox::Poolrad::PostCombatRng {
+    int rollDice(int count, int sides) override {
+        return Goldbox::VmInterface::rollDice(count, sides);
+    }
+};
+} // namespace
+
+void PoolradEngineHostImpl::settleCombatLoot(bool defeat) {
+    // Exactly-once: a duplicated finalize completion must not re-award.
+    if (_combatSettled || !_engine)
+        return;
+    _combatSettled = true;
+
+    Common::List<Goldbox::Data::PlayerCharacter *> &party = _engine->getParty();
+
+    // Build the immutable settlement input in roster order: party/NPC entries
+    // first, host monster records last, matching the original creatureList
+    // layout the settlement loops depend on. Ownership of the live roster is
+    // retained by the engine until clearMonsters() runs AFTER this returns, so
+    // every value/transfer is captured while the roster is still live.
+    Goldbox::Poolrad::PostCombatInput input;
+    input.partySize = 0;
+
+    Common::Array<Goldbox::Data::PlayerCharacter *> order;
+    // Pass 1: non-monster party/NPC members.
+    for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it =
+            party.begin(); it != party.end(); ++it) {
+        Goldbox::Data::PlayerCharacter *ch = *it;
+        if (!ch)
+            continue;
+        bool isMonster = false;
+        for (Goldbox::Poolrad::Data::PoolradCharacter *m : _loadedMonsters) {
+            if (m == ch) { isMonster = true; break; }
+        }
+        if (!isMonster)
+            order.push_back(ch);
+    }
+    const uint partyBlock = order.size();
+    // Pass 2: host monster records (in load order).
+    for (Goldbox::Poolrad::Data::PoolradCharacter *m : _loadedMonsters)
+        order.push_back(m);
+
+    for (uint i = 0; i < order.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *ch = order[i];
+        Goldbox::Poolrad::PostCombatCombatant c;
+        c.isMonster = (i >= partyBlock);
+        c.enabled = ch->enabled;
+        c.status = ch->healthStatus;
+        c.hostile = (ch->combatSide == Goldbox::Data::CS_ENEMY) ? 1 : 0;
+        c.npc = ch->npc;
+        c.classType = ch->classType;
+        c.wisCur = ch->abilities.wisdom.current;
+        c.strCur = ch->abilities.strength.current;
+        c.intCur = ch->abilities.intelligence.current;
+        c.dexCur = ch->abilities.dexterity.current;
+        c.hpCur = static_cast<int16>(ch->hitPoints.current);
+
+        Goldbox::Poolrad::Data::PoolradCharacter *pc =
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(ch);
+        if (pc) {
+            c.xpAward = pc->xpForDefeating;
+            c.xpBonusPerHp = pc->bonusXpPerHp;
+            c.hpRolled = pc->hitPointsRolled;
+            // npcTreasureShare is not yet modeled on PoolradCharacter; the
+            // morale byte (npc & 0x7f) is the closest source, and only the low
+            // 3 bits are consumed. A dedicated field is added when the monster
+            // record carries it (see integration note).
+            c.npcTreasureShare = static_cast<uint8>(ch->npc & 0x7f);
+            for (int d = 0; d < Goldbox::Data::VALUABLE_COUNT; ++d)
+                c.coins[d] = pc->valuableItems[static_cast<Goldbox::Data::ValuableType>(d)];
+        }
+        input.combatants.push_back(c);
+        if (!c.isMonster)
+            ++input.partySize;
+    }
+
+    HostPostCombatRng rng;
+    Goldbox::Poolrad::PostCombatResult result =
+        Goldbox::Poolrad::settlePostCombat(input, rng);
+
+    // Apply the pooled battle currency into the shared TreasurePool so the
+    // loot UI (TreasureDialog / GS_AFTER_COMBAT) finds it. Widened pool, so
+    // add in 32-bit without narrowing.
+    Runtime::TreasurePool &pool = _engine->getTreasurePool();
+    for (int d = 0; d < Goldbox::Data::VALUABLE_COUNT; ++d) {
+        if (result.treasureMoney[d] > 0)
+            pool.addCoinWide(static_cast<Goldbox::Data::ValuableType>(d),
+                result.treasureMoney[d]);
+    }
+
+    // Apply XP to eligible recipients (experiencePoints is uint32).
+    for (uint k = 0; k < result.xpAwards.size(); ++k) {
+        const Goldbox::Poolrad::PostCombatXpAward &a = result.xpAwards[k];
+        if (a.index < order.size())
+            order[a.index]->experiencePoints += a.share;
+    }
+
+    // Apply the status transitions (running recovery, Dying->Unconscious,
+    // positive-HP recovery). Record removals are left to clearMonsters /
+    // party removal; here we only restore the persistent party status.
+    for (uint k = 0; k < result.statusChanges.size(); ++k) {
+        const Goldbox::Poolrad::PostCombatStatusChange &sc = result.statusChanges[k];
+        if (sc.index >= order.size() || sc.remove)
+            continue;
+        order[sc.index]->healthStatus = sc.newStatus;
+        if (sc.setEnabled)
+            order[sc.index]->enabled = true;
+    }
+
+    // NOTE (integration-only): the VM COMBAT_RESULT global write (0 / $81 /
+    // $80) and the loot/summary presentation (TreasureDialog, GS_AFTER_COMBAT,
+    // the NPC-share "takes his share" window) are driven by the view layer and
+    // are not performed here; this host hook only commits the deterministic
+    // rewards (pooled currency, XP, status recovery) while the roster is live.
+    (void)defeat;
 }
 
 VmResult PoolradEngineHostImpl::clearMonsters() {
@@ -2514,6 +2640,15 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
                     ? Combat::CombatSession::TD_DEFEAT
                     : Combat::CombatSession::TD_NORMAL;
             combatView->teardownBattle(reason);
+
+            // GB13-010: run post-combat settlement HERE, after the GB13-011
+            // outcome capture / presentation detach and BEFORE clearMonsters
+            // frees the host monster roster, so the settlement reads coins/XP
+            // from the still-live monster records. Exactly-once is enforced by
+            // _combatSettled, so a duplicated finalize completion cannot award
+            // rewards twice. TD_QUIT never reaches this seam (quit teardown
+            // happens at shutdown and awards nothing).
+            settleCombatLoot(reason == Combat::CombatSession::TD_DEFEAT);
         }
 
         clearMonsters();

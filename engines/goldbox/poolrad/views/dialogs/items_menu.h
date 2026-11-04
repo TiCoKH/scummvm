@@ -29,7 +29,14 @@
 #include "goldbox/poolrad/views/dialogs/party_selector.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/poolrad/views/dialogs/spells_menu.h"
+#include "goldbox/poolrad/views/dialogs/item_use_result.h"
 #include "common/array.h"
+
+namespace Goldbox {
+namespace Combat {
+struct CastSpellViewDelegate;
+} // namespace Combat
+} // namespace Goldbox
 
 namespace Goldbox {
 namespace Data {
@@ -87,9 +94,27 @@ public:
 	// Callers that need this behavior should set the pointer before activating.
 	void setResultFlag(bool *flag) { _resultFlag = flag; }
 
+	// GB13-013: configure the combat Use origin before activate(). The cast
+	// delegate is the CombatView's CastSpellViewDelegate so a combat item cast
+	// uses the interactive combat targeter (COMBAT_spellTargetSelection). Pass
+	// IUO_EXPLORATION with a null delegate (the default) outside combat.
+	void setUseOrigin(ItemUseOrigin origin,
+			Goldbox::Combat::CastSpellViewDelegate *castDelegate) {
+		_useOrigin = origin;
+		_castDelegate = castDelegate;
+	}
+
+	// GB13-013: the typed outcome of the session, valid after deactivate().
+	// Maps per-command semantics so the caller never treats "dialog closed" as
+	// "turn used": IAR_ACTION_CONSUMED only when a Use cast consumed the action.
+	ItemActionResult actionResult() const { return _actionResult; }
+
 private:
 	ItemsMenuStage _stage = STAGE_ITEM_SELECTION;
 	bool *_resultFlag = nullptr;  // caller-owned; mirrors original resultFlag / b_ptr
+	ItemUseOrigin _useOrigin = IUO_EXPLORATION;
+	Goldbox::Combat::CastSpellViewDelegate *_castDelegate = nullptr;
+	ItemActionResult _actionResult = IAR_CANCELLED;
 	Goldbox::Poolrad::Data::PoolradCharacter *_character;
 	Goldbox::MenuItemList _itemsMenuList;
 	Common::Array<Goldbox::Data::Items::CharacterItem *> _itemList;
@@ -129,6 +154,20 @@ private:
 	bool isCharacterInCombat() const;
 	bool isCharacterAnimated() const;
 	bool isItemReadied(const Goldbox::Data::Items::CharacterItem *item) const;
+
+	// GB13-013 authoritative restriction reads (kept independent).
+	// noMagic: G_NoMagicFlag (kVmFieldNoMagicFlag); noCombatItems:
+	// zone1[NO_COMBAT_ITEMS] (kVmGlobalFieldNoItemCombatFlag). Both default to
+	// allowed (false) outside combat where no combat context exists.
+	bool readNoMagicFlag() const;
+	bool readNoCombatItemsFlag() const;
+
+	// GB13-013 Identify-effect display state read point. The original
+	// identifyActive argument reflects a party-wide temporary Identify spell
+	// effect. That effect is not modeled in the data layer yet, so this is the
+	// single documented read site (returns false) rather than a scattered bare
+	// literal; wire it to the real effect state once it is modeled.
+	bool partyIdentifyActive() const;
 
 	// UI helpers for ready/equip feedback
 	void displayEquipError(uint8 errorCode, const Goldbox::Data::Items::CharacterItem *item);

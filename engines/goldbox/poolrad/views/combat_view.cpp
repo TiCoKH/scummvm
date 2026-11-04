@@ -183,7 +183,8 @@ CombatView::CombatView()
     : View("Combat"), _viewport(nullptr), _messageBox(nullptr), _info(nullptr),
       _combatMenu(nullptr),
       _combatMove(nullptr), _combatAttack(nullptr), _combatEnd(nullptr),
-      _combatSpell(nullptr), _combatSubmenu(nullptr), _needsFullRedraw(true),
+      _combatSpell(nullptr), _combatSubmenu(nullptr), _combatItems(nullptr),
+      _needsFullRedraw(true),
       _playerActionPending(false),
       _pendingPlayerAction(Combat::CombatSession::PA_NONE),
       _aiFacingChar(nullptr), _aiFacingDir(DIR_N) {
@@ -206,6 +207,7 @@ CombatView::CombatView()
     }
     _combatSpell   = new Dialogs::CombatSpellDialog();
     _combatSubmenu = new Dialogs::CombatSubmenuDialog();
+    _combatItems   = new Dialogs::ItemsMenu("ItemsMenu");
     _aiDelegate     = new CombatViewAiDelegate(this);
     _attackDelegate = new CombatViewAttackDelegate(this);
 }
@@ -220,6 +222,7 @@ CombatView::~CombatView() {
     delete _abortYesNo;
     delete _combatSpell;
     delete _combatSubmenu;
+    delete _combatItems;
     delete _aiDelegate;
     delete _attackDelegate;
     delete _effectRuntime;
@@ -499,17 +502,65 @@ void CombatView::onUpdate() {
                 continue;
             }
 
-            // PA_USE: open items dialog, then recalculate primary attacks.
-            // Mirrors original: DIALOG_Items(&result) then COMBAT_RecalcPrimaryAttacks().
-            // TODO: replace stub with full ItemsDialog when implemented.
+            // PA_USE: open the shared ItemsMenu on the current actor, then
+            // recalculate primary attacks. Mirrors DIALOG_Items(&result)
+            // followed by COMBAT_RecalcPrimaryAttacks(). The dialog is the same
+            // inventory UI used by View->Items; no second item-use path exists
+            // here. The typed result (not "dialog closed") decides whether the
+            // turn advances: only a confirmed, turn-ending cast consumes it.
             if (action == Combat::CombatSession::PA_USE) {
-                // Stub: recalc stats and loop back to menu (turn not consumed).
-                if (::Goldbox::Data::ADnDCharacter *adnd =
-                        dynamic_cast<::Goldbox::Data::ADnDCharacter *>(
-                            _session.getCurrentActor()))
-                    adnd->recalcCombatStats();
-                _needsFullRedraw = true;
-                _messageBox->draw();
+                ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
+                if (actor && _combatItems) {
+                    ::Goldbox::Data::PlayerCharacter *savedSelected =
+                        VmInterface::getSelectedCharacter();
+                    // ItemsMenu reads the selected character; the combat Use
+                    // acts on the current actor (PTR_SELECTED_CHAR).
+                    VmInterface::setSelectedCharacter(actor);
+
+                    _info->closeContent();
+                    _combatItems->setUseOrigin(
+                        Dialogs::IUO_COMBAT,
+                        static_cast<Combat::CastSpellViewDelegate *>(this));
+                    attachDialog(_combatItems);
+                    _combatItems->activate();
+                    _needsFullRedraw = true;
+                    redraw();
+
+                    // Block until the dialog finishes (handleExit -> deactivate).
+                    while (_combatItems->isActive()) {
+                        if (!g_events->pumpModalInputFrame())
+                            break;
+                    }
+
+                    detachDialog(_combatItems);
+                    VmInterface::setSelectedCharacter(savedSelected);
+
+                    // ItemsMenu::handleExit posts a parent menu result to
+                    // "Combat" on close; drop it so it cannot leak into the
+                    // next awaiting-player wait as a stray action.
+                    _playerActionPending = false;
+                    _pendingPlayerAction = Combat::CombatSession::PA_NONE;
+
+                    const Dialogs::ItemActionResult itemResult =
+                        _combatItems->actionResult();
+                    debug(0, "[COMBATVIEW] items dialog result=%d actor='%s'",
+                        (int)itemResult, actor->name.c_str());
+
+                    if (::Goldbox::Data::ADnDCharacter *adnd =
+                            dynamic_cast<::Goldbox::Data::ADnDCharacter *>(actor)) {
+                        adnd->recalcCombatStats();
+                        Combat::recalcPrimaryAttacks(adnd);
+                    }
+
+                    // finishPlayerAction advances only when the actor's turn is
+                    // complete (executeItemUse called endTurn() on a consumed
+                    // cast); cancel/returned reopen the menu. The typed result
+                    // and isActorTurnComplete agree: a consumed use ended the
+                    // turn, everything else did not.
+                    finishPlayerAction();
+                } else {
+                    finishPlayerAction();
+                }
                 continue;
             }
 

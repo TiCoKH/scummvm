@@ -881,6 +881,15 @@ bool CombatSession::isMagicSuppressed() const {
     return _params.eclMemory->read8(addr) != 0;
 }
 
+bool CombatSession::areCombatItemsSuppressed() const {
+    if (!_params.eclMemory)
+        return false;
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+    const uint16 addr =
+        layout.vmGlobalField(kVmGlobalFieldNoItemCombatFlag).vmAddr;
+    return _params.eclMemory->read8(addr) != 0;
+}
+
 bool CombatSession::applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
                                    void (*viewCallback)(Data::PlayerCharacter *)) {
     if (!ch || !ch->combatState)

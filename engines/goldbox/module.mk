@@ -103,6 +103,7 @@ MODULE_OBJS = \
 	poolrad/poolrad.o \
 	poolrad/location_context.o \
 	poolrad/encounter_operation.o \
+	poolrad/post_combat.o \
 	poolrad/poolrad_runtime_exchange.o \
 	poolrad/effect_handler.o \
 	poolrad/spell_preparation.o \

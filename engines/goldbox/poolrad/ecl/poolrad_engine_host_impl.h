@@ -224,6 +224,22 @@ public:
 private:
     uint8 allocateMonsterIconSlot() const;
 
+    /**
+     * GB13-010 — run post-combat settlement once, in the finalize seam BETWEEN
+     * the GB13-011 outcome capture (teardownBattle) and the host monster free
+     * (clearMonsters). Builds the immutable PostCombatInput from the still-live
+     * roster (party/NPC entries first, host monsters last), runs the pure
+     * settlement core (settlePostCombat), then applies the deterministic result
+     * to the party XP fields, the member status transitions and the shared
+     * TreasurePool (pooled battle currency). The loot/summary PRESENTATION
+     * (TreasureDialog / GS_AFTER_COMBAT) is driven by the view layer and is not
+     * wired here. Guarded by _combatSettled so a duplicated finalize completion
+     * cannot award rewards twice.
+     *
+     * @param defeat true on a GS_END_GAME (party-defeated) teardown.
+     */
+    void settleCombatLoot(bool defeat);
+
     // GB13-006: keep the VM character window (party count + selected-pc index)
     // coherent with the engine party list and selection in one place.
     void _syncPartyWindow(Goldbox::Data::PlayerCharacter *selection);
@@ -276,6 +292,12 @@ private:
 
     // Async VM_YIELD state for tactical combat view.
     bool _asyncCombatPending = false;
+
+    // GB13-010: exactly-once settlement guard. Set when settleCombatLoot runs
+    // for the active battle; cleared at the next startCombat so two
+    // consecutive fights each settle once. A duplicated finalize completion
+    // sees this true and skips re-awarding rewards.
+    bool _combatSettled = false;
     mutable bool _asyncCombatWasActivated = false;
 
     // Async VM_YIELD state for DELAY opcode.

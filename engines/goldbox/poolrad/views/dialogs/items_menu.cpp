@@ -34,6 +34,12 @@
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/spells/spell_casting.h"
+#include "goldbox/combat/combat_context.h"
+#include "goldbox/combat/combat_params.h"
+#include "goldbox/combat/combat_turn.h"
+#include "goldbox/ecl/ecl_memory.h"
+#include "goldbox/ecl/opcode_handlers.h"
+#include "goldbox/core/vm_layout.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -100,6 +106,10 @@ ItemsMenu::~ItemsMenu() {
 void ItemsMenu::activate() {
 	debug(7, "ItemsMenu::activate() called");
 	Dialog::activate();
+
+	// GB13-013: default outcome until a command maps it. A plain
+	// activate()/exit with no action is a cancel.
+	_actionResult = IAR_CANCELLED;
 
 	_character = static_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
 		VmInterface::getSelectedCharacter()
@@ -254,6 +264,13 @@ void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
 		selectedItem = _itemList[_itemsMenuList.currentSelection];
 	}
 
+	// GB13-013: any command below that is not Use (and not Exit) returns
+	// without acting — the combat turn continues and the menu reopens. Use
+	// overrides this to IAR_ACTION_CONSUMED only on a confirmed, turn-ending
+	// cast (see executeItemUse). Ready/unready/view/trade/drop/etc. keep
+	// IAR_RETURNED: no invented action cost.
+	_actionResult = IAR_RETURNED;
+
 	switch (key) {
 	case Common::KEYCODE_r:
 		debug(7, "ItemsMenu::handleMenuResult() action=Ready");
@@ -290,6 +307,7 @@ void ItemsMenu::handleMenuResult(const MenuResultMessage &result) {
 	case Common::KEYCODE_ESCAPE:
 	case Common::KEYCODE_e:
 		debug(7, "ItemsMenu::handleMenuResult() action=Exit");
+		_actionResult = IAR_CANCELLED; // explicit exit, no action taken
 		handleExit();
 		return; // skip recalc on exit
 	default:
@@ -311,20 +329,22 @@ void ItemsMenu::buildActionMenu() {
 
 	const int gameStatus = Goldbox::VmInterface::getGameStatus();
 
-	// G_NoMagicFlag: *(short *)(GB_PTR_MEM_GEO + 458) == 0.
-	// No RuntimeGeoBlock field maps to this yet; treat as 0 (magic allowed).
-	// TODO: wire when the GEO offset is exposed.
-	const bool noMagicFlag = false;
+	// GB13-013: no-combat-items (zone1[NO_COMBAT_ITEMS]) gates whether item use
+	// is offered at all in combat; no-magic (G_NoMagicFlag) independently gates
+	// spell-origin use (enforced per-item in handleUseItem/executeItemUse). The
+	// two restrictions stay separate so each disables the correct actions.
+	const bool noCombatItems = readNoCombatItemsFlag();
 
 	// can_use comes from the character's per-turn CombatAction state.
 	const bool combatAllowsUse = (_character->combatState != nullptr) &&
 		_character->combatState->canUse;
 
-	if (_character->enabled && !noMagicFlag &&
+	if (_character->enabled &&
 		((gameStatus == GS_CAMPING) ||
 		 (gameStatus == GS_WILDERNESS_MAP) ||
 		 (gameStatus == GS_DUNGEON_MAP) ||
-		 ((gameStatus == GS_COMBAT) && combatAllowsUse))) {
+		 ((gameStatus == GS_COMBAT) && combatAllowsUse &&
+		  itemUseAllowed(noCombatItems)))) {
 		_horizontalMenuLabels.push_back("Use");
 	}
 
@@ -386,8 +406,8 @@ void ItemsMenu::buildItemsListMenu() {
 	for (auto &item : _itemList) {
 		if (item) {
 			// Use CharacterItem helper to keep list formatting logic centralized.
-			// TODO: Replace false with party Identify effect state when implemented.
-			itemLabels.push_back(item->getListDisplayText(true, false));
+			itemLabels.push_back(
+				item->getListDisplayText(true, partyIdentifyActive()));
 		} else {
 			itemLabels.push_back("");
 		}
@@ -453,6 +473,15 @@ void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
 	// Original eligibility: missile/scroll OR (effects[1] != 0 && effects[2] < 0x80).
 	if (!item->isMissileOrScroll() && (item->effect2 == 0 || item->effect3 >= 0x80))
 		return;
+
+	// GB13-013: every usable combat item (wand/scroll/potion) casts a spell, so
+	// Use is spell-origin. Block it when magic is suppressed, independently of
+	// the no-combat-items gate that hides the Use command entirely.
+	if (isCharacterInCombat() &&
+		!spellOriginUseAllowed(readNoMagicFlag(), readNoCombatItemsFlag())) {
+		displayMessage("No Magic Here");
+		return;
+	}
 
 	if (item->isMissileOrScroll()) {
 		_pendingUseItem = item;
@@ -570,6 +599,37 @@ bool ItemsMenu::isCharacterInCombat() const {
 	return Goldbox::VmInterface::getGameStatus() == GS_COMBAT;
 }
 
+bool ItemsMenu::readNoMagicFlag() const {
+	// G_NoMagicFlag (kVmFieldNoMagicFlag). Authoritative in combat via the
+	// active combat context's VM memory; allowed (false) with no context.
+	Goldbox::Combat::CombatContext *cc = Goldbox::VmInterface::getCombatContext();
+	if (!cc || !cc->params.eclMemory)
+		return false;
+	const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+	const uint16 addr = layout.vmField(kVmFieldNoMagicFlag).vmAddr;
+	return cc->params.eclMemory->read8(addr) != 0;
+}
+
+bool ItemsMenu::readNoCombatItemsFlag() const {
+	// zone1[NO_COMBAT_ITEMS] (kVmGlobalFieldNoItemCombatFlag). Kept independent
+	// of the no-magic flag; allowed (false) with no combat context.
+	Goldbox::Combat::CombatContext *cc = Goldbox::VmInterface::getCombatContext();
+	if (!cc || !cc->params.eclMemory)
+		return false;
+	const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+	const uint16 addr =
+		layout.vmGlobalField(kVmGlobalFieldNoItemCombatFlag).vmAddr;
+	return cc->params.eclMemory->read8(addr) != 0;
+}
+
+bool ItemsMenu::partyIdentifyActive() const {
+	// The party-wide temporary Identify spell effect is not modeled in the data
+	// layer yet; this is the single documented read site where it would be
+	// consulted. Returns the real (currently always-off) state rather than a
+	// scattered bare literal, so item displays stay consistent once wired.
+	return false;
+}
+
 bool ItemsMenu::isCharacterAnimated() const {
 	if (!_character) return false;
 	return _character->healthStatus == Goldbox::Data::S_ANIMATED;
@@ -676,37 +736,62 @@ void ItemsMenu::executeItemUse(Goldbox::Data::Items::CharacterItem *item,
 		return;
 	}
 
-	Goldbox::Spells::SpellContext ctx;
-	ctx.caster = _character;
-	ctx.inCombat = isCharacterInCombat();
-	ctx.fromMagicItem = true;
-
 	const Goldbox::Data::Spells::Spells spellEnum =
 		static_cast<Goldbox::Data::Spells::Spells>(spellId);
+	const bool inCombat = isCharacterInCombat();
 
-	const Goldbox::Spells::SpellCastResult castResult =
-		Goldbox::Spells::g_spellCasting->castSpell(ctx, spellEnum);
+	// GB13-013: the cast is the source-defined success point. Nothing is
+	// committed (charge/payload/action cost) until it reports success, so a
+	// cancelled target selection preserves the resource.
+	bool castSucceeded = false;
+	bool turnEnded = false;
 
-	if (castResult.status != Goldbox::Spells::CAST_OK)
-		return;
+	if (inCombat) {
+		// Route the combat item cast through ACTION_UseSpell (Combat::useSpell)
+		// with fromMagicItem=true so it uses the interactive combat targeter
+		// (COMBAT_spellTargetSelection via the CombatView aimer) rather than
+		// the automatic non-combat picker. useSpell returns true only on a
+		// confirmed CAST_OK; a cancelled aim aborts and returns false.
+		castSucceeded = Goldbox::Combat::useSpell(
+			_character, spellId, /*aiControl=*/false, _castDelegate,
+			/*fromMagicItem=*/true);
 
-	// ACTION_UseSpell succeeded: set useResult true.
-	if (_resultFlag)
-		*_resultFlag = true;
-
-	// COMBAT_endActorTurn: if in combat and spell has a casting time (c_avail),
-	// end the actor's turn. Result remains true (turn consumed).
-	if (isCharacterInCombat()) {
-		const Goldbox::Spells::SpellDefinition *def =
-			Goldbox::Spells::g_spellCasting->registry().getDefinition(spellEnum);
-		if (def && def->entry && def->entry->castTime != 0) {
-			if (_character->combatState)
-				_character->combatState->endTurn();
-			// useResult stays true: turn was consumed.
+		if (castSucceeded) {
+			// COMBAT_endActorTurn: a spell with a casting time consumes the
+			// actor action. An instant-cast item leaves the turn active.
+			const Goldbox::Spells::SpellDefinition *def =
+				Goldbox::Spells::g_spellCasting->registry()
+					.getDefinition(spellEnum);
+			if (def && def->entry && def->entry->castTime != 0) {
+				if (_character->combatState)
+					_character->combatState->endTurn();
+				turnEnded = true;
+			}
 		}
+	} else {
+		Goldbox::Spells::SpellContext ctx;
+		ctx.caster = _character;
+		ctx.inCombat = false;
+		ctx.fromMagicItem = true;
+
+		const Goldbox::Spells::SpellCastResult castResult =
+			Goldbox::Spells::g_spellCasting->castSpell(ctx, spellEnum);
+		castSucceeded = (castResult.status == Goldbox::Spells::CAST_OK);
 	}
 
-	// Consume the item only when useResult is true (already guaranteed here).
+	if (!castSucceeded) {
+		// Cancelled / aborted: preserve the charge and scroll payload, leave
+		// the turn active (returned without action).
+		_actionResult = IAR_RETURNED;
+		return;
+	}
+
+	// ACTION_UseSpell succeeded: set the legacy useResult and the typed result.
+	if (_resultFlag)
+		*_resultFlag = true;
+	_actionResult = itemUseResult(/*castSucceeded=*/true, turnEnded);
+
+	// Commit the resource exactly once, now that the cast confirmed success.
 	if (item->isMissileOrScroll()) {
 		_character->inventory.removeEffectTag(*item, spellId,
 			&_character->equippedItems.slots);
@@ -1110,8 +1195,8 @@ void ItemsMenu::updateReadyItemDisplay(Goldbox::Data::Items::CharacterItem *item
 
 	if (itemIndex >= 0 && itemIndex < (int)_itemsMenuList.items.size()) {
 		// Update display text (ready status + name formatting in CharacterItem)
-		// TODO: Replace false with party Identify effect state when implemented.
-		_itemsMenuList.items[itemIndex].text = item->getListDisplayText(true, false);
+		_itemsMenuList.items[itemIndex].text =
+			item->getListDisplayText(true, partyIdentifyActive());
 
 		// Redraw menu
 		if (_verticalMenu) {

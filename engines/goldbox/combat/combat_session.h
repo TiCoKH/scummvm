@@ -283,6 +283,14 @@ public:
     /** True when the VM no-magic flag (G_NoMagicFlag) is set. */
     bool isMagicSuppressed() const;
 
+    /**
+     * True when the VM no-combat-items flag is set
+     * (zone1[NO_COMBAT_ITEMS] / kVmGlobalFieldNoItemCombatFlag). Independent of
+     * isMagicSuppressed(): this forbids item use entirely, while no-magic only
+     * forbids spell-origin item use. GB13-013 (Requirement 24.3).
+     */
+    bool areCombatItemsSuppressed() const;
+
     /** The party actor currently waiting for player input. nullptr if none. */
     Data::PlayerCharacter *getCurrentActor() const { return _currentActor; }
 
