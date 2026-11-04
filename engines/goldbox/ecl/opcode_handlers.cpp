@@ -1387,11 +1387,23 @@ static int handle_0x31_SPRITE_OFF(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x32: FIND ITEM <itemID>
+// Pascal EclFindItem walks every party inventory in list order and sets the
+// equality/not-equality compare flag by item type, with no status filters.
+// The item ID is a value operand (GB13-008): read it via readVar. The compare
+// polarity matches HAS EFFECT and the IF opcodes (handleIF): 0 => found so a
+// following IF EQUAL branches, 1 => absent so IF NOT EQUAL branches.
 static int handle_0x32_FIND_ITEM(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
     vm.getOperand(1);
-    vm.setCmpResult(1); // TODO: search inventory
+
+    const uint8 itemId = static_cast<uint8>(vm.readVar(1));
+    bool found = false;
+
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+        found = host->findItemInParty(itemId);
+
+    vm.setCmpResult(found ? 0 : 1);
     return VM_OK;
 }
 
@@ -1526,11 +1538,40 @@ static int handle_0x39_WHO(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x3B: SPELL <spellID> <address1> <address2>
+//
+// Pascal EclSpell (eclvm.pas:1479) reads a spell id value and two destination
+// addresses, scans every party member's memorized spells, and writes a
+// slot/index value to address1 and the member index to address2
+// (WriteGbvm(addr1, slot); WriteGbvm(addr2, idx)). Operand roles (GB13-008):
+// operand 1 is a value (readVar); operands 2 and 3 are literal VM destination
+// addresses (getOpWord).
+//
+// TRACE-GATED (GB13-005): the original starts from an uninitialized found flag,
+// scans past the 21 memorized slots (slot up to 81), and truncates both
+// destinations to a byte. Those exact anomalies are NOT reproduced here and
+// remain OPEN until executable/caller data exists; a diagnostic is emitted so
+// the open decision is visible. The handler frames all three operands and
+// routes to the host, which runs a BOUNDED memorized-spell scan via the real
+// spell book and writes BOTH outputs with no out-of-range access. The old code
+// wrote a constant 255 to address1 and never wrote address2 -- that is removed.
 static int handle_0x3B_SPELL(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
     vm.getOperand(3);
-    vm.writeVmMemory(vm.getOpWord(2), 255, syscalls);
+
+    const uint8 spellId = static_cast<uint8>(vm.readVar(1));
+    const uint16 slotAddr   = vm.getOpWord(2); // address1: slot/index output
+    const uint16 memberAddr = vm.getOpWord(3); // address2: member index output
+
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x3B,
+            static_cast<uint16>(EclVmMessage::SC_UNIMPLEMENTED_OPCODE),
+            static_cast<int16>(spellId));
+    }
+
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+        return host->findSpell(spellId, memberAddr, slotAddr);
+
     return VM_OK;
 }
 

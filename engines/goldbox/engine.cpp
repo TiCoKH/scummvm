@@ -72,6 +72,19 @@ const Combat::CombatContext *Engine::getCombatContext() const {
 Runtime::TreasurePool &Engine::getTreasurePool() { return *_treasurePool; }
 const Runtime::TreasurePool &Engine::getTreasurePool() const { return *_treasurePool; }
 
+const char *Engine::soundVersionDataFile(const Common::String &version,
+		bool *versionRecognized) {
+	if (version == "1.0") {
+		if (versionRecognized)
+			*versionRecognized = true;
+		return "sound-v10.dat";
+	}
+	// "1.3", empty (default) and any other value fall back to v1.3 data.
+	if (versionRecognized)
+		*versionRecognized = version.empty() || version == "1.3";
+	return "sound.dat";
+}
+
 void Engine::setup() {
 	// Read sound mode from config: "tandy" (default), "speaker", or "off"
 	Common::String modeStr = ConfMan.get("sound_mode");
@@ -89,13 +102,11 @@ void Engine::setup() {
 	// Initialize sound driver (unless sound is off)
 	if (_soundMode != kSoundOff) {
 		const Common::String version = ConfMan.get("sound_version");
-		const char *dataFile = "sound.dat";
-		if (version == "1.0") {
-			dataFile = "sound-v10.dat";
-		} else if (!version.empty() && version != "1.3") {
+		bool versionRecognized = true;
+		const char *dataFile = soundVersionDataFile(version, &versionRecognized);
+		if (!versionRecognized)
 			warning("Goldbox: invalid sound_version '%s'; using v1.3",
 				version.c_str());
-		}
 		_soundDriver = new GoldboxSoundDriver(_mixer, _soundMode);
 		if (_soundDriver->init(Common::Path(dataFile))) {
 			_soundDriver->setup(100);

@@ -44,6 +44,7 @@
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/data/poolrad_spell_mapping.h"
 #include "goldbox/runtime/runtime_exchange.h"
 #include "goldbox/runtime/runtime_geo.h"
 #include "goldbox/runtime/runtime_time.h"
@@ -1419,6 +1420,83 @@ VmResult PoolradEngineHostImpl::hasEffect(uint8 effectId, uint16 resultAddr) {
     const bool present = hasEffectActive(effectId);
     if (_memory && resultAddr != 0)
         _memory->write16LE(resultAddr, present ? 0 : 1);
+    return VmResult::VM_OK;
+}
+
+bool PoolradEngineHostImpl::findItemInParty(uint8 itemId) const {
+    // Pascal EclFindItem: walk every party inventory in list order and match
+    // by item type (CharacterItem::typeIndex), with no status filters.
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
+        VmInterface::getParty();
+    if (!party)
+        return false;
+
+    for (Goldbox::Data::PlayerCharacter *character : *party) {
+        Goldbox::Data::ADnDCharacter *adnd =
+            dynamic_cast<Goldbox::Data::ADnDCharacter *>(character);
+        if (!adnd)
+            continue;
+
+        const Goldbox::Data::Items::CharacterInventory &inventory =
+            adnd->getInventory();
+        const Common::List<Goldbox::Data::Items::CharacterItem> &items =
+            inventory.items();
+        for (const Goldbox::Data::Items::CharacterItem &item : items) {
+            if (item.typeIndex == itemId)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+VmResult PoolradEngineHostImpl::findSpell(uint8 spellId, uint16 memberAddr,
+        uint16 slotAddr) {
+    // Pascal EclSpell outputs: slot/index value to address1 (slotAddr) and the
+    // member index to address2 (memberAddr).
+    //
+    // TRACE-GATED (GB13-005): the original begins with an uninitialized found
+    // flag, scans past the 21 memorized slots (slot up to 81) and truncates
+    // both destinations to a byte. Those anomalies are OPEN until an executable
+    // /caller trace exists; they are NOT reproduced. The implementation below is
+    // the SAFE, bounded form: a 21-slot memorized-spell scan over the real party
+    // in list order. Both outputs are always written and no out-of-range C++
+    // access occurs. Any future out-of-slot record view must go through the
+    // legacy codec, never adjacent host memory.
+    if (!_memory)
+        return VmResult::VM_ERROR;
+
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
+        VmInterface::getParty();
+
+    uint8 foundSlot = 255;
+    uint8 memberIndex = 0;
+
+    if (party) {
+        uint8 idx = 0;
+        for (Goldbox::Data::PlayerCharacter *character : *party) {
+            Poolrad::Data::PoolradCharacter *poolChar =
+                dynamic_cast<Poolrad::Data::PoolradCharacter *>(character);
+            if (poolChar) {
+                const uint8 *memorized = poolChar->getMemorizedSpells();
+                for (int slot = 0; slot < POOLRAD_MEMORIZED_SIZE; ++slot) {
+                    if (memorized[slot] == spellId) {
+                        foundSlot = static_cast<uint8>(slot);
+                        memberIndex = idx;
+                        break;
+                    }
+                }
+            }
+            if (foundSlot != 255)
+                break;
+            ++idx;
+        }
+    }
+
+    // Write both outputs. foundSlot 255 signals absence (mirrors the original
+    // sentinel), member index 0 when absent.
+    _memory->write16LE(slotAddr, foundSlot);
+    _memory->write16LE(memberAddr, memberIndex);
     return VmResult::VM_OK;
 }
 

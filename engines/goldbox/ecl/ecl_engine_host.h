@@ -396,6 +396,17 @@ public:
      */
     virtual VmResult findItem(uint8 itemId, uint16 resultAddr) { return VM_OK; }
 
+        /**
+         * Predicate form of FIND ITEM for the compare-only opcode flow.
+         * Walks every party member's inventory in list order and matches by
+         * item type (CharacterItem::typeIndex), with no status filters.
+         * Returns true when at least one carried item matches.
+         */
+        virtual bool findItemInParty(uint8 itemId) const {
+                (void)itemId;
+                return false;
+        }
+
     /**
      * Remove a specific item from the party inventory (0x40 DESTROY ITEM).
      * @param itemId Item ID to destroy
@@ -439,9 +450,22 @@ public:
 
     /**
      * Search party for a character who has a given spell (0x3B SPELL).
+     *
+     * Mirrors the Pascal EclSpell outputs: it writes a spell-slot/index value
+     * to the first result address (slotAddr, operand 2) and the party member
+     * index to the second (memberAddr, operand 3).
+     *
+     * TRACE-GATED (GB13-005): the original routine starts from an uninitialized
+     * found flag, scans past the 21 memorized slots, and truncates both
+     * destination addresses to a byte. Those anomalies are NOT reproduced here;
+     * the safe implementation runs a bounded memorized-spell scan via the real
+     * spell book and writes both outputs with no out-of-range access. Any
+     * out-of-slot record view must be modeled through the legacy codec, never
+     * adjacent host memory.
+     *
      * @param spellId    Spell ID to search for
-     * @param memberAddr Address to store party member index (or 255 if not found)
-     * @param slotAddr   Address to store spell slot index
+     * @param memberAddr Address to store party member index (operand 3)
+     * @param slotAddr   Address to store spell slot/index value (operand 2)
      * @return VmResult
      */
     virtual VmResult findSpell(uint8 spellId, uint16 memberAddr,

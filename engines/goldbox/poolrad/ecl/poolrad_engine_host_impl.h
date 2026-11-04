@@ -112,6 +112,9 @@ public:
         uint16 highAddr, uint16 lowAddr) override;
     VmResult hasEffect(uint8 effectId, uint16 resultAddr) override;
     bool hasEffectActive(uint8 effectId) const override;
+    bool findItemInParty(uint8 itemId) const override;
+    VmResult findSpell(uint8 spellId, uint16 memberAddr,
+        uint16 slotAddr) override;
     VmResult startCombat() override;
     void clearTextBox() override;
     VmResult beginPrintAsync(const Common::String &text,
