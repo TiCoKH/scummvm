@@ -106,6 +106,8 @@ public:
     VmResult refreshViewport() override;
     VmResult beginDelay() override;
     VmResult advanceClock(uint8 amount) override;
+    VmResult robParty(uint8 wholeParty, uint8 percentMoney,
+        uint8 itemChance) override;
     VmResult checkParty(uint16 attributeAddr, uint16 effectId,
         uint16 highAddr, uint16 lowAddr) override;
     VmResult hasEffect(uint8 effectId, uint16 resultAddr) override;

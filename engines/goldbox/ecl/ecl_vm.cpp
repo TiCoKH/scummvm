@@ -55,6 +55,7 @@
 #include "goldbox/ecl/ecl_vm.h"
 #include "goldbox/ecl/opcode_handlers.h"
 #include "goldbox/ecl/opcode_table.h"
+#include "goldbox/ecl/operand_roles.h"
 #include "goldbox/ecl/game_config.h"
 #include "goldbox/ecl/runtime_layout.h"
 #include "goldbox/data/adnd_character.h"
@@ -697,40 +698,16 @@ int8 EclVM::getCmpResult() const {
 uint16 EclVM::skipLegacyInstructionOperands(uint16 instructionPc) const {
     const uint8 opcode = _memory.read8(instructionPc);
 
-    // Poolrad legacy mapping from ECL_SkipInstructionOperands.
-    if (opcode == 0x01 || opcode == 0x02 || opcode == 0x0A
-            || opcode == 0x0E || opcode == 0x11 || opcode == 0x12
-            || opcode == 0x1D || opcode == 0x20 || opcode == 0x2D
-            || opcode == 0x32 || opcode == 0x34 || opcode == 0x36
-            || opcode == 0x38 || opcode == 0x39 || opcode == 0x3C) {
-        return skipEncodedOperandsFromMemory(_memory, instructionPc, 1);
-    }
+    // Drive the skip from the separate, documented conditional-skip table
+    // (SkipEclCmd / ECL_SkipNextInstruction). The table deliberately differs
+    // from the execution operand counts for the historical anomalies
+    // (ADD NPC skipped as 1, SETUP MONSTER as 2); see operand_roles.cpp.
+    const int skipCount = getConditionalSkipOperandCount(opcode);
+    if (skipCount < 0)
+        return static_cast<uint16>(instructionPc + 1);
 
-    if (opcode == 0x03 || opcode == 0x08 || opcode == 0x09
-            || opcode == 0x0C || opcode == 0x0F || opcode == 0x10
-            || opcode == 0x1F || opcode == 0x22) {
-        return skipEncodedOperandsFromMemory(_memory, instructionPc, 2);
-    }
-
-    if ((opcode >= 0x04 && opcode <= 0x07)
-            || opcode == 0x0B || opcode == 0x21 || opcode == 0x28
-            || opcode == 0x2A || opcode == 0x2F || opcode == 0x30
-            || opcode == 0x35 || opcode == 0x37 || opcode == 0x3B) {
-        return skipEncodedOperandsFromMemory(_memory, instructionPc, 3);
-    }
-
-    if (opcode == 0x14 || opcode == 0x23)
-        return skipEncodedOperandsFromMemory(_memory, instructionPc, 4);
-    if (opcode == 0x2E)
-        return skipEncodedOperandsFromMemory(_memory, instructionPc, 5);
-    if (opcode == 0x1E || opcode == 0x2C)
-        return skipEncodedOperandsFromMemory(_memory, instructionPc, 6);
-    if (opcode == 0x27)
-        return skipEncodedOperandsFromMemory(_memory, instructionPc, 8);
-    if (opcode == 0x29)
-        return skipEncodedOperandsFromMemory(_memory, instructionPc, 0x0E);
-
-    return static_cast<uint16>(instructionPc + 1);
+    return skipEncodedOperandsFromMemory(_memory, instructionPc,
+        static_cast<uint8>(skipCount));
 }
 
 uint8 EclVM::getMemoryRegion(uint16 vmAddr) const {

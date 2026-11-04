@@ -1169,16 +1169,47 @@ static int handle_0x27_TREASURE(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x28: ROB <isWholeParty> <percentMoney> <itemChance>
+// Original EclRob (eclvm.pas:1027) loads three operands but reads operand 2
+// for BOTH the currency percentage and the item-theft probability; operand 3
+// is decoded for framing only and left unused. Decoding all three gives the
+// correct next PC (getNextInsnPc).
 static int handle_0x28_ROB(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
+    vm.getOperand(3);
+
+    const uint8 wholeParty   = static_cast<uint8>(vm.readVar(1));
+    const uint8 percentMoney = static_cast<uint8>(vm.readVar(2));
+    const uint8 itemChance   = percentMoney; // operand 2 drives item theft too
+
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+        return host->robParty(wholeParty, percentMoney, itemChance);
+
     return VM_OK;
 }
 
-// 0x29: ENCOUNTER MENU (varargs)
+// 0x29: ENCOUNTER MENU (14 operands)
+// Original EclEncounter (eclvm.pas:1057) loads fourteen operands:
+//   1 monster id, 2 requested distance, 3 monster picture id,
+//   4 result destination address, 5..9 response table entries,
+//   10..12 three message strings, 13 party-flee threshold, 14 monster-flee
+//   threshold. GB13-001 frames all fourteen so the VM resumes at the correct
+//   PC; the encounter decision loop itself is implemented under GB13-002.
 static int handle_0x29_ENCOUNTER_MENU(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    vm.getOperand(14);
+
+    // Preserve the operand-4 destination and the three decoded strings for the
+    // GB13-002 decision loop; decoding them here also validates framing.
+    const uint16 destAddr = vm.getOpWord(4);
+    (void)destAddr;
+
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x29,
+            static_cast<uint16>(EclVmMessage::SC_UNIMPLEMENTED_OPCODE),
+            static_cast<int16>(VM_OK));
+    }
     return VM_OK;
 }
 
@@ -1332,16 +1363,31 @@ static int handle_0x32_FIND_ITEM(EclVM &vm, AddressSpace &mem,
     return VM_OK;
 }
 
-// 0x34: ECL CLOCK <var> <timeunit>
+// 0x34: ECL CLOCK <var>
+// Original EclClock (eclvm.pas:1411) loads exactly ONE operand (v1.3). The
+// older DOS decompile reads VM_GetOprand(1) in Inst_CLOCK as well.
+//
+// OPEN (trace-gated, GB13-001.3/.6): which decoded operand supplies the amount
+// is unresolved. The reconstructed Pascal reads GetEclVar(v) with v uninitialized,
+// so the index cannot be proven without a binary trace of real CLOCK callers.
+// We frame one operand and advance using operand 1, and emit a diagnostic so
+// the open decision is visible. We do NOT claim parity on the amount value.
 static int handle_0x34_ECL_CLOCK(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)mem; (void)nextPc; (void)callStack;
-    vm.getOperand(2);
+    vm.getOperand(1);
 
-    // Operand 1 is amount; operand 2 is legacy time-unit selector.
-    // Current host path advances minute units (x86 TIME_AddUnits(1, amount))
-    // and ignores operand 2 until full selector parity is wired.
+    // Framing is fixed at one operand and the clock IS advanced here. The
+    // diagnostic flags only the OPEN amount-index decision (not a no-op): the
+    // reconstructed Pascal reads an uninitialized index, so the operand that
+    // supplies the amount is unresolved. We read operand 1 until a trace exists.
     const uint8 amount = static_cast<uint8>(vm.readVar(1));
+
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x34,
+            static_cast<uint16>(EclVmMessage::SC_UNIMPLEMENTED_OPCODE),
+            static_cast<int16>(amount));
+    }
 
     if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
         return host->advanceClock(amount);

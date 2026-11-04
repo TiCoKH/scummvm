@@ -40,6 +40,7 @@
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/effects/effect_runtime.h"
+#include "goldbox/data/adnd_character.h"
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
@@ -1242,6 +1243,94 @@ VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
             EclVmMessage::VT_UINT8);
     }
 
+    return VmResult::VM_OK;
+}
+
+// Scale one character's currency by the retained fraction (100 - percent)%,
+// in the original denomination order (copper..jewelry). Mirrors RobMoney.
+//
+// OPEN (trace-gated, GB13-001): the original uses Turbo Pascal Trunc() on a
+// Real. We compute the retained amount in a wide integer intermediate and
+// truncate toward zero, which matches Trunc for the non-negative Word coin
+// fields, but exact binary real-number rounding is unresolved and not claimed.
+static void robMoney(Goldbox::Data::ADnDCharacter &character,
+        uint8 percentMoney) {
+    using namespace Goldbox::Data;
+    const uint32 retainedPct = (percentMoney >= 100)
+        ? 0 : static_cast<uint32>(100 - percentMoney);
+    for (int i = 0; i < VALUABLE_COUNT; ++i) {
+        const ValuableType type = static_cast<ValuableType>(i);
+        const uint32 scaled =
+            (static_cast<uint32>(character.valuableItems[type]) * retainedPct)
+            / 100u;
+        character.valuableItems[type] = static_cast<uint16>(scaled);
+    }
+}
+
+// Roll each inventory item against the theft chance in source order. Mirrors
+// RobItems: the chance is reduced for heavy items before the roll, a 1..100
+// roll is drawn for EVERY item (preserving RNG draw order), and the item is
+// removed when roll <= chance. Pointers are captured up front because the
+// original captures the next link before removing the current item.
+static void robItems(Goldbox::Data::ADnDCharacter &character,
+        uint8 itemChance) {
+    Common::Array<Goldbox::Data::Items::CharacterItem *> order;
+    for (Goldbox::Data::Items::CharacterItem &item :
+            character.getInventory().items())
+        order.push_back(&item);
+
+    uint8 chance = itemChance;
+    for (uint i = 0; i < order.size(); ++i) {
+        Goldbox::Data::Items::CharacterItem *item = order[i];
+        if (item->weight > 255)
+            chance = (chance > 90) ? static_cast<uint8>(chance - 90) : 0;
+        else if (item->weight > 24)
+            chance = (chance > 50) ? static_cast<uint8>(chance - 50) : 0;
+
+        const uint8 roll =
+            static_cast<uint8>(Goldbox::VmInterface::rollDice(1, 100));
+        if (roll <= chance)
+            character.removeItem(item);
+    }
+}
+
+static void robCharacter(Goldbox::Data::ADnDCharacter &character,
+        uint8 percentMoney, uint8 itemChance) {
+    // Source order mirrors EclRob: scale currency, then roll item theft.
+    robMoney(character, percentMoney);
+    robItems(character, itemChance);
+    character.recalcCombatStats();
+}
+
+VmResult PoolradEngineHostImpl::robParty(uint8 wholeParty, uint8 percentMoney,
+        uint8 itemChance) {
+    if (wholeParty == 0) {
+        Goldbox::Data::ADnDCharacter *current = dynamic_cast<
+            Goldbox::Data::ADnDCharacter *>(
+            _engine ? _engine->getSelectedCharacter() : nullptr);
+        if (!current)
+            return VmResult::VM_OK;
+        robCharacter(*current, percentMoney, itemChance);
+    } else {
+        Common::List<Goldbox::Data::PlayerCharacter *> *party =
+            VmInterface::getParty();
+        if (!party)
+            return VmResult::VM_ERROR;
+        for (Goldbox::Data::PlayerCharacter *member : *party) {
+            Goldbox::Data::ADnDCharacter *character =
+                dynamic_cast<Goldbox::Data::ADnDCharacter *>(member);
+            if (!character)
+                continue;
+            robCharacter(*character, percentMoney, itemChance);
+        }
+    }
+
+    if (g_events) {
+        g_events->postEclStateMessage(EclVmMessage::ST_STATUS_DIRTY, 1,
+            EclVmMessage::VT_UINT8);
+        g_events->postEclStateMessage(EclVmMessage::ST_CHARACTER_DIRTY, 1,
+            EclVmMessage::VT_UINT8);
+    }
     return VmResult::VM_OK;
 }
 
