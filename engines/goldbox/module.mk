@@ -29,6 +29,7 @@ MODULE_OBJS = \
 	ecl/pending_operation.o \
 	ecl/operand_roles.o \
 	ecl/rune_presentation.o \
+	ecl/scripted_damage.o \
 	ecl/ecl_string_writer.o \
 	data/player_character.o \
 	data/adnd_character.o \

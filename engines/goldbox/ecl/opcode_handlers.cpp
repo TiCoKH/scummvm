@@ -31,8 +31,11 @@
 #include "goldbox/events.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/adnd_character.h"
+#include "goldbox/data/damage_system.h"
+#include "goldbox/data/rules/saving_throw.h"
 #include "goldbox/ecl/rune_presentation.h"
 #include "goldbox/ecl/ecl_string_writer.h"
+#include "goldbox/ecl/scripted_damage.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -1412,11 +1415,138 @@ static int handle_0x2D_CALL(EclVM &vm, AddressSpace &mem,
     return host->handleCallOpcode(callId);
 }
 
-// 0x2E: DAMAGE <var1> <dice> <sides> <bonus> <var2>
+// GB13-004: live-engine roll/save source for the scripted-damage core. Dice
+// and target-index draws go through the engine RNG (FxEngine.RollDice parity);
+// saves go through the shared saving-throw rules and the attack roll ports
+// AttackRollNoAttacker (fxengine.pas:404). Keeping this adapter thin means the
+// deterministic sequence lives entirely in resolveScriptedDamage(), which the
+// tests drive with a recorded source.
+class LiveScriptedDamageSource : public IScriptedDamageSource {
+public:
+    uint16 rollDice(uint8 count, uint8 sides) override {
+        if (count == 0 || sides == 0)
+            return 0;
+        const int r = VmInterface::rollDice(count, sides);
+        return (r < 0) ? 0 : static_cast<uint16>(r);
+    }
+
+    uint8 rollTargetIndex(uint8 partySize) override {
+        // Original RollDice(1, PARTY_SIZE): 1-based position.
+        if (partySize == 0)
+            return 1;
+        return static_cast<uint8>(VmInterface::rollDice(1, partySize));
+    }
+
+    bool rollSave(Data::PlayerCharacter &target,
+            Data::Spells::SaveVerseType saveType, uint8 saveMod) override {
+        Data::ADnDCharacter *adnd =
+            dynamic_cast<Data::ADnDCharacter *>(&target);
+        if (!adnd)
+            return false;
+        return Data::Rules::checkSavingThrow(*adnd, nullptr, nullptr, nullptr,
+            saveType, static_cast<int8>(saveMod));
+    }
+
+    bool attackHits(Data::PlayerCharacter &target,
+            uint8 sixtyMinusThac0) override {
+        // AttackRollNoAttacker (fxengine.pas:404): natural-1 misses; natural-20
+        // becomes 100; hit when roll + sixtyMinusThac0 exceeds acCur (stored
+        // 60-based, matching armorClass.current).
+        int roll = VmInterface::rollDice(1, 20);
+        if (roll <= 1)
+            return false;
+        if (roll == 20)
+            roll = 100;
+        const int acCur = static_cast<int>(target.armorClass.current);
+        return (roll + static_cast<int>(sixtyMinusThac0)) > acCur;
+    }
+};
+
+// GB13-004: live damage sink. Routes every connecting hit through the real
+// DamageSystem (EclInflictDamage behavior: enabled/status/effect changes and
+// the down/death message), never subtracting HP directly in the handler. The
+// original skips already-dead creatures (eclmenu.pas:1022); DamageSystem's
+// resolution already no-ops on a disabled/dead target, so a second hit cannot
+// re-kill it.
+class LiveScriptedDamageSink : public IScriptedDamageSink {
+public:
+    void inflict(Data::PlayerCharacter &target, uint16 dmg) override {
+        Data::DamageSystem damageSystem(nullptr);
+        damageSystem.applyLegacy(target, static_cast<uint8>(dmg),
+            Data::DAMAGE_NORMAL, false);
+    }
+};
+
+// 0x2E: DAMAGE <attack> <dice> <sides> <bonus> <value>
+// GB13-004: port EclDamage (eclvm.pas:1311). All five operands are value
+// operands read via readVar (GB13-008). The deterministic target-selection and
+// roll sequence lives in resolveScriptedDamage() so the exact draw order/count
+// (including the final unused reroll in attack mode) is unit-provable; the live
+// path wires it to the engine RNG, the real DamageSystem and the selection
+// accessors. The mutation (damage + defeat scan + selection restore) completes
+// synchronously BEFORE the acknowledgment presentation, so a yielding "press
+// <enter>" / "entire party killed" message cannot re-apply damage on resume
+// (GB13-009 exactly-once).
 static int handle_0x2E_DAMAGE(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
     vm.getOperand(5);
+
+    ScriptedDamageOperands ops;
+    ops.attack = static_cast<uint8>(vm.readVar(1));
+    ops.dice   = static_cast<uint8>(vm.readVar(2));
+    ops.sides  = static_cast<uint8>(vm.readVar(3));
+    ops.bonus  = static_cast<uint8>(vm.readVar(4));
+    ops.value  = static_cast<uint8>(vm.readVar(5));
+
+    // Snapshot the party in list order and the selected character up front.
+    Common::List<Data::PlayerCharacter *> *partyList = VmInterface::getParty();
+    Common::Array<Data::PlayerCharacter *> party;
+    if (partyList) {
+        for (Common::List<Data::PlayerCharacter *>::const_iterator it =
+                partyList->begin(); it != partyList->end(); ++it) {
+            if (*it)
+                party.push_back(*it);
+        }
+    }
+    Data::PlayerCharacter *savedSelection = VmInterface::getSelectedCharacter();
+
+    LiveScriptedDamageSource source;
+    LiveScriptedDamageSink sink;
+    const ScriptedDamageOutcome outcome =
+        resolveScriptedDamage(ops, party, savedSelection, source, sink);
+
+    // Empty-party / malformed-operand diagnostic (Req 2.3 defensive). The core
+    // applied no damage; surface the degenerate condition using the shared
+    // diagnostic tag (GB13-001) so it is visible, without claiming an original
+    // DOS result for the empty-party edge.
+    if (outcome.degenerate && g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x2E,
+            static_cast<uint16>(EclVmMessage::SC_UNIMPLEMENTED_OPCODE),
+            static_cast<int16>(VM_OK));
+    }
+
+    // Restore the selected character exactly once (eclvm.pas:1395). The
+    // mutation above already ran, so this is safe even if the acknowledgment
+    // below yields.
+    VmInterface::setSelectedCharacter(savedSelection);
+
+    // Acknowledgment / total-party-defeat presentation (eclvm.pas:1388-1396).
+    // This is the only part that may yield; it runs AFTER the mutation and the
+    // selection restore, so a resume never re-applies damage. The host print
+    // path owns the "entire party killed" window and the press-enter pause;
+    // when no async print path exists the VM simply continues.
+    if (syscalls && outcome.partyDefeated) {
+        const VmResult asyncStart =
+            syscalls->beginPrintAsync("The entire party is killed!", false);
+        if (g_events) {
+            g_events->postEclSyscallMessage(vm.getPC(), 0x2E,
+                EclVmMessage::SC_PRINT, static_cast<int16>(asyncStart));
+        }
+        if (asyncStart == VM_YIELD || asyncStart == VM_ERROR)
+            return asyncStart;
+    }
+
     return VM_OK;
 }
 
