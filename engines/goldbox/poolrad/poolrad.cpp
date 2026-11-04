@@ -1036,6 +1036,16 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 			(unsigned)byteGameState, (unsigned)resolvedState);
 	}
 	_legacySharedState.byteGameState = resolvedState;
+
+	// GB13-009 (8.2): a new-game load replaces the whole VM/party context.
+	// Bump the pending-operation request generation on the LOAD branch (not in
+	// Engine::syncGame, which also runs mid-session on save) so any completion
+	// minted before the load is discarded as out-of-generation instead of
+	// mutating the freshly loaded state. _pendingOps is host-private, so we go
+	// through the engine-reachable host hook.
+	if (_eclHost)
+		_eclHost->bumpPendingGeneration();
+
 	setGameState(resolvedState);
 	debug(2, "PoolradEngine::loadGameSlotX86 complete: engine gameState now=%d",
 		(int)getGameState());

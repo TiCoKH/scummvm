@@ -21,6 +21,8 @@
 
 #include "goldbox/ecl/pending_operation.h"
 
+#include "common/debug.h"
+
 namespace Goldbox {
 namespace ECL {
 
@@ -66,24 +68,74 @@ uint16 PendingOperationStack::resumePcWhenFinished() const {
 }
 
 bool PendingOperationStack::deliver(const RequestKey &key,
-        const Completion &completion) {
-    (void)completion;
-
-    // TODO(8.2): single-owner + generation matching. Only the matching active
-    // owner may consume a completion; stale/duplicate/out-of-generation
-    // completions are discarded deliberately and logged. 8.1 keeps the check
-    // minimal so no existing async flow routes through the stack yet.
+        const Completion &completion, Completion &out) {
+    // GB13-009 (8.2): single-owner + generation-checked matching. Only the
+    // matching active owner (the top frame) consumes a completion; every other
+    // case is discarded deliberately and logged via debug() (no PC is
+    // available here; the host/exchange layer logs through
+    // g_events->postEclSyscallMessage where a PC exists).
     PendingOperation *frame = top();
-    if (!frame || frame->key != key)
+    if (!frame) {
+        debug(3, "PendingOperationStack::deliver: discard id=%u gen=%u (stack empty)",
+            (unsigned)key.id, (unsigned)key.generation);
         return false;
+    }
+
+    if (key.generation != _generation) {
+        debug(3, "PendingOperationStack::deliver: discard id=%u gen=%u (out-of-generation, current=%u)",
+            (unsigned)key.id, (unsigned)key.generation, (unsigned)_generation);
+        return false;
+    }
+
+    if (frame->key.id != key.id || frame->key.generation != _generation) {
+        debug(3, "PendingOperationStack::deliver: discard id=%u gen=%u (not active owner, owner id=%u gen=%u)",
+            (unsigned)key.id, (unsigned)key.generation,
+            (unsigned)frame->key.id, (unsigned)frame->key.generation);
+        return false;
+    }
+
+    if (frame->invalidated) {
+        debug(3, "PendingOperationStack::deliver: discard id=%u gen=%u (owner invalidated; char left)",
+            (unsigned)key.id, (unsigned)key.generation);
+        return false;
+    }
+
+    if (frame->completionDelivered) {
+        debug(3, "PendingOperationStack::deliver: discard id=%u gen=%u (duplicate completion)",
+            (unsigned)key.id, (unsigned)key.generation);
+        return false;
+    }
+
+    frame->completionDelivered = true;
+    out = completion;
     return true;
 }
 
+uint32 PendingOperationStack::invalidateForCharacter(uint16 charId) {
+    uint32 count = 0;
+    for (uint i = 0; i < _frames.size(); ++i) {
+        PendingOperation &frame = _frames[i];
+        if (!frame.invalidated && frame.savedCharId == charId) {
+            frame.invalidated = true;
+            ++count;
+            debug(3, "PendingOperationStack::invalidateForCharacter: neutralized frame id=%u gen=%u for departed char=%u",
+                (unsigned)frame.key.id, (unsigned)frame.key.generation,
+                (unsigned)charId);
+        }
+    }
+    return count;
+}
+
 void PendingOperationStack::runTailAndAdvance() {
-    // TODO(8.3): run the owning operation's mutation/cleanup tail (the 0x24
-    // service/combat/loot + search/display reset, NewEclDone, GameLoop
-    // post-call work), advance its phase and pop when finished, so the tail
-    // runs exactly once before the VM fetches resumePcWhenFinished().
+    // The 0x24 ENCOUNTER cleanup tail (GB13-009, 8.3) is run during the host's
+    // finalizePendingAsync() resume seam via ECL::runEncounterCleanupTail(),
+    // ALONGSIDE the existing _async*Pending booleans, rather than being driven
+    // through this stack. That keeps the live combat/shop/temple resume path
+    // behavior-preserving and avoids re-sequencing the whole event loop in
+    // this task. This generic phase-advancing driver stays available for the
+    // later findings (GB13-004 scripted damage, GB13-010, GB13-022 exploration
+    // state machine) that push real frames onto the stack; it is intentionally
+    // a no-op until a frame-driven operation needs it.
 }
 
 } // namespace ECL

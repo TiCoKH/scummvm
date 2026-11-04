@@ -32,6 +32,7 @@
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/ecl/rune_presentation.h"
+#include "goldbox/ecl/ecl_string_writer.h"
 
 namespace Goldbox {
 namespace ECL {
@@ -375,15 +376,36 @@ static int handle_0x08_RANDOM(EclVM &vm, AddressSpace &mem,
     return VM_OK;
 }
 
+// Bank cell width for a VM destination address: region 3 (ECL script bank,
+// 0x9900+) is byte-addressed; all other word banks store one char per word
+// cell. GB13-003 INPUT STRING / WriteGbvmString routing depends on this.
+static uint8 vmCellWidthForAddr(EclVM &vm, uint16 addr) {
+    return (vm.getMemoryRegion(addr) == 3) ? 1 : 2;
+}
+
 static int handle_0x0F_INPUT_NUMBER(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)nextPc; (void)callStack;
+    (void)mem; (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(2);
     const uint8  maxDigits = static_cast<uint8>(vm.getOpWord(1));
     const uint16 addr      = vm.getOpWord(2);
-    const int16  value     = syscalls->inputNumber(maxDigits);
+
+    // GB13-003: prefer the async path so the real input dialog yields the VM.
+    // The host owns the result address and writes the unsigned 16-bit value on
+    // finalize; invalid/cancelled input writes nothing.
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+        const VmResult asyncStart = host->beginInputNumberAsync(addr, maxDigits);
+        if (asyncStart == VM_YIELD || asyncStart == VM_ERROR)
+            return asyncStart;
+    }
+
+    // Synchronous fallback (non-Poolrad hosts). inputNumber returns -1 when no
+    // value was entered; only a non-negative value mutates VM memory. The full
+    // 0..65535 domain is only available through the async typed path above;
+    // the int16 fallback is limited to 0..32767 and never writes on cancel.
+    const int16 value = syscalls->inputNumber(maxDigits);
     if (value >= 0)
         vm.writeVmMemory(addr, static_cast<uint16>(value), syscalls);
     return VM_OK;
@@ -397,10 +419,23 @@ static int handle_0x10_INPUT_STRING(EclVM &vm, AddressSpace &mem,
     vm.getOperand(2);
     const uint8  maxLength = static_cast<uint8>(vm.getOpWord(1));
     const uint16 addr      = vm.getOpWord(2);
+
+    // GB13-003: prefer the async path; the host writes the string through the
+    // bank-aware VM string writer on finalize.
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+        const VmResult asyncStart = host->beginInputStringAsync(addr, maxLength);
+        if (asyncStart == VM_YIELD || asyncStart == VM_ERROR)
+            return asyncStart;
+    }
+
+    // Synchronous fallback: write through the bank-aware VM string writer
+    // (NOT a flat byte memcpy). Cell width follows the destination bank, the
+    // length cap honors the $6B00 character-name 15-char limit, and empty
+    // input becomes a single space.
     const Common::String result = syscalls->inputString(maxLength);
-    for (uint i = 0; i < result.size(); ++i)
-        mem.write8(static_cast<uint16>(addr + i), static_cast<uint8>(result[i]));
-    mem.write8(static_cast<uint16>(addr + result.size()), 0);
+    const uint8 cap = (addr == kCharacterNameVmAddr)
+        ? kCharacterNameMaxLength : kInputStringMaxLength;
+    writeVmString(mem, addr, result, vmCellWidthForAddr(vm, addr), cap);
     return VM_OK;
 }
 
@@ -708,6 +743,17 @@ static int handle_0x15_VERTICAL_MENU(EclVM &vm, AddressSpace &mem,
     for (uint8 i = 0; i < count; ++i)
         options.push_back(vm.readString(static_cast<uint8>(4 + i)));
 
+    // GB13-003: prefer the async path so the real VerticalMenu yields the VM.
+    // The host owns resultAddr and writes the selected index on finalize;
+    // cancel/quit write nothing (explicit outcomes, not a blanket -1 write).
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+        const VmResult asyncStart =
+            host->beginVerticalMenuAsync(resultAddr, message, options);
+        if (asyncStart == VM_YIELD || asyncStart == VM_ERROR)
+            return asyncStart;
+    }
+
+    // Synchronous fallback (non-Poolrad hosts).
     const int16 selection = syscalls->verticalMenu(message, options);
     if (g_events) {
         g_events->postEclSyscallMessage(vm.getPC(), 0x15,
@@ -972,13 +1018,40 @@ static int handle_0x23_SURPRISE(EclVM &vm, AddressSpace &mem,
     return VM_OK;
 }
 
+// Shared post-encounter cleanup tail for opcode 0x24 (GB13-009). Runs inline on
+// the non-yield path and once on the resume path (host finalize) so both paths
+// perform byte-identical mutations. Post-encounter: reset game state from the
+// indoor-mode flag, clear search flags (keep bit 0), clear the skybox redraw.
+void runEncounterCleanupTail(AddressSpace &mem) {
+    const EclLayoutAccess layout = getOpcodeLayout();
+
+    // Reset game state based on map type.
+    const uint8 indoorMode = mem.read8(
+        layout.vmField(kVmFieldIndoorModeFlag).vmAddr);
+    mem.write8(layout.runtimeField(kEclRuntimeGameState),
+        indoorMode == 1 ? 1 : 0);
+
+    // Clear search flags (keep only bit 0).
+    const uint16 searchAddr = layout.vmGlobalField(
+        kVmGlobalFieldSearchFlags).vmAddr;
+    mem.write8(searchAddr,
+        static_cast<uint8>(mem.read8(searchAddr) & 1));
+
+    // Clear draw state and skybox redraw flag.
+    const uint16 skyboxAddr = layout.runtimeField(
+        kEclRuntimeSkyboxRedrawFlag);
+    if (EclRuntimeLayout::isValidVmAddr(skyboxAddr))
+        mem.write8(skyboxAddr, 0);
+}
+
 // 0x24: ENCOUNTER
 // Primary encounter dispatcher. Branch logic:
 // - If monsters are loaded (MONST_LOAD_READY or COMBAT_TRIGGER): run combat
 // - Else if ShopFlag: open shop dialog
 // - Else if TemplePending: open temple dialog
 // - Else: just run battle-end cleanup (no-op encounter)
-// Post-encounter: reset game state, clear search flags, clear draw state.
+// Post-encounter cleanup runs via runEncounterCleanupTail(): inline on the
+// non-yield path, or in the host finalize seam on the yield->resume path.
 // ECL scripts call CLEARMONSTERS (0x1C) before this opcode to ensure the
 // else-branch (shop/temple) is taken instead of combat.
 static int handle_0x24_ENCOUNTER(EclVM &vm, AddressSpace &mem,
@@ -1032,23 +1105,13 @@ static int handle_0x24_ENCOUNTER(EclVM &vm, AddressSpace &mem,
         }
     }
 
-    // Post-encounter cleanup: reset game state based on map type
-    const uint8 indoorMode = mem.read8(
-        layout.vmField(kVmFieldIndoorModeFlag).vmAddr);
-    mem.write8(layout.runtimeField(kEclRuntimeGameState),
-        indoorMode == 1 ? 1 : 0);
-
-    // Clear search flags (keep only bit 0)
-    const uint16 searchAddr = layout.vmGlobalField(
-        kVmGlobalFieldSearchFlags).vmAddr;
-    mem.write8(searchAddr,
-        static_cast<uint8>(mem.read8(searchAddr) & 1));
-
-    // Clear draw state and skybox redraw flag
-    const uint16 skyboxAddr = layout.runtimeField(
-        kEclRuntimeSkyboxRedrawFlag);
-    if (EclRuntimeLayout::isValidVmAddr(skyboxAddr))
-        mem.write8(skyboxAddr, 0);
+    // GB13-009: the post-encounter cleanup tail. This runs here ONLY on the
+    // non-yield (VM_OK) path — the empty/no-monster encounter and the
+    // shop/temple branches whose host call returned VM_OK. When the call
+    // yields (combat view, or an async shop/temple dialog) the handler returns
+    // early above and the host runs runEncounterCleanupTail() exactly once
+    // during finalizePendingAsync(), before the VM fetches the resume PC.
+    runEncounterCleanupTail(mem);
 
     return VM_OK;
 }
@@ -1530,10 +1593,32 @@ static int handle_0x37_LOAD_AREA_WALLDEF(EclVM &vm, AddressSpace &mem,
 }
 
 // 0x39: WHO <message>
+//
+// GB13-003: EclWho (eclvm.pas:1443) prompts the player to pick a party member
+// and makes that member the current selection. It does NOT write a numeric VM
+// result cell -- the selection itself is the output. We route through the
+// host's PartySelector (async when available) and update the current selection
+// by stable character identity; a cancel leaves the selection unchanged.
 static int handle_0x39_WHO(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
     vm.getOperand(1);
+    const Common::String message = vm.readString(1);
+
+    EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+    if (!host)
+        return VM_OK;
+
+    // Prefer the async path so the selection dialog yields the VM; the host
+    // applies the new current selection on finalize.
+    const VmResult asyncStart = host->beginSelectPartyMemberAsync(message);
+    if (asyncStart == VM_YIELD || asyncStart == VM_ERROR)
+        return asyncStart;
+
+    // Synchronous fallback: selectPartyMember returns the chosen 0-based party
+    // index or -1 on cancel. The host owns mapping index -> current selection;
+    // a negative result leaves the selection unchanged (no VM destination).
+    host->selectPartyMember(message);
     return VM_OK;
 }
 

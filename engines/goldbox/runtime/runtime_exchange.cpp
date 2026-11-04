@@ -54,7 +54,21 @@ bool RuntimeExchange::pollIntent(Intent &out) {
 }
 
 void RuntimeExchange::signalAsync(AsyncTag tag, int16 result, bool success) {
+	// Legacy no-key path: mint a zero/"legacy" RequestKey so current menu/shop/
+	// print callers keep working unchanged.
+	signalAsync(tag, ECL::RequestKey(), result, success);
+}
+
+void RuntimeExchange::signalAsync(AsyncTag tag, const ECL::RequestKey &key,
+		int16 result, bool success) {
+	// 8.2 keeps the single-slot design (one pending completion at a time) but
+	// now carries the owning RequestKey so the host can attribute the result
+	// to its owner and discard stale/out-of-generation results on consume. A
+	// single slot is sufficient here because only the active owner is awaiting
+	// a result; owner + generation matching is enforced downstream in
+	// PendingOperationStack::deliver(), not by the slot itself.
 	_pendingAsync.tag = tag;
+	_pendingAsync.key = key;
 	_pendingAsync.result = result;
 	_pendingAsync.success = success;
 	_hasPendingAsync = true;
@@ -67,6 +81,7 @@ bool RuntimeExchange::pollAsync(AsyncCompletion &out) {
 	out = _pendingAsync;
 	_hasPendingAsync = false;
 	_pendingAsync.tag = kAsyncNone;
+	_pendingAsync.key = ECL::RequestKey();
 	_pendingAsync.result = 0;
 	_pendingAsync.success = false;
 	return true;

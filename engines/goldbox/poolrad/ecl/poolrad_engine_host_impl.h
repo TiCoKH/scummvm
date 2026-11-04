@@ -52,6 +52,9 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 class HorizontalMenu;
+class HorizontalInput;
+class VerticalMenu;
+class PartySelector;
 }
 }
 
@@ -102,6 +105,20 @@ public:
     VmResult redrawEncounterStage(uint8 newDistance) override;
     VmResult spriteOff() override;
     int16 horizontalMenu(const Common::Array<Common::String> &options) override;
+    int16 inputNumber(uint8 maxDigits) override;
+    Common::String inputString(uint8 maxLength) override;
+    int16 verticalMenu(const Common::String &message,
+        const Common::Array<Common::String> &options) override;
+    int16 selectPartyMember(const Common::String &message) override;
+    VmResult beginInputNumberAsync(uint16 resultAddr,
+        uint8 maxDigits) override;
+    VmResult beginInputStringAsync(uint16 resultAddr,
+        uint8 maxLength) override;
+    VmResult beginVerticalMenuAsync(uint16 resultAddr,
+        const Common::String &message,
+        const Common::Array<Common::String> &options) override;
+    VmResult beginSelectPartyMemberAsync(
+        const Common::String &message) override;
     VmResult handleCallOpcode(uint16 callId) override;
     VmResult readGeoAtPosition() override;
     VmResult refreshViewport() override;
@@ -136,6 +153,18 @@ public:
         uint8 gold, uint8 platinum, uint8 gems, uint8 jewelry,
         uint8 itemSetId) override;
     const WallSetRuntimeState &wallSetState(int slot) const;
+
+    /**
+     * GB13-009 (8.2): bump the pending-operation request generation so any
+     * still-pending completion minted in the OLD context is discarded as
+     * stale. Call at context-replacement seams: NEW ECL (loadScript), new
+     * battle setup (startCombat) and new-game/load. The bump happens exactly
+     * when the old context is being replaced, which is precisely when a
+     * leftover completion for that context SHOULD no longer apply. This is the
+     * engine-reachable hook for the new-game/load seam, whose stack
+     * (_pendingOps) is host-private.
+     */
+    void bumpPendingGeneration();
 
     /**
      * DIALOG_OpenDoor equivalent: attempt to open a door in the party's
@@ -218,6 +247,49 @@ private:
     // Async VM_YIELD state for PRINT/PRINTCLEAR letter-pacing.
     bool _asyncPrintPending = false;
     uint32 _asyncPrintEndTime = 0;
+
+    // GB13-003: async VM_YIELD state for INPUT NUMBER / INPUT STRING. The
+    // typed input kind and result address are owned here, mirroring the
+    // _asyncMenu* booleans. A typed unsigned value carries the full 0..65535
+    // domain separate from cancellation so an invalid/cancelled entry never
+    // mutates VM memory.
+    enum InputKind : uint8 {
+        kInputNone = 0,
+        kInputNumber,
+        kInputString
+    };
+    bool _asyncInputPending = false;
+    InputKind _asyncInputKind = kInputNone;
+    uint16 _asyncInputResultAddr = 0;
+    uint8 _asyncInputMaxLen = 0;
+    Goldbox::UIElement *_asyncInputSink = nullptr;
+    Views::Dialogs::HorizontalInput *_asyncInputDialog = nullptr;
+    ECL::RequestKey _asyncInputKey;
+
+    // GB13-003: async VM_YIELD state for VERTICAL MENU. Result address and the
+    // decoded option list are owned here; success writes the index, cancel/
+    // quit write nothing.
+    bool _asyncVertMenuPending = false;
+    uint16 _asyncVertMenuResultAddr = 0;
+    Goldbox::UIElement *_asyncVertMenuSink = nullptr;
+    Views::Dialogs::VerticalMenu *_asyncVertMenu = nullptr;
+    Common::Array<Common::String> _asyncVertMenuOptions;
+    Common::ScopedPtr<Goldbox::MenuItemList> _asyncVertMenuModel;
+    ECL::RequestKey _asyncVertMenuKey;
+
+    // GB13-003: async VM_YIELD state for WHO (party-member selection). WHO
+    // selects the current character by stable identity -- the saved party
+    // index resolves back to the owning PlayerCharacter* at finalize time. No
+    // numeric VM destination is written.
+    bool _asyncWhoPending = false;
+    Goldbox::UIElement *_asyncWhoSink = nullptr;
+    Views::Dialogs::PartySelector *_asyncWhoDialog = nullptr;
+    ECL::RequestKey _asyncWhoKey;
+
+    // Shared teardown for the GB13-003 input/menu/WHO async sinks.
+    void teardownInputAsync();
+    void teardownVertMenuAsync();
+    void teardownWhoAsync();
 
     // Runtime static-map payload buffer (legacy PTR_GEO_BUFF equivalent).
     // Stores 4 x 0x100 map planes (NE, SW, events, doors) copied from GEO.

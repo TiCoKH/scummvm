@@ -114,6 +114,67 @@ public:
         }
 
         /**
+         * GB13-003: start INPUT NUMBER asynchronously for the VM_YIELD flow.
+         *
+         * The result address and the digit cap are owned by the pending
+         * request. The full unsigned 0..65535 value is carried separately from
+         * cancellation (an int16 completion cannot represent it); invalid or
+         * cancelled input writes nothing.
+         *
+         * Return values mirror beginHorizontalMenuAsync:
+         * - VM_YIELD: async operation started; VM should suspend.
+         * - VM_OK:    async path not used; caller falls back to inputNumber().
+         * - VM_ERROR: failed to start operation.
+         */
+        virtual VmResult beginInputNumberAsync(uint16 resultAddr,
+                        uint8 maxDigits) {
+                (void)resultAddr;
+                (void)maxDigits;
+                return VM_OK;
+        }
+
+        /**
+         * GB13-003: start INPUT STRING asynchronously for the VM_YIELD flow.
+         *
+         * The result address and the length cap are owned by the pending
+         * request; the completed string is written through the bank-aware VM
+         * string writer (not a flat memcpy). Cancelled input writes nothing.
+         */
+        virtual VmResult beginInputStringAsync(uint16 resultAddr,
+                        uint8 maxLength) {
+                (void)resultAddr;
+                (void)maxLength;
+                return VM_OK;
+        }
+
+        /**
+         * GB13-003: start VERTICAL MENU asynchronously for the VM_YIELD flow.
+         *
+         * The result address, prompt and option list are owned by the pending
+         * request. Success writes the selected index; cancel/quit write
+         * nothing (explicit outcomes, not a blanket -1).
+         */
+        virtual VmResult beginVerticalMenuAsync(uint16 resultAddr,
+                        const Common::String &message,
+                        const Common::Array<Common::String> &options) {
+                (void)resultAddr;
+                (void)message;
+                (void)options;
+                return VM_OK;
+        }
+
+        /**
+         * GB13-003: start WHO (party-member selection) asynchronously for the
+         * VM_YIELD flow. WHO selects the current character by stable id; there
+         * is no numeric VM destination. Cancel leaves the selection unchanged.
+         */
+        virtual VmResult beginSelectPartyMemberAsync(
+                        const Common::String &message) {
+                (void)message;
+                return VM_OK;
+        }
+
+        /**
          * True when a host-managed async syscall is active.
          */
         virtual bool hasPendingAsync() const { return false; }

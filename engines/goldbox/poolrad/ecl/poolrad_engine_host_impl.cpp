@@ -50,8 +50,12 @@
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/runtime/treasure_pool.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_input.h"
+#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
+#include "goldbox/poolrad/views/dialogs/party_selector.h"
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
+#include "goldbox/ecl/ecl_string_writer.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/views/combat_view.h"
 #include "goldbox/core/direction.h"
@@ -427,6 +431,32 @@ public:
     }
 };
 
+// GB13-003: sink for the HorizontalInput dialog (INPUT NUMBER / INPUT STRING).
+// HorizontalInput posts a MenuResult carrying the typed string and the closing
+// keycode (RETURN or ESCAPE). We capture the raw text and keycode; numeric
+// validation and the bank-aware write happen on finalize so an invalid or
+// cancelled entry never mutates VM memory.
+class AsyncInputResultSink : public Goldbox::UIElement {
+public:
+    bool done;
+    bool success;
+    bool cancelled;
+    Common::String text;
+
+    AsyncInputResultSink(const Common::String &name, Goldbox::UIElement *parent)
+        : Goldbox::UIElement(name, parent), done(false), success(false),
+          cancelled(false) {
+    }
+
+    void handleMenuResult(const Goldbox::MenuResultMessage &result) override {
+        done = true;
+        success = result._success;
+        // ESCAPE closes the input as a cancel; RETURN confirms.
+        cancelled = (result._keyCode == Common::KEYCODE_ESCAPE);
+        text = result._hasStringValue ? result._stringValue : Common::String();
+    }
+};
+
 
 PoolradEngineHostImpl::PoolradEngineHostImpl(::Goldbox::Engine *engine,
         ECL::AddressSpace *memory)
@@ -445,6 +475,9 @@ PoolradEngineHostImpl::~PoolradEngineHostImpl() {
     _asyncDelayPending = false;
     _asyncShopPending = false;
     _asyncShopWasActivated = false;
+    teardownInputAsync();
+    teardownVertMenuAsync();
+    teardownWhoAsync();
     clearMonsters();
 }
 
@@ -553,6 +586,11 @@ VmResult PoolradEngineHostImpl::startCombat() {
     params.combatTrigger = (_memory->read8(
         menuCombatStateAddr) != 0);
 
+    // GB13-009 (8.2): new battle setup starts a fresh context. Bump the
+    // request generation so a late completion from a prior battle (or the
+    // exploration context being suspended) cannot mutate this battle's owner.
+    _pendingOps.bumpGeneration();
+
     combatView->setup(params);
 
     if (!g_events->isPresent("Combat"))
@@ -653,6 +691,13 @@ VmResult PoolradEngineHostImpl::clearMonsters() {
     }
 
     _monstersAppendedToParty = false;
+
+    // TODO(GB13-011, task 12): combat teardown owns the combatant-id -> frame
+    // mapping. When that lands, call _pendingOps.invalidateForCharacter(id)
+    // here for each departed combatant so a stale targeting/selection callback
+    // cannot act on it (Requirement 4.4). The stack API exists and is
+    // unit-tested in 8.2; wiring the id source is deferred to task 12 rather
+    // than guessing the mapping now.
 
     Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
     if (iconMgr) {
@@ -790,6 +835,243 @@ int16 PoolradEngineHostImpl::horizontalMenu(
 
     _updateViewState();
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// GB13-003: INPUT NUMBER / INPUT STRING / VERTICAL MENU / WHO
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Resolve a stable party index (0-based, list order) to its owning character.
+// The party list is engine-owned; the index is stable while membership does
+// not change, and the returned pointer is the stable identity WHO selects.
+Goldbox::Data::PlayerCharacter *characterAtPartyIndex(
+        ::Goldbox::Engine *engine, int index) {
+    if (!engine || index < 0)
+        return nullptr;
+    Common::List<Goldbox::Data::PlayerCharacter *> &party = engine->getParty();
+    int i = 0;
+    for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it =
+            party.begin(); it != party.end(); ++it, ++i) {
+        if (i == index)
+            return *it;
+    }
+    return nullptr;
+}
+
+} // anonymous namespace
+
+void PoolradEngineHostImpl::teardownInputAsync() {
+    if (_asyncInputSink)
+        delete _asyncInputSink;
+    _asyncInputSink = nullptr;
+    _asyncInputDialog = nullptr;
+    _asyncInputPending = false;
+    _asyncInputKind = kInputNone;
+    _asyncInputResultAddr = 0;
+    _asyncInputMaxLen = 0;
+}
+
+void PoolradEngineHostImpl::teardownVertMenuAsync() {
+    if (_asyncVertMenuSink)
+        delete _asyncVertMenuSink;
+    _asyncVertMenuSink = nullptr;
+    _asyncVertMenu = nullptr;
+    _asyncVertMenuPending = false;
+    _asyncVertMenuResultAddr = 0;
+    _asyncVertMenuOptions.clear();
+    _asyncVertMenuModel.reset();
+}
+
+void PoolradEngineHostImpl::teardownWhoAsync() {
+    if (_asyncWhoSink)
+        delete _asyncWhoSink;
+    _asyncWhoSink = nullptr;
+    _asyncWhoDialog = nullptr;
+    _asyncWhoPending = false;
+}
+
+VmResult PoolradEngineHostImpl::beginInputNumberAsync(uint16 resultAddr,
+        uint8 maxDigits) {
+    if (!_engine || !g_events)
+        return VM_ERROR;
+    if (hasPendingAsync())
+        return VM_ERROR;
+
+    UIElement *focused = g_events->focusedView();
+    if (!focused)
+        return VM_ERROR;
+
+    Views::Dialogs::HorizontalInputConfig cfg;
+    cfg.promptTxt = "";
+    cfg.promptColor = 15;
+    cfg.maxInputLength = maxDigits;
+
+    Common::String sinkName = Common::String::format("EclInputNumSink_%u",
+        ++kModalMenuSinkCounter);
+    _asyncInputSink = new AsyncInputResultSink(sinkName, focused);
+    _asyncInputDialog = new Views::Dialogs::HorizontalInput(
+        "EclAsyncInputNumber", cfg);
+    _asyncInputSink->subView(_asyncInputDialog);
+    _asyncInputDialog->activate();
+    _asyncInputDialog->redraw();
+
+    _asyncInputPending = true;
+    _asyncInputKind = kInputNumber;
+    _asyncInputResultAddr = resultAddr;
+    _asyncInputMaxLen = maxDigits;
+    _asyncInputKey = _pendingOps.push(ECL::OperationKind::Input, 0, 0,
+        ECL::ReturnContextRef());
+    return VM_YIELD;
+}
+
+VmResult PoolradEngineHostImpl::beginInputStringAsync(uint16 resultAddr,
+        uint8 maxLength) {
+    if (!_engine || !g_events)
+        return VM_ERROR;
+    if (hasPendingAsync())
+        return VM_ERROR;
+
+    UIElement *focused = g_events->focusedView();
+    if (!focused)
+        return VM_ERROR;
+
+    // The $6B00 character-name cell caps at 15 characters; a general INPUT
+    // STRING caps at 40. The dialog accepts up to the same limit.
+    uint8 cap = (resultAddr == ECL::kCharacterNameVmAddr)
+        ? ECL::kCharacterNameMaxLength : ECL::kInputStringMaxLength;
+    if (maxLength != 0 && maxLength < cap)
+        cap = maxLength;
+
+    Views::Dialogs::HorizontalInputConfig cfg;
+    cfg.promptTxt = "";
+    cfg.promptColor = 15;
+    cfg.maxInputLength = cap;
+
+    Common::String sinkName = Common::String::format("EclInputStrSink_%u",
+        ++kModalMenuSinkCounter);
+    _asyncInputSink = new AsyncInputResultSink(sinkName, focused);
+    _asyncInputDialog = new Views::Dialogs::HorizontalInput(
+        "EclAsyncInputString", cfg);
+    _asyncInputSink->subView(_asyncInputDialog);
+    _asyncInputDialog->activate();
+    _asyncInputDialog->redraw();
+
+    _asyncInputPending = true;
+    _asyncInputKind = kInputString;
+    _asyncInputResultAddr = resultAddr;
+    _asyncInputMaxLen = cap;
+    _asyncInputKey = _pendingOps.push(ECL::OperationKind::Input, 0, 0,
+        ECL::ReturnContextRef());
+    return VM_YIELD;
+}
+
+VmResult PoolradEngineHostImpl::beginVerticalMenuAsync(uint16 resultAddr,
+        const Common::String &message,
+        const Common::Array<Common::String> &options) {
+    if (!_engine || !g_events || options.empty())
+        return VM_ERROR;
+    if (hasPendingAsync())
+        return VM_ERROR;
+
+    UIElement *focused = g_events->focusedView();
+    if (!focused)
+        return VM_ERROR;
+
+    _asyncVertMenuOptions = options;
+
+    // The vertical list items come from an owned MenuItemList (the dialog
+    // dereferences menuItemList directly). promptOptions drives the horizontal
+    // navigation hint only.
+    _asyncVertMenuModel.reset(new Goldbox::MenuItemList());
+    _asyncVertMenuModel->generateMenuItems(_asyncVertMenuOptions, true);
+
+    Views::Dialogs::VerticalMenuConfig cfg;
+    cfg.promptTxt = message;
+    cfg.promptOptions = &_asyncVertMenuOptions;
+    cfg.menuItemList = _asyncVertMenuModel.get();
+    cfg.headColor = 15;
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.xStart = 0;
+    cfg.yStart = 0;
+    cfg.xEnd = 39;
+    cfg.yEnd = 24;
+    cfg.title = "";
+    cfg.addExit = false;
+
+    Common::String sinkName = Common::String::format("EclVertMenuSink_%u",
+        ++kModalMenuSinkCounter);
+    _asyncVertMenuSink = new AsyncMenuResultSink(sinkName, focused);
+    _asyncVertMenu = new Views::Dialogs::VerticalMenu(
+        "EclAsyncVerticalMenu", cfg);
+    _asyncVertMenuSink->subView(_asyncVertMenu);
+    _asyncVertMenu->activate();
+    _asyncVertMenu->redraw();
+
+    _asyncVertMenuPending = true;
+    _asyncVertMenuResultAddr = resultAddr;
+    _asyncVertMenuKey = _pendingOps.push(ECL::OperationKind::Input, 0, 0,
+        ECL::ReturnContextRef());
+    return VM_YIELD;
+}
+
+VmResult PoolradEngineHostImpl::beginSelectPartyMemberAsync(
+        const Common::String &message) {
+    if (!_engine || !g_events)
+        return VM_ERROR;
+    if (hasPendingAsync())
+        return VM_ERROR;
+
+    UIElement *focused = g_events->focusedView();
+    if (!focused)
+        return VM_ERROR;
+
+    Views::Dialogs::PartySelectorConfig cfg;
+    cfg.promptText = message.empty() ? Common::String("WHO") : message;
+    cfg.allowExit = true;
+    cfg.excludedCharacter = nullptr;
+
+    Common::String sinkName = Common::String::format("EclWhoSink_%u",
+        ++kModalMenuSinkCounter);
+    _asyncWhoSink = new AsyncMenuResultSink(sinkName, focused);
+    _asyncWhoDialog = new Views::Dialogs::PartySelector(
+        "EclAsyncWho", cfg);
+    _asyncWhoSink->subView(_asyncWhoDialog);
+    _asyncWhoDialog->activate();
+    _asyncWhoDialog->redraw();
+
+    _asyncWhoPending = true;
+    _asyncWhoKey = _pendingOps.push(ECL::OperationKind::Input, 0, 0,
+        ECL::ReturnContextRef());
+    return VM_YIELD;
+}
+
+int16 PoolradEngineHostImpl::inputNumber(uint8 maxDigits) {
+    // Synchronous fallback for callers that do not use the async path. The
+    // int16 return cannot represent the full 0..65535 domain, so the live
+    // game always rides the async typed path (beginInputNumberAsync). -1
+    // means no value entered.
+    (void)maxDigits;
+    return -1;
+}
+
+Common::String PoolradEngineHostImpl::inputString(uint8 maxLength) {
+    (void)maxLength;
+    return Common::String();
+}
+
+int16 PoolradEngineHostImpl::verticalMenu(const Common::String &message,
+        const Common::Array<Common::String> &options) {
+    (void)message;
+    (void)options;
+    return -1;
+}
+
+int16 PoolradEngineHostImpl::selectPartyMember(const Common::String &message) {
+    (void)message;
+    return -1;
 }
 
 VmResult PoolradEngineHostImpl::readGeoAtPosition() {
@@ -1531,10 +1813,29 @@ VmResult PoolradEngineHostImpl::beginPrintAsync(const Common::String &text,
 
 bool PoolradEngineHostImpl::hasPendingAsync() const {
     return _asyncMenuPending || _asyncPrintPending || _asyncDelayPending
-    || _asyncShopPending || _asyncCombatPending;
+    || _asyncShopPending || _asyncCombatPending
+    || _asyncInputPending || _asyncVertMenuPending || _asyncWhoPending;
 }
 
 bool PoolradEngineHostImpl::isPendingAsyncReady() const {
+    if (_asyncInputPending) {
+        const AsyncInputResultSink *sink =
+            dynamic_cast<const AsyncInputResultSink *>(_asyncInputSink);
+        return sink && sink->done;
+    }
+
+    if (_asyncVertMenuPending) {
+        const AsyncMenuResultSink *sink =
+            dynamic_cast<const AsyncMenuResultSink *>(_asyncVertMenuSink);
+        return sink && sink->done;
+    }
+
+    if (_asyncWhoPending) {
+        const AsyncMenuResultSink *sink =
+            dynamic_cast<const AsyncMenuResultSink *>(_asyncWhoSink);
+        return sink && sink->done;
+    }
+
     if (_asyncMenuPending) {
         if (!_asyncMenuSink)
             return false;
@@ -1585,6 +1886,169 @@ bool PoolradEngineHostImpl::isPendingAsyncReady() const {
 }
 
 VmResult PoolradEngineHostImpl::finalizePendingAsync() {
+    // GB13-003: INPUT NUMBER / INPUT STRING.
+    if (_asyncInputPending) {
+        AsyncInputResultSink *sink =
+            dynamic_cast<AsyncInputResultSink *>(_asyncInputSink);
+        if (!sink || !sink->done)
+            return VM_YIELD;
+
+        // Single-owner / generation check: only the matching active owner may
+        // apply the completion. A stale or out-of-generation result (NEW ECL,
+        // new game, new battle in between) is discarded and mutates nothing.
+        const InputKind kind = _asyncInputKind;
+        const uint16 resultAddr = _asyncInputResultAddr;
+        const uint8 maxLen = _asyncInputMaxLen;
+        const bool cancelled = sink->cancelled;
+        const Common::String typed = sink->text;
+
+        // Carry the typed unsigned value on the completion SEPARATELY from
+        // cancellation. The single int16 index cannot represent 0..65535, so a
+        // number result uses the dedicated uint16 number payload; cancellation
+        // is a distinct CompletionKind, not a sentinel value.
+        ECL::Completion completion;
+        completion.key = _asyncInputKey;
+        completion.kind = cancelled
+            ? ECL::CompletionKind::Cancelled : ECL::CompletionKind::Returned;
+        if (!cancelled && kind == kInputNumber) {
+            const ECL::NumberInputResult probe =
+                ECL::validateNumberInput(typed, maxLen);
+            if (probe.valid) {
+                completion.tag = ECL::Completion::kPayloadNumber;
+                completion.number = probe.value;
+            }
+        } else if (!cancelled && kind == kInputString) {
+            completion.tag = ECL::Completion::kPayloadText;
+            completion.text = typed;
+        }
+        ECL::Completion delivered;
+        const bool owns = _pendingOps.deliver(_asyncInputKey, completion,
+            delivered);
+
+        if (owns && !cancelled && _memory) {
+            if (kind == kInputNumber) {
+                // Write the typed unsigned value carried on the completion.
+                // InputUint16 validation (digits only, no overflow past 65535)
+                // already ran; an invalid/empty entry left no number payload,
+                // so nothing is written (no mutation).
+                if (delivered.tag == ECL::Completion::kPayloadNumber)
+                    _memory->write16LE(resultAddr, delivered.number);
+            } else if (kind == kInputString) {
+                // Bank-aware VM string writer: cell width from the destination
+                // bank. The Poolrad ECL script bank (0x9900-0xB6FF) is byte-
+                // addressed; world/dat/heap word banks use 2-byte cells.
+                // Empty input -> single space; $6B00 name capped at 15 chars.
+                const bool eclBank = (resultAddr >= 0x9900
+                    && resultAddr <= 0xB6FF);
+                const uint8 width = eclBank ? 1 : 2;
+                const uint8 cap = (resultAddr == ECL::kCharacterNameVmAddr)
+                    ? ECL::kCharacterNameMaxLength : ECL::kInputStringMaxLength;
+                ECL::writeVmString(*_memory, resultAddr, typed, width, cap);
+            }
+        }
+
+        if (g_events) {
+            g_events->postEclSyscallMessage(0,
+                (kind == kInputNumber) ? 0x0F : 0x10,
+                (kind == kInputNumber)
+                    ? EclVmMessage::SC_INPUT_NUMBER
+                    : EclVmMessage::SC_INPUT_STRING,
+                static_cast<int16>(owns ? VM_OK : VM_ERROR));
+        }
+
+        if (!_pendingOps.empty())
+            _pendingOps.pop();
+        teardownInputAsync();
+
+        Graphics::Screen *screen = _engine ? _engine->getScreen() : nullptr;
+        if (screen) {
+            Goldbox::Surface screenSurface(*screen,
+                Common::Rect(0, 0, screen->w, screen->h));
+            screenSurface.clearBox(0, 24, 39, 24, 0);
+        }
+        _updateViewState();
+        return VM_OK;
+    }
+
+    // GB13-003: VERTICAL MENU.
+    if (_asyncVertMenuPending) {
+        AsyncMenuResultSink *sink =
+            dynamic_cast<AsyncMenuResultSink *>(_asyncVertMenuSink);
+        if (!sink || !sink->done)
+            return VM_YIELD;
+
+        ECL::Completion completion;
+        completion.key = _asyncVertMenuKey;
+        // Explicit success/cancel/quit outcomes: a valid selection writes the
+        // index; cancel/quit write nothing (not a blanket -1 write).
+        const bool selected = sink->success && sink->value >= 0;
+        completion.kind = selected
+            ? ECL::CompletionKind::Selected : ECL::CompletionKind::Cancelled;
+        ECL::Completion delivered;
+        const bool owns = _pendingOps.deliver(_asyncVertMenuKey, completion,
+            delivered);
+
+        const uint16 resultAddr = _asyncVertMenuResultAddr;
+        const int value = sink->value;
+
+        if (owns && selected && _memory)
+            _memory->write16LE(resultAddr, static_cast<uint16>(value));
+
+        if (g_events) {
+            g_events->postEclSyscallMessage(0, 0x15,
+                EclVmMessage::SC_VERTICAL_MENU,
+                static_cast<int16>(selected ? value : -1));
+        }
+
+        if (!_pendingOps.empty())
+            _pendingOps.pop();
+        teardownVertMenuAsync();
+
+        Graphics::Screen *screen = _engine ? _engine->getScreen() : nullptr;
+        if (screen) {
+            Goldbox::Surface screenSurface(*screen,
+                Common::Rect(0, 0, screen->w, screen->h));
+            screenSurface.clearBox(0, 24, 39, 24, 0);
+        }
+        _updateViewState();
+        return VM_OK;
+    }
+
+    // GB13-003: WHO (party-member selection by stable identity).
+    if (_asyncWhoPending) {
+        AsyncMenuResultSink *sink =
+            dynamic_cast<AsyncMenuResultSink *>(_asyncWhoSink);
+        if (!sink || !sink->done)
+            return VM_YIELD;
+
+        ECL::Completion completion;
+        completion.key = _asyncWhoKey;
+        const bool selected = sink->success && sink->value >= 0;
+        completion.kind = selected
+            ? ECL::CompletionKind::Selected : ECL::CompletionKind::Cancelled;
+        ECL::Completion delivered;
+        const bool owns = _pendingOps.deliver(_asyncWhoKey, completion,
+            delivered);
+
+        const int index = sink->value;
+
+        // WHO updates the current selection by stable identity (the owning
+        // PlayerCharacter*), NOT a numeric VM destination. Cancel leaves the
+        // selection unchanged.
+        if (owns && selected) {
+            Goldbox::Data::PlayerCharacter *chosen =
+                characterAtPartyIndex(_engine, index);
+            if (chosen)
+                _engine->setSelectedCharacter(chosen);
+        }
+
+        if (!_pendingOps.empty())
+            _pendingOps.pop();
+        teardownWhoAsync();
+        _updateViewState();
+        return VM_OK;
+    }
+
     if (_asyncMenuPending) {
         AsyncMenuResultSink *sink =
             dynamic_cast<AsyncMenuResultSink *>(_asyncMenuSink);
@@ -1644,6 +2108,19 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
         }
         _asyncShopPending = false;
         _asyncShopWasActivated = false;
+
+        // GB13-009 (8.3): the shop/temple branch of opcode 0x24 returned
+        // VM_YIELD, so the handler skipped its post-encounter cleanup tail.
+        // Run it now, exactly once, before the VM resumes at the recorded PC.
+        // The diagnostic uses postEclSyscallMessage (a trace), NOT
+        // ST_ENTER_SHOP, so it cannot re-open the shop dialog.
+        if (_memory) {
+            ECL::runEncounterCleanupTail(*_memory);
+            if (g_events)
+                g_events->postEclSyscallMessage(0, 0x24,
+                    EclVmMessage::SC_START_COMBAT,
+                    static_cast<int16>(VM_OK));
+        }
         return VM_OK;
     }
 
@@ -1651,6 +2128,19 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
         _asyncCombatPending = false;
         _asyncCombatWasActivated = false;
         clearMonsters();
+
+        // GB13-009 (8.3): the combat branch of opcode 0x24 returned VM_YIELD,
+        // so the handler skipped its post-encounter cleanup tail. Run it now,
+        // exactly once, before the VM resumes at the recorded PC. Even on an
+        // END_GAME halt the state is reset consistently first.
+        if (_memory) {
+            ECL::runEncounterCleanupTail(*_memory);
+            if (g_events)
+                g_events->postEclSyscallMessage(0, 0x24,
+                    EclVmMessage::SC_START_COMBAT,
+                    static_cast<int16>(VM_OK));
+        }
+
         if (_engine && _engine->getGameState() == GS_END_GAME)
             return VM_HALTED;
         return VM_OK;
@@ -1670,6 +2160,11 @@ VmResult PoolradEngineHostImpl::loadScript(uint8 scriptID) {
             (unsigned)scriptID);
         return VmResult::VM_ERROR;
     }
+
+    // GB13-009 (8.2): NEW ECL replaces the script context. Bump the request
+    // generation so any completion still in flight for the OLD script is
+    // discarded as out-of-generation rather than applied to the new script.
+    _pendingOps.bumpGeneration();
 
     // Zero VMBANK3 (0x1E00 bytes at 0x9900) before loading new script.
     for (uint16 i = 0; i < 0x1E00; ++i)
@@ -1839,6 +2334,12 @@ PoolradEngineHostImpl::wallSetState(int slot) const {
     if (slot < 1 || slot > 3)
         return kEmptyState;
     return _wallSetStates[slot - 1];
+}
+
+void PoolradEngineHostImpl::bumpPendingGeneration() {
+    _pendingOps.bumpGeneration();
+    debug(2, "PoolradEngineHostImpl::bumpPendingGeneration: generation now=%u",
+        (unsigned)_pendingOps.generation());
 }
 
 VmResult PoolradEngineHostImpl::onMapDataReady() {

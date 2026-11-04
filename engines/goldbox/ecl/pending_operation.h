@@ -120,13 +120,25 @@ struct PendingOperation {
     uint16           savedCharId;  // stable selected-character ID, restored on finish
     ReturnContextRef returnCtx;    // TODO(GB13-021): becomes LocationContext
 
+    // A frame neutralized by invalidateForCharacter() because the character or
+    // combatant it referenced actually left (Requirement 4.4). A neutralized
+    // frame still occupies its stack slot (so parent/child nesting stays
+    // intact) but can no longer consume a completion, so a stale callback for
+    // a departed id cannot act on it.
+    bool             invalidated;
+
+    // True once deliver() has handed this frame its completion. A second
+    // completion for the same key is a duplicate and is discarded.
+    bool             completionDelivered;
+
     // Owned, kind-specific state. Copied in at push time; no decoder aliasing.
     Common::Array<uint16> destinations; // VM result/destination addresses
     Common::Array<uint8>  operands;     // decoded operand bytes
     Common::String        text;         // prompt / message text
 
     PendingOperation()
-        : kind(OperationKind::Input), phase(0), nextPc(0), savedCharId(0) {}
+        : kind(OperationKind::Input), phase(0), nextPc(0), savedCharId(0),
+          invalidated(false), completionDelivered(false) {}
 };
 
 /**
@@ -223,13 +235,50 @@ public:
     uint16 resumePcWhenFinished() const;
 
     /**
-     * Owner- and generation-checked completion delivery.
+     * Owner- and generation-checked completion delivery (GB13-009, 8.2).
      *
-     * TODO(8.2): only the matching active owner consumes a completion; stale /
-     * duplicate / out-of-generation completions are discarded deliberately and
-     * logged. 8.1 stubs this so the API exists without changing behavior.
+     * Single-owner matching: ONLY the matching active owner consumes a
+     * completion. A frame is the matching active owner when it is the top
+     * frame, it is not invalidated, its RequestKey::id equals @p key.id AND
+     * its RequestKey::generation equals the stack's current generation. When a
+     * frame matches, @p completion is copied into @p out and true is returned;
+     * the caller (the owning operation, 8.3) applies the typed payload to VM
+     * memory. The match is consumed exactly once per owner: the frame records
+     * that a completion was delivered so a duplicate for the same key is
+     * discarded.
+     *
+     * A completion is discarded deliberately (returns false, @p out untouched)
+     * and logged when:
+     *  - the stack is empty, or
+     *  - the id does not match the active owner (wrong/stale owner), or
+     *  - the generation does not match the current generation (a late result
+     *    from a NEW ECL / new-game / new-battle context that has since been
+     *    replaced), or
+     *  - the active owner was invalidated because its character/combatant left,
+     *    or
+     *  - a completion for this owner was already delivered (duplicate).
+     *
+     * "Exactly once" here applies to the MUTATION a completion drives, not to
+     * legitimate repeated original menu-entry effects: re-entering a menu mints
+     * a NEW request/key and pushes (or re-pushes) a frame, so its effects run
+     * again. deliver() only prevents the SAME completion key from being applied
+     * more than once.
      */
-    bool deliver(const RequestKey &key, const Completion &completion);
+    bool deliver(const RequestKey &key, const Completion &completion,
+            Completion &out);
+
+    /**
+     * Invalidate any frame referencing a departed character/combatant id so a
+     * stale callback cannot act on it (Requirement 4.4).
+     *
+     * A frame whose savedCharId equals @p charId is marked invalidated and can
+     * no longer consume a completion. Returns the number of frames neutralized.
+     * This is the stack-level API; the character/combatant removal seams that
+     * CALL it live in not-yet-done findings (GB13-006 ADD NPC / LOAD CHARACTER
+     * removal is task 11; GB13-011 combat teardown is task 12), so 8.2 provides
+     * and unit-tests the mechanism and leaves documented TODO hooks there.
+     */
+    uint32 invalidateForCharacter(uint16 charId);
 
     /**
      * Run the top frame's tail, advance its phase and pop when finished.

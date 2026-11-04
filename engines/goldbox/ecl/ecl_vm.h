@@ -108,6 +108,14 @@ public:
     uint16 getPC() const { return _pc; }
 
     /**
+     * Classify a VM address into its memory region (index into the config's
+     * region table): region 3 is the ECL script bank (byte-addressed cells);
+     * other regions are word-addressed banks. Used by GB13-003 to pick the
+     * INPUT STRING cell width.
+     */
+    uint8 getMemoryRegion(uint16 vmAddr) const;
+
+    /**
      * Get parsed entry point PC by index (0-4).
      * These are immutable after loadProgram and cannot be corrupted by scripts.
      */
@@ -308,7 +316,6 @@ private:
      */
     void syncRuntimePc(uint16 pc);
 
-    uint8 getMemoryRegion(uint16 vmAddr) const;
     uint16 readVmMemory(uint16 vmAddr) const;
     bool readDatBankValue(uint16 vmAddr, uint16 &value) const;
     void onDatBankWrite(uint16 vmAddr, uint16 value,

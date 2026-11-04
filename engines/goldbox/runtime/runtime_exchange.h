@@ -25,6 +25,7 @@
 #include "common/scummsys.h"
 #include "goldbox/core/global.h"
 #include "goldbox/core/coords.h"
+#include "goldbox/ecl/pending_operation.h"
 
 namespace Goldbox {
 
@@ -88,6 +89,13 @@ public:
 		AsyncTag tag = kAsyncNone;
 		int16 result = 0;
 		bool success = false;
+
+		// GB13-009 (8.2): the owning operation's RequestKey (id + generation)
+		// so a View->VM/Host completion can be attributed to its owner and a
+		// stale/out-of-generation result discarded. Legacy no-key callers
+		// leave this a zero/"legacy" key (id == 0), which the single-owner
+		// matching in PendingOperationStack::deliver() treats as unowned.
+		ECL::RequestKey key;
 	};
 
 	RuntimeExchange();
@@ -97,8 +105,21 @@ public:
 	virtual bool submitIntent(const Intent &intent);
 	bool pollIntent(Intent &out);
 
-	/** Signal async completion from View to VM/Host. */
+	/**
+	 * Signal async completion from View to VM/Host (legacy, no owner key).
+	 *
+	 * Back-compat: existing callers keep this exact signature. The completion
+	 * carries a zero/"legacy" RequestKey (id == 0) so current menu/shop/print
+	 * flows are unaffected.
+	 */
 	void signalAsync(AsyncTag tag, int16 result = 0, bool success = true);
+	/**
+	 * Signal async completion carrying the owning operation's RequestKey
+	 * (GB13-009, 8.2) so the host can route it to its owner via
+	 * PendingOperationStack::deliver().
+	 */
+	void signalAsync(AsyncTag tag, const ECL::RequestKey &key, int16 result,
+		bool success = true);
 	/** Poll for async completion (returns true and clears if pending). */
 	bool pollAsync(AsyncCompletion &out);
 	/** Check if a specific async tag is pending without consuming it. */

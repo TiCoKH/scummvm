@@ -43,18 +43,17 @@ void EclSyscallImpl::printText(const Common::String &text, bool clearBox) {
 }
 
 int16 EclSyscallImpl::inputNumber(uint8 maxDigits) {
-    if (!_engine) return -1;
-
-    // TODO: Show input number dialog via View/Dialog system and block until
-    // the player confirms. Return the entered value.
-    return 0;
+    (void)maxDigits;
+    // GB13-003: generic (non-Poolrad) fallback only. PoolradEngineHostImpl
+    // overrides this and drives the real HorizontalInput dialog through the
+    // async path, so the live game never reaches this stub. Kept as a
+    // deterministic default for hosts with no input UI.
+    return -1;
 }
 
 Common::String EclSyscallImpl::inputString(uint8 maxLength) {
-    if (!_engine) return Common::String();
-
-    // TODO: Show input string dialog via View/Dialog system and block until
-    // the player confirms. Return the entered string.
+    (void)maxLength;
+    // GB13-003: generic (non-Poolrad) fallback only; see inputNumber().
     return Common::String();
 }
 
@@ -73,11 +72,12 @@ VmResult EclSyscallImpl::displayPicture(uint8 picID) {
 
 int16 EclSyscallImpl::verticalMenu(const Common::String &message,
         const Common::Array<Common::String> &options) {
-    if (!_engine) return -1;
-
-    // TODO: Show vertical menu dialog via Dialog system; block until player
-    // selects. Return 0-based index, or -1 on cancel.
-    return 0;
+    (void)message;
+    (void)options;
+    // GB13-003: generic (non-Poolrad) fallback only. PoolradEngineHostImpl
+    // overrides this and drives the real VerticalMenu dialog through the async
+    // path. -1 is an explicit "no selection" for hosts with no menu UI.
+    return -1;
 }
 
 int16 EclSyscallImpl::horizontalMenu(const Common::Array<Common::String> &options) {

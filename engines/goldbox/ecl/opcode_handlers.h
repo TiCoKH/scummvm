@@ -90,6 +90,24 @@ EclLayoutAccess getOpcodeLayout();
  */
 Common::RandomSource &getOpcodeRandom();
 
+/**
+ * Run the opcode 0x24 ENCOUNTER post-encounter cleanup tail (GB13-009).
+ *
+ * The three cleanup steps that originally ran at the bottom of the ENCOUNTER
+ * handler after the service/combat/shop/temple call returned:
+ *   1. reset the runtime game state from the indoor-mode flag,
+ *   2. clear the search flags keeping only bit 0,
+ *   3. clear the skybox redraw flag.
+ *
+ * Factored into one helper so the inline (non-yield, VM_OK) path in
+ * handle_0x24_ENCOUNTER and the resume path in the host's finalize seam run
+ * byte-identical mutations. The yield path returns early and skips the inline
+ * tail, so the host runs this exactly once after the yielded dialog completes,
+ * before the VM fetches the recorded resume PC. Reads/writes go through the
+ * shared layout (getOpcodeLayout); no VM re-execution of the opcode.
+ */
+void runEncounterCleanupTail(AddressSpace &mem);
+
 } // namespace ECL
 } // namespace Goldbox
 
