@@ -328,13 +328,15 @@ void CombatMoveDialog::handleCancel() {
     if (!Combat::g_combatSession || !_character)
         return;
 
-    // Restore original movement budget and position/facing.
+    // Restore movement budget/facing and attempt placement at the saved
+    // MoveMenu-entry origin through occupancy rules. If the origin is now
+    // occupied the session follows the original failure path (no teleport onto
+    // the occupant); the character simply keeps its current tile.
     Combat::g_combatSession->cancelMove(
         _character, _origMovePoints, _origDirection, _origPos);
 
-    // Cancel ends the move action (mirrors *result = !placed logic:
-    // if restoration succeeds the action is not yet complete, so we
-    // return false = "not done" to let CombatMain decide next step).
+    // Cancel ends the move interaction (mirrors *result = !placed logic:
+    // CombatMain returns to the menu to decide the next step).
     finishAction(false);
 }
 

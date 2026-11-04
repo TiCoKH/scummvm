@@ -619,7 +619,8 @@ void CombatView::onUpdate() {
                 if (_pendingPlayerAction == Combat::CombatSession::PA_SUBMENU) {
                     _pendingPlayerAction = Combat::CombatSession::PA_NONE;
                     if (_session.getCurrentActor())
-                        showCombatMenu(_session.getCurrentActor());
+                        showCombatMenu(_session.getCurrentActor(),
+                            Combat::CombatSession::ME_ACTION_RETURN);
                     continue;
                 }
                 if (_session.getPhase() == Combat::CombatSession::PHASE_AWAITING_PLAYER)
@@ -755,18 +756,29 @@ void CombatView::onUpdate() {
     }
 }
 
-void CombatView::showCombatMenu(::Goldbox::Data::PlayerCharacter *actor) {
+void CombatView::showCombatMenu(::Goldbox::Data::PlayerCharacter *actor,
+                                Combat::CombatSession::MenuEntryEvent event) {
     if (!actor)
         return;
-    debug(0, "[COMBATVIEW] showCombatMenu actor='%s' activeDialog='%s'",
-        actor->name.c_str(),
+    debug(0, "[COMBATVIEW] showCombatMenu actor='%s' event=%d activeDialog='%s'",
+        actor->name.c_str(), (int)event,
         _info->hasContent() ? _info->getContent()->getName().c_str() : "NONE");
     // Mirrors COMBAT_FocusCharacter + COMBATVIEW_drawCombatInfo before the menu.
     _messageBox->setActor(actor);
     _needsFullRedraw = true;
-    if (!_info->hasContent()) {
+
+    // GB13-014: the session reports the logical-entry transition explicitly.
+    // A logical entry re-dispatches effect set 15 (before the menu is built,
+    // so availability reflects any set-15 change) and rebuilds the menu; a
+    // pure redraw does neither. The decision no longer depends on whether the
+    // info widget already holds content.
+    const bool logicalEntry =
+        Combat::CombatSession::menuEntryDispatchesSet15(event);
+    if (logicalEntry) {
+        _session.reportMenuEntry(actor, event);
         _combatMenu->beginMenu(actor, &_session);
-        _info->showContent(_combatMenu);
+        if (!_info->hasContent())
+            _info->showContent(_combatMenu);
     }
     redraw();
 }
@@ -788,7 +800,9 @@ void CombatView::finishPlayerAction() {
         actor && actor->combatState ? (int)actor->combatState->spellId : -1);
     if (actor && !_session.isActorTurnComplete(actor)) {
         // DIALOG_CombatMain keeps looping while the action result is false.
-        showCombatMenu(actor);
+        // This is a logical menu reentry (View return / cancelled Aim / Speed /
+        // partial attack / auto-manual change): it MAY re-dispatch set 15.
+        showCombatMenu(actor, Combat::CombatSession::ME_ACTION_RETURN);
         return;
     }
 

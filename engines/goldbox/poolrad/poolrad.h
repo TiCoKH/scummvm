@@ -207,6 +207,21 @@ public:
 	 */
 	VmResult executeEclAtScriptAddress(uint16 scriptPc,
 			uint32 maxSteps = 1000000);
+	/**
+	 * GB13-018: run the shared camp/spell-book rest operation to completion.
+	 *
+	 * Computes the max regain time from the party (ACTION_Rest), reads the
+	 * area REST_SAFE_TIME / REST_INTERRUPT_PCT fields, then drives the shared
+	 * RestOperation in five-minute ticks (frame-bounded internally) advancing
+	 * the clock/effects, healing, spell preparation, base preparation and the
+	 * interruption roll in the exact original order.
+	 *
+	 * ECL (ONREST / ONRESTINTR) is NOT invoked here: only the completion
+	 * reason is returned so the camp wiring decides whether to run the camp
+	 * interruption entry. Returns true when an interruption ended the rest.
+	 */
+	bool runRest();
+
 	RuntimeExchange *getRuntimeExchange() override;
 	const RuntimeExchange *getRuntimeExchange() const override;
 	const LegacySharedRuntimeState &getLegacySharedRuntimeState() const {

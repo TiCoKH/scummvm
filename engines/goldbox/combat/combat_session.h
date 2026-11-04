@@ -119,6 +119,79 @@ public:
         PA_NONE         // skip turn without menu (disabled / pre-cast spell)
     };
 
+    /**
+     * GB13-014 — named activation/menu events (Requirement 25).
+     *
+     * Each existing effect-dispatch site maps to exactly one event so the
+     * session, not the view's widget-content heuristic, is the authority on
+     * whether a CombatMenu display re-dispatches effect set 15.
+     *
+     *   ME_ACTOR_START   CreatureAction turn activation (set 7 + set 15 run in
+     *                    executeTurn; this names that boundary).
+     *   ME_MANUAL_ENTRY  manual CombatMenu entry — dispatches set 15 again.
+     *   ME_ACTION_RETURN logical menu reentry after a non-completing action
+     *                    (View return, cancelled Aim, Speed, partial attack,
+     *                    auto/manual change) — MAY dispatch set 15 again.
+     *   ME_REDRAW        pure presentation redraw — SHALL NOT dispatch set 15.
+     *   ME_ACTIVATION_DONE activation completed; no further entry effects.
+     */
+    enum MenuEntryEvent {
+        ME_ACTOR_START = 0,
+        ME_MANUAL_ENTRY,
+        ME_ACTION_RETURN,
+        ME_REDRAW,
+        ME_ACTIVATION_DONE
+    };
+
+    /**
+     * Pure classification: does this menu event re-dispatch effect set 15?
+     * Logical entries (manual entry, action return) do; a pure redraw and the
+     * activation-done boundary do not. The actor-start boundary runs set 15
+     * inside executeTurn, so it is NOT re-dispatched here (returns false) to
+     * avoid a double dispatch on the activation frame.
+     */
+    static bool menuEntryDispatchesSet15(MenuEntryEvent event) {
+        return event == ME_MANUAL_ENTRY || event == ME_ACTION_RETURN;
+    }
+
+    /**
+     * Pure guard: may a menu-entry dispatch run in this phase? Entry effects
+     * are suppressed once the round has ended, combat has ended, the session is
+     * torn down or has not started. This keeps round-end Continue Battle and
+     * application-quit teardown from re-dispatching entry effects.
+     */
+    static bool phaseAllowsMenuEntry(Phase phase) {
+        return phase == PHASE_PLAYER_TURN ||
+               phase == PHASE_AWAITING_PLAYER ||
+               phase == PHASE_AI_TURN;
+    }
+
+    /**
+     * Report a CombatMenu display transition. When the event is a logical
+     * entry (see menuEntryDispatchesSet15), the phase allows entry
+     * (phaseAllowsMenuEntry) and the actor is still active, dispatches effect
+     * set 15 on the actor and bumps the set-15 trace count. A pure redraw (or
+     * a disabled actor / round-end / torn-down session) dispatches nothing.
+     * This is the explicit logical-entry signal the view consults instead of
+     * inspecting the info widget's content.
+     *
+     * Returns true when set 15 was dispatched for this event.
+     */
+    bool reportMenuEntry(Data::PlayerCharacter *actor, MenuEntryEvent event);
+
+    /**
+     * Effect-set dispatch trace counters (GB13-014). Incremented at every
+     * session-driven set-7 / set-15 dispatch boundary (turn-start and logical
+     * menu entry) regardless of whether an effect runtime is wired, so an
+     * event trace can count dispatches against the reference frequency.
+     */
+    uint32 set7DispatchCount() const { return _set7DispatchCount; }
+    uint32 set15DispatchCount() const { return _set15DispatchCount; }
+    void resetEffectDispatchTrace() {
+        _set7DispatchCount = 0;
+        _set15DispatchCount = 0;
+    }
+
     /** What happened during one actor turn — view reacts to these. */
     struct TurnResult {
         enum Event {
@@ -227,10 +300,36 @@ public:
     bool applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
                        void (*viewCallback)(Data::PlayerCharacter *) = nullptr);
 
-    /** Restore character to saved position/facing (cancel path). */
-    void cancelMove(Data::PlayerCharacter *ch,
+    /**
+     * Restore character to the saved MoveMenu-entry position/facing on cancel.
+     *
+     * Movement budget and facing are always restored. Placement at origPos is
+     * attempted THROUGH occupancy rules (GB13-014): if the origin is now
+     * occupied by another combatant the original failure path is followed and
+     * the character is NOT teleported onto the occupant. The origin is the one
+     * captured once at beginMove and is NOT reset after a bump attack.
+     *
+     * Returns true when the character was placed back at the origin, false when
+     * the origin was occupied (failure path) or the character is not on the
+     * battlefield.
+     */
+    bool cancelMove(Data::PlayerCharacter *ch,
                     uint8 origMovePoints, uint8 origDirection,
                     TilePos origPos);
+
+    /**
+     * Occupancy decision for the move-cancel origin (GB13-014, pure seam).
+     *
+     * occupant is the 1-based occupancy slot at the saved origin (0 = empty);
+     * selfIdx is the cancelling character's 0-based table index. The origin is
+     * blocked only when it is held by a DIFFERENT combatant (occupant != 0 and
+     * occupant != selfIdx + 1). An empty origin or the character's own
+     * footprint is not a block. When blocked, cancelMove follows the original
+     * failure path rather than teleporting onto the occupant.
+     */
+    static bool originBlockedByOther(uint8 occupant, int selfIdx) {
+        return occupant != 0 && (int)occupant != selfIdx + 1;
+    }
 
     /**
      * Mirrors COMBAT_SetCharacterStatus (data layer).
@@ -553,6 +652,19 @@ private:
     uint32 _battleGeneration = 0;
     BattleTeardownObserver *_teardownObserver = nullptr;
     BattleOutcomeSnapshot   _outcomeSnapshot;
+
+    // GB13-014: effect-set dispatch trace counters (set 7 / set 15), bumped at
+    // every session-driven dispatch boundary so an event trace can verify the
+    // reference frequency. Observable via set7DispatchCount/set15DispatchCount.
+    uint32 _set7DispatchCount = 0;
+    uint32 _set15DispatchCount = 0;
+
+    /**
+     * Dispatch effect set 15 on ch and bump the set-15 trace count. Null-safe:
+     * the trace count always advances (it records the logical dispatch), while
+     * the effect runtime only runs when wired and the character has effects.
+     */
+    void dispatchSet15(Data::PlayerCharacter *ch);
 
     /** Unbind _spellTargeter from the spell service if still registered. */
     void unbindSpellTargeter();

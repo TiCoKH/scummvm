@@ -290,8 +290,20 @@ private:
     // Success flag of the last sub-dialog result (cancel vs. confirm).
     bool _lastResultSuccess = true;
 
-    /** Focus the actor, refresh its info panel and (re)show the combat menu. */
-    void showCombatMenu(::Goldbox::Data::PlayerCharacter *actor);
+    /**
+     * Focus the actor, refresh its info panel and (re)show the combat menu.
+     *
+     * GB13-014: the session is the authority on whether this display is a
+     * logical menu entry (re-dispatch effect set 15 and rebuild the menu) or a
+     * pure redraw (no dispatch, no rebuild). The caller names the event;
+     * showCombatMenu consults CombatSession::reportMenuEntry() instead of the
+     * info widget's content. ME_MANUAL_ENTRY is the first menu for an actor;
+     * ME_ACTION_RETURN is a reentry after a non-completing action; ME_REDRAW is
+     * a pure presentation refresh.
+     */
+    void showCombatMenu(::Goldbox::Data::PlayerCharacter *actor,
+                        Combat::CombatSession::MenuEntryEvent event =
+                            Combat::CombatSession::ME_MANUAL_ENTRY);
 
     /**
      * Called after a player sub-dialog (move/cast/attack) returns. Mirrors

@@ -38,6 +38,8 @@
 #include "goldbox/game_factory.h"
 #include "goldbox/spells/spell_casting.h"
 #include "goldbox/runtime/runtime_time.h"
+#include "goldbox/poolrad/rest_operation.h"
+#include "goldbox/poolrad/spell_preparation.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/core/coords.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
@@ -1774,6 +1776,115 @@ RuntimeExchange *PoolradEngine::getRuntimeExchange() {
 
 const RuntimeExchange *PoolradEngine::getRuntimeExchange() const {
 	return _runtimeExchange.get();
+}
+
+namespace {
+
+// Host implementation of the rest side effects. Forwards the clock advance to
+// timeAddUnits (field = minutes, amount = 5), heals via the ordinary HP
+// restoration (clamped to max), and rolls d100 through the engine RNG. Kept
+// out of the pure RestOperation so the timer/heal/prep logic stays testable.
+class HostRestEnvironment : public RestOperation::Environment {
+public:
+	HostRestEnvironment(ECL::AddressSpace &mem,
+			const Goldbox::TimeFieldAddresses &clockAddrs,
+			Common::List<Goldbox::Data::PlayerCharacter *> &party,
+			Goldbox::Data::Effects::EffectHandlerBase *handler,
+			Goldbox::GameState gameState)
+		: _mem(mem), _clockAddrs(clockAddrs), _party(party),
+		  _handler(handler), _gameState(gameState) {}
+
+	void advanceFiveMinutes() override {
+		// Original GameTime.AdvanceTime(5, MINUTES): field = 1 (minutes),
+		// amount = 5. Same call shape poolrad.cpp already uses for search.
+		Goldbox::timeAddUnits(_mem, _clockAddrs, _party, _handler,
+			_gameState, 1, 5);
+	}
+
+	bool restoreOneHitPoint(Data::PoolradCharacter *member) override {
+		// Ordinary restoration: +1 HP, never above max, never a full heal.
+		// Mirrors FxEngine.RestoreHitPoints(cur, 1, False).
+		if (!member)
+			return false;
+		if (member->hitPoints.current >= member->hitPoints.max)
+			return false;
+		++member->hitPoints.current;
+		return true;
+	}
+
+	int rollInterruptionPercent() override {
+		return VmInterface::rollDice(1, 100);
+	}
+
+private:
+	ECL::AddressSpace &_mem;
+	const Goldbox::TimeFieldAddresses &_clockAddrs;
+	Common::List<Goldbox::Data::PlayerCharacter *> &_party;
+	Goldbox::Data::Effects::EffectHandlerBase *_handler;
+	Goldbox::GameState _gameState;
+};
+
+} // namespace
+
+bool PoolradEngine::runRest() {
+	if (!_eclVm)
+		return false;
+
+	ECL::AddressSpace &mem = _eclVm->getMemory();
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+
+	// Gather the party as PoolradCharacters in list order.
+	Common::Array<Data::PoolradCharacter *> party;
+	for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it =
+			_party.begin(); it != _party.end(); ++it) {
+		party.push_back(static_cast<Data::PoolradCharacter *>(*it));
+	}
+
+	// Max regain time (ACTION_Rest): the party-wide maximum spell preparation
+	// requirement, in minutes. The original reads CHARACTER_GetSpellRegain;
+	// no C++ port of that helper exists yet, so the requested duration is
+	// derived from pending work at 15 minutes per spell level (3 ticks/level *
+	// 5 minutes). OPEN: swap to the exact CHARACTER_GetSpellRegain minutes if
+	// a port lands.
+	uint16 maxRegainMinutes = 0;
+	for (uint i = 0; i < party.size(); ++i) {
+		Data::PoolradCharacter *member = party[i];
+		if (!member)
+			continue;
+		SpellPreparation prep(member);
+		// Each pending memorize slot costs its spell level in 15-minute units
+		// (3 ticks/level * 5 min). Estimate from the pending count; the tick
+		// simulation enforces the exact per-level timing as it runs.
+		const uint8 pendingMem = prep.countPendingMemorized();
+		if (pendingMem > 0) {
+			const uint16 estimate = (uint16)(pendingMem * 15);
+			if (estimate > maxRegainMinutes)
+				maxRegainMinutes = estimate;
+		}
+	}
+
+	// Area safe-rest fields (zone1[REST_SAFE_TIME], zone1[REST_INTERRUPT_PCT]).
+	const uint8 safeTime = mem.read8(
+		layout.vmGlobalField(kVmGlobalFieldRestSafeTime).vmAddr);
+	const uint8 interruptPct = mem.read8(
+		layout.vmGlobalField(kVmGlobalFieldRestInterruptChance).vmAddr);
+
+	RestOperation rest;
+	rest.start(party, maxRegainMinutes, safeTime, interruptPct);
+
+	HostRestEnvironment env(mem, kPoolradClockAddrs, _party,
+		effectsRuntime(), getGameState());
+
+	// Drive the simulation to completion. Ticks are bounded per iteration to
+	// stay responsive without changing the simulated order or count; a real
+	// frame-bounded driver would yield here between batches.
+	const int kMaxTicksPerBatch = 64;
+	while (rest.isResting()) {
+		for (int i = 0; i < kMaxTicksPerBatch && rest.isResting(); ++i)
+			rest.advanceTick(env);
+	}
+
+	return rest.shouldRunInterruptionEcl();
 }
 
 } // namespace Poolrad

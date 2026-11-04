@@ -262,10 +262,8 @@ CombatSession::TurnResult CombatSession::executeTurn() {
     }
 
     // ES15 runs after recalc+draw; may zero initiative and cancel the turn.
-    if (_params.effectRuntime && _currentActor->getEffects())
-        _params.effectRuntime->checkEffectSet(
-            Data::Effects::ES_POISON_CYCLE,
-            *_currentActor->getEffects(), *_currentActor, &_globals);
+    // This is the ME_ACTOR_START set-15 boundary (CreatureAction dispatch).
+    dispatchSet15(_currentActor);
 
     // Second initiative gate: ES15 may have cancelled the turn.
     if ((int8)_currentActor->combatState->initiative <= 0) {
@@ -467,6 +465,10 @@ void CombatSession::beginBattle() {
     _outcomeSnapshot = BattleOutcomeSnapshot();
     _phase = PHASE_NONE;
 
+    // GB13-014: a fresh battle starts with a clean effect-set dispatch trace.
+    _set7DispatchCount = 0;
+    _set15DispatchCount = 0;
+
     if (_teardownObserver)
         _teardownObserver->onBeginBattle(_battleGeneration);
 }
@@ -605,7 +607,9 @@ bool CombatSession::applyTurnStartEffects(Data::PlayerCharacter *ch) {
     cs.directionChange = 0;
     cs.guarding        = false;
 
-    // ES7 runs unconditionally before the first initiative gate.
+    // ES7 runs unconditionally before the first initiative gate (ME_ACTOR_START
+    // boundary). The trace count advances even without a wired runtime.
+    ++_set7DispatchCount;
     if (_params.effectRuntime && ch->getEffects())
         _params.effectRuntime->checkEffectSet(
             Data::Effects::ES_POST_MOVEMENT_TILE,
@@ -619,6 +623,36 @@ bool CombatSession::applyTurnStartEffects(Data::PlayerCharacter *ch) {
     if (cs.initiative == 20)
         cs.initiative = 19;
 
+    return true;
+}
+
+void CombatSession::dispatchSet15(Data::PlayerCharacter *ch) {
+    // The trace count records the logical set-15 dispatch; the effect runtime
+    // only runs when wired and the character carries effects (original gate).
+    ++_set15DispatchCount;
+    if (_params.effectRuntime && ch && ch->getEffects())
+        _params.effectRuntime->checkEffectSet(
+            Data::Effects::ES_POISON_CYCLE,
+            *ch->getEffects(), *ch, &_globals);
+}
+
+bool CombatSession::reportMenuEntry(Data::PlayerCharacter *actor,
+                                    MenuEntryEvent event) {
+    // Guard the disablement / teardown paths: a disabled actor or a session
+    // that is no longer awaiting a turn must not re-dispatch entry effects, so
+    // round-end Continue Battle and application-quit teardown stay inert.
+    if (!actor || !actor->enabled)
+        return false;
+    if (!phaseAllowsMenuEntry(_phase))
+        return false;
+
+    // Only a logical menu entry (manual entry / action return) re-dispatches
+    // set 15; a pure redraw (and the actor-start / activation-done boundaries)
+    // dispatch nothing.
+    if (!menuEntryDispatchesSet15(event))
+        return false;
+
+    dispatchSet15(actor);
     return true;
 }
 
@@ -730,19 +764,35 @@ CombatSession::MoveStepResult CombatSession::performMoveStep(
     return result;
 }
 
-void CombatSession::cancelMove(Data::PlayerCharacter *ch,
+bool CombatSession::cancelMove(Data::PlayerCharacter *ch,
                                uint8 origMovePoints, uint8 origDirection,
                                TilePos origPos) {
     if (!ch || !ch->combatState)
-        return;
+        return false;
+
+    // Movement budget and facing are always restored to the MoveMenu-entry
+    // values (the origin captured once at beginMove, kept across bump attacks).
     ch->combatState->movePoints = origMovePoints;
     ch->combatState->direction  = origDirection;
+
     const int idx = _table.findIndex(ch);
-    if (idx >= 0) {
-        _table.setPosition(idx, origPos);
-        _table.rebuildOccupancy();
-        scrollViewport(origPos, 2);
-    }
+    if (idx < 0)
+        return false;
+
+    // Attempt placement at the saved origin THROUGH occupancy rules instead of
+    // a blind setPosition: if another combatant now stands on the origin, the
+    // original failure path is followed (the actor stays where it is, no
+    // teleport onto the occupant). The origin's own footprint is still this
+    // character (we have not moved it yet), so an occupant slot pointing at a
+    // different index is a genuine block.
+    const uint8 occupant = _table.getOccupant(origPos); // 1-based, 0 = empty
+    if (originBlockedByOther(occupant, idx))
+        return false; // original failure path: origin is occupied
+
+    _table.setPosition(idx, origPos);
+    _table.rebuildOccupancy();
+    scrollViewport(origPos, 2);
+    return true;
 }
 
 CombatSession::TryFleeResult CombatSession::trySetFleeing(Data::PlayerCharacter *ch) {

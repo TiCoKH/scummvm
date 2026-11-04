@@ -280,7 +280,11 @@ void CampMenuDialog::handleMenuKey(char key) {
             _spellBookDialog->activate();
         break;
     case 'R':
-        // TODO: ACTION_Rest(isInterrupted)
+        // ACTION_Rest: drive the shared rest operation. The engine owns the
+        // timers/counters; the dialog only records whether an interruption
+        // occurred so exitCamp routes through the ONRESTINTR ECL entry.
+        if (Goldbox::Poolrad::g_engine)
+            _isInterrupted = Goldbox::Poolrad::g_engine->runRest();
         break;
     case 'A':
         // TODO: DIALOG_Preferences

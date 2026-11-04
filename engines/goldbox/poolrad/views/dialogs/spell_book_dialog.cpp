@@ -30,6 +30,7 @@
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/data/poolrad_spell_mapping.h"
 #include "goldbox/poolrad/spell_preparation.h"
+#include "goldbox/poolrad/poolrad.h"
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/spells/spell_casting.h"
 #include "common/debug.h"
@@ -400,9 +401,14 @@ void SpellBookDialog::beginDisplay() {
 }
 
 void SpellBookDialog::beginRest() {
-    // Original ACTION_Rest: calculate max regain time from party,
-    // populate rest time struct, call DIALOG_RestInterrupt.
-    // TODO: Implement rest logic + encounter check.
+    // Original ACTION_Rest: calculate max regain time from party, populate
+    // the rest time struct, call DIALOG_RestInterrupt. Both the SpellBook and
+    // Camp entry points drive the SAME shared rest operation; the engine owns
+    // all timers/counters. The interruption result is reported back to the
+    // caller the same way camp does (the ONRESTINTR ECL entry is run by the
+    // wiring, not here).
+    if (Goldbox::Poolrad::g_engine)
+        Goldbox::Poolrad::g_engine->runRest();
 
     _screenDirty = true;
     returnToMainMenu();

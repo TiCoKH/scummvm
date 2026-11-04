@@ -56,15 +56,11 @@ void CombatMenuDialog::beginMenu(Goldbox::Data::PlayerCharacter *actor,
     if (!actor || !session)
         return;
 
-    // Effect Set 15 (ES_POISON_CYCLE) runs before menu construction,
-    // mirroring UTIL_checkEffectSet(0x0f, char_ptr).
-    const Combat::CombatParams &params = session->getParams();
-    if (params.effectRuntime && actor->getEffects()) {
-        params.effectRuntime->checkEffectSet(
-            Goldbox::Data::Effects::ES_POISON_CYCLE,
-            *actor->getEffects(), *actor,
-            const_cast<Combat::CombatGlobals *>(&session->getGlobals()));
-    }
+    // GB13-014: Effect Set 15 (ES_POISON_CYCLE) is no longer dispatched here.
+    // The session is now the single authority for the manual CombatMenu set-15
+    // boundary and runs it via reportMenuEntry() BEFORE this menu is built, so
+    // the availability flags below already reflect any set-15 state change
+    // (mirrors UTIL_checkEffectSet(0x0f, char_ptr) running ahead of the menu).
 
     const Goldbox::Data::CombatAction *cs = actor->combatState;
 
