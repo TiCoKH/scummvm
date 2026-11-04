@@ -28,6 +28,7 @@ MODULE_OBJS = \
 	ecl/opcode_table.o \
 	ecl/pending_operation.o \
 	ecl/operand_roles.o \
+	ecl/npc_recruitment.o \
 	ecl/rune_presentation.o \
 	ecl/scripted_damage.o \
 	ecl/ecl_string_writer.o \

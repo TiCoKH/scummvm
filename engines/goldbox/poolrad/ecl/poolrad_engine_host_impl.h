@@ -99,6 +99,7 @@ public:
     VmResult loadMonster(uint8 monsterId, uint8 count,
         uint8 graphicId) override;
     VmResult clearMonsters() override;
+    VmResult addNpc(uint8 monsterId, uint8 morale) override;
     VmResult displayPicture(uint8 picID) override;
     VmResult drawEncounterStage(uint8 resourceId, uint8 distanceCap,
         uint8 variantId) override;
@@ -167,6 +168,30 @@ public:
     void bumpPendingGeneration();
 
     /**
+     * GB13-006 (Requirement 4.4): invalidate any pending target/selection
+     * reference that belongs to a character who ACTUALLY LEFT the party, so a
+     * stale targeting/selection callback cannot act on the departed id.
+     * Forwards to the host-private PendingOperationStack (the 8.2 hook). The
+     * id is the departed member's stable party index. This is the removal-path
+     * wiring the clearMonsters TODO deferred to this task; the combat-roster
+     * removal id source stays owned by GB13-011 (task 12).
+     */
+    void invalidatePendingForCharacter(uint16 charId);
+
+    /**
+     * GB13-006 LOAD CHARACTER bit-7 removal (Inst_LOAD_CHAR /
+     * PARTY_removeMember / RemoveCreature). Removes @p member from the engine
+     * party using the stable capture-next-before-erase strategy, frees its
+     * icon slot, updates selection + the VM character window and invalidates
+     * pending references for the departed stable id. This is ONLY the
+     * party-member removal action; it is deliberately distinct from temporary
+     * monster teardown (clearMonsters) and disk-character deletion.
+     *
+     * @return true when a member was actually removed.
+     */
+    bool removeLoadedCharacter(Goldbox::Data::PlayerCharacter *member) override;
+
+    /**
      * DIALOG_OpenDoor equivalent: attempt to open a door in the party's
      * current facing direction at the current position using RuntimeGeoBlock.
      * Returns true if a door was opened (wall flag cleared).
@@ -197,6 +222,10 @@ public:
 private:
     uint8 allocateMonsterIconSlot() const;
 
+    // GB13-006: keep the VM character window (party count + selected-pc index)
+    // coherent with the engine party list and selection in one place.
+    void _syncPartyWindow(Goldbox::Data::PlayerCharacter *selection);
+
     // Skybox background layer colors (set by GFX_SetDefaultColors,
     // updated from VM $49FD/$49FE when scripts change them).
     uint8 _colorFloor   = 6;
@@ -211,6 +240,13 @@ private:
     bool _monstersAppendedToParty = false;
     Common::Array<uint8> _monsterIconSlots;
     uint8 _nextMonsterIconSlot = 26;
+
+    // GB13-006: dynamic icon slots owned by recruited NPCs (ADD NPC). These are
+    // PERSISTENT party-member icons, tracked separately from _monsterIconSlots
+    // so temporary monster teardown (clearMonsters) never releases a recruited
+    // NPC's icon. Each slot is released when the owning member leaves via
+    // removeLoadedCharacter (LOAD CHARACTER bit 7).
+    Common::Array<uint8> _recruitIconSlots;
 
     // GB13-009 (8.1): host-owned typed pending-operation stack. Introduced
     // ALONGSIDE the per-kind async booleans below; it generalizes them and the

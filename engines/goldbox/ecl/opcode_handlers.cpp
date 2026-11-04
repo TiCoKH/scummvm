@@ -198,6 +198,13 @@ static int handle_0x00_EXIT(EclVM &vm, AddressSpace &mem,
     // GB13-008: EXIT ends the script; drop the transient rune presentation
     // cursor/box/redraw state so a later script starts from a clean box.
     getRunePresentation().reset();
+    // GB13-006: Inst_EXIT restores the SAVED selection when a temporary
+    // LOAD CHARACTER selection is active (BOOL_CHARACTER_INLOAD -> curChar :=
+    // savedChar). The engine has no saved-selection pointer modeled yet, and
+    // the current selection is already kept coherent (never dangling) by the
+    // LOAD CHARACTER removal path. Wiring the savedChar/restoreChar restore
+    // belongs with the WHO temporary-selection owner (GB13-003) and PROGRAM
+    // selection restore (GB13-007, task 25); do not guess a saved pointer here.
     return VM_HALTED;
 }
 
@@ -487,9 +494,15 @@ static int handle_0x0A_LOAD_CHARACTER(EclVM &vm, AddressSpace &mem,
         }
     }
 
-    // Poolrad originals (x86/m68k): when bit 7 is set and both redraw flags
-    // are true, perform party UI/update flow and then clear redraw flags.
-    // We mirror the observable VM side effect (flag clear) here.
+    // GB13-006: Inst_LOAD_CHAR's bit-7 branch is a REMOVAL control, not merely
+    // a redraw request. When bit 7 is set and both redraw flags are true, the
+    // original runs PARTY_removeMember(true,false) (free the icon slot,
+    // decrement PARTY_SIZE), DIALOG_ShowParty, then clears both redraw flags.
+    // The removal is the party-member action only; the host performs the
+    // stable capture-next-before-erase removal, invalidates pending references
+    // for the departed id (Requirement 4.4) and resynchronizes the VM window.
+    // It is deliberately distinct from temporary monster teardown
+    // (clearMonsters) and disk-character deletion.
     const uint16 statusRedrawAddr = getOpcodeLayout().runtimeField(
         kEclRuntimeStatusRedrawFlag);
     const uint16 charRedrawAddr = getOpcodeLayout().runtimeField(
@@ -498,6 +511,12 @@ static int handle_0x0A_LOAD_CHARACTER(EclVM &vm, AddressSpace &mem,
             && EclRuntimeLayout::isValidVmAddr(charRedrawAddr)
             && mem.read8(statusRedrawAddr) != 0
             && mem.read8(charRedrawAddr) != 0) {
+        if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+            Data::PlayerCharacter *departing =
+                VmInterface::getSelectedCharacter();
+            if (departing)
+                host->removeLoadedCharacter(departing);
+        }
         mem.write8(statusRedrawAddr, 0);
         mem.write8(charRedrawAddr, 0);
     }
@@ -1648,8 +1667,18 @@ static int handle_0x35_SAVE_TABLE(EclVM &vm, AddressSpace &mem,
 // 0x36: ADD NPC <monsterID> <morale>
 static int handle_0x36_ADD_NPC(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)mem; (void)nextPc; (void)callStack;
+    // GB13-006: Inst_NPC_ADD decodes two value operands via ReadOperandValue
+    // (GB13-008): operand 1 = monster id, operand 2 = morale. The host loads
+    // the creature + owned inventory/effects, appends it through the one party
+    // ownership API, sets npc=(morale div 2)|0x80 and hostility (id 24 hostile,
+    // else friendly), then recalculates derived stats.
     vm.getOperand(2);
+    const uint8 monsterId = static_cast<uint8>(vm.readVar(1));
+    const uint8 morale    = static_cast<uint8>(vm.readVar(2));
+
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+        return host->addNpc(monsterId, morale);
     return VM_OK;
 }
 

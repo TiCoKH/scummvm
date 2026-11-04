@@ -30,6 +30,10 @@
 
 namespace Goldbox {
 
+namespace Data {
+class PlayerCharacter;
+} // namespace Data
+
 namespace ECL {
 
 /**
@@ -350,6 +354,20 @@ public:
      * @return VmResult
      */
     virtual VmResult removeNpc() { return VM_OK; }
+
+    /**
+     * Remove a specific party member (GB13-006 LOAD CHARACTER bit-7 removal,
+     * 0x0A). The host unlinks @p member from the party using a stable
+     * capture-next-before-erase strategy, frees its icon, updates selection +
+     * the VM character window and invalidates pending references for the
+     * departed stable id. This is ONLY the party-member removal action,
+     * distinct from temporary monster teardown and disk-character deletion.
+     * @return true when a member was actually removed.
+     */
+    virtual bool removeLoadedCharacter(Data::PlayerCharacter *member) {
+        (void)member;
+        return false;
+    }
 
     // -----------------------------------------------------------------------
     // Combat

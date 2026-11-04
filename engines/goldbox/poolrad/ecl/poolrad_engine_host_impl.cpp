@@ -63,6 +63,7 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/ecl/opcode_handlers.h"
 #include "goldbox/ecl/runtime_layout.h"
+#include "goldbox/ecl/npc_recruitment.h"
 
 namespace {
 
@@ -721,6 +722,169 @@ VmResult PoolradEngineHostImpl::clearMonsters() {
     }
 
     return VmResult::VM_OK;
+}
+
+// GB13-006: synchronize the VM character window after party membership or
+// selection changed. Keeps kVmGlobalFieldPartyCount and the selected-pc index
+// coherent with the engine party list + engine selection in ONE place, so the
+// bookkeeping is not scattered across dialogs (Requirement 5.3).
+void PoolradEngineHostImpl::_syncPartyWindow(
+        Goldbox::Data::PlayerCharacter *selection) {
+    if (!_engine || !_memory)
+        return;
+
+    Common::List<Goldbox::Data::PlayerCharacter *> &party = _engine->getParty();
+    const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
+
+    // Party count mirrors the live list size (PARTY_SIZE).
+    _memory->write8(layout.vmGlobalField(kVmGlobalFieldPartyCount).vmAddr,
+        static_cast<uint8>(party.size() & 0xFF));
+
+    // Selected-pc index is the 0-based position of the selection in list order.
+    // When the selection is not (or no longer) a member, fall back to the head.
+    uint8 selectedIndex = 0;
+    Goldbox::Data::PlayerCharacter *resolved =
+        party.empty() ? nullptr : party.front();
+    uint8 i = 0;
+    for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it =
+            party.begin(); it != party.end(); ++it, ++i) {
+        if (*it == selection) {
+            selectedIndex = i;
+            resolved = selection;
+            break;
+        }
+    }
+
+    _memory->write8(layout.vmGlobalField(kVmGlobalFieldSelectedPcIndex).vmAddr,
+        selectedIndex);
+    _engine->setSelectedCharacter(resolved);
+    _engine->_nextCharacter = party.empty() ? nullptr : party.front();
+}
+
+VmResult PoolradEngineHostImpl::addNpc(uint8 monsterId, uint8 morale) {
+    if (!_engine)
+        return VmResult::VM_ERROR;
+    if (_engine->getPlatform() == Common::kPlatformAmiga) {
+        warning("PoolradEngineHostImpl::addNpc: Amiga MONCHA/MONITM/MONSPC layout not implemented yet");
+        return VmResult::VM_ERROR;
+    }
+
+    Common::List<Goldbox::Data::PlayerCharacter *> &party = _engine->getParty();
+    // AddCreatureToParty / NPC_LoadMonsterAndAddToParty refuse to recruit once
+    // the party is full (PARTY_SIZE > 7). A full party is a no-op, not an error.
+    if (party.size() >= 8)
+        return VmResult::VM_OK;
+
+    Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+    if (!iconMgr) {
+        warning("PoolradEngineHostImpl::addNpc: icon manager unavailable");
+        return VmResult::VM_ERROR;
+    }
+
+    // Construct the recruit through the SAME decoded monster loader used by
+    // loadMonster: owned inventory (MONITM) and effects (MONSPC) plus the
+    // composite icon defaults (MONCHA). resolveEquippedItems() reconstructs the
+    // already-equipped item links/derived state WITHOUT replaying equip events,
+    // so GB13-017 ready bonuses are NOT applied twice (same load vs replay
+    // distinction GB13-017 established).
+    Data::PoolradCharacter *recruit = new Data::PoolradCharacter();
+    if (!loadMonsterTemplate(_engine, monsterId, *recruit)) {
+        delete recruit;
+        return VmResult::VM_ERROR;
+    }
+    loadMonsterItems(_engine, monsterId, *recruit);
+    loadMonsterEffects(_engine, monsterId, *recruit);
+    applyX86MonsterIconDefaults(*recruit);
+
+    // A recruit is a PERSISTENT party member, so its icon lives in a dynamic
+    // slot tracked in _recruitIconSlots (never released by clearMonsters). Use
+    // the MONCHA composite icon (the original LoadCharIconAnim path builds the
+    // character icon rather than a CPIC encounter sprite).
+    const uint8 slotId = allocateMonsterIconSlot();
+    if (!iconMgr->loadIcon(slotId, recruit->iconData, false)) {
+        warning("PoolradEngineHostImpl::addNpc: failed to build icon for monster %u",
+            (unsigned)monsterId);
+        delete recruit;
+        iconMgr->releaseIcon(slotId);
+        return VmResult::VM_ERROR;
+    }
+    recruit->iconData.iconSlotId = slotId;
+    recruit->enabled = true;
+    recruit->clearEquippedItems();
+    recruit->resolveEquippedItems();
+
+    // Advance the shared dynamic-slot cursor so a subsequent loadMonster does
+    // not reuse this recruit's persistent icon slot.
+    _nextMonsterIconSlot = (slotId < Goldbox::Gfx::SLOT_DYNAMIC_END)
+        ? static_cast<uint8>(slotId + 1)
+        : kMonsterSlotStart;
+
+    // Append through the ONE party ownership API: the engine owns _party and
+    // frees every entry at teardown. PTR_SELECTED_CHAR becomes the new recruit
+    // (Inst_NPC_ADD sets PTR_SELECTED_CHAR via NPC_LoadMonsterAndAddToParty).
+    party.push_back(recruit);
+    _recruitIconSlots.push_back(slotId);
+
+    // Set the two original NPC fields (npc byte + hostility by id) and recalc
+    // derived stats, exactly as Inst_NPC_ADD does after the add.
+    ECL::applyNpcRecruitFields(*recruit, monsterId, morale);
+    recruit->recalcCombatStats();
+
+    // DIALOG_ShowParty(PTR_SELECTED_CHAR): the recruit is selected and the VM
+    // character window (party count + selected index + engine selection) is
+    // updated together in this single owner.
+    _syncPartyWindow(recruit);
+    _updateViewState();
+    return VmResult::VM_OK;
+}
+
+bool PoolradEngineHostImpl::removeLoadedCharacter(
+        Goldbox::Data::PlayerCharacter *member) {
+    if (!_engine || !member)
+        return false;
+
+    Common::List<Goldbox::Data::PlayerCharacter *> &party = _engine->getParty();
+    const ECL::PartyRemovalResult removal =
+        ECL::removeSelectedStable(party, member);
+    if (!removal.removed)
+        return false;
+
+    // Free the departed member's icon slot (PARTY_removeMember free_iconSlot).
+    // Only release through the IconManager when we own the dynamic slot as a
+    // recruit; a slot we did not allocate is left to its owner.
+    Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+    const uint8 slotId = member->iconData.iconSlotId;
+    for (uint i = 0; i < _recruitIconSlots.size(); ++i) {
+        if (_recruitIconSlots[i] == slotId) {
+            if (iconMgr)
+                iconMgr->releaseIcon(slotId);
+            _recruitIconSlots.remove_at(i);
+            break;
+        }
+    }
+
+    // Requirement 4.4: the member ACTUALLY LEFT, so invalidate any pending
+    // target/selection reference for its stable id before the pointer dies.
+    invalidatePendingForCharacter(removal.departedIndex);
+
+    // Keep party size / order / selection / VM window coherent in one owner.
+    _syncPartyWindow(removal.newSelection);
+
+    // The engine owns party-character lifetimes (Engine::~Engine deletes each
+    // _party entry), so freeing the unlinked member here matches the original
+    // FreeCreature and avoids a leak now that it is off the list.
+    delete removal.departed;
+
+    _updateViewState();
+    return true;
+}
+
+void PoolradEngineHostImpl::invalidatePendingForCharacter(uint16 charId) {
+    const uint32 count = _pendingOps.invalidateForCharacter(charId);
+    if (count != 0) {
+        debug(2, "PoolradEngineHostImpl::invalidatePendingForCharacter: neutralized %u frame(s) for departed char=%u",
+            (unsigned)count, (unsigned)charId);
+    }
 }
 
 VmResult PoolradEngineHostImpl::displayPicture(uint8 picID) {
