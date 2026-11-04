@@ -163,6 +163,13 @@ public:
 	EffectHandler *effectsRuntime() { return static_cast<EffectHandler *>(_effectHandler); }
 	ECL::AddressSpace *getEclMemory();
 	const ECL::AddressSpace *getEclMemory() const;
+
+	/**
+	 * GB13-020: the ECL host implementation, needed by roster actions (DROP /
+	 * REMOVE) to invoke the shared active-party removal ownership op
+	 * (removeLoadedCharacter). Returns nullptr before the runtime is set up.
+	 */
+	PoolradEngineHostImpl *getEclHost() { return _eclHost.get(); }
 	bool captureRuntimeMapSnapshot(::Goldbox::RuntimeMapSnapshot &snapshot) const;
 
 	/** GB13-021 authoritative location context (TYPE owner). */

@@ -21,6 +21,8 @@
 
 #include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/poolrad.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/training_rules.h"
 #include "goldbox/poolrad/views/mainmenu_view.h"
 
 #define CREATE 0
@@ -178,16 +180,65 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
                 replaceView("CreatCharacter");
             break;
         case Common::KEYCODE_d:
-            if (_menuItemList.isActive(DROP))
-                replaceView("Mainmenu");
+            if (_menuItemList.isActive(DROP)) {
+                // DROP: distinct roster workflow. Routes through the shared
+                // active-party removal ownership op (GB13-006), which updates
+                // selection + counts atomically. The disk-character
+                // distinction between DROP and REMOVE is OPEN (see
+                // training_rules.cpp); both use the confirmable active-party
+                // removal here.
+                Goldbox::Data::PlayerCharacter *sel =
+                    VmInterface::getSelectedCharacter();
+                if (sel)
+                    RosterActions::removeSelectedFromParty(
+                        sel, RosterActions::ACTION_DROP);
+                refreshPartyState();
+                redraw();
+            }
             break;
         case Common::KEYCODE_m:
             if (_menuItemList.isActive(MODIFY))
                 addView("ModifyCharacter");
             break;
         case Common::KEYCODE_t:
-            if (_menuItemList.isActive(TRAIN))
-                replaceView("Mainmenu");
+            if (_menuItemList.isActive(TRAIN)) {
+                // TRAIN: separate workflow built on the pure TrainingRules
+                // operation. The eligibility checks (consciousness, funds, XP
+                // threshold, class, wrong-hall) and the early XP clamp run
+                // here against the selected character; the confirmation and
+                // mage-spell-choice continuation phases are driven by the
+                // training dialog once the player confirms.
+                //
+                // OPEN: the confirmation/mage-spell dialog view and the real
+                // hall-id -> base-class keying are not yet wired (hall keying
+                // is itself OPEN in training_rules.cpp). Until that dialog
+                // exists we run begin() to apply the eligibility + documented
+                // early XP clamp on the selected character; a blocked result
+                // leaves the roster untouched.
+                Goldbox::Data::PlayerCharacter *sel =
+                    VmInterface::getSelectedCharacter();
+                Goldbox::Poolrad::Data::PoolradCharacter *pc =
+                    dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(sel);
+                if (pc) {
+                    // Train the character's highest-level base class as a safe
+                    // default; the hall opt-out (hall == trained class) avoids
+                    // the OPEN wrong-hall path until real hall keying lands.
+                    uint8 trainBase = 0;
+                    uint8 bestLevel = 0;
+                    for (uint8 b = 0; b < BASE_CLASS_NUM &&
+                            b < pc->levels.levels.size(); ++b) {
+                        if (pc->levels.levels[b] > bestLevel) {
+                            bestLevel = pc->levels.levels[b];
+                            trainBase = b;
+                        }
+                    }
+                    TrainingRules training;
+                    training.begin(pc, trainBase, trainBase,
+                        pc->haveMemorizedSpell());
+                }
+                refreshPartyState();
+                redraw();
+            }
             break;
         case Common::KEYCODE_v:
             if (_menuItemList.isActive(VIEW))
@@ -198,8 +249,18 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
                 replaceView("AddCharacter");
             break;
         case Common::KEYCODE_r:
-            if (_menuItemList.isActive(REMOVE))
-                replaceView("Mainmenu");
+            if (_menuItemList.isActive(REMOVE)) {
+                // REMOVE: distinct roster workflow. Routes through the same
+                // shared active-party removal ownership op. The disk-character
+                // distinction vs DROP is OPEN (see training_rules.cpp).
+                Goldbox::Data::PlayerCharacter *sel =
+                    VmInterface::getSelectedCharacter();
+                if (sel)
+                    RosterActions::removeSelectedFromParty(
+                        sel, RosterActions::ACTION_REMOVE);
+                refreshPartyState();
+                redraw();
+            }
             break;
         case Common::KEYCODE_l:
             if (_menuItemList.isActive(LOAD) && _loadSaveDialog) {

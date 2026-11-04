@@ -108,6 +108,7 @@ MODULE_OBJS = \
 	poolrad/effect_handler.o \
 	poolrad/spell_preparation.o \
 	poolrad/rest_operation.o \
+	poolrad/training_rules.o \
 	poolrad/console.o \
 	poolrad/ecl/poolrad_engine_host_impl.o \
 	poolrad/ecl/poolrad_opcode_handlers.o \
