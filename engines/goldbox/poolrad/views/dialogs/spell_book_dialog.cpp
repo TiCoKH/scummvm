@@ -26,7 +26,12 @@
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/poolrad/views/dialogs/spells_menu.h"
+#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/data/poolrad_spell_mapping.h"
+#include "goldbox/poolrad/spell_preparation.h"
+#include "goldbox/data/items/character_item.h"
+#include "goldbox/spells/spell_casting.h"
 #include "common/debug.h"
 
 namespace Goldbox {
@@ -49,6 +54,7 @@ SpellBookDialog::SpellBookDialog()
       _horizontalMenu(nullptr),
       _spellsMenu(nullptr),
       _confirmDialog(nullptr),
+      _displayMenu(nullptr),
       _pendingMemorizeSpells(false),
       _pendingScribeSpells(false) {
 
@@ -86,6 +92,24 @@ SpellBookDialog::SpellBookDialog()
     _confirmDialog->setParent(this);
     subView(_confirmDialog);
     _confirmDialog->deactivate();
+
+    // Active-effect display (SPELL_ScrollRead): a scrollable read-only list.
+    VerticalMenuConfig dispCfg;
+    dispCfg.promptTxt = "";
+    dispCfg.menuItemList = &_displayModel;
+    dispCfg.headColor = 13;
+    dispCfg.textColor = 10;
+    dispCfg.selectColor = 15;
+    dispCfg.xStart = 1;
+    dispCfg.yStart = 3;
+    dispCfg.xEnd = 38;
+    dispCfg.yEnd = 22;
+    dispCfg.title = "";
+    dispCfg.addExit = true;
+    _displayMenu = new VerticalMenu("SpellBookDisplay", dispCfg);
+    _displayMenu->setParent(this);
+    subView(_displayMenu);
+    _displayMenu->deactivate();
 }
 
 SpellBookDialog::~SpellBookDialog() {
@@ -131,6 +155,8 @@ void SpellBookDialog::deactivate() {
         _spellsMenu->deactivate();
     if (_confirmDialog)
         _confirmDialog->deactivate();
+    if (_displayMenu)
+        _displayMenu->deactivate();
 
     Dialog::deactivate();
 }
@@ -147,6 +173,8 @@ void SpellBookDialog::returnToMainMenu() {
         _spellsMenu->deactivate();
     if (_confirmDialog)
         _confirmDialog->deactivate();
+    if (_displayMenu)
+        _displayMenu->deactivate();
 
     buildMainMenu();
 
@@ -244,6 +272,9 @@ void SpellBookDialog::draw() {
 
     if (_confirmDialog && _confirmDialog->isActive())
         _confirmDialog->draw();
+
+    if (_displayMenu && _displayMenu->isActive())
+        _displayMenu->draw();
 }
 
 // --- MenuResult routing ---
@@ -268,6 +299,9 @@ void SpellBookDialog::handleMenuResult(const MenuResultMessage &result) {
     case STAGE_MEMORIZE_CONFIRM:
     case STAGE_SCRIBE_CONFIRM:
         handleConfirmResult(result);
+        break;
+    case STAGE_DISPLAY:
+        handleDisplayResult(result);
         break;
     default:
         break;
@@ -296,9 +330,14 @@ void SpellBookDialog::handleMainMenuResult(const MenuResultMessage &result) {
 // --- Sub-action entry points ---
 
 void SpellBookDialog::beginCast() {
-    // Original: ACTION_CheckSpellActionType(SA_CAST) then loop
-    // DIALOG_Spells(SL_IN_MEMORY, SA_CAST) until spell==0.
-    // TODO: ACTION_CheckSpellActionType validation.
+    // ACTION_CheckSpellActionType(SA_CAST): a non-caster cannot cast.
+    if (!_character ||
+            !Goldbox::Poolrad::SpellPreparation(_character)
+                .canDoActivity(SpellPreparation::ACT_CAST)) {
+        _screenDirty = true;
+        returnToMainMenu();
+        return;
+    }
 
     if (_horizontalMenu)
         _horizontalMenu->deactivate();
@@ -308,9 +347,14 @@ void SpellBookDialog::beginCast() {
 }
 
 void SpellBookDialog::beginMemorize() {
-    // Original: ACTION_CheckSpellActionType(SA_MEMORIZE), shows
-    // pending-memorize list, asks Y/N, then loops spell book selection.
-    // TODO: Show pending list + confirmation first pass.
+    // ACTION_CheckSpellActionType(SA_MEMORIZE): only casters with slots.
+    if (!_character ||
+            !Goldbox::Poolrad::SpellPreparation(_character)
+                .canDoActivity(SpellPreparation::ACT_MEMORIZE)) {
+        _screenDirty = true;
+        returnToMainMenu();
+        return;
+    }
 
     if (_horizontalMenu)
         _horizontalMenu->deactivate();
@@ -321,24 +365,37 @@ void SpellBookDialog::beginMemorize() {
 }
 
 void SpellBookDialog::beginScribe() {
-    // Original: ACTION_CheckSpellActionType(SA_SCRIBE), shows
-    // pending-scribe list, asks Y/N, then loops scroll selection.
-    // TODO: Show pending list + confirmation first pass.
+    // ACTION_CheckSpellActionType(SA_SCRIBE): only magic-users with a book.
+    if (!_character ||
+            !Goldbox::Poolrad::SpellPreparation(_character)
+                .canDoActivity(SpellPreparation::ACT_SCRIBE)) {
+        _screenDirty = true;
+        returnToMainMenu();
+        return;
+    }
 
     if (_horizontalMenu)
         _horizontalMenu->deactivate();
 
+    collectScribeScrolls();
     _spellsMenu->configure(SpellsMenu::SL_ON_SCROLLS, SpellsMenu::SA_SCRIBE);
+    _spellsMenu->setScrollItems(&_scribeScrollItems);
     _spellsMenu->activate();
 }
 
 void SpellBookDialog::beginDisplay() {
-    // Original SPELL_ScrollRead: iterate party characters, build effect
-    // list per character, present in a VerticalMenu scroll window.
-    // TODO: Build effect list + vertical scroll display.
+    // SPELL_ScrollRead: build the selected character's active-effect list and
+    // present it read-only. The selected character/location are preserved —
+    // nothing here mutates spell state or the party selection.
+    if (_horizontalMenu)
+        _horizontalMenu->deactivate();
 
-    _screenDirty = true;
-    returnToMainMenu();
+    buildActiveEffectDisplay();
+
+    if (_displayMenu) {
+        _displayMenu->rebuild(&_displayModel, "");
+        _displayMenu->activate();
+    }
 }
 
 void SpellBookDialog::beginRest() {
@@ -366,8 +423,10 @@ void SpellBookDialog::handleCastResult(const MenuResultMessage &result) {
     int legacyIndex = result._intValue;
     debug(3, "SpellBookDialog: cast spell legacyIndex=%d -> re-entering loop", legacyIndex);
 
-    // Original: SCREEN_drawBitmapBorder + SCREEN_ClearRect + ACTION_Execute
-    // TODO: Execute the spell via ACTION_Execute.
+    // ACTION_Execute: cast through the shared spell service. A confirmed cast
+    // consumes exactly the memorized slot (inside castSpell); a cancelled aim
+    // returns CAST_ABORTED and consumes nothing.
+    castMemorizedSpell(legacyIndex);
 
     _screenDirty = true;
 
@@ -376,16 +435,41 @@ void SpellBookDialog::handleCastResult(const MenuResultMessage &result) {
     _spellsMenu->activate();
 }
 
+void SpellBookDialog::castMemorizedSpell(int legacyIndex) {
+    if (!_character || !Goldbox::Spells::g_spellCasting)
+        return;
+    if (legacyIndex < 0 ||
+            legacyIndex >= Goldbox::Poolrad::Data::POOLRAD_PLAYER_KNOWN_SIZE)
+        return;
+
+    const Goldbox::Data::Spells::Spells spell =
+        Goldbox::Poolrad::Data::kPoolradSpellMapping[legacyIndex];
+
+    // Noncombat cast origin: a memorized slot is spent (fromMagicItem false),
+    // never an item or temple charge, and distinct from the combat path.
+    Goldbox::Spells::SpellContext ctx;
+    ctx.caster = _character;
+    ctx.spellBook = &_character->spellBook;
+    ctx.inCombat = false;
+    ctx.fromMagicItem = false;
+
+    // castSpell consumes the memorized slot itself on success and leaves it
+    // intact on CAST_ABORTED (cancel) / CAST_INVALID_TARGET.
+    Goldbox::Spells::g_spellCasting->castSpell(ctx, spell);
+}
+
 void SpellBookDialog::handleMemorizeResult(const MenuResultMessage &result) {
     debug(3, "SpellBookDialog::handleMemorizeResult success=%d hasInt=%d intVal=%d",
         (int)result._success, (int)result._hasIntValue,
         (int)(result._hasIntValue ? result._intValue : -1));
     if (!result._success || !result._hasIntValue) {
-        debug(3, "SpellBookDialog::handleMemorizeResult -> returnToMainMenu");
-        if (_pendingMemorizeSpells) {
+        debug(3, "SpellBookDialog::handleMemorizeResult -> confirm/returnToMainMenu");
+        if (_pendingMemorizeSpells && _confirmDialog) {
+            // Ask whether to keep the queued (pending) memorization. A "No"
+            // discards the pending marks without touching usable slots.
             _stage = STAGE_MEMORIZE_CONFIRM;
-            // TODO: Show "Memorize these spells?" HorizontalYesNo.
-            _pendingMemorizeSpells = false;
+            _confirmDialog->activate();
+            return;
         }
         _screenDirty = true;
         returnToMainMenu();
@@ -395,11 +479,18 @@ void SpellBookDialog::handleMemorizeResult(const MenuResultMessage &result) {
     int legacyIndex = result._intValue;
     debug(5, "SpellBookDialog: memorize spell legacyIndex=%d", legacyIndex);
 
-    // Original: CHARACTER_GetRemainingSpellSlots, find empty slot,
-    // assign spellId | 0x80 (pending bit), CHARACTER_SortMemorizedSpells.
-    // TODO: Actually queue the spell into character data.
+    // CHARACTER_GetRemainingSpellSlots + find empty slot + assign spellId|0x80
+    // (pending) + CHARACTER_SortMemorizedSpells, all in SpellPreparation.
+    // At capacity the queue is rejected and nothing changes.
+    if (_character && legacyIndex >= 0 &&
+            legacyIndex < Goldbox::Poolrad::Data::POOLRAD_PLAYER_KNOWN_SIZE) {
+        const Goldbox::Data::Spells::Spells spell =
+            Goldbox::Poolrad::Data::kPoolradSpellMapping[legacyIndex];
+        Goldbox::Poolrad::SpellPreparation prep(_character);
+        if (prep.queueMemorize(spell))
+            _pendingMemorizeSpells = true;
+    }
 
-    _pendingMemorizeSpells = true;
     _screenDirty = true;
 
     // Re-enter memorize loop.
@@ -413,11 +504,11 @@ void SpellBookDialog::handleScribeResult(const MenuResultMessage &result) {
         (int)result._success, (int)result._hasIntValue,
         (int)(result._hasIntValue ? result._intValue : -1));
     if (!result._success || !result._hasIntValue) {
-        debug(3, "SpellBookDialog::handleScribeResult -> returnToMainMenu");
-        if (_pendingScribeSpells) {
+        debug(3, "SpellBookDialog::handleScribeResult -> confirm/returnToMainMenu");
+        if (_pendingScribeSpells && _confirmDialog) {
             _stage = STAGE_SCRIBE_CONFIRM;
-            // TODO: Show "Scribe these spells?" HorizontalYesNo.
-            _pendingScribeSpells = false;
+            _confirmDialog->activate();
+            return;
         }
         _screenDirty = true;
         returnToMainMenu();
@@ -427,29 +518,119 @@ void SpellBookDialog::handleScribeResult(const MenuResultMessage &result) {
     int legacyIndex = result._intValue;
     debug(5, "SpellBookDialog: scribe spell legacyIndex=%d", legacyIndex);
 
-    // Original: check mem_spells[spellId + 0x1b] ("already know"),
-    // traverse items for ITEM_isMissileOrScroll, mark scroll bit 7.
-    // TODO: Implement scribe logic.
+    // Mark the selected scroll payload pending (bit 7). The source scroll and
+    // the matching effect slot come from the SpellsMenu selection. Rest
+    // completes the scribe later; nothing is learned or removed here.
+    Goldbox::Data::Items::CharacterItem *scroll =
+        _spellsMenu ? _spellsMenu->getScribeSourceItem() : nullptr;
+    if (_character && scroll &&
+            legacyIndex >= 0 &&
+            legacyIndex < Goldbox::Poolrad::Data::POOLRAD_PLAYER_KNOWN_SIZE) {
+        const uint8 spellId = (uint8)(legacyIndex + 1);
+        // Find the payload slot on the scroll that matches this spell id.
+        uint8 *effects[3] = {
+            &scroll->effect1, &scroll->effect2, &scroll->effect3
+        };
+        int payloadSlot = -1;
+        for (int e = 0; e < 3; ++e) {
+            if ((*effects[e] & 0x7F) == spellId && *effects[e] < 0x80) {
+                payloadSlot = e;
+                break;
+            }
+        }
+        Goldbox::Poolrad::SpellPreparation prep(_character);
+        if (payloadSlot >= 0 && prep.queueScribe(scroll, payloadSlot))
+            _pendingScribeSpells = true;
+    }
 
-    _pendingScribeSpells = true;
     _screenDirty = true;
 
-    // Re-enter scribe loop.
+    // Re-enter scribe loop (refresh the scroll list so pending payloads drop).
+    collectScribeScrolls();
     _spellsMenu->configure(SpellsMenu::SL_ON_SCROLLS, SpellsMenu::SA_SCRIBE);
+    _spellsMenu->setScrollItems(&_scribeScrollItems);
     _spellsMenu->activate();
 }
 
 void SpellBookDialog::handleConfirmResult(const MenuResultMessage &result) {
-    // Y/N result for "Memorize/Scribe these spells?"
-    // Original: 'N' -> CHARACTER_ClearMemorizedSpells or
-    //                   CHARACTER_clearItemMemorizedSpellFlags.
-    // TODO: Wire up character spell clearing on 'N'.
+    // Y/N result for "Memorize/Scribe these spells?". "No" (success false,
+    // or the N shortcut) discards the pending selection without touching
+    // usable slots; "Yes" keeps the pending work for rest to complete.
+    const bool keep = result._success &&
+        result._keyCode != Common::KEYCODE_n;
+
+    if (_character && !keep) {
+        Goldbox::Poolrad::SpellPreparation prep(_character);
+        if (_stage == STAGE_MEMORIZE_CONFIRM)
+            prep.cancelPendingMemorize();
+        else if (_stage == STAGE_SCRIBE_CONFIRM)
+            prep.cancelPendingScribe();
+    }
+
+    _pendingMemorizeSpells = false;
+    _pendingScribeSpells = false;
 
     if (_confirmDialog)
         _confirmDialog->deactivate();
 
     _screenDirty = true;
     returnToMainMenu();
+}
+
+void SpellBookDialog::handleDisplayResult(const MenuResultMessage &result) {
+    (void)result;
+    if (_displayMenu)
+        _displayMenu->deactivate();
+    _screenDirty = true;
+    returnToMainMenu();
+}
+
+void SpellBookDialog::collectScribeScrolls() {
+    _scribeScrollItems.clear();
+    if (!_character)
+        return;
+
+    // SpellsMenu builds one SL_ON_SCROLLS list entry per non-empty payload
+    // slot, so the scroll-item array must carry one pointer PER PAYLOAD to
+    // stay 1:1 with those entries (getScribeSourceItem indexes it by entry).
+    Goldbox::Data::Items::CharacterInventory &inv = _character->getInventory();
+    const int itemCount = inv.count();
+    for (int i = 0; i < itemCount; ++i) {
+        Goldbox::Data::Items::CharacterItem &item = inv[i];
+        if (!item.isMissileOrScroll())
+            continue;
+        const uint8 effects[3] = { item.effect1, item.effect2, item.effect3 };
+        for (int e = 0; e < 3; ++e) {
+            if ((effects[e] & 0x7F) != 0)
+                _scribeScrollItems.push_back(&item);
+        }
+    }
+}
+
+void SpellBookDialog::buildActiveEffectDisplay() {
+    _displayModel.items.clear();
+    _displayModel.currentSelection = 0;
+
+    if (!_character)
+        return;
+
+    Goldbox::Data::Effects::CharacterEffects *fx = _character->getEffects();
+    if (!fx || fx->isEmpty()) {
+        MenuItem item;
+        item.text = "  No active effects";
+        item.active = false;
+        item.shortcut = 0;
+        _displayModel.items.push_back(item);
+        return;
+    }
+
+    for (const Goldbox::Data::Effects::Effect &e : fx->effects()) {
+        MenuItem item;
+        item.text = Common::String::format("  Effect %u", (unsigned)e.id);
+        item.active = false;
+        item.shortcut = 0;
+        _displayModel.items.push_back(item);
+    }
 }
 
 void SpellBookDialog::exitView() {

@@ -731,7 +731,10 @@ void InGameView::handleInGameMenuKey(char key) {
 		addView("ViewCharacter");
 		break;
 	case 'C': // Cast spell
-		// TODO: Open spell menu
+		// Noncombat casting runs in the camp context, which hosts the shared
+		// spell-book flow (SpellBookDialog::beginCast -> g_spellCasting with a
+		// memorized-slot cast origin). Entering camp opens that path.
+		queueCommand(kCmdEncamp);
 		break;
 	default:
 		break;

@@ -22,21 +22,32 @@
 #ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_SPELL_BOOK_DIALOG_H
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_SPELL_BOOK_DIALOG_H
 
+#include "common/array.h"
 #include "goldbox/core/menu_item.h"
+#include "goldbox/data/spells/spell.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 
 namespace Goldbox {
+namespace Data {
+namespace Items {
+struct CharacterItem;
+}
+}
+
 namespace Poolrad {
 
 namespace Data {
 class PoolradCharacter;
 }
 
+class SpellPreparation;
+
 namespace Views {
 namespace Dialogs {
 class HorizontalMenu;
 class HorizontalYesNo;
 class SpellsMenu;
+class VerticalMenu;
 
 /**
  * Dialog equivalent of legacy spell-book flow used from camp.
@@ -78,10 +89,18 @@ private:
     // Child dialogs
     SpellsMenu *_spellsMenu;
     HorizontalYesNo *_confirmDialog;
+    VerticalMenu *_displayMenu;
 
     // Memorize/scribe pending state
     bool _pendingMemorizeSpells;
     bool _pendingScribeSpells;
+
+    // Scroll items passed to SpellsMenu for scribe selection (kept alive for
+    // the duration of the scribe sub-stage).
+    Common::Array<Goldbox::Data::Items::CharacterItem *> _scribeScrollItems;
+
+    // Active-effect display model.
+    MenuItemList _displayModel;
 
     void buildMainMenu();
     void setStage(Stage stage);
@@ -101,6 +120,15 @@ private:
     void handleMemorizeResult(const MenuResultMessage &result);
     void handleScribeResult(const MenuResultMessage &result);
     void handleConfirmResult(const MenuResultMessage &result);
+    void handleDisplayResult(const MenuResultMessage &result);
+
+    // Immediate noncombat cast through g_spellCasting for the chosen slot.
+    void castMemorizedSpell(int legacyIndex);
+    // Collect inventory scrolls carrying scribe payloads for the current
+    // character into _scribeScrollItems.
+    void collectScribeScrolls();
+    // Build the per-character active-effect list for STAGE_DISPLAY.
+    void buildActiveEffectDisplay();
 
     void exitView();
 };
