@@ -39,14 +39,20 @@ class HorizontalMenu;
  *   - Displays current speed in the prompt.
  *   - Offers Slower (S) when speed < max, Faster (F) when speed > min.
  *   - Always offers Exit (E).
- *   - S increments _textDelay (slower), F decrements it (faster).
+ *   - S increments the speed (slower), F decrements it (faster).
  *   - Posts MenuResultMessage to parent on exit.
  *
- * CFG_GAME_SPEED maps to g_engine->_textDelay (range 1–5).
- * Speed boundaries: Slower available below 5, Faster available above 1.
+ * The original CFG_GAME_SPEED is a 0..9 value (0 = fastest, 9 = slowest). The
+ * engine's single timing control is the 1..5 text-delay, so the dialog keeps
+ * its own 0..9 value and maps it onto that control on confirmation; it never
+ * consumes an actor action.
  */
 class GameSpeedDialog : public Dialog {
 public:
+    // Original game-speed domain (DoneMenu / SpeedMenu accept 0..9).
+    static const int kMinSpeed = 0;
+    static const int kMaxSpeed = 9;
+
     GameSpeedDialog();
     ~GameSpeedDialog() override;
 
@@ -56,11 +62,24 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     void handleMenuResult(const MenuResultMessage &result) override;
 
+    /** Clamp an arbitrary value into the original 0..9 speed range. */
+    static int clampSpeed(int speed);
+
+    /** Map a 0..9 game speed onto the engine's 1..5 text-delay control. */
+    static uint speedToTextDelay(int speed);
+
+    /** Recover the 0..9 game speed from the engine's 1..5 text-delay. */
+    static int textDelayToSpeed(uint textDelay);
+
 private:
     MenuItemList   _menuModel;
     HorizontalMenu *_horizontalMenu;
 
+    // Working 0..9 speed, seeded from the engine timing on activate().
+    int _speed;
+
     void rebuild();
+    void confirmAndReturn();
 };
 
 } // namespace Dialogs

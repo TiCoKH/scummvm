@@ -38,9 +38,17 @@ namespace Dialogs {
 CombatSubmenuDialog::CombatSubmenuDialog()
     : Dialog("CombatSubmenu"), _actor(nullptr),
       _horizontalMenu(nullptr), _speedDialog(nullptr),
-      _hasGuard(false), _hasBandage(false) {
+      _activeChild(kChildNone), _hasGuard(false), _hasBandage(false) {
     setBounds(Window(0, 24, 39, 24));
     _speedDialog = new GameSpeedDialog();
+}
+
+CombatSubmenuDialog::ActiveChild CombatSubmenuDialog::routeResult(
+        ActiveChild activeChild) {
+    // Only a result arriving while the speed dialog is the active child is a
+    // speed-dialog result; everything else (including the main HorizontalMenu,
+    // which posts to the same parent name) is a main-menu command.
+    return activeChild == kChildSpeedDialog ? kChildSpeedDialog : kChildMainMenu;
 }
 
 CombatSubmenuDialog::~CombatSubmenuDialog() {
@@ -96,6 +104,10 @@ void CombatSubmenuDialog::rebuild() {
     _horizontalMenu = new HorizontalMenu("CombatSubHMenu", cfg);
     _horizontalMenu->setParent(this);
     _horizontalMenu->activate();
+
+    // The submenu's own menu is now the active child; a result addressed to
+    // this view is a main-menu command until the speed dialog opens.
+    _activeChild = kChildMainMenu;
 }
 
 void CombatSubmenuDialog::activate() {
@@ -111,6 +123,7 @@ void CombatSubmenuDialog::deactivate() {
         delete _horizontalMenu;
         _horizontalMenu = nullptr;
     }
+    _activeChild = kChildNone;
     Dialog::deactivate();
 }
 
@@ -147,14 +160,19 @@ void CombatSubmenuDialog::handleMenuResult(const MenuResultMessage &result) {
         (int)result._hasIntValue,
         result._hasIntValue ? result._intValue : -1);
 
-    // Result from GameSpeedDialog: resume submenu.
-    if (result._targetViewName == "CombatSubmenu") {
-        _speedDialog->deactivate();
+    // Route by the active child, not by the shared destination string: the
+    // main HorizontalMenu and the GameSpeedDialog both post their result to
+    // this view's name, so only the speed dialog's own result may resume from
+    // the speed branch. Returning from Speed recreates the submenu WITHOUT
+    // replaying the previous command.
+    if (routeResult(_activeChild) == kChildSpeedDialog) {
+        if (_speedDialog->isActive())
+            _speedDialog->deactivate();
         rebuild();
         return;
     }
 
-    // Result from HorizontalMenu.
+    // Result from the submenu's own HorizontalMenu.
     if (!result._success) {
         cancel();
         return;
@@ -209,7 +227,10 @@ void CombatSubmenuDialog::handleMenuResult(const MenuResultMessage &result) {
     }
 
     if (key == 'S') {
-        // Speed: open nested game-speed dialog; submenu resumes on return.
+        // Speed: open nested game-speed dialog; submenu resumes on return
+        // without consuming the actor action. Mark the speed dialog as the
+        // active child so its result routes to the speed branch above.
+        _activeChild = kChildSpeedDialog;
         _speedDialog->setParent(this);
         _speedDialog->activate();
         return;

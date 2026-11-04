@@ -56,6 +56,19 @@ class GameSpeedDialog;
  */
 class CombatSubmenuDialog : public Dialog {
 public:
+    /**
+     * Which nested child is currently active. A MenuResultMessage addressed to
+     * this dialog is routed by this identity, NOT by the shared destination
+     * string: the main HorizontalMenu and the nested GameSpeedDialog both post
+     * their result to this view's name, so only the active child's result may
+     * be interpreted as such.
+     */
+    enum ActiveChild {
+        kChildNone = 0,   // nothing nested; a stray result is ignored
+        kChildMainMenu,   // the submenu's own Guard/Delay/Quit/Bandage/Speed menu
+        kChildSpeedDialog // the nested GameSpeedDialog
+    };
+
     CombatSubmenuDialog();
     ~CombatSubmenuDialog() override;
 
@@ -68,11 +81,20 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     void handleMenuResult(const MenuResultMessage &result) override;
 
+    /**
+     * Pure routing decision used by handleMenuResult, extracted so it can be
+     * unit-tested without a live engine: a result is a speed-dialog result
+     * only while the speed dialog is the active child; otherwise it is a
+     * main-menu command.
+     */
+    static ActiveChild routeResult(ActiveChild activeChild);
+
 private:
     Goldbox::Data::PlayerCharacter *_actor;
     MenuItemList   _menuModel;
     HorizontalMenu *_horizontalMenu;
     GameSpeedDialog *_speedDialog;
+    ActiveChild    _activeChild;
 
     // Availability flags set by rebuild().
     bool _hasGuard;

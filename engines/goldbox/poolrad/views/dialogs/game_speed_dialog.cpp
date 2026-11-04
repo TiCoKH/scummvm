@@ -30,12 +30,37 @@ namespace Views {
 namespace Dialogs {
 
 GameSpeedDialog::GameSpeedDialog()
-    : Dialog("GameSpeed"), _horizontalMenu(nullptr) {
+    : Dialog("GameSpeed"), _horizontalMenu(nullptr), _speed(kMinSpeed) {
     setBounds(Window(0, 24, 39, 24));
 }
 
 GameSpeedDialog::~GameSpeedDialog() {
     delete _horizontalMenu;
+}
+
+int GameSpeedDialog::clampSpeed(int speed) {
+    if (speed < kMinSpeed)
+        return kMinSpeed;
+    if (speed > kMaxSpeed)
+        return kMaxSpeed;
+    return speed;
+}
+
+uint GameSpeedDialog::speedToTextDelay(int speed) {
+    // 0..9 (0 = fastest) onto the engine's 1..5 text-delay (1 = fastest).
+    const int clamped = clampSpeed(speed);
+    return static_cast<uint>(1 + (clamped * 4 + 4) / 9);
+}
+
+int GameSpeedDialog::textDelayToSpeed(uint textDelay) {
+    // Inverse of speedToTextDelay for seeding the working value; snaps the
+    // 1..5 control back onto a representative 0..9 point.
+    int delay = static_cast<int>(textDelay);
+    if (delay < 1)
+        delay = 1;
+    if (delay > 5)
+        delay = 5;
+    return clampSpeed((delay - 1) * 9 / 4);
 }
 
 void GameSpeedDialog::rebuild() {
@@ -45,16 +70,14 @@ void GameSpeedDialog::rebuild() {
     _menuModel.items.clear();
     _menuModel.currentSelection = 0;
 
-    const uint speed = g_engine ? g_engine->getTextDelay() : 1;
-
     Common::Array<Common::String> labels;
 
-    // S increments (slower); available below max (5).
-    if (speed < 5)
+    // S increments (slower); available below the 0..9 maximum.
+    if (_speed < kMaxSpeed)
         labels.push_back("Slower");
 
-    // F decrements (faster); available above min (1).
-    if (speed > 1)
+    // F decrements (faster); available above the 0..9 minimum.
+    if (_speed > kMinSpeed)
         labels.push_back("Faster");
 
     labels.push_back("Exit");
@@ -62,7 +85,7 @@ void GameSpeedDialog::rebuild() {
     _menuModel.generateMenuItems(labels, true);
 
     const Common::String prompt = Common::String::format(
-        "Game Speed: %u  ", speed);
+        "Game Speed: %d  ", _speed);
 
     HorizontalMenuConfig cfg;
     cfg.promptTxt             = prompt;
@@ -82,6 +105,7 @@ void GameSpeedDialog::rebuild() {
 
 void GameSpeedDialog::activate() {
     Dialog::activate();
+    _speed = textDelayToSpeed(g_engine ? g_engine->getTextDelay() : 1);
     rebuild();
 }
 
@@ -109,13 +133,22 @@ bool GameSpeedDialog::msgKeypress(const KeypressMessage &msg) {
     return _horizontalMenu->msgKeypress(msg);
 }
 
+void GameSpeedDialog::confirmAndReturn() {
+    // Apply the chosen 0..9 speed onto the engine timing control, then hand
+    // control back to the parent submenu. Changing speed never consumes the
+    // actor action: the parent simply recreates its own menu on return.
+    if (g_engine)
+        g_engine->setTextDelay(speedToTextDelay(_speed));
+    deactivate();
+    if (_parent)
+        g_events->postMenuResult(_parent->getName(), true,
+            Common::KEYCODE_RETURN, 0, Common::String(), false, false);
+}
+
 void GameSpeedDialog::handleMenuResult(const MenuResultMessage &result) {
     if (!result._success) {
-        // Escape — return to parent.
-        deactivate();
-        if (_parent)
-            g_events->postMenuResult(_parent->getName(), true,
-                Common::KEYCODE_RETURN, 0, Common::String(), false, false);
+        // Escape — confirm current value and return to parent.
+        confirmAndReturn();
         return;
     }
 
@@ -124,23 +157,22 @@ void GameSpeedDialog::handleMenuResult(const MenuResultMessage &result) {
     if (key >= 'a' && key <= 'z')
         key = static_cast<char>(key - 32);
 
-    if (key == 'S' && g_engine) {
-        g_engine->setTextDelay(g_engine->getTextDelay() + 1);
+    if (key == 'S') {
+        // Slower: step toward 9, bounded by the original range.
+        _speed = clampSpeed(_speed + 1);
         rebuild();
         return;
     }
 
-    if (key == 'F' && g_engine) {
-        g_engine->setTextDelay(g_engine->getTextDelay() - 1);
+    if (key == 'F') {
+        // Faster: step toward 0, bounded by the original range.
+        _speed = clampSpeed(_speed - 1);
         rebuild();
         return;
     }
 
-    // Exit (E), Return, or Space — return to parent.
-    deactivate();
-    if (_parent)
-        g_events->postMenuResult(_parent->getName(), true,
-            Common::KEYCODE_RETURN, 0, Common::String(), false, false);
+    // Exit (E), Return, or Space — confirm and return to parent.
+    confirmAndReturn();
 }
 
 } // namespace Dialogs
