@@ -1954,10 +1954,11 @@ static void handleLingeringBreath(const EffectCall &c) {
         // TODO(spell_aoe): pass presenter (ICombatSpellPresenter*) once
         // CombatView implements the interface and is reachable here.
 
-        // Initial hit at the target tile.
-        bool aoeTriggered = false;
-        Goldbox::Spells::resolveAoEHitAtTile(*ctx, targetPos, damage, 3, 19,
-                                             nullptr, aoeTriggered);
+        // Initial hit at the target tile. Breath uses its own BREATH save
+        // category; damage is applied even though animations are disabled.
+        (void)Goldbox::Spells::resolveAoEHitAtTile(
+            *ctx, targetPos, damage, Goldbox::Data::Spells::SVS_BREATH, 19,
+            nullptr);
 
         // Set target position in globals before tracing the path.
         ctx->globals.targetPos = targetPos;
@@ -1966,7 +1967,7 @@ static void handleLingeringBreath(const EffectCall &c) {
         Goldbox::Spells::traceSpellPath(*ctx, attackerPos,
                                         3,       // pathLength
                                         damage,
-                                        3,       // savingThrowMod
+                                        Goldbox::Data::Spells::SVS_BREATH, // save category
                                         true,    // animatePath
                                         19,      // effectTileId
                                         nullptr);

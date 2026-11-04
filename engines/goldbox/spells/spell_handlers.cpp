@@ -1331,8 +1331,8 @@ SpellCastResult SpellID58Handler::execute(const SpellContext &context,
 // --- Lightning Bolt (ID51) ---
 // Mirrors Spell_ID51_LightningBolt:
 //   damage = casterLevel d6
-//   resolveAoEHitAtTile at target (savingThrowMod=4)
-//   traceSpellPath(initialAnimFrame=8, savingThrowMod=4, pathLength=damageDice)
+//   resolveAoEHitAtTile at target (save category SPELL)
+//   traceSpellPath(save category SPELL, pathLength=8)
 SpellCastResult LightningBoltHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -1356,16 +1356,16 @@ SpellCastResult LightningBoltHandler::execute(const SpellContext &context,
         static_cast<uint8>(targets.tileX),
         static_cast<uint8>(targets.tileY));
 
-    bool hitObstacle = false;
-    Spells::resolveAoEHitAtTile(*ctx, targetPos, baseDamage, 4, 19,
-                                nullptr, hitObstacle);
+    (void)Spells::resolveAoEHitAtTile(*ctx, targetPos, baseDamage,
+                                      Goldbox::Data::Spells::SVS_SPELL, 19,
+                                      nullptr);
 
     ctx->globals.targetPos = targetPos;
     // TODO(spell_aoe): pass context.presenter once SpellContext carries it.
     Spells::traceSpellPath(*ctx, attackerPos,
-                           damageDice,  // pathLength
+                           8,           // pathLength (constant, not caster level)
                            baseDamage,
-                           4,           // savingThrowMod
+                           Goldbox::Data::Spells::SVS_SPELL, // save category
                            true,        // animatePath
                            19,          // effectTileId (lightning)
                            nullptr);
@@ -1376,8 +1376,8 @@ SpellCastResult LightningBoltHandler::execute(const SpellContext &context,
 // --- Spell ID60 (SP_MI4) ---
 // Mirrors Spell_ID60:
 //   damage = 20 + 1d6
-//   resolveAoEHitAtTile at target (savingThrowMod=4)
-//   traceSpellPath(initialAnimFrame=3, baseDamage=20, savingThrowMod=4, pathLength=3)
+//   resolveAoEHitAtTile at target (save category SPELL)
+//   traceSpellPath(save category SPELL, baseDamage=20, pathLength=3)
 SpellCastResult SpellID60Handler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -1401,16 +1401,16 @@ SpellCastResult SpellID60Handler::execute(const SpellContext &context,
         static_cast<uint8>(targets.tileX),
         static_cast<uint8>(targets.tileY));
 
-    bool hitObstacle = false;
-    Spells::resolveAoEHitAtTile(*ctx, targetPos, baseDamage, 4, 19,
-                                nullptr, hitObstacle);
+    (void)Spells::resolveAoEHitAtTile(*ctx, targetPos, baseDamage,
+                                      Goldbox::Data::Spells::SVS_SPELL, 19,
+                                      nullptr);
 
     ctx->globals.targetPos = targetPos;
     // TODO(spell_aoe): pass context.presenter once SpellContext carries it.
     Spells::traceSpellPath(*ctx, attackerPos,
                            3,    // pathLength
                            20,   // baseDamage (fixed component, matches original)
-                           4,    // savingThrowMod
+                           Goldbox::Data::Spells::SVS_SPELL, // save category
                            true, // animatePath
                            19,   // effectTileId
                            nullptr);
@@ -1443,15 +1443,14 @@ SpellCastResult BreathWeaponHandler::execute(const SpellContext &context,
         static_cast<uint8>(targets.tileX),
         static_cast<uint8>(targets.tileY));
 
-    bool hitObstacle = false;
-    Spells::resolveAoEHitAtTile(*ctx, targetPos, _baseDamage, _savingThrowMod,
-                                _effectTileId, nullptr, hitObstacle);
+    (void)Spells::resolveAoEHitAtTile(*ctx, targetPos, _baseDamage,
+                                      _saveCategory, _effectTileId, nullptr);
 
     ctx->globals.targetPos = targetPos;
     Spells::traceSpellPath(*ctx, attackerPos,
                            _pathLength,
                            _baseDamage,
-                           _savingThrowMod,
+                           _saveCategory,   // caller's own save category
                            true,            // animatePath
                            _effectTileId,
                            nullptr);

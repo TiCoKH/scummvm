@@ -21,12 +21,14 @@
 #include "goldbox/spells/spell_aoe.h"
 
 #include "goldbox/combat/combat_context.h"
+#include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/combat/battlefield_map.h"
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
+#include "goldbox/data/damage_system.h"
 #include "goldbox/data/rules/saving_throw.h"
 #include "goldbox/data/spells/spell.h"
 
@@ -36,47 +38,77 @@ namespace Spells {
 using Combat::TileProp;
 using Combat::TilePropertyProvider;
 
+namespace {
+
+// Mirrors LightningAttackAt's wall test: a tile blocks (and reflects) when it
+// is out of bounds / void or its property entry is impassable, independent of
+// any occupant standing on it.
+static bool isBlockingTerrain(Combat::CombatContext &ctx, TilePos pos) {
+    if (!Combat::CombatContext::isValidTilePos(pos))
+        return true;
+
+    const uint8 tileId = ctx.map.getRawTile(pos);
+    if (tileId == 0)
+        return true;
+
+    const TilePropertyProvider *props = ctx.map.getTilePropertyProvider();
+    if (!props)
+        return false;
+
+    const TileProp *prop = props->getTileProp(tileId - 1);
+    // passable == 1 is walkable; anything else (impassable -1) blocks.
+    return prop && prop->passable != 1;
+}
+
+} // namespace
+
 // ---------------------------------------------------------------------------
 // resolveAoEHitAtTile
 // ---------------------------------------------------------------------------
 
-void resolveAoEHitAtTile(Combat::CombatContext &ctx,
-                         TilePos pos,
-                         uint8 baseDamage,
-                         int8 savingThrowMod,
-                         uint8 effectTileId,
-                         ICombatSpellPresenter *presenter,
-                         bool &aoeTriggered) {
-    aoeTriggered = false;
+AoEHitResult resolveAoEHitAtTile(Combat::CombatContext &ctx,
+                                 TilePos pos,
+                                 uint8 baseDamage,
+                                 Data::Spells::SaveVerseType saveCategory,
+                                 uint8 effectTileId,
+                                 ICombatSpellPresenter *presenter) {
+    AoEHitResult outcome;
+
+    // Terrain blocking is evaluated first and independently of occupancy so a
+    // wall reflects the path even when nothing stands on it.
+    outcome.terrainBlocked = isBlockingTerrain(ctx, pos);
 
     const uint8 occupant = ctx.table.getOccupant(pos);
     if (occupant == 0)
-        return;
+        return outcome;
 
     Data::PlayerCharacter *target =
         ctx.table.getCharacter(static_cast<int>(occupant) - 1);
     if (!target)
-        return;
+        return outcome;
 
     ctx.globals.behaviorFlags = 12;
 
+    // The saving throw uses the caller's category (SPELL for lightning, BREATH
+    // for breath) with modifier zero, not a flat modifier on a fixed category.
     Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(target);
     bool saved = false;
     if (adnd)
         saved = Data::Rules::checkSavingThrow(
-            *adnd, &ctx.globals, nullptr, nullptr,
-            Data::Spells::SVS_BREATH, savingThrowMod);
+            *adnd, &ctx.globals, nullptr, nullptr, saveCategory, 0);
 
-    (void)saved;
-    (void)baseDamage;
-    // TODO(spell_aoe): ctx.damageSystem->applyLegacy(
-    //     *target, baseDamage, Data::DAMAGE_HALF, saved);
+    // Apply damage through the real nonweapon damage routine, halving on a
+    // successful save. Neither the save result nor the damage is discarded.
+    Data::DamageSystem damageSystem(ctx.params.effectBridge);
+    damageSystem.applyLegacy(*target, baseDamage, Data::DAMAGE_HALF, saved,
+                             ctx.globals.behaviorFlags);
 
     if (presenter)
         presenter->renderEffectTile(pos, effectTileId);
 
     ctx.globals.behaviorFlags = 0;
-    aoeTriggered = true;
+    outcome.characterHit = true;
+    return outcome;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +119,7 @@ void traceSpellPath(Combat::CombatContext &ctx,
                     TilePos attackerPos,
                     uint8 pathLength,
                     uint8 baseDamage,
-                    int8 savingThrowMod,
+                    Data::Spells::SaveVerseType saveCategory,
                     bool animatePath,
                     uint8 effectTileId,
                     ICombatSpellPresenter *presenter) {
@@ -142,7 +174,7 @@ void traceSpellPath(Combat::CombatContext &ctx,
 
                     if ((occupantId != 0 && occupantId != traceOccupantId) ||
                         tileId == 0 ||
-                        (prop && prop->passable > 1) ||
+                        (prop && prop->passable != 1) ||
                         remainingPath <= (uint8)seg.moveCost)
                         break;
                 }
@@ -153,11 +185,18 @@ void traceSpellPath(Combat::CombatContext &ctx,
             if (tileId == 0)
                 remainingPath = 0;
 
+            // Visual presentation runs first and is purely observational; the
+            // hit is resolved separately so a null/accelerated presenter can
+            // never skip damage.
             if (presenter)
                 presenter->showProjectile(prevPos, seg.current, effectTileId, 0);
 
-            resolveAoEHitAtTile(ctx, seg.current, baseDamage, savingThrowMod,
-                                effectTileId, presenter, aoeTriggered);
+            const AoEHitResult hit = resolveAoEHitAtTile(
+                ctx, seg.current, baseDamage, saveCategory, effectTileId,
+                presenter);
+
+            // Either a blocking wall or a struck character reflects the path.
+            aoeTriggered = hit.terrainBlocked || hit.characterHit;
 
             if (aoeTriggered) {
                 targetPos = seg.current;

@@ -383,9 +383,10 @@ public:
 class BreathWeaponHandler : public ISpellHandler {
 public:
     explicit BreathWeaponHandler(uint8 effectTileId, uint8 baseDamage,
-                                 uint8 pathLength, int8 savingThrowMod)
+                                 uint8 pathLength,
+                                 Data::Spells::SaveVerseType saveCategory)
         : _effectTileId(effectTileId), _baseDamage(baseDamage),
-          _pathLength(pathLength), _savingThrowMod(savingThrowMod) {}
+          _pathLength(pathLength), _saveCategory(saveCategory) {}
 
     SpellCastResult execute(const SpellContext &context,
                             const SpellDefinition &definition,
@@ -394,7 +395,7 @@ private:
     uint8 _effectTileId;
     uint8 _baseDamage;
     uint8 _pathLength;
-    int8  _savingThrowMod;
+    Data::Spells::SaveVerseType _saveCategory;
 };
 
 // ID57 (SP_MI1): removes E_POOLRAD_SLOWED (0x2A); if removed, applies "is Speedy" via generic path.

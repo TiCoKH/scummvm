@@ -24,6 +24,7 @@
 #include "common/scummsys.h"
 #include "goldbox/core/field_path.h"
 #include "goldbox/core/coords.h"
+#include "goldbox/data/spells/spell.h"
 
 namespace Goldbox {
 
@@ -87,27 +88,41 @@ public:
 };
 
 /**
+ * Outcome of resolving one AoE/projectile tile, mirroring the two independent
+ * conditions LightningAttackAt reports: whether the tile is a blocking wall
+ * and whether a character was damaged. Either condition reflects the path.
+ */
+struct AoEHitResult {
+    bool terrainBlocked; // tile is impassable (wall / void) regardless of occupancy
+    bool characterHit;   // an occupant took damage at this tile
+
+    AoEHitResult() : terrainBlocked(false), characterHit(false) {}
+};
+
+/**
  * Resolve one AoE/projectile tile hit.
  *
- * Applies character damage (saving throw + DAMAGE_HALF) at pos.
- * Sets aoeTriggered=true if a character was hit (drives path reflection).
- * Terrain blocking is handled by the traversal loop, not here.
+ * Mirrors LightningAttackAt: terrain blocking is evaluated first and
+ * independently of occupancy, so an impassable wall reflects even with no
+ * occupant. If a character occupies open terrain, it rolls the saving throw
+ * for the supplied save category (modifier zero) and applies DAMAGE_HALF
+ * through the real nonweapon damage routine, halving on a successful save.
  *
- * @param ctx            Live combat context.
- * @param pos            Tile being resolved.
- * @param baseDamage     Raw damage before saving-throw halving.
- * @param savingThrowMod Flat modifier added to the target's saving throw.
- * @param effectTileId   Tile graphic used for the hit flash.
- * @param presenter      Presentation layer (may be null; skips visuals).
- * @param aoeTriggered   Set to true when a character is hit.
+ * @param ctx          Live combat context.
+ * @param pos          Tile being resolved.
+ * @param baseDamage   Raw damage before saving-throw halving.
+ * @param saveCategory Saving-throw category (SVS_SPELL for lightning,
+ *                     SVS_BREATH for breath); applied with modifier zero.
+ * @param effectTileId Tile graphic used for the hit flash.
+ * @param presenter    Presentation layer (may be null; skips visuals).
+ * @return             Named terrain-blocked / character-hit result.
  */
-void resolveAoEHitAtTile(Combat::CombatContext &ctx,
-                         TilePos pos,
-                         uint8 baseDamage,
-                         int8 savingThrowMod,
-                         uint8 effectTileId,
-                         ICombatSpellPresenter *presenter,
-                         bool &aoeTriggered);
+AoEHitResult resolveAoEHitAtTile(Combat::CombatContext &ctx,
+                                 TilePos pos,
+                                 uint8 baseDamage,
+                                 Data::Spells::SaveVerseType saveCategory,
+                                 uint8 effectTileId,
+                                 ICombatSpellPresenter *presenter);
 
 /**
  * Trace a linear projectile path through the combat map.
@@ -117,20 +132,20 @@ void resolveAoEHitAtTile(Combat::CombatContext &ctx,
  * and reflects off blocking terrain back toward the source for the remaining
  * range. ctx.globals.multiTarget is set for the duration of the call.
  *
- * @param ctx            Live combat context (targetPos read/written).
- * @param attackerPos    Position of the casting character.
- * @param pathLength     Maximum range; budget is pathLength*2 move-cost units.
- * @param baseDamage     Passed through to resolveAoEHitAtTile.
- * @param savingThrowMod Passed through to resolveAoEHitAtTile.
- * @param animatePath    Enables the initial-frame range adjustment on first reflection.
- * @param effectTileId   Tile graphic index for the projectile.
- * @param presenter      Presentation layer (may be null).
+ * @param ctx          Live combat context (targetPos read/written).
+ * @param attackerPos  Position of the casting character.
+ * @param pathLength   Maximum range; budget is pathLength*2 move-cost units.
+ * @param baseDamage   Passed through to resolveAoEHitAtTile.
+ * @param saveCategory Save category passed through to resolveAoEHitAtTile.
+ * @param animatePath  Enables the initial-frame range adjustment on first reflection.
+ * @param effectTileId Tile graphic index for the projectile.
+ * @param presenter    Presentation layer (may be null).
  */
 void traceSpellPath(Combat::CombatContext &ctx,
                     TilePos attackerPos,
                     uint8 pathLength,
                     uint8 baseDamage,
-                    int8 savingThrowMod,
+                    Data::Spells::SaveVerseType saveCategory,
                     bool animatePath,
                     uint8 effectTileId,
                     ICombatSpellPresenter *presenter);

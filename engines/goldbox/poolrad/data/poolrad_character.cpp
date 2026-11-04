@@ -39,16 +39,41 @@ namespace {
 
 void callItemReadyEffect(PoolradCharacter *character,
 					Goldbox::Data::Items::CharacterItem *item, bool equipping) {
+	using namespace Goldbox::Data::Effects;
+
 	// Magic item detection: effect3 > 0x7f (bit 7 set).
 	// Original: isMagicItem = item->effects[2] > 0x7f
 	if (!character || !item || !(item->effect3 > 0x7f))
 		return;
 
-	// TODO: Hook up original item effect dispatch table.
-	debug(4, "PoolradCharacter::callItemReadyEffect - effect3=%u mode=%u for %s",
-			  (unsigned)item->effect3,
-			  equipping ? 0u : 1u,
-			  item->getDisplayName().c_str());
+	// Dispatch the special readiness effect through the raw PoR effect
+	// dispatcher. The item's effect3 byte is the raw effect id (0x80-0x8b);
+	// the high bit is NOT subtracted - the handler table is keyed on the raw
+	// id directly. The effect2 byte is the item's sub-effect id, which the
+	// item-effect handler reads from Effect::power. Equipping dispatches
+	// EFF_ADD, unequipping EFF_REMOVE. This runs only on the success branch of
+	// a ready/unready event (after eligibility checks), never from the
+	// load/reconstruct path, so an already-equipped loaded item is not
+	// re-applied.
+	EffectHandlerBase *handler = g_effectHandler;
+	if (!handler) {
+		// No dispatcher installed (e.g. isolated tooling). Keep the original
+		// diagnostic rather than silently dropping the effect.
+		debug(4, "PoolradCharacter::callItemReadyEffect - no handler, effect3=%u mode=%u for %s",
+				  (unsigned)item->effect3,
+				  equipping ? 0u : 1u,
+				  item->getDisplayName().c_str());
+		return;
+	}
+
+	Effect effect;
+	effect.id = item->effect3;
+	effect.durationMin = 0;
+	effect.power = item->effect2;
+	effect.immediate = 0;
+
+	handler->apply(equipping ? EFF_ADD : EFF_REMOVE, effect, *character,
+		nullptr, Goldbox::Poolrad::getEffectHostBridge());
 }
 
 } // namespace

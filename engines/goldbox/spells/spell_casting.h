@@ -100,8 +100,8 @@ private:
     SpellID65Handler _spellID65Handler;
     RestoreHandler _restoreHandler;
     // effectTileId=19 (lightning/breath), baseDamage=0 (uses hp_max at runtime),
-    // pathLength=3, savingThrowMod=3 — matches EFFECT_88_LingeringBreath parameters.
-    BreathWeaponHandler _breathWeaponHandler{19, 0, 3, 3};
+    // pathLength=3, save category BREATH — matches EFFECT_88_LingeringBreath.
+    BreathWeaponHandler _breathWeaponHandler{19, 0, 3, Data::Spells::SVS_BREATH};
 };
 
 extern SpellCastingService *g_spellCasting;
