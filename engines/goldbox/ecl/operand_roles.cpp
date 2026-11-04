@@ -24,6 +24,55 @@
 namespace Goldbox {
 namespace ECL {
 
+// Per-opcode operand roles for the handlers audited under GB13-001 / GB13-008.
+// VALUE operands are evaluated through readVar (GetEclVar semantics); ADDRESS
+// operands stay literal VM addresses via getOpWord; STRING operands are decoded
+// text; VARARGS marks a trailing variable-length group. The classification is
+// recorded here rather than inferred so the getOpWord/readVar decision at each
+// call site is auditable.
+OperandRole getOperandRole(uint8 opcode, uint8 index) {
+	if (index == 0)
+		return OperandRole::ROLE_NONE;
+
+	switch (opcode) {
+	case 0x0C: // SETUP MONSTER (Pascal EclSetupMon): id, distance, graphic — all values.
+		if (index <= 3)
+			return OperandRole::ROLE_VALUE;
+		return OperandRole::ROLE_NONE;
+	case 0x0E: // PICTURE: picture id is a value.
+		if (index == 1)
+			return OperandRole::ROLE_VALUE;
+		return OperandRole::ROLE_NONE;
+	case 0x38: // PROGRAM: program id is a value.
+		if (index == 1)
+			return OperandRole::ROLE_VALUE;
+		return OperandRole::ROLE_NONE;
+	case 0x3C: // PROTECTION / PRINT RUNES: operand 1 is the literal glyph address.
+		if (index == 1)
+			return OperandRole::ROLE_ADDRESS;
+		return OperandRole::ROLE_NONE;
+	case 0x28: // ROB: wholeParty, percent/item chance, framing-only — all values.
+		if (index <= 3)
+			return OperandRole::ROLE_VALUE;
+		return OperandRole::ROLE_NONE;
+	case 0x29: // ENCOUNTER MENU: operand 4 is the result destination address,
+	           // operands 10..12 are strings, the rest are values.
+		if (index == 4)
+			return OperandRole::ROLE_ADDRESS;
+		if (index >= 10 && index <= 12)
+			return OperandRole::ROLE_STRING;
+		if (index <= 14)
+			return OperandRole::ROLE_VALUE;
+		return OperandRole::ROLE_NONE;
+	case 0x34: // CLOCK: single value operand.
+		if (index == 1)
+			return OperandRole::ROLE_VALUE;
+		return OperandRole::ROLE_NONE;
+	default:
+		return OperandRole::ROLE_NONE;
+	}
+}
+
 // Execution operand counts for the opcodes whose framing was corrected in
 // GB13-001. These mirror the VM_GetOprand(N) count in the original
 // EclRob (3), EclEncounter (14) and EclClock (1) routines.

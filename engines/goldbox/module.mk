@@ -27,6 +27,7 @@ MODULE_OBJS = \
 	ecl/opcode_handlers.o \
 	ecl/opcode_table.o \
 	ecl/operand_roles.o \
+	ecl/rune_presentation.o \
 	data/player_character.o \
 	data/adnd_character.o \
 	data/daxblock.o \

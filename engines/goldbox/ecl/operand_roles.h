@@ -45,6 +45,27 @@ enum class OperandRole : uint8 {
 };
 
 /**
+ * Semantic role of a specific 1-based operand of an opcode (GB13-008).
+ *
+ * The role records how the handler must treat that operand so decode is
+ * unambiguous and auditable: ROLE_VALUE is evaluated through GetEclVar
+ * semantics (EclVM::readVar), ROLE_ADDRESS is a literal VM destination
+ * (EclVM::getOpWord, never dereferenced), ROLE_TARGET is a branch/next-PC
+ * target and ROLE_STRING is decoded text (EclVM::readString). ROLE_VARARGS
+ * marks the start of a trailing variable-length group.
+ *
+ * Only the opcodes whose operand classification was audited under GB13-001 and
+ * GB13-008 are described; everything else returns ROLE_NONE. The table is data,
+ * consumed by both the handlers and the debugger, and is intentionally NOT
+ * regenerated from the execution or skip counts.
+ *
+ * @param opcode opcode byte.
+ * @param index  1-based operand index.
+ * @return the operand's role, or ROLE_NONE when not classified.
+ */
+OperandRole getOperandRole(uint8 opcode, uint8 index);
+
+/**
  * Number of operands the interpreter *executes* for an opcode, i.e. the count
  * passed to VM_GetOprand in the original EclRob/EclEncounter/EclClock routines.
  *

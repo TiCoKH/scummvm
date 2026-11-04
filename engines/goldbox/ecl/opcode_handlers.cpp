@@ -31,9 +31,19 @@
 #include "goldbox/events.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/adnd_character.h"
+#include "goldbox/ecl/rune_presentation.h"
 
 namespace Goldbox {
 namespace ECL {
+
+// Engine-owned rune presentation state shared by PROTECTION (PRINT RUNES),
+// CLEAR BOX, PRINT RETURN and EXIT (GB13-008). Lifetime matches the handler
+// table; no runtime global constructor beyond the trivially-constructible POD
+// state it holds.
+static RunePresentationContext &getRunePresentation() {
+	static RunePresentationContext s_runeCtx;
+	return s_runeCtx;
+}
 
 // Use a typedef alias for easier reference
 using HandlerMap = Common::HashMap<uint8, OpcodeHandler>;
@@ -181,6 +191,9 @@ static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
 static int handle_0x00_EXIT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    // GB13-008: EXIT ends the script; drop the transient rune presentation
+    // cursor/box/redraw state so a later script starts from a clean box.
+    getRunePresentation().reset();
     return VM_HALTED;
 }
 
@@ -490,9 +503,12 @@ static int handle_0x0C_SPRITE_START(EclVM &vm, AddressSpace &mem,
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(3);
-    const uint8 resourceId = static_cast<uint8>(vm.getOpWord(1));
-    const uint8 distanceCap = static_cast<uint8>(vm.getOpWord(2));
-    const uint8 variantId = static_cast<uint8>(vm.getOpWord(3));
+    // GB13-008: EclSetupMon reads its three arguments through GetEclVar, so a
+    // variable operand is dereferenced to its value rather than treated as a
+    // literal address. All three are VALUE operands (see getOperandRole).
+    const uint8 resourceId = static_cast<uint8>(vm.readVar(1));
+    const uint8 distanceCap = static_cast<uint8>(vm.readVar(2));
+    const uint8 variantId = static_cast<uint8>(vm.readVar(3));
     return syscalls->drawEncounterStage(resourceId, distanceCap, variantId);
 }
 
@@ -525,7 +541,9 @@ static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem,
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
-    const uint8 picId = static_cast<uint8>(vm.getOpWord(1));
+    // GB13-008: EclPicture reads picId through GetEclVar (value), so a variable
+    // containing the id behaves identically to a literal id.
+    const uint8 picId = static_cast<uint8>(vm.readVar(1));
 
     const EclLayoutAccess layout = getOpcodeLayout();
     const uint16 spriteLoadAddr = layout.runtimeField(kEclRuntimeSpriteState);
@@ -575,9 +593,12 @@ static int handle_0x0E_PICTURE(EclVM &vm, AddressSpace &mem,
 
 static int handle_0x33_PRINT_RETURN(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)nextPc; (void)callStack;
+    (void)vm; (void)mem; (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
+    // GB13-008: carriage return + line feed in the rune presentation context
+    // (EclPrintRet) so the next PROTECTION run starts on a fresh line.
+    getRunePresentation().onPrintReturn();
     syscalls->printText(Common::String(), false);
     return VM_OK;
 }
@@ -604,8 +625,10 @@ static int handle_0x38_PROGRAM(EclVM &vm, AddressSpace &mem,
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
+    // GB13-008: EclProgram reads the program id through GetEclVar (value), so a
+    // variable containing the id behaves identically to a literal id.
     const VmResult result =
-        syscalls->executeProgram(static_cast<uint8>(vm.getOpWord(1)));
+        syscalls->executeProgram(static_cast<uint8>(vm.readVar(1)));
     if (g_events) {
         g_events->postEclSyscallMessage(vm.getPC(), 0x38,
             EclVmMessage::SC_EXECUTE_PROGRAM,
@@ -620,20 +643,29 @@ static int handle_0x3C_PROTECTION(EclVM &vm, AddressSpace &mem,
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
-    uint16 addr = vm.getOpWord(1);
-    Common::String runes;
-    uint8 ch;
-    while ((ch = mem.read8(addr++)) != 0)
-        runes += static_cast<char>(ch);
+    // GB13-008: operand 1 is the literal glyph source address (not evaluated),
+    // matching EclProtection's CombineBytesToWord of the raw operand bytes.
+    const uint16 addr = vm.getOpWord(1);
+    // Each encoded cell is advanced by one (modulo the byte width) and the run
+    // terminates on the decoded terminator; cursor/box/redraw state is carried
+    // across the CLEAR BOX -> PROTECTION -> PRINT RETURN / EXIT sequence.
+    const Common::String runes = getRunePresentation().decodeRunes(mem, addr);
     syscalls->printText(runes, false);
+    if (g_events) {
+        g_events->postEclSyscallMessage(vm.getPC(), 0x3C,
+            EclVmMessage::SC_PRINT, static_cast<int16>(VM_OK));
+    }
     return VM_OK;
 }
 
 static int handle_0x3D_CLEAR_BOX(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)nextPc; (void)callStack;
+    (void)mem; (void)nextPc; (void)callStack;
     if (!syscalls)
         return VM_ERROR;
+    // GB13-008: arm the box-clear flag so a following PROTECTION run reflows the
+    // cursor if it overflowed the box bottom (EclClearBox).
+    getRunePresentation().onClearBox();
     syscalls->clearTextBox();
     if (g_events) {
         g_events->postEclSyscallMessage(vm.getPC(), 0x3D,
