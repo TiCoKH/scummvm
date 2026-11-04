@@ -44,6 +44,44 @@ struct CombatViewDelegate;
 struct CastSpellViewDelegate;
 
 /**
+ * GB13-011 teardown-boundary observer (recording seam).
+ *
+ * The host wires one of these so the battle boundary can unbind presentation
+ * and release host monster ownership in the original CombatDoneCleanup /
+ * PostCombatCreatureCleanup order: capture the settlement input and detach the
+ * presenter/pending callbacks BEFORE host monsters are freed. Tests use a
+ * recording implementation to assert that ordering. All hooks are optional
+ * (a null observer suppresses host integration, e.g. unit tests driving the
+ * session directly).
+ */
+struct BattleTeardownObserver {
+    virtual ~BattleTeardownObserver() {}
+
+    /** A new battle generation has begun on a (possibly reused) session. */
+    virtual void onBeginBattle(uint32 battleGeneration) {}
+
+    /**
+     * Settlement input has been snapshotted. Runs for normal completion /
+     * defeat before releaseBattleState; a quit teardown skips it (no XP /
+     * reward is awarded on quit).
+     */
+    virtual void onCaptureOutcome() {}
+
+    /**
+     * Presentation is being unbound (spell presenter/targeter released,
+     * delayed menu/animation events invalidated). Runs before host monster
+     * ownership is released.
+     */
+    virtual void onDetachPresentation() {}
+
+    /**
+     * Transient battle state has been released. The host frees its monster
+     * roster AFTER this returns (the no-use-after-free ordering guarantee).
+     */
+    virtual void onReleaseBattleState() {}
+};
+
+/**
  * Owns all combat state and drives the round loop.
  *
  * CombatView holds a CombatSession and calls executeTurn() to advance
@@ -272,6 +310,111 @@ public:
      */
     void acknowledgeRoundEnd(bool continueEncounter);
 
+    // -----------------------------------------------------------------------
+    // GB13-011 — explicit per-battle teardown boundary.
+    //
+    // These phases are ADDITIVE to the setup()/executeTurn()/
+    // acknowledgeRoundEnd() loop above. They port the original battle-cleanup
+    // timing (CombatDoneCleanup, combat.pas:40 + PostCombatCreatureCleanup,
+    // postcbt.pas:453) so a REUSED CombatView never carries an actor, target
+    // or cloud from the previous encounter. This models a confirmed lifetime
+    // risk, NOT a reproduced crash: nothing here asserts or depends on a crash.
+
+    /** Why a battle is being torn down. */
+    enum TeardownReason {
+        TD_NORMAL = 0,  // all enemies defeated / party fled: settle then release
+        TD_DEFEAT,      // party defeated: settle (defeat outcome) then release
+        TD_QUIT         // application quit: cancel presentation, do NOT settle
+    };
+
+    /**
+     * Snapshot of the settlement input taken BEFORE anything is torn down.
+     *
+     * captureOutcome() fills this; the actual reward/XP settlement pipeline is
+     * GB13-010 (task 17) and consumes this snapshot. GB13-011 only provides the
+     * capture boundary so loot/outcome is read while the roster is still live.
+     */
+    struct BattleOutcomeSnapshot {
+        bool                                   captured;
+        TeardownReason                         reason;
+        uint8                                  partySideCount;
+        uint8                                  enemySideCount;
+        Common::Array<Data::PlayerCharacter *> survivors; // live party members
+
+        BattleOutcomeSnapshot()
+            : captured(false), reason(TD_NORMAL),
+              partySideCount(0), enemySideCount(0) {}
+    };
+
+    /**
+     * Wire the teardown observer (recording seam / host integration). May be
+     * nullptr to suppress host integration (unit tests driving the session).
+     */
+    void setTeardownObserver(BattleTeardownObserver *observer) {
+        _teardownObserver = observer;
+    }
+
+    /**
+     * Establish fresh transient state for a new battle on this (possibly
+     * reused) session and bump the battle generation. Calling beginBattle()
+     * again must leave NO actor/target/cloud/roster handle from the previous
+     * battle, so a reused CombatView starts clean. Normally called from
+     * setup(); exposed so a second onFocus can force a clean start.
+     */
+    void beginBattle();
+
+    /**
+     * The current battle generation. Delayed menu/animation events and
+     * targeting requests record this at issue time; a callback whose recorded
+     * generation != this value is a stale cross-battle callback and must be
+     * dropped (see isBattleGenerationCurrent()).
+     */
+    uint32 currentBattleGeneration() const { return _battleGeneration; }
+
+    /** True when gen is the live battle generation (false = stale callback). */
+    bool isBattleGenerationCurrent(uint32 gen) const {
+        return gen == _battleGeneration;
+    }
+
+    /**
+     * Snapshot the settlement input before teardown. Skipped for TD_QUIT (quit
+     * awards nothing). Fills and returns the outcome snapshot; GB13-010 settles
+     * rewards from it. Keeps persistent character state intact — only reads it.
+     */
+    const BattleOutcomeSnapshot &captureOutcome(TeardownReason reason);
+
+    /**
+     * Unbind the spell presenter/targeter and invalidate delayed menu/animation
+     * events and targeting requests (by bumping the battle generation so any
+     * in-flight callback becomes stale). Must run BEFORE host monster ownership
+     * is released so no callback can dereference a freed monster.
+     */
+    void detachPresentation();
+
+    /**
+     * Clear all transient battle state at the battle boundary: actor/target
+     * references, scheduler/round-end bookkeeping, clouds, downed-member
+     * records, path/occupancy data and roster handles. KEEPS persistent
+     * character state (party members survive the battle). Captured loot/outcome
+     * lives separately in the BattleOutcomeSnapshot.
+     */
+    void releaseBattleState();
+
+    /**
+     * Drive the full teardown in the original order for a completion reason:
+     *   TD_NORMAL / TD_DEFEAT: captureOutcome -> detachPresentation ->
+     *                          releaseBattleState
+     *   TD_QUIT:               detachPresentation -> releaseBattleState
+     *                          (no captureOutcome: quit awards nothing)
+     * The host runs this BEFORE freeing its monster roster.
+     */
+    void teardownBattle(TeardownReason reason);
+
+    /** The outcome snapshot captured by captureOutcome(), if any. */
+    const BattleOutcomeSnapshot &getOutcomeSnapshot() const {
+        return _outcomeSnapshot;
+    }
+
     // --- Read-only accessors for rendering ---
     const CombatantTable  &getTable()          const { return _table; }
     CombatViewport        &getViewport()             { return _viewport; }
@@ -395,6 +538,16 @@ private:
     AiMoveViewDelegate  *_aiDelegate     = nullptr;
     CombatViewDelegate  *_attackDelegate = nullptr;
     CastSpellViewDelegate *_spellDelegate = nullptr;
+
+    // GB13-011: monotonic battle-generation counter, bumped at beginBattle()
+    // and again at detachPresentation(). Stale cross-battle callbacks are the
+    // ones whose recorded generation != this value.
+    uint32 _battleGeneration = 0;
+    BattleTeardownObserver *_teardownObserver = nullptr;
+    BattleOutcomeSnapshot   _outcomeSnapshot;
+
+    /** Unbind _spellTargeter from the spell service if still registered. */
+    void unbindSpellTargeter();
 
     CombatContext makeContext();
     CombatContext makeContext() const;

@@ -686,19 +686,33 @@ VmResult PoolradEngineHostImpl::clearMonsters() {
     if (_engine && _monstersAppendedToParty) {
         Common::List<Goldbox::Data::PlayerCharacter *> &party =
             _engine->getParty();
+
+        // GB13-011 (Requirement 4.4 / 18.3): the departed combatants ACTUALLY
+        // leave here, so invalidate any pending target/selection reference for
+        // each one BEFORE its pointer dies, so a stale targeting/selection
+        // callback cannot act on it. The combatant stable-id source is the
+        // same one GB13-006 uses for party removal: the member's 0-based index
+        // in the live party list (PartyRemovalResult::departedIndex). Capture
+        // each monster's index while it is still linked, then remove.
         for (Data::PoolradCharacter *monster : _loadedMonsters) {
+            uint16 combatantId = 0;
+            uint16 i = 0;
+            bool found = false;
+            for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it =
+                    party.begin(); it != party.end(); ++it, ++i) {
+                if (*it == monster) {
+                    combatantId = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (found)
+                invalidatePendingForCharacter(combatantId);
             party.remove(monster);
         }
     }
 
     _monstersAppendedToParty = false;
-
-    // TODO(GB13-011, task 12): combat teardown owns the combatant-id -> frame
-    // mapping. When that lands, call _pendingOps.invalidateForCharacter(id)
-    // here for each departed combatant so a stale targeting/selection callback
-    // cannot act on it (Requirement 4.4). The stack API exists and is
-    // unit-tested in 8.2; wiring the id source is deferred to task 12 rather
-    // than guessing the mapping now.
 
     Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
     if (iconMgr) {
@@ -2291,6 +2305,33 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
     if (_asyncCombatPending) {
         _asyncCombatPending = false;
         _asyncCombatWasActivated = false;
+
+        // GB13-011: run the explicit battle-teardown boundary BEFORE host
+        // monster ownership is released. The session captures the settlement
+        // input (GB13-010 input) and detaches the spell presenter/targeter and
+        // delayed callbacks first; clearMonsters() then invalidates each
+        // departed combatant's pending references and frees the monsters. This
+        // capture -> detach -> invalidate -> free order is the no-use-after-
+        // free guarantee.
+        Poolrad::PoolradEngine *poolEngine =
+            dynamic_cast<Poolrad::PoolradEngine *>(_engine);
+        Views::CombatView *combatView = poolEngine
+            ? dynamic_cast<Views::CombatView *>(poolEngine->findView("Combat"))
+            : nullptr;
+        if (combatView) {
+            // GS_END_GAME at this seam means the party was defeated (set by
+            // CombatView::finishCombat before close); it is NOT an application
+            // quit. Defeat still captures a (defeat) settlement snapshot. A
+            // true application-quit teardown (TD_QUIT, which skips settlement)
+            // is driven at engine shutdown / view destruction, where the
+            // CombatSession destructor already unbinds the spell targeter.
+            const Combat::CombatSession::TeardownReason reason =
+                (_engine->getGameState() == GS_END_GAME)
+                    ? Combat::CombatSession::TD_DEFEAT
+                    : Combat::CombatSession::TD_NORMAL;
+            combatView->teardownBattle(reason);
+        }
+
         clearMonsters();
 
         // GB13-009 (8.3): the combat branch of opcode 0x24 returned VM_YIELD,

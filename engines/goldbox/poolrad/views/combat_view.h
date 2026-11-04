@@ -82,6 +82,17 @@ public:
     void setup(const Combat::CombatParams &params);
 
     /**
+     * GB13-011: run the session's explicit per-battle teardown boundary for a
+     * completion reason. The host calls this BEFORE releasing (freeing) its
+     * monster roster, so the settlement snapshot and presentation detach (and
+     * the resulting stale-callback invalidation) happen while the monsters are
+     * still live. Safe to call on a reused view between encounters.
+     */
+    void teardownBattle(Combat::CombatSession::TeardownReason reason) {
+        _session.teardownBattle(reason);
+    }
+
+    /**
      * Apply damage to a character: runs data mutation, plays the damage
      * tile animation via drawDamage, interrupts spell casting, and
      * handles death. Mirrors COMBAT_ApplyDamageMessage.

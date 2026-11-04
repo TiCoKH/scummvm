@@ -72,14 +72,23 @@ CombatSession::CombatSession()
 }
 
 CombatSession::~CombatSession() {
-    if (Spells::g_spellCasting &&
-            Spells::g_spellCasting->getCombatTargeter() == &_spellTargeter)
-        Spells::g_spellCasting->setCombatTargeter(nullptr);
+    unbindSpellTargeter();
     if (g_combatSession == this)
         g_combatSession = nullptr;
 }
 
+void CombatSession::unbindSpellTargeter() {
+    if (Spells::g_spellCasting &&
+            Spells::g_spellCasting->getCombatTargeter() == &_spellTargeter)
+        Spells::g_spellCasting->setCombatTargeter(nullptr);
+}
+
 void CombatSession::setup(const CombatParams &params) {
+    // GB13-011: a reused CombatView re-enters setup() for each encounter, so
+    // start from a clean transient state (fresh battle generation, no leftover
+    // actor/target/cloud/roster handle) before building the new battle.
+    beginBattle();
+
     _params = params;
     _globals.turnCounter = 0;
     _phase = PHASE_SETUP;
@@ -437,6 +446,109 @@ void CombatSession::acknowledgeRoundEnd(bool continueEncounter) {
     // Resume: next executeTurn() call will start a fresh round.
     _phase = PHASE_PLAYER_TURN;
     _currentActor = nullptr;
+}
+
+// -----------------------------------------------------------------------
+// GB13-011 — per-battle teardown boundary.
+
+void CombatSession::beginBattle() {
+    // Fresh battle generation: any callback/targeting request still carrying a
+    // previous generation is now stale and will be dropped.
+    ++_battleGeneration;
+
+    // Drop every transient handle from a prior battle on a reused session.
+    _currentActor     = nullptr;
+    _previousAttacker = nullptr;
+    _targetList.clear();
+    _globals.reset();      // clouds, membersOnGround, downedMembers, sideCount...
+    _table.clear();        // roster handles + occupancy grid
+    _roundEnd = RoundEndInfo();
+    _exitAtRoundStart = false;
+    _outcomeSnapshot = BattleOutcomeSnapshot();
+    _phase = PHASE_NONE;
+
+    if (_teardownObserver)
+        _teardownObserver->onBeginBattle(_battleGeneration);
+}
+
+const CombatSession::BattleOutcomeSnapshot &CombatSession::captureOutcome(
+        TeardownReason reason) {
+    // Read settlement input while the roster is still live; mutate nothing.
+    _outcomeSnapshot = BattleOutcomeSnapshot();
+    _outcomeSnapshot.captured = true;
+    _outcomeSnapshot.reason   = reason;
+
+    makeContext().updateSideCount();
+    _outcomeSnapshot.partySideCount = _globals.sideCount[0];
+    _outcomeSnapshot.enemySideCount = _globals.sideCount[1];
+
+    // Snapshot surviving party members for GB13-010 share settlement. Keep the
+    // characters themselves intact — this is a reference snapshot, not a move.
+    for (int i = 0; i < _params.partyCount &&
+            i < (int)_params.roster.size(); ++i) {
+        Data::PlayerCharacter *ch = _params.roster[i];
+        if (!ch || ch->combatSide != Data::CS_PARTY)
+            continue;
+        if (ch->healthStatus == Data::S_OKAY ||
+                ch->healthStatus == Data::S_ANIMATED ||
+                ch->healthStatus == Data::S_RUNNING)
+            _outcomeSnapshot.survivors.push_back(ch);
+    }
+
+    if (_teardownObserver)
+        _teardownObserver->onCaptureOutcome();
+    return _outcomeSnapshot;
+}
+
+void CombatSession::detachPresentation() {
+    // Unbind the spell presenter/targeter so a late aim/target callback cannot
+    // re-enter a torn-down session.
+    unbindSpellTargeter();
+    _spellDelegate  = nullptr;
+    _aiDelegate     = nullptr;
+    _attackDelegate = nullptr;
+
+    // Invalidate delayed menu/animation events and targeting requests by
+    // bumping the battle generation: any in-flight callback carrying the old
+    // generation is now stale. This runs BEFORE host monster ownership is
+    // released, so no stale callback can dereference a freed monster.
+    ++_battleGeneration;
+
+    if (_teardownObserver)
+        _teardownObserver->onDetachPresentation();
+}
+
+void CombatSession::releaseBattleState() {
+    // Clear transient battle state only; persistent character state is kept.
+    _currentActor     = nullptr;
+    _previousAttacker = nullptr;
+    _globals.attacker = nullptr;
+    _targetList.clear();
+
+    // Clouds, downed-member records and the on-ground counter are per-battle.
+    _globals.clouds.reset();
+    _globals.downedMembers.clear();
+    _globals.membersOnGround = 0;
+    _globals.sideCount[0] = 0;
+    _globals.sideCount[1] = 0;
+
+    // Drop roster handles + occupancy/path data (CombatantTable owns none of
+    // the characters; it only references them).
+    _table.clear();
+    _roundEnd = RoundEndInfo();
+    _phase = PHASE_ENDED;
+
+    if (_teardownObserver)
+        _teardownObserver->onReleaseBattleState();
+}
+
+void CombatSession::teardownBattle(TeardownReason reason) {
+    // Normal completion / defeat settle before release; quit awards nothing, so
+    // it cancels presentation without a settlement snapshot.
+    if (reason != TD_QUIT)
+        captureOutcome(reason);
+    detachPresentation();
+    releaseBattleState();
 }
 
 void CombatSession::processRoundEnd() {
