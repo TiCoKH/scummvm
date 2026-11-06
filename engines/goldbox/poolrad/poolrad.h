@@ -96,6 +96,15 @@ private:
 	bool                                       _mapRuntimeNeedsInit = false;
 	bool                                       _mapRuntimeReady = false;
 
+	// Step of NewEclDone that a yielded script belongs to.
+	enum NewEclPhase {
+		kNewEclIdle,
+		kNewEclOnInit,
+		kNewEclOnMove,
+		kNewEclOnSearch
+	};
+	NewEclPhase                                _newEclPhase = kNewEclIdle;
+
 	/**
 	 * Shared engine/VM runtime state (legacy globals mirror).
 	 *
@@ -148,6 +157,10 @@ private:
 	bool isMapRuntimeState(GameState state) const;
 	Views::InGameView *getInGameView();
 	void initializeMapRuntimeForState(GameState state);
+	void applyLocationContext(const ::Goldbox::RuntimeMapSnapshot &snapshot,
+			GameState dungeonState);
+	// Runs NewEclDone after NEWECL; returns false when a script yielded.
+	bool runNewEclDone();
 	void refreshLegacySharedRuntimeState();
 	VmResult runEclEntryPoint(ECL::EclRuntimeFieldId entryField,
 			uint32 maxSteps = 1000000);
@@ -191,6 +204,7 @@ public:
 	 */
 	PoolradEngineHostImpl *getEclHost() { return _eclHost.get(); }
 	bool captureRuntimeMapSnapshot(::Goldbox::RuntimeMapSnapshot &snapshot) const;
+	ECL::EclVM *getEclVm() { return _eclVm.get(); }
 
 	/** GB13-021 authoritative location context (TYPE owner). */
 	const LocationContext &getLocationContext() const { return _location; }

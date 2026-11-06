@@ -143,6 +143,7 @@ public:
         int16 yPos;      // viewport y offset
         uint32 dataOffset; // byte offset into _data for EGA plane data
         uint32 dataSize;   // EGA plane data size (height * charWidth * 4)
+        uint32 delay;      // display time in 1/10 s (menu picture animation)
     };
 
     DaxBlockSprit(bool xorDecode = false);

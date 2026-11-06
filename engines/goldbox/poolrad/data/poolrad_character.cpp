@@ -582,6 +582,13 @@ void PoolradCharacter::addClericBonusSpells() {
 }
 
 void PoolradCharacter::recalcCombatStats() {
+	// RecalcStats keeps a monster's record values (THAC0, saves, attacks);
+	// they have no class levels to rebuild them from.
+	if (race == Goldbox::Data::R_MONSTER) {
+		ADnDCharacter::recalcCombatStats();
+		return;
+	}
+
 	// Refresh THAC0 base, highestLevel, and itemsLimit from current levels.
 	computeThac0();
 

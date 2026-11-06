@@ -203,14 +203,32 @@ public:
     Common::String readString(uint8 index) const;
 
     /**
-     * Store compare result sign into runtime compare flag field.
+     * Comparison flags as in the original (cmpFlags[0..5]), one bit per IF
+     * opcode 0x16..0x1B: EQ, NE, LT, GT, LE, GE.
+     */
+    enum {
+        kCmpEq = 1 << 0,
+        kCmpNe = 1 << 1,
+        kCmpLt = 1 << 2,
+        kCmpGt = 1 << 3,
+        kCmpLe = 1 << 4,
+        kCmpGe = 1 << 5
+    };
+
+    /**
+     * Set all six flags from a three-way compare of v1 against v2.
      */
     void setCmpResult(int32 result);
 
     /**
-     * Read compare result sign from runtime compare flag field.
+     * Set the comparison flags directly (COMPARE AND, FIND ITEM).
      */
-    int8 getCmpResult() const;
+    void setCmpFlags(uint8 flags);
+
+    /**
+     * Test the flag an IF opcode (0x16..0x1B) depends on.
+     */
+    bool testCmpFlag(uint8 ifOpcode) const;
 
     /**
      * Legacy IF helper: skip the next instruction (opcode + encoded operands)

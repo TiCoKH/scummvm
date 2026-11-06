@@ -688,20 +688,29 @@ Common::String EclVM::readString(uint8 index) const {
 }
 
 void EclVM::setCmpResult(int32 result) {
+    if (result < 0)
+        setCmpFlags(kCmpNe | kCmpLt | kCmpLe);
+    else if (result > 0)
+        setCmpFlags(kCmpNe | kCmpGt | kCmpGe);
+    else
+        setCmpFlags(kCmpEq | kCmpLe | kCmpGe);
+}
+
+void EclVM::setCmpFlags(uint8 flags) {
     if (!_config)
         return;
 
     EclLayoutAccess layout = _config->getLayoutAccess();
-    int8 sign = (result < 0) ? -1 : (result > 0) ? 1 : 0;
-    _memory.write8(layout.runtimeField(kEclRuntimeBreakFlag), (uint8)sign);
+    _memory.write8(layout.runtimeField(kEclRuntimeBreakFlag), flags);
 }
 
-int8 EclVM::getCmpResult() const {
-    if (!_config)
-        return 0;
+bool EclVM::testCmpFlag(uint8 ifOpcode) const {
+    if (!_config || ifOpcode < 0x16 || ifOpcode > 0x1B)
+        return false;
 
     EclLayoutAccess layout = _config->getLayoutAccess();
-    return (int8)_memory.read8(layout.runtimeField(kEclRuntimeBreakFlag));
+    const uint8 flags = _memory.read8(layout.runtimeField(kEclRuntimeBreakFlag));
+    return (flags & (1 << (ifOpcode - 0x16))) != 0;
 }
 
 uint16 EclVM::skipLegacyInstructionOperands(uint16 instructionPc) const {

@@ -498,13 +498,17 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
                 useBehindAC = true;
         }
 
+        // DoAttack defense, stored 60-based (higher is harder to hit):
+        // acBehind - 2 on a backstab, acBehind from behind, else acCur.
+        const uint8 rearAC = targetAdnd ? targetAdnd->armorClassRear
+                                        : target->armorClass.current;
         uint8 targetAC;
         if (backstab)
-            targetAC = (uint8)((int)target->armorClass.getCurrent() - 2 - 2); // rear AC - 2
+            targetAC = (uint8)MAX<int>((int)rearAC - 2, 0);
         else if (useBehindAC)
-            targetAC = (uint8)((int)target->armorClass.getCurrent() - 2);     // rear AC
+            targetAC = rearAC;
         else
-            targetAC = (uint8)target->armorClass.getCurrent();                 // front AC
+            targetAC = target->armorClass.current;
 
         adjustAcForFacingAndRange(attacker, target, &targetAC);
 
@@ -520,9 +524,10 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
                 ++globals.attackDisplayCount[slot];
 
                 bool hit = rollToHit(attacker, target, targetAC);
-                debug(0, "[ATTACK] '%s' -> '%s': slot=%u ac=%u hit=%d",
+                debug(0, "[ATTACK] '%s' -> '%s': slot=%u roll=%u thac0=%d ac=%d hit=%d",
                     attacker->name.c_str(), target->name.c_str(),
-                    (unsigned)slot, (unsigned)targetAC, hit);
+                    (unsigned)slot, (unsigned)globals.attackRoll,
+                    60 - (int)attacker->thac0.current, 60 - (int)targetAC, hit);
 
                 if (hit || target->hasNegativeEffect()) {
                     ++globals.attackRollSlots[slot];
@@ -712,7 +717,8 @@ bool rollToHit(Data::PlayerCharacter *attacker,
     if ((int8)globals.attackRoll < 0)
         return false;
 
-    return (int)targetAC <= (int)attacker->thac0.getCurrent()
+    // AttackRoll: roll + thac0Cur + zmod >= defense, all stored 60-based.
+    return (int)targetAC <= (int)attacker->thac0.current
                           + (int)thac0Bonus
                           + (int)globals.attackRoll;
 }

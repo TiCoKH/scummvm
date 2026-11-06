@@ -67,6 +67,9 @@ public:
 
 	uint8 handsEquipped;
 	uint8 saveBonus;
+	// Rear AC (acBehind), stored 60-based like armorClass.current: no Dex or
+	// shield, minus 2. Set by recalcCombatStats.
+	uint8 armorClassRear = 50;
 
 	Goldbox::Data::Items::CharacterInventory inventory;
 

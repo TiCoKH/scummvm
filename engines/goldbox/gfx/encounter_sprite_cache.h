@@ -127,10 +127,10 @@ public:
     int headFrameCount() const { return (int)_headFrames.size(); }
 
     /**
-     * Advance animation frame using ping-pong pattern (1→max→1).
+     * Advance to the next frame once the current one's delay has passed.
      * Self-timed: checks elapsed time internally.
      * Call from any periodic update path (tick, draw, timeout).
-     * @param intervalMs Milliseconds per frame (e.g. gameSpeed * 500)
+     * @param intervalMs Milliseconds for frames without their own delay
      * @return True if frame changed (caller should redraw)
      */
     bool tickAnimation(uint32 intervalMs);
@@ -163,8 +163,8 @@ private:
 
     // Multi-frame PIC animation state.
     Common::Array<Common::SharedPtr<Pic>> _headFrames;
+    Common::Array<uint32> _headFrameDelays; // ms per frame, 0 = interval
     uint8 _headCurrentFrame;
-    int8 _headAnimDirection;  // +1 forward, -1 reverse (ping-pong)
     uint32 _headLastFrameTime;
     uint32 _headAnimInterval; // ms per frame
 };

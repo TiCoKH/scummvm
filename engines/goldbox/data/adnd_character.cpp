@@ -459,8 +459,10 @@ void ADnDCharacter::recalculateEncumbrance(const EquipScanResult &scan) {
 }
 
 void ADnDCharacter::resetCurrentRollsFromBase() {
-	curPrimaryRoll   = basePrimaryRoll;
-	curSecondaryRoll = baseSecondaryRoll;
+	// RecalcStats resets the damage dice only; the attacks left this round
+	// (curAttacks) are kept.
+	curPrimaryRoll.action   = basePrimaryRoll.action;
+	curSecondaryRoll.action = baseSecondaryRoll.action;
 }
 
 void ADnDCharacter::resetCombatModifiers() {
@@ -513,6 +515,7 @@ void ADnDCharacter::finalizeArmorClass(AcComponents &ac) {
 	if (ac.armorBase < armorClass.current)
 		ac.armorBase = armorClass.current;
 	armorClass.current = static_cast<uint8>(ac.getTotalAC());
+	armorClassRear = static_cast<uint8>(ac.getRearAC());
 }
 
 int ADnDCharacter::getCapacityModifier() const {

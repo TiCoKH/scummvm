@@ -35,8 +35,8 @@ class Pic;
  * Cache for the PICTURE opcode's portrait/scene display.
  *
  * Separate from EncounterSpriteCache (which handles SPRITE_START/ADVANCE/OFF).
- * Supports multi-frame animated pictures (e.g. campfire PIC 29) with
- * ping-pong animation.
+ * Supports multi-frame animated pictures (e.g. campfire PIC 29), cycled as
+ * the original menu animation does.
  *
  * Rendering priority in the view:
  *   1. If EncounterSpriteCache has sprite -> draw 3D + sprite overlay
@@ -72,9 +72,9 @@ public:
     int headFrameCount() const { return (int)_headFrames.size(); }
 
     /**
-     * Advance animation frame using ping-pong pattern.
+     * Advance to the next frame once the current one's delay has passed.
      * Self-timed: checks elapsed time internally.
-     * @param intervalMs Milliseconds per frame
+     * @param intervalMs Milliseconds for frames without their own delay
      * @return True if frame changed (caller should redraw)
      */
     bool tickAnimation(uint32 intervalMs);
@@ -92,8 +92,8 @@ private:
     Common::SharedPtr<Pic> _bodyPic;
 
     Common::Array<Common::SharedPtr<Pic>> _headFrames;
+    Common::Array<uint32> _frameDelays; // ms per frame, 0 = use _animInterval
     uint8 _currentFrame;
-    int8 _animDirection;
     uint32 _lastFrameTime;
     uint32 _animInterval;
 };

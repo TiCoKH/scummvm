@@ -60,7 +60,7 @@ static const uint8 kWallTileTransparentColor = 13;
 Common::SharedPtr<Pic> buildRegionSurface(
 		const Data::DaxBlockWalldef::Slice &slice,
 		Data::WalldefRegionId regionId,
-		const Tile8x8Cache &tileCache) {
+		const Tile8x8Cache &tileCache, int symbolOffset) {
 	const int cols = slice.cols(regionId);
 	const int rows = slice.rows(regionId);
 	Common::SharedPtr<Pic> region(new Pic(cols * 8, rows * 8));
@@ -73,9 +73,11 @@ Common::SharedPtr<Pic> buildRegionSurface(
 
 	for (int row = 0; row < rows; ++row) {
 		for (int col = 0; col < cols; ++col) {
-			const uint8 rawIndex = slice.tileIndex(regionId, row, col);
+			uint8 rawIndex = slice.tileIndex(regionId, row, col);
 			if (rawIndex == 0)
 				continue;
+			if (rawIndex >= WalldefSurfaceBuilder::kSymbolShiftFirst)
+				rawIndex = static_cast<uint8>(rawIndex + symbolOffset);
 
 			const Graphics::ManagedSurface *tile =
 					tileCache.tileSurface(rawIndex);
@@ -179,14 +181,14 @@ void WallSurfaceSet::setRegion(Data::WalldefRegionId id,
 
 WallSurfaceSet WalldefSurfaceBuilder::buildSlice(
 		const Data::DaxBlockWalldef::Slice &slice,
-		const Tile8x8Cache &tileCache) {
+		const Tile8x8Cache &tileCache, int symbolOffset) {
 	WallSurfaceSet result;
 
 	for (int i = 0; i < Data::DaxBlockWalldef::VIEW_COUNT; ++i) {
 		const Data::WalldefRegionId regionId =
 				static_cast<Data::WalldefRegionId>(i);
 		result.setRegion(regionId,
-				buildRegionSurface(slice, regionId, tileCache));
+				buildRegionSurface(slice, regionId, tileCache, symbolOffset));
 	}
 
 	return result;
@@ -194,12 +196,12 @@ WallSurfaceSet WalldefSurfaceBuilder::buildSlice(
 
 Common::Array<WallSurfaceSet> WalldefSurfaceBuilder::buildChunk(
 		const Data::DaxBlockWalldef::Chunk &chunk,
-		const Tile8x8Cache &tileCache) {
+		const Tile8x8Cache &tileCache, int symbolOffset) {
 	Common::Array<WallSurfaceSet> result;
 	result.reserve(Data::DaxBlockWalldef::SLICE_COUNT);
 
 	for (int i = 0; i < Data::DaxBlockWalldef::SLICE_COUNT; ++i)
-		result.push_back(buildSlice(chunk.slice(i), tileCache));
+		result.push_back(buildSlice(chunk.slice(i), tileCache, symbolOffset));
 
 	return result;
 }
@@ -212,11 +214,20 @@ WalldefSlotCache::WalldefSlotCache() {
 	for (int i = 0; i < kSlotCount; ++i) {
 		_walldefBlockId[i] = 0xFF;
 		_chunkIdx[i] = -1;
+		_walldef[i] = nullptr;
+		_symbolOffset[i] = 0;
 	}
 }
 
+int WalldefSlotCache::symbolOffsetForSlot(int slot) {
+	if (slot < 1 || slot > kSlotCount)
+		return 0;
+	return Tile8x8Cache::firstGlobalTileIdForSlot(slot)
+		- Tile8x8Cache::firstGlobalTileIdForSlot(1);
+}
+
 void WalldefSlotCache::loadSlot(int slot, Data::DaxBlockWalldef *walldef,
-		int chunkIdx, const Tile8x8Cache &tileCache) {
+		int chunkIdx, int symbolOffset, const Tile8x8Cache &tileCache) {
 	assert(slot >= 1 && slot <= kSlotCount);
 	assert(walldef != nullptr);
 	assert(chunkIdx >= 0 && chunkIdx < walldef->chunkCount());
@@ -224,9 +235,21 @@ void WalldefSlotCache::loadSlot(int slot, Data::DaxBlockWalldef *walldef,
 	const int slotIdx = slot - 1;
 	_walldefBlockId[slotIdx] = walldef->blockId;
 	_chunkIdx[slotIdx] = chunkIdx;
-	walldef->resetChunk(chunkIdx);
+	_walldef[slotIdx] = walldef;
+	_symbolOffset[slotIdx] = symbolOffset;
+	rebuildSlot(slot, tileCache);
+}
+
+void WalldefSlotCache::rebuildSlot(int slot, const Tile8x8Cache &tileCache) {
+	assert(slot >= 1 && slot <= kSlotCount);
+	const int slotIdx = slot - 1;
+	Data::DaxBlockWalldef *walldef = _walldef[slotIdx];
+	if (!walldef)
+		return;
+	walldef->resetChunk(_chunkIdx[slotIdx]);
 	_slices[slotIdx] = WalldefSurfaceBuilder::buildChunk(
-			walldef->chunk(chunkIdx), tileCache);
+			walldef->chunk(_chunkIdx[slotIdx]), tileCache,
+			_symbolOffset[slotIdx]);
 }
 
 void WalldefSlotCache::clearSlot(int slot) {
@@ -235,6 +258,8 @@ void WalldefSlotCache::clearSlot(int slot) {
 	_slices[slotIdx].clear();
 	_walldefBlockId[slotIdx] = 0xFF;
 	_chunkIdx[slotIdx] = -1;
+	_walldef[slotIdx] = nullptr;
+	_symbolOffset[slotIdx] = 0;
 }
 
 uint8 WalldefSlotCache::walldefBlockIdForSlot(int slot) const {

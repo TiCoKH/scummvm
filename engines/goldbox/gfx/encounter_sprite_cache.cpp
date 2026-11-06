@@ -21,6 +21,7 @@
 
 #include "goldbox/gfx/encounter_sprite_cache.h"
 #include "goldbox/gfx/pic.h"
+#include "goldbox/gfx/menu_animation.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/data/daxblock.h"
 #include "common/debug.h"
@@ -33,7 +34,7 @@ EncounterSpriteCache::EncounterSpriteCache()
     : _spriteLoaded(false), _headDrawn(false),
       _spriteBlockId(0), _bodyPicId(0),
       _distance(0), _lastHeadPicId(0xFF),
-      _headCurrentFrame(0), _headAnimDirection(1),
+      _headCurrentFrame(0),
       _headLastFrameTime(0), _headAnimInterval(500) {
 }
 
@@ -50,8 +51,8 @@ void EncounterSpriteCache::clear() {
     _spritePic.reset();
     _headPic.reset();
     _headFrames.clear();
+    _headFrameDelays.clear();
     _headCurrentFrame = 0;
-    _headAnimDirection = 1;
     _headLastFrameTime = 0;
 }
 
@@ -112,6 +113,7 @@ void EncounterSpriteCache::loadSprite(uint8 spriteBlockId, uint8 bodyPicId,
 void EncounterSpriteCache::loadHead(uint8 headPicId, uint8 bodyPicId) {
     _lastHeadPicId = headPicId;
     _headFrames.clear();
+    _headFrameDelays.clear();
     _headCurrentFrame = 0;
     _headLastFrameTime = 0;
 
@@ -134,6 +136,9 @@ void EncounterSpriteCache::loadHead(uint8 headPicId, uint8 bodyPicId) {
             else
                 break;
         }
+        _headFrameDelays = picFrameDelaysMs(*spritBlock, bodyPicId,
+            (int)_headFrames.size());
+        _headFrames.resize(_headFrameDelays.size());
     } else {
         // HEAD DAX: old DaxBlockPic format.
         Data::DaxBlock *rawBlock = VmInterface::getDaxHead().getBlockById(headPicId);
@@ -173,26 +178,11 @@ const Pic *EncounterSpriteCache::currentHeadFrame() const {
 }
 
 bool EncounterSpriteCache::tickAnimation(uint32 intervalMs) {
-    if (_headFrames.size() <= 1)
+    if (!advanceMenuAnimation(_headCurrentFrame, _headLastFrameTime,
+            g_system->getMillis(), _headFrames.size(), _headFrameDelays,
+            intervalMs))
         return false;
 
-    uint32 now = g_system->getMillis();
-    if (now - _headLastFrameTime < intervalMs)
-        return false;
-
-    _headLastFrameTime = now;
-
-    // Ping-pong: 0,1,2,...,max,max-1,...,1,0,1,...
-    int nextFrame = (int)_headCurrentFrame + _headAnimDirection;
-    if (nextFrame >= (int)_headFrames.size()) {
-        _headAnimDirection = -1;
-        nextFrame = (int)_headCurrentFrame + _headAnimDirection;
-    } else if (nextFrame < 0) {
-        _headAnimDirection = 1;
-        nextFrame = (int)_headCurrentFrame + _headAnimDirection;
-    }
-
-    _headCurrentFrame = (uint8)nextFrame;
     _headPic = _headFrames[_headCurrentFrame];
     return true;
 }

@@ -21,6 +21,7 @@
 
 #include "goldbox/gfx/picture_display_cache.h"
 #include "goldbox/gfx/pic.h"
+#include "goldbox/gfx/menu_animation.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/data/daxblock.h"
 #include "common/debug.h"
@@ -31,7 +32,7 @@ namespace Gfx {
 
 PictureDisplayCache::PictureDisplayCache()
     : _active(false), _headPicId(0xFF), _bodyPicId(0),
-      _currentFrame(0), _animDirection(1),
+      _currentFrame(0),
       _lastFrameTime(0), _animInterval(500) {
 }
 
@@ -45,8 +46,8 @@ void PictureDisplayCache::clear() {
     _headPic.reset();
     _bodyPic.reset();
     _headFrames.clear();
+    _frameDelays.clear();
     _currentFrame = 0;
-    _animDirection = 1;
     _lastFrameTime = 0;
 }
 
@@ -56,8 +57,8 @@ void PictureDisplayCache::load(uint8 headPicId, uint8 bodyPicId) {
     _headPic.reset();
     _bodyPic.reset();
     _headFrames.clear();
+    _frameDelays.clear();
     _currentFrame = 0;
-    _animDirection = 1;
     _lastFrameTime = 0;
 
     if (headPicId == 0xFF) {
@@ -73,6 +74,9 @@ void PictureDisplayCache::load(uint8 headPicId, uint8 bodyPicId) {
                 else
                     break;
             }
+            _frameDelays = picFrameDelaysMs(*spritBlock, bodyPicId,
+                (int)_headFrames.size());
+            _headFrames.resize(_frameDelays.size());
         }
     } else {
         // Portrait from HEAD DAX (DaxBlockPic format).
@@ -117,25 +121,11 @@ const Pic *PictureDisplayCache::currentHeadFrame() const {
 }
 
 bool PictureDisplayCache::tickAnimation(uint32 intervalMs) {
-    if (_headFrames.size() <= 1)
+    if (!advanceMenuAnimation(_currentFrame, _lastFrameTime,
+            g_system->getMillis(), _headFrames.size(), _frameDelays,
+            intervalMs))
         return false;
 
-    uint32 now = g_system->getMillis();
-    if (now - _lastFrameTime < intervalMs)
-        return false;
-
-    _lastFrameTime = now;
-
-    int nextFrame = (int)_currentFrame + _animDirection;
-    if (nextFrame >= (int)_headFrames.size()) {
-        _animDirection = -1;
-        nextFrame = (int)_currentFrame + _animDirection;
-    } else if (nextFrame < 0) {
-        _animDirection = 1;
-        nextFrame = (int)_currentFrame + _animDirection;
-    }
-
-    _currentFrame = (uint8)nextFrame;
     _headPic = _headFrames[_currentFrame];
     return true;
 }

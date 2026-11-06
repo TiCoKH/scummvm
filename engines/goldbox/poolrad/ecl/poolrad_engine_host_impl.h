@@ -125,6 +125,8 @@ public:
     VmResult handleCallOpcode(uint16 callId) override;
     VmResult executeProgram(uint8 programID) override;
     VmResult readGeoAtPosition() override;
+    // Animate the view picture while an ECL horizontal menu waits.
+    void tickAsyncMenuPicture();
     VmResult refreshViewport() override;
     VmResult beginDelay() override;
     VmResult advanceClock(uint8 amount) override;
@@ -249,6 +251,13 @@ private:
     // the selected index (-1 on break). Writes no VM memory, so a reopened
     // encounter prompt costs no premature write.
     int16 _runEncounterHotkeyMenu(const Common::Array<Common::String> &options);
+    // WriteGbvm: one value per VM address, with the VM write hooks.
+    void _writeVmValue(uint16 vmAddr, uint16 value);
+    // MenuHorizontal animation of the PIC shown in the view.
+    bool _tickMenuPicture();
+    // DisplayMessageWindow inside the encounter loop: show the text and
+    // pump frames until the text box has finished drawing it.
+    void _showEncounterMessage(const Common::String &text, bool clearBox);
 
     // Skybox background layer colors (set by GFX_SetDefaultColors,
     // updated from VM $49FD/$49FE when scripts change them).

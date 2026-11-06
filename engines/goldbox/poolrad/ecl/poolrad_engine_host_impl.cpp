@@ -1608,51 +1608,28 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
         return VM_OK;
 
     case 0xC01E: {
-        // MAP_StepForward: check wall flag, advance party one cell in
-        // facing direction, clamp to map borders (0-15), and set
-        // TriedToLeaveMap if clamped.
+        // EclMoveForward: step one cell in the facing direction with 0..15
+        // wraparound (no wall check, leave flag untouched), then refresh the
+        // event and wall bytes. Moving off the west edge lands on x=15, which
+        // is the entry cell of the neighbouring map.
         if (!_engine)
             return VM_OK;
 
-        RuntimeGeoBlock &rtGeo = _engine->getRuntimeGeo();
         const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
         const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
         const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
         const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
-        const uint16 leaveAddr = layout.vmGlobalField(kVmGlobalFieldTriedToLeaveMap).vmAddr;
 
-        const int x = static_cast<int>(_memory->read8(xAddr));
-        const int y = static_cast<int>(_memory->read8(yAddr));
-        const uint8 cardinalDir = static_cast<uint8>(_memory->read8(dirAddr) & 0x03);
-        const uint8 wireDir = static_cast<uint8>(cardinalDir * 2);
-        const uint8 dir8 = wireDir;
+        const uint8 dir8 = static_cast<uint8>((_memory->read8(dirAddr) & 0x03) * 2);
+        const uint8 newX = static_cast<uint8>((_memory->read8(xAddr) + kDirDeltaX[dir8]) & 0x0F);
+        const uint8 newY = static_cast<uint8>((_memory->read8(yAddr) + kDirDeltaY[dir8]) & 0x0F);
 
-        _memory->write16LE(leaveAddr, 0);
-
-        const MapPos curPos(static_cast<int8>(x), static_cast<int8>(y));
-        const uint8 wallFlag = rtGeo.isLoaded()
-            ? rtGeo.getWallFlag(curPos, static_cast<Direction>(wireDir)) : 1;
-        if (wallFlag == 0)
-            return VM_OK;
-
-        int newX = x + kDirDeltaX[dir8];
-        int newY = y + kDirDeltaY[dir8];
-
-        // Clamp to map borders and flag if clamped.
-        bool clamped = false;
-        if (newX > 15) { newX = 15; clamped = true; }
-        if (newX < 0)  { newX = 0;  clamped = true; }
-        if (newY > 15) { newY = 15; clamped = true; }
-        if (newY < 0)  { newY = 0;  clamped = true; }
-
-        if (clamped)
-            _memory->write16LE(leaveAddr, 1);
-
-        _memory->write8(xAddr, static_cast<uint8>(newX));
-        _memory->write8(yAddr, static_cast<uint8>(newY));
+        _memory->write8(xAddr, newX);
+        _memory->write8(yAddr, newY);
+        readGeoAtPosition();
         if (g_events) {
-            g_events->postEclVmMessage(xAddr, static_cast<uint8>(newX));
-            g_events->postEclVmMessage(yAddr, static_cast<uint8>(newY));
+            g_events->postEclVmMessage(xAddr, newX);
+            g_events->postEclVmMessage(yAddr, newY);
             g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,
                 EclVmMessage::VT_UINT8);
         }
@@ -1745,7 +1722,7 @@ VmResult PoolradEngineHostImpl::drawEncounterStage(uint8 resourceId,
         distance = distanceCap;
 
     // Write D_MonsterDistance to VM memory.
-    _memory->write16LE(
+    _memory->write8(
         layout.vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr, distance);
 
     // Populate the engine-global encounter sprite cache.
@@ -1867,6 +1844,7 @@ int16 PoolradEngineHostImpl::_runEncounterHotkeyMenu(
     menu->redraw();
 
     while (menu->isActive() && !sink->done) {
+        _tickMenuPicture();
         if (!g_events->pumpModalInputFrame())
             break;
     }
@@ -1887,20 +1865,82 @@ int16 PoolradEngineHostImpl::parlayMenu(
     return (sel < 0) ? 0 : sel;
 }
 
+bool PoolradEngineHostImpl::_tickMenuPicture() {
+    // Original: anim := eclGraphics and picDrawn. Only a PIC close-up or
+    // scene animates; portraits (head/body) stay still.
+    if (!_engine)
+        return false;
+
+    bool changed = false;
+    Goldbox::Gfx::EncounterSpriteCache &sprite =
+        _engine->getEncounterSpriteCache();
+    if (sprite.isSpriteLoaded()) {
+        if (sprite.distance() == 0 && sprite.lastHeadPicId() == 0xFF)
+            changed = sprite.tickAnimation();
+    } else {
+        Goldbox::Gfx::PictureDisplayCache &pic =
+            _engine->getPictureDisplayCache();
+        if (pic.isActive() && pic.headPicId() == 0xFF)
+            changed = pic.tickAnimation();
+    }
+
+    if (changed && g_events) {
+        g_events->postEclStateMessage(EclVmMessage::ST_SKYBOX_DIRTY, 1,
+            EclVmMessage::VT_UINT8);
+    }
+    return changed;
+}
+
+void PoolradEngineHostImpl::tickAsyncMenuPicture() {
+    if (_asyncMenuPending)
+        _tickMenuPicture();
+}
+
+void PoolradEngineHostImpl::_writeVmValue(uint16 vmAddr, uint16 value) {
+    Poolrad::PoolradEngine *poolEngine =
+        dynamic_cast<Poolrad::PoolradEngine *>(_engine);
+    ECL::EclVM *vm = poolEngine ? poolEngine->getEclVm() : nullptr;
+    if (vm)
+        vm->writeVmMemory(vmAddr, value, this);
+    else if (_memory)
+        _memory->write8(vmAddr, static_cast<uint8>(value & 0xFF));
+}
+
+void PoolradEngineHostImpl::_showEncounterMessage(const Common::String &text,
+        bool clearBox) {
+    Poolrad::PoolradEngine *poolEngine =
+        dynamic_cast<Poolrad::PoolradEngine *>(_engine);
+    Views::InGameView *inGameView = poolEngine
+        ? dynamic_cast<Views::InGameView *>(poolEngine->findView("InGame"))
+        : nullptr;
+    if (!inGameView || !g_events)
+        return;
+
+    if (clearBox && text.empty())
+        inGameView->clearTextBox();
+    else
+        inGameView->printToTextBox(text, clearBox);
+
+    while (inGameView->isTextBoxBusy()) {
+        inGameView->tick();
+        if (!g_events->pumpModalInputFrame())
+            break;
+    }
+
+    // Let the view see busy->idle now and drop the completion it raises, so a
+    // later PRINT does not consume it as its own.
+    inGameView->tick();
+    RuntimeExchange *exchange = _engine->getRuntimeExchange();
+    if (exchange && exchange->hasAsync(RuntimeExchange::kAsyncTextBoxDone)) {
+        RuntimeExchange::AsyncCompletion completion;
+        exchange->pollAsync(completion);
+    }
+}
+
 VmResult PoolradEngineHostImpl::encounterMenu(
         const Common::Array<uint8> &operands) {
-    // GB13-002: drive the owned encounter request through the PURE transition
-    // (ecl/encounter_rules) using the real party for MoveExtremes and the live
-    // monster distance. The decision loop here is synchronous: WAIT/ADVANCE/
-    // PARLAY-close reopen the hotkey menu with NO VM write, and the single
-    // outcome write + encounter/message flag clear happen exactly once when the
-    // loop terminates.
-    //
-    // INTEGRATION-ONLY: the async VM_YIELD reopen across UI frames (routing the
-    // reopen through the GB13-009 pending-operation seam instead of this inline
-    // pump) and the per-distance monster-stage redraw are presentation wiring
-    // that still needs the live dialog stack; the outcome logic itself runs
-    // entirely through the tested pure core.
+    // EclEncounter (eclvm.pas): the decision loop runs synchronously; WAIT and
+    // ADVANCE re-open the menu, the outcome is written once at the end.
     if (!_engine || !_memory)
         return VM_ERROR;
     if (operands.size() < 13)
@@ -1958,12 +1998,16 @@ VmResult PoolradEngineHostImpl::encounterMenu(
     }
     const ECL::MoveExtremes extremes = ECL::computeMoveExtremes(members);
 
-    // The computed stage distance already sits in the monster-distance global
-    // (written by drawEncounterStage); the operation clamps it to the
-    // requested distance, matching MaxMonsterDist + the requested-distance cap.
+    // MONSTER_DIST_REQ := var 2; MONSTER_DIST := MaxMonsterDist capped by the
+    // request; DisplayMonster at that distance.
     const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
-    const uint8 stageDist = static_cast<uint8>(_memory->read8(
-        layout.vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr));
+    const uint16 distAddr =
+        layout.vmGlobalField(kVmGlobalFieldMonsterDistance).vmAddr;
+    _memory->write8(
+        layout.vmGlobalField(kVmGlobalFieldMonsterDistanceReq).vmAddr,
+        requestedDist);
+    drawEncounterStage(monsterId, requestedDist, monsterPicId);
+    const uint8 stageDist = _memory->read8(distAddr);
     const uint8 view3dFlag = _memory->read8(
         layout.vmField(kVmFieldIndoorModeFlag).vmAddr);
 
@@ -1972,6 +2016,10 @@ VmResult PoolradEngineHostImpl::encounterMenu(
     // Decision loop. Each reopen re-presents the hotkey menu with no VM write.
     const int kMaxIterations = 64; // guard against a malformed response table
     for (int iter = 0; iter < kMaxIterations && !op.isComplete(); ++iter) {
+        // Message for the current distance; an empty one keeps the window.
+        const Common::String msg = op.message(op.currentMessageSlot());
+        _showEncounterMessage(msg, !msg.empty());
+
         Common::Array<Common::String> menuOptions;
         menuOptions.push_back("COMBAT");
         menuOptions.push_back("WAIT");
@@ -1986,19 +2034,19 @@ VmResult PoolradEngineHostImpl::encounterMenu(
         const ECL::EncounterStep step =
             op.applySelection(static_cast<uint8>(rawSel));
 
-        // Redraw the monster stage when a close-distance reopen changed it.
-        if (!step.terminal && step.redisplay
-                && step.monsterDist != prevDist) {
-            _memory->write16LE(layout.vmGlobalField(
-                kVmGlobalFieldMonsterDistance).vmAddr, step.monsterDist);
+        if (step.terminal) {
+            if (step.outcome == ECL::kEncounterMonstersFlee)
+                _showEncounterMessage("The monsters flee.", true);
+        } else if (!step.redisplay) {
+            _showEncounterMessage("Both sides wait.", true);
+        } else if (step.monsterDist != prevDist) {
+            _memory->write8(distAddr, step.monsterDist);
             redrawEncounterStage(step.monsterDist);
         }
     }
 
-    // Single terminal write + flag clear (only when the loop terminated).
-    if (op.isComplete()) {
-        _memory->write16LE(op.destAddr(), op.outcome());
-    }
+    if (op.isComplete())
+        _writeVmValue(op.destAddr(), op.outcome());
 
     // Clear the bottom message row regardless of outcome (ClearRect parity).
     Graphics::Screen *screen = _engine ? _engine->getScreen() : nullptr;
@@ -2263,23 +2311,23 @@ VmResult PoolradEngineHostImpl::checkParty(uint16 attributeAddr,
                 ++count;
         }
 
-        _memory->write16LE(lowAddr, count);
+        _writeVmValue(lowAddr, count);
         if (highAddr != 0)
-            _memory->write16LE(highAddr, 0);
+            _writeVmValue(highAddr, 0);
         return VmResult::VM_OK;
     }
 
     // Attribute mode not fully mapped yet from decompile struct offsets.
     // Keep deterministic behavior while preserving script flow.
     if (attributeAddr != 0 && effectId == 0) {
-        _memory->write16LE(highAddr, 0);
-        _memory->write16LE(lowAddr, 0);
+        _writeVmValue(highAddr, 0);
+        _writeVmValue(lowAddr, 0);
         return VmResult::VM_OK;
     }
 
     // Unsupported mixed-operand mode.
-    _memory->write16LE(highAddr, 0);
-    _memory->write16LE(lowAddr, 0);
+    _writeVmValue(highAddr, 0);
+    _writeVmValue(lowAddr, 0);
     return VmResult::VM_OK;
 }
 
@@ -2312,7 +2360,7 @@ bool PoolradEngineHostImpl::hasEffectActive(uint8 effectId) const {
 VmResult PoolradEngineHostImpl::hasEffect(uint8 effectId, uint16 resultAddr) {
     const bool present = hasEffectActive(effectId);
     if (_memory && resultAddr != 0)
-        _memory->write16LE(resultAddr, present ? 0 : 1);
+        _writeVmValue(resultAddr, present ? 0 : 1);
     return VmResult::VM_OK;
 }
 
@@ -2388,8 +2436,8 @@ VmResult PoolradEngineHostImpl::findSpell(uint8 spellId, uint16 memberAddr,
 
     // Write both outputs. foundSlot 255 signals absence (mirrors the original
     // sentinel), member index 0 when absent.
-    _memory->write16LE(slotAddr, foundSlot);
-    _memory->write16LE(memberAddr, memberIndex);
+    _writeVmValue(slotAddr, foundSlot);
+    _writeVmValue(memberAddr, memberIndex);
     return VmResult::VM_OK;
 }
 
@@ -2543,7 +2591,7 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
                 // already ran; an invalid/empty entry left no number payload,
                 // so nothing is written (no mutation).
                 if (delivered.tag == ECL::Completion::kPayloadNumber)
-                    _memory->write16LE(resultAddr, delivered.number);
+                    _writeVmValue(resultAddr, delivered.number);
             } else if (kind == kInputString) {
                 // Bank-aware VM string writer: cell width from the destination
                 // bank. The Poolrad ECL script bank (0x9900-0xB6FF) is byte-
@@ -2603,7 +2651,7 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
         const int value = sink->value;
 
         if (owns && selected && _memory)
-            _memory->write16LE(resultAddr, static_cast<uint16>(value));
+            _writeVmValue(resultAddr, static_cast<uint16>(value));
 
         if (g_events) {
             g_events->postEclSyscallMessage(0, 0x15,
@@ -2667,7 +2715,7 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
             return VM_YIELD;
 
         if (_memory && sink->success && sink->value >= 0)
-            _memory->write16LE(_asyncMenuResultAddr,
+            _writeVmValue(_asyncMenuResultAddr,
                 static_cast<uint16>(sink->value));
 
         delete _asyncMenuSink;
@@ -2894,18 +2942,11 @@ VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
         _engine->getWalldefSlotCache();
     Goldbox::Gfx::Tile8x8Cache &tileCache = _engine->getTileCache();
 
-    // Original DECO flow uses 0xFF to invalidate/clear a slot.
-    if (blockId == 0xFF) {
-        const int slotIdx = setSlot - 1;
-        walldefCache.clearSlot(setSlot);
-        _walldefTiles[slotIdx].reset();
-        tileCache.setSlot(setSlot, nullptr);
-        _wallSetStates[slotIdx].loaded = false;
-        _wallSetStates[slotIdx].walldefBlockId = 0xFF;
-        _wallSetStates[slotIdx].tileBlockId = 0xFF;
-        _wallSetStates[slotIdx].chunkIndex = 0;
+    // LOADPIECES 255 only invalidates the slot's reload cache entry; the wall
+    // graphics and symbols already in the slot (e.g. the second chunk of a
+    // two-chunk set loaded into the slot below) stay in use.
+    if (blockId == 0xFF)
         return VmResult::VM_OK;
-    }
 
     Goldbox::Data::DaxBlock *rawBlock =
             _engine->getDaxManager().getWalldef().getBlockById(blockId);
@@ -2964,12 +3005,21 @@ VmResult PoolradEngineHostImpl::loadWallSet(uint8 blockId, uint8 setSlot) {
     }
 
     // Second pass: build wall-region surfaces now that all tile atlases
-    // for this walldef block are present in the cache.
+    // for this walldef block are present in the cache. Every chunk takes the
+    // symbol shift of the requested slot (LoadWallSet symOfs).
+    const int symbolOffset =
+        Goldbox::Gfx::WalldefSlotCache::symbolOffsetForSlot(setSlot);
     for (int i = 0; i < numChunks; ++i) {
         const int curSlot = setSlot + i;
         if (curSlot < 1 || curSlot > 3)
             break;
-        walldefCache.loadSlot(curSlot, walldef, i, tileCache);
+        walldefCache.loadSlot(curSlot, walldef, i, symbolOffset, tileCache);
+    }
+
+    // Slots outside this block may draw symbols whose tiles just changed.
+    for (int slot = 1; slot <= 3; ++slot) {
+        if (slot < setSlot || slot >= setSlot + numChunks)
+            walldefCache.rebuildSlot(slot, tileCache);
     }
 
     return VmResult::VM_OK;

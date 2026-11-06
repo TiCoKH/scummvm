@@ -85,6 +85,7 @@ enum VmGlobalFieldId {
 	kVmGlobalFieldMapSquareInfo,
 	kVmGlobalFieldColorFlagHorizon,
 	kVmGlobalFieldColorFlagFloor,
+	kVmGlobalFieldMonsterDistanceReq,
 	kVmGlobalFieldMonsterDistance,
 	kVmGlobalFieldShopFlag,
 	kVmGlobalFieldCount

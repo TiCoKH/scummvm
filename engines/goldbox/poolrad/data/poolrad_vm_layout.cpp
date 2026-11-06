@@ -105,6 +105,7 @@ static const char *kPoolradVmGlobalFieldNames[Goldbox::kVmGlobalFieldCount] = {
 	"DungeonDir",
 	"MapWallType",
 	"MapSquareInfo",
+	"MonsterDistanceReq",
 	"MonsterDistance",
 	"ShopFlag"
 };
@@ -193,6 +194,7 @@ Goldbox::VmFieldLocation PoolradGlobalVmLayout::field(
 	switch (fieldId) {
 	// DAT bank, ordered by VM address / offset
 	case kVmGlobalFieldSelectedPcIndex:        return {kVmBankDat, 0x6DB1}; // @ +0x562
+	case kVmGlobalFieldMonsterDistanceReq:     return {kVmBankDat, 0x6DC0}; // @ +0x580
 	case kVmGlobalFieldMonsterDistance:        return {kVmBankDat, 0x6DC1}; // @ +0x582
 	case kVmGlobalFieldMoraleThreshold:        return {kVmBankDat, 0x6DC6}; // @ +0x58C
 	case kVmGlobalFieldCombatResult:           return {kVmBankDat, 0x6DC7}; // @ +0x58E

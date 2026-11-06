@@ -1204,6 +1204,7 @@ bool PoolradEngine::tick() {
 	}
 
 	if (_eclFlags.suspended && _eclHost && _eclVm) {
+		_eclHost->tickAsyncMenuPicture();
 		bool readyToResume = false;
 		const bool hasAsync = _eclHost->hasPendingAsync();
 		const bool asyncReady = hasAsync ? _eclHost->isPendingAsyncReady() : false;
@@ -1223,6 +1224,9 @@ bool PoolradEngine::tick() {
 				executeEclAtScriptAddress(_eclVm->getPC());
 			if (resume == VM_YIELD)
 				_eclFlags.suspended = true;
+			else if (_mapRuntimeReady
+					&& (_eclVm->eclReady || _newEclPhase != kNewEclIdle))
+				runNewEclDone();
 			else if (!_mapRuntimeReady && isMapRuntimeState(getGameState())) {
 				// ONINIT yielded and has now completed. Do post-init refresh.
 				if (getGameState() != GS_WILDERNESS_MAP) {
@@ -1313,10 +1317,67 @@ Views::InGameView *PoolradEngine::getInGameView() {
 	return dynamic_cast<Views::InGameView *>(view);
 }
 
+void PoolradEngine::applyLocationContext(
+		const ::Goldbox::RuntimeMapSnapshot &snapshot, GameState dungeonState) {
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+	ECL::AddressSpace &mem = _eclVm->getMemory();
+	const uint16 rtGameStateAddr = layout.runtimeField(ECL::kEclRuntimeGameState);
+
+	// GB13-021 NewEclDone: start every on-load entry as Dungeon, then assign a
+	// wilderness kind ONLY when the 3D-view flag is zero (indoor flag clear)
+	// AND the active script id is one of the three wilderness scripts
+	// (25/26/27 = 0x19/0x1A/0x1B). classify() is the single boundary; it
+	// distinguishes west/central/east (region 0/13/26) rather than collapsing
+	// them. The authoritative location context is the TYPE owner; the game
+	// state and mapType are derived from it.
+	const uint8 mapId = snapshot.mapId;
+	const uint8 view3dFlag = snapshot.indoorMode ? 1 : 0;
+	_location.kind = LocationContext::classify(mapId, view3dFlag);
+	_location.syncRegion();
+	_location.activeEclId = mapId;
+	_location.activeGeoId = snapshot.mapId;
+	_location.dungeonPos = snapshot.dungeonPos;
+	_location.dungeonDir = snapshot.dungeonDir & 0x03;
+	_location.wildernessPos = snapshot.wildernessPos;
+	_location.indoorRender = snapshot.indoorMode;
+
+	// GB13-024 (Req 39.4): YarashComplete one-time world change at the
+	// NewEclDone CENTRAL-REGION gate. Runs ONCE when (mission == 254 AND
+	// pyramid-left == 0), opening the river by flipping the persistent
+	// pyramid-left flag. Guarded by that same persistent flag so it is
+	// idempotent across redraw and survives service/battle return and
+	// save/load. This does NOT change the GB13-021 location classification
+	// above - it only consults the already-classified kind and the persistent
+	// world-state, then mutates the one-time flag. The exact mission=254 field
+	// and river-open bit are OPEN; the once-only STRUCTURE is driven through
+	// the HostYarashWorldState predicates, never a guessed address.
+	if (_location.kind == LocationKind::WildernessCentral) {
+		HostYarashWorldState yarashWorld(mem, layout,
+			_legacySharedState.boolYarashPyramidLeft);
+		WildernessMap::runYarashComplete(yarashWorld);
+	}
+
+	if (_location.isWilderness())
+		_legacySharedState.byteGameState = GS_WILDERNESS_MAP;
+	else
+		_legacySharedState.byteGameState = dungeonState;
+
+	if (ECL::EclRuntimeLayout::isValidVmAddr(rtGameStateAddr)) {
+		mem.write8(rtGameStateAddr,
+			static_cast<uint8>(_legacySharedState.byteGameState));
+		if (g_events) {
+			g_events->postEclStateMessage(EclVmMessage::ST_GAME_STATE,
+				static_cast<uint16>(_legacySharedState.byteGameState),
+				EclVmMessage::VT_UINT8);
+		}
+	}
+}
+
 void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	debug(3, "PoolradEngine::initializeMapRuntimeForState state=%d", (int)state);
 	_mapRuntimeNeedsInit = false;
 	_mapRuntimeReady = false;
+	_newEclPhase = kNewEclIdle;
 
 	// Clear menu row 24 immediately (visible before message dispatch).
 	Graphics::Screen *screen = getScreen();
@@ -1349,8 +1410,6 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 
 	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
 	ECL::AddressSpace &mem = _eclVm->getMemory();
-	const uint16 rtGameStateAddr = layout.runtimeField(ECL::kEclRuntimeGameState);
-
 	::Goldbox::RuntimeMapSnapshot snapshot;
 	if (!captureRuntimeMapSnapshot(snapshot))
 		return;
@@ -1358,53 +1417,7 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	const uint8 mapId = snapshot.mapId;
 	_legacySharedState.byteMapId = mapId;
 
-	// GB13-021 NewEclDone: start every on-load entry as Dungeon, then assign a
-	// wilderness kind ONLY when the 3D-view flag is zero (indoor flag clear)
-	// AND the active script id is one of the three wilderness scripts
-	// (25/26/27 = 0x19/0x1A/0x1B). classify() is the single boundary; it
-	// distinguishes west/central/east (region 0/13/26) rather than collapsing
-	// them. The authoritative location context is the TYPE owner; the game
-	// state and mapType are derived from it.
-	const uint8 view3dFlag = snapshot.indoorMode ? 1 : 0;
-	_location.kind = LocationContext::classify(mapId, view3dFlag);
-	_location.syncRegion();
-	_location.activeEclId = mapId;
-	_location.activeGeoId = snapshot.mapId;
-	_location.dungeonPos = snapshot.dungeonPos;
-	_location.dungeonDir = snapshot.dungeonDir & 0x03;
-	_location.wildernessPos = snapshot.wildernessPos;
-	_location.indoorRender = snapshot.indoorMode;
-
-	// GB13-024 (Req 39.4): YarashComplete one-time world change at the
-	// NewEclDone CENTRAL-REGION gate. Runs ONCE when (mission == 254 AND
-	// pyramid-left == 0), opening the river by flipping the persistent
-	// pyramid-left flag. Guarded by that same persistent flag so it is
-	// idempotent across redraw and survives service/battle return and
-	// save/load. This does NOT change the GB13-021 location classification
-	// above - it only consults the already-classified kind and the persistent
-	// world-state, then mutates the one-time flag. The exact mission=254 field
-	// and river-open bit are OPEN; the once-only STRUCTURE is driven through
-	// the HostYarashWorldState predicates, never a guessed address.
-	if (_location.kind == LocationKind::WildernessCentral) {
-		HostYarashWorldState yarashWorld(mem, layout,
-			_legacySharedState.boolYarashPyramidLeft);
-		WildernessMap::runYarashComplete(yarashWorld);
-	}
-
-	if (_location.isWilderness())
-		_legacySharedState.byteGameState = GS_WILDERNESS_MAP;
-	else
-		_legacySharedState.byteGameState = state;
-
-	if (ECL::EclRuntimeLayout::isValidVmAddr(rtGameStateAddr)) {
-		mem.write8(rtGameStateAddr,
-			static_cast<uint8>(_legacySharedState.byteGameState));
-		if (g_events) {
-			g_events->postEclStateMessage(EclVmMessage::ST_GAME_STATE,
-				static_cast<uint16>(_legacySharedState.byteGameState),
-				EclVmMessage::VT_UINT8);
-		}
-	}
+	applyLocationContext(snapshot, state);
 
 	// G_SaveMapId writeback (original writes BYTE_MAP_ID to world state
 	// before ECL_ONINIT and at the top of the main loop).
@@ -1973,13 +1986,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 			return;
 		}
 
-		if (_eclVm->eclReady) {
-			const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
-			if (resume == VM_YIELD) {
-				_eclFlags.suspended = true;
-				return;
-			}
-		}
+		if (!runNewEclDone())
+			return;
 		restoreSelectionIfPresent(savedSelection);
 		return;
 	}
@@ -2161,45 +2169,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 
 		if (onSearch == VM_YIELD)
 			_eclFlags.suspended = true;
-		else if (_eclVm->eclReady) {
-			// NEWECL fired during ON_SEARCH: enter ENGINE_Run loop.
-			while (_eclVm->eclReady) {
-				_eclVm->eclReady = false;
-
-				if (_eclHost)
-					_eclHost->readGeoAtPosition();
-
-				// ENGINE_Run: BYTE_VM_MAP_TYPE = 1 before ON_INIT.
-				mem.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
-
-				const uint16 initPc = _eclVm->getEntryPointPc(4);
-				if (initPc != 0) {
-					const VmResult initR = executeEclAtScriptAddress(initPc);
-					if (initR == VM_YIELD) {
-						_eclFlags.suspended = true;
-						return;
-					}
-				}
-
-				if (_eclHost)
-					_eclHost->refreshViewport();
-
-				_eclVm->eclReady = false;
-				const VmResult moveR = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
-				if (moveR == VM_YIELD) {
-					_eclFlags.suspended = true;
-					return;
-				}
-
-				if (!_eclVm->eclReady) {
-					const VmResult searchR = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
-					if (searchR == VM_YIELD) {
-						_eclFlags.suspended = true;
-						return;
-					}
-				}
-			}
-		}
+		else if (!runNewEclDone())
+			return;
 		// GB13-022 (Req 28.4): restore the saved selection (stable-id checked)
 		// only after the yielded scripts/transitions completed on this path.
 		restoreSelectionIfPresent(savedSelection);
@@ -2207,55 +2178,81 @@ void PoolradEngine::dispatchPlayerCommand() {
 	}
 
 	// eclReady == true: NEWECL fired during ON_MOVE.
-	// Mirror ENGINE_Run: loop ON_INIT → ON_MOVE → ON_SEARCH until
-	// no more NEWECL fires (eclReady stays false).
-	while (_eclVm->eclReady) {
-		_eclVm->eclReady = false;
-
-		// MAP_GetGEOData at current position
-		if (_eclHost)
-			_eclHost->readGeoAtPosition();
-
-		// ENGINE_Run: BYTE_VM_MAP_TYPE = 1 before ON_INIT (force indoor).
-		// After ON_INIT, IndoorModeFlag/ECL ID determine actual type.
-		mem.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
-
-		// ENGINE_Execute(ECL_ONINIT)
-		const uint16 initPc = _eclVm->getEntryPointPc(4);
-		if (initPc != 0) {
-			const VmResult initR = executeEclAtScriptAddress(initPc);
-			if (initR == VM_YIELD) {
-				_eclFlags.suspended = true;
-				return;
-			}
-		}
-
-		// Viewport update (simplified)
-		if (_eclHost)
-			_eclHost->refreshViewport();
-
-		// BOOL_ECL_READY = false; ENGINE_Execute(ECL_ONMOVE)
-		_eclVm->eclReady = false;
-		const VmResult moveR = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
-		if (moveR == VM_YIELD) {
-			_eclFlags.suspended = true;
-			return;
-		}
-
-		if (!_eclVm->eclReady) {
-			// ENGINE_Execute(ECL_ONSEARCH)
-			const VmResult searchR = runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry);
-			if (searchR == VM_YIELD) {
-				_eclFlags.suspended = true;
-				return;
-			}
-		}
-		// If eclReady is true again (another NEWECL), loop continues
-	}
+	if (!runNewEclDone())
+		return;
 
 	// GB13-022 (Req 28.4): NEW-ECL transition drained - restore the saved
 	// selection (stable-id checked) at the loop boundary before awaiting input.
 	restoreSelectionIfPresent(savedSelection);
+}
+
+bool PoolradEngine::runNewEclDone() {
+	if (!_eclVm)
+		return true;
+
+	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
+	ECL::AddressSpace &mem = _eclVm->getMemory();
+
+	// NewEclDone (eclvm.pas): on-load entry, map redraw, on-move entry, then
+	// the search entry unless on-move ran NEWECL; repeat while NEWECL fires.
+	// _newEclPhase records the step a yielded script belongs to, so tick()
+	// can finish the sequence once the script resumes.
+	for (;;) {
+		switch (_newEclPhase) {
+		case kNewEclIdle:
+			if (!_eclVm->eclReady)
+				return true;
+			_eclVm->eclReady = false;
+			if (_eclHost)
+				_eclHost->readGeoAtPosition();
+			mem.write8(layout.vmGlobalField(kVmGlobalFieldTriedToLeaveMap).vmAddr, 0);
+			// EclInit selects the 3D view before the on-load entry runs.
+			mem.write8(layout.vmField(kVmFieldIndoorModeFlag).vmAddr, 1);
+			_newEclPhase = kNewEclOnInit;
+			if (runEclEntryPoint(ECL::kEclRuntimeOnInitEntry) == VM_YIELD) {
+				_eclFlags.suspended = true;
+				return false;
+			}
+			// fall through
+		case kNewEclOnInit: {
+			::Goldbox::RuntimeMapSnapshot snapshot;
+			if (captureRuntimeMapSnapshot(snapshot)) {
+				const LocationKind kind = LocationContext::classify(
+					snapshot.mapId, snapshot.indoorMode ? 1 : 0);
+				if (kind != _location.kind)
+					applyLocationContext(snapshot, GS_DUNGEON_MAP);
+				_location.activeEclId = snapshot.mapId;
+				// DisplayMapView re-reads the event byte from the GEO the
+				// on-load entry just loaded.
+				if (snapshot.indoorMode && _eclHost)
+					_eclHost->readGeoAtPosition();
+			}
+			if (_eclHost)
+				_eclHost->refreshViewport();
+
+			// A NEWECL inside the on-load entry does not restart the sequence.
+			_eclVm->eclReady = false;
+			_newEclPhase = kNewEclOnMove;
+			if (runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry) == VM_YIELD) {
+				_eclFlags.suspended = true;
+				return false;
+			}
+		}
+			// fall through
+		case kNewEclOnMove:
+			_newEclPhase = kNewEclOnSearch;
+			if (!_eclVm->eclReady
+					&& runEclEntryPoint(ECL::kEclRuntimeOnSearchEntry) == VM_YIELD) {
+				_eclFlags.suspended = true;
+				return false;
+			}
+			// fall through
+		case kNewEclOnSearch:
+		default:
+			_newEclPhase = kNewEclIdle;
+			break;
+		}
+	}
 }
 
 RuntimeExchange *PoolradEngine::getRuntimeExchange() {

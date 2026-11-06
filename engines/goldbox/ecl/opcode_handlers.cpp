@@ -195,7 +195,9 @@ static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
 
 static int handle_0x00_EXIT(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
-    (void)vm; (void)mem; (void)nextPc; (void)callStack; (void)syscalls;
+    (void)vm; (void)mem; (void)nextPc; (void)syscalls;
+    // EclExit frees the whole GOSUB return stack.
+    callStack.clear();
     // GB13-008: EXIT ends the script; drop the transient rune presentation
     // cursor/box/redraw state so a later script starts from a clean box.
     getRunePresentation().reset();
@@ -360,9 +362,10 @@ static int handle_0x2F_AND(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
-    const uint16 result = vm.readVar(1) & vm.readVar(2);
-    mem.write16LE(vm.getOpWord(3), result);
-    vm.setCmpResult(result == 0 ? 0 : 1);
+    // EclAndOr: byte result, flags as COMPARE(0, result).
+    const uint8 result = static_cast<uint8>(vm.readVar(1) & vm.readVar(2));
+    vm.setCmpResult(result == 0 ? 0 : -1);
+    vm.writeVmMemory(vm.getOpWord(3), result, syscalls);
     return VM_OK;
 }
 
@@ -371,9 +374,10 @@ static int handle_0x30_OR(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)nextPc; (void)callStack; (void)syscalls;
     vm.getOperand(3);
-    const uint16 result = vm.readVar(1) | vm.readVar(2);
-    mem.write16LE(vm.getOpWord(3), result);
-    vm.setCmpResult(result == 0 ? 0 : 1);
+    // EclAndOr: byte result, flags as COMPARE(0, result).
+    const uint8 result = static_cast<uint8>(vm.readVar(1) | vm.readVar(2));
+    vm.setCmpResult(result == 0 ? 0 : -1);
+    vm.writeVmMemory(vm.getOpWord(3), result, syscalls);
     return VM_OK;
 }
 
@@ -745,7 +749,7 @@ static int handle_0x14_COMPARE_AND(EclVM &vm, AddressSpace &mem,
     const uint16 v4 = vm.readVar(4);
     debug(5, "ECL: COMPARE AND: (%u == %u) && (%u == %u)", v1, v2, v3, v4);
     const bool bothEqual = (v1 == v2) && (v3 == v4);
-    vm.setCmpResult(bothEqual ? 0 : 1);
+    vm.setCmpFlags(bothEqual ? EclVM::kCmpEq : EclVM::kCmpNe);
     return VM_OK;
 }
 
@@ -792,17 +796,7 @@ static int handle_0x15_VERTICAL_MENU(EclVM &vm, AddressSpace &mem,
 static int handleIF(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, uint8 opcode) {
     (void)mem; (void)callStack;
-    const int8 cmp = vm.getCmpResult();
-    bool cond = false;
-    switch (opcode) {
-    case 0x16: cond = (cmp == 0); break;
-    case 0x17: cond = (cmp != 0); break;
-    case 0x18: cond = (cmp <  0); break;
-    case 0x19: cond = (cmp >  0); break;
-    case 0x1A: cond = (cmp <= 0); break;
-    case 0x1B: cond = (cmp >= 0); break;
-    }
-    if (!cond)
+    if (!vm.testCmpFlag(opcode))
         nextPc = vm.skipLegacyInstructionOperands(nextPc);
     return VM_OK;
 }
@@ -950,9 +944,9 @@ static int handle_0x20_NEWECL(EclVM &vm, AddressSpace &mem,
     if (!syscalls)
         return VM_ERROR;
     vm.getOperand(1);
-    const uint8 newScriptId = static_cast<uint8>(vm.getOpWord(1));
+    const uint8 newScriptId = static_cast<uint8>(vm.readVar(1));
 
-    debug(3, "ECL: 0x%04X  NEWECL(0:%u)", vm.getPC(), (unsigned)newScriptId);
+    debug(3, "ECL: 0x%04X  NEWECL(1:0x%04X) -> %u", vm.getPC(), vm.getOpWord(1), (unsigned)newScriptId);
 
     // Update G_SaveEclId to the new active script ID.
     // Original: BYTE_ECL_SCRIPT_ID = new_ecl_id, then ENGINE_Run writes
@@ -1747,7 +1741,7 @@ static int handle_0x32_FIND_ITEM(EclVM &vm, AddressSpace &mem,
     if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
         found = host->findItemInParty(itemId);
 
-    vm.setCmpResult(found ? 0 : 1);
+    vm.setCmpFlags(found ? EclVM::kCmpEq : EclVM::kCmpNe);
     return VM_OK;
 }
 

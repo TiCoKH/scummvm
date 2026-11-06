@@ -71,12 +71,18 @@ private:
 
 class WalldefSurfaceBuilder {
 public:
+	/**
+	 * symbolOffset is added to every symbol index >= kSymbolShiftFirst, as
+	 * LoadWallSet does for wall sets loaded above slot 1.
+	 */
+	static const uint8 kSymbolShiftFirst = 45;
+
 	static WallSurfaceSet buildSlice(const Data::DaxBlockWalldef::Slice &slice,
-			const Tile8x8Cache &tileCache);
+			const Tile8x8Cache &tileCache, int symbolOffset = 0);
 
 	static Common::Array<WallSurfaceSet> buildChunk(
 			const Data::DaxBlockWalldef::Chunk &chunk,
-			const Tile8x8Cache &tileCache);
+			const Tile8x8Cache &tileCache, int symbolOffset = 0);
 };
 
 /**
@@ -98,14 +104,23 @@ public:
 
 	/**
 	 * Build and store the WallSurfaceSet array for slot (1..3).
-	 * Applies the tile ID offset for the slot before building surfaces.
-	 * @param slot      Symbol-set slot (1..3)
-	 * @param walldef   Source DaxBlockWalldef (must be non-null)
-	 * @param chunkIdx  Which chunk within the block (0-based)
-	 * @param tileCache Active tile atlas cache
+	 * @param slot         Symbol-set slot (1..3)
+	 * @param walldef      Source DaxBlockWalldef (must be non-null)
+	 * @param chunkIdx     Which chunk within the block (0-based)
+	 * @param symbolOffset Symbol shift of the slot the block was loaded into
+	 * @param tileCache    Active tile atlas cache
 	 */
 	void loadSlot(int slot, Data::DaxBlockWalldef *walldef, int chunkIdx,
-			const Tile8x8Cache &tileCache);
+			int symbolOffset, const Tile8x8Cache &tileCache);
+
+	/**
+	 * Rebuild a loaded slot from the current tile atlases. Walls may use
+	 * symbols of other slots, which the original resolves at draw time.
+	 */
+	void rebuildSlot(int slot, const Tile8x8Cache &tileCache);
+
+	/** Symbol shift for a wall set loaded into slot (1..3). */
+	static int symbolOffsetForSlot(int slot);
 
 	/** Clear all WallSurfaceSet data for a slot. */
 	void clearSlot(int slot);
@@ -130,6 +145,9 @@ private:
 	// Debug metadata: track which walldef block/chunk was used per slot
 	uint8 _walldefBlockId[kSlotCount];
 	int _chunkIdx[kSlotCount];
+
+	Data::DaxBlockWalldef *_walldef[kSlotCount];
+	int _symbolOffset[kSlotCount];
 };
 
 } // namespace Gfx

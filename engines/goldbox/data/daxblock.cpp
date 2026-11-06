@@ -137,7 +137,8 @@ namespace Data {
 			if (_data.size() < offset + 21)
 				return;
 
-			// delay (4 bytes)
+			const uint32 delay = readUint16LE(_data, offset)
+				| (static_cast<uint32>(readUint16LE(_data, offset + 2)) << 16);
 			offset += 4;
 
 			const uint16 height = readUint16LE(_data, offset);
@@ -175,6 +176,7 @@ namespace Data {
 			_frames[frame].yPos = yPos;
 			_frames[frame].dataOffset = offset;
 			_frames[frame].dataSize = egaDataSize;
+			_frames[frame].delay = delay;
 
 			offset += egaDataSize;
 		}
