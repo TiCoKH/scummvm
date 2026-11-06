@@ -214,6 +214,18 @@ public:
     virtual VmResult encounterMenu(const Common::Array<uint8> &operands) { return VM_OK; }
 
     /**
+     * End of DAMAGE (EclDamage): show the hit messages and, when the whole
+     * party fell, the defeat message, then wait for
+     * "press <enter>/<return> to continue".
+     * @return VM_YIELD while waiting for the key, VM_OK if not supported
+     */
+    virtual VmResult beginDamageReport(const Common::String &messages,
+            bool partyKilled) {
+        (void)messages; (void)partyKilled;
+        return VM_OK;
+    }
+
+    /**
      * Ask the player to select a party member (0x39 WHO). Blocks until
      * the player makes a selection.
      * @param message Prompt message to display

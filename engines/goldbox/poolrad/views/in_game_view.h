@@ -242,6 +242,7 @@ public:
 
 	/** Show/hide the in-game menu based on map runtime ready state. */
 	void setInGameMenuVisible(bool visible);
+	bool isInGameMenuVisible() const;
 
 	/**
 	 * Apply damage to a character using the same message+textbox flow as the

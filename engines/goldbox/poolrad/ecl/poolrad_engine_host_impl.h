@@ -105,6 +105,8 @@ public:
         uint8 variantId) override;
     int16 parlayMenu(const Common::Array<Common::String> &attitudes) override;
     VmResult encounterMenu(const Common::Array<uint8> &operands) override;
+    VmResult beginDamageReport(const Common::String &messages,
+        bool partyKilled) override;
     VmResult redrawEncounterStage(uint8 newDistance) override;
     VmResult spriteOff() override;
     int16 horizontalMenu(const Common::Array<Common::String> &options) override;
@@ -258,6 +260,10 @@ private:
     // DisplayMessageWindow inside the encounter loop: show the text and
     // pump frames until the text box has finished drawing it.
     void _showEncounterMessage(const Common::String &text, bool clearBox);
+    // Hide the map command menu while a script prompt owns row 24 and the
+    // keyboard; returns whether it was shown, for _restoreInGameMenu().
+    bool _hideInGameMenu();
+    void _restoreInGameMenu(bool wasVisible);
 
     // Skybox background layer colors (set by GFX_SetDefaultColors,
     // updated from VM $49FD/$49FE when scripts change them).
@@ -292,6 +298,14 @@ private:
     // Async VM_YIELD state for horizontal menu.
     bool _asyncMenuPending = false;
     uint16 _asyncMenuResultAddr = 0;
+    // EclHMenu enterOk: Enter only ends a single-option prompt.
+    bool _asyncMenuEnterOk = false;
+    // DisplayAndPause: any key ends the prompt, nothing is stored.
+    bool _asyncMenuAnyKey = false;
+    // The map command menu was hidden for this prompt.
+    bool _asyncMenuHidCommandMenu = false;
+    // Hotkey of a single-option prompt (first character of its text).
+    char _asyncMenuHotkey = 0;
     Common::ScopedPtr<Goldbox::MenuItemList> _asyncMenuModel;
     Goldbox::UIElement *_asyncMenuSink = nullptr;
     Views::Dialogs::HorizontalMenu *_asyncHorizontalMenu = nullptr;

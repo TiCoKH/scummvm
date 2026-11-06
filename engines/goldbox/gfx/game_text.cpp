@@ -50,9 +50,9 @@ bool GameText::isWordBreak(char c) {
 
 uint GameText::wordEnd(const Common::String &text, uint start, uint limit) {
 	uint end = start;
-	while (end < limit && !isWordBreak(text[end]))
+	while (end < limit && text[end] != '\n' && !isWordBreak(text[end]))
 		++end;
-	if (end < limit)
+	if (end < limit && text[end] != '\n')
 		++end;
 	return end;
 }
@@ -70,6 +70,12 @@ void GameText::drawRange(Surface &surface) const {
 	uint cursorY = _startY;
 	uint pos = _pageStart;
 	while (pos < _renderPos && cursorY <= _endY) {
+		if (_text[pos] == '\n') {
+			++pos;
+			++cursorY;
+			cursorX = _startX;
+			continue;
+		}
 		const uint wordStart = pos;
 		pos = wordEnd(_text, wordStart, _renderPos);
 		const uint wordLength = pos - wordStart;
@@ -90,6 +96,14 @@ void GameText::drawRange(Surface &surface) const {
 bool GameText::advanceWord() {
 	if (!_active || _waitingForKey || _renderPos >= _text.size())
 		return false;
+
+	// A line break starts the next word on a new line.
+	if (_text[_renderPos] == '\n') {
+		++_renderPos;
+		++_cursorY;
+		_cursorX = _startX;
+		return true;
+	}
 
 	const uint wordStart = _renderPos;
 	const uint wordEndPos = wordEnd(_text, wordStart, _text.size());

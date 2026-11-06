@@ -150,6 +150,13 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
 					index, Common::String(), true, false);
             return true;
         }
+        if (!_allowNumPad && _postUnmatchedKeys) {
+            deactivate();
+            if (_parent)
+                g_events->postMenuResult(_parent->getName(), true, keyCode,
+                    255, Common::String(), true, false);
+            return true;
+        }
         if (_allowNumPad) {
         switch (asciiValue) {
             case '1': {

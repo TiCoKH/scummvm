@@ -785,6 +785,10 @@ void InGameView::syncDirectionAndRedraw() {
 	VmInterface::syncViewDirection(static_cast<uint8>((_mapDir / 2) & 0x03));
 }
 
+bool InGameView::isInGameMenuVisible() const {
+	return _inGameMenuDialog && _inGameMenuDialog->isActive();
+}
+
 void InGameView::setInGameMenuVisible(bool visible) {
 	if (!_inGameMenuDialog)
 		return;

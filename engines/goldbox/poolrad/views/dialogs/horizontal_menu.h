@@ -56,11 +56,18 @@ private:
     bool _allowNumPad;
     bool _suppressUnhandledKeys;
     bool _singleItemMode;
+    bool _postUnmatchedKeys = false;
     bool _redraw = true;
 
     void drawText();
 
 public:
+    /**
+     * MenuHorizontalCS: a letter or digit that is no hotkey ends the menu
+     * with selection 255 (used by ECL HORIZONTAL MENU only).
+     */
+    void setPostUnmatchedKeys(bool post) { _postUnmatchedKeys = post; }
+
     HorizontalMenu(const Common::String &name, const HorizontalMenuConfig &config);
     bool msgKeypress(const KeypressMessage &msg) override;
     void setRedraw() { _redraw = true; }

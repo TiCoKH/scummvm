@@ -427,15 +427,18 @@ public:
     bool done;
     bool success;
     int value;
+    int keyCode;
 
     AsyncMenuResultSink(const Common::String &name, Goldbox::UIElement *parent)
-        : Goldbox::UIElement(name, parent), done(false), success(false), value(-1) {
+        : Goldbox::UIElement(name, parent), done(false), success(false), value(-1),
+          keyCode(0) {
     }
 
     void handleMenuResult(const Goldbox::MenuResultMessage &result) override {
         done = true;
         success = result._success;
         value = result._hasIntValue ? result._intValue : -1;
+        keyCode = result._keyCode;
     }
 };
 
@@ -1825,7 +1828,9 @@ int16 PoolradEngineHostImpl::_runEncounterHotkeyMenu(
 
     Views::Dialogs::HorizontalMenuConfig cfg;
     cfg.menuItemList = &parsed;
-    cfg.allowNumPad = true;
+    // Keypad/arrow keys would post selection 0 (COMBAT); the original only
+    // switches the shown character on them.
+    cfg.allowNumPad = false;
     cfg.suppressUnhandledKeys = true;
     cfg.backgroundColor = 0;
     cfg.singleItemMode = false;
@@ -1834,26 +1839,42 @@ int16 PoolradEngineHostImpl::_runEncounterHotkeyMenu(
     cfg.selectColor = 15;
     cfg.promptColor = 15;
 
-    Common::String sinkName = Common::String::format("EclEncMenuSink_%u",
-        ++kModalMenuSinkCounter);
-    AsyncMenuResultSink *sink = new AsyncMenuResultSink(sinkName, focused);
-    Views::Dialogs::HorizontalMenu *menu =
-        new Views::Dialogs::HorizontalMenu("EclEncHorizontalMenu", cfg);
-    sink->subView(menu);
-    menu->activate();
-    menu->redraw();
+    // MenuHorizontalCS with enterOk = False: only a hotkey picks an option;
+    // Enter, Space and Escape leave the menu waiting.
+    for (;;) {
+        Common::String sinkName = Common::String::format("EclEncMenuSink_%u",
+            ++kModalMenuSinkCounter);
+        AsyncMenuResultSink *sink = new AsyncMenuResultSink(sinkName, focused);
+        Views::Dialogs::HorizontalMenu *menu =
+            new Views::Dialogs::HorizontalMenu("EclEncHorizontalMenu", cfg);
+        sink->subView(menu);
+        menu->activate();
+        menu->redraw();
 
-    while (menu->isActive() && !sink->done) {
-        _tickMenuPicture();
-        if (!g_events->pumpModalInputFrame())
-            break;
+        bool quit = false;
+        while (menu->isActive() && !sink->done) {
+            _tickMenuPicture();
+            if (!g_events->pumpModalInputFrame()) {
+                quit = true;
+                break;
+            }
+        }
+
+        const bool done = sink->done;
+        const bool success = sink->success;
+        const int value = sink->value;
+        const int keyCode = sink->keyCode;
+        delete sink;
+
+        if (quit || !done)
+            return -1;
+        if (keyCode == Common::KEYCODE_RETURN || keyCode == Common::KEYCODE_KP_ENTER
+                || keyCode == Common::KEYCODE_SPACE
+                || keyCode == Common::KEYCODE_ESCAPE)
+            continue;
+        if (success && value >= 0)
+            return static_cast<int16>(value);
     }
-
-    const int16 result = (sink->done && sink->success && sink->value >= 0)
-        ? static_cast<int16>(sink->value)
-        : static_cast<int16>(-1);
-    delete sink;
-    return result;
 }
 
 int16 PoolradEngineHostImpl::parlayMenu(
@@ -1861,7 +1882,9 @@ int16 PoolradEngineHostImpl::parlayMenu(
     // The original parley menu has no cancel: it always resolves to one of the
     // five attitudes. Reuse the synchronous hotkey menu; the ECL handler writes
     // the chosen attitude VALUE (not the index) to the destination.
+    const bool menuWasVisible = _hideInGameMenu();
     const int16 sel = _runEncounterHotkeyMenu(attitudes);
+    _restoreInGameMenu(menuWasVisible);
     return (sel < 0) ? 0 : sel;
 }
 
@@ -1906,6 +1929,32 @@ void PoolradEngineHostImpl::_writeVmValue(uint16 vmAddr, uint16 value) {
         _memory->write8(vmAddr, static_cast<uint8>(value & 0xFF));
 }
 
+bool PoolradEngineHostImpl::_hideInGameMenu() {
+    // The command menu belongs to MapMainMenu only; while a script runs it
+    // must neither draw over the script's prompt nor take its keys.
+    Poolrad::PoolradEngine *poolEngine =
+        dynamic_cast<Poolrad::PoolradEngine *>(_engine);
+    Views::InGameView *inGameView = poolEngine
+        ? dynamic_cast<Views::InGameView *>(poolEngine->findView("InGame"))
+        : nullptr;
+    if (!inGameView || !inGameView->isInGameMenuVisible())
+        return false;
+    inGameView->setInGameMenuVisible(false);
+    return true;
+}
+
+void PoolradEngineHostImpl::_restoreInGameMenu(bool wasVisible) {
+    if (!wasVisible)
+        return;
+    Poolrad::PoolradEngine *poolEngine =
+        dynamic_cast<Poolrad::PoolradEngine *>(_engine);
+    Views::InGameView *inGameView = poolEngine
+        ? dynamic_cast<Views::InGameView *>(poolEngine->findView("InGame"))
+        : nullptr;
+    if (inGameView)
+        inGameView->setInGameMenuVisible(true);
+}
+
 void PoolradEngineHostImpl::_showEncounterMessage(const Common::String &text,
         bool clearBox) {
     Poolrad::PoolradEngine *poolEngine =
@@ -1916,10 +1965,15 @@ void PoolradEngineHostImpl::_showEncounterMessage(const Common::String &text,
     if (!inGameView || !g_events)
         return;
 
+    // Go through the view's message queue like PRINT/PRINTCLEAR do, so a clear
+    // the script queued earlier in this run cannot wipe this text afterwards.
     if (clearBox && text.empty())
-        inGameView->clearTextBox();
+        clearTextBox();
     else
-        inGameView->printToTextBox(text, clearBox);
+        g_events->postEclVmMessage(EclVmMessage::makeSyscallWithText(0, 0,
+            EclVmMessage::SC_PRINT_ASYNC, text, clearBox ? 1 : 0));
+    if (!g_events->pumpModalInputFrame())
+        return;
 
     while (inGameView->isTextBoxBusy()) {
         inGameView->tick();
@@ -1976,6 +2030,8 @@ VmResult PoolradEngineHostImpl::encounterMenu(
     EncounterOperation op;
     op.build(monsterId, requestedDist, monsterPicId, destAddr, resp, messages,
         fleePar, fleeMon);
+
+    const bool menuWasVisible = _hideInGameMenu();
 
     // MoveExtremes over the live party (no status filter on movement).
     Common::Array<ECL::MoveExtremeMember> members;
@@ -2048,6 +2104,8 @@ VmResult PoolradEngineHostImpl::encounterMenu(
     if (op.isComplete())
         _writeVmValue(op.destAddr(), op.outcome());
 
+    _restoreInGameMenu(menuWasVisible);
+
     // Clear the bottom message row regardless of outcome (ClearRect parity).
     Graphics::Screen *screen = _engine ? _engine->getScreen() : nullptr;
     if (screen) {
@@ -2057,6 +2115,29 @@ VmResult PoolradEngineHostImpl::encounterMenu(
     }
     _updateViewState();
     return VM_OK;
+}
+
+VmResult PoolradEngineHostImpl::beginDamageReport(
+        const Common::String &messages, bool partyKilled) {
+    if (!messages.empty())
+        _showEncounterMessage(messages, false);
+
+    if (partyKilled) {
+        _showEncounterMessage("The entire party is killed!", true);
+        const uint32 endTime = g_system->getMillis() + 3000;
+        while (g_events && g_system->getMillis() < endTime) {
+            if (!g_events->pumpModalInputFrame())
+                break;
+        }
+    }
+
+    // DisplayAndPause: wait for any key; there is no result to store.
+    Common::Array<Common::String> prompt;
+    prompt.push_back("PRESS <ENTER>/<RETURN> TO CONTINUE");
+    const VmResult r = beginHorizontalMenuAsync(0, prompt);
+    if (r == VM_YIELD)
+        _asyncMenuAnyKey = true;
+    return r;
 }
 
 VmResult PoolradEngineHostImpl::beginHorizontalMenuAsync(uint16 resultAddr,
@@ -2081,7 +2162,9 @@ VmResult PoolradEngineHostImpl::beginHorizontalMenuAsync(uint16 resultAddr,
 
     Views::Dialogs::HorizontalMenuConfig cfg;
     cfg.menuItemList = _asyncMenuModel.get();
-    cfg.allowNumPad = true;
+    // With several options keypad/arrow keys would post selection 0; the
+    // original only switches the shown character on them.
+    cfg.allowNumPad = singleItemMode;
     cfg.suppressUnhandledKeys = true;
     cfg.backgroundColor = 0;
     cfg.singleItemMode = singleItemMode;
@@ -2111,11 +2194,17 @@ VmResult PoolradEngineHostImpl::beginHorizontalMenuAsync(uint16 resultAddr,
     _asyncMenuSink = new AsyncMenuResultSink(sinkName, focused);
     _asyncHorizontalMenu = new Views::Dialogs::HorizontalMenu(
         "EclAsyncHorizontalMenu", cfg);
+    _asyncHorizontalMenu->setPostUnmatchedKeys(!singleItemMode);
     _asyncMenuSink->subView(_asyncHorizontalMenu);
     _asyncHorizontalMenu->activate();
     _asyncHorizontalMenu->redraw();
 
+    _asyncMenuHidCommandMenu = _hideInGameMenu();
     _asyncMenuResultAddr = resultAddr;
+    _asyncMenuEnterOk = singleItemMode;
+    _asyncMenuAnyKey = false;
+    _asyncMenuHotkey = (singleItemMode && !options[0].empty())
+        ? toUpperAscii(options[0][0]) : 0;
     _asyncMenuPending = true;
     return VM_YIELD;
 }
@@ -2124,15 +2213,14 @@ VmResult PoolradEngineHostImpl::beginDelay() {
     if (_asyncMenuPending || _asyncPrintPending || _asyncDelayPending)
         return VM_ERROR;
 
-    // Read CFG_GAME_SPEED from VM memory (1-9 scale, 0 treated as 1).
+    // PauseOnly: gameDelay (0 = fastest .. 9 = slowest) * 225 ms.
     const ECL::EclLayoutAccess layout = ECL::getOpcodeLayout();
-    uint8 speed = _memory->read8(
+    const uint8 speed = _memory->read8(
         layout.vmField(kVmFieldGameSpeed).vmAddr);
     if (speed == 0)
-        speed = 1;
+        return VM_OK;
 
-    // Convert game speed to milliseconds: speed * 500ms per unit.
-    _asyncDelayEndTime = g_system->getMillis() + static_cast<uint32>(speed) * 500;
+    _asyncDelayEndTime = g_system->getMillis() + static_cast<uint32>(speed) * 225;
     _asyncDelayPending = true;
     return VM_YIELD;
 }
@@ -2714,7 +2802,40 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
         if (!sink || !sink->done)
             return VM_YIELD;
 
-        if (_memory && sink->success && sink->value >= 0)
+        // MenuHorizontalCS: Enter ends the menu only with enterOk (a single
+        // option, selection 0); a letter or digit ends it with its hotkey
+        // index, or 255 when it is no hotkey; every other key keeps waiting.
+        const int key = sink->keyCode;
+        const bool isEnter = key == Common::KEYCODE_RETURN
+            || key == Common::KEYCODE_KP_ENTER;
+        bool reopen = false;
+        if (_asyncMenuEnterOk && !_asyncMenuAnyKey) {
+            const char ch = (key >= Common::KEYCODE_a && key <= Common::KEYCODE_z)
+                ? static_cast<char>(key - Common::KEYCODE_a + 'A')
+                : (key >= Common::KEYCODE_0 && key <= Common::KEYCODE_9)
+                    ? static_cast<char>(key) : 0;
+            if (isEnter || (ch != 0 && ch == _asyncMenuHotkey))
+                sink->value = 0;
+            else if (ch != 0)
+                sink->value = 255;
+            else
+                reopen = true;
+            sink->success = !reopen;
+        } else if (!_asyncMenuEnterOk) {
+            reopen = isEnter || key == Common::KEYCODE_SPACE
+                || key == Common::KEYCODE_ESCAPE;
+        }
+        if (reopen && _asyncHorizontalMenu) {
+            sink->done = false;
+            sink->success = false;
+            sink->value = -1;
+            _asyncHorizontalMenu->activate();
+            _asyncHorizontalMenu->redraw();
+            return VM_YIELD;
+        }
+
+        if (_memory && _asyncMenuResultAddr != 0 && sink->success
+                && sink->value >= 0)
             _writeVmValue(_asyncMenuResultAddr,
                 static_cast<uint16>(sink->value));
 
@@ -2724,6 +2845,8 @@ VmResult PoolradEngineHostImpl::finalizePendingAsync() {
         _asyncMenuModel.reset();
         _asyncMenuResultAddr = 0;
         _asyncMenuPending = false;
+        _restoreInGameMenu(_asyncMenuHidCommandMenu);
+        _asyncMenuHidCommandMenu = false;
 
         // Gap #5: Clear prompt row 24 after menu closes.
         Graphics::Screen *screen = _engine ? _engine->getScreen() : nullptr;

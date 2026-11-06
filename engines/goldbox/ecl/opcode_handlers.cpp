@@ -1616,10 +1616,26 @@ public:
 class LiveScriptedDamageSink : public IScriptedDamageSink {
 public:
     void inflict(Data::PlayerCharacter &target, uint16 dmg) override {
+        // EclInflictDamage: the dead are skipped; each message starts on a
+        // new line.
+        if (target.healthStatus == Data::S_DEAD)
+            return;
+        _messages += '\n';
+        if ((int)target.hitPoints.current + 10 < (int)dmg)
+            _messages += target.name + " dies. ";
+        else
+            _messages += Common::String::format("%s is hit FOR %u points of Damage.",
+                target.name.c_str(), (unsigned)dmg);
+
         Data::DamageSystem damageSystem(nullptr);
         damageSystem.applyLegacy(target, static_cast<uint8>(dmg),
             Data::DAMAGE_NORMAL, false);
     }
+
+    const Common::String &messages() const { return _messages; }
+
+private:
+    Common::String _messages;
 };
 
 // 0x2E: DAMAGE <attack> <dice> <sides> <bonus> <value>
@@ -1681,7 +1697,12 @@ static int handle_0x2E_DAMAGE(EclVM &vm, AddressSpace &mem,
     // selection restore, so a resume never re-applies damage. The host print
     // path owns the "entire party killed" window and the press-enter pause;
     // when no async print path exists the VM simply continues.
-    if (syscalls && outcome.partyDefeated) {
+    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+        const VmResult report =
+            host->beginDamageReport(sink.messages(), outcome.partyDefeated);
+        if (report != VM_OK)
+            return report;
+    } else if (syscalls && outcome.partyDefeated) {
         const VmResult asyncStart =
             syscalls->beginPrintAsync("The entire party is killed!", false);
         if (g_events) {

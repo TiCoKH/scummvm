@@ -91,7 +91,8 @@ void TextBoxDialog::draw() {
 	_gameText->draw(surface);
 	if (_gameText->isWaitingForKey()) {
 		surface.clearBox(0, 24, 39, 24, 0);
-		surface.writeStringC(0, 24, kDefaultTextColor, "PRESS ANY KEY");
+		// DisplayMessageWindow page break: LightMagenta prompt on row 24.
+		surface.writeStringC(0, 24, 13, "PRESS ANY KEY TO CONTINUE");
 	}
 }
 
