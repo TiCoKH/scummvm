@@ -21,7 +21,13 @@
 
 #include "goldbox/poolrad/views/dialogs/treasure_dialog.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/spells/spell_casting.h"
+#include "goldbox/spells/spell_context.h"
+#include "goldbox/spells/spell_handlers.h"
+#include "goldbox/data/spells/spell.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/events.h"
+#include "common/debug.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -71,7 +77,59 @@ bool TreasureDialog::hasDetectSpell() const {
 }
 
 void TreasureDialog::actionDetect() {
-    // TODO: ACTION_UseSpell(_detectSpellType, false, false, ...)
+    // Resolve the selected character the same way hasDetectSpell() does; the
+    // menu only offers Detect when hasDetectSpell() returned true, so a valid
+    // caster with a memorized spell id 5/11 is expected here.
+    Goldbox::Data::PlayerCharacter *base = VmInterface::getSelectedCharacter();
+    Goldbox::Poolrad::Data::PoolradCharacter *ch =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(base);
+    if (!ch || !Goldbox::Spells::g_spellCasting)
+        return;
+    if (_detectSpellType != SPELL_DETECT_MAGIC &&
+            _detectSpellType != SPELL_KNOW_ALIGNMENT)
+        return;
+
+    // The raw memorized id maps DIRECTLY to the Spells enum: id 5 ==
+    // SP_CL1_DETECT_MAGIC, id 11 == SP_MUL1_DETECT_MAGIC (data/spells/spell.h).
+    // (Know Alignment id 11 shares the Mage Detect Magic slot in the legacy
+    // detect scan.) No table lookup is needed.
+    const Goldbox::Data::Spells::Spells spell =
+        static_cast<Goldbox::Data::Spells::Spells>(_detectSpellType);
+
+    // Noncombat cast origin, identical to SpellBookDialog::castMemorizedSpell:
+    // a memorized slot is spent (fromMagicItem false), never an item/temple
+    // charge, and distinct from the combat path. castSpell consumes exactly
+    // ONE memorized slot on CAST_OK and leaves it intact on CAST_ABORTED.
+    Goldbox::Spells::SpellContext ctx;
+    ctx.caster = ch;
+    ctx.spellBook = &ch->spellBook;
+    ctx.inCombat = false;
+    ctx.fromMagicItem = false;
+
+    const Goldbox::Spells::SpellCastResult result =
+        Goldbox::Spells::g_spellCasting->castSpell(ctx, spell);
+    if (result.status != Goldbox::Spells::CAST_OK)
+        return; // cancelled / failed: nothing consumed, no state change
+
+    // Confirmed cast: change the detection display state and refresh WITHOUT
+    // implicitly identifying every hidden property and WITHOUT rerolling the
+    // generated items. We only flip the dialog's identify-display flag so the
+    // item list re-renders with the Detect marker (getListDisplayText's
+    // identifyActive path); the per-item `hidden` masks are left untouched.
+    //
+    // REVIEW-OPEN: the exact original "detection state" global (the loot
+    // detect flag DIALOG_Treasure sets) could not be byte-confirmed. The
+    // confirmable effects are implemented here: one spell consumed via the
+    // noncombat path + display refresh with the Detect marker active. The
+    // specific persistent detection-state bit is flagged for review.
+    _detectActive = true;
+    debug(3, "TreasureDialog::actionDetect: cast spell %u, detectActive=%d",
+        (unsigned)_detectSpellType, (int)_detectActive);
+
+    if (g_events)
+        g_events->postEclStateMessage(EclVmMessage::ST_SCREEN_REFRESH, 0,
+            EclVmMessage::VT_UINT8);
+    redraw();
 }
 
 } // namespace Dialogs

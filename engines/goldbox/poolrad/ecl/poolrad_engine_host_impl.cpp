@@ -42,6 +42,7 @@
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/items/character_item.h"
+#include "goldbox/data/items/random_item.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/data/poolrad_spell_mapping.h"
@@ -3173,47 +3174,17 @@ void PoolradEngineHostImpl::setDefaultSkyboxColors() {
 // 0x27 TREASURE — Populate global treasure pool with coins and items.
 // ----------------------------------------------------------------------------
 
-static uint8 rollRandomMagicItemType() {
-    int roll = VmInterface::rollDice(1, 100);
-
-    if (roll >= 1 && roll <= 60) {
-        int roll2 = VmInterface::rollDice(1, 100);
-        if (roll2 >= 1 && roll2 <= 47)
-            return static_cast<uint8>(roll2);
-        if (roll2 == 48 || roll2 == 49)
-            return 59;
-        if (roll2 >= 50 && roll2 <= 59)
-            return static_cast<uint8>(roll2);
-        if (roll2 >= 60 && roll2 <= 90) {
-            int roll3 = VmInterface::rollDice(1, 10);
-            if (roll3 >= 1 && roll3 <= 4) return 36;
-            if (roll3 >= 5 && roll3 <= 7) return 35;
-            if (roll3 == 8) return 34;
-            if (roll3 == 9) return 37;
-            return 38;
-        }
-        if (roll2 >= 91 && roll2 <= 94) return 73;
-        if (roll2 >= 95 && roll2 <= 97) return 93;
-        if (roll2 >= 98 && roll2 <= 100) return 77;
-    } else if (roll >= 61 && roll <= 85) {
-        return 61;
-    } else if (roll >= 86 && roll <= 92) {
-        return 62;
-    } else if (roll >= 93 && roll <= 98) {
-        int roll2 = VmInterface::rollDice(1, 16);
-        if (roll2 >= 1 && roll2 <= 7)  return 71;
-        if (roll2 == 8 || roll2 == 9)  return 70;
-        if (roll2 == 10) return 84;
-        if (roll2 == 11 || roll2 == 12) return 78;
-        if (roll2 == 13 || roll2 == 14) return 79;
-        if (roll2 == 15) return 92;
-        return 67;
-    } else {
-        return 69;
+// GB13-032: the category roll and bonus/payload fill now live in the pure
+// item/rules TU (data/items/random_item). The host only provides the RNG by
+// forwarding the generator's injected source to VmInterface::rollDice.
+namespace {
+class HostItemRollSource : public Goldbox::Data::Items::IItemRollSource {
+public:
+    int rollDice(int number, int sides) override {
+        return VmInterface::rollDice(number, sides);
     }
-
-    return 36;
-}
+};
+} // namespace
 
 VmResult PoolradEngineHostImpl::setupTreasure(uint8 copper, uint8 silver,
         uint8 electrum, uint8 gold, uint8 platinum, uint8 gems,
@@ -3278,29 +3249,18 @@ VmResult PoolradEngineHostImpl::setupTreasure(uint8 copper, uint8 silver,
 
     } else if (itemSetId != 0xFF) {
         const uint8 count = itemSetId - 0x80;
+        HostItemRollSource rollSource;
         for (uint8 i = 0; i < count; ++i) {
-            const uint8 itemTypeId = rollRandomMagicItemType();
-
-            // TODO: Full ITEM_createRandomMagicItem(itemTypeId) implementation.
-            Goldbox::Data::Items::CharacterItem item;
-            item.typeIndex = itemTypeId;
-            item.bonus = 0;
-            item.nameCode1 = 0;
-            item.nameCode2 = 0;
-            item.nameCode3 = 0;
-            item.readied = 0;
-            item.hidden = 0;
-            item.cursed = 0;
-            item.weight = 0;
-            item.stackSize = 1;
-            item.value = 0;
-            item.effect1 = 0;
-            item.effect2 = 0;
-            item.effect3 = 0;
-            item.nextAddress = 0;
+            // Owned canonical item from the item/rules generator (fully
+            // populated: category roll -> base template -> bonus/charges ->
+            // identification/payload). Distinct from immutable shop stock.
+            Goldbox::Data::Items::CharacterItem item =
+                Goldbox::Data::Items::generateRandomItem(
+                    rollSource, Goldbox::Engine::gItemProps);
             pool.addItem(item);
-            debug(3, "  random item[%u]: typeIndex=%u",
-                (unsigned)i, (unsigned)itemTypeId);
+            debug(3, "  random item[%u]: typeIndex=%u bonus=%u charges=%u",
+                (unsigned)i, (unsigned)item.typeIndex,
+                (unsigned)item.bonus, (unsigned)item.getCharges());
         }
 
         debug(3, "setupTreasure: generated %u random magic items",

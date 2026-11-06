@@ -22,6 +22,7 @@
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 #include "common/debug.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/leave_treasure_decision.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/poolrad/views/dialogs/text_box_dialog.h"
@@ -535,7 +536,10 @@ void ShopBaseDialog::actionExit() {
     bool hasItems, hasMoney;
     getTreasurePoolFlags(hasMoney, hasItems);
 
-    if (!hasMoney) {
+    // GB13-026: warn whenever anything remains — money only, items only, or
+    // both. The fast exit only applies to a genuinely EMPTY pool (nothing to
+    // leave behind), so an item-only pool is no longer silently disposed.
+    if (!hasMoney && !hasItems) {
         commitExit();
         return;
     }
@@ -613,12 +617,27 @@ void ShopBaseDialog::handleMenuResult(const MenuResultMessage &result) {
         handleKeepSellResult(result);
         return;
     case STAGE_EXIT_CONFIRM: {
-        // Y (intValue==1) => leave; N/ESC => cancel and clear confirmation UI
-        bool confirmed = result._hasIntValue && result._intValue == 1;
-        if (confirmed)
+        // GB13-026: duplicate-confirmation guard. A stale result that arrives
+        // after the confirm was already torn down (stage left, menu deleted)
+        // must not re-trigger commitExit on a fresh session's pool.
+        if (!_exitConfirmMenu)
+            return;
+
+        // Translate the legacy zero-based answer into a semantic decision.
+        // The prompt asks whether to GO BACK AND RETRIEVE: Yes returns, No
+        // leaves. Only an explicit No disposes; a non-answer leaves it open.
+        switch (decideLeaveTreasure(result)) {
+        case LEAVE_BEHIND:
             commitExit();
-        else
+            break;
+        case RETURN_TO_TREASURE:
             closeExitConfirm();
+            break;
+        case NO_DECISION:
+            // Escape / unhandled key posts no result; the helper keeps the
+            // prompt up and nothing is disposed. Leave the confirm live.
+            break;
+        }
         return;
     }
     default:
@@ -944,6 +963,16 @@ void ShopBaseDialog::buildKeepSellModel() {
 }
 
 void ShopBaseDialog::handleKeepSellResult(const MenuResultMessage &result) {
+    // GB13-028: duplicate/reopen guard (mirrors the GB13-026 exit-confirm
+    // guard). The valuation was rolled and the gem/jewelry decremented exactly
+    // once in appraiseItem; _appraiseValue/_appraiseType hold the captured
+    // transaction state. A stale result that arrives after the keep/sell menu
+    // was already torn down (stage left, menu deleted) must not re-pay, add a
+    // duplicate item, or re-decrement. Act only while the menu is live; a
+    // stale completion is dropped without rerolling.
+    if (_stage != STAGE_APPRAISE_KEEP_SELL || !_appraiseKeepSellMenu)
+        return;
+
     char key = 0;
     if (result._keyCode == Common::KEYCODE_RETURN) {
         int sel = _appraiseKSModel.currentSelection;
@@ -982,12 +1011,38 @@ void ShopBaseDialog::handleKeepSellResult(const MenuResultMessage &result) {
 
         ch->receiveItem(newItem);
     } else {
-        // Sell: receive 1/5 value as gold to character
+        // Sell: pay `value div 5` in PLATINUM (money.pas GivePlatinum), not
+        // gold. Platinum is worth 5 gp, so value/5 platinum equals the sold
+        // valuation in total gold value (1000 gp -> 200 platinum). The payout
+        // goes through the shared capacity-aware transfer so overflow the
+        // character cannot carry stays in the POOL (recoverable via Take),
+        // instead of being written to the coin slot with a saturating clamp
+        // that silently loses it. VAL_PLATINUM fits Word for normal
+        // valuations; addCoinWide/takeMoney keep the wider intermediate so the
+        // GB13-027 Word/LongInt boundaries are not narrowed here.
         if (ch) {
-            uint16 sellValue = _appraiseValue / 5;
-            uint32 newGold = (uint32)ch->valuableItems.values[Goldbox::Data::VAL_GOLD] + sellValue;
-            ch->valuableItems.values[Goldbox::Data::VAL_GOLD] =
-                (newGold > 0xFFFF) ? (uint16)0xFFFF : (uint16)newGold;
+            const uint32 platinum = (uint32)(_appraiseValue / 5);
+            Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
+
+            // Stage the payout in the pool, then move it to the character. On
+            // overload takeMoney transfers 0 and leaves the whole amount in
+            // the pool (TRANSFER_OVERLOADED); on success the character gets it.
+            // Either way the overflow is retained in the pool, never clamped.
+            //
+            // OPEN(GB13-028): the original GivePlatinum's exact partial-vs-
+            // all-or-nothing split on overload is not fully confirmed against
+            // takeMoney's all-or-nothing TakeMoney semantics. Both satisfy the
+            // requirement (overflow retained in the pool and recoverable);
+            // nothing is clamped or lost. Revisit if GivePlatinum is traced to
+            // a partial give.
+            pool.addCoinWide(Goldbox::Data::VAL_PLATINUM, platinum);
+            const Runtime::TreasurePool::MoneyTransfer xfer =
+                pool.takeMoney(*ch, Goldbox::Data::VAL_PLATINUM, platinum);
+            debug(1, "[Shop:%s] appraise-sell: value=%u platinum=%u "
+                "transferred=%u poolRemainder=%u status=%d",
+                getName().c_str(), (unsigned)_appraiseValue,
+                (unsigned)platinum, (unsigned)xfer.transferred,
+                (unsigned)xfer.remainder, (int)xfer.status);
         }
     }
 

@@ -53,6 +53,7 @@ MODULE_OBJS = \
 	data/items/base_items.o \
 	data/items/character_item.o \
 	data/items/character_inventory.o \
+	data/items/random_item.o \
 	data/rules/rules_types.o \
 	data/rules/rules.o \
 	data/rules/saving_throw.o \

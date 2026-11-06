@@ -46,6 +46,10 @@ protected:
 
 private:
     uint8 _detectSpellType = 0;
+    // True once a Detect spell has been confirmed in this treasure session;
+    // drives the identify-marker display refresh without mutating per-item
+    // identification (hidden) masks or rerolling generated items.
+    bool _detectActive = false;
 };
 
 } // namespace Dialogs

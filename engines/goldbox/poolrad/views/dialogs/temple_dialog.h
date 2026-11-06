@@ -78,12 +78,54 @@ private:
     HealStage _healStage;
     int _healSelectedIndex;
 
+    // GB13-029 (Req 36.1): explicit PoR service metadata. Each temple service
+    // carries its original DOS price PLUS a presence predicate (the set of RAW
+    // PoR effect ids whose presence means the character "has the condition")
+    // and a rule operation (the RAW effect-id removal list run in order, and
+    // the cure-wounds dice). Using RAW ids at the game layer is deliberate:
+    // the generic Effects enum ordinals do NOT equal the PoR raw save ids, so
+    // a metadata table of raw ids (not enum names) is what matches the binary.
     struct HealService {
         const char *name;
         uint16 cost;
+        const uint8 *conditionIds;  // presence predicate: any-of these raw ids
+        uint8 conditionCount;
+        const uint8 *removeIds;     // rule op: remove these raw ids, in order
+        uint8 removeCount;
+        uint8 healDiceNum;          // cure-wounds dice (0 == no HP heal)
+        uint8 healDiceSides;
+        uint8 healBonus;
     };
     static const HealService kHealServices[];
     static const int kHealServiceCount = 9;
+
+    // GB13-029 (Req 36.2): staged payment contract shared with GB13-030/031.
+    // Captures the service index, its cost, the cast-anyway decision and the
+    // resolved funding source so Raise Dead (task 34) and Remove Curse (task
+    // 35) can reuse the exact ConfirmCureAnyway -> ConfirmCureCost -> funding
+    // -> operation flow without duplicating the char-else-pool rule.
+    struct PaymentPlan {
+        enum FundingSource {
+            FUND_NONE = 0,     // insufficient everywhere: do NOT act
+            FUND_CHARACTER,    // current character funds are sufficient
+            FUND_POOL          // pooled funds are sufficient (char was not)
+        };
+        int serviceIndex;
+        uint16 cost;
+        bool castAnyway;       // player chose to pay despite "not affected"
+        FundingSource funding;
+
+        PaymentPlan()
+            : serviceIndex(-1), cost(0), castAnyway(false),
+              funding(FUND_NONE) {}
+    };
+    PaymentPlan _payment;
+
+    // Resolve the funding source WITHOUT mutating balances. Current-character
+    // funds if sufficient, ELSE pooled funds if sufficient, ELSE FUND_NONE.
+    // Two insufficient balances are NEVER combined. Pure/headless: testable.
+    static PaymentPlan::FundingSource resolveFunding(uint32 charGold,
+        uint32 poolGold, uint16 cost);
 
     MenuItemList _healMenuItems;
     Common::Array<Common::String> _healPromptOpts;
@@ -109,8 +151,14 @@ private:
         int index);
     void applyRaiseDead(Goldbox::Poolrad::Data::PoolradCharacter *ch);
     void applyRemoveCurse(Goldbox::Poolrad::Data::PoolradCharacter *ch);
-    void removeAllEffectsOfType(
-        Goldbox::Poolrad::Data::PoolradCharacter *ch, uint8 type);
+
+    // GB13-029 (Req 36.3): remove ONE instance of a raw effect id through the
+    // EffectSystem so the original on-remove behavior runs (EFF_REMOVE handler
+    // for immediate effects, recalc via onEffectsChanged, bridge notify),
+    // replacing the former direct vector erase. Returns true if an instance
+    // was removed. See the .cpp for the scoped-removal / effect-lock notes.
+    bool removeRawEffectInstance(
+        Goldbox::Poolrad::Data::PoolradCharacter *ch, uint8 rawId);
 
     void showHealMessage(const Common::String &msg);
     void destroyYesNo();
