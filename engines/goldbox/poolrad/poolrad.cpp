@@ -487,10 +487,23 @@ bool PoolradEngine::isSaveBoundaryStable() const {
 }
 
 Common::Error PoolradEngine::syncGameState(Common::Serializer &s) {
-	// GB13-033 24.2: drive the native versioned schema. Load validation,
-	// derived-state rebuild and the live-swap are 24.3; 24.2 captures/restores
-	// the authoritative state and rejects bad/legacy payloads clearly.
+	// GB13-033: SAVE drives the native versioned schema here. LOAD is handled
+	// transactionally in loadGameStream() over the raw stream (24.3), so this
+	// seam is save-only in practice; NativeSave::sync() guards against a stray
+	// Serializer-only load.
 	return NativeSave::sync(s, *this);
+}
+
+Common::Error PoolradEngine::loadGameStream(Common::SeekableReadStream *stream) {
+	// GB13-033 24.3: transactional native load. Parse into a temporary,
+	// validate against this engine, then swap in. A malformed/truncated/
+	// wrong-profile/missing-resource load returns the first error with the
+	// previous game intact.
+	if (!stream) {
+		return Common::Error(Common::kReadingFailed,
+			"Goldbox: no stream to load from");
+	}
+	return NativeSave::loadNative(*stream, *this);
 }
 
 bool PoolradEngine::canSaveGameStateCurrently(Common::U32String *msg) {

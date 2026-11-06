@@ -306,13 +306,16 @@ public:
 	 */
 	Common::Path resolveSavePath() const;
 
-	// GB13-033 containment seam: Engine::syncGame() is still a placeholder
-	// (see engine.cpp) and serializes no real game state. Until the native
-	// serializer lands in 24.2 (and load validation in 24.3) we must NOT
-	// advertise working native runtime save/load, otherwise a save that looks
-	// successful would silently discard the campaign. Flip this single
-	// constant to true once syncGame() stores/restores real state.
-	static const bool kNativeSaveImplemented = false;
+	// GB13-033 native-save capability sentinel.
+	//
+	// 24.1 contained native save (false) while syncGame() was a placeholder;
+	// 24.2 added the versioned schema + serializer; 24.3 made native LOAD
+	// transactional (validate-into-temporary -> check -> swap, so a failed load
+	// leaves the previous game intact) and bounded SAVE to stable map states.
+	// With both sides safe, native save/load is now advertised again. Saving is
+	// still DISABLED in combat/rest/modal/suspended contexts by the live
+	// boundary predicate (see canSaveGameStateCurrently), NOT by this constant.
+	static const bool kNativeSaveImplemented = true;
 
 	// Pure, headless-testable capability decision. Native save/load is only
 	// allowed when the real serializer exists AND (in 24.3) the current
@@ -324,9 +327,8 @@ public:
 	}
 
 	bool hasFeature(EngineFeature f) const override {
-		// Only kSupportsReturnToLauncher is honest while the native serializer
-		// is a placeholder. Runtime save/load are re-enabled in 24.2 by
-		// flipping kNativeSaveImplemented.
+		// Runtime save/load track kNativeSaveImplemented (GB13-033 24.3: true).
+		// kSupportsReturnToLauncher is always honest.
 		if (f == kSupportsReturnToLauncher)
 			return true;
 		if (f == kSupportsSavingDuringRuntime || f == kSupportsLoadingDuringRuntime)
@@ -335,17 +337,24 @@ public:
 	};
 
 	bool canLoadGameStateCurrently(Common::U32String *msg = nullptr) override {
+		// GB13-033 24.3: loading is honest whenever native save is implemented.
+		// Unlike saving, loading has no stable-boundary requirement: the load is
+		// transactional (parse -> validate -> swap) so it is safe at startup and
+		// at any point; a bad/truncated/wrong-profile/missing-resource save
+		// surfaces a truthful error and leaves the current game intact. Startup
+		// load routes through the same transactional loadGameStream path.
 		if (!nativeSaveAllowed()) {
 			if (msg)
-				*msg = _("Loading is not yet supported in this engine.");
+				*msg = _("Loading is not supported in this engine.");
 			return false;
 		}
 		return true;
 	}
 	bool canSaveGameStateCurrently(Common::U32String *msg = nullptr) override {
-		// TODO(GB13-033 24.3): once kNativeSaveImplemented is true, pass a real
-		// context-allows predicate here so saving is disabled in modal/combat/
-		// rest contexts (Requirement 30.3) instead of being advertised.
+		// Base default: no live context predicate. Game engines that support
+		// native save (Poolrad) OVERRIDE this to AND in a stable-boundary
+		// predicate so saving is disabled in modal/combat/rest contexts
+		// (Requirement 30.3) instead of being advertised.
 		if (!nativeSaveAllowed()) {
 			if (msg)
 				*msg = _("Saving is not yet supported in this engine.");

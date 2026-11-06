@@ -218,6 +218,17 @@ public:
 	Common::Error syncGameState(Common::Serializer &s) override;
 
 	/**
+	 * GB13-033 24.3: native LOAD is transactional. We override loadGameStream
+	 * so the load runs over the RAW stream (readInto -> validate -> commit)
+	 * instead of through the Serializer seam used for saving: a Serializer
+	 * hides the stream, and a short read on a MemoryReadStream sets only eos()
+	 * (not err()), so end-of-stream truncation would otherwise be invisible. A
+	 * failed load leaves the previous game fully usable. Saving still routes
+	 * through the base saveGameStream -> syncGame -> syncGameState path.
+	 */
+	Common::Error loadGameStream(Common::SeekableReadStream *stream) override;
+
+	/**
 	 * GB13-033 24.2 (Requirement 30.3): native save is only offered at a stable
 	 * save boundary. Routes through Engine::nativeSaveAllowed(context) so that
 	 * once kNativeSaveImplemented flips on (24.3), saving stays DISABLED in

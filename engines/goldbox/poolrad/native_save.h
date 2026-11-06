@@ -25,8 +25,10 @@
 #define GOLDBOX_POOLRAD_NATIVE_SAVE_H
 
 #include "common/scummsys.h"
+#include "common/array.h"
 #include "common/error.h"
 #include "common/serializer.h"
+#include "common/stream.h"
 #include "common/str.h"
 
 #include "goldbox/core/global.h"
@@ -37,12 +39,21 @@ namespace Poolrad {
 
 class PoolradEngine;
 
+namespace Data {
+class PoolradCharacter;
+}
+
 /**
- * GB13-033 subtask 24.2 — versioned native save schema and serializer.
+ * GB13-033 subtasks 24.2 + 24.3 — versioned native save schema, serializer and
+ * transactional load.
  *
- * This replaces the GB13-033 placeholder (a single dummy uint32) with a real,
+ * 24.2 replaced the GB13-033 placeholder (a single dummy uint32) with a real,
  * versioned schema that round-trips the authoritative campaign state through
- * ScummVM stream/Serializer facilities only. It serializes NO raw pointers,
+ * ScummVM stream/Serializer facilities only. 24.3 made the LOAD side
+ * transactional (readInto -> validate -> commit) so a malformed/truncated/
+ * wrong-profile/missing-resource load leaves the previous game fully usable,
+ * and enabled native save (Engine::kNativeSaveImplemented) now that load is
+ * safe and save is bounded to stable map states. It serializes NO raw pointers,
  * GUI/view/dialog objects, DAX/tile/picture/sprite caches, mixer handles or
  * surfaces: those are derived state rebuilt from the schema (24.3).
  *
@@ -119,17 +130,117 @@ struct SaveBoundaryState {
 bool isSaveBoundaryStable(const SaveBoundaryState &state);
 
 /**
- * Single load+save entry (mirrors Engine::syncGame's one-method pattern via
- * Serializer::isLoading()/isSaving()). Returns Common::kNoError on success.
+ * GB13-033 24.3 — parsed, owning temporary for a transactional native load.
  *
- * On save it writes the full schema from @p engine's live state. On load it
- * validates the magic and version first (rejecting the old dummy payload and
- * unknown/newer versions with a clear Common::Error), then reads the schema
- * back into the engine's authoritative state. Rebuilding derived/view state
- * and full cross-field validation is 24.3; the raw VM image is captured
- * cleanly here so 24.3 can validate before applying.
+ * readInto() fills a LoadedState from the stream WITHOUT touching the live
+ * engine. validate() then checks it against the running engine, and only on
+ * success does commit() swap it into the engine. A failure at any earlier step
+ * leaves the previous game fully usable: the LoadedState is simply discarded
+ * and its owned PoolradCharacter allocations are freed in the destructor.
+ *
+ * The struct OWNS everything it holds. On commit() the party characters are
+ * transferred to the engine and @c party is cleared so the destructor does not
+ * free them; before commit (and on every error path) the destructor frees
+ * them, so there is no leak and no double-free.
+ */
+struct LoadedState {
+	// Section 1: profile. Captured verbatim; validate() compares these against
+	// the running engine (wrong-profile rejection, Requirement 30.2).
+	Common::String profileGameId;
+	uint32         profilePlatform;
+	uint32         profileFeatures;
+	uint32         profileGameState;
+
+	// Section 2: party. Freshly constructed characters in party order plus the
+	// active-selection index (kNoSelectionIndex when none). Owning pointers.
+	Common::Array<::Goldbox::Poolrad::Data::PoolradCharacter *> party;
+	uint16 selectionIndex;
+
+	// Section 3: location context (plain data).
+	LocationContext location;
+
+	// Section 4: VM memory image. Owned heap buffer; NOT written to live memory
+	// until commit(). @c vmImageLength is the length read from the stream so
+	// validate() can reject a size mismatch before the buffer is applied.
+	byte  *vmImage;
+	uint32 vmImageLength;
+
+	// Section 5: RNG seed (seed-level only; see OPEN note on live-state parity).
+	uint32 rngSeed;
+
+	LoadedState()
+		: profileGameId(), profilePlatform(0), profileFeatures(0),
+		  profileGameState(0), party(), selectionIndex(kNoSelectionIndex),
+		  location(), vmImage(nullptr), vmImageLength(0), rngSeed(0) {}
+
+	~LoadedState() { reset(); }
+
+	/** Free every owned allocation and clear the buffers. Safe to call twice. */
+	void reset();
+
+private:
+	// Non-copyable: it owns raw PoolradCharacter allocations and a heap buffer.
+	LoadedState(const LoadedState &);
+	LoadedState &operator=(const LoadedState &);
+};
+
+/**
+ * Transactional load, step 1 — parse the ENTIRE stream into @p out without
+ * touching the live engine. Validates magic/version first (rejecting the old
+ * dummy payload and unknown/newer versions). A stream truncation or read error
+ * at ANY point returns a clear Common::Error; @p out is left owning only what
+ * it parsed and is safely discarded by the caller (its destructor frees it),
+ * so the live engine is never half-mutated.
+ *
+ * Takes the raw stream (not a Serializer) so end-of-stream can be detected:
+ * a Serializer hides the stream and a short read on a MemoryReadStream does not
+ * set err(), only eos(). The engine is passed const for profile capture only.
+ */
+Common::Error readInto(Common::SeekableReadStream &stream, LoadedState &out);
+
+/**
+ * Transactional load, step 2 — validate a parsed LoadedState against the
+ * running @p engine. Returns a distinct, truthful Common::Error per failure
+ * class (Requirement 30.2): wrong gameId/profile, bad party count, out-of-range
+ * selection, VM image size mismatch, and unresolved resource references
+ * (mapId/ECL/GEO ids that do not map to real DAX blocks). Does not mutate
+ * anything.
+ */
+Common::Error validate(const LoadedState &in, const PoolradEngine &engine);
+
+/**
+ * Transactional load, step 3 — swap a validated LoadedState into the live
+ * @p engine. ONLY call after readInto() and validate() both succeed. Frees the
+ * old party, moves the parsed characters in (transferring ownership, so @p in
+ * no longer frees them), applies the selection by index, writes the validated
+ * VM image, sets the LocationContext and RNG seed, then transitions the game
+ * state to the resolved map state so the engine rebuilds derived/view/cache
+ * state (ECL/GEO/viewport), mirroring loadGameSlotX86's final setGameState.
+ */
+void commit(LoadedState &in, PoolradEngine &engine);
+
+/**
+ * Single SAVE entry (mirrors Engine::syncGame's one-method pattern). On SAVE it
+ * writes the full schema from @p engine's live state. On LOAD it is now
+ * TRANSACTIONAL: it reads the whole stream into a temporary LoadedState
+ * (readInto), validates it (validate) and only then swaps it in (commit), so a
+ * malformed/truncated/wrong-profile/missing-resource load returns the first
+ * error with the previous game fully intact (Requirement 30.2, GB13-033 24.3).
+ *
+ * The magic/version check and the old-dummy-payload rejection happen inside
+ * readInto on load and inline here on save.
  */
 Common::Error sync(Common::Serializer &s, PoolradEngine &engine);
+
+/**
+ * Transactional native LOAD entry (GB13-033 24.3). Drives readInto -> validate
+ * -> commit over the raw stream so end-of-stream truncation is detectable (a
+ * Serializer hides the stream). Returns the first error with the previous game
+ * fully intact on failure; on success the engine holds the loaded campaign.
+ * PoolradEngine::loadGameStream routes here instead of through the Serializer
+ * seam used for saving.
+ */
+Common::Error loadNative(Common::SeekableReadStream &stream, PoolradEngine &engine);
 
 } // namespace NativeSave
 
