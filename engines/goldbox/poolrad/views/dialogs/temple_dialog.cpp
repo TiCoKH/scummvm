@@ -27,6 +27,10 @@
 #include "goldbox/data/effects/effect.h"
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/effects/effect_handler_base.h"
+#include "goldbox/poolrad/data/poolrad_effects.h"
+#include "goldbox/spells/spell_context.h"
+#include "goldbox/spells/spell_definition.h"
+#include "goldbox/spells/spell_handlers.h"
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/runtime/treasure_pool.h"
@@ -248,6 +252,14 @@ void TempleDialog::beginHealService(int index) {
         return;
     }
 
+    // GB13-030 (Req 40.1): capture eligibility NOW, before any prompt, and
+    // retain it on the plan. For Raise Dead (6) and Stone to Flesh (8) this
+    // pre-prompt eligibility is what applyHealEffect gates the mutation on, so
+    // a cast-anyway on a LIVING / NON-STONED target pays and reports cured but
+    // mutates nothing. (Other services are unaffected; they key off their own
+    // raw-id / HP predicates at apply-time.)
+    _payment.eligibleAtRequest = hasCondition(ch, index);
+
     // Wound cures (indices 2-4) skip the "not affected" check
     if (index >= 2 && index <= 4) {
         showPayConfirmPrompt();
@@ -255,7 +267,7 @@ void TempleDialog::beginHealService(int index) {
     }
 
     // Stage: ConfirmCureAnyway only when the character lacks the condition.
-    if (!hasCondition(ch, index)) {
+    if (!_payment.eligibleAtRequest) {
         showNotAffectedPrompt();
     } else {
         showPayConfirmPrompt();
@@ -445,12 +457,16 @@ bool TempleDialog::hasCondition(PoolradCharacter *ch, int index) {
                (ch->healthStatus == Goldbox::Data::S_ANIMATED);
 
     case 7: // Remove Curse (apply logic is GB13-031/task 35)
+        // GB13-031 (Req 41.1): present iff a raw curse effect 36
+        // (E_POOLRAD_ACCURSED == 0x24) OR any cursed inventory item is set.
+        // The former predicate keyed off E_BESTOW_CURSE (37), the wrong id;
+        // the shared RemoveCurseHandler clears raw 36, so presence must match.
         for (int i = 0; i < ch->inventory.count(); ++i) {
             if (ch->inventory[i].cursed)
                 return true;
         }
         return ch->effects.hasEffect(
-            (uint8)Goldbox::Data::Effects::E_BESTOW_CURSE);
+            (uint8)Goldbox::Data::Effects::E_POOLRAD_ACCURSED);
 
     case 8: // Stone to Flesh (apply logic is GB13-030/task 34)
         return ch->healthStatus == Goldbox::Data::S_STONED;
@@ -498,82 +514,160 @@ void TempleDialog::applyHealEffect(PoolradCharacter *ch, int index) {
         applyRemoveCurse(ch);
         break;
 
-    case 8: // Stone to Flesh (GB13-030 / task 34 owns this body)
-        ch->healthStatus = Goldbox::Data::S_OKAY;
-        ch->enabled = true;
-        ch->hitPoints.current = 1;
+    case 8:
+        // Stone to Flesh (GB13-030 / task 34). Req 40.3: change status / HP
+        // ONLY if the target was Stoned at request time (captured pre-prompt).
+        // A cast-anyway on a non-stoned target pays + reports cured but leaves
+        // status, enabled and HP untouched.
+        if (_payment.eligibleAtRequest) {
+            ch->healthStatus = Goldbox::Data::S_OKAY;
+            ch->enabled = true;
+            ch->hitPoints.current = 1;
+        }
         break;
     }
 }
 
+// GB13-030 (Req 40.2): pure Constitution-loss HP arithmetic, mirroring the
+// DOS byte math. `newCon` is the ALREADY-lowered current Constitution; the
+// caller has done the -1. The gate con > 13 means only CON 14..18 reduces HP.
+//
+// Divisor (unsigned accumulator, documented as `uint` to mirror the DOS 16-bit
+// intermediate so the (con-14)*lvl / lvl*2 products do not wrap in a byte):
+//   per the eight base-class level entries, the FIGHTER slot (index
+//   C_FIGHTER == 2) contributes (con - 14) * lvl; every other populated slot
+//   contributes lvl   when con < 16, else lvl * 2.
+// hpLoss = max(hpMax - hpRolled, 0), a byte (hpMax, hpRolled are bytes).
+//
+// DIVISOR-ZERO: the original does nothing in this case, so the hpLoss is
+// RETAINED (HP max is left as-is). We make that explicit here rather than
+// relying on fall-through. There is NO invented minimum-HP clamp.
+//
+// OPEN (trace-gated): the original `>= hpMax -> hpMax = 1` branch below. It is
+// kept ONLY because it is the confirmable port of the DOS clamp that prevents
+// the unsigned `hpMax -= hpReduction` from wrapping past zero (hpReduction can
+// exceed hpMax once the divisor is small). If a trace shows the DOS binary
+// does NOT clamp and instead wraps, this branch is the residual to revisit.
+// We do NOT add any clamp beyond this confirmable one.
+TempleDialog::RaiseDeadResult TempleDialog::computeRaiseDeadResult(
+        uint8 newCon, uint8 hpMax, uint8 hpRolled, const uint8 *levels,
+        int levelCount) {
+    RaiseDeadResult res;
+    res.newHpMax = hpMax;
+
+    if (newCon <= 13)
+        return res;
+
+    uint8 hpLoss = (hpMax > hpRolled) ? (uint8)(hpMax - hpRolled) : (uint8)0;
+
+    uint divisor = 0;
+    for (int classIdx = 0; classIdx < levelCount; ++classIdx) {
+        uint8 lvl = levels[classIdx];
+        if (lvl == 0)
+            continue;
+        if (classIdx == (int)Goldbox::Data::C_FIGHTER)
+            divisor += (uint)(newCon - 14) * lvl;
+        else if (newCon < 16)
+            divisor += lvl;
+        else
+            divisor += (uint)lvl * 2;
+    }
+
+    // Divisor-zero: hpLoss retained, HP max unchanged. Explicit, no clamp.
+    if (divisor == 0)
+        return res;
+
+    uint8 hpReduction = (uint8)(hpLoss / divisor);
+    if (newCon < 17 || levels[(int)Goldbox::Data::C_FIGHTER] > 0) {
+        if (hpReduction >= hpMax)
+            res.newHpMax = 1;       // confirmable DOS clamp; see OPEN note above
+        else
+            res.newHpMax = (uint8)(hpMax - hpReduction);
+    }
+    return res;
+}
+
 void TempleDialog::applyRaiseDead(PoolradCharacter *ch) {
-    // GB13-030 (task 34) owns the full Raise Dead apply logic. Here we only
-    // route its two low-level effect removals through the shared EffectSystem
-    // removal (replacing the former direct vector erase) so the on-remove
-    // behavior runs; the CON-loss / HP-reduction body is left for task 34.
-    // These use the generic enum ids the original body referenced and are NOT
-    // the GB13-029 in-scope raw-id services; task 34 will confirm the raw ids.
-    while (ch->effects.hasEffect(
-            (uint8)Goldbox::Data::Effects::E_ANIMATE_DEAD))
-        removeRawEffectInstance(ch,
-            (uint8)Goldbox::Data::Effects::E_ANIMATE_DEAD);
-    while (ch->effects.hasEffect((uint8)Goldbox::Data::Effects::E_POISONED))
-        removeRawEffectInstance(ch,
-            (uint8)Goldbox::Data::Effects::E_POISONED);
+    // GB13-030 (Req 40.1): a LIVING target reaching here via cast-anyway must
+    // NOT change any revival stats (no Con/HP/status mutation). Gate on the
+    // eligibility captured BEFORE the prompt. Payment + "is cured" still ran.
+    if (!_payment.eligibleAtRequest)
+        return;
+
+    // Req 40.1/40.2: remove animation (RAW 32 == E_POOLRAD_ANIMATING_DEAD)
+    // and poison (RAW 55) through the shared EffectSystem removal path so the
+    // on-remove behavior runs. These are the ORIGINAL PoR raw .SPC ids, not
+    // the generic Effects enum ordinals (E_ANIMATE_DEAD==71 was the wrong id
+    // the prior body used; the correct animation id is 0x20 == 32).
+    const uint8 kRawAnimateDead = 32;   // E_POOLRAD_ANIMATING_DEAD (0x20)
+    const uint8 kRawPoison = 55;        // poison (0x37, == E_POISONED)
+    while (ch->effects.hasEffect(kRawAnimateDead))
+        removeRawEffectInstance(ch, kRawAnimateDead);
+    while (ch->effects.hasEffect(kRawPoison))
+        removeRawEffectInstance(ch, kRawPoison);
 
     ch->hitPoints.current = 1;
     ch->healthStatus = Goldbox::Data::S_OKAY;
     ch->enabled = true;
 
-    // Permanent constitution loss
+    // Req 40.1: reduce CURRENT Constitution ONLY by 1. The base score is NOT
+    // touched (the former base -= 1 was the bug).
     if (ch->abilities.constitution.current > 0)
         ch->abilities.constitution.current -= 1;
-    if (ch->abilities.constitution.base > 0)
-        ch->abilities.constitution.base -= 1;
 
-    // HP reduction from lowered constitution (only if CON > 13)
-    uint8 con = ch->abilities.constitution.current;
-    if (con > 13) {
-        uint8 hpDiff = (ch->hitPoints.max > ch->hitPointsRolled)
-                       ? (ch->hitPoints.max - ch->hitPointsRolled) : 0;
-        uint divisor = 0;
-
-        for (int classIdx = 0; classIdx < BASE_CLASS_NUM; ++classIdx) {
-            uint8 lvl = ch->levels.levels[classIdx];
-            if (lvl == 0)
-                continue;
-            if (classIdx == 2) {
-                divisor += (con - 14) * lvl;
-            } else if (con < 16) {
-                divisor += lvl;
-            } else {
-                divisor += lvl * 2;
-            }
-        }
-
-        if (divisor > 0) {
-            uint8 hpReduction = hpDiff / divisor;
-            if (con < 17 || ch->levels.levels[2] > 0) {
-                if (hpReduction >= ch->hitPoints.max)
-                    ch->hitPoints.max = 1;
-                else
-                    ch->hitPoints.max -= hpReduction;
-            }
-        }
-    }
+    // Req 40.2: HP reduction from the lowered current Constitution. Delegated
+    // to the pure helper so the odd DOS byte arithmetic stays unit-testable.
+    RaiseDeadResult r = computeRaiseDeadResult(
+        ch->abilities.constitution.current, ch->hitPoints.max,
+        ch->hitPointsRolled, ch->levels.levels.begin(), BASE_CLASS_NUM);
+    ch->hitPoints.max = r.newHpMax;
 }
 
 void TempleDialog::applyRemoveCurse(PoolradCharacter *ch) {
-    // GB13-031 (task 35) owns the full Remove Curse apply logic. Here we only
-    // route the curse-effect removal through the shared EffectSystem removal
-    // (replacing the former direct vector erase); the item-curse clearing and
-    // final raw-id confirmation are left for task 35.
-    for (int i = 0; i < ch->inventory.count(); ++i)
-        ch->inventory[i].cursed = 0;
-    while (ch->effects.hasEffect(
-            (uint8)Goldbox::Data::Effects::E_BESTOW_CURSE))
-        removeRawEffectInstance(ch,
-            (uint8)Goldbox::Data::Effects::E_BESTOW_CURSE);
+    // GB13-031 (Req 41.1/41.2/41.4): run the SHARED one-target Remove Curse
+    // RULE on the current target, reusing the existing RemoveCurseHandler
+    // sequence rather than "remove all curses". The handler removes raw curse
+    // effect 36 (E_POOLRAD_ACCURSED) FIRST and ONLY IF ABSENT clears the FIRST
+    // cursed inventory item -- one thing per invocation. Because the temple
+    // calls it once per service, successive services peel off
+    // effect -> first item -> second item in that order.
+    //
+    // This is a SERVICE-ORIGIN invocation: we build a SpellContext/
+    // TargetSelection and call the rule handler directly. We do NOT route
+    // through g_spellCasting->castSpell or any SpellsMenu, so NO memorized
+    // spell slot is spent (Req 41.4 -- temple Remove Curse consumes no
+    // memorized spell; only the player cast path spends a resource, and that
+    // path is untouched). RemoveCurseHandler::execute itself never touches
+    // memorized spells.
+    //
+    // The EffectSystem is constructed the SAME way removeRawEffectInstance
+    // builds it (g_effectHandler + the Poolrad host bridge), so the removal of
+    // raw 36 runs the original on-remove behavior through the shared path.
+    //
+    // OPEN (trace-gated): a service-origin cast ideally reuses the engine's
+    // registered Remove Curse SpellDefinition. RemoveCurseHandler::execute
+    // ignores `definition` ((void)definition), so a default SpellDefinition is
+    // correct for THIS handler; if a future trace shows the service must carry
+    // the looked-up definition (e.g. for messaging), swap in the registry
+    // lookup the player cast path uses. The rule semantics above are unchanged.
+    Goldbox::Data::Effects::EffectSystem effectSystem(
+        Goldbox::Data::Effects::g_effectHandler,
+        Goldbox::Poolrad::getEffectHostBridge());
+
+    Goldbox::Spells::SpellContext ctx;
+    ctx.caster = ch;
+    ctx.effectSystem = &effectSystem;
+    ctx.inCombat = false;
+    ctx.fromMagicItem = false;   // service origin, not a memorized-slot cast
+
+    Goldbox::Spells::TargetSelection targets;
+    targets.targetCharacters.push_back(ch);   // the current (selected) target only
+
+    Goldbox::Spells::SpellDefinition definition;   // handler ignores definition
+
+    // One service == one invocation: removes raw 36 if present, else the first
+    // cursed item. Do NOT loop here (that would be "remove all curses").
+    Goldbox::Spells::RemoveCurseHandler().execute(ctx, definition, targets);
 }
 
 // GB13-029 (Req 36.3): remove ONE instance of a raw effect id through the

@@ -114,12 +114,33 @@ private:
         uint16 cost;
         bool castAnyway;       // player chose to pay despite "not affected"
         FundingSource funding;
+        // GB13-030 (Req 40.1): eligibility captured BEFORE prompting so a
+        // cast-anyway on an ineligible target (a LIVING Raise Dead / a
+        // NON-STONED Stone to Flesh) pays + reports "is cured" but performs
+        // NO revival/status mutation. Captured in beginHealService, read in
+        // applyHealEffect. Independent of hasCondition at apply-time (which
+        // could change after payment).
+        bool eligibleAtRequest;
 
         PaymentPlan()
             : serviceIndex(-1), cost(0), castAnyway(false),
-              funding(FUND_NONE) {}
+              funding(FUND_NONE), eligibleAtRequest(false) {}
     };
     PaymentPlan _payment;
+
+    // GB13-030 (Req 40.2): the Raise Dead Constitution-loss / HP-reduction
+    // arithmetic, factored out as a PURE function so the odd DOS byte math is
+    // unit-provable without a live dialog. Input is the ALREADY-lowered
+    // current Constitution (i.e. new current CON after the -1), the current
+    // HP max, the rolled HP and the eight base-class level entries. Output is
+    // the new HP max; CON is handled by the caller. Divisor-zero RETAINS the
+    // hpLoss (no reduction, no invented minimum-HP clamp). See the .cpp body
+    // for the documented DOS unsigned-byte wrap notes and the OPEN clamp item.
+    struct RaiseDeadResult {
+        uint8 newHpMax;
+    };
+    static RaiseDeadResult computeRaiseDeadResult(uint8 newCon, uint8 hpMax,
+        uint8 hpRolled, const uint8 *levels, int levelCount);
 
     // Resolve the funding source WITHOUT mutating balances. Current-character
     // funds if sufficient, ELSE pooled funds if sufficient, ELSE FUND_NONE.
