@@ -151,10 +151,11 @@ public:
 
 	/**
 	 * Selects the sound data file for a given "sound_version" config value:
-	 * "1.0" -> "sound-v10.dat"; "1.3", empty (default) and any other string
-	 * -> "sound.dat". When @p versionRecognized is non-null it is set false
-	 * for an unrecognized (non-empty, non-"1.0"/"1.3") value so the caller can
-	 * warn. Pure helper used by setup(); no engine state is touched.
+	 * "1.0" -> "poolrad10sound.dat"; "1.3", empty (default) and any other
+	 * string -> "poolrad13sound.dat". When @p versionRecognized is non-null
+	 * it is set false for an unrecognized (non-empty, non-"1.0"/"1.3") value
+	 * so the caller can warn. Pure helper used by setup(); no engine state is
+	 * touched.
 	 */
 	static const char *soundVersionDataFile(const Common::String &version,
 			bool *versionRecognized = nullptr);

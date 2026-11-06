@@ -46,9 +46,9 @@ enum SoundMode {
  *
  * A port of the original DOS driver: a 236.7 Hz timer interrupt runs a
  * bytecode sequencer over 4 channels, whose state lives in the original
- * sound data segment (loaded from sound.dat). The result is
- * sent to an emulated PIT channel 2 / PC speaker gate or to an emulated
- * SN76496 compatible chip at register level.
+ * sound data segment (loaded from poolrad13sound.dat or poolrad10sound.dat).
+ * The result is sent to an emulated PIT channel 2 / PC speaker gate or to an
+ * emulated SN76496 compatible chip at register level.
  */
 class GoldboxSoundDriver : public Audio::AudioStream {
 public:
@@ -56,7 +56,7 @@ public:
     ~GoldboxSoundDriver() override;
 
     /**
-     * Load the sound data segment from a sound.dat file and start the
+     * Load the sound data segment from a sound data file and start the
      * output stream. Initializes like the original SetSound startup.
      * @return false if the sound data could not be loaded
      */

@@ -107,10 +107,10 @@ GoldboxOptionsWidget::GoldboxOptionsWidget(GUI::GuiObject *boss,
         _("Sound data version:"));
     new GUI::RadiobuttonWidget(widgetsBoss(), _dialogLayout + ".v13",
         &_soundVersionGroup, 13, _("v1.3"),
-        _("Use the original v1.3 sounds from sound.dat"));
+        _("Use the original v1.3 sounds from poolrad13sound.dat"));
     new GUI::RadiobuttonWidget(widgetsBoss(), _dialogLayout + ".v10",
         &_soundVersionGroup, 10, _("v1.0"),
-        _("Use the original v1.0 sounds from sound-v10.dat"));
+        _("Use the original v1.0 sounds from poolrad10sound.dat"));
 }
 
 void GoldboxOptionsWidget::load() {

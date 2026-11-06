@@ -79,12 +79,12 @@ const char *Engine::soundVersionDataFile(const Common::String &version,
 	if (version == "1.0") {
 		if (versionRecognized)
 			*versionRecognized = true;
-		return "sound-v10.dat";
+		return "poolrad10sound.dat";
 	}
 	// "1.3", empty (default) and any other value fall back to v1.3 data.
 	if (versionRecognized)
 		*versionRecognized = version.empty() || version == "1.3";
-	return "sound.dat";
+	return "poolrad13sound.dat";
 }
 
 void Engine::setup() {

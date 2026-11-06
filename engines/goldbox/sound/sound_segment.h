@@ -31,7 +31,7 @@ namespace Goldbox {
 
 /**
  * Addresses (segment-relative offsets) of the sound driver tables and
- * channel banks, as stored in the sound.dat header.
+ * channel banks, as stored in the sound data file header.
  */
 struct SoundSegmentLayout {
     uint16 speakerFreq;     ///< ARRAY_SPEAKER_FREQ_BASE (PIT divisors)
@@ -65,7 +65,8 @@ struct SoundSegmentLayout {
  * The original DOS sound driver data segment.
  *
  * The driver's data segment (sound tables, waveforms, envelopes, command
- * streams and channel banks) is loaded from sound.dat, which is built by
+ * streams and channel banks) is loaded from poolrad13sound.dat or
+ * poolrad10sound.dat, which are built by
  * devtools/create_goldbox/poolrad/create_sound_dat.py. Data is kept as a
  * flat 64 KB image at its original offsets so that all near pointers used
  * by the original driver resolve directly as offsets into it.
@@ -77,13 +78,13 @@ public:
     SoundSegment();
 
     /**
-     * Load the sound segment from a sound.dat file.
+     * Load the sound segment from a sound data file.
      * @return true on success
      */
     bool loadFromFile(const Common::Path &fileName);
 
     /**
-     * Load the sound segment from a stream with sound.dat contents.
+     * Load the sound segment from a stream with sound data file contents.
      * @param name  name used in warnings
      * @return true on success
      */
