@@ -30,6 +30,7 @@
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/views/dialogs/in_game_main_screen_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
+#include "goldbox/poolrad/wilderness_map.h"
 #include "goldbox/runtime/runtime_exchange.h"
 
 namespace Goldbox {
@@ -43,14 +44,6 @@ namespace Dialogs {
 static const int kWildernessMapXOffsets[8] = {
 	0, 0, 0, 13, 26, 0, 0, 0
 };
-
-static int clampInt(int v, int lo, int hi) {
-	if (v < lo)
-		return lo;
-	if (v > hi)
-		return hi;
-	return v;
-}
 
 InGameMainScreenDialog::InGameMainScreenDialog(const Common::String &name)
 	: Dialog(name) {
@@ -85,77 +78,114 @@ uint8 InGameMainScreenDialog::effectiveMapTypeFromRuntime() const {
 	return mapType;
 }
 
-void InGameMainScreenDialog::drawWildernessAreaBlock(Surface &s, uint8 anchorX,
-		uint8 anchorY) {
-	// Original MAP_DrawAreaMapBlock draws 5x5 cells as 3x3 tiles in the left
-	// panel. Here we keep that geometry and paint a deterministic fallback until
-	// terrain-tile lookup tables are promoted into typed runtime data.
-	const int originX = 3 * 8 + 1;
-	const int originY = 3 * 8 + 1;
-	const int cellSize = 3;
+// GB13-024: host quest predicate for the nine-case site resolver. The exact
+// per-site quest flags have no confirmed VM field (OPEN), so every condition
+// reports NOT met: no override substitutes and every matched site stays
+// baseline until the flags are traced. The resolver is read-only regardless.
+namespace {
+class HostSiteQuestPredicate : public WildernessMap::QuestPredicate {
+public:
+	bool questConditionMet(int siteIndex) override {
+		(void)siteIndex;
+		return false;
+	}
+};
+} // namespace
 
-	for (int row = 0; row < 5; ++row) {
-		for (int col = 0; col < 5; ++col) {
-			const int px = originX + col * cellSize;
-			const int py = originY + row * cellSize;
-			const uint32 color = ((row + col) & 1) ? 8 : 1;
-			s.fillRect(Common::Rect(px, py, px + cellSize, py + cellSize), color);
+void InGameMainScreenDialog::ensureWildernessTilesLoaded() {
+	if (_wildernessTiles.isLoaded())
+		return;
+	if (!::Goldbox::Poolrad::g_engine)
+		return;
+	// WILDCOM 0-33 -> slots 0..33, RANDCOM 0-5 -> slots 34..39, mirroring
+	// CombatTileCache::loadWilderness used by the combat viewport.
+	_wildernessTiles.loadWilderness(
+		::Goldbox::Poolrad::g_engine->getDaxWildcom(),
+		::Goldbox::Poolrad::g_engine->getDaxRandcom());
+}
+
+void InGameMainScreenDialog::drawWildernessAreaBlock(Surface &s,
+		int originAtlasX, int originAtlasY) {
+	// GB13-024 (Req 39.1): the real MAP_DrawAreaMapBlock geometry. A 5x5
+	// canonical window of 24x24 terrain tiles, each spaced by three 8-pixel
+	// character cells, from the (3,3) char-cell origin. Cell terrain ids come
+	// from the shared atlas grid seam; the subtract-one-once id->tile-slot rule
+	// lives in WildernessMap::idToTileSlot (we do NOT subtract again here). The
+	// window origin is clamped to x 0..39 / y 0..31 inside buildWindow.
+	//
+	// NOTE: the 44x36 terrain grid DATA is OPEN (WildernessAtlas returns 0 for
+	// every cell until it lands), so today every cell resolves to id 0 ==
+	// baseline/empty and draws the empty-cell fill. The geometry, the atlas
+	// read seam and the subtract-one path are all live; only the data is
+	// pending.
+	ensureWildernessTilesLoaded();
+
+	WildernessMap::AtlasGridReader grid;
+	HostSiteQuestPredicate quest;
+	const WildernessMap::Window window =
+		WildernessMap::buildWindow(originAtlasX, originAtlasY, grid, quest);
+
+	const int originPxX = WildernessMap::kCharCellsPerTile
+		* WildernessMap::kCharCell; // 3 char cells -> 24 px
+	const int originPxY = WildernessMap::kCharCellsPerTile
+		* WildernessMap::kCharCell;
+	const int step = WildernessMap::kCellPixels; // 24 px per cell
+
+	for (int row = 0; row < WildernessMap::kWindowCells; ++row) {
+		for (int col = 0; col < WildernessMap::kWindowCells; ++col) {
+			const WildernessMap::WindowCell &cell = window.at(row, col);
+			const int px = originPxX + col * step;
+			const int py = originPxY + row * step;
+
+			const ::Goldbox::Gfx::Pic *tile = (cell.tileSlot >= 0)
+				? _wildernessTiles.getTile(static_cast<uint8>(cell.tileSlot))
+				: nullptr;
+
+			if (tile) {
+				// tileSlot is ALREADY the subtract-one result; draw it as-is.
+				tile->draw(&s, px, py);
+			} else {
+				// Baseline/empty cell (id 0, out of range, or tile missing).
+				s.fillRect(Common::Rect(px, py, px + step, py + step), 0);
+			}
 		}
 	}
-
-	// Center marker (party position in the 5x5 area window).
-	const int markX = originX + 2 * cellSize;
-	const int markY = originY + 2 * cellSize;
-	s.fillRect(Common::Rect(markX, markY, markX + cellSize, markY + cellSize),
-		15);
-
-	const Common::String anchorStr = Common::String::format("%u,%u",
-		(unsigned)anchorX, (unsigned)anchorY);
-	s.writeStringC(3, 16, 10, anchorStr);
 }
 
 void InGameMainScreenDialog::drawWildernessPositionMarker(Surface &s,
-		uint8 mapType, uint8 wildernessX, uint8 wildernessY) {
-	const int type = (int)mapType;
-	const int xOffset = (type >= 0 && type < 8)
-		? kWildernessMapXOffsets[type]
-		: 0;
-	const int shiftedX = xOffset + (int)wildernessX;
+		int prospectiveOriginX, int prospectiveOriginY, int partyAtlasX,
+		int partyAtlasY) {
+	// GB13-024 (Req 39.4): the marker cell is computed INDEPENDENTLY of the
+	// viewport-origin clamp (WildernessMap::markerCell clamps the origin but
+	// not the party cell), so it drifts toward the window edge at map borders
+	// instead of staying pinned to the centre. Render only; no movement/quest/
+	// RNG mutation. The 6-frame pulse is PRESENTATION state.
+	const WildernessMap::MarkerCell marker = WildernessMap::markerCell(
+		prospectiveOriginX, prospectiveOriginY, partyAtlasX, partyAtlasY);
 
-	// GFX_update3D bucketing:
-	//   xBucket: <2 => raw, 2..41 => 2, 42 => 3, >=43 => 4
-	int xBucket = shiftedX;
-	if (xBucket > 1) {
-		if (xBucket < 42)
-			xBucket = 2;
-		else if (xBucket < 43)
-			xBucket = 3;
-		else
-			xBucket = 4;
-	}
-
-	// yBucket: <2 => raw, 2..33 => 2, 34 => 3, >=35 => 4
-	int yBucket = (int)wildernessY;
-	if (yBucket < 2)
-		yBucket = (int)wildernessY;
-	else if (yBucket < 34)
-		yBucket = 2;
-	else if (yBucket < 35)
-		yBucket = 3;
-	else
-		yBucket = 4;
-
-	// Left panel 5x5 block uses 3x3 pixels per cell from (3,3) char origin.
-	const int originX = 3 * 8 + 1;
-	const int originY = 3 * 8 + 1;
-	const int px = originX + clampInt(xBucket, 0, 4) * 3;
-	const int py = originY + clampInt(yBucket, 0, 4) * 3;
-
-	// Simple 6-frame pulse marker (legacy had a 6-step animated position tile).
+	// Advance the pulse frame regardless so the animation keeps cycling even
+	// when the marker is momentarily off-window.
 	const uint32 markerColor = (_wildernessAnimFrame < 3) ? 15 : 14;
-	s.fillRect(Common::Rect(px, py, px + 3, py + 3), markerColor);
-
 	_wildernessAnimFrame = static_cast<uint8>((_wildernessAnimFrame + 1) % 6);
+
+	if (!marker.visible)
+		return;
+
+	const int originPxX = WildernessMap::kCharCellsPerTile
+		* WildernessMap::kCharCell;
+	const int originPxY = WildernessMap::kCharCellsPerTile
+		* WildernessMap::kCharCell;
+	const int step = WildernessMap::kCellPixels;
+	const int px = originPxX + marker.col * step;
+	const int py = originPxY + marker.row * step;
+
+	// Outline the marker cell (24x24) so it reads over the terrain tile.
+	s.fillRect(Common::Rect(px, py, px + step, py + 2), markerColor);
+	s.fillRect(Common::Rect(px, py + step - 2, px + step, py + step),
+		markerColor);
+	s.fillRect(Common::Rect(px, py, px + 2, py + step), markerColor);
+	s.fillRect(Common::Rect(px + step - 2, py, px + step, py + step),
+		markerColor);
 }
 
 void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
@@ -324,12 +354,21 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 			? kWildernessMapXOffsets[mapType]
 			: 0;
 
-		const uint8 anchorX = (uint8)clampInt(wildX + xOffset - 2, 0, 39);
-		const uint8 anchorY = (uint8)clampInt(wildY - 2, 0, 31);
-		drawWildernessAreaBlock(s, anchorX, anchorY);
-		drawWildernessPositionMarker(s, effectiveType,
-			(uint8)clampInt(wildX, 0, 255),
-			(uint8)clampInt(wildY, 0, 255));
+		// Party atlas cell = local wilderness pos + region x-offset (0/13/26).
+		const int partyAtlasX = wildX + xOffset;
+		const int partyAtlasY = wildY;
+
+		// Prospective 5x5 window origin centres the party (col/row 2). The
+		// origin is clamped to x 0..39 / y 0..31 inside buildWindow /
+		// markerCell; the two are computed INDEPENDENTLY (GB13-024 Req 39.1 /
+		// 39.4) so the clamp shifts the terrain window without pinning the
+		// marker to the centre at map borders.
+		const int prospectiveOriginX = partyAtlasX - 2;
+		const int prospectiveOriginY = partyAtlasY - 2;
+
+		drawWildernessAreaBlock(s, prospectiveOriginX, prospectiveOriginY);
+		drawWildernessPositionMarker(s, prospectiveOriginX, prospectiveOriginY,
+			partyAtlasX, partyAtlasY);
 	}
 }
 

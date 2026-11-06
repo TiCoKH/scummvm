@@ -41,6 +41,8 @@
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/poolrad/rest_operation.h"
 #include "goldbox/poolrad/wilderness_travel.h"
+#include "goldbox/poolrad/wilderness_map.h"
+#include "goldbox/poolrad/wilderness_atlas.h"
 #include "goldbox/poolrad/spell_preparation.h"
 #include "goldbox/poolrad/program_services.h"
 #include "goldbox/core/direction.h"
@@ -61,6 +63,49 @@ static char toUpperAscii(char c) {
 		return static_cast<char>(c - ('a' - 'A'));
 	return c;
 }
+
+// GB13-024: host binding for the YarashComplete one-time world-state op. The
+// persistent pyramid-left/river-open flag is the engine-side mirror
+// (LegacySharedRuntimeState::boolYarashPyramidLeft) passed by reference so the
+// once-only guard and the river gate share ONE source. The mission byte comes
+// from VM memory.
+//
+// OPEN (trace-gated): the mission VM address and the pyramid-left VM bit are
+// unknown and NOT guessed. mission() reports the kMissionYarashComplete
+// sentinel from the persistent mirror until the mission field is traced, so
+// the confirmable once-only STRUCTURE is exercised end to end without an
+// invented address; bind mission()/the flag to the real VM world-state once
+// confirmed.
+class HostYarashWorldState : public WildernessMap::WorldState {
+public:
+	HostYarashWorldState(ECL::AddressSpace &mem, ECL::EclLayoutAccess layout,
+			bool &persistentPyramidLeft)
+		: _mem(mem), _layout(layout),
+		  _pyramidLeft(persistentPyramidLeft) {
+		(void)_mem;
+		(void)_layout;
+	}
+
+	uint8 mission() override {
+		// OPEN: no confirmed mission VM field. Report the central-region
+		// YarashComplete sentinel so the gate STRUCTURE runs; replace with the
+		// confirmed mission read once traced.
+		return WildernessMap::kMissionYarashComplete;
+	}
+
+	bool yarashPyramidLeft() override {
+		return _pyramidLeft;
+	}
+
+	void setYarashPyramidLeft(bool open) override {
+		_pyramidLeft = open;
+	}
+
+private:
+	ECL::AddressSpace &_mem;
+	ECL::EclLayoutAccess _layout;
+	bool &_pyramidLeft;
+};
 
 static const Goldbox::TimeFieldAddresses kPoolradClockAddrs = {{
 	0x49C5, // units
@@ -1330,6 +1375,22 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	_location.wildernessPos = snapshot.wildernessPos;
 	_location.indoorRender = snapshot.indoorMode;
 
+	// GB13-024 (Req 39.4): YarashComplete one-time world change at the
+	// NewEclDone CENTRAL-REGION gate. Runs ONCE when (mission == 254 AND
+	// pyramid-left == 0), opening the river by flipping the persistent
+	// pyramid-left flag. Guarded by that same persistent flag so it is
+	// idempotent across redraw and survives service/battle return and
+	// save/load. This does NOT change the GB13-021 location classification
+	// above - it only consults the already-classified kind and the persistent
+	// world-state, then mutates the one-time flag. The exact mission=254 field
+	// and river-open bit are OPEN; the once-only STRUCTURE is driven through
+	// the HostYarashWorldState predicates, never a guessed address.
+	if (_location.kind == LocationKind::WildernessCentral) {
+		HostYarashWorldState yarashWorld(mem, layout,
+			_legacySharedState.boolYarashPyramidLeft);
+		WildernessMap::runYarashComplete(yarashWorld);
+	}
+
 	if (_location.isWilderness())
 		_legacySharedState.byteGameState = GS_WILDERNESS_MAP;
 	else
@@ -1678,18 +1739,18 @@ namespace {
 // GB13-023: host implementation of the wilderness-travel side effects. The
 // pure rules (clamp 0..15/0..35, region 0/13/26 atlas offset, block/river id
 // sets, 12h-on-permitted-including-clamped-noop, no-time-on-blocked) live in
-// WildernessTravel; this seam forwards them onto the engine. Three items stay
-// documented OPEN (trace-gated), each flagged below:
-//   * readAtlasTerrain: no typed 44x36 wilderness terrain-id read path exists
-//     yet (the area-map cache is a 16x16 dungeon surface; the overworld
-//     terrain table is "not promoted into typed runtime data" per
-//     in_game_main_screen_dialog.cpp). Until it lands this returns a
-//     documented passable default so the confirmable rules still drive end to
-//     end; the bounds-validated (atlasX,atlasY) is computed correctly.
-//   * yarashPyramidLeft: no named VM field exists for the Yarash "pyramid
-//     left" quest flag. The gate is a single well-named predicate fed by the
-//     confirmable world-state byte once its address is confirmed; until then
-//     it reports closed (rivers blocked), never an arbitrary guessed address.
+// WildernessTravel; this seam forwards them onto the engine. The two formerly
+// stubbed seams now read the SHARED sources GB13-024 introduced:
+//   * readAtlasTerrain: reads WildernessAtlas::terrainIdAt - the SAME 44x36
+//     grid seam the wilderness DRAWING module (WildernessMap) reads, so both
+//     share one source. The grid DATA itself is still OPEN (the seam returns 0
+//     for every cell until the confirmed 44x36 grid lands), which keeps the
+//     bounds-validated travel path passable end to end as before.
+//   * yarashPyramidLeft: reads the SAME persistent pyramid-left/river-open
+//     world-state flag the YarashComplete op sets
+//     (LegacySharedRuntimeState::boolYarashPyramidLeft), so completing Yarash
+//     opens the river for this travel gate too. The exact VM address remains
+//     OPEN; this is the engine-side mirror, not a guessed address.
 //   * runScriptTransitions: the exact wilderness ONMOVE/clock/ONSEARCH order
 //     is documented OPEN; the permitted-move commit + 12h advance happen
 //     first, then the transition hook runs.
@@ -1701,9 +1762,11 @@ public:
 			Common::List<Goldbox::Data::PlayerCharacter *> &party,
 			Goldbox::Data::Effects::EffectHandlerBase *handler,
 			Goldbox::GameState gameState,
-			LocationContext &location)
+			LocationContext &location,
+			bool yarashPyramidLeft)
 		: _mem(mem), _layout(layout), _clockAddrs(clockAddrs), _party(party),
-		  _handler(handler), _gameState(gameState), _location(location) {}
+		  _handler(handler), _gameState(gameState), _location(location),
+		  _yarashPyramidLeft(yarashPyramidLeft) {}
 
 	void currentLocal(int &localX, int &localY) override {
 		localX = (int)_mem.read8(_layout.vmField(kVmFieldWildernessX).vmAddr);
@@ -1718,20 +1781,20 @@ public:
 	}
 
 	bool yarashPyramidLeft() override {
-		// OPEN (trace-gated): the Yarash "pyramid left" quest flag has no
-		// named VM field. Report closed until the confirmable world-state
-		// byte/address is wired here; do NOT guess an address.
-		return false;
+		// Reads the SAME persistent pyramid-left/river-open flag the
+		// YarashComplete op sets (passed in from
+		// LegacySharedRuntimeState::boolYarashPyramidLeft). OPEN: the confirmed
+		// VM address of the bit is unknown; this is the engine-side mirror, not
+		// a guessed address. Completing Yarash opens the river for this gate.
+		return _yarashPyramidLeft;
 	}
 
 	uint8 readAtlasTerrain(int atlasX, int atlasY) override {
-		// OPEN (trace-gated): no typed 44x36 overworld terrain-id read path
-		// exists yet. Return a documented passable default (0) so the atlas
-		// bounds-validation and the confirmable travel rules drive end to end;
-		// replace with the real WildCom/area-map terrain read once promoted.
-		(void)atlasX;
-		(void)atlasY;
-		return 0;
+		// Reads the SHARED 44x36 grid seam (WildernessAtlas) the drawing module
+		// reads too. OPEN: the grid DATA is not yet populated, so this returns
+		// 0 (baseline/empty => passable) for every in-range cell until the
+		// confirmed grid lands; the bounds-validated (atlasX,atlasY) is honored.
+		return WildernessAtlas::terrainIdAt(atlasX, atlasY);
 	}
 
 	void commitLocal(int localX, int localY) override {
@@ -1771,6 +1834,7 @@ private:
 	Goldbox::Data::Effects::EffectHandlerBase *_handler;
 	Goldbox::GameState _gameState;
 	LocationContext &_location;
+	bool _yarashPyramidLeft;
 };
 
 } // namespace
@@ -1828,7 +1892,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 		}
 
 		HostWildernessEnvironment wildEnv(mem, layout, kPoolradClockAddrs,
-			_party, effectsRuntime(), getGameState(), _location);
+			_party, effectsRuntime(), getGameState(), _location,
+			_legacySharedState.boolYarashPyramidLeft);
 		WildernessTravel travel;
 		const WildernessTravel::Compass dir = inGameView->getTravelDir();
 		travel.step(wildEnv, dir);

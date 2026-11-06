@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_IN_GAME_MAIN_SCREEN_DIALOG_H
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
+#include "goldbox/gfx/combat_tile_cache.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -45,11 +46,20 @@ private:
 	DrawMode _mode = kModeNone;
 	uint8 _wildernessAnimFrame = 0;
 
+	// GB13-024: WILDCOM terrain-tile cache for the 5x5/24x24 map window.
+	// Loaded lazily (WILDCOM 0-33 + RANDCOM 0-5) the first time the
+	// wilderness map is drawn; shared across redraws.
+	::Goldbox::Gfx::CombatTileCache _wildernessTiles;
+
 	uint8 effectiveMapTypeFromRuntime() const;
 	void drawMap3dIfNeeded(Surface &s);
-	void drawWildernessAreaBlock(Surface &s, uint8 anchorX, uint8 anchorY);
-	void drawWildernessPositionMarker(Surface &s, uint8 mapType,
-		uint8 wildernessX, uint8 wildernessY);
+	// origin*: clamped 5x5 map-window origin in ATLAS coordinates (already
+	// region-offset). party*: the party's atlas cell (unclamped), for the
+	// independently-computed marker.
+	void drawWildernessAreaBlock(Surface &s, int originAtlasX, int originAtlasY);
+	void drawWildernessPositionMarker(Surface &s, int prospectiveOriginX,
+		int prospectiveOriginY, int partyAtlasX, int partyAtlasY);
+	void ensureWildernessTilesLoaded();
 
 public:
 	InGameMainScreenDialog(const Common::String &name = "InGameMainScreen");

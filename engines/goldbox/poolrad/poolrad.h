@@ -113,6 +113,20 @@ private:
 		bool boolSuspendFlag = false;
 		bool bool3dRedraw = true;
 		bool boolPictureReady = false;
+
+		// GB13-024: PERSISTENT Yarash "pyramid left" / river-open world-state
+		// flag (NOT a transient view flag). false == river closed; true ==
+		// river open after YarashComplete. This is the SAME gate GB13-023's
+		// river check reads, and the once-only guard the YarashComplete op
+		// checks, so completing Yarash OPENS the river and a redraw / re-entry
+		// is idempotent.
+		//
+		// OPEN (trace-gated): the confirmed VM address of the pyramid-left bit
+		// is unknown. This engine-side mirror drives the confirmable once-only
+		// STRUCTURE; once the VM world-state byte/bit is traced, bind this to
+		// it (and the legacy save path, which serializes VM memory, carries it
+		// across save/load). Do NOT guess the address here.
+		bool boolYarashPyramidLeft = false;
 	};
 
 	LegacySharedRuntimeState _legacySharedState;

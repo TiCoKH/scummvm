@@ -112,6 +112,8 @@ MODULE_OBJS = \
 	poolrad/training_rules.o \
 	poolrad/exploration_operation.o \
 	poolrad/wilderness_travel.o \
+	poolrad/wilderness_atlas.o \
+	poolrad/wilderness_map.o \
 	poolrad/program_services.o \
 	poolrad/native_save.o \
 	poolrad/console.o \
