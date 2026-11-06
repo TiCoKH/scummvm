@@ -275,6 +275,31 @@ public:
 	 */
 	bool runRest();
 
+	/**
+	 * GB13-007 (Requirement 31.1): host-owned PROGRAM service entry.
+	 *
+	 * The PROGRAM opcode (0x38) evaluates its id and the host
+	 * (PoolradEngineHostImpl::executeProgram) restores any temporary LOAD
+	 * CHARACTER selection, then routes here so the game-specific service runs
+	 * where the ECL VM / lifecycle signals (eclReady, suspended, shouldQuit)
+	 * live and ecl/ stays poolrad-free.
+	 *
+	 *   - PROGRAM 0  -> roster/training workflow, preserving the caller
+	 *                   LocationContext and restoring the interface on return.
+	 *   - PROGRAM 8  -> WinGame victory presentation, restoring the saved
+	 *                   interface state afterward (NOT VM_HALTED, NOT a generic
+	 *                   game-over view).
+	 *   - PROGRAM 9  -> EnterCamp: ONREST -> camp -> optional ONRESTINTR, then
+	 *                   restore the saved instruction position and EXIT,
+	 *                   including nested camp interruption and NEW ECL (a NEW
+	 *                   ECL during camp replaces the script; the obsolete saved
+	 *                   PC is NOT resumed).
+	 *
+	 * Quit, a NEW ECL replacing the script, and a missing service resource all
+	 * unwind without resuming an obsolete script and never delete the party.
+	 */
+	VmResult runProgramService(uint8 programID);
+
 	RuntimeExchange *getRuntimeExchange() override;
 	const RuntimeExchange *getRuntimeExchange() const override;
 	const LegacySharedRuntimeState &getLegacySharedRuntimeState() const {

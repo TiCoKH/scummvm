@@ -50,6 +50,7 @@
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/runtime/treasure_pool.h"
 #include "goldbox/poolrad/post_combat.h"
+#include "goldbox/poolrad/program_services.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_input.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
@@ -1443,6 +1444,43 @@ VmResult PoolradEngineHostImpl::refreshViewport() {
     return VM_OK;
 }
 
+VmResult PoolradEngineHostImpl::executeProgram(uint8 programID) {
+    // GB13-007 (Requirement 31.1): host-owned PROGRAM dispatch. The ecl/ layer
+    // (handle_0x38_PROGRAM) already evaluated the program id and routes it
+    // here through the EclEngineHost contract, so ecl/ stays poolrad-free.
+    Poolrad::PoolradEngine *poolEngine =
+        dynamic_cast<Poolrad::PoolradEngine *>(_engine);
+    if (!poolEngine)
+        return VM_ERROR;
+
+    // Restore any temporary LOAD CHARACTER selection BEFORE dispatch so the
+    // program runs against the REAL selected character (and selection is not
+    // silently reset to the party front). planProgramDispatch is the pure
+    // decision; the real selection is the engine's authoritative selection.
+    //
+    // OPEN (trace-gated): the SOURCE that holds the pre-program "real"
+    // selection separate from a transient LOAD CHARACTER selection
+    // (GB13-006/GB13-003) is not confirmed from the implementation package.
+    // Here the engine selection IS the real selection, so the plan is a no-op
+    // restore in the common case; once the temporary-selection source is
+    // wired, pass it as currentSelection and the real pointer as realSelection.
+    Goldbox::Data::PlayerCharacter *realSelection =
+        VmInterface::getSelectedCharacter();
+    Goldbox::Data::PlayerCharacter *currentSelection = realSelection;
+
+    const ProgramDispatchPlan plan = planProgramDispatch(
+        programID, realSelection, currentSelection);
+    if (plan.service == kServiceUnknown) {
+        warning("PoolradEngineHostImpl::executeProgram: unknown PROGRAM id %u",
+            (unsigned)programID);
+        return VM_ERROR;
+    }
+    if (plan.restoreSelectionBeforeDispatch)
+        VmInterface::setSelectedCharacter(realSelection);
+
+    return poolEngine->runProgramService(programID);
+}
+
 VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
     // 0x2D CALL target dispatcher (x86/m68k compatible IDs).
     // Note: 0x2C90 is handled by the opcode handler directly via
@@ -1455,20 +1493,104 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
 
     case 0x8000:
     case 0x8001: {
-        // SPECIAL_COMBAT_MODE on/off. Original behavior modifies a linked
-        // encounter list and may synthesize an extra enemy NPC entry.
-        // Current safe subset: toggle selected character ai_control/combatSide.
-        Poolrad::Data::PoolradCharacter *selected =
-            dynamic_cast<Poolrad::Data::PoolradCharacter *>(
-                VmInterface::getSelectedCharacter());
-        if (selected) {
-            if (callId == 0x8000) {
-                selected->ai_control = true;
-                selected->combatSide = Goldbox::Data::CS_PARTY;
-            } else {
-                selected->ai_control = false;
-                selected->combatSide = Goldbox::Data::CS_PARTY;
-            }
+        // GB13-007 (Requirement 31.2/31.3): CharFightsAlone duel.
+        // 0x8000 = mirror (the fighting character vs. a copy/mirror of
+        // itself); 0x8001 = nonmirror (vs. the designated opponent).
+        //
+        // The duel runs on a TEMPORARY, isolated roster. The real party and
+        // the real selected character are snapshotted and restored; the duel
+        // outcome is routed through DUEL-SPECIFIC settlement (settleDuelOutcome)
+        // so a lost mirror duel is NOT ordinary total-party-defeat: the
+        // temporary combat data is discarded and the REAL PARTY SURVIVES.
+        //
+        // OPEN (trace-gated): CharFightsAlone's exact temporary-roster
+        // construction and the mirror stat-copy (which PoolradCharacter fields
+        // the mirror duplicates, and the opponent source for the nonmirror
+        // case) are not confirmed from the implementation package. The
+        // confirmable structure is implemented here: snapshot/restore the real
+        // party + selection, isolate the duel at the pending-generation
+        // boundary, and settle through the real-party-preserving decision.
+        if (!_engine)
+            return VM_ERROR;
+
+        const bool mirror = (callId == 0x8000);
+
+        // Snapshot the real party (members + order) and the real selection so
+        // nothing the duel does can mutate them. We copy the live pointers;
+        // the duel roster is a SEPARATE temporary allocation that never aliases
+        // a real-party member, so cleanup frees only temporary members.
+        Common::List<Goldbox::Data::PlayerCharacter *> &party =
+            _engine->getParty();
+        Common::Array<Goldbox::Data::PlayerCharacter *> savedParty;
+        for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it =
+                party.begin(); it != party.end(); ++it)
+            savedParty.push_back(*it);
+        Goldbox::Data::PlayerCharacter *savedSelection =
+            VmInterface::getSelectedCharacter();
+
+        // Isolate the duel context: bump the pending-operation request
+        // generation (as startCombat does) so any stale completion minted in
+        // the duel context cannot later touch the real party.
+        _pendingOps.bumpGeneration();
+
+        // Build the temporary duel roster. Ownership is local: every temporary
+        // member is freed on EVERY return path below and a real-party member is
+        // never freed here.
+        Common::Array<Poolrad::Data::PoolradCharacter *> duelRoster;
+        bool duelWon = false;
+        bool duelResourceOk = true;
+
+        Goldbox::Data::PlayerCharacter *fighter =
+            VmInterface::getSelectedCharacter();
+        Poolrad::Data::PoolradCharacter *fighterPc =
+            dynamic_cast<Poolrad::Data::PoolradCharacter *>(fighter);
+        if (!fighterPc) {
+            // No eligible fighting character: a missing duel resource. Fail
+            // truthfully; the real party is untouched (nothing was built).
+            duelResourceOk = false;
+        } else {
+            // Mirror case constructs the opponent as a duplicate of the
+            // fighting character; nonmirror uses the designated opponent. The
+            // exact stat-copy/opponent source is OPEN, so no real-party member
+            // is mutated and the temporary roster stays empty until the
+            // CharFightsAlone construction is confirmed. The outcome is decided
+            // by the confirmable settlement, not by toggling control flags.
+            (void)mirror;
+            // OPEN: populate duelRoster with the temporary fighter/opponent
+            // copies here once CharFightsAlone construction is confirmed.
+            // duelWon is left false (conservative) until the live duel runs;
+            // settlement below preserves the real party regardless of outcome.
+        }
+
+        // Settle the duel through the DUEL-SPECIFIC decision. A lost mirror
+        // duel is NOT total-party-defeat; the real party survives either way.
+        const Poolrad::DuelSettlementDecision settle =
+            Poolrad::settleDuelOutcome(duelWon, mirror);
+
+        // Discard the temporary roster (free every temporary member). This
+        // never frees a real-party member because duelRoster holds only the
+        // local temporary copies.
+        if (settle.discardTemporaryRoster) {
+            for (uint i = 0; i < duelRoster.size(); ++i)
+                delete duelRoster[i];
+            duelRoster.clear();
+        }
+
+        // Restore the real party order and selection. settleDuelOutcome keeps
+        // realPartySurvives/restoreRealSelection true for every duel outcome.
+        if (settle.realPartySurvives) {
+            party.clear();
+            for (uint i = 0; i < savedParty.size(); ++i)
+                party.push_back(savedParty[i]);
+        }
+        if (settle.restoreRealSelection)
+            VmInterface::setSelectedCharacter(savedSelection);
+
+        if (!duelResourceOk) {
+            // Missing duel data: truthful failure, real party intact.
+            warning("PoolradEngineHostImpl::handleCallOpcode: duel 0x%04X has "
+                "no eligible fighting character (CharFightsAlone construction "
+                "is OPEN); real party preserved", (unsigned)callId);
         }
         return VM_OK;
     }

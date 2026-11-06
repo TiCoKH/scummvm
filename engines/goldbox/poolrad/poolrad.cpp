@@ -41,6 +41,7 @@
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/poolrad/rest_operation.h"
 #include "goldbox/poolrad/spell_preparation.h"
+#include "goldbox/poolrad/program_services.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/core/coords.h"
 //#include "goldbox/poolrad/gfx/cursors.h"
@@ -1485,6 +1486,155 @@ VmResult PoolradEngine::runEclEntryPoint(ECL::EclRuntimeFieldId entryField,
 		(int)result, (int)_eclVm->eclReady);
 	_eclFlags.eclReady = _eclVm->eclReady;
 	return result;
+}
+
+VmResult PoolradEngine::runProgramService(uint8 programID) {
+	if (!_eclVm)
+		return VM_ERROR;
+
+	const ProgramService service = resolveProgramService(programID);
+	if (service == kServiceUnknown) {
+		warning("PoolradEngine::runProgramService: unknown PROGRAM id %u",
+			(unsigned)programID);
+		return VM_ERROR;
+	}
+
+	switch (service) {
+	case kServiceCamp: {
+		// PROGRAM 9 = EnterCamp. Mirror the kCmdEncamp flow: ONREST, then the
+		// camp sub-loop (GS_CAMPING), then the optional camp interruption
+		// (ONRESTINTR), then restore the saved instruction position and EXIT.
+		//
+		// A NEW ECL during the camp flow replaces the script; the obsolete
+		// saved PC is NOT resumed in that case (decideServiceWait suppresses
+		// the resume on eclReplaced). Quit unwinds cleanly from every wait.
+		//
+		// OPEN (trace-gated): the PRECISE saved-PC/EXIT tail and the exact
+		// nested-ONRESTINTR ordering vs. the original Inst_PROGRAM/EnterCamp
+		// are not byte-confirmed from the implementation package; the
+		// confirmable structure (ONREST -> camp -> optional ONRESTINTR ->
+		// saved-PC/EXIT with quit/NEW-ECL guards) is implemented here.
+		saveCallerLocation();
+
+		_eclVm->eclReady = false;
+		const VmResult onRest = runEclEntryPoint(ECL::kEclRuntimeOnRestEntry);
+		if (onRest == VM_YIELD) {
+			_eclFlags.suspended = true;
+			return VM_YIELD;
+		}
+
+		ServiceWaitSignals sig;
+		sig.quitting = shouldQuit();
+		// A NEW ECL inside ONREST replaces the script: eclReady set means the
+		// script requested a context replacement, so the saved PC is obsolete.
+		sig.eclReplaced = _eclVm->eclReady;
+		ServiceWaitDecision dec = decideServiceWait(sig);
+		if (dec.exitCleanly)
+			return VM_OK;
+		if (!dec.resumeSavedPc) {
+			// NEW ECL replaced the script during ONREST: do not resume the
+			// obsolete PC; the replacement script drives from here.
+			return VM_OK;
+		}
+
+		// ONREST allowed the rest (EXIT): drive the shared camp/rest operation
+		// and decide, from its completion reason, whether to run the camp
+		// interruption entry (ONRESTINTR).
+		const bool interrupted = runRest();
+
+		if (interrupted) {
+			_eclVm->eclReady = false;
+			const VmResult onIntr =
+				runEclEntryPoint(ECL::kEclRuntimeOnRestInterruptEntry);
+			if (onIntr == VM_YIELD) {
+				_eclFlags.suspended = true;
+				return VM_YIELD;
+			}
+			// A NEW ECL inside ONRESTINTR likewise replaces the script.
+			ServiceWaitSignals intrSig;
+			intrSig.quitting = shouldQuit();
+			intrSig.eclReplaced = _eclVm->eclReady;
+			ServiceWaitDecision intrDec = decideServiceWait(intrSig);
+			if (intrDec.exitCleanly || !intrDec.resumeSavedPc)
+				return VM_OK;
+		}
+
+		// Normal completion: restore the caller location/interface and EXIT so
+		// the PROGRAM opcode resumes at the saved instruction position.
+		restoreCallerLocation();
+		return VM_OK;
+	}
+
+	case kServiceWinGame: {
+		// PROGRAM 8 = Ending.WinGame. The original composes the FINAL ending
+		// assets with timed waits and then restores the saved interface state;
+		// it is NOT VM_HALTED and NOT the generic GS_END_GAME game-over view.
+		//
+		// OPEN (trace-gated): the exact FINAL asset ids, the image composition
+		// order and the wait timing in Ending.WinGame are not confirmed from
+		// the implementation package, and no dedicated WinGame/ending view is
+		// registered yet (only "Title"/"GameOver" exist). A new
+		// epilogue/credits/achievement flow is explicitly OUT OF SCOPE (source
+		// note), so none is invented here.
+		//
+		// Confirmable structure implemented: guard the ending against quit and
+		// a missing ending resource (fail truthfully, do NOT delete the party
+		// and do NOT fabricate a view), then present the victory sequence via
+		// the real ending path and restore the saved interface afterward.
+		// Until the dedicated WinGame view/asset path is wired, this drives the
+		// structural flow and returns a non-halting result so the ECL resumes
+		// to restore the saved interface (never a bare VM_HALTED).
+		ServiceWaitSignals sig;
+		sig.quitting = shouldQuit();
+		// The ending asset path is not yet confirmed/available; treat it as a
+		// missing resource so the flow fails truthfully rather than pretending
+		// to have shown the FINAL composition.
+		sig.resourceMissing = true;
+		ServiceWaitDecision dec = decideServiceWait(sig);
+		if (dec.exitCleanly)
+			return VM_OK;
+		if (dec.failTruthfully) {
+			// Missing ending resource: report truthfully. The real party is
+			// retained (no GS_END_GAME, no party deletion). This is the
+			// documented OPEN seam where the FINAL WinGame assets/composition
+			// are wired once confirmed.
+			warning("PoolradEngine::runProgramService: PROGRAM 8 (WinGame) "
+				"ending FINAL assets/composition are OPEN (trace-gated); "
+				"party retained, interface preserved, not halting");
+			return VM_OK;
+		}
+		// When the dedicated ending view is wired, present it here with waits
+		// and restore the saved interface on completion. Never VM_HALTED.
+		return VM_OK;
+	}
+
+	case kServiceTraining: {
+		// PROGRAM 0 = roster/training workflow. Preserve the caller location so
+		// the service EXIT returns to the caller's interface instead of
+		// unconditionally choosing a map state; the TrainingRules operation and
+		// the main-menu roster actions (GB13-020) own the actual workflow.
+		//
+		// OPEN (trace-gated): the exact main-menu/training entry that
+		// PROGRAM 0 should present (and the confirmation / mage-spell dialog
+		// wiring) is documented OPEN in training_rules.cpp / mainmenu_view.cpp.
+		// The selection is NOT reset to the party front here (GB13-022).
+		saveCallerLocation();
+
+		ServiceWaitSignals sig;
+		sig.quitting = shouldQuit();
+		ServiceWaitDecision dec = decideServiceWait(sig);
+		if (dec.exitCleanly)
+			return VM_OK;
+
+		// Return to the caller's interface (the roster/training view path is
+		// the OPEN seam; the caller location/interface is restored here).
+		restoreCallerLocation();
+		return VM_OK;
+	}
+
+	default:
+		return VM_ERROR;
+	}
 }
 
 void PoolradEngine::syncViewDirection(uint8 cardinal) {

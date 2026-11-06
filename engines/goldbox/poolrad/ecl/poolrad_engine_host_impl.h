@@ -123,6 +123,7 @@ public:
     VmResult beginSelectPartyMemberAsync(
         const Common::String &message) override;
     VmResult handleCallOpcode(uint16 callId) override;
+    VmResult executeProgram(uint8 programID) override;
     VmResult readGeoAtPosition() override;
     VmResult refreshViewport() override;
     VmResult beginDelay() override;
