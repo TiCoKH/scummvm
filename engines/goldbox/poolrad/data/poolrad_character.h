@@ -56,7 +56,7 @@ public:
     uint8 undeadResistance = 0;
 
     uint8 monsterType = 0;
-    uint8 combatIcon = 0; // probably used in monsters
+    uint8 combatIcon = 0; // character record @0x0AB, per-PC icon index (GB13-034 B)
 
     // Modern spell book storage (runtime use)
     Goldbox::Data::Spells::SpellBook spellBook;

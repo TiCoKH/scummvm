@@ -343,7 +343,7 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 
 	armorClass.base = stream.readByte();          // 0x0A9
 	strengthBonusAllowed = stream.readByte();     // 0x0AA
-	combatIcon = stream.readByte();               // 0x0AB
+	combatIcon = stream.readByte();               // 0x0AB (confirmed combatIcon, GB13-034 B)
 
 	experiencePoints = stream.readUint32LE();     // 0x0AC-0x0AF
 
@@ -832,7 +832,15 @@ void PoolradCharacter::save(Common::WriteStream &stream) {
 
 	stream.writeByte(armorClass.base);
 	stream.writeByte(strengthBonusAllowed);
-	stream.writeByte(combatIcon);  //TODO: verify if combatIcon is saved here
+	// combatIcon @0x0AB. GB13-034 B: confirmed by byte reads across genuine
+	// DOS 1.3 fixtures (ALDIA/AVAS-DST/BAKSHI/BERGOS/CIRIK/DARKSTAR/SIRHECTO/
+	// TALLUS/CHRDATA1-3/CHRDATJ1). 0x0A9 (armorClass.base=50) and 0x0AA
+	// (strengthBonusAllowed=1) are constant across all PCs, while 0x0AB takes a
+	// distinct full-range value per character (e.g. 84, 25, 179, 227, 66, 85,
+	// 20, 53) even when monsterType@0x9F is 0 - matching the random 0..255 icon
+	// index set in initializeNewCharacter(). So 0x0AB is combatIcon; the byte
+	// is saved here. (See poolrad_legacy_layout.h kCharCombatIcon.)
+	stream.writeByte(combatIcon);
 
 	stream.writeUint32LE(experiencePoints);
 
