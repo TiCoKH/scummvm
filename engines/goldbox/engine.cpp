@@ -17,6 +17,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * Assisted-by: Claude:claude-opus-4.6
+ *
  */
 
 #include "goldbox/engine.h"
@@ -235,14 +237,24 @@ Common::List<Data::PlayerCharacter *> &Engine::getParty() {
 }
 
 Common::Error Engine::syncGame(Common::Serializer &s) {
-	// The Serializer has methods isLoading() and isSaving()
-	// if you need to specific steps; for example setting
-	// an array size after reading it's length, whereas
-	// for saving it would write the existing array's length
-	int dummy = 0;
-	s.syncAsUint32LE(dummy);
+	// GB13-033 24.2: route to the game-specific native serializer via the
+	// virtual seam. Game engines (PoolradEngine) override syncGameState() to
+	// drive their real versioned schema; the base default returns a clear
+	// error so games without a native serializer (e.g. Curse) fail honestly
+	// instead of silently accepting a dummy payload.
+	//
+	// This is distinct from the separate, working legacy DOS import/export
+	// path (PoolradEngine::saveGameSlotX86 / loadGameSlotX86).
+	return syncGameState(s);
+}
 
-	return Common::kNoError;
+Common::Error Engine::syncGameState(Common::Serializer &s) {
+	// Base default: no native serializer for this game. Reject rather than
+	// write/accept a placeholder payload. Flipping the whole engine family on
+	// is the single kNativeSaveImplemented switch (engine.h); the per-game
+	// serializer is wired through this override.
+	return Common::Error(Common::kWritingFailed,
+		"Goldbox: native save is not implemented for this game (GB13-033)");
 }
 
 void Engine::soundPlay(uint8 soundIndex) {

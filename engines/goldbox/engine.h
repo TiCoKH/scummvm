@@ -17,6 +17,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * Assisted-by: Claude:claude-opus-4.6
+ *
  */
 
 #ifndef GOLDBOX_ENGINE_H
@@ -27,6 +29,7 @@
 #include "common/list.h"
 #include "common/random.h"
 #include "common/serializer.h"
+#include "common/translation.h"
 #include "graphics/font.h"
 #include "engines/engine.h"
 #include "engines/savestate.h"
@@ -303,17 +306,51 @@ public:
 	 */
 	Common::Path resolveSavePath() const;
 
+	// GB13-033 containment seam: Engine::syncGame() is still a placeholder
+	// (see engine.cpp) and serializes no real game state. Until the native
+	// serializer lands in 24.2 (and load validation in 24.3) we must NOT
+	// advertise working native runtime save/load, otherwise a save that looks
+	// successful would silently discard the campaign. Flip this single
+	// constant to true once syncGame() stores/restores real state.
+	static const bool kNativeSaveImplemented = false;
+
+	// Pure, headless-testable capability decision. Native save/load is only
+	// allowed when the real serializer exists AND (in 24.3) the current
+	// context permits it. The contextAllows seam is reserved for the
+	// modal/combat/rest gating required by Requirement 30.3; for now the
+	// sentinel short-circuits it to false.
+	static bool nativeSaveAllowed(bool contextAllows = true) {
+		return kNativeSaveImplemented && contextAllows;
+	}
+
 	bool hasFeature(EngineFeature f) const override {
-		return
-			(f == kSupportsLoadingDuringRuntime) ||
-			(f == kSupportsSavingDuringRuntime) ||
-			(f == kSupportsReturnToLauncher);
+		// Only kSupportsReturnToLauncher is honest while the native serializer
+		// is a placeholder. Runtime save/load are re-enabled in 24.2 by
+		// flipping kNativeSaveImplemented.
+		if (f == kSupportsReturnToLauncher)
+			return true;
+		if (f == kSupportsSavingDuringRuntime || f == kSupportsLoadingDuringRuntime)
+			return kNativeSaveImplemented;
+		return false;
 	};
 
 	bool canLoadGameStateCurrently(Common::U32String *msg = nullptr) override {
+		if (!nativeSaveAllowed()) {
+			if (msg)
+				*msg = _("Loading is not yet supported in this engine.");
+			return false;
+		}
 		return true;
 	}
 	bool canSaveGameStateCurrently(Common::U32String *msg = nullptr) override {
+		// TODO(GB13-033 24.3): once kNativeSaveImplemented is true, pass a real
+		// context-allows predicate here so saving is disabled in modal/combat/
+		// rest contexts (Requirement 30.3) instead of being advertised.
+		if (!nativeSaveAllowed()) {
+			if (msg)
+				*msg = _("Saving is not yet supported in this engine.");
+			return false;
+		}
 		return true;
 	}
 
@@ -415,6 +452,18 @@ public:
 	 * loading and saving using a single method
 	 */
 	Common::Error syncGame(Common::Serializer &s);
+
+	/**
+	 * GB13-033 24.2 game-specific native serializer seam.
+	 *
+	 * syncGame() routes here so a game engine can drive its own versioned
+	 * native schema (load+save in one pass via Serializer::isLoading()/
+	 * isSaving()). The base default returns a clear error so an engine without
+	 * a native serializer (e.g. Curse) fails honestly instead of accepting a
+	 * placeholder payload. The base engine stays free of game-specific
+	 * includes; the Poolrad override lives in the poolrad/ layer.
+	 */
+	virtual Common::Error syncGameState(Common::Serializer &s);
 
 	Common::Error saveGameStream(Common::WriteStream *stream, bool isAutosave = false) override {
 		Common::Serializer s(nullptr, stream);

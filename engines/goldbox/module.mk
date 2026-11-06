@@ -110,6 +110,7 @@ MODULE_OBJS = \
 	poolrad/rest_operation.o \
 	poolrad/training_rules.o \
 	poolrad/exploration_operation.o \
+	poolrad/native_save.o \
 	poolrad/console.o \
 	poolrad/ecl/poolrad_engine_host_impl.o \
 	poolrad/ecl/poolrad_opcode_handlers.o \

@@ -17,6 +17,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * Assisted-by: Claude:claude-opus-4.6
+ *
  */
 
 #include "goldbox/metaengine.h"
@@ -200,6 +202,25 @@ Common::Error GoldboxMetaEngine::createInstance(OSystem *syst, Engine **engine, 
 }
 
 bool GoldboxMetaEngine::hasFeature(MetaEngineFeature f) const {
+	// GB13-033 containment: keep the metaengine's advertised capabilities
+	// consistent with the engine. The native serializer is still a placeholder
+	// (Engine::syncGame / Engine::kNativeSaveImplemented), so the extended-save
+	// features exposed by checkExtendedSaves (list/delete/metadata/thumbnail/
+	// creation-date/play-time) describe a working native save list the engine
+	// cannot back, and kSupportsLoadingDuringStartup would route a launcher
+	// load straight into the dummy serializer and blank the campaign. Advertise
+	// none of them until the native path exists (24.2/24.3); erring toward not
+	// advertising is the safe direction for Requirement 30.4.
+	//
+	// NOTE: the separate, working legacy DOS import/export path
+	// (PoolradEngine::saveGameSlotX86 / loadGameSlotX86) is unaffected; it is
+	// not the ScummVM native save and is not advertised through this feature
+	// set. OPEN (24.2): re-enable checkExtendedSaves(f) and
+	// kSupportsLoadingDuringStartup here once the native serializer and load
+	// validation land.
+	if (!Goldbox::Engine::kNativeSaveImplemented)
+		return false;
+
 	return checkExtendedSaves(f) ||
 		(f == kSupportsLoadingDuringStartup);
 }

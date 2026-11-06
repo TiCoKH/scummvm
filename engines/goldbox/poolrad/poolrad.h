@@ -209,6 +209,30 @@ public:
 	// placeholder - see Engine::kNativeSaveImplemented).
 	bool saveGameSlotX86(char slotLetter, Common::String &errorMessage);
 	bool loadGameSlotX86(char slotLetter, Common::String &errorMessage);
+
+	/**
+	 * GB13-033 24.2: native (ScummVM) save/load serializer override. Drives the
+	 * versioned NativeSave schema against this engine's authoritative state.
+	 * Distinct from the legacy DOS path above.
+	 */
+	Common::Error syncGameState(Common::Serializer &s) override;
+
+	/**
+	 * GB13-033 24.2 (Requirement 30.3): native save is only offered at a stable
+	 * save boundary. Routes through Engine::nativeSaveAllowed(context) so that
+	 * once kNativeSaveImplemented flips on (24.3), saving stays DISABLED in
+	 * unsupported combat/rest/modal contexts instead of being advertised.
+	 */
+	bool canSaveGameStateCurrently(Common::U32String *msg = nullptr) override;
+
+	/**
+	 * GB13-033 24.2 (Requirement 30.3): true only when the current context
+	 * supports a clean native save (stable dungeon/wilderness map state, VM not
+	 * suspended mid-script, no unresolved host request / pending transaction).
+	 * Feeds canSaveGameStateCurrently so saving is DISABLED, not advertised, in
+	 * unsupported combat/rest/modal contexts.
+	 */
+	bool isSaveBoundaryStable() const;
 	void setLegacyMenuStatus(uint8 status);
 	bool getDebugWallSetState(int slot, DebugWallSetState &state) const;
 	bool queueInGameCommand(Views::InGameView::InGameCommand cmd);

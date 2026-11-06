@@ -34,6 +34,7 @@
 #include "goldbox/poolrad/data/poolrad_rules_provider.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
+#include "goldbox/poolrad/native_save.h"
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
 #include "goldbox/game_factory.h"
 #include "goldbox/spells/spell_casting.h"
@@ -468,6 +469,45 @@ const ECL::AddressSpace *PoolradEngine::getEclMemory() const {
 	if (!_eclVm)
 		return nullptr;
 	return &_eclVm->getMemory();
+}
+
+bool PoolradEngine::isSaveBoundaryStable() const {
+	// Feed the live engine state into the pure, headless-testable predicate
+	// (GB13-033 24.2, Requirement 30.3). hasPendingTransaction is reserved for
+	// 24.3's transaction tracking; there is no half-applied-transaction signal
+	// to query yet, so it is left false (conservative: the other gates already
+	// exclude mid-operation states).
+	NativeSave::SaveBoundaryState st;
+	st.gameState = getGameState();
+	st.vmSuspended = _eclFlags.suspended;
+	st.hasPendingHostRequest =
+		(_eclHost && _eclHost->hasPendingAsync());
+	st.hasPendingTransaction = false;
+	return NativeSave::isSaveBoundaryStable(st);
+}
+
+Common::Error PoolradEngine::syncGameState(Common::Serializer &s) {
+	// GB13-033 24.2: drive the native versioned schema. Load validation,
+	// derived-state rebuild and the live-swap are 24.3; 24.2 captures/restores
+	// the authoritative state and rejects bad/legacy payloads clearly.
+	return NativeSave::sync(s, *this);
+}
+
+bool PoolradEngine::canSaveGameStateCurrently(Common::U32String *msg) {
+	// GB13-033 24.2 (Requirement 30.3): AND the engine-family sentinel with the
+	// live save-boundary predicate. While kNativeSaveImplemented is false this
+	// is always false (native save is not advertised); once 24.3 flips it on,
+	// saving is still DISABLED in combat/rest/modal/suspended contexts.
+	if (!nativeSaveAllowed(isSaveBoundaryStable())) {
+		if (msg) {
+			if (!kNativeSaveImplemented)
+				*msg = _("Saving is not yet supported in this engine.");
+			else
+				*msg = _("Saving is not available right now.");
+		}
+		return false;
+	}
+	return true;
 }
 
 Data::DaxBlockGeo *PoolradEngine::getGeoBlockById(uint8 mapId) {
