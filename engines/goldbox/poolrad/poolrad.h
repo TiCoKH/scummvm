@@ -139,6 +139,12 @@ private:
 			uint32 maxSteps = 1000000);
 	void dispatchPlayerCommand();
 
+	// GB13-022 (Req 28.4): restore the selection saved at the command loop
+	// boundary, but ONLY when that character is still in the party (stable-id
+	// style check) so a member removed mid-command is not stale-restored.
+	void restoreSelectionIfPresent(
+			::Goldbox::Data::PlayerCharacter *savedSelection);
+
 protected:
 	void setup() override;
 	bool initializeGameData() override;
@@ -196,6 +202,11 @@ public:
 	void initGameDefaults();
 	bool getActiveMapPosition(uint16 &x, uint16 &y, uint8 &dir) const;
 	uint8 getGameSpeed() const;
+	// Legacy DOS import/export path: reads/writes the original-format
+	// SAVGAM%c.DAT plus per-character .SAV/.ITM/.SPC companions. This is a
+	// separate, working path and is NOT the native ScummVM save (that native
+	// path is disabled for GB13-033 containment while Engine::syncGame is a
+	// placeholder - see Engine::kNativeSaveImplemented).
 	bool saveGameSlotX86(char slotLetter, Common::String &errorMessage);
 	bool loadGameSlotX86(char slotLetter, Common::String &errorMessage);
 	void setLegacyMenuStatus(uint8 status);

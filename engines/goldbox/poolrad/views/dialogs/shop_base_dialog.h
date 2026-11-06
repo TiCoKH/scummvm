@@ -26,6 +26,7 @@
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/poolrad/views/dialogs/shop_session.h"
 #include "goldbox/poolrad/views/dialogs/valuable_transfer_dialog.h"
 
 namespace Goldbox {
@@ -94,6 +95,34 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     void handleMenuResult(const MenuResultMessage &result) override;
 
+    // --- GB13-025 explicit session lifecycle ---
+
+    /**
+     * GENUINE session entry (ST_ENTER_SHOP). Captures the caller location and
+     * selected character, sets the service interface mode, and performs the
+     * once-on-entry reset (pool/coin/session flags) EXACTLY ONCE. The view's
+     * enterShop() calls this instead of activate() for a genuine entry.
+     */
+    void beginSession(const LocationContext &caller, uint16 selectedCharId);
+
+    /**
+     * REFOCUS / return from a pushed child (ViewCharacter or nested
+     * selection). Rebuilds the menu and resumes the owning stage WITHOUT
+     * re-running the entry reset, so the pooled money survives a View
+     * round-trip. The view's msgFocus() refocus path calls this.
+     */
+    void resumeChild();
+
+    /**
+     * exit / cancel / quit. Resets every child and transaction stage,
+     * restores the captured caller LocationContext and completes the host
+     * request (kAsyncShopDone) exactly once. The view's exitShop() calls this.
+     */
+    void endSession();
+
+    /** Read-only access to the session model (integration/tests). */
+    const ShopSession &session() const { return _session; }
+
 protected:
     // --- Type-specific hooks (override in subclass) ---
 
@@ -132,6 +161,18 @@ protected:
      * Default returns false.
      */
     virtual bool hasDetectSpell() const { return false; }
+
+    /**
+     * Reset every type-specific child/transaction stage on
+     * exit/cancel/quit. The base resets its shared transaction stages (Take,
+     * Appraise, Exit-confirm); subclasses (Temple) override to also tear down
+     * their service children (heal selector, Y/N prompts). Called from
+     * endSession(). Default resets only the base stages.
+     */
+    virtual void resetServiceChildren();
+
+    /** Session-ownership model (GB13-025). Shared by Store/Temple/Treasure. */
+    ShopSession _session;
 
     // --- Common action implementations ---
     void actionView();

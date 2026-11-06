@@ -61,6 +61,13 @@ public:
 protected:
     void actionPrimary() override;
 
+    /**
+     * GB13-025: tear down every temple-specific child (heal selector, Y/N
+     * prompts, heal message) in addition to the base transaction stages on
+     * exit/cancel/quit, then reset the heal stage.
+     */
+    void resetServiceChildren() override;
+
 private:
     enum HealStage {
         HEAL_NONE = 0,

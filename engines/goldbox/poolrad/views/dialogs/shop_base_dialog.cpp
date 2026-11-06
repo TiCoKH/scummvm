@@ -113,6 +113,95 @@ void ShopBaseDialog::activate() {
     debugShopMoney("activate");
 }
 
+// --- GB13-025 explicit session lifecycle ---
+
+void ShopBaseDialog::beginSession(const LocationContext &caller,
+        uint16 selectedCharId) {
+    ShopSession::ServiceKind kind = ShopSession::KIND_STORE;
+    switch (_shopType) {
+    case SHOP_STORE:    kind = ShopSession::KIND_STORE;    break;
+    case SHOP_TEMPLE:   kind = ShopSession::KIND_TEMPLE;   break;
+    case SHOP_TREASURE: kind = ShopSession::KIND_TREASURE; break;
+    }
+
+    // Capture the return location + selected character and set the service
+    // interface mode at the ACTUAL entry. A genuinely new session always owes
+    // the once-on-entry reset again.
+    _session.beginSession(kind, caller, selectedCharId);
+
+    // Bring the view up (menu rebuild / stage reset) once per genuine entry.
+    activate();
+
+    // Once-on-entry reset: fire the pool/coin reset EXACTLY ONCE on genuine
+    // entry, never on refocus. resumeChild() never consumes this.
+    //
+    // CONFIRMED once-on-entry work: clear the shared runtime money pool so a
+    // brand-new service session starts with an empty pool (matching the
+    // original entry reset's observable effect on the pooled coins).
+    //
+    // OPEN(GB13-025): the exact original FillChar + treasureMoneyFlag field
+    // set cannot be fully confirmed from the available code. Only the
+    // pool-clear is applied here; any additional entry-flag reset is left
+    // documented until the original reset set is traced.
+    //
+    // SCOPE: the entry pool-clear applies to STORE/TEMPLE only. SHOP_TREASURE
+    // uses the pool as its post-combat loot inventory (populated by the host's
+    // setupTreasure BEFORE entry); clearing it there would wipe the loot the
+    // player came to collect, so treasure keeps the ADD TREASURE pool intact.
+    if (_session.consumeEntryReset() && _shopType != SHOP_TREASURE) {
+        Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
+        pool.clear();
+        debugShopMoney("begin-session:entry-reset");
+    }
+}
+
+void ShopBaseDialog::resumeChild() {
+    // Return-from-child / refocus. Rebuild the menu and resume the owning
+    // stage WITHOUT re-running the entry reset: pooled money stays intact
+    // across a View round-trip.
+    _session.resumeChild();
+    activate();
+    debugShopMoney("resume-child");
+}
+
+void ShopBaseDialog::endSession() {
+    // exit / cancel / quit: tear down every child and transaction stage.
+    resetServiceChildren();
+
+    if (isActive())
+        deactivate();
+
+    // Clear child selection / pending service / payment / appraised item and
+    // mark the host request completed exactly once. The caller
+    // (InGameView::exitShop) performs the actual kAsyncShopDone signal and the
+    // caller-location restore; endSession() reports whether this is the first
+    // completion so neither is done twice.
+    _session.endSession();
+}
+
+void ShopBaseDialog::resetServiceChildren() {
+    // Base transaction stages. Subclasses extend for their own children.
+    if (_takeDialog && _takeDialog->isActive())
+        _takeDialog->deactivate();
+    if (_appraiseMenu) {
+        _appraiseMenu->deactivate();
+        delete _appraiseMenu;
+        _appraiseMenu = nullptr;
+    }
+    if (_appraiseKeepSellMenu) {
+        _appraiseKeepSellMenu->deactivate();
+        delete _appraiseKeepSellMenu;
+        _appraiseKeepSellMenu = nullptr;
+    }
+    if (_exitConfirmMenu) {
+        _exitConfirmMenu->deactivate();
+        delete _exitConfirmMenu;
+        _exitConfirmMenu = nullptr;
+    }
+    _stage = STAGE_MENU;
+    _appraiseDone = false;
+}
+
 void ShopBaseDialog::deactivate() {
     debugShopMoney("deactivate");
     if (_takeDialog) {
@@ -316,8 +405,15 @@ bool ShopBaseDialog::msgKeypress(const KeypressMessage &msg) {
             }
         }
 
-        if (validKey)
+        if (validKey) {
+            // Single dispatch route: one selection → one handleMenuKey call.
+            // ShopHMenu is intentionally parentless (see recreateHorizontalMenu)
+            // so it posts NO queued MenuResultMessage; there is no second
+            // interpretation. beginSelection() resets the per-selection counter
+            // so recordDispatch() inside handleMenuKey yields a count of 1.
+            _session.beginSelection();
             handleMenuKey(ascii);
+        }
 
         // Rebuild and reactivate menu unless exiting.
         if (_isActive && !_exitFlag && _stage == STAGE_MENU)
@@ -334,33 +430,45 @@ void ShopBaseDialog::handleMenuKey(char key) {
     debugShopMoney("before-action");
     switch (key) {
     case 'B':
-        if (_shopType == SHOP_STORE)
+        if (_shopType == SHOP_STORE) {
+            _session.recordDispatch(ShopSession::ACT_PRIMARY);
             actionPrimary();
+        }
         break;
     case 'H':
-        if (_shopType == SHOP_TEMPLE)
+        if (_shopType == SHOP_TEMPLE) {
+            _session.recordDispatch(ShopSession::ACT_PRIMARY);
             actionPrimary();
+        }
         break;
     case 'V':
+        _session.recordDispatch(ShopSession::ACT_VIEW);
         actionView();
         break;
     case 'T':
+        _session.recordDispatch(ShopSession::ACT_TAKE);
         actionTake();
         break;
     case 'P':
+        _session.recordDispatch(ShopSession::ACT_POOL);
         actionPool();
         break;
     case 'S':
+        _session.recordDispatch(ShopSession::ACT_SHARE);
         actionShare();
         break;
     case 'A':
+        _session.recordDispatch(ShopSession::ACT_APPRAISE);
         actionAppraise();
         break;
     case 'D':
-        if (_shopType == SHOP_TREASURE)
+        if (_shopType == SHOP_TREASURE) {
+            _session.recordDispatch(ShopSession::ACT_DETECT);
             actionDetect();
+        }
         break;
     case 'E':
+        _session.recordDispatch(ShopSession::ACT_EXIT);
         actionExit();
         break;
     default:

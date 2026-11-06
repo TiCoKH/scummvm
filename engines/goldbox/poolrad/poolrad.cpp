@@ -1450,6 +1450,25 @@ void PoolradEngine::syncViewDirection(uint8 cardinal) {
 		_eclHost->refreshViewport();
 }
 
+void PoolradEngine::restoreSelectionIfPresent(
+		::Goldbox::Data::PlayerCharacter *savedSelection) {
+	// GB13-022 (Req 28.4): re-select the saved character only if it is still a
+	// live party member. Party membership is the stable identity here: a
+	// character removed mid-command (GB13-006 removeLoadedCharacter) is no
+	// longer found, so no stale pointer is restored.
+	if (!savedSelection)
+		return;
+	for (Common::List<Goldbox::Data::PlayerCharacter *>::const_iterator it =
+			_party.begin(); it != _party.end(); ++it) {
+		if (*it == savedSelection) {
+			setSelectedCharacter(savedSelection);
+			return;
+		}
+	}
+	// Saved selection is gone: leave the current selection as-is (no stale
+	// restore). The dispatcher does not reset to the party front.
+}
+
 void PoolradEngine::dispatchPlayerCommand() {
 	if (!_eclVm || _eclFlags.suspended)
 		return;
@@ -1470,9 +1489,16 @@ void PoolradEngine::dispatchPlayerCommand() {
 	ECL::EclLayoutAccess layout = _eclConfig.getLayoutAccess();
 	ECL::AddressSpace &mem = _eclVm->getMemory();
 
-	// PTR_SELECTED_CHAR = PTR_PARTY_ARRAY (reset to first party member)
-	if (!_party.empty())
-		setSelectedCharacter(_party.front());
+	// GB13-022 (Req 28.4): PRESERVE the selected character across the command
+	// instead of resetting to the party front. The original reset
+	// PTR_SELECTED_CHAR to PTR_PARTY_ARRAY (party.front()) on every command;
+	// that reset is removed. We save the real selection at the loop boundary
+	// here and restore it at each non-yield return boundary below. On a yield
+	// the selection is left untouched so it survives the suspend/resume (and a
+	// NEW ECL transition); a character removed mid-yield is handled because the
+	// restore below only re-selects a member still present in the party.
+	::Goldbox::Data::PlayerCharacter *const savedSelection =
+		getSelectedCharacter();
 
 	// G_SaveMapId writeback: kVmFieldSavedEclId is maintained by the
 	// NEWECL handler and initializeMapRuntimeForState. Don't overwrite
@@ -1487,6 +1513,7 @@ void PoolradEngine::dispatchPlayerCommand() {
 		// ON_REST completed (VM_HALTED = EXIT = rest allowed).
 		// Transition to GS_CAMPING — InGameView::applyScreenByState
 		// will call enterCamp() which activates CampMenuDialog.
+		restoreSelectionIfPresent(savedSelection);
 		setGameState(GS_CAMPING);
 		return;
 	}
@@ -1501,6 +1528,7 @@ void PoolradEngine::dispatchPlayerCommand() {
 		mem.write8(searchAddr, newFlags);
 		if (g_events)
 			g_events->postEclVmMessage(searchAddr, newFlags);
+		restoreSelectionIfPresent(savedSelection);
 		return;
 	}
 
@@ -1515,10 +1543,13 @@ void PoolradEngine::dispatchPlayerCommand() {
 		if (g_events)
 			g_events->postEclVmMessage(searchAddr, lookFlags);
 
-		// TIME_AddUnits(1, 2) - advance clock by 2 minutes.
+		// GB13-022 (Req 28.3, DEFECT B): Look advances ONE TURN, charged once.
+		// The original charged two minutes here (field=1, amount=2); that is
+		// wrong - Look is a one-shot search, so it uses the same one-turn form
+		// (field=2, amount=1) as the search-move path in this same dispatcher.
 		if (_eclVm) {
 			timeAddUnits(_eclVm->getMemory(), kPoolradClockAddrs,
-				_party, effectsRuntime(), getGameState(), 1, 2);
+				_party, effectsRuntime(), getGameState(), 2, 1);
 		}
 
 		// Now enter the search-loop path: set flags=1, run ONSEARCH, restore.
@@ -1533,93 +1564,149 @@ void PoolradEngine::dispatchPlayerCommand() {
 		if (g_events)
 			g_events->postEclVmMessage(searchAddr, savedSearchFlag);
 		if (onSearch == VM_YIELD) {
+			// Yield: leave the selection untouched so it survives the resume
+			// (GB13-022 Req 28.4). Flags were already restored above.
 			_eclFlags.suspended = true;
 			return;
 		}
 
 		if (_eclVm->eclReady) {
 			const VmResult resume = executeEclAtScriptAddress(_eclVm->getPC());
-			if (resume == VM_YIELD)
+			if (resume == VM_YIELD) {
 				_eclFlags.suspended = true;
+				return;
+			}
 		}
+		restoreSelectionIfPresent(savedSelection);
 		return;
 	}
 
 	if (cmd != Views::InGameView::kCmdMove)
 		return;
 
-	// Sync direction to VM memory before ONMOVE.
-	// Position is authoritative in VM memory (set by scripts); only direction
-	// is changed by InGameView (player turning).
+	// GB13-022 (Req 28.1/28.2, DEFECT C): reordered exploration phases. The
+	// original committed the destination coordinates AND charged time BEFORE
+	// running ONMOVE. The corrected order is PREPARE_INTENT -> EXEC_ONMOVE ->
+	// RESOLVE: prepare a prospective destination + leave flag WITHOUT writing
+	// x/y or charging time, run ONMOVE first, and only then commit position and
+	// advance the clock once. The resumable phase semantics are encoded and
+	// unit tested in poolrad/exploration_operation.*; this dispatcher is the
+	// thin host driver that wires those phases onto the engine calls while
+	// preserving the existing yield/resume contract.
+	const uint16 moveDirAddr =
+		layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
+	const uint16 moveXAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
+	const uint16 moveYAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
+	const uint8 moveCardinal =
+		static_cast<uint8>((inGameView->getMapDir() / 2) & 0x03);
+
+	// Prospective destination, computed in PREPARE_INTENT (NOT yet committed).
+	int pendingDestX = 0;
+	int pendingDestY = 0;
+	bool pendingValid = false; // false => blocked (wall or closed door): no move
+
+	// ----- PREPARE_INTENT -------------------------------------------------
 	{
-		const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
-		const uint8 cardinal = static_cast<uint8>((inGameView->getMapDir() / 2) & 0x03);
-		mem.write8(dirAddr, cardinal);
+		// Sync facing direction to VM memory (position stays authoritative in
+		// VM memory; only direction is changed by InGameView).
+		mem.write8(moveDirAddr, moveCardinal);
 
-		// Save current position to SavedMapX/SavedMapY BEFORE stepping forward.
-		// Scripts use SAVE(0x49F0, 0xC04B) to restore the pre-move position.
-		const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
-		const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
-		mem.write8(layout.vmField(kVmFieldSavedMapX).vmAddr, mem.read8(xAddr));
-		mem.write8(layout.vmField(kVmFieldSavedMapY).vmAddr, mem.read8(yAddr));
+		// Save the pre-move position to SavedMapX/SavedMapY. Scripts use
+		// SAVE(0x49F0, 0xC04B) to restore the pre-move position.
+		mem.write8(layout.vmField(kVmFieldSavedMapX).vmAddr,
+			mem.read8(moveXAddr));
+		mem.write8(layout.vmField(kVmFieldSavedMapY).vmAddr,
+			mem.read8(moveYAddr));
 
-		// MAP_StepForward equivalent: check wall, advance position,
-		// clamp to borders, set TriedToLeaveMap.
-		const uint16 leaveAddr = layout.vmGlobalField(kVmGlobalFieldTriedToLeaveMap).vmAddr;
-		const Direction wireDir = static_cast<Direction>(cardinal * 2);
-
+		// Edge/leave flag (TriedToLeaveMap): cleared at the start of the step,
+		// set below if the prospective destination clamps at a border. This is
+		// part of preparation in the original - NOT a side-effect-free prepare.
+		const uint16 leaveAddr =
+			layout.vmGlobalField(kVmGlobalFieldTriedToLeaveMap).vmAddr;
 		mem.write8(leaveAddr, 0);
 
-		// Check wall passability.
+		const Direction wireDir = static_cast<Direction>(moveCardinal * 2);
+
+		// Barrier predicate (original MAP_StepForward wall check).
 		RuntimeGeoBlock &rtGeo = getRuntimeGeo();
+		bool blocked = false;
 		if (rtGeo.isLoaded()) {
-			const int cx = static_cast<int>(mem.read8(xAddr));
-			const int cy = static_cast<int>(mem.read8(yAddr));
-		const uint8 wallFlag = rtGeo.getWallFlag(
+			const int cx = static_cast<int>(mem.read8(moveXAddr));
+			const int cy = static_cast<int>(mem.read8(moveYAddr));
+			const uint8 wallFlag = rtGeo.getWallFlag(
 				MapPos(static_cast<int8>(cx), static_cast<int8>(cy)), wireDir);
 			if (wallFlag == 0 || wallFlag >= 2) {
 				// wallFlag 0 = solid wall, 2/3 = locked door.
-				// For locked doors, tryOpenDoor() handles the dialog.
+				// Locked door: DoorDialog/bash/pick/Knock handled by
+				// tryOpenDoor(), holding pending movement until it finishes.
 				if (wallFlag >= 2 && _eclHost)
 					_eclHost->tryOpenDoor();
-				if (g_events)
-					g_events->postEclVmMessage(dirAddr, cardinal);
-				return;
+				blocked = true;
 			}
 		}
 
-		int x = static_cast<int>(mem.read8(xAddr));
-		int y = static_cast<int>(mem.read8(yAddr));
+		if (blocked) {
+			// No move, no time commit. Notify direction and restore selection.
+			if (g_events)
+				g_events->postEclVmMessage(moveDirAddr, moveCardinal);
+			restoreSelectionIfPresent(savedSelection);
+			return;
+		}
+
+		// Compute the prospective (clamped) destination WITHOUT committing it.
+		int x = static_cast<int>(mem.read8(moveXAddr));
+		int y = static_cast<int>(mem.read8(moveYAddr));
 		x += kDirDeltaX[inGameView->getMapDir()];
 		y += kDirDeltaY[inGameView->getMapDir()];
 
-		// Clamp to map borders and flag if clamped.
 		bool clamped = false;
 		if (x > 15) { x = 15; clamped = true; }
 		if (x < 0)  { x = 0;  clamped = true; }
 		if (y > 15) { y = 15; clamped = true; }
 		if (y < 0)  { y = 0;  clamped = true; }
 		if (clamped)
-			mem.write8(leaveAddr, 1);
+			mem.write8(leaveAddr, 1); // edge/leave flag (part of preparation)
 
-		mem.write8(xAddr, static_cast<uint8>(x));
-		mem.write8(yAddr, static_cast<uint8>(y));
-		if (g_events) {
-			g_events->postEclVmMessage(dirAddr, cardinal);
-			g_events->postEclVmMessage(xAddr, static_cast<uint8>(x));
-			g_events->postEclVmMessage(yAddr, static_cast<uint8>(y));
-			g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,
-				EclVmMessage::VT_UINT8);
-		}
+		pendingDestX = x;
+		pendingDestY = y;
+		pendingValid = true;
 	}
 
-	// Read geo event data at new position (MAP_getGEOData equivalent).
-	// ONMOVE script uses MapSquareInfo to decide which event to trigger.
+	// Read geo event data at the current position (MAP_getGEOData equivalent)
+	// so ONMOVE can decide which event to trigger. No coordinate/time commit.
 	if (_eclHost)
 		_eclHost->readGeoAtPosition();
 
-	// TIME_AddUnits: advance clock based on search mode.
-	{
+	// ----- EXEC_ONMOVE (runs BEFORE any commit) ---------------------------
+	const VmResult onMove = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
+	if (onMove == VM_YIELD) {
+		// Suspend at the ONMOVE boundary: NO coordinate/time commit happened.
+		// Selection is left untouched so it survives the resume.
+		_eclFlags.suspended = true;
+		return;
+	}
+
+	// ----- RESOLVE --------------------------------------------------------
+	// If ONMOVE fired NEW ECL (eclReady), the NEW-ECL transition path below
+	// replaces the normal move: do NOT commit the prospective coordinates or
+	// charge time. Otherwise commit the destination and advance the clock once.
+	if (!_eclVm->eclReady && pendingValid) {
+		// Commit coordinates now (write DungeonX/DungeonY).
+		mem.write8(moveXAddr, static_cast<uint8>(pendingDestX));
+		mem.write8(moveYAddr, static_cast<uint8>(pendingDestY));
+		if (g_events) {
+			g_events->postEclVmMessage(moveDirAddr, moveCardinal);
+			g_events->postEclVmMessage(moveXAddr,
+				static_cast<uint8>(pendingDestX));
+			g_events->postEclVmMessage(moveYAddr,
+				static_cast<uint8>(pendingDestY));
+			g_events->postEclStateMessage(EclVmMessage::ST_POSITION_DIRTY, 1,
+				EclVmMessage::VT_UINT8);
+		}
+
+		// Advance the clock exactly ONCE based on search mode. One minute for
+		// an ordinary dungeon move (field=1, amount=1), one turn for a search
+		// move (field=2, amount=1). Charged only on this path (never twice).
 		const uint16 searchAddr =
 			layout.vmGlobalField(kVmGlobalFieldSearchFlags).vmAddr;
 		const uint8 searchFlags = mem.read8(searchAddr);
@@ -1631,20 +1718,11 @@ void PoolradEngine::dispatchPlayerCommand() {
 				effectsRuntime(), getGameState(), 2, 1);
 	}
 
-	const VmResult onMove = runEclEntryPoint(ECL::kEclRuntimeOnMoveEntry);
-	if (onMove == VM_YIELD) {
-		_eclFlags.suspended = true;
-		return;
-	}
-
-	// Sync VM position back to InGameView after ONMOVE completes.
+	// Sync VM position back to InGameView after ONMOVE/commit.
 	{
-		const uint16 xAddr = layout.vmGlobalField(kVmGlobalFieldDungeonX).vmAddr;
-		const uint16 yAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
-		const uint16 dirAddr = layout.vmGlobalField(kVmGlobalFieldDungeonDir).vmAddr;
-		const uint16 x = mem.read8(xAddr);
-		const uint16 y = mem.read8(yAddr);
-		const uint8 d = static_cast<uint8>(mem.read8(dirAddr) & 0x03);
+		const uint16 x = mem.read8(moveXAddr);
+		const uint16 y = mem.read8(moveYAddr);
+		const uint8 d = static_cast<uint8>(mem.read8(moveDirAddr) & 0x03);
 		inGameView->setMapPosition(x, y, static_cast<uint8>(d * 2));
 	}
 
@@ -1719,6 +1797,9 @@ void PoolradEngine::dispatchPlayerCommand() {
 				}
 			}
 		}
+		// GB13-022 (Req 28.4): restore the saved selection (stable-id checked)
+		// only after the yielded scripts/transitions completed on this path.
+		restoreSelectionIfPresent(savedSelection);
 		return;
 	}
 
@@ -1768,6 +1849,10 @@ void PoolradEngine::dispatchPlayerCommand() {
 		}
 		// If eclReady is true again (another NEWECL), loop continues
 	}
+
+	// GB13-022 (Req 28.4): NEW-ECL transition drained - restore the saved
+	// selection (stable-id checked) at the loop boundary before awaiting input.
+	restoreSelectionIfPresent(savedSelection);
 }
 
 RuntimeExchange *PoolradEngine::getRuntimeExchange() {

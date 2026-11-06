@@ -99,6 +99,26 @@ void TempleDialog::actionPrimary() {
     openHealSelector();
 }
 
+void TempleDialog::resetServiceChildren() {
+    // Temple-specific children: heal selector, Y/N prompts, heal message.
+    if (_healSelector) {
+        _healSelector->deactivate();
+        delete _healSelector;
+        _healSelector = nullptr;
+    }
+    destroyYesNo();
+    if (_healPrompt) {
+        _healPrompt->deactivate();
+        delete _healPrompt;
+        _healPrompt = nullptr;
+    }
+    _healStage = HEAL_NONE;
+    _healSelectedIndex = -1;
+
+    // Then the shared base transaction stages (Take/Appraise/Exit-confirm).
+    ShopBaseDialog::resetServiceChildren();
+}
+
 void TempleDialog::buildHealMenuItems() {
     _healMenuItems.items.clear();
     _healMenuItems.currentSelection = 0;

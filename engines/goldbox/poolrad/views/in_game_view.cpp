@@ -334,9 +334,12 @@ bool InGameView::msgFocus(const FocusMessage &msg) {
 	_wasMenuActiveBeforeUnfocus = false;
 	applyScreenByState(_state);
 
-	// Reactivate shop dialog if it was active before unfocus.
+	// GB13-025: returning from a pushed child (ViewCharacter / nested
+	// selection) is a REFOCUS, not a genuine entry. resumeChild() rebuilds the
+	// menu and resumes the owning stage WITHOUT re-running the once-on-entry
+	// reset, so pooled money survives a View round-trip.
 	if (_activeShopDialog && !_activeShopDialog->isActive())
-		_activeShopDialog->activate();
+		_activeShopDialog->resumeChild();
 
 	return true;
 }
@@ -1015,15 +1018,45 @@ void InGameView::enterShop(uint8 shopType) {
 		break;
 	}
 
-	if (_activeShopDialog)
-		_activeShopDialog->activate();
+	// GB13-025: this is a GENUINE session entry. beginSession() captures the
+	// caller LocationContext + selected character, sets the service interface
+	// mode and performs the once-on-entry pool reset EXACTLY ONCE. A refocus
+	// (msgFocus) calls resumeChild() instead so the reset never re-runs.
+	if (_activeShopDialog) {
+		LocationContext caller;
+		if (g_engine)
+			caller = g_engine->getLocationContext();
+
+		// Stable selected-character id: 1-based party position of the current
+		// selection (0 when none), used for the session's saved-character id.
+		uint16 selectedCharId = 0;
+		if (g_engine) {
+			Goldbox::Data::PlayerCharacter *sel =
+				g_engine->getSelectedCharacter();
+			Common::List<Goldbox::Data::PlayerCharacter *> &party =
+				g_engine->getParty();
+			uint16 pos = 1;
+			for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it =
+					party.begin(); it != party.end(); ++it, ++pos) {
+				if (*it == sel) {
+					selectedCharId = pos;
+					break;
+				}
+			}
+		}
+
+		_activeShopDialog->beginSession(caller, selectedCharId);
+	}
 
 	redraw();
 }
 
 void InGameView::exitShop() {
-	if (_activeShopDialog && _activeShopDialog->isActive())
-		_activeShopDialog->deactivate();
+	// GB13-025: endSession() resets every child/transaction stage and marks
+	// the host request completed exactly once. The kAsyncShopDone signal and
+	// the caller-location restore below run here (once per exit).
+	if (_activeShopDialog)
+		_activeShopDialog->endSession();
 	_activeShopDialog = nullptr;
 
 	// Signal the engine host that the shop interaction is complete.
