@@ -57,6 +57,49 @@ bool checkUnaffectedEffect(Goldbox::Data::PlayerCharacter &ch,
                            bool immediate, bool checkSave, bool saved,
                            const char *message);
 
+/**
+ * GB13-016 — pure decision helpers for monster special attacks that route
+ * through the real attack resolver (Requirement 32). These carry no engine
+ * state so the eligibility / validation / cleanup decisions are unit-testable
+ * without a live CombatSession.
+ */
+struct MonsterSpecialAttacks {
+    /**
+     * Linked-hold effect ids cleared when a bite-and-hold grapple ends. The
+     * ongoing-hold handler runs on RAW id 74 (Effect_ID74) — NOT the separately
+     * named EFFECT_77_BiteAndHold attack effect, and NOT the E_POISON_NEG_2=74
+     * enum that collides on that number. Clearing is the raw immobilize
+     * (E_IMMOBILIZED=58) plus the raw bite-hold hold (74).
+     */
+    enum {
+        kImmobilizeEffectId = 58,
+        kBiteHoldRawEffectId = 74,
+        kInvalidRosterIndex  = 0xff
+    };
+
+    /**
+     * A stored victim roster index is dereferenceable only when it is in
+     * range of the current roster. A sentinel/out-of-range index (e.g. the
+     * victim left the roster) must NOT be dereferenced — this is the
+     * stale-roster-access guard for the grapple handler.
+     */
+    static bool victimIndexInRange(uint8 victimIndex, uint rosterSize) {
+        return victimIndex != (uint8)kInvalidRosterIndex &&
+               (uint)victimIndex < rosterSize;
+    }
+
+    /**
+     * The grapple's linked hold is cleared when the grapple ends: the victim
+     * died, the attacker was disabled, or the effect was explicitly removed
+     * (EFF_REMOVE). An ongoing EFF_ADD with both combatants still enabled keeps
+     * the hold alive.
+     */
+    static bool shouldReleaseHold(bool isRemoveOp, bool attackerEnabled,
+                                  bool victimEnabled) {
+        return isRemoveOp || !attackerEnabled || !victimEnabled;
+    }
+};
+
 class EffectHandler : public Goldbox::Data::Effects::EffectHandlerBase {
 public:
     EffectHandler();

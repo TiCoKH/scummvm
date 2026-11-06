@@ -129,6 +129,16 @@ struct CombatGlobals {
     } effectSet18;
 
     uint8 attacksLeft;        // COMBAT_ATTACKS_LEFT — attacker's remaining attacks this turn
+    /**
+     * GB13-016 — per-activation successful-hit count, indexed by attack slot
+     * ([1..2]; [0] unused). Distinct from attacksLeft (remaining attacks) and
+     * from attackRollSlots[] (which resolveAttackSequence zeroes on EVERY
+     * attack resolution): hitsMade accumulates landed hits across the WHOLE
+     * activation and is reset only at activation start (applyTurnStartEffects).
+     * Rear-claw rake eligibility tests hitsMade[1]==2 (two successful initial
+     * hits this activation) rather than attacksLeft==2.
+     */
+    uint8 hitsMade[3];
     uint8 turnCounter;        // COMBAT_TURN_COUNTER — incremented once at the end of each turn
     uint8 handicapValue;      // C_HANDICAP_VALUE — hostile health ratio * 5 (0-100), used by AI/morale
     uint8 aiDirection;        // BYTE_AI_DIRECTION — last chosen AI movement direction (0-7)
@@ -165,6 +175,9 @@ struct CombatGlobals {
         effectSet18.value      = 0;
         effectSet18.isMovement = false;
         attacksLeft = 0;
+        hitsMade[0] = 0;
+        hitsMade[1] = 0;
+        hitsMade[2] = 0;
         turnCounter = 0;
         handicapValue = 0;
         aiDirection = 0;
@@ -173,6 +186,18 @@ struct CombatGlobals {
     }
 
     void updateSideCount(const Common::Array<Data::PlayerCharacter *> &roster);
+
+    /**
+     * GB13-016 — pure rear-claw rake eligibility (Requirement 32.1).
+     *
+     * The rake fires only after exactly two SUCCESSFUL initial hits landed
+     * this activation (slot-1 hit count), NOT when two attacks merely remain
+     * (attacksLeft). Keeping this a pure predicate lets the decision be
+     * unit-tested without a live resolver.
+     */
+    static bool rakeEligible(uint8 slot1HitsMade) {
+        return slot1HitsMade == 2;
+    }
 };
 
 /**

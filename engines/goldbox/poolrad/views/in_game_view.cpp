@@ -512,8 +512,40 @@ bool InGameView::msgKeypress(const KeypressMessage &msg) {
 bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 	bool handled = true;
 
+	// GB13-023 (Req 33.4): in the wilderness the arrow keys are DIRECTIONAL
+	// TRAVEL (UP=north, DOWN=south, LEFT=west, RIGHT=east), each a compass MOVE
+	// - distinct from the dungeon turn convention below (LEFT/RIGHT/DOWN
+	// rotate _mapDir, UP steps forward). The arrow->compass conversion happens
+	// at this single boundary; the engine wilderness path reads _travelDir.
+	if (_state == GS_WILDERNESS_MAP) {
+		switch (msg.keycode) {
+		case Common::KEYCODE_UP:
+			_travelDir = WildernessTravel::arrowToCompass(
+				WildernessTravel::ARROW_UP);
+			queueCommand(kCmdWildernessMove);
+			return true;
+		case Common::KEYCODE_DOWN:
+			_travelDir = WildernessTravel::arrowToCompass(
+				WildernessTravel::ARROW_DOWN);
+			queueCommand(kCmdWildernessMove);
+			return true;
+		case Common::KEYCODE_LEFT:
+			_travelDir = WildernessTravel::arrowToCompass(
+				WildernessTravel::ARROW_LEFT);
+			queueCommand(kCmdWildernessMove);
+			return true;
+		case Common::KEYCODE_RIGHT:
+			_travelDir = WildernessTravel::arrowToCompass(
+				WildernessTravel::ARROW_RIGHT);
+			queueCommand(kCmdWildernessMove);
+			return true;
+		default:
+			break;
+		}
+	}
+
 	switch (msg.keycode) {
-	// --- Movement (arrow keys) ---
+	// --- Movement (arrow keys) --- dungeon turn convention ---
 	case Common::KEYCODE_UP:
 		stepForward();
 		queueCommand(kCmdMove);

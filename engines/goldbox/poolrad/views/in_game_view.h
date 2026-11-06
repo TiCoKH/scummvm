@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_VIEWS_IN_GAME_VIEW_H
 
 #include "goldbox/poolrad/views/view.h"
+#include "goldbox/poolrad/wilderness_travel.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/core/global.h"
 
@@ -77,7 +78,11 @@ public:
 		kCmdMove,
 		kCmdSearch,
 		kCmdLook,
-		kCmdEncamp
+		kCmdEncamp,
+		// GB13-023: wilderness directional travel (distinct from the dungeon
+		// kCmdMove turn-then-step convention). The compass direction is held
+		// in _travelDir.
+		kCmdWildernessMove
 	};
 
 private:
@@ -120,6 +125,12 @@ private:
 	bool _wasMenuActiveBeforeUnfocus = false;
 	/** Next command for engine-side map-loop. */
 	InGameCommand _pendingCommand = kCmdNone;
+	/**
+	 * GB13-023: compass travel direction for a queued kCmdWildernessMove. Set
+	 * at the single arrow->compass conversion boundary; read by the engine
+	 * wilderness-travel path.
+	 */
+	WildernessTravel::Compass _travelDir = WildernessTravel::TRAVEL_NORTH;
 
 	// --- Orchestration helpers ---
 	void syncMainScreenDialog();
@@ -198,6 +209,8 @@ public:
 	uint16 getMapY() const { return _mapY; }
 	/** Get current facing direction (wire format: 0=N,2=E,4=S,6=W). */
 	uint8 getMapDir() const { return _mapDir; }
+	/** GB13-023: compass direction for a queued wilderness travel command. */
+	WildernessTravel::Compass getTravelDir() const { return _travelDir; }
 	/** Set map position and direction from VM memory. */
 	void setMapPosition(uint16 x, uint16 y, uint8 wireDir) {
 		_mapX = x; _mapY = y; _mapDir = wireDir;

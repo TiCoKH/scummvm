@@ -607,6 +607,14 @@ bool CombatSession::applyTurnStartEffects(Data::PlayerCharacter *ch) {
     cs.directionChange = 0;
     cs.guarding        = false;
 
+    // GB13-016: reset the per-activation landed-hit counter here, at the same
+    // boundary the original resets attackCount/directionChange/guarding. This
+    // keeps rake eligibility (hitsMade[1]==2) scoped to a single activation and
+    // independent of attacksLeft.
+    _globals.hitsMade[0] = 0;
+    _globals.hitsMade[1] = 0;
+    _globals.hitsMade[2] = 0;
+
     // ES7 runs unconditionally before the first initiative gate (ME_ACTOR_START
     // boundary). The trace count advances even without a wired runtime.
     ++_set7DispatchCount;

@@ -110,6 +110,7 @@ MODULE_OBJS = \
 	poolrad/rest_operation.o \
 	poolrad/training_rules.o \
 	poolrad/exploration_operation.o \
+	poolrad/wilderness_travel.o \
 	poolrad/program_services.o \
 	poolrad/native_save.o \
 	poolrad/console.o \

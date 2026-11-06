@@ -25,6 +25,7 @@
 #include "goldbox/combat/cloud_effect_manager.h"
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combat_params.h"
+#include "goldbox/combat/combat_session.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_common_handler.h"
 #include "goldbox/data/effects/effect_runtime.h"
@@ -849,13 +850,60 @@ static void handleCamouflagedAttack(const EffectCall &c) {
         c.character.addEffect(25, 1, 12, false);
 }
 
-// Rear-claw rake: bonus 2d4 attack that fires mid-attack-sequence, only on
-// the resolution where exactly two attacks remain this round (e.g. a
-// claw/claw/bite monster raking with a rear claw after its first attack).
-// TODO: applies damage directly since there is no ported to-hit resolver
-// equivalent to COMBAT_ResolveAttack; the original re-rolls to-hit here too.
+// GB13-016: configure attacker's current roll slot with a TEMPORARY attack
+// profile (count attacks of diceNum d diceSides, no flat modifier) and route it
+// through the real attack resolver so the attack can hit, miss, invoke defenses,
+// dispatch effects and apply the facing change — no guaranteed direct damage.
+// The original roll is saved to restore afterward so no permanent mutated dice
+// survive the activation.
+static bool executeTemporaryAttack(Goldbox::Data::PlayerCharacter &attacker,
+                                   Goldbox::Data::PlayerCharacter *target,
+                                   uint8 attacks, uint8 diceNum, uint8 diceSides) {
+    if (!target)
+        return false;
+
+    Combat::CombatSession *session = Combat::g_combatSession;
+    if (!session || !attacker.combatState)
+        return false;
+
+    Goldbox::Data::ADnDCharacter *adnd =
+        dynamic_cast<Goldbox::Data::ADnDCharacter *>(&attacker);
+    if (!adnd)
+        return false;
+
+    // Primary slot (attackId 1) carries the temporary secondary-attack config.
+    Goldbox::Data::CombatRoll saved = adnd->getCurRoll(1);
+    const uint8 savedAttackId = attacker.combatState->attackId;
+
+    Goldbox::Data::CombatRoll &roll = adnd->getCurRoll(1);
+    roll.attacks = attacks;
+    roll.action.roll.diceNum = diceNum;
+    roll.action.roll.diceSides = diceSides;
+    roll.action.modifier = 0;
+    attacker.combatState->attackId = 1;
+
+    // Commit the target and run the full attack sequence (hit/miss, defenses,
+    // effect dispatch, facing). Both configured attacks may miss.
+    session->executeAttackOnTarget(&attacker, target, true);
+
+    // Scope the temporary dice to this activation: restore immediately so the
+    // monster's normal attack profile is unchanged. recalcCombatStats would
+    // otherwise recompute curPrimaryRoll from base at the next activation
+    // boundary; restoring here keeps the same-boundary semantics explicit.
+    adnd->getCurRoll(1) = saved;
+    attacker.combatState->attackId = savedAttackId;
+    return true;
+}
+
+// Rear-claw rake (Requirement 32.1): a monster with a rear claw (e.g. a
+// claw/claw/bite) rakes after its two front-claw attacks land. Eligibility is
+// exactly TWO SUCCESSFUL initial hits this activation (hitsMade[1]==2), NOT two
+// attacks remaining (attacksLeft==2). When eligible it executes TWO secondary
+// 2d4 attacks through the real resolver so each can hit, miss or invoke
+// defenses, then ends the action once.
 static void handleRearClawRake(const EffectCall &c) {
-    if (c.op != EFF_ADD || !c.combat || c.combat->attacksLeft != 2)
+    if (c.op != EFF_ADD || !c.combat ||
+        !Combat::CombatGlobals::rakeEligible(c.combat->hitsMade[1]))
         return;
 
     Goldbox::Data::PlayerCharacter *target =
@@ -866,49 +914,70 @@ static void handleRearClawRake(const EffectCall &c) {
     if (c.bridge)
         c.bridge->postEffectMessage(&c.character, "Rakes...", true);
 
-    const uint8 damage = Goldbox::g_engine ?
-        Goldbox::g_engine->rollDice(2, 4) : 2;
-    if (c.damage)
-        c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_NORMAL, false);
+    // Two secondary 2d4 attacks routed through the resolver (not guaranteed
+    // damage). End the action once, after both secondaries.
+    executeTemporaryAttack(c.character, target, 2, 2, 4);
 
     c.character.resetCombatAction();
 }
 
-// Grapple/rear attack: one-shot 3d4 hit against a roster-indexed target
-// (effect.power holds the target's roster index, not the current combat
-// target). Ends itself once the target goes down; otherwise, on interrupt
-// or removal, releases the target's immobilized status
-// (E_IMMOBILIZED, effect 58).
-// TODO: applies damage directly, see handleRearClawRake's to-hit note above.
+// GB13-016: clear the grapple's linked hold on the victim WITHOUT recursive
+// removal and WITHOUT stale roster access. The victim is re-validated by the
+// caller each time (indexInRange) before this is reached, and eraseEffectById
+// is the raw erase (no handler callback), so clearing the hold cannot re-enter
+// a handler that would erase again. Clears the raw immobilize (58) and the raw
+// bite-hold hold (74) — the ongoing-hold Effect_ID74, not EFFECT_77_BiteAndHold.
+static void releaseGrappleHold(Goldbox::Data::PlayerCharacter *victim) {
+    if (!victim)
+        return;
+    CharacterEffects *victimFx = victim->getEffects();
+    if (!victimFx)
+        return;
+    victimFx->eraseEffectById(
+        (uint8)MonsterSpecialAttacks::kImmobilizeEffectId);
+    victimFx->eraseEffectById(
+        (uint8)MonsterSpecialAttacks::kBiteHoldRawEffectId);
+}
+
+// Grapple / bite-and-hold ongoing handler (raw id 74, Effect_ID74 — NOT the
+// EFFECT_77_BiteAndHold attack effect). The victim's roster index is stored in
+// the effect (power in this port; see strength-vs-power OPEN note below). While
+// the hold is active it resolves ONE primary 3d4 from-behind attack through the
+// real resolver each application (hit/miss/defenses retained) and ends the
+// action once. When the grapple ends — victim death, attacker disablement or
+// explicit removal — it clears the linked hold (effect 58 + raw 74) through a
+// re-validated victim handle, then removes itself once (no recursive removal).
 static void handleGrappleAttack(const EffectCall &c) {
     Combat::CombatContext *ctx = Goldbox::g_engine ?
         Goldbox::g_engine->getCombatContext() : nullptr;
-    Goldbox::Data::PlayerCharacter *target =
-        (ctx && c.effect.power < ctx->params.roster.size()) ?
-        ctx->params.roster[c.effect.power] : nullptr;
 
-    if (c.op == EFF_ADD && c.character.enabled && target && target->enabled) {
-        const uint8 damage = Goldbox::g_engine ?
-            Goldbox::g_engine->rollDice(3, 4) : 3;
-        if (c.damage)
-            c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_NORMAL, false);
+    // Validated battle-roster handle: dereference the stored victim index only
+    // when it is in range (stale-roster-access guard).
+    Goldbox::Data::PlayerCharacter *target = nullptr;
+    if (ctx && MonsterSpecialAttacks::victimIndexInRange(
+                   c.effect.power, ctx->params.roster.size()))
+        target = ctx->params.roster[c.effect.power];
 
+    const bool victimEnabled = target && target->enabled;
+
+    // Hold still active: resolve one 3d4 from-behind attack through the
+    // resolver and end the action once.
+    if (c.op == EFF_ADD && c.character.enabled && victimEnabled) {
+        executeTemporaryAttack(c.character, target, 1, 3, 4);
         c.character.resetCombatAction();
 
-        if (!target->enabled) {
-            CharacterEffects *fx = c.character.getEffects();
-            if (fx)
-                fx->eraseEffectById(c.effect.id);
-        }
-        return;
+        // If the victim did not survive the attack, fall through to cleanup.
+        if (target->enabled)
+            return;
     }
 
-    if (target) {
-        CharacterEffects *targetFx = target->getEffects();
-        if (targetFx)
-            targetFx->eraseEffectById(static_cast<uint8>(E_IMMOBILIZED));
-    }
+    // Grapple ended: release the linked hold and remove this effect once.
+    if (MonsterSpecialAttacks::shouldReleaseHold(
+            c.op == EFF_REMOVE, c.character.enabled, victimEnabled))
+        releaseGrappleHold(target);
 
+    // Remove the grapple effect exactly once. eraseEffectById is a raw erase
+    // (no handler callback), so this does not re-enter handleGrappleAttack.
     if (c.op == EFF_ADD) {
         c.effect.immediate = 0;
         CharacterEffects *fx = c.character.getEffects();

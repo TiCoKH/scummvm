@@ -526,6 +526,11 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
 
                 if (hit || target->hasNegativeEffect()) {
                     ++globals.attackRollSlots[slot];
+                    // GB13-016: accumulate landed hits for the whole activation
+                    // (rake eligibility). attackRollSlots is zeroed per attack
+                    // resolution; hitsMade is reset only at activation start.
+                    if (slot <= 2)
+                        ++globals.hitsMade[slot];
                     VmInterface::soundPlay(0x08);
                     attackHit = true;
 

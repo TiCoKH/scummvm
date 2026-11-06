@@ -40,6 +40,7 @@
 #include "goldbox/spells/spell_casting.h"
 #include "goldbox/runtime/runtime_time.h"
 #include "goldbox/poolrad/rest_operation.h"
+#include "goldbox/poolrad/wilderness_travel.h"
 #include "goldbox/poolrad/spell_preparation.h"
 #include "goldbox/poolrad/program_services.h"
 #include "goldbox/core/direction.h"
@@ -1672,6 +1673,108 @@ void PoolradEngine::restoreSelectionIfPresent(
 	// restore). The dispatcher does not reset to the party front.
 }
 
+namespace {
+
+// GB13-023: host implementation of the wilderness-travel side effects. The
+// pure rules (clamp 0..15/0..35, region 0/13/26 atlas offset, block/river id
+// sets, 12h-on-permitted-including-clamped-noop, no-time-on-blocked) live in
+// WildernessTravel; this seam forwards them onto the engine. Three items stay
+// documented OPEN (trace-gated), each flagged below:
+//   * readAtlasTerrain: no typed 44x36 wilderness terrain-id read path exists
+//     yet (the area-map cache is a 16x16 dungeon surface; the overworld
+//     terrain table is "not promoted into typed runtime data" per
+//     in_game_main_screen_dialog.cpp). Until it lands this returns a
+//     documented passable default so the confirmable rules still drive end to
+//     end; the bounds-validated (atlasX,atlasY) is computed correctly.
+//   * yarashPyramidLeft: no named VM field exists for the Yarash "pyramid
+//     left" quest flag. The gate is a single well-named predicate fed by the
+//     confirmable world-state byte once its address is confirmed; until then
+//     it reports closed (rivers blocked), never an arbitrary guessed address.
+//   * runScriptTransitions: the exact wilderness ONMOVE/clock/ONSEARCH order
+//     is documented OPEN; the permitted-move commit + 12h advance happen
+//     first, then the transition hook runs.
+class HostWildernessEnvironment : public WildernessTravel::Environment {
+public:
+	HostWildernessEnvironment(ECL::AddressSpace &mem,
+			ECL::EclLayoutAccess layout,
+			const Goldbox::TimeFieldAddresses &clockAddrs,
+			Common::List<Goldbox::Data::PlayerCharacter *> &party,
+			Goldbox::Data::Effects::EffectHandlerBase *handler,
+			Goldbox::GameState gameState,
+			LocationContext &location)
+		: _mem(mem), _layout(layout), _clockAddrs(clockAddrs), _party(party),
+		  _handler(handler), _gameState(gameState), _location(location) {}
+
+	void currentLocal(int &localX, int &localY) override {
+		localX = (int)_mem.read8(_layout.vmField(kVmFieldWildernessX).vmAddr);
+		localY = (int)_mem.read8(_layout.vmField(kVmFieldWildernessY).vmAddr);
+	}
+
+	uint8 regionOffset() override {
+		// Reuse the region offset already computed by LocationContext
+		// (0/13/26). Keep it in sync with the kind before reading.
+		_location.syncRegion();
+		return _location.region;
+	}
+
+	bool yarashPyramidLeft() override {
+		// OPEN (trace-gated): the Yarash "pyramid left" quest flag has no
+		// named VM field. Report closed until the confirmable world-state
+		// byte/address is wired here; do NOT guess an address.
+		return false;
+	}
+
+	uint8 readAtlasTerrain(int atlasX, int atlasY) override {
+		// OPEN (trace-gated): no typed 44x36 overworld terrain-id read path
+		// exists yet. Return a documented passable default (0) so the atlas
+		// bounds-validation and the confirmable travel rules drive end to end;
+		// replace with the real WildCom/area-map terrain read once promoted.
+		(void)atlasX;
+		(void)atlasY;
+		return 0;
+	}
+
+	void commitLocal(int localX, int localY) override {
+		const uint8 x = (uint8)(localX & 0xFF);
+		const uint8 y = (uint8)(localY & 0xFF);
+		_mem.write8(_layout.vmField(kVmFieldWildernessX).vmAddr, x);
+		_mem.write8(_layout.vmField(kVmFieldWildernessY).vmAddr, y);
+		_location.wildernessPos = TilePos(x, y);
+		if (g_events) {
+			g_events->postEclVmMessage(
+				_layout.vmField(kVmFieldWildernessX).vmAddr, x);
+			g_events->postEclVmMessage(
+				_layout.vmField(kVmFieldWildernessY).vmAddr, y);
+		}
+	}
+
+	void advanceTwelveHours() override {
+		// A permitted overworld step costs 12 HOURS (field = 3 (hour),
+		// amount = 12) - DOS-reference timing - charged once per permitted
+		// move, including a clamped no-op move.
+		Goldbox::timeAddUnits(_mem, _clockAddrs, _party, _handler,
+			_gameState, 3, 12);
+	}
+
+	void runScriptTransitions() override {
+		// OPEN (trace-gated): the exact wilderness ONMOVE/clock/ONSEARCH order
+		// is not byte-confirmed. The commit + 12h advance already ran; the
+		// confirmable transition hook is left as a no-op seam until the
+		// original overworld sequence is traced.
+	}
+
+private:
+	ECL::AddressSpace &_mem;
+	ECL::EclLayoutAccess _layout;
+	const Goldbox::TimeFieldAddresses &_clockAddrs;
+	Common::List<Goldbox::Data::PlayerCharacter *> &_party;
+	Goldbox::Data::Effects::EffectHandlerBase *_handler;
+	Goldbox::GameState _gameState;
+	LocationContext &_location;
+};
+
+} // namespace
+
 void PoolradEngine::dispatchPlayerCommand() {
 	if (!_eclVm || _eclFlags.suspended)
 		return;
@@ -1706,6 +1809,38 @@ void PoolradEngine::dispatchPlayerCommand() {
 	// G_SaveMapId writeback: kVmFieldSavedEclId is maintained by the
 	// NEWECL handler and initializeMapRuntimeForState. Don't overwrite
 	// it here — byteMapId tracks GEO block ID which can differ from ECL ID.
+
+	// GB13-023 (Req 33): wilderness DIRECTIONAL-TRAVEL path, selected by the
+	// LocationContext (overworld regions). It is distinct from the dungeon
+	// move/turn path below: the view converts the arrow to a compass direction
+	// at one boundary and queues kCmdWildernessMove; the pure WildernessTravel
+	// rules clamp (0..15 / 0..35), apply the region 0/13/26 atlas offset with
+	// signed pre-clamp math + bounds validation, test the blocked-terrain set
+	// and the river gate, and decide the 12h-vs-0 time outcome. A permitted
+	// move (including a clamped no-op) advances 12 hours; a blocked move does
+	// not move and advances no time.
+	if (cmd == Views::InGameView::kCmdWildernessMove) {
+		if (!_location.isWilderness()) {
+			// Defensive: a wilderness command outside a wilderness context is
+			// ignored (no dungeon fallthrough), selection preserved.
+			restoreSelectionIfPresent(savedSelection);
+			return;
+		}
+
+		HostWildernessEnvironment wildEnv(mem, layout, kPoolradClockAddrs,
+			_party, effectsRuntime(), getGameState(), _location);
+		WildernessTravel travel;
+		const WildernessTravel::Compass dir = inGameView->getTravelDir();
+		travel.step(wildEnv, dir);
+
+		// Sync the committed wilderness position back to the view.
+		const uint16 wx = mem.read8(layout.vmField(kVmFieldWildernessX).vmAddr);
+		const uint16 wy = mem.read8(layout.vmField(kVmFieldWildernessY).vmAddr);
+		inGameView->setMapPosition(wx, wy, inGameView->getMapDir());
+
+		restoreSelectionIfPresent(savedSelection);
+		return;
+	}
 
 	if (cmd == Views::InGameView::kCmdEncamp) {
 		const VmResult r = runEclEntryPoint(ECL::kEclRuntimeOnRestEntry);
