@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/views/dialogs/treasure_dialog.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/noncombat_spell_cast.h"
 #include "goldbox/spells/spell_casting.h"
 #include "goldbox/spells/spell_context.h"
 #include "goldbox/spells/spell_handlers.h"
@@ -100,14 +101,8 @@ void TreasureDialog::actionDetect() {
     // a memorized slot is spent (fromMagicItem false), never an item/temple
     // charge, and distinct from the combat path. castSpell consumes exactly
     // ONE memorized slot on CAST_OK and leaves it intact on CAST_ABORTED.
-    Goldbox::Spells::SpellContext ctx;
-    ctx.caster = ch;
-    ctx.spellBook = &ch->spellBook;
-    ctx.inCombat = false;
-    ctx.fromMagicItem = false;
-
-    const Goldbox::Spells::SpellCastResult result =
-        Goldbox::Spells::g_spellCasting->castSpell(ctx, spell);
+    Goldbox::Poolrad::NoncombatSpellCast cast(ch, false);
+    const Goldbox::Spells::SpellCastResult result = cast.cast(spell);
     if (result.status != Goldbox::Spells::CAST_OK)
         return; // cancelled / failed: nothing consumed, no state change
 

@@ -96,7 +96,20 @@ void PartySelector::activate() {
     if (_partyList) {
         _partyList->setSyncVmSelection(false);
         _partyList->setExcludedCharacter(_config.excludedCharacter);
-        _partyList->setSelectedCharIndex(1);
+        uint startIndex = 1;
+        Common::List<Goldbox::Data::PlayerCharacter *> *party =
+            VmInterface::getParty();
+        if (party && _config.initialCharacter) {
+            uint i = 1;
+            for (Goldbox::Data::PlayerCharacter *member : *party) {
+                if (member == _config.initialCharacter) {
+                    startIndex = i;
+                    break;
+                }
+                ++i;
+            }
+        }
+        _partyList->setSelectedCharIndex(startIndex);
         _partyList->activate();
     }
     if (_horizontalMenu) {

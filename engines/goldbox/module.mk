@@ -108,6 +108,7 @@ MODULE_OBJS = \
 	poolrad/post_combat.o \
 	poolrad/poolrad_runtime_exchange.o \
 	poolrad/effect_handler.o \
+	poolrad/noncombat_spell_cast.o \
 	poolrad/spell_preparation.o \
 	poolrad/rest_operation.o \
 	poolrad/training_rules.o \
@@ -161,6 +162,7 @@ MODULE_OBJS = \
 	poolrad/views/dialogs/prompt_message.o \
 	poolrad/views/dialogs/load_save_dialog.o \
 	poolrad/views/dialogs/items_menu.o \
+	poolrad/views/dialogs/spell_target_picker.o \
 	poolrad/views/dialogs/spells_menu.o \
 	poolrad/views/dialogs/character_profile.o \
 	poolrad/views/dialogs/portrait_display.o \

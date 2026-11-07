@@ -51,6 +51,8 @@ class PoolradCharacter;
 namespace Views {
 namespace Dialogs {
 
+class SpellTargetPicker;
+
 /**
  * ItemsMenu provides an interactive in-game item management menu
  * for the currently selected character. The player can view their inventory
@@ -125,6 +127,8 @@ private:
 	HorizontalYesNo *_removeConfirm = nullptr;
 	Goldbox::Data::Items::CharacterItem *_pendingRemoveItem = nullptr;
 	PartySelector *_partySelector = nullptr;
+	// Target pick for a noncombat item spell (NoncombatCastTargetMenu).
+	SpellTargetPicker *_targetPicker = nullptr;
 	Goldbox::Data::Items::CharacterItem *_pendingTradeItem = nullptr;
 	Goldbox::Data::Items::CharacterItem *_pendingUseItem = nullptr;
 	Goldbox::Data::Items::CharacterItem *_pendingSellItem = nullptr;

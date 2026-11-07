@@ -77,44 +77,50 @@ void SpellRegistry::buildDefinitions() {
 Common::String SpellRegistry::effectMessageForSpell(
         Goldbox::Data::Spells::Spells id) {
     using namespace Goldbox::Data::Spells;
+    // The msg each Magic handler passes to ResolveSpell (InitSpellFns).
     switch (id) {
-    case SP_CL1_BLESS:           return "is Blessed";
-    case SP_CL1_CURSE:           return "is Cursed";
-    case SP_CL1_DETECT_MAGIC:    return "is affected";
-    case SP_MUL1_DETECT_MAGIC:   return "is affected";
-    case SP_CL1_PROT_FROM_EVIL:  return "is Protected from Evil";
-    case SP_CL1_PROT_FROM_GOOD:  return "is Protected from Good";
-    case SP_MUL1_PROT_FROM_EVIL: return "is Protected from Evil";
-    case SP_MUL1_PROT_FROM_GOOD: return "is Protected from Good";
-    case SP_CL1_RESIST_COLD:     return "is cold-resistant";
-    case SP_CL2_FIND_TRAPS:      return "is affected";
-    case SP_CL2_RESIST_FIRE:     return "Resists Fire";
-    case SP_CL2_SLOW_POISON:     return "Slow Poison";
-    case SP_CL3_PRAYER:          return "is praying";
-    case SP_CL3_REMOVE_CURSE:    return Common::String();
-    case SP_CL3_BESTOW_CURSE:    return "has been cursed!";
-    case SP_MUL3_BLINK:          return "is blinking";
-    case SP_MUL2_DETECT_INVISIB: return "is affected";
-    case SP_MUL2_INVISIBILITY:   return "is Invisible";
-    case SP_MUL2_KNOCK:          return "Knock-Knock";
-    case SP_MUL2_MIRROR_IMAGE:   return "is duplicated";
-    case SP_MUL2_RAY_ENFEEBLE:   return "is weakened";
-    case SP_MUL3_INVIS_10R:      return "is invisible";
-    case SP_MUL3_HASTE:          return "is Hasted";
-    case SP_MUL3_PROT_F_EVIL_10R: return "is Protected from Evil";
-    case SP_MUL3_PROT_F_GOOD_10R: return "is Protected from Good";
+    case SP_CL1_BLESS:            return "is Blessed";
+    case SP_CL1_CURSE:            return "is Cursed";
+    case SP_CL1_DETECT_MAGIC:
+    case SP_MUL1_DETECT_MAGIC:
+    case SP_MUL1_READ_MAGIC:
+    case SP_CL2_FIND_TRAPS:
+    case SP_CL2_SLOW_POISON:
+    case SP_MUL2_DETECT_INVISIB:  return "is affected";
+    case SP_CL1_PROT_FROM_EVIL:
+    case SP_CL1_PROT_FROM_GOOD:
+    case SP_MUL1_PROT_FROM_EVIL:
+    case SP_MUL1_PROT_FROM_GOOD:
+    case SP_MUL3_PROT_F_EVIL_10R:
+    case SP_MUL3_PROT_F_GOOD_10R:
     case SP_MUL3_PROT_F_NORM_MSL: return "is protected";
-    case SP_MUL3_SLOW:           return "is Slowed";
-    case SP_MUL2_STRENGTH:       return "is stronger";
-    case SP_CL3_ANIMATE_DEAD:    return "is animated";
-    case SP_CL3_CAUSE_BLINDNESS: return "is blind";
-    case SP_CL3_CURE_DISEASE:    return "is cured";
-    case SP_CL3_CAUSE_DISEASE:   return "is diseased";
-    case SP_MI1:                 return "is Speedy";
-    case SP_MI5:                 return "is paralyzed";
-    case SP_MI7:                 return "is invisible";
-    case SP_MI11:                return "is Reading";
-    default:                     return Common::String();
+    case SP_CL1_RESIST_COLD:      return "is cold-resistant";
+    case SP_MUL1_CHARM_PERSON:
+    case SP_CL2_SNAKE_CHARM:      return "is charmed";
+    case SP_MUL1_FRIENDS:         return "is friendly";
+    case SP_MUL1_SHIELD:          return "is shielded";
+    case SP_MUL1_SLEEP:           return "falls asleep";
+    case SP_CL2_HOLD_PERSON:
+    case SP_MUL3_HOLD_PERSON:     return "is held";
+    case SP_CL2_RESIST_FIRE:      return "is fire resistant";
+    case SP_CL2_SILENCE_15R:      return "is silenced";
+    case SP_MUL2_INVISIBILITY:
+    case SP_MUL3_INVIS_10R:
+    case SP_MI7:                  return "is invisible";
+    case SP_MUL2_KNOCK:           return "Knock-Knock";
+    case SP_MUL2_MIRROR_IMAGE:    return "is duplicated";
+    case SP_MUL2_RAY_ENFEEBLE:    return "is weakened";
+    case SP_CL3_CAUSE_BLINDNESS:  return "is blind";
+    case SP_CL3_CAUSE_DISEASE:    return "is diseased";
+    case SP_CL3_PRAYER:           return "is praying";
+    case SP_CL3_BESTOW_CURSE:     return "has been cursed!";
+    case SP_MUL3_BLINK:           return "is blinking";
+    case SP_MUL3_HASTE:           return "is Hasted";
+    case SP_MUL3_SLOW:            return "is Slowed";
+    case SP_MI1:                  return "is Speedy";
+    case SP_MI5:                  return "is paralyzed";
+    case SP_MI11:                 return "is Reading";
+    default:                      return Common::String();
     }
 }
 

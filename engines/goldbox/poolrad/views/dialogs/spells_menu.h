@@ -58,6 +58,9 @@ namespace Dialogs {
  */
 class SpellsMenu : public Dialog {
 public:
+    /** The next activate() starts on the first spell. */
+    void resetSelection() { _lastSelection = 0; }
+
     enum SpellLocation {
         SL_IN_MEMORY = 0,
         SL_IN_SPELL_BOOK = 1,

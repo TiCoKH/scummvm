@@ -123,7 +123,7 @@ SpellCastResult applyOnTargets(const SpellContext &context,
                 (unsigned)target->hitPoints.current);
 
         if (entry.effectId != 0) {
-            const uint8 duration = computeSpellDuration(spellId,
+            const uint16 duration = computeSpellDuration(spellId,
                 context.casterLevel, context.inCombat);
             Goldbox::Poolrad::checkUnaffectedEffect(*target, handler, bridge,
                 context.combat, entry.effectId, duration, effectPower,

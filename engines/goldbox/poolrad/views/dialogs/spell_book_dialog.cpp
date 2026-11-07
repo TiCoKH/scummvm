@@ -25,13 +25,16 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/poolrad/views/dialogs/spell_target_picker.h"
 #include "goldbox/poolrad/views/dialogs/spells_menu.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/data/poolrad_spell_mapping.h"
+#include "goldbox/poolrad/noncombat_spell_cast.h"
 #include "goldbox/poolrad/spell_preparation.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/data/items/character_item.h"
+#include "goldbox/data/spells/spell_metadata.h"
 #include "goldbox/spells/spell_casting.h"
 #include "common/debug.h"
 
@@ -56,6 +59,8 @@ SpellBookDialog::SpellBookDialog(const Common::String &name)
       _spellsMenu(nullptr),
       _confirmDialog(nullptr),
       _displayMenu(nullptr),
+      _targetPicker(nullptr),
+      _loseItDialog(nullptr),
       _pendingMemorizeSpells(false),
       _pendingScribeSpells(false) {
 
@@ -112,6 +117,21 @@ SpellBookDialog::SpellBookDialog(const Common::String &name)
     _displayMenu->setParent(this);
     subView(_displayMenu);
     _displayMenu->deactivate();
+
+    _targetPicker = new SpellTargetPicker(name + "Target");
+    subView(_targetPicker);
+    _targetPicker->deactivate();
+
+    // YesNoMenu('Lose it? ', LightMagenta, White, LightGreen).
+    HorizontalYesNoConfig loseCfg;
+    loseCfg.promptTxt = "Lose it? ";
+    loseCfg.promptColor = 13;
+    loseCfg.textColor = 15;
+    loseCfg.selectColor = 10;
+    loseCfg.backgroundColor = 0;
+    _loseItDialog = new HorizontalYesNo(name + "LoseIt", loseCfg);
+    subView(_loseItDialog);
+    _loseItDialog->deactivate();
 }
 
 SpellBookDialog::~SpellBookDialog() {
@@ -161,6 +181,11 @@ void SpellBookDialog::deactivate() {
         _confirmDialog->deactivate();
     if (_displayMenu)
         _displayMenu->deactivate();
+    if (_targetPicker)
+        _targetPicker->deactivate();
+    if (_loseItDialog)
+        _loseItDialog->deactivate();
+    _castMessage = CAST_MSG_NONE;
 
     Dialog::deactivate();
 }
@@ -259,6 +284,10 @@ bool SpellBookDialog::msgKeypress(const KeypressMessage &msg) {
     // Only the current stage's menu takes input. HorizontalMenu does not
     // check its own active flag, so offering the key to every child let the
     // hidden main menu turn 'E' or Enter into a bogus spell pick.
+    if (_targetPicker && _targetPicker->isActive())
+        return _targetPicker->send(msg);
+    if (_loseItDialog && _loseItDialog->isActive())
+        return _loseItDialog->send(msg);
     if (_spellsMenu && _spellsMenu->isActive())
         return _spellsMenu->send(msg);
     if (_confirmDialog && _confirmDialog->isActive())
@@ -305,6 +334,16 @@ void SpellBookDialog::draw() {
 
     if (_displayMenu && _displayMenu->isActive())
         _displayMenu->draw();
+
+    drawCastMessage();
+
+    if (_loseItDialog && _loseItDialog->isActive()) {
+        _loseItDialog->setRedraw();
+        _loseItDialog->draw();
+    }
+
+    if (_targetPicker && _targetPicker->isActive())
+        _targetPicker->draw();
 }
 
 // --- MenuResult routing ---
@@ -332,6 +371,9 @@ void SpellBookDialog::handleMenuResult(const MenuResultMessage &result) {
         break;
     case STAGE_DISPLAY:
         handleDisplayResult(result);
+        break;
+    case STAGE_CAST_LOSE_IT:
+        handleLoseItResult(result);
         break;
     default:
         break;
@@ -371,6 +413,10 @@ void SpellBookDialog::beginCast() {
 
     if (_horizontalMenu)
         _horizontalMenu->deactivate();
+
+    // NoncombatCastMenu entry: castTarget := nil.
+    if (_targetPicker)
+        _targetPicker->resetCastTarget();
 
     _spellsMenu->configure(SpellsMenu::SL_IN_MEMORY, SpellsMenu::SA_CAST);
     _spellsMenu->activate();
@@ -460,15 +506,47 @@ void SpellBookDialog::handleCastResult(const MenuResultMessage &result) {
         return;
     }
 
-    int legacyIndex = result._intValue;
-    debug(3, "SpellBookDialog: cast spell legacyIndex=%d -> re-entering loop", legacyIndex);
-
-    // ACTION_Execute: cast through the shared spell service. A confirmed cast
-    // consumes exactly the memorized slot (inside castSpell); a cancelled aim
-    // returns CAST_ABORTED and consumes nothing.
-    castMemorizedSpell(legacyIndex);
-
+    const int legacyIndex = result._intValue;
+    if (legacyIndex < 0 ||
+            legacyIndex >= Goldbox::Poolrad::Data::POOLRAD_PLAYER_KNOWN_SIZE) {
+        continueCastLoop();
+        return;
+    }
+    _castSpell = Goldbox::Poolrad::Data::kPoolradSpellMapping[legacyIndex];
     _screenDirty = true;
+
+    // CastSpellNC: target mode 0 is refused outside combat.
+    if (NoncombatSpellCast::isCombatOnly(_castSpell)) {
+        _stage = STAGE_CAST_LOSE_IT;
+        setCastMessage(CAST_MSG_COMBAT_ONLY);
+        if (_loseItDialog)
+            _loseItDialog->activate();
+        redraw();
+        return;
+    }
+
+    showCastsMessage();
+    castMemorizedSpell(legacyIndex);
+    continueCastLoop();
+}
+
+void SpellBookDialog::handleLoseItResult(const MenuResultMessage &result) {
+    // YesNoMenu only ends on Y or N.
+    if (!result._success)
+        return;
+
+    if (_loseItDialog)
+        _loseItDialog->deactivate();
+    if (result._keyCode == Common::KEYCODE_y && _character)
+        _character->removeMemorizedSpell(static_cast<uint8>(_castSpell));
+
+    _stage = STAGE_CAST;
+    continueCastLoop();
+}
+
+void SpellBookDialog::continueCastLoop() {
+    // CastSpellNC ends with ClearMessageWindow.
+    setCastMessage(CAST_MSG_NONE);
 
     // NoncombatCastMenu: an empty list ends the loop ("has no spells
     // memorized" is printed by the host).
@@ -480,9 +558,57 @@ void SpellBookDialog::handleCastResult(const MenuResultMessage &result) {
         return;
     }
 
-    // Re-enter cast loop (original loops until spell==0).
+    // idx := -1: the list is rebuilt with the cursor on its first spell.
+    _spellsMenu->resetSelection();
     _spellsMenu->configure(SpellsMenu::SL_IN_MEMORY, SpellsMenu::SA_CAST);
     _spellsMenu->activate();
+    if (g_events && g_events->focusedView())
+        g_events->focusedView()->redraw();
+}
+
+void SpellBookDialog::showCastsMessage() {
+    setCastMessage(CAST_MSG_CASTS);
+    if (!g_events)
+        return;
+
+    // PauseOnly: gameDelay * 225 ms, keys ignored.
+    const uint32 end = g_system->getMillis() +
+        VmInterface::getTextDelay() * 225;
+    while (g_system->getMillis() < end)
+        if (!g_events->pumpModalInputFrame())
+            break;
+
+    setCastMessage(CAST_MSG_NONE);
+}
+
+void SpellBookDialog::setCastMessage(CastMessage message) {
+    _castMessage = message;
+    redraw();
+}
+
+void SpellBookDialog::drawCastMessage() {
+    if (_castMessage == CAST_MSG_NONE)
+        return;
+
+    // NoncombatCastMenu frames and clears the message window first.
+    drawWindow(1, 17, 38, 22);
+    Surface s = getSurface();
+    const Common::String spellName =
+        Goldbox::Spells::getSpellName(_castSpell);
+
+    if (_castMessage == CAST_MSG_COMBAT_ONLY) {
+        s.writeStringC(1, 19, 10, spellName);
+        s.writeStringC(1, 20, 10, "is a combat-only spell...");
+        return;
+    }
+
+    if (_character) {
+        // DisplayCreatureName: LightRed when disabled, else LightCyan.
+        s.writeStringC(1, 19, _character->enabled ? 11 : 12,
+            _character->name);
+        s.writeStringC(_character->name.size() + 2, 19, 10, "casts");
+    }
+    s.writeStringC(1, 20, 10, spellName);
 }
 
 void SpellBookDialog::castMemorizedSpell(int legacyIndex) {
@@ -495,17 +621,10 @@ void SpellBookDialog::castMemorizedSpell(int legacyIndex) {
     const Goldbox::Data::Spells::Spells spell =
         Goldbox::Poolrad::Data::kPoolradSpellMapping[legacyIndex];
 
-    // Noncombat cast origin: a memorized slot is spent (fromMagicItem false),
-    // never an item or temple charge, and distinct from the combat path.
-    Goldbox::Spells::SpellContext ctx;
-    ctx.caster = _character;
-    ctx.spellBook = &_character->spellBook;
-    ctx.inCombat = false;
-    ctx.fromMagicItem = false;
-
-    // castSpell consumes the memorized slot itself on success and leaves it
-    // intact on CAST_ABORTED (cancel) / CAST_INVALID_TARGET.
-    Goldbox::Spells::g_spellCasting->castSpell(ctx, spell);
+    // castSpell spends the memorized slot once a target is chosen; a
+    // cancelled pick keeps it, as castUI returning sel = False does.
+    NoncombatSpellCast cast(_character, false, _targetPicker);
+    cast.cast(spell);
 }
 
 void SpellBookDialog::handleMemorizeResult(const MenuResultMessage &result) {

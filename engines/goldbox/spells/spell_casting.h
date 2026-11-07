@@ -54,6 +54,7 @@ private:
     SpellRegistry _registry;
     ISpellTargeter *_combatTargeter;
     ISpellTargeter *_nonCombatTargeter;
+    NonCombatTargeter _defaultNonCombatTargeter;
     GenericSpellHandler _fallbackHandler;
     CureLightWoundsHandler _cureLightWoundsHandler;
     BlessHandler _blessHandler;

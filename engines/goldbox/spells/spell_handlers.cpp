@@ -133,13 +133,14 @@ SpellCastResult BurningHandsHandler::execute(const SpellContext &context,
 }
 
 // --- Charm Person (ID10) ---
-// Only affects normal/small targets (monsterType < 2, iconDimension < 2).
-// Power encodes caster's combat side: combatSide * 0x80 + 12.
-// After applying the effect, fires EFF_ADD on the charm effect record.
+// Magic.CharmPersonHandler: only charType 0..1 with icon size 1 can be
+// charmed. ResolveSpell adds the effect (save negates) at strength
+// hostile * 128 + caster level, then the Charm handler runs with
+// removed = False.
 SpellCastResult CharmPersonHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
-    if (targets.targetCharacters.empty())
+    if (targets.targetCharacters.empty() || !targets.targetCharacters[0])
         return SpellCastResult(CAST_INVALID_TARGET);
 
     if (!context.effectSystem)
@@ -150,61 +151,33 @@ SpellCastResult CharmPersonHandler::execute(const SpellContext &context,
     Goldbox::Data::Effects::EffectHandlerBase *handler =
         context.effectSystem->getHandler();
 
-    const uint16 duration = definition.entry ?
-        static_cast<uint16>(definition.entry->fixedDuration +
-            definition.entry->perLvlDuration * context.casterLevel) : 0;
-
-    for (uint i = 0; i < targets.targetCharacters.size(); ++i) {
-        Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[i];
-        if (!target)
-            continue;
-
-        // Charm Person only affects normal/small characters.
-        // monsterType and iconDimension are PoolradCharacter fields;
-        // access via ADnDCharacter cast is safe since all runtime chars derive from it.
-        const Goldbox::Data::ADnDCharacter *adnd =
-            dynamic_cast<const Goldbox::Data::ADnDCharacter *>(target);
-        // iconDimension is on PlayerCharacter base.
-        if (target->iconDimension >= 2) {
-            if (bridge)
-                bridge->postEffectMessage(target, "is unaffected", true);
-            continue;
-        }
-        // monsterType check: only available on PoolradCharacter; skip for non-poolrad.
-        // We use a duck-type check via the adnd pointer's npc field as a proxy:
-        // npc >= 0x80 means NPC/monster with potentially large type — skip if so.
-        // The decompiled logic checks target->type < 2; we map that to npc < 2.
-        if (adnd && static_cast<uint8>(adnd->npc) >= 2) {
-            if (bridge)
-                bridge->postEffectMessage(target, "is unaffected", true);
-            continue;
-        }
-
-        // Power: caster's combat side * 0x80 + 12 (mirrors handleCharmingGaze).
-        const uint8 power = static_cast<uint8>(
-            static_cast<uint8>(context.caster ? context.caster->combatSide : 0)
-            * 0x80 + 12);
-
-        context.effectSystem->addOrRefreshEffect(
-            *target->getEffects(), *target,
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_CHARM_PERSON),
-            duration, power, true);
-
+    Goldbox::Data::PlayerCharacter *target = targets.targetCharacters[0];
+    const Goldbox::Poolrad::Data::PoolradCharacter *pc =
+        dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(target);
+    const uint8 charType = pc ? pc->monsterType : 0;
+    if (charType > 1 || target->iconDimension > 1) {
         if (bridge)
-            bridge->postEffectMessage(target, "is charmed", true);
-
-        // Fire EFF_ADD on the charm effect to trigger combatSide swap / ai_control.
-        if (handler) {
-            Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
-            Goldbox::Data::Effects::Effect *charmEffect = fx ?
-                fx->findEffectById(
-                    static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_CHARM_PERSON))
-                : nullptr;
-            if (charmEffect)
-                handler->apply(Goldbox::Data::Effects::EFF_ADD, *charmEffect,
-                    *target, context.combat, bridge);
-        }
+            bridge->postEffectMessage(target, "is unaffected", true);
+        return SpellCastResult(CAST_OK);
     }
+
+    const uint8 hostile = (context.caster &&
+            context.caster->combatSide == Goldbox::Data::CS_ENEMY) ? 1 : 0;
+    SpellApplyParams params;
+    params.effectPowerOverride =
+        static_cast<uint8>(hostile * 128 + context.casterLevel);
+    params.effectImmediate = true;
+    params.message = "is charmed";
+    applyOnTargets(context, definition, targets, params);
+
+    Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
+    Goldbox::Data::Effects::Effect *charmEffect = fx ?
+        fx->findEffectById(
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_CHARM_PERSON))
+        : nullptr;
+    if (charmEffect && handler)
+        handler->apply(Goldbox::Data::Effects::EFF_ADD, *charmEffect,
+            *target, context.combat, bridge);
 
     return SpellCastResult(CAST_OK);
 }
@@ -381,8 +354,13 @@ SpellCastResult SleepHandler::execute(const SpellContext &context,
         if (!target)
             continue;
 
+        // PoolradCharacter shadows the base status and holds highestLevel.
+        const Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
+            dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(target);
+
         // Animated (undead) targets are immune.
-        if (target->healthStatus == Goldbox::Data::S_ANIMATED)
+        if (poolrad && poolrad->healthStatus ==
+                static_cast<uint8>(Goldbox::Data::S_ANIMATED))
             continue;
 
         // Already sleeping — skip.
@@ -390,10 +368,6 @@ SpellCastResult SleepHandler::execute(const SpellContext &context,
         if (fx && fx->hasEffect(
                 static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_HELPLESS_35)))
             continue;
-
-        // Derive level cost from highestLevel (PoolradCharacter field).
-        const Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
-            dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(target);
         const uint8 highestLevel = poolrad ? poolrad->highestLevel : 1;
 
         uint8 consume;
@@ -450,7 +424,7 @@ SpellCastResult HoldPersonHandler::execute(const SpellContext &context,
     else if (count == 2)  saveAdj = -1;
     else                  saveAdj = 0;   // 3 or 4 targets
 
-    const uint8 duration = computeSpellDuration(
+    const uint16 duration = computeSpellDuration(
         static_cast<uint8>(definition.id), context.casterLevel,
         context.inCombat);
     const bool usesSave = definition.entry->savingEffect !=
@@ -786,7 +760,7 @@ SpellCastResult StrengthHandler::execute(const SpellContext &context,
         if (changed && bridge)
             bridge->postEffectMessage(target, "is stronger", true);
 
-        const uint8 duration = computeSpellDuration(
+        const uint16 duration = computeSpellDuration(
             static_cast<uint8>(Goldbox::Data::Spells::SP_MUL2_STRENGTH),
             context.casterLevel, context.inCombat);
 
@@ -1505,7 +1479,7 @@ SpellCastResult SpellID59Handler::execute(const SpellContext &context,
         if (target->applyStrengthChange(21, 0, strengthChange) && bridge)
             bridge->postEffectMessage(target, "is stronger", true);
 
-        const uint8 duration = computeSpellDuration(
+        const uint16 duration = computeSpellDuration(
             static_cast<uint8>(Goldbox::Data::Spells::SP_MI3),
             context.casterLevel, context.inCombat);
 

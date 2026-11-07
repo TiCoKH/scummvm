@@ -29,6 +29,8 @@
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/poolrad/views/dialogs/party_selector.h"
+#include "goldbox/poolrad/views/dialogs/spell_target_picker.h"
+#include "goldbox/poolrad/noncombat_spell_cast.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/vm_interface.h"
@@ -72,6 +74,10 @@ ItemsMenu::ItemsMenu(const String &name)
 	_verticalMenu = new VerticalMenu("ItemsVerticalMenu", _menuConfig);
 	subView(_verticalMenu);
 	_verticalMenu->deactivate();
+
+	_targetPicker = new SpellTargetPicker("ItemsSpellTarget");
+	subView(_targetPicker);
+	_targetPicker->deactivate();
 }
 
 ItemsMenu::~ItemsMenu() {
@@ -201,6 +207,11 @@ bool ItemsMenu::msgKeypress(const KeypressMessage &msg) {
 
 	debug(7, "ItemsMenu::msgKeypress() keycode=%d ascii=%d", (int)msg.keycode,
 		(int)msg.ascii);
+
+	// The modal target pick owns the keyboard; the hidden item menus would
+	// otherwise take the keys.
+	if (_targetPicker && _targetPicker->isActive())
+		return _targetPicker->send(msg);
 
 	if (_removeConfirm && _removeConfirm->isActive()) {
 		return View::msgKeypress(msg);
@@ -765,13 +776,13 @@ void ItemsMenu::executeItemUse(Goldbox::Data::Items::CharacterItem *item,
 			}
 		}
 	} else {
-		Goldbox::Spells::SpellContext ctx;
-		ctx.caster = _character;
-		ctx.inCombat = false;
-		ctx.fromMagicItem = true;
-
+		// Each item use starts a fresh castTarget.
+		if (_targetPicker)
+			_targetPicker->resetCastTarget();
+		Goldbox::Poolrad::NoncombatSpellCast cast(_character, true,
+			_targetPicker);
 		const Goldbox::Spells::SpellCastResult castResult =
-			Goldbox::Spells::g_spellCasting->castSpell(ctx, spellEnum);
+			cast.cast(spellEnum);
 		castSucceeded = (castResult.status == Goldbox::Spells::CAST_OK);
 	}
 

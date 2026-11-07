@@ -47,6 +47,7 @@ namespace Dialogs {
 class HorizontalMenu;
 class HorizontalYesNo;
 class SpellsMenu;
+class SpellTargetPicker;
 class VerticalMenu;
 
 /**
@@ -62,7 +63,8 @@ public:
         STAGE_SCRIBE,
         STAGE_SCRIBE_CONFIRM,
         STAGE_DISPLAY,
-        STAGE_REST
+        STAGE_REST,
+        STAGE_CAST_LOSE_IT
     };
 
     explicit SpellBookDialog(const Common::String &name = "SpellBook");
@@ -101,6 +103,17 @@ private:
     SpellsMenu *_spellsMenu;
     HorizontalYesNo *_confirmDialog;
     VerticalMenu *_displayMenu;
+    SpellTargetPicker *_targetPicker;
+    HorizontalYesNo *_loseItDialog;
+
+    // Text shown in the message window during a cast.
+    enum CastMessage {
+        CAST_MSG_NONE,
+        CAST_MSG_CASTS,
+        CAST_MSG_COMBAT_ONLY
+    };
+    CastMessage _castMessage = CAST_MSG_NONE;
+    Goldbox::Data::Spells::Spells _castSpell = Goldbox::Data::Spells::SP_NONE;
 
     // Memorize/scribe pending state
     bool _pendingMemorizeSpells;
@@ -132,6 +145,14 @@ private:
     void handleScribeResult(const MenuResultMessage &result);
     void handleConfirmResult(const MenuResultMessage &result);
     void handleDisplayResult(const MenuResultMessage &result);
+    void handleLoseItResult(const MenuResultMessage &result);
+
+    // PrintCastSpellMsg(curChar, 'casts', spell): shown, paused, cleared.
+    void showCastsMessage();
+    void setCastMessage(CastMessage message);
+    void drawCastMessage();
+    // Back to the cast list after a cast or a refused combat-only spell.
+    void continueCastLoop();
 
     // Immediate noncombat cast through g_spellCasting for the chosen slot.
     void castMemorizedSpell(int legacyIndex);

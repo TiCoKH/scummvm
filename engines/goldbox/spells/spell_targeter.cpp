@@ -108,9 +108,39 @@ bool CombatTargeter::selectTarget(const SpellContext &context,
     return selectTargetsCommon(context, definition, result);
 }
 
+// NoncombatCastTargetMenu: the whole party (context.allies) is the pool,
+// whatever side the spell favours. Target mode 0 (combat only) and any other
+// mode cancel the cast.
 bool NonCombatTargeter::selectTarget(const SpellContext &context,
         const SpellDefinition &definition, TargetSelection &result) {
-    return selectTargetsCommon(context, definition, result);
+    if (!definition.entry || !context.caster)
+        return false;
+
+    switch (definition.entry->targetType) {
+    case Goldbox::Data::Spells::ST_CASTER:
+        result.targetCharacters.push_back(context.caster);
+        return true;
+
+    case Goldbox::Data::Spells::ST_PARTY_MEMBER: {
+        if (!context.targetPicker)
+            return false;
+        Goldbox::Data::PlayerCharacter *picked = nullptr;
+        if (!context.targetPicker->pickSingleTarget(context.allies, picked) ||
+                !picked)
+            return false;
+        result.targetCharacters.push_back(picked);
+        return true;
+    }
+
+    case Goldbox::Data::Spells::ST_TARGET_LIST:
+        for (uint i = 0; i < context.allies.size(); ++i)
+            if (context.allies[i])
+                result.targetCharacters.push_back(context.allies[i]);
+        return !result.targetCharacters.empty();
+
+    default:
+        return false;
+    }
 }
 
 } // namespace Spells

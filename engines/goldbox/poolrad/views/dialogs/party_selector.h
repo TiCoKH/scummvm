@@ -37,9 +37,12 @@ struct PartySelectorConfig {
     Common::String promptText;
     bool allowExit;
     Goldbox::Data::PlayerCharacter *excludedCharacter;
+    // Character highlighted first; the first member when null.
+    Goldbox::Data::PlayerCharacter *initialCharacter;
 
     PartySelectorConfig() : promptText("Select"), allowExit(true),
-                            excludedCharacter(nullptr) {
+                            excludedCharacter(nullptr),
+                            initialCharacter(nullptr) {
     }
 };
 
@@ -48,6 +51,10 @@ public:
     PartySelector(const Common::String &name,
                   const PartySelectorConfig &config = PartySelectorConfig());
     ~PartySelector() override;
+
+    void setInitialCharacter(Goldbox::Data::PlayerCharacter *character) {
+        _config.initialCharacter = character;
+    }
 
     void activate() override;
     void deactivate() override;

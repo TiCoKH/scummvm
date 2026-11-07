@@ -30,33 +30,33 @@
 namespace Goldbox {
 namespace Spells {
 
-// Mirrors SPELL_ComputeDuration. Returns an 8-bit duration value.
+// Magic.CalcSpellDuration, in minutes (a Word, no 8-bit wrap).
 // Six spell IDs use special dice formulas; all others use the table.
-uint8 computeSpellDuration(uint8 spellId, uint8 casterLevel, bool inCombat) {
+uint16 computeSpellDuration(uint8 spellId, uint8 casterLevel, bool inCombat) {
     switch (spellId) {
     case 0x28: // 40: 1d6 * 10
-        return static_cast<uint8>(
+        return static_cast<uint16>(
             (Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 6) : 3) * 10);
 
     case 0x39: // 57: 5d4
     case 0x3D: // 61: 5d4
-        return static_cast<uint8>(
+        return static_cast<uint16>(
             Goldbox::g_engine ? Goldbox::g_engine->rollDice(5, 4) : 10);
 
     case 0x3B: // 59: 1d4 * 10 + 40
-        return static_cast<uint8>(
+        return static_cast<uint16>(
             (Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 4) : 2) * 10 + 40);
 
     case 0x3F: // 63: combat = 2d10*10, non-combat = (1d10+10)*10
         if (inCombat)
-            return static_cast<uint8>(
+            return static_cast<uint16>(
                 (Goldbox::g_engine ? Goldbox::g_engine->rollDice(2, 10) : 10) * 10);
         else
-            return static_cast<uint8>(
+            return static_cast<uint16>(
                 ((Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 10) : 5) + 10) * 10);
 
-    case 0x43: // 67: fixed
-        return 160;
+    case 0x43: // 67: 24 hours
+        return 1440;
 
     default: {
         const Common::Array<Goldbox::Data::Spells::SpellEntry> &entries =
@@ -64,8 +64,7 @@ uint8 computeSpellDuration(uint8 spellId, uint8 casterLevel, bool inCombat) {
         if (spellId >= entries.size())
             return 0;
         const Goldbox::Data::Spells::SpellEntry &entry = entries[spellId];
-        // Preserve 8-bit wrap semantics of the original.
-        return static_cast<uint8>(entry.fixedDuration +
+        return static_cast<uint16>(entry.fixedDuration +
             entry.perLvlDuration * casterLevel);
     }
     }
@@ -128,7 +127,7 @@ uint8 computeSpellRange(uint8 spellId, uint8 casterLevel,
 }
 
 SpellCastingService::SpellCastingService()
-    : _combatTargeter(nullptr), _nonCombatTargeter(nullptr) {
+    : _combatTargeter(nullptr), _nonCombatTargeter(&_defaultNonCombatTargeter) {
     g_spellCasting = this;
     _registry.setHandler(kHandlerCureLightWounds, &_cureLightWoundsHandler);
     _registry.setHandler(kHandlerBless,           &_blessHandler);

@@ -36,7 +36,7 @@ namespace Spells {
 // Uses special-case overrides for six spell IDs; all others use the
 // SpellEntry table formula: fixedDuration + perLvlDuration * casterLevel.
 // inCombat is only relevant for spell ID 0x3F (63).
-uint8 computeSpellDuration(uint8 spellId, uint8 casterLevel, bool inCombat);
+uint16 computeSpellDuration(uint8 spellId, uint8 casterLevel, bool inCombat);
 
 // Mirrors SPELL_GetCastingLevel: cleric/mage level by spell class, 12 for
 // item-class spells, and 6 for non-item spells cast from a magic item.
