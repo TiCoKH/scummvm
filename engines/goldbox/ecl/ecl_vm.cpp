@@ -151,7 +151,6 @@ DecodeStatus EclVM::loadProgram(Common::Span<const uint8> program, uint8 scriptI
     // operands (type 0x03 / 0x81) resolve to real bytes at runtime.
     _memory.loadBytes(scriptVmStart, program);
 
-
     // Parse entry points from header.
     if (!parseECLHeader(program)) {
         return DECODE_OUT_OF_BOUNDS;
@@ -1040,7 +1039,6 @@ void EclVM::writeVmMemory(uint16 vmAddr, uint16 value,
             }
         }
     }
-
 
     if (region == 1)
         onDatBankWrite(vmAddr, writeValue, activeSyscalls);

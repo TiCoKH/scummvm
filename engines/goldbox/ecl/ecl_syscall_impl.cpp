@@ -37,7 +37,7 @@ EclSyscallImpl::EclSyscallImpl(::Goldbox::Engine *engine, AddressSpace *memory)
 
 void EclSyscallImpl::printText(const Common::String &text, bool clearBox) {
     if (!_engine) return;
-    
+
     // Route to message box / text display system
     _showMessageBox(text, clearBox);
 }
@@ -170,16 +170,16 @@ void EclSyscallImpl::_showMessageBox(const Common::String &text, bool clear) {
 
 View *EclSyscallImpl::_getCurrentView() const {
     if (!_engine) return nullptr;
-    
+
     // TODO: Return current active View from engine
     // Used for menu routing and display coordination
-    
+
     return nullptr;
 }
 
 void EclSyscallImpl::_updateViewState() {
     if (!_engine) return;
-    
+
     // After picture/menu/input completion, refresh view state
     // TODO: Call engine to redraw current view
 }

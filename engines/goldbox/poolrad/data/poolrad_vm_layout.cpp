@@ -227,7 +227,6 @@ Goldbox::VmFieldLocation PoolradGlobalVmLayout::field(
 	case kVmGlobalFieldColorFlagFloor:         return {kVmBankSystem, 0xC059};
 	case kVmGlobalFieldColorFlagHorizon:       return {kVmBankSystem, 0xC05F};
 
-
 	default:
 		return Goldbox::VmLayout::invalidLocation();
 	}

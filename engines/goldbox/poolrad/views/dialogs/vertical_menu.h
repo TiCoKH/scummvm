@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALMENU_H
-#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALMENU_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICAL_MENU_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICAL_MENU_H
 
 #include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
@@ -46,7 +46,6 @@ struct VerticalMenuConfig {
     Common::String title;
     bool addExit;
 };
-
 
 class VerticalMenu : public Dialog {
 private:
@@ -105,5 +104,5 @@ public:
 } // namespace Poolrad
 } // namespace Goldbox
 
-#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICALMENU_H
+#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_VERTICAL_MENU_H
 

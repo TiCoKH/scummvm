@@ -52,6 +52,5 @@ void DaxFont::drawChar(Graphics::Surface *dst, uint32 index, int x, int y, uint3
     }
 }
 
-
 } // namespace Gfx
 } // namespace Goldbox

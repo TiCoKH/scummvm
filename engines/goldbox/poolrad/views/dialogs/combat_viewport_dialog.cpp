@@ -40,7 +40,6 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-
 CombatViewportDialog::CombatViewportDialog()
         : Dialog("CombatViewport") {
 }

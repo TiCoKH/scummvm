@@ -44,7 +44,7 @@ public:
 	void draw() override;
 	void timeout() override;
 };
- 
+
 } // namespace Views
 } // namespace Poolrad
 } // namespace Goldbox

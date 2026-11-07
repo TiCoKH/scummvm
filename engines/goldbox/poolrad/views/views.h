@@ -37,7 +37,7 @@
 namespace Goldbox {
 namespace Poolrad{
 namespace Views {
-	
+
 struct Views {
 	TitleView _title;
 	CreditsView _credits;

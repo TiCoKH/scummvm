@@ -53,7 +53,7 @@ AddCharacterView::AddCharacterView()
     loadRosterList();
     _promptOptions.push_back("Add");
     _promptOptions.push_back("Exit");
-    
+
     Dialogs::VerticalMenuConfig menuConfig = {
         "Add a character:",  // promptTxt
         &_promptOptions,     // promptOptions (pointer)

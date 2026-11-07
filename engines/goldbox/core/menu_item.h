@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_MENU_ITEM_H
-#define GOLDBOX_MENU_ITEM_H
+#ifndef GOLDBOX_CORE_MENU_ITEM_H
+#define GOLDBOX_CORE_MENU_ITEM_H
 
 #include "common/array.h"
 #include "common/str.h"
@@ -60,4 +60,4 @@ struct MenuItemList {
 
 } // namespace Goldbox
 
-#endif // GOLDBOX_MENU_ITEM_H
+#endif // GOLDBOX_CORE_MENU_ITEM_H

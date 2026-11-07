@@ -37,8 +37,6 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Data {
 
-
-
 constexpr int EQUIPMENT_SLOT_COUNT = static_cast<int>(Goldbox::Data::Items::Slot::SLOT_COUNT);
 constexpr uint8 CLASS_COUNT = 8;
 constexpr uint8 MAX_CLASSES_PER_RACE = 11;

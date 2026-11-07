@@ -663,9 +663,6 @@ void adjustAcForFacingAndRange(Data::PlayerCharacter *attacker,
         *targetAC += 3;
 }
 
-
-
-
 bool rollToHit(Data::PlayerCharacter *attacker,
                Data::PlayerCharacter *defender,
                uint8 targetAC) {

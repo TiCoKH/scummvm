@@ -19,7 +19,6 @@
  *
  */
 
-
 #include "goldbox/poolrad/views/dialogs/items_menu.h"
 #include "common/system.h"
 #include "goldbox/events.h"
@@ -374,7 +373,6 @@ void ItemsMenu::buildActionMenu() {
 	_horizontalMenuLabels.push_back("Exit");
 }
 
-
 void ItemsMenu::buildItemList() {
 	_itemList.clear();
 
@@ -428,7 +426,6 @@ void ItemsMenu::buildItemsListMenu() {
 		_itemsMenuList.currentSelection = previousSelection;
 	}
 }
-
 
 void ItemsMenu::handleReadyItem(Goldbox::Data::Items::CharacterItem *item) {
 	if (!item || !_character)
@@ -583,7 +580,6 @@ void ItemsMenu::handleIdentifyItem(Goldbox::Data::Items::CharacterItem *item) {
 	_pendingIdentifyItem = item;
 	setStage(STAGE_CONFIRM_IDENTIFY);
 }
-
 
 void ItemsMenu::handleExit() {
 	debug(7, "ItemsMenu::handleExit() parent=%s", _parent ? _parent->getName().c_str() : "<null>");

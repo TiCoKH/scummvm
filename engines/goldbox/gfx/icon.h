@@ -93,7 +93,6 @@ struct IconRenderParams {
     int32 screenPixelY() const { return screenPos.row * 3 + 1 + pixelOffset.y; }
 };
 
-
 /**
  * Icon encapsulates the visual representation of a character
  * for use in combat and other views. It handles sprite compositing,

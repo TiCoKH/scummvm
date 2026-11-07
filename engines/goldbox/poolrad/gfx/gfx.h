@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_GFX_H
-#define GOLDBOX_POOLRAD_GFX_H
+#ifndef GOLDBOX_POOLRAD_GFX_GFX_H
+#define GOLDBOX_POOLRAD_GFX_GFX_H
 
 #include "common/scummsys.h"
 

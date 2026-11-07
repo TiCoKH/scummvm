@@ -468,7 +468,6 @@ public:
     }
 };
 
-
 PoolradEngineHostImpl::PoolradEngineHostImpl(::Goldbox::Engine *engine,
         ECL::AddressSpace *memory)
     : EclSyscallImpl(engine, memory) {

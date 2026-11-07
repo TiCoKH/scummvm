@@ -87,7 +87,6 @@ static uint16 getCharacterBlockBase(uint8 index) {
     return static_cast<uint16>(g_characterBase + index * g_characterSize);
 }
 
-
 // Static state for FOR loop (not nested; matches Java VirtualMachine behavior).
 static uint16 g_forLoopBodyStart = 0;
 static uint16 g_forLoopCount = 0;

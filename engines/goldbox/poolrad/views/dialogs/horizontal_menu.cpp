@@ -55,7 +55,6 @@ void HorizontalMenu::drawText() {
 
     if (!_redraw) return;
 
-
 	Surface s = getSurface();
     s.clearBox(0, 0, 39, 0, _backgroundColor);
     s.writeStringC(0, 0, _promptColor, _promptTxt);
@@ -204,7 +203,6 @@ bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
         return true;
         }
     }
-
 
     if (_allowNumPad && keyCode >= Common::KEYCODE_UP && keyCode <= Common::KEYCODE_PAGEDOWN) {
         deactivate();

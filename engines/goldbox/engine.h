@@ -181,7 +181,6 @@ public:
 	 */
 	virtual void onGameStateEnter(GameState prev, GameState next) {}
 
-
 	void setColors(uint8 sky, uint8 skyline, uint8 horizon, uint8 floor) {
 		_skyColor = sky;
 		_skylineColor = skyline;
@@ -244,7 +243,6 @@ public:
 		if (delay > 5) delay = 5;
 		_textDelay = delay;
 	}
-
 
 	Engine(OSystem *syst, const GoldboxGameDescription *gameDesc);
 	~Engine() override;

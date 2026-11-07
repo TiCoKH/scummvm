@@ -50,7 +50,7 @@ public:
 
 	bool contains(T elem) const {
 		int index = this->indexOf(elem);
-		return index != -1;		
+		return index != -1;
 	}
 };
 

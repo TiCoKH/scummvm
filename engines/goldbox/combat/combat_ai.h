@@ -181,7 +181,6 @@ bool handleAiControlInput(Data::PlayerCharacter *actor,
                           CombatGlobals &globals,
                           AiMoveViewDelegate *view);
 
-
 /**
  * Mirrors COMBAT_ProcessAIMove.
  *

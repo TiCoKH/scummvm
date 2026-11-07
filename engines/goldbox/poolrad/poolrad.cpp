@@ -364,7 +364,6 @@ bool PoolradEngine::loadGameAssets() {
 	getDaxManager().loadFile(Common::Path("chead.dax"));
 	getDaxManager().loadFile(Common::Path("comspr.dax"));
 
-
 	// Initialize icon manager
 	_iconManager = new Gfx::IconManager();
 
@@ -380,10 +379,8 @@ bool PoolradEngine::loadGameAssets() {
 	// slot 4 <- symbols block 202, slot 0 <- block 203.
 	initFixedTileCacheSlots(202, 203);
 
-
 	return true;
 }
-
 
 bool PoolradEngine::initializeRuntimeSystems() {
 	// Wire subsystem pointers on base Engine
@@ -870,7 +867,6 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 	// Convert 8-way direction to 4-way for VM memory storage.
 	const uint8 posDir = static_cast<uint8>((dir8way / 2) & 0x03);
-
 
 	debug(2, "PoolradEngine::loadGameSlotX86 tail x=%u y=%u dir8=%u dir4=%u nibble=%u event=%u mapType=%u gameState=%u charCount=%u",
 		(unsigned)dungeonX, (unsigned)dungeonY, (unsigned)dir8way,

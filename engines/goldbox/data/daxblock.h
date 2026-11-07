@@ -26,8 +26,6 @@
 #include "common/scummsys.h"
 #include "common/span.h"
 
-
-
 namespace Goldbox {
 namespace Data {
 
@@ -109,7 +107,6 @@ using WallSet = DaxBlockWalldef;
         { 154, 2, 1, 2 }    // FAR_FILLER
     };
 
-
 class DaxBlock {
 public:
     virtual ~DaxBlock() = default; // Ensure it has a virtual destructor
@@ -167,7 +164,6 @@ private:
     FrameInfo _frames[8];
 };
 
-
 class DaxBlockPic : public DaxBlock {
 public:
     int height;
@@ -179,7 +175,6 @@ public:
 private:
     void adjust() override;
 };
-
 
 class DaxBlock8x8D : public DaxBlockPic {
 public:

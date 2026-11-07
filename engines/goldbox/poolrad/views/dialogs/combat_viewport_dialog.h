@@ -171,7 +171,6 @@ private:
     Common::Array<MovementAnimStep> buildMovementAnimationPath(
         TilePos start, TilePos end, bool everyStep = false);
 
-
     Common::Point fineToPixel(ScreenPos fine) const {
         return Common::Point(kViewportX + fine.col * (kTileSize / kFinePerTile),
                              kViewportY + fine.row * (kTileSize / kFinePerTile));

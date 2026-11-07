@@ -75,7 +75,6 @@ struct PascalStringBuffer {
         s.write(record, MaxLen + 1);
     }
 };
-    
 
 } // namespace Data
 } // namespace Goldbox

@@ -238,8 +238,6 @@ void Events::addView(const Common::String &name) {
 	addView(findView(name));
 }
 
-
-
 void Events::popView() {
 	UIElement *priorView = focusedView();
 	priorView->msgUnfocus(UnfocusMessage());
@@ -365,7 +363,6 @@ void Bounds::setBorderSize(size_t borderSize) {
 	_innerBounds = *this;
 	_innerBounds.grow(-_borderSize);
 }
-
 
 void Bounds::setBorderSize(int leftPad, int topPad, int rightPad, int bottomPad) {
 	_borderSize = 0;	// No standard border size
@@ -509,7 +506,6 @@ void UIElement::subView(UIElement *child) {
 	debug(7, "subView: Added child '%s' to parent '%s'",
 		  child->getName().c_str(), this->getName().c_str());
 }
-
 
 void UIElement::setBounds(const Window &win) {
 	Common::Rect r(win.left * FONT_W, win.top * FONT_H, (win.right + 1) * FONT_W, (win.bottom + 1) * FONT_H);

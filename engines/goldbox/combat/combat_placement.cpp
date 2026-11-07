@@ -27,7 +27,6 @@
 #include "goldbox/core/direction.h"
 #include <string.h>
 
-
 namespace Goldbox {
 namespace Combat {
 

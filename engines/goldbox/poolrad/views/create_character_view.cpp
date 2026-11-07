@@ -110,7 +110,6 @@ const char PICK_ALIGNMENT[] = "Pick Alignment";
 const char KEEP_CHARACTER[] = "Keep this character? ";
 const char CHAR_NAME[]      = "Character name: ";
 
-
 CreateCharacterView::CreateCharacterView() : View("CreatCharacter"), _stage(CC_STATE_RACE) {
 	_newCharacter = new PoolradCharacter();
 	_newCharacter->initializeNewCharacter();

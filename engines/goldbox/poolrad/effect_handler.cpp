@@ -1997,7 +1997,6 @@ static void handleLingeringBreath(const EffectCall &c) {
 
     (void)(Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr); // ctx reserved for GFX/spell path
 
-
     // TODO: COMBAT_GetCharacterX/Y — position lookup not yet used by unported GFX/spell path.
     // uint8 ax = ctx ? ctx->table.getCharacterCol(&c.character) : 0;
     // uint8 ay = ctx ? ctx->table.getCharacterRow(&c.character) : 0;

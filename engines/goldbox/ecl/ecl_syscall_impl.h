@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_ECL_SYSCALL_IMPL_H
-#define GOLDBOX_ECL_SYSCALL_IMPL_H
+#ifndef GOLDBOX_ECL_ECL_SYSCALL_IMPL_H
+#define GOLDBOX_ECL_ECL_SYSCALL_IMPL_H
 
 #include "common/scummsys.h"
 #include "common/str.h"
@@ -37,7 +37,7 @@ namespace ECL {
 
 /**
  * ECL Syscall Handler Implementation
- * 
+ *
  * Bridges ECL VM syscalls to ScummVM's Engine, View, and Dialog systems.
  * Handles:
  * - Text output → Message box / Dialog
@@ -93,4 +93,4 @@ protected:
 } // namespace ECL
 } // namespace Goldbox
 
-#endif // GOLDBOX_ECL_SYSCALL_IMPL_H
+#endif // GOLDBOX_ECL_ECL_SYSCALL_IMPL_H

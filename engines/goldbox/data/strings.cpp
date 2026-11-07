@@ -135,7 +135,6 @@ Common::StringArray splitLines(const Common::String &str) {
 
 	results.push_back(str.c_str() + start);
 
-
 	return results;
 }
 

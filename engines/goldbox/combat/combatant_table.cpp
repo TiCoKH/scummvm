@@ -155,8 +155,6 @@ uint8 CombatantTable::getCharacterSize(const Data::PlayerCharacter *ch) const {
     return _entries[idx].size;
 }
 
-
-
 void CombatantTable::ensureOccupancy() const {
     if (_occupancyDirty)
         doRebuildOccupancy();

@@ -212,7 +212,6 @@ void EffectSystem::setStatus(Goldbox::Data::PlayerCharacter &character,
         _bridge->onCharacterDied(&character);
 }
 
-
 EffectStacking EffectSystem::getStackingPolicy(uint8 id, uint8 power) const {
     (void)power;
     for (uint i = 0; i < ARRAYSIZE(kStackingRules); ++i) {

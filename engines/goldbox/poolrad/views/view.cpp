@@ -23,7 +23,6 @@
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/engine.h"
 
-
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
@@ -85,12 +84,12 @@ void View::drawMainScreenWindows(bool showMiniWindow) {
 	// if (param_1) {
 	//     SCREEN_DrawWindow(3,3,13,13,0,15,s__00240c32); → Inner overlay
 	// }
-	
+
 	// Base windows (always drawn)
 	drawWindow(1, 1, 38, 22);   // Main frame
 	drawWindow(1, 17, 38, 22);  // Bottom status strip
 	drawWindow(1, 1, 15, 15);   // Left panel
-	
+
 	// Optional mini window (ready menu overlay, NPC portraits, etc.)
 	if (showMiniWindow) {
 		drawWindow(3, 3, 13, 13);

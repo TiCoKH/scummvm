@@ -24,7 +24,6 @@
 //#include "goldbox/keymapping.h"
 #include "goldbox/poolrad/views/credits_view.h"
 
-
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {

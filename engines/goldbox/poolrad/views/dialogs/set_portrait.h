@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_SET_PORTRAIT_DIALOG_H
-#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_SET_PORTRAIT_DIALOG_H
+#ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_SET_PORTRAIT_H
+#define GOLDBOX_POOLRAD_VIEWS_DIALOGS_SET_PORTRAIT_H
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
@@ -70,4 +70,4 @@ private:
 } // namespace Poolrad
 } // namespace Goldbox
 
-#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_SET_PORTRAIT_DIALOG_H
+#endif // GOLDBOX_POOLRAD_VIEWS_DIALOGS_SET_PORTRAIT_H

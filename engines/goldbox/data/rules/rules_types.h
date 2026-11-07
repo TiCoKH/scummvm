@@ -334,7 +334,7 @@ struct DiceRoll {
 };
 
 struct ActionRoll {
-    DiceRoll roll;  
+    DiceRoll roll;
     int8 modifier;
 };
 

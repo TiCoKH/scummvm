@@ -178,7 +178,6 @@ struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
     }
 };
 
-
 CombatView::CombatView()
     : View("Combat"), _viewport(nullptr), _messageBox(nullptr), _info(nullptr),
       _combatMenu(nullptr),

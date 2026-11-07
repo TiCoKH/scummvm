@@ -108,14 +108,14 @@ void ADnDCharacter::resolveEquippedItems() {
 			slot = (int)Goldbox::Data::Items::Slot::S_MAIN_HAND;
 
 		// For multiple-slot items (rings), place in first available slot
-		if (slot == (int)Goldbox::Data::Items::Slot::S_RING1 || 
+		if (slot == (int)Goldbox::Data::Items::Slot::S_RING1 ||
 			slot == (int)Goldbox::Data::Items::Slot::S_RING2) {
 			if (!equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING1]) {
-				equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING1] = 
+				equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING1] =
 					const_cast<Goldbox::Data::Items::CharacterItem *>(&item);
                 ++placedCount;
 			} else if (!equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING2]) {
-				equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING2] = 
+				equippedItems.slots[(int)Goldbox::Data::Items::Slot::S_RING2] =
 					const_cast<Goldbox::Data::Items::CharacterItem *>(&item);
                 ++placedCount;
             } else {

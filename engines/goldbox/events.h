@@ -211,7 +211,6 @@ public:
 	 */
 	Array<UIElement *> getChildren() { return _children; }
 
-
 	/**
 	 * Returns a surface for drawing the element
 	 */

@@ -18,8 +18,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ENGINES_GOLDBOX_DATA_RULES_RULES_H
-#define ENGINES_GOLDBOX_DATA_RULES_RULES_H
+#ifndef GOLDBOX_DATA_RULES_RULES_H
+#define GOLDBOX_DATA_RULES_RULES_H
 
 #include "common/scummsys.h"
 #include "common/array.h"
@@ -54,7 +54,6 @@ struct RaceClassDef {
     uint8 class_count;
     uint8 class_ids[MAX_CLASS_RACE];
 };
-
 
 // Accessors for the active ruleset (per game). For now, we expose Poolrad directly.
 
@@ -215,5 +214,5 @@ void setRulesProvider(RulesProvider *provider);
 } // namespace Data
 } // namespace Goldbox
 
-#endif // ENGINES_GOLDBOX_DATA_RULES_RULES_H
+#endif // GOLDBOX_DATA_RULES_RULES_H
 

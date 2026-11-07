@@ -22,8 +22,6 @@
 #ifndef GOLDBOX_CORE_GLOBAL_H
 #define GOLDBOX_CORE_GLOBAL_H
 
-
-
 namespace Goldbox {
 
 enum GameState  {

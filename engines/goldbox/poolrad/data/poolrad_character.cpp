@@ -337,7 +337,6 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	basePri.action.modifier       = stream.readSByte();
 	baseSec.action.modifier       = stream.readSByte();
 
-
 	setBasePrimaryRoll(basePri);
 	setBaseSecondaryRoll(baseSec);
 
@@ -410,7 +409,6 @@ void PoolradCharacter::load(Common::SeekableReadStream &stream) {
 	curSec.action.roll.diceSides = stream.readByte(); // 0x118
 	curPri.action.modifier       = stream.readSByte(); // 0x119
 	curSec.action.modifier       = stream.readSByte(); // 0x11A
-
 
 	setCurrentPrimaryRoll(curPri);
 	setCurrentSecondaryRoll(curSec);
@@ -1242,7 +1240,6 @@ void PoolradCharacter::computeSpellSlots() {
 	debug(4, "PoolradCharacter::computeSpellSlots - Complete. Total spells in book: %u",
 	      spellBook.getSpells().size());
 }
-
 
 } // namespace Data
 } // namespace Poolrad

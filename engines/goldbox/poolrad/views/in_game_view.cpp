@@ -111,7 +111,6 @@ InGameView::~InGameView() {
 		_afterCombatPanelDialog = nullptr;
 	}
 
-
 	if (_shopPanelDialog) {
 		delete _shopPanelDialog;
 		_shopPanelDialog = nullptr;

@@ -49,7 +49,7 @@ static const Goldbox::Data::Spells::Spells kPoolradSpellMapping[POOLRAD_KNOWN_SI
     Goldbox::Data::Spells::SP_CL1_PROT_FROM_EVIL,           // 5  - 0x038 - cleric 1 06
     Goldbox::Data::Spells::SP_CL1_PROT_FROM_GOOD,           // 6  - 0x039 - cleric 1 07
     Goldbox::Data::Spells::SP_CL1_RESIST_COLD,              // 7  - 0x03A - cleric 1 08
-    
+
     // Mage Level 1 (0x03B-0x047) - indices 8-20
     Goldbox::Data::Spells::SP_MUL1_BURNING_HANDS,           // 8  - 0x03B - mage 1 01
     Goldbox::Data::Spells::SP_MUL1_CHARM_PERSON,            // 9  - 0x03C - mage 1 02
@@ -64,7 +64,7 @@ static const Goldbox::Data::Spells::Spells kPoolradSpellMapping[POOLRAD_KNOWN_SI
     Goldbox::Data::Spells::SP_MUL1_SHIELD,                  // 18 - 0x045 - mage 1 11
     Goldbox::Data::Spells::SP_MUL1_SHOCKING_GRASP,          // 19 - 0x046 - mage 1 12
     Goldbox::Data::Spells::SP_MUL1_SLEEP,                   // 20 - 0x047 - mage 1 13
-    
+
     // Cleric Level 2 (0x048-0x04E) - indices 21-27
     Goldbox::Data::Spells::SP_CL2_FIND_TRAPS,               // 21 - 0x048 - cleric 2 01
     Goldbox::Data::Spells::SP_CL2_HOLD_PERSON,              // 22 - 0x049 - cleric 2 02
@@ -73,7 +73,7 @@ static const Goldbox::Data::Spells::Spells kPoolradSpellMapping[POOLRAD_KNOWN_SI
     Goldbox::Data::Spells::SP_CL2_SLOW_POISON,              // 25 - 0x04C - cleric 2 05
     Goldbox::Data::Spells::SP_CL2_SNAKE_CHARM,              // 26 - 0x04D - cleric 2 06
     Goldbox::Data::Spells::SP_CL2_SPIRIT_HAMMER,            // 27 - 0x04E - cleric 2 07
-    
+
     // Mage Level 2 (0x04F-0x055) - indices 28-34
     Goldbox::Data::Spells::SP_MUL2_DETECT_INVISIB,          // 28 - 0x04F - mage 2 01
     Goldbox::Data::Spells::SP_MUL2_INVISIBILITY,            // 29 - 0x050 - mage 2 02
@@ -82,7 +82,7 @@ static const Goldbox::Data::Spells::Spells kPoolradSpellMapping[POOLRAD_KNOWN_SI
     Goldbox::Data::Spells::SP_MUL2_RAY_ENFEEBLE,            // 32 - 0x053 - mage 2 05
     Goldbox::Data::Spells::SP_MUL2_STINKING_CLOUD,          // 33 - 0x054 - mage 2 06
     Goldbox::Data::Spells::SP_MUL2_STRENGTH,                // 34 - 0x055 - mage 2 07
-    
+
     // Cleric Level 3 (0x056-0x05E) - indices 35-43
     Goldbox::Data::Spells::SP_CL3_ANIMATE_DEAD,             // 35 - 0x056 - cleric 3 01
     Goldbox::Data::Spells::SP_CL3_CURE_BLINDNESS,           // 36 - 0x057 - cleric 3 02
@@ -93,7 +93,7 @@ static const Goldbox::Data::Spells::Spells kPoolradSpellMapping[POOLRAD_KNOWN_SI
     Goldbox::Data::Spells::SP_CL3_PRAYER,                   // 41 - 0x05C - cleric 3 07
     Goldbox::Data::Spells::SP_CL3_REMOVE_CURSE,             // 42 - 0x05D - cleric 3 08
     Goldbox::Data::Spells::SP_CL3_BESTOW_CURSE,             // 43 - 0x05E - cleric 3 09
-    
+
     // Mage Level 3 (0x05F-0x069) - indices 44-54
     Goldbox::Data::Spells::SP_MUL3_BLINK,                   // 44 - 0x05F - mage 3 01
     Goldbox::Data::Spells::SP_MUL3_DISPEL_MAGIC,            // 45 - 0x060 - mage 3 02

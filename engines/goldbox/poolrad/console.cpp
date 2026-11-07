@@ -490,7 +490,6 @@ bool Console::cmdWalldefstate(int argc, const char **argv) {
 	return true;
 }
 
-
 bool Console::cmdDumpPic(int argc, const char **argv) {
 	if (argc < 2) {
 		debugPrintf("Usage: dumpPic <blockId> [container]\n");

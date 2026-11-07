@@ -1,283 +1,233 @@
-# GitHub Copilot Custom Instructions for ScummVM Code Style and Formatting
+# GitHub Copilot Instructions for ScummVM
+
+Read [AI-GUIDELINES.md](../AI-GUIDELINES.md) in full before making changes.
+
+The rules in AI-GUIDELINES.md are mandatory and override anything below. In short:
+follow project formatting/naming/commit conventions, keep comments short (no
+lengthy LLM-style explanations), keep everything GPLv3+ compatible, never
+generate art or media assets, and add an attribution trailer to commits:
+
+```
+Assisted-by: <agent>:<model-id>
+```
 
 ## General Code Style
-- Use standard C++11 for portability.
-- Avoid platform-specific or compiler-specific extensions when possible.
-- Do not use C++ exceptions; use return codes, status enums, or ScummVM's error handling methods.
-- Prefer ScummVM's built-in types over STL containers (e.g., `Common::String` instead of `std::string`).
+- Standard C++11 for portability; avoid platform- or compiler-specific extensions.
+- No C++ exceptions. Use return codes, status enums, or ScummVM error helpers
+  (`error()`, `warning()`, `debug()`).
+- Prefer ScummVM types over STL (`Common::String`, `Common::Array`, ...).
+- Use fixed-size types (`uint8`, `uint16`, `uint32`, ...) where size matters.
+- Minimize `static` globals. Isolate platform-dependent code behind preprocessor guards.
 - Keep savegame and API backward compatibility unless explicitly approved to break it.
-
-## File Structure
-1. License header at the top of every file.
-2. Use traditional include guards in the format `PATH_FILENAME_H` derived from the relative path in the source tree. All uppercase letters and directory separators replaced by underscores.
-3. Include files in this order:
-   - Corresponding header file.
-   - ScummVM project headers.
-   - Third-party library headers.
-   - System headers.
-4. Group includes logically and avoid unused ones.
-
-## Naming Conventions
-- **Classes**: PascalCase (`MyClass`).
-- **Methods**: camelCase starting lowercase (`doSomething`).
-- **Member Variables**: prefix with `_` (`_myValue`).
-- **Constants, Macros, Enums**: ALL_CAPS (`MAX_VALUE`).
-- Avoid unclear abbreviations.
-
-## Class and Method Organization
-- Order: **public**, then **protected**, then **private**.
-- Constructors/Destructors first in each section.
-- Inline only very short and performance-critical functions.
-- Implement `.cpp` methods in the same order as the `.h`.
-
-## Formatting Rules (from ScummVM Code Formatting Conventions)
-- Indentation: 4 spaces, no tabs.
-- One statement per line.
-- Opening brace `{` on the same line for method definitions and control statements.
-- Closing brace `}` aligned with the start of the definition/statement.
-- Place `else` on the same line as the closing brace of the preceding `if` block.
-- No space before a semicolon.
-- Keep lines at or under 80 characters where reasonable.
-- Add a single space after commas in parameter lists.
-- No space before opening parenthesis in function calls (`func(x, y)`).
-- Always use a space between control keywords and parentheses: `if (x)`.
-- Never have multiple empty lines in a row.
-- Align continued lines by indenting at least one level.
-
-## Comments
-- Use `//` for single-line, `/* ... */` for multiple lines.
-- Document complex algorithms, assumptions, and non-obvious code.
-- File-level and class-level descriptions are required.
-
-## Error Handling
-- No C++ exceptions.
-- Use ScummVM's error reporting through return values, enums, or logging helpers.
 - Check input validity explicitly.
 
-## Portability and Safety
-- Avoid relying on unspecified sizes of primitive types; use fixed-size types (e.g., `uint32`).
-- Minimize usage of `static` globals.
-- All platform-dependent code must be isolated and guarded with preprocessor macros.
+## File Structure
+1. GPL license header at the top of every file.
+2. Traditional include guards named from the path relative to `engines/`,
+   uppercase, separators replaced by `_` (e.g. `GOLDBOX_ECL_ECL_ENGINE_HOST_H`).
+3. Include order: corresponding header, ScummVM headers, third-party headers,
+   system headers. No unused includes.
 
-By following these instructions, Copilot will generate code consistent with ScummVM's standards for formatting, style, and portability.
+## Naming
+- Classes: PascalCase (`MyClass`).
+- Methods: camelCase (`doSomething`).
+- Member variables: `_` prefix (`_myValue`). Exception: plain data records that
+  mirror original game structs (characters, items, spells, effects) keep public
+  fields without `_` (`pc->healthStatus`).
+- New constants and enum values: `kName` (`kPlayfieldCols`).
+- ALL_CAPS only for macros and for enums that mirror original game data or
+  Pascal names (`S_OKAY`, `GS_SHOP`, `SP_MUL2_KNOCK`, `VM_OK`).
+- Avoid unclear abbreviations.
 
-## Event System Usage Guide
+## Class Organization
+- Order sections public, protected, private; constructors/destructor first.
+- Inline only very short, performance-critical functions.
+- Implement `.cpp` methods in the same order as declared in the `.h`.
 
-### View vs Dialog Event Handling
-- **View**: Single instance, managed by view stack, uses msgFocus/msgUnfocus
-- **Dialog**: Multiple instances can be visible simultaneously, uses activate/deactivate
+## Formatting
+- Indent with tabs, align with spaces (`.editorconfig`: `indent_style = tab`,
+  width 4). New files use tabs. Older goldbox files use 4 spaces; when editing
+  one, follow its existing style and don't reindent unrelated lines.
+- One statement per line.
+- `{` on the same line for functions and control statements; `}` aligned with
+  the start of the statement; `} else {` on one line.
+- `if (x)` - space after control keywords; `func(x, y)` - no space before the
+  call paren, one space after commas, no space before `;`.
+- Keep lines around 80 columns where reasonable; indent continuation lines at
+  least one level.
+- Never more than one consecutive empty line.
 
-### View Constructor (loadtime - runs once)
-✓ Create member pointers, empty UI elements, parse static data
-✗ Don't access game state, VmInterface, or assume visibility
+## Comments
+- `//` for single lines, `/* ... */` for blocks, `/** ... */` for doc comments.
+- Document complex algorithms, assumptions and non-obvious code only. Keep it brief.
+- No planning/ticket IDs in code comments (`GB13-009 (8.1)`, `task 8.3`); state
+  the reason itself. Referencing original-game offsets or Pascal routine names is fine.
 
-### msgFocus (view gains focus via replaceView/addView)
-✓ Get game state/party, activate/deactivate UI, refresh data
-✗ Don't create dialogs or init pointers (constructor's job)
+## Gold Box UI: Views, Dialogs and Events
 
-### msgUnfocus (view loses focus)
-✓ Save changes, cleanup temp state, stop timers
-✗ Don't delete children or block the unfocus
+### View vs Dialog
+- `VIEW_` / View: single instance managed by the view stack; a larger gameplay
+  interaction container that coordinates dialogs and their lifecycle. Uses
+  `msgFocus` / `msgUnfocus`.
+- `DIALOG_` / Dialog: a partial interaction unit owning part of the screen and
+  its input. Not necessarily a modal box. Can nest inside a view or another
+  dialog. Uses `activate()` / `deactivate()`.
+- Input goes to the deepest active dialog first; unhandled input bubbles to the
+  parent dialog, then to the containing view.
+- Dialogs may call gameplay systems for authoritative state changes, but
+  gameplay rules belong in system/domain classes, not dialogs.
+  - No dice rolls, odds tables or value tables in dialogs/views. A dialog asks
+    a rules function for the outcome (`DoorRules::tryBash(party, doorFlag)`,
+    `TreasureRules::rollGemValue()`) and only presents it.
+  - Rule code must not depend on UI classes, so it stays reusable by the
+    other Gold Box games and testable without a screen.
 
-### Dialog Constructor (loadtime - runs once)
-✓ Create child dialogs/menus, init member pointers, configure UI elements
-✗ Don't access game state, VmInterface, or assume visibility
+### Porting Legacy Code
+- Preserve the original interaction state machine.
+- Split at meaningful interaction boundaries (distinct input, selection or
+  prompt loops), not because a function is large or branchy.
+- Do not map one legacy function to one dialog class mechanically.
 
-### activate() (dialog becomes active/visible)
-✓ Get game state/character data, refresh data, activate children
-✗ Don't create child dialogs (constructor's job)
+### Lifecycle
+| Hook | Do | Don't |
+|---|---|---|
+| View constructor | create member pointers, empty UI elements, parse static data | access game state / VmInterface, assume visibility |
+| `msgFocus` | read game state/party, (de)activate UI, refresh data | create dialogs or init pointers |
+| `msgUnfocus` | save changes, clean temp state, stop timers | delete children, block the unfocus |
+| Dialog constructor | create child dialogs/menus, init pointers, configure UI | access game state / VmInterface, assume visibility |
+| `activate()` | read game state/character data, refresh, activate children | create child dialogs |
+| `deactivate()` | save changes, clean temp state, deactivate children | delete children |
+| `msgKeypress` | forward to children first, return true if handled, `redraw()` | swallow all keys; return false when unhandled |
+| `msgMouseMove/Enter/Leave` | hover state, tooltips, cursor | trigger actions or expensive work |
+| `msgMouseDown/Up` | confirm on MouseUp, check active/enabled and bounds, return true if handled | act on MouseDown only |
+| `draw()` | static content then children, idempotent, `redraw()` to mark dirty | modify game state, create UI, load data |
 
-### deactivate() (dialog becomes inactive/hidden)
-✓ Save changes, cleanup temp state, deactivate children
-✗ Don't delete children
+Flow: user action -> Events routes to focused view -> `msgXXX` -> children -> `redraw()`.
 
-### msgKeypress (keyboard input)
-✓ Forward to child dialogs first, return true if handled, call redraw()
-✗ Don't handle all keys - return false for unhandled
+### Multiple Dialogs in a View (one visible at a time)
+- `attachDialog(d)` adds to the hierarchy and activates; `detachDialog(d)`
+  deactivates and removes; `switchDialog(old, new)` does both.
+- Constructor: create all dialogs, `subView()` only the always-visible ones.
+- Destructor: delete all dialogs (no detach needed).
 
-### msgMouseMove/Enter/Leave (mouse hover)
-✓ Update hover states, tooltips, cursor appearance
-✗ Don't trigger actions (MouseDown/Up) or expensive ops (called often)
-
-### msgMouseDown/Up (clicks)
-✓ Use MouseUp for confirmation, check active/enabled, return true if handled
-✗ Don't trigger on MouseDown only or skip bounds checks
-
-### draw() (every frame)
-✓ Draw static then child dialogs, keep idempotent, mark dirty with redraw()
-✗ Don't modify game state or create UI (constructor) or load data (msgFocus/activate)
-
-### Event Flow: User Action → Events routes to focused view → msgXXX → forward to children → redraw()
-
-## Multi-Dialog Management in Views
-
-When a View needs to manage multiple dialogs (only one visible at a time):
-
-### Helper Methods
-- `attachDialog(dialog)` - Add dialog to view hierarchy and activate it
-- `detachDialog(dialog)` - Deactivate dialog and remove from view hierarchy
-- `switchDialog(oldDialog, newDialog)` - Detach old, attach new in one call
-
-### Pattern
-1. **Constructor**: Create all dialogs, call `subView()` only for always-visible ones
-2. **Stage switching**: Use `attachDialog()`/`detachDialog()` to show/hide dialogs
-3. **Destructor**: Delete all dialogs (no need to detach first)
-
-### Example
 ```cpp
-// Constructor - create but don't attach
-_itemsMenu = new ItemsMenu();
+_itemsMenu = new ItemsMenu();      // constructor: create, don't attach
 
-// Switch to items stage
-attachDialog(_itemsMenu);
+attachDialog(_itemsMenu);          // switch to items stage
 setActiveSubView(_itemsMenu);
 
-// Switch back to profile stage
-detachDialog(_itemsMenu);
+detachDialog(_itemsMenu);          // back to profile stage
 setActiveSubView(_profileDialog);
 ```
 
-## ECL VM Architecture (Goldbox Engine)
+### MenuResult (child -> parent)
+- Child: `deactivate()` first, then `g_events->postMenuResult()` with the
+  parent's `getName()` as target. Never call parent methods directly or assume
+  the parent's lifetime.
+- Parent: override `handleMenuResult(const MenuResultMessage &result)`, check
+  `_hasIntValue` / `_hasStringValue`, then decide whether to keep, deactivate or
+  delete the child. Don't assume the child still exists afterwards.
+- Fields: `_targetViewName`, `_success` (false = cancelled), `_keyCode`,
+  `_intValue`/`_hasIntValue`, `_stringValue`/`_hasStringValue`.
 
-### Single Operand Access Path (Runtime Path B)
-The ECL VM uses a **single operand access path**: all operand data is read at runtime directly from VM flat memory via `EclVM::getOperand(N)`, `readVar(i)`, `readString(i)`, and `getOpWord(i)`.
-
-- `EclInstruction` is a **lightweight boundary record** containing only `pc` and `opcode`. It does NOT store operand data.
-- `decodeProgram()` scans bytecode to find instruction boundaries (skipping operand bytes) but does NOT decode or store operands.
-- Opcode handlers access operands exclusively through `EclVM` methods that parse from flat memory at the current PC.
-
-### Opcode Handler Signature
 ```cpp
-typedef int (*OpcodeHandler)(EclVM &vm, AddressSpace &mem,
-        uint16 &nextPc, Common::Array<uint16> &callStack,
-        SyscallHandler *syscalls);
-```
-- No `EclInstruction` parameter — handlers never receive pre-decoded operand data.
-- Handlers call `vm.getOperand(N)` to parse N operands from the bytecode stream at the current PC.
-- Use `vm.readVar(i)` for dereferenced numeric values, `vm.getOpWord(i)` for raw addresses, `vm.readString(i)` for strings.
-
-### Varargs Opcodes (ON GOTO, ON GOSUB, VERTICAL MENU, HORIZONTAL MENU)
-For variable-argument opcodes:
-1. First call `vm.getOperand(fixedCount)` to read the count operand.
-2. Then call `vm.getOperand(fixedCount + count)` to re-decode all operands including varargs.
-3. Access varargs via `vm.getOpWord(fixedCount + 1 + index)`.
-
-### Parameter Roles
-- **`vm`** — Operand decoding only. Call `vm.getOperand(N)` to read N operands from the bytecode stream, then `vm.readVar(i)` for resolved values, `vm.getOpWord(i)` for raw addresses, `vm.readString(i)` for strings. Never call `vm.step()` or touch `vm._pc` directly.
-- **`mem`** — Flat 64K VM address space. All game state lives here. Use `getOpcodeLayout()` to resolve named fields to VM addresses.
-- **`nextPc`** — Next instruction PC, passed by reference. Already set to the default next instruction. Overwrite it for branches (`GOTO`, `GOSUB`, `RETURN`, `IF` skip). Do not set it to the current instruction's PC.
-- **`callStack`** — GOSUB/RETURN return-address stack. `GOSUB` pushes `nextPc` then overwrites it; `RETURN` pops into `nextPc`.
-- **`syscalls`** — Engine-side callbacks (rendering, menus, combat, sound). Always guard with `if (!syscalls) return VM_ERROR` before use.
-
-### Return Values
-- `VM_OK` — continue to `nextPc`
-- `VM_HALTED` — script ended (`EXIT`, `STOP MOVE`)
-- `VM_ERROR` — unrecoverable fault (null syscalls, empty call stack, divide by zero)
-- `VM_YIELD` — reserved for future async suspension; do not use in handlers
-
-### Key Rules
-- NEVER store operand data in `EclInstruction` or any pre-decoded structure.
-- NEVER pass `EclInstruction` to opcode handlers.
-- ALWAYS use `vm.getOperand()` / `vm.readVar()` / `vm.readString()` for operand access.
-- The decoder exists solely to build a PC→instruction-index mapping for `findInstructionIndexByPc()`.
-
-### Rules
-✓ Call `vm.getOperand(N)` before any `readVar`/`getOpWord`/`readString` call
-✓ Use `setCmpResult(mem, ...)` for all compare-style opcodes (IF opcodes read from it)
-✓ Guard syscall use with `if (!syscalls) return VM_ERROR`
-✓ Return `VM_OK` for stubs/no-ops rather than leaving them unregistered
-✗ Don't modify `vm._pc` directly — only `nextPc`
-✗ Don't skip registering a handler — unregistered opcodes return `VM_ERROR` at runtime
-✗ Don't add entries to `opcode_table.cpp` without a matching registered handler
-
-### Operand Count Source of Truth
-The handler's `vm.getOperand(N)` call determines the actual operand count consumed. The `opcode_table.cpp` entry is metadata for the decoder/disassembler and must match.
-
-### Rule of Thumb for Future Work (Core vs Dialect)
-- Keep **VM interpreter mechanics** in common/core (`ecl_vm`):
-    `GOTO/GOSUB/RETURN`, compare+branch flow, read/write memory semantics,
-    math operators, operand decode path.
-- Keep **default opcode semantics** in core/common opcode handlers.
-- Keep **game-specific resource/UI behavior** in host callbacks
-    (`SyscallHandler` / `EclEngineHost`) implemented per game
-    (DAX loading, character/monster struct adaptation, dialogs/input).
-- If only resource integration differs, do **not** fork the opcode handler;
-    reuse core opcode logic and call game-specific host methods.
-- If an opcode byte is truly redefined in a game (different name, operands,
-    or behavior), override **only that opcode** in the game dialect:
-    - override opcode metadata (name + operand schema/count), and/or
-    - override handler implementation.
-- Prefer **dialect delta overlays** (few opcode overrides) over copying full
-    tables/handlers.
-- Decode and execution precedence should be:
-    - opcode metadata: dialect override → core fallback
-    - opcode handler: dialect override → core fallback
-
-## MenuResult Event System
-
-Child dialogs communicate results to parent views/dialogs via event-based messaging:
-
-### Posting Results (Child → Parent)
-✓ Use `g_events->postMenuResult()` to send results to parent
-✓ Always pass parent's `getName()` as target
-✓ Deactivate child before posting result
-✗ Don't call parent methods directly or assume parent lifetime
-
-### Handling Results (Parent)
-✓ Override `handleMenuResult(const MenuResultMessage &result)` to receive results
-✓ Extract values using `result._hasIntValue`, `result._hasStringValue` flags
-✓ Decide whether to keep/deactivate/delete child based on result
-✗ Don't assume child still exists after handling result
-
-### MenuResultMessage Fields
-- `_targetViewName` - Parent view/dialog name (use `getName()`)
-- `_success` - Operation succeeded (true) or cancelled (false)
-- `_keyCode` - Key that triggered result (e.g., KEYCODE_RETURN, shortcut key)
-- `_intValue` / `_hasIntValue` - Optional integer value (e.g., menu selection index)
-- `_stringValue` / `_hasStringValue` - Optional string value (e.g., text input)
-
-### Example
-```cpp
-// Child posts result
 deactivate();
 if (_parent)
     g_events->postMenuResult(_parent->getName(), true,
         Common::KEYCODE_RETURN, selectedIndex,
         Common::String(), true, false);
 
-// Parent handles result
 void ParentView::handleMenuResult(const MenuResultMessage &result) {
-    if (!result._success) {
-        // User cancelled
+    if (!result._success)
         return;
-    }
     if (result._hasIntValue) {
         int selection = result._intValue;
-        // Process selection
+        // ...
     }
 }
 ```
 
+## Gold Box ECL VM
+
+### Operand Access
+Operands are decoded lazily from VM flat memory while the handler runs. There
+is no pre-decoded program or instruction record; don't add one.
+
+- `vm.getOperand(N)` decodes N operands at the current PC and advances the
+  VM's next-instruction PC past them. Call it before any `readVar(i)`
+  (resolved value), `getOpWord(i)` (raw address) or `readString(i)`.
+- The handler's `getOperand(N)` is the source of truth for operand count; the
+  `opcode_table.cpp` metadata must match it.
+
+### Handler Signature
+```cpp
+typedef int (*OpcodeHandler)(EclVM &vm, AddressSpace &mem,
+        uint16 &nextPc, Common::Array<uint16> &callStack,
+        SyscallHandler *syscalls);
+```
+- `vm`: operand decoding only. Never call `vm.step()` or touch `vm._pc`.
+- `mem`: flat 64K address space holding all game state. Resolve named fields
+  with `getOpcodeLayout()`.
+- `nextPc`: leave it alone for normal flow; the VM advances past the operands.
+  Overwrite it only for branches (`GOTO`, `GOSUB`, `RETURN`, `IF` skip).
+- `callStack`: `GOSUB` pushes `nextPc` then overwrites it; `RETURN` pops into `nextPc`.
+- `syscalls`: engine callbacks. Guard with `if (!syscalls) return VM_ERROR;`.
+
+### Varargs Opcodes (ON GOTO, ON GOSUB, VERTICAL/HORIZONTAL MENU)
+1. `vm.getOperand(fixedCount)` to read the count.
+2. `vm.getOperand(fixedCount + count)` to re-decode everything.
+3. Access varargs with `vm.getOpWord(fixedCount + 1 + index)`.
+
+### Return Values
+- `VM_OK` continue at `nextPc`; also use for stubs/no-ops.
+- `VM_YIELD` an async host operation started (menu, input, print pacing,
+  delay, shop, combat). The VM suspends with its resume PC recorded and the
+  host resumes it through the `PendingOperationStack`.
+- `VM_HALTED` script ended (`EXIT`, `STOP MOVE`).
+- `VM_ERROR` unrecoverable (null syscalls, empty call stack, divide by zero).
+
+### Async Opcodes
+- The host's `begin*Async()` returns `VM_YIELD`, `VM_ERROR` or `VM_OK`
+  (= not supported, use the synchronous fallback). Handlers return
+  `VM_YIELD`/`VM_ERROR` unchanged and undo any temporary state they set.
+- On `VM_YIELD`, any post-operation tail must run when the operation
+  completes, before the resume PC is fetched. Never re-execute the opcode
+  and also apply its effect.
+- Don't block or spin inside a handler waiting for input; yield instead.
+
+### Rules
+- Use `setCmpResult(mem, ...)` for all compare-style opcodes; IF opcodes read it.
+- Register a handler for every opcode (unregistered ones return `VM_ERROR`).
+- Every `opcode_table.cpp` entry needs a matching registered handler.
+- New host features go on the host interface as virtual methods with a safe
+  default, not as new `dynamic_cast<EclEngineHost *>(syscalls)` sites in handlers.
+
+### Core vs Dialect
+- Core (`ecl_vm` and common handlers): interpreter mechanics (`GOTO/GOSUB/RETURN`,
+  compare+branch, memory read/write, math, operand decode) and default opcode semantics.
+- Per-game host callbacks (`SyscallHandler` / `EclEngineHost`): resource and UI
+  behavior (DAX loading, character/monster struct adaptation, dialogs/input).
+- If only resource integration differs, reuse the core handler and call
+  game-specific host methods; don't fork it.
+- If a game truly redefines an opcode byte, override only that opcode's metadata
+  and/or handler in the dialect. Prefer small delta overlays over copied tables.
+- Precedence for both metadata and handlers: dialect override -> core fallback.
+
 ## Poolrad Legacy Save Compatibility (Do Not Regress)
 
-When editing `engines/goldbox/poolrad` save/load code, preserve these rules:
-
-- Keep legacy DAT layout exact:
-    - 1-byte lead value (`3`)
-    - VMBANK order/sizes: `0x4900/0x0800`, `0x6B00/0x0800`,
-        `0x9700/0x0400`, `0x9900/0x1E00`
-    - tail size `0x150`: `posX,posY,dir,mapType,gameState,charCount,charTable`
+- Keep the legacy DAT layout exact:
+  - 1-byte lead value `3`.
+  - VMBANK order/sizes: `0x4900/0x0800`, `0x6B00/0x0800`, `0x9700/0x0400`, `0x9900/0x1E00`.
+  - Tail size `0x150`: `posX, posY, dir, mapType, gameState, charCount, charTable`.
 - Character table entries are Pascal records (len + data, max `0x28`).
-- Companion naming for ScummVM-created legacy saves:
-    - `CHRDAT<slot><n>.SAV/.ITM/.SPC` (example slot F: `CHRDATF1.SAV`)
-- Loader must accept compatibility variants:
-    - base names from table (`CHRDATA<n>` and `CHRDAT<slot><n>`)
-    - extension case variants (`.ITM/.itm`, `.SPC/.spc`)
-- `.SAV` required, `.ITM/.SPC` optional.
-    - If no items/effects, do not create zero-length `.ITM/.SPC`.
+- ScummVM-created legacy saves name companions `CHRDAT<slot><n>.SAV/.ITM/.SPC`
+  (slot F: `CHRDATF1.SAV`).
+- The loader must accept base names from the table (`CHRDATA<n>` and
+  `CHRDAT<slot><n>`) and extension case variants (`.ITM/.itm`, `.SPC/.spc`).
+- `.SAV` is required; `.ITM/.SPC` are optional. Don't write zero-length
+  `.ITM/.SPC` when there are no items/effects.
 - For transfer-style loads (`gameState == GS_START_MENU`), skip geo/icon/wall
-    preloads in `loadGameSlotX86` to avoid mutating restored banks before re-save.
-- Preserve legacy spell-array semantics for round-trip compatibility:
-    - memorized spells must not auto-set known spells during legacy array load.
-- Pointer-field differences (e.g., `.SPC` next pointers) are acceptable when
-    gameplay and cross-platform load compatibility are preserved.
+  preloads in `loadGameSlotX86` so restored banks aren't mutated before re-save.
+- Legacy spell arrays: memorized spells must not auto-set known spells on load.
+- Pointer-field differences (e.g. `.SPC` next pointers) are acceptable as long
+  as gameplay and cross-platform load compatibility are preserved.

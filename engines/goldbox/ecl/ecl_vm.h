@@ -135,7 +135,6 @@ public:
      */
     AddressSpace &getMemory() { return _memory; }
 
-
     /**
      * Set syscall handler (for I/O, menus, combat).
      */
