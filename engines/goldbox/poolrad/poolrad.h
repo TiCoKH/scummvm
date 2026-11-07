@@ -103,6 +103,8 @@ private:
 		kNewEclOnSearch
 	};
 	NewEclPhase                                _newEclPhase = kNewEclIdle;
+	// ONREST yielded on Encamp; open camp once it completes.
+	bool                                       _campEntryPending = false;
 
 	/**
 	 * Shared engine/VM runtime state (legacy globals mirror).
@@ -164,6 +166,11 @@ private:
 	VmResult runEclEntryPoint(ECL::EclRuntimeFieldId entryField,
 			uint32 maxSteps = 1000000);
 	void dispatchPlayerCommand();
+	// EclVm.EnterCamp tail after ONREST: open CampMainMenu.
+	void enterCampAfterOnRest();
+	// EclVm.EnterCamp tail after CampMainMenu: map view, ONRESTINTR if the
+	// rest was interrupted, then back to MapMainMenu.
+	void leaveCamp(bool interrupted);
 
 	// GB13-022 (Req 28.4): restore the selection saved at the command loop
 	// boundary, but ONLY when that character is still in the party (stable-id

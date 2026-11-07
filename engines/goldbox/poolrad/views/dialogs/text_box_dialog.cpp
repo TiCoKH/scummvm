@@ -47,6 +47,8 @@ void TextBoxDialog::clearText() {
 	_frameCounter = 0;
 	_framesPerWord = 0;
 	_pendingDrawStep = false;
+	_timedPause = false;
+	_eraseArea = true;
 	if (_gameText)
 		_gameText->clearMessageArea();
 	redraw();
@@ -55,6 +57,7 @@ void TextBoxDialog::clearText() {
 void TextBoxDialog::setText(const Common::String &text, bool clearBox) {
 	_frameCounter = 0;
 	_pendingDrawStep = false;
+	_timedPause = false;
 	const uint speed = VmInterface::getTextDelay();
 	_framesPerWord = speed;
 	if (_gameText)
@@ -66,6 +69,8 @@ void TextBoxDialog::showMessage(::Goldbox::Data::PlayerCharacter *speaker,
 		const Common::String &text, uint8 row, bool timed) {
 	_frameCounter = 0;
 	_pendingDrawStep = false;
+	_timedPause = timed;
+	_pauseCounter = 0;
 	_framesPerWord = VmInterface::getTextDelay();
 	if (_gameText)
 		_gameText->showMessage(speaker, text, row,
@@ -76,6 +81,13 @@ void TextBoxDialog::showMessage(::Goldbox::Data::PlayerCharacter *speaker,
 void TextBoxDialog::draw() {
 	if (!_isVisible || !_gameText)
 		return;
+
+	// An inactive GameText draws nothing, so a clear must erase explicitly.
+	if (_eraseArea) {
+		_eraseArea = false;
+		Surface eraseSurface = getSurface();
+		eraseSurface.clearBox(1, 17, 38, 22, 0);
+	}
 
 	if (_pendingDrawStep) {
 		_pendingDrawStep = false;
@@ -97,6 +109,13 @@ void TextBoxDialog::draw() {
 }
 
 bool TextBoxDialog::tick() {
+	// PauseOnly (gameDelay * 225 ms), then ClearMessageWindow.
+	if (_timedPause && _gameText && !_gameText->isBusy()) {
+		if (++_pauseCounter >= VmInterface::getTextDelay() * FRAME_RATE / 2)
+			clearText();
+		return true;
+	}
+
 	if (!_gameText || _gameText->isWaitingForKey()
 			|| !_gameText->isBusy())
 		return false;
@@ -116,6 +135,10 @@ bool TextBoxDialog::tick() {
 }
 
 bool TextBoxDialog::msgKeypress(const KeypressMessage &msg) {
+	// The original pause ignores the keyboard.
+	if (_timedPause)
+		return true;
+
 	if (!_gameText || !_gameText->isWaitingForKey())
 		return false;
 

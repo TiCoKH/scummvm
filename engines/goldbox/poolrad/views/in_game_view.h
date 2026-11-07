@@ -42,6 +42,8 @@ class InGameMenuDialog;
 class CampMenuDialog;
 class DoorDialog;
 class ShopBaseDialog;
+class PromptMessage;
+class SpellBookDialog;
 }
 
 /**
@@ -82,7 +84,9 @@ public:
 		// GB13-023: wilderness directional travel (distinct from the dungeon
 		// kCmdMove turn-then-step convention). The compass direction is held
 		// in _travelDir.
-		kCmdWildernessMove
+		kCmdWildernessMove,
+		// CampMainMenu ended; _campInterrupted selects ONRESTINTR.
+		kCmdLeaveCamp
 	};
 
 private:
@@ -107,6 +111,12 @@ private:
 	Dialogs::ShopBaseDialog *_templeDialog = nullptr;
 	Dialogs::ShopBaseDialog *_treasureDialog = nullptr;
 	Dialogs::ShopBaseDialog *_activeShopDialog = nullptr;
+	/** Map 'C' cast menu (Camp.NoncombatCastMenu), cast-only spell book. */
+	Dialogs::SpellBookDialog *_mapCastDialog = nullptr;
+	/** _mapCastDialog was opened and its close is not handled yet. */
+	bool _inMapCast = false;
+	/** Row-24 PrintAndPause message ("Not Here"). */
+	Dialogs::PromptMessage *_notHerePrompt = nullptr;
 
 	// --- Dungeon navigation state ---
 	/** Party map X position (column, 0-15). */
@@ -123,6 +133,12 @@ private:
 	bool _areaMapMode = false;
 	/** Tracks whether in-game menu was active before unfocus (for stack restore). */
 	bool _wasMenuActiveBeforeUnfocus = false;
+	/** A script message is still shown (inverse of original bottomMsgCleared). */
+	bool _scriptMessageShown = false;
+	/** The text box holds a view message no VM operation waits for. */
+	bool _localTextBoxMessage = false;
+	/** The camp ended with an interrupted rest (for kCmdLeaveCamp). */
+	bool _campInterrupted = false;
 	/** Next command for engine-side map-loop. */
 	InGameCommand _pendingCommand = kCmdNone;
 	/**
@@ -134,8 +150,6 @@ private:
 
 	// --- Orchestration helpers ---
 	void syncMainScreenDialog();
-	/** Attempt to step one tile forward in the current facing direction. */
-	void stepForward();
 	/** Configure mode/layout flags from authoritative GameState. */
 	void configureByState(GameState state);
 	/** Activate/deactivate PartyList dialog according to current state flags. */
@@ -149,6 +163,19 @@ private:
 
 	// --- Mode-specific input ---
 	bool handleDungeonKeypress(const KeypressMessage &msg);
+	/** Wilderness arrow: set the compass facing and queue a travel step. */
+	void travelWilderness(char key);
+	/** Toggle the area map, or print "Not Here" when the zone forbids it. */
+	void toggleAreaMap();
+	/** Queue a command that ends the original MapMainMenu loop. */
+	void endMapMenu(InGameCommand cmd);
+	/** Map 'C': Camp.NoncombatCastMenu entry checks, then the cast menu. */
+	void castFromMap();
+	/** Return to the map menu once the cast menu has closed. */
+	void finishMapCast();
+	/** PrintNameString(curChar, text, row 18, pause). */
+	void showTimedNameMessage(Goldbox::Data::PlayerCharacter *ch,
+		const char *text);
 	void syncDirectionAndRedraw();
 	/** 3D left/right turn plays the step sound; turning around does not. */
 	void playTurnSound();
@@ -184,8 +211,11 @@ public:
 	/** Enter camp mode: activate CampMenuDialog, hide normal menu. */
 	void enterCamp();
 
-	/** Exit camp mode: deactivate CampMenuDialog, restore previous state. */
+	/** Exit camp mode: deactivate CampMenuDialog, queue kCmdLeaveCamp. */
 	void exitCamp(bool wasInterrupted);
+
+	/** True if the camp that just ended had its rest interrupted. */
+	bool wasCampInterrupted() const { return _campInterrupted; }
 
 	/** Enter shop/temple/treasure dialog based on encounter type. */
 	void enterShop(uint8 shopType);
@@ -237,10 +267,11 @@ public:
 	void handleMenuResult(const MenuResultMessage &result) override;
 
 	/**
-	 * Handle a key from the in-game menu dialog (DIALOG_InGame equivalent).
-	 * Called by InGameMenuDialog when the player presses a shortcut or movement key.
+	 * Handle a map menu key (Explore.MapMainMenu equivalent): '8'/'2'/'4'/'6'
+	 * for the arrows, otherwise the menu shortcut letter.
+	 * @return false if the key has no meaning in the current map mode
 	 */
-	void handleInGameMenuKey(char key);
+	bool handleInGameMenuKey(char key);
 
 	/** Show/hide the in-game menu based on map runtime ready state. */
 	void setInGameMenuVisible(bool visible);

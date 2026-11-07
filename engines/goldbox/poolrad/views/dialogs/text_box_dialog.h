@@ -47,6 +47,11 @@ private:
     uint _frameCounter;
     uint _framesPerWord;
     bool _pendingDrawStep = false;
+    /** PrintNameString pause: clear the box once the text is complete. */
+    bool _timedPause = false;
+    uint _pauseCounter = 0;
+    /** Erase the text window on the next draw (ClearMessageWindow). */
+    bool _eraseArea = false;
 
 public:
     TextBoxDialog(const Common::String &name = "TextBox");

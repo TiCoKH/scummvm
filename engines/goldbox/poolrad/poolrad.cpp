@@ -417,10 +417,12 @@ void PoolradEngine::onGameStateEnter(GameState prev, GameState next) {
 		(int)next);
 
 	if (isMapRuntimeState(next) && (!isMapRuntimeState(prev) || prev != next)) {
-		// Don't re-init map runtime when entering camping from an active
-		// map state — camp uses the same map context without reloading.
+		// Camp keeps the map context: entering or leaving it only redraws
+		// the map view (EclVm.EnterCamp), it never re-runs ONINIT.
 		const bool campFromMap = (next == GS_CAMPING && isMapRuntimeState(prev));
-		if (!campFromMap) {
+		const bool campToMap = (prev == GS_CAMPING
+			&& (next == GS_DUNGEON_MAP || next == GS_WILDERNESS_MAP));
+		if (!campFromMap && !campToMap) {
 			_mapRuntimeNeedsInit = true;
 			debug(2, "PoolradEngine::onGameStateEnter map runtime init requested for state=%d",
 				(int)next);
@@ -1212,15 +1214,23 @@ bool PoolradEngine::tick() {
 				readyToResume = true;
 			} else if (finalizeResult == VM_ERROR || finalizeResult == VM_HALTED) {
 				_eclFlags.suspended = false;
+				if (_campEntryPending) {
+					_campEntryPending = false;
+					if (finalizeResult == VM_HALTED)
+						enterCampAfterOnRest();
+				}
 			}
 		}
 		if (readyToResume) {
 			_eclFlags.suspended = false;
 			const VmResult resume =
 				executeEclAtScriptAddress(_eclVm->getPC());
-			if (resume == VM_YIELD)
+			if (resume == VM_YIELD) {
 				_eclFlags.suspended = true;
-			else if (_mapRuntimeReady
+			} else if (_campEntryPending) {
+				_campEntryPending = false;
+				enterCampAfterOnRest();
+			} else if (_mapRuntimeReady
 					&& (_eclVm->eclReady || _newEclPhase != kNewEclIdle))
 				runNewEclDone();
 			else if (!_mapRuntimeReady && isMapRuntimeState(getGameState())) {
@@ -1374,6 +1384,7 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	_mapRuntimeNeedsInit = false;
 	_mapRuntimeReady = false;
 	_newEclPhase = kNewEclIdle;
+	_campEntryPending = false;
 
 	// Clear menu row 24 immediately (visible before message dispatch).
 	Graphics::Screen *screen = getScreen();
@@ -1923,16 +1934,22 @@ void PoolradEngine::dispatchPlayerCommand() {
 	}
 
 	if (cmd == Views::InGameView::kCmdEncamp) {
+		_eclVm->eclReady = false;
 		const VmResult r = runEclEntryPoint(ECL::kEclRuntimeOnRestEntry);
 		if (r == VM_YIELD) {
+			// The camp menu still follows once ONREST completes.
+			_campEntryPending = true;
 			_eclFlags.suspended = true;
 			return;
 		}
-		// ON_REST completed (VM_HALTED = EXIT = rest allowed).
-		// Transition to GS_CAMPING — InGameView::applyScreenByState
-		// will call enterCamp() which activates CampMenuDialog.
 		restoreSelectionIfPresent(savedSelection);
-		setGameState(GS_CAMPING);
+		enterCampAfterOnRest();
+		return;
+	}
+
+	if (cmd == Views::InGameView::kCmdLeaveCamp) {
+		restoreSelectionIfPresent(savedSelection);
+		leaveCamp(inGameView->wasCampInterrupted());
 		return;
 	}
 
@@ -2192,6 +2209,46 @@ void PoolradEngine::dispatchPlayerCommand() {
 	// GB13-022 (Req 28.4): NEW-ECL transition drained - restore the saved
 	// selection (stable-id checked) at the loop boundary before awaiting input.
 	restoreSelectionIfPresent(savedSelection);
+}
+
+void PoolradEngine::enterCampAfterOnRest() {
+	// A NEW ECL from ONREST replaces the map; the camp is not opened.
+	if (_eclVm && _eclVm->eclReady) {
+		runNewEclDone();
+		return;
+	}
+
+	// ONREST may have left the map (combat, shop, party defeated).
+	const GameState state = getGameState();
+	if (state != GS_DUNGEON_MAP && state != GS_WILDERNESS_MAP)
+		return;
+
+	// InGameView::applyScreenByState activates CampMenuDialog.
+	setGameState(GS_CAMPING);
+}
+
+void PoolradEngine::leaveCamp(bool interrupted) {
+	if (getGameState() == GS_CAMPING)
+		setGameState(mapStateForLocation(_location));
+
+	// Show the menu before ONRESTINTR so the host's prompt handling
+	// hides and restores it like for any other script.
+	Views::InGameView *inGameView = getInGameView();
+	if (inGameView)
+		inGameView->setInGameMenuVisible(true);
+
+	if (!interrupted || !_eclVm)
+		return;
+
+	_eclVm->eclReady = false;
+	const VmResult r =
+		runEclEntryPoint(ECL::kEclRuntimeOnRestInterruptEntry);
+	if (r == VM_YIELD) {
+		_eclFlags.suspended = true;
+		return;
+	}
+	if (_eclVm->eclReady)
+		runNewEclDone();
 }
 
 bool PoolradEngine::runNewEclDone() {

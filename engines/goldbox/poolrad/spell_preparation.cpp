@@ -132,6 +132,22 @@ bool SpellPreparation::canDoActivity(Activity activity) const {
     }
 }
 
+SpellPreparation::NoncombatCastCheck SpellPreparation::checkNoncombatCast(
+        bool dungeonMap, bool antimagicArea) const {
+    if (!_character)
+        return NCC_NOT_OKAY;
+    if (dungeonMap && _character->healthStatus != Goldbox::Data::S_OKAY)
+        return NCC_NOT_OKAY;
+    if (antimagicArea)
+        return NCC_ANTIMAGIC_AREA;
+    if (_character->healthStatus == Goldbox::Data::S_ANIMATED ||
+            !_character->enabled)
+        return NCC_NO_CONDITION;
+    if (countUsableMemorized() == 0)
+        return NCC_NOTHING_MEMORIZED;
+    return NCC_ALLOWED;
+}
+
 bool SpellPreparation::canLearnSpell(Spells spell) const {
     if (!_character)
         return false;

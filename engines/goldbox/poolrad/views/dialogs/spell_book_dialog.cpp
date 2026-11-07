@@ -46,8 +46,8 @@ using Dialogs::HorizontalYesNo;
 using Dialogs::HorizontalYesNoConfig;
 using Dialogs::SpellsMenu;
 
-SpellBookDialog::SpellBookDialog()
-    : Dialog("SpellBook"),
+SpellBookDialog::SpellBookDialog(const Common::String &name)
+    : Dialog(name),
       _stage(STAGE_MAIN_MENU),
       _interrupted(false),
       _screenDirty(false),
@@ -72,13 +72,13 @@ SpellBookDialog::SpellBookDialog()
     cfg.backgroundColor = 0;
     cfg.singleItemMode = false;
 
-    _horizontalMenu = new HorizontalMenu("SpellBookHMenu", cfg);
+    _horizontalMenu = new HorizontalMenu(name + "HMenu", cfg);
     _horizontalMenu->setParent(this);
     subView(_horizontalMenu);
     _horizontalMenu->deactivate();
 
     // SpellsMenu — reused for cast/memorize/scribe sub-stages.
-    _spellsMenu = new SpellsMenu("SpellBookSpellsMenu");
+    _spellsMenu = new SpellsMenu(name + "SpellsMenu");
     _spellsMenu->setParent(this);
     subView(_spellsMenu);
     _spellsMenu->deactivate();
@@ -89,7 +89,7 @@ SpellBookDialog::SpellBookDialog()
     ynCfg.textColor = 10;
     ynCfg.selectColor = 15;
     ynCfg.backgroundColor = 0;
-    _confirmDialog = new HorizontalYesNo("SpellBookConfirm", ynCfg);
+    _confirmDialog = new HorizontalYesNo(name + "Confirm", ynCfg);
     _confirmDialog->setParent(this);
     subView(_confirmDialog);
     _confirmDialog->deactivate();
@@ -108,7 +108,7 @@ SpellBookDialog::SpellBookDialog()
     dispCfg.yEnd = 22;
     dispCfg.title = "";
     dispCfg.addExit = true;
-    _displayMenu = new VerticalMenu("SpellBookDisplay", dispCfg);
+    _displayMenu = new VerticalMenu(name + "Display", dispCfg);
     _displayMenu->setParent(this);
     subView(_displayMenu);
     _displayMenu->deactivate();
@@ -140,6 +140,8 @@ void SpellBookDialog::activate() {
 
     _interrupted = false;
     _screenDirty = false;
+    _castOnly = false;
+    _castListEmptied = false;
     _pendingMemorizeSpells = false;
     _pendingScribeSpells = false;
 
@@ -163,9 +165,21 @@ void SpellBookDialog::deactivate() {
     Dialog::deactivate();
 }
 
+void SpellBookDialog::beginCastOnly() {
+    activate();
+    _castOnly = true;
+    setStage(STAGE_CAST);
+}
+
 // --- Main menu ---
 
 void SpellBookDialog::returnToMainMenu() {
+    // The map cast menu has no spell-book main menu to return to.
+    if (_castOnly) {
+        exitView();
+        return;
+    }
+
     debug(3, "SpellBookDialog::returnToMainMenu() stage was=%d spellsMenuActive=%d",
         (int)_stage, (int)(_spellsMenu && _spellsMenu->isActive()));
 
@@ -226,20 +240,34 @@ bool SpellBookDialog::msgKeypress(const KeypressMessage &msg) {
         return false;
 
     // Party navigation keys: unwind sub-menus if needed, then pass
-    // back to parent (InGameView) which owns the PartyList.
-    switch (msg.keycode) {
-    case Common::KEYCODE_KP_PLUS:
-    case Common::KEYCODE_KP_MINUS:
-    case Common::KEYCODE_PAGEUP:
-    case Common::KEYCODE_PAGEDOWN:
-        if (_stage != STAGE_MAIN_MENU)
-            returnToMainMenu();
-        return false; // let InGameView's PartyList handle cycling
-    default:
-        break;
+    // back to parent (InGameView) which owns the PartyList. The map cast
+    // list (SpellSelection) keeps them for paging instead.
+    if (!_castOnly) {
+        switch (msg.keycode) {
+        case Common::KEYCODE_KP_PLUS:
+        case Common::KEYCODE_KP_MINUS:
+        case Common::KEYCODE_PAGEUP:
+        case Common::KEYCODE_PAGEDOWN:
+            if (_stage != STAGE_MAIN_MENU)
+                returnToMainMenu();
+            return false; // let InGameView's PartyList handle cycling
+        default:
+            break;
+        }
     }
 
-    return View::msgKeypress(msg);
+    // Only the current stage's menu takes input. HorizontalMenu does not
+    // check its own active flag, so offering the key to every child let the
+    // hidden main menu turn 'E' or Enter into a bogus spell pick.
+    if (_spellsMenu && _spellsMenu->isActive())
+        return _spellsMenu->send(msg);
+    if (_confirmDialog && _confirmDialog->isActive())
+        return _confirmDialog->send(msg);
+    if (_displayMenu && _displayMenu->isActive())
+        return _displayMenu->send(msg);
+    if (_horizontalMenu && _horizontalMenu->isActive())
+        return _horizontalMenu->send(msg);
+    return true;
 }
 
 void SpellBookDialog::handleMainMenuKey(char key) {
@@ -408,9 +436,14 @@ void SpellBookDialog::beginRest() {
     // caller the same way camp does (the ONRESTINTR ECL entry is run by the
     // wiring, not here).
     if (Goldbox::Poolrad::g_engine)
-        Goldbox::Poolrad::g_engine->runRest();
+        _interrupted = Goldbox::Poolrad::g_engine->runRest();
 
     _screenDirty = true;
+    // CampMagicMenu leaves its loop (and the camp) on an interruption.
+    if (_interrupted) {
+        exitView();
+        return;
+    }
     returnToMainMenu();
 }
 
@@ -436,6 +469,16 @@ void SpellBookDialog::handleCastResult(const MenuResultMessage &result) {
     castMemorizedSpell(legacyIndex);
 
     _screenDirty = true;
+
+    // NoncombatCastMenu: an empty list ends the loop ("has no spells
+    // memorized" is printed by the host).
+    if (_castOnly && (!_character ||
+            Goldbox::Poolrad::SpellPreparation(_character)
+                .countUsableMemorized() == 0)) {
+        _castListEmptied = true;
+        exitView();
+        return;
+    }
 
     // Re-enter cast loop (original loops until spell==0).
     _spellsMenu->configure(SpellsMenu::SL_IN_MEMORY, SpellsMenu::SA_CAST);

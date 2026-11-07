@@ -146,7 +146,8 @@ void GameText::showMessage(Data::PlayerCharacter *character,
 	_renderPos = 0;
 	_combat = area == COMBAT_MESSAGE;
 	_startX = _combat ? 23 : 1;
-	_startY = _combat ? line + 1 : line + 2;
+	// PrintNameString: the text starts on the row below the name.
+	_startY = line + 1;
 	_nameX = _combat ? 23 : 1;
 	_nameY = line;
 	_endX = 38;
@@ -216,7 +217,8 @@ void GameText::draw(Surface &surface) const {
 	if (_combat)
 		surface.clearBox(_nameX, _nameY, _endX, _endY, _backgroundColor);
 	else
-		surface.clearBox(_startX, _startY, _endX, _endY, _backgroundColor);
+		surface.clearBox(_startX, MIN(_nameY, _startY), _endX, _endY,
+			_backgroundColor);
 	drawCharacterName(surface);
 	drawRange(surface);
 }

@@ -88,6 +88,20 @@ public:
     // magic-user spell book (memorize cleric/mage per available slots).
     bool canDoActivity(Activity activity) const;
 
+    // Map 'C' gate (Explore.MapMainMenu + Camp.NoncombatCastMenu).
+    enum NoncombatCastCheck {
+        NCC_ALLOWED = 0,
+        NCC_NOT_OKAY,           // 3D map, status not Okay: silently ignored
+        NCC_ANTIMAGIC_AREA,     // "cannot cast spells in this area"
+        NCC_NO_CONDITION,       // "is in no condition to cast any spells"
+        NCC_NOTHING_MEMORIZED   // "has no spells memorized"
+    };
+
+    // The original does not check the class: a non-caster simply has nothing
+    // memorized.
+    NoncombatCastCheck checkNoncombatCast(bool dungeonMap,
+        bool antimagicArea) const;
+
     // GenerateSpellList: known spells eligible for memorization, filtered so
     // only spells whose class/level has a nonzero slot capacity appear.
     Common::Array<ListEntry> generateMemorizeList() const;

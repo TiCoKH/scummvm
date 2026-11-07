@@ -71,11 +71,18 @@ private:
     uint16 _frameIntervalMs;
 
     bool _isInterrupted;
+    /** The Magic sub-menu (SpellBookDialog) was opened from the camp menu. */
+    bool _inSpellBook = false;
 
     void buildMenuModel();
     void loadCampfireFrames();
     void exitCamp();
     void handleMenuKey(char key);
+    /**
+     * Return to the camp loop once the spell book has closed, possibly from
+     * its own queued menu result; an interrupted rest ends the camp.
+     */
+    void resumeAfterSpellBook();
 
 public:
     CampMenuDialog(const Common::String &name);
@@ -85,6 +92,7 @@ public:
     void deactivate() override;
     void draw() override;
     bool msgKeypress(const KeypressMessage &msg) override;
+    bool tick() override;
     void timeout() override;
 
     bool isInterrupted() const { return _isInterrupted; }

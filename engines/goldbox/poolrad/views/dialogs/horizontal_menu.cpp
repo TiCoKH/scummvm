@@ -47,6 +47,20 @@ HorizontalMenu::HorizontalMenu(const String &name, const HorizontalMenuConfig &c
 	setBounds(Window(0, 24, 39, 24));
 }
 
+Common::KeyCode HorizontalMenu::keypadToNavigation(Common::KeyCode keyCode) {
+    switch (keyCode) {
+    case Common::KEYCODE_KP1: return Common::KEYCODE_END;
+    case Common::KEYCODE_KP2: return Common::KEYCODE_DOWN;
+    case Common::KEYCODE_KP3: return Common::KEYCODE_PAGEDOWN;
+    case Common::KEYCODE_KP4: return Common::KEYCODE_LEFT;
+    case Common::KEYCODE_KP6: return Common::KEYCODE_RIGHT;
+    case Common::KEYCODE_KP7: return Common::KEYCODE_HOME;
+    case Common::KEYCODE_KP8: return Common::KEYCODE_UP;
+    case Common::KEYCODE_KP9: return Common::KEYCODE_PAGEUP;
+    default: return keyCode;
+    }
+}
+
 void HorizontalMenu::draw() {
     drawText();
 }
@@ -87,6 +101,9 @@ void HorizontalMenu::drawText() {
 
 bool HorizontalMenu::msgKeypress(const KeypressMessage &msg) {
     KeyCode keyCode = msg.keycode;
+    // Without Num Lock the keypad sends the BIOS navigation scan codes.
+    if (msg.ascii < '0' || msg.ascii > '9')
+        keyCode = keypadToNavigation(keyCode);
     char asciiValue = (msg.ascii >= 'a' && msg.ascii <= 'z') ? msg.ascii - 32 : msg.ascii;
     bool handled = false;
 

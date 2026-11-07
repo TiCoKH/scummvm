@@ -60,6 +60,7 @@ private:
     bool _redraw = true;
 
     void drawText();
+    static Common::KeyCode keypadToNavigation(Common::KeyCode keyCode);
 
 public:
     /**

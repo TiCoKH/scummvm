@@ -270,6 +270,13 @@ void VerticalMenu::handleMenuResult(const MenuResultMessage &result) {
             prevPage();
             break;
 
+        // MenuVertical ignores the other extended keys.
+        case Common::KEYCODE_UP:
+        case Common::KEYCODE_DOWN:
+        case Common::KEYCODE_LEFT:
+        case Common::KEYCODE_RIGHT:
+            break;
+
         default:
             if (_parent) {
 				g_events->postMenuResult(_parent->getName(), success,

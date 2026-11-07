@@ -88,6 +88,7 @@ void CampMenuDialog::loadCampfireFrames() {
 void CampMenuDialog::activate() {
     Dialog::activate();
     _isInterrupted = false;
+    _inSpellBook = false;
 
     if (_spellBookDialog)
         _spellBookDialog->deactivate();
@@ -181,6 +182,11 @@ void CampMenuDialog::draw() {
     }
 }
 
+bool CampMenuDialog::tick() {
+    resumeAfterSpellBook();
+    return Dialog::tick();
+}
+
 void CampMenuDialog::timeout() {
     // Not used - animation is driven from draw().
 }
@@ -191,15 +197,15 @@ bool CampMenuDialog::msgKeypress(const KeypressMessage &msg) {
 
     if (_spellBookDialog && _spellBookDialog->isActive()) {
         if (_spellBookDialog->msgKeypress(msg)) {
-            if (!_spellBookDialog->isActive() && _horizontalMenu) {
-                _horizontalMenu->activate();
-                _horizontalMenu->setRedraw();
-            }
+            resumeAfterSpellBook();
             redraw();
-            return true;
         }
         return true;
     }
+
+    resumeAfterSpellBook();
+    if (!_isActive)
+        return true;
 
     if (!_horizontalMenu)
         return false;
@@ -276,8 +282,10 @@ void CampMenuDialog::handleMenuKey(char key) {
     case 'M':
         if (_horizontalMenu)
             _horizontalMenu->deactivate();
-        if (_spellBookDialog)
+        if (_spellBookDialog) {
             _spellBookDialog->activate();
+            _inSpellBook = true;
+        }
         break;
     case 'R':
         // ACTION_Rest: drive the shared rest operation. The engine owns the
@@ -285,6 +293,9 @@ void CampMenuDialog::handleMenuKey(char key) {
         // occurred so exitCamp routes through the ONRESTINTR ECL entry.
         if (Goldbox::Poolrad::g_engine)
             _isInterrupted = Goldbox::Poolrad::g_engine->runRest();
+        // CampMainMenu leaves its loop on an interruption.
+        if (_isInterrupted)
+            exitCamp();
         break;
     case 'A':
         // TODO: DIALOG_Preferences
@@ -295,6 +306,25 @@ void CampMenuDialog::handleMenuKey(char key) {
     default:
         break;
     }
+}
+
+void CampMenuDialog::resumeAfterSpellBook() {
+    if (!_isActive || !_inSpellBook || !_spellBookDialog
+            || _spellBookDialog->isActive())
+        return;
+
+    _inSpellBook = false;
+    if (_spellBookDialog->wasInterrupted()) {
+        _isInterrupted = true;
+        exitCamp();
+        return;
+    }
+
+    if (_horizontalMenu) {
+        _horizontalMenu->activate();
+        _horizontalMenu->setRedraw();
+    }
+    redraw();
 }
 
 void CampMenuDialog::exitCamp() {

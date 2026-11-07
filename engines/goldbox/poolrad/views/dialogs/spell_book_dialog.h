@@ -65,7 +65,7 @@ public:
         STAGE_REST
     };
 
-    SpellBookDialog();
+    explicit SpellBookDialog(const Common::String &name = "SpellBook");
     ~SpellBookDialog() override;
 
     void activate() override;
@@ -76,10 +76,21 @@ public:
 
     bool wasInterrupted() const { return _interrupted; }
 
+    /**
+     * Camp.NoncombatCastMenu: open straight into the memorized-spell cast
+     * loop; leaving the list closes the dialog instead of the main menu.
+     */
+    void beginCastOnly();
+
+    /** The cast-only loop ended because nothing is memorized any more. */
+    bool castListEmptied() const { return _castListEmptied; }
+
 private:
     Stage _stage;
     bool _interrupted;
     bool _screenDirty;
+    bool _castOnly = false;
+    bool _castListEmptied = false;
     Goldbox::Poolrad::Data::PoolradCharacter *_character;
 
     // Main horizontal menu: Cast / Memorize / Scribe / Display / Rest

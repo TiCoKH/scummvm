@@ -117,12 +117,8 @@ void InGameStateAreaDialog::draw() {
     _mapDir = mapDir;
     _isDungeon = isDungeon;
 
-    // Convert direction to 8-way index for display.
-    uint8 displayDir;
-    if (_isDungeon)
-        displayDir = cardinalTo8Way(_mapDir);
-    else
-        displayDir = _mapDir % 8;
+    // VM DungeonDir is cardinal on both map types (shared gFacing).
+    const uint8 displayDir = cardinalTo8Way(_mapDir);
 
     Common::String line;
     if (!hideCoords)

@@ -28,12 +28,16 @@
 #include "goldbox/poolrad/views/dialogs/in_game_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/camp_menu_dialog.h"
 #include "goldbox/poolrad/views/dialogs/door_dialog.h"
+#include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
+#include "goldbox/poolrad/views/dialogs/spell_book_dialog.h"
 #include "goldbox/poolrad/views/dialogs/store_dialog.h"
 #include "goldbox/poolrad/views/dialogs/temple_dialog.h"
 #include "goldbox/poolrad/views/dialogs/treasure_dialog.h"
 #include "goldbox/poolrad/views/in_game_view.h"
 #include "goldbox/poolrad/poolrad.h"
+#include "goldbox/poolrad/spell_preparation.h"
+#include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/combat/damage_utils.h"
@@ -98,6 +102,19 @@ InGameView::InGameView() : View("InGame") {
 	_treasureDialog = new Dialogs::TreasureDialog("Treasure");
 	_treasureDialog->deactivate();
 	attachDialog(_treasureDialog);
+
+	// Unique name: menu results are routed by name and the camp owns a
+	// "SpellBook" of its own.
+	_mapCastDialog = new Dialogs::SpellBookDialog("MapCast");
+	_mapCastDialog->deactivate();
+	attachDialog(_mapCastDialog);
+
+	// Attached on demand: PromptMessage detaches itself on timeout.
+	Dialogs::PromptMessageConfig notHereCfg;
+	notHereCfg.message = "Not Here";
+	notHereCfg.textColor = 14;
+	_notHerePrompt = new Dialogs::PromptMessage("InGameNotHere", notHereCfg);
+	_notHerePrompt->deactivate();
 }
 
 InGameView::~InGameView() {
@@ -159,6 +176,16 @@ InGameView::~InGameView() {
 	if (_treasureDialog) {
 		delete _treasureDialog;
 		_treasureDialog = nullptr;
+	}
+
+	if (_notHerePrompt) {
+		delete _notHerePrompt;
+		_notHerePrompt = nullptr;
+	}
+
+	if (_mapCastDialog) {
+		delete _mapCastDialog;
+		_mapCastDialog = nullptr;
 	}
 }
 
@@ -385,6 +412,12 @@ void InGameView::draw() {
 		return;
 	}
 
+	// Map cast menu: the spell list covers the play area.
+	if (_mapCastDialog && _mapCastDialog->isActive()) {
+		_mapCastDialog->draw();
+		return;
+	}
+
 	// Shop/Temple/Treasure dialog active.
 	if (_activeShopDialog && _activeShopDialog->isActive()) {
 		if (_showPartyPanel && _partyList && _partyList->isActive())
@@ -419,6 +452,18 @@ void InGameView::draw() {
 // Input
 
 bool InGameView::msgKeypress(const KeypressMessage &msg) {
+	// PrintAndPause blocks input until the message is cleared.
+	if (_notHerePrompt && _notHerePrompt->isActive())
+		return true;
+
+	// The cast menu owns the keyboard until it closes.
+	if (_mapCastDialog && _mapCastDialog->isActive()) {
+		_mapCastDialog->msgKeypress(msg);
+		finishMapCast();
+		redraw();
+		return true;
+	}
+
 	// Camp dialog consumes most keys when active — blocks navigation.
 	// Party list gets first pass at scroll keys.
 	if (_campMenuDialog && _campMenuDialog->isActive()) {
@@ -496,10 +541,9 @@ bool InGameView::msgKeypress(const KeypressMessage &msg) {
 		}
 	}
 
-	// Fallback: dungeon keys only when no in-game menu and not suspended.
-	if ((_state == GS_DUNGEON_MAP || _state == GS_WILDERNESS_MAP
-			|| _state == GS_CAMPING || _state == GS_AFTER_COMBAT
-			|| _state == GS_COMBAT)
+	// Fallback: map keys only when no in-game menu and not suspended.
+	// MapMainMenu runs only on the 3D and wilderness maps.
+	if ((_state == GS_DUNGEON_MAP || _state == GS_WILDERNESS_MAP)
 			&& !VmInterface::isRuntimeSuspended()
 			&& !(_inGameMenuDialog && _inGameMenuDialog->isActive()))
 		if (handleDungeonKeypress(msg))
@@ -509,96 +553,43 @@ bool InGameView::msgKeypress(const KeypressMessage &msg) {
 }
 
 bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
-	bool handled = true;
-
-	// GB13-023 (Req 33.4): in the wilderness the arrow keys are DIRECTIONAL
-	// TRAVEL (UP=north, DOWN=south, LEFT=west, RIGHT=east), each a compass MOVE
-	// - distinct from the dungeon turn convention below (LEFT/RIGHT/DOWN
-	// rotate _mapDir, UP steps forward). The arrow->compass conversion happens
-	// at this single boundary; the engine wilderness path reads _travelDir.
-	if (_state == GS_WILDERNESS_MAP) {
-		switch (msg.keycode) {
-		case Common::KEYCODE_UP:
-			_travelDir = WildernessTravel::arrowToCompass(
-				WildernessTravel::ARROW_UP);
-			queueCommand(kCmdWildernessMove);
-			return true;
-		case Common::KEYCODE_DOWN:
-			_travelDir = WildernessTravel::arrowToCompass(
-				WildernessTravel::ARROW_DOWN);
-			queueCommand(kCmdWildernessMove);
-			return true;
-		case Common::KEYCODE_LEFT:
-			_travelDir = WildernessTravel::arrowToCompass(
-				WildernessTravel::ARROW_LEFT);
-			queueCommand(kCmdWildernessMove);
-			return true;
-		case Common::KEYCODE_RIGHT:
-			_travelDir = WildernessTravel::arrowToCompass(
-				WildernessTravel::ARROW_RIGHT);
-			queueCommand(kCmdWildernessMove);
-			return true;
-		default:
-			break;
-		}
-	}
-
+	char key;
 	switch (msg.keycode) {
-	// --- Movement (arrow keys) --- dungeon turn convention ---
 	case Common::KEYCODE_UP:
-		stepForward();
-		queueCommand(kCmdMove);
-		break;
-	case Common::KEYCODE_LEFT:
-		_mapDir = (_mapDir + 6) % 8;
-		playTurnSound();
-		syncDirectionAndRedraw();
-		break;
-	case Common::KEYCODE_RIGHT:
-		_mapDir = (_mapDir + 2) % 8;
-		playTurnSound();
-		syncDirectionAndRedraw();
+		key = '8';
 		break;
 	case Common::KEYCODE_DOWN:
-		_mapDir = (_mapDir + 4) % 8;
-		syncDirectionAndRedraw();
+		key = '2';
 		break;
-
-	// --- Menu keys ---
+	case Common::KEYCODE_LEFT:
+		key = '4';
+		break;
+	case Common::KEYCODE_RIGHT:
+		key = '6';
+		break;
 	case Common::KEYCODE_a:
-		_areaMapMode = !_areaMapMode;
+		key = 'A';
 		break;
-	case Common::KEYCODE_s:
-		// 'S' toggles persistent search-while-walking (D_SearchFlags bit 0 XOR).
-		// Queues to engine for VM memory write; no script runs.
-		_searchMode = !_searchMode;
-		queueCommand(kCmdSearch);
+	case Common::KEYCODE_c:
+		key = 'C';
 		break;
 	case Common::KEYCODE_e:
-		queueCommand(kCmdEncamp);
-		break;
-	case Common::KEYCODE_v:
-		// View character sheet.
-		addView("ViewCharacter");
-		return true;
-	case Common::KEYCODE_c:
-		// TODO: Open spell menu for selected player.
+		key = 'E';
 		break;
 	case Common::KEYCODE_l:
-		// 'L' (Look): one-shot search. Sets D_SearchFlags |= 2, advances time,
-		// then exits to engine which runs ECL_ONSEARCH once and clears bit 1.
-		queueCommand(kCmdLook);
+		key = 'L';
 		break;
-
+	case Common::KEYCODE_s:
+		key = 'S';
+		break;
+	case Common::KEYCODE_v:
+		key = 'V';
+		break;
 	default:
-		handled = false;
-		break;
+		return false;
 	}
 
-	if (handled)
-		redraw();
-
-	return handled;
+	return handleInGameMenuKey(key);
 }
 
 void InGameView::applyDamageMessage(Goldbox::Data::PlayerCharacter *ch,
@@ -660,10 +651,9 @@ void InGameView::handleMenuResult(const MenuResultMessage &result) {
 			result._stringValue == "DoorResult") {
 		if (result._hasIntValue &&
 				result._intValue == Dialogs::DoorDialog::kDoorOpened) {
-			// Door opened — play step sound and advance forward.
+			// Door opened: the engine commits the step from VM memory.
 			if (g_engine)
 				g_engine->playSfx(kSfxStep);
-			stepForward();
 			queueCommand(kCmdMove);
 		} else {
 			// Door blocked — play blocked sound.
@@ -674,10 +664,11 @@ void InGameView::handleMenuResult(const MenuResultMessage &result) {
 		return;
 	}
 
-	// Camp exit result from CampMenuDialog.
-	if (result._success && result._keyCode == Common::KEYCODE_e
-			&& _campMenuDialog && _campMenuDialog->isActive()) {
-		exitCamp(result._hasIntValue && result._intValue != 0);
+	// Camp exit result. CampMenuDialog deactivates before this queued result
+	// arrives, so match on the state; camp keys never reach the map menu.
+	if (_state == GS_CAMPING) {
+		if (result._success && result._keyCode == Common::KEYCODE_e)
+			exitCamp(result._hasIntValue && result._intValue != 0);
 		return;
 	}
 
@@ -730,51 +721,185 @@ void InGameView::handleMenuResult(const MenuResultMessage &result) {
 		handleInGameMenuKey(ascii);
 }
 
-void InGameView::handleInGameMenuKey(char key) {
+bool InGameView::handleInGameMenuKey(char key) {
+	// MapMainMenu only exists on the 3D and wilderness maps.
+	if (_state != GS_DUNGEON_MAP && _state != GS_WILDERNESS_MAP)
+		return false;
+
+	const bool wilderness = (_state == GS_WILDERNESS_MAP);
+
 	switch (key) {
-	case '8': // Forward — step and dispatch ONMOVE
-		queueCommand(kCmdMove);
+	case '8':
+	case '2':
+	case '4':
+	case '6':
+		if (wilderness) {
+			travelWilderness(key);
+		} else if (key == '8') {
+			// MoveForward: ONMOVE runs even when facing a wall.
+			endMapMenu(kCmdMove);
+		} else if (key == '2') {
+			// Turning around makes no sound.
+			_mapDir = (_mapDir + 4) % 8;
+			syncDirectionAndRedraw();
+		} else {
+			_mapDir = (_mapDir + (key == '4' ? 6 : 2)) % 8;
+			playTurnSound();
+			syncDirectionAndRedraw();
+		}
 		break;
-	case '2': // Turn around — rotate only, no ONMOVE
-		_mapDir = (_mapDir + 4) % 8;
-		syncDirectionAndRedraw();
+	case 'A':
+		// The wilderness menu has no Area entry.
+		if (wilderness)
+			return false;
+		toggleAreaMap();
 		break;
-	case '4': // Turn left — rotate only, no ONMOVE
-		_mapDir = (_mapDir + 6) % 8;
-		playTurnSound();
-		syncDirectionAndRedraw();
+	case 'C':
+		castFromMap();
 		break;
-	case '6': // Turn right — rotate only, no ONMOVE
-		_mapDir = (_mapDir + 2) % 8;
-		playTurnSound();
-		syncDirectionAndRedraw();
+	case 'E':
+		endMapMenu(kCmdEncamp);
 		break;
-	case 'A': // Area map toggle
-		_areaMapMode = !_areaMapMode;
-		break;
-	case 'E': // Encamp
-		queueCommand(kCmdEncamp);
-		break;
-	case 'S': // Search toggle
+	case 'S':
+		// Search toggle stays inside the menu loop.
 		_searchMode = !_searchMode;
 		queueCommand(kCmdSearch);
 		break;
-	case 'L': // Look
-		queueCommand(kCmdLook);
+	case 'L':
+		endMapMenu(kCmdLook);
 		break;
-	case 'V': // View character
+	case 'V':
 		addView("ViewCharacter");
+		return true;
+	default:
+		return false;
+	}
+
+	redraw();
+	return true;
+}
+
+void InGameView::travelWilderness(char key) {
+	WildernessTravel::Arrow arrow;
+	switch (key) {
+	case '2':
+		arrow = WildernessTravel::ARROW_DOWN;
+		_mapDir = DIR_S;
 		break;
-	case 'C': // Cast spell
-		// Noncombat casting runs in the camp context, which hosts the shared
-		// spell-book flow (SpellBookDialog::beginCast -> g_spellCasting with a
-		// memorized-slot cast origin). Entering camp opens that path.
-		queueCommand(kCmdEncamp);
+	case '4':
+		arrow = WildernessTravel::ARROW_LEFT;
+		_mapDir = DIR_W;
 		break;
+	case '6':
+		arrow = WildernessTravel::ARROW_RIGHT;
+		_mapDir = DIR_E;
+		break;
+	default:
+		arrow = WildernessTravel::ARROW_UP;
+		_mapDir = DIR_N;
+		break;
+	}
+
+	_travelDir = WildernessTravel::arrowToCompass(arrow);
+	syncDirectionAndRedraw();
+	endMapMenu(kCmdWildernessMove);
+}
+
+void InGameView::toggleAreaMap() {
+	RuntimeMapSnapshot snapshot;
+	if (VmInterface::captureRuntimeMapSnapshot(snapshot) && snapshot.valid
+			&& snapshot.hideCoords) {
+		if (_notHerePrompt && !_notHerePrompt->isActive()) {
+			attachDialog(_notHerePrompt);
+			_notHerePrompt->activate();
+		}
+		return;
+	}
+
+	_areaMapMode = !_areaMapMode;
+}
+
+void InGameView::endMapMenu(InGameCommand cmd) {
+	// MapMainMenu clears a leftover script message when the loop ends.
+	if (_scriptMessageShown && !isTextBoxBusy()) {
+		clearTextBox();
+		_scriptMessageShown = false;
+	}
+
+	queueCommand(cmd);
+}
+
+void InGameView::castFromMap() {
+	if (!g_engine)
+		return;
+
+	Data::PoolradCharacter *sel = static_cast<Data::PoolradCharacter *>(
+		g_engine->getSelectedCharacter());
+
+	bool antimagic = false;
+	const ECL::AddressSpace *mem = g_engine->getEclMemory();
+	if (mem) {
+		antimagic = mem->read8(Data::getPoolradVmLayout()
+			.field(kVmFieldNoMagicFlag).vmAddr) != 0;
+	}
+
+	const char *refusal = nullptr;
+	switch (SpellPreparation(sel).checkNoncombatCast(
+			_state != GS_WILDERNESS_MAP, antimagic)) {
+	case SpellPreparation::NCC_NOT_OKAY:
+		return;
+	case SpellPreparation::NCC_ANTIMAGIC_AREA:
+		refusal = "cannot cast spells in this area";
+		break;
+	case SpellPreparation::NCC_NO_CONDITION:
+		refusal = "is in no condition to cast any spells";
+		break;
+	case SpellPreparation::NCC_NOTHING_MEMORIZED:
+		refusal = "has no spells memorized";
+		break;
+	case SpellPreparation::NCC_ALLOWED:
 	default:
 		break;
 	}
+
+	if (refusal) {
+		showTimedNameMessage(sel, refusal);
+		return;
+	}
+
+	// The cast menu replaces the map menu; the map state is unchanged.
+	if (!_mapCastDialog)
+		return;
+	if (_inGameMenuDialog && _inGameMenuDialog->isActive())
+		_inGameMenuDialog->deactivate();
+	_mapCastDialog->beginCastOnly();
+	_inMapCast = true;
 	redraw();
+}
+
+void InGameView::finishMapCast() {
+	if (!_inMapCast || !_mapCastDialog || _mapCastDialog->isActive())
+		return;
+
+	_inMapCast = false;
+	// DisplayNoncombatInterface after the cast menu.
+	setInGameMenuVisible(true);
+	redraw();
+
+	if (_mapCastDialog->castListEmptied() && g_engine)
+		showTimedNameMessage(g_engine->getSelectedCharacter(),
+			"has no spells memorized");
+}
+
+void InGameView::showTimedNameMessage(Goldbox::Data::PlayerCharacter *ch,
+		const char *text) {
+	if (!_textBoxDialog)
+		return;
+	if (!_textBoxDialog->isActive())
+		_textBoxDialog->activate();
+	_textBoxDialog->clearText();
+	_textBoxDialog->showMessage(ch, text, 18, true);
+	_localTextBoxMessage = true;
 }
 
 void InGameView::syncDirectionAndRedraw() {
@@ -820,13 +945,17 @@ void InGameView::setInGameMenuVisible(bool visible) {
 bool InGameView::tick() {
 	// Detect textbox busy->idle transition and signal RuntimeExchange.
 	const bool busy = _textBoxDialog && _textBoxDialog->isBusy();
-	if (_textBoxWasBusy && !busy) {
+	if (_textBoxWasBusy && !busy && !_localTextBoxMessage) {
 		RuntimeExchange *exchange = g_engine
 			? g_engine->getRuntimeExchange() : nullptr;
 		if (exchange)
 			exchange->signalAsync(RuntimeExchange::kAsyncTextBoxDone);
 	}
+	if (!busy)
+		_localTextBoxMessage = false;
 	_textBoxWasBusy = busy;
+
+	finishMapCast();
 
 	// Keep view dirty while camp animation is active.
 	if (_campMenuDialog && _campMenuDialog->isActive() && g_engine
@@ -851,6 +980,8 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 				setMapPosition(snapshot.dungeonPos.x, snapshot.dungeonPos.y,
 					static_cast<uint8>((snapshot.dungeonDir & 0x03) * 2));
 				_searchMode = snapshot.searchActive;
+				if (snapshot.hideCoords)
+					_areaMapMode = false;
 				if (snapshot.gameState != _state)
 					applyScreenByState(snapshot.gameState);
 				else
@@ -887,6 +1018,8 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 				_textBoxDialog->setText(msg._stringPayload,
 					msg._result != 0);
 				_textBoxWasBusy = true;
+				_localTextBoxMessage = false;
+				_scriptMessageShown = true;
 			}
 			redraw();
 			return;
@@ -896,6 +1029,7 @@ void InGameView::handleEclVmMessage(const EclVmMessage &msg) {
 					_textBoxDialog->activate();
 				_textBoxDialog->clearText();
 			}
+			_scriptMessageShown = false;
 			redraw();
 			return;
 		case EclVmMessage::SC_PRINT:
@@ -1010,17 +1144,9 @@ void InGameView::exitCamp(bool wasInterrupted) {
 	if (_campMenuDialog && _campMenuDialog->isActive())
 		_campMenuDialog->deactivate();
 
-	// GB13-021: return to the CALLER's location, not unconditionally
-	// GS_DUNGEON_MAP. A camp sub-loop keeps the same location context, so the
-	// map state is whatever the location kind implies (dungeon or wilderness).
-	if (g_engine) {
-		g_engine->setGameState(
-			PoolradEngine::mapStateForLocation(g_engine->getLocationContext()));
-		if (g_events) {
-			g_events->postEclStateMessage(EclVmMessage::ST_INGAME_MENU_VISIBLE,
-				1, EclVmMessage::VT_UINT8);
-		}
-	}
+	// The engine restores the caller's map state and runs ONRESTINTR.
+	_campInterrupted = wasInterrupted;
+	queueCommand(kCmdLeaveCamp);
 }
 
 void InGameView::enterShop(uint8 shopType) {
@@ -1120,33 +1246,6 @@ void InGameView::exitShop() {
 
 bool InGameView::isShopActive() const {
 	return _activeShopDialog && _activeShopDialog->isActive();
-}
-
-void InGameView::stepForward() {
-	// Check wall passability before moving.
-	// Door handling is done by the engine's tryOpenDoor() after ONMOVE,
-	// NOT here. This only blocks solid walls (wallFlag == 0).
-	RuntimeGeoBlock &rtGeo = VmInterface::getRuntimeGeo();
-	if (rtGeo.isLoaded()) {
-		const Direction wireDir = static_cast<Direction>(_mapDir & 0x06);
-		const uint8 wallFlag = rtGeo.getWallFlag(
-			MapPos(static_cast<int8>(_mapX), static_cast<int8>(_mapY)), wireDir);
-		if (wallFlag == 0)
-			return; // Solid wall blocks movement.
-	}
-
-	// Compute new position using 8-direction deltas.
-	int newX = (int)_mapX + kDirDeltaX[_mapDir];
-	int newY = (int)_mapY + kDirDeltaY[_mapDir];
-
-	// Clamp to map borders (0-15).
-	if (newX > 15) newX = 15;
-	if (newX < 0)  newX = 0;
-	if (newY > 15) newY = 15;
-	if (newY < 0)  newY = 0;
-
-	_mapX = (uint16)newX;
-	_mapY = (uint16)newY;
 }
 
 } // namespace Views
