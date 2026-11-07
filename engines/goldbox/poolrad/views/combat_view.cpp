@@ -1330,7 +1330,8 @@ void CombatView::animateRangedAttack(
     if (!attacker || !target || !item || !_session.getContext())
         return;
 
-    _viewport->animateRangedAttack(attacker, target, item->prop().wpnType);
+    // RangedAttackAnim selects the icon by base item type, not weapon class.
+    _viewport->animateRangedAttack(attacker, target, item->typeIndex);
     _needsFullRedraw = true;
 }
 

@@ -58,9 +58,9 @@ void initCombatStates(Common::Array<Data::PlayerCharacter *> &combatants,
         delete ch->combatState;
         ch->combatState = new Data::CombatAction();
 
-        // Mark party-side characters beyond the player party as not in team.
-        // Enemy monsters are always in the enemy team regardless of roster index.
-        if (partyCount < combatantCount && ch->combatSide == Data::CS_PARTY)
+        // Every combatant past the player party (NPCs and monsters) is not in
+        // the team: when downed it leaves no corpse and is simply removed.
+        if (partyCount < combatantCount)
             ch->combatState->notInTeam = true;
 
         // Original morale migration for neutral non-team NPCs:
