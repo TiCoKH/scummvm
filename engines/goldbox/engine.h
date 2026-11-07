@@ -38,6 +38,7 @@
 #include "goldbox/detection.h"
 #include "goldbox/events.h"
 #include "goldbox/sound/sound_driver.h"
+#include "goldbox/sound/sound_effects.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/strings_data.h"
 #include "goldbox/data/items/base_items.h"
@@ -67,6 +68,9 @@ private:
 
 	GoldboxSoundDriver *_soundDriver;  ///< PC Speaker / Tandy sound driver
 	SoundMode _soundMode;              ///< Current sound mode from config
+	bool _soundEnabled = true;         ///< Cleared by Ctrl-S
+	int _soundSustainDepth = 0;
+	uint16 _eclSoundEffect = 0;
 protected:
 	Data::DaxFileManager _daxManager;
 	RuntimeGeoBlock _runtimeGeo;
@@ -145,9 +149,24 @@ public:
 	 */
 	void soundSetup(uint16 flag);
 
-	/** WORD_SOUND_FLAG, also written by ECL scripts. */
-	void setSoundFlag(uint16 flag);
-	uint16 getSoundFlag() const;
+	/** Play a sound effect from the original soundIds table. */
+	void playSfx(SoundEffect sfx) { soundPlay(static_cast<uint8>(sfx)); }
+
+	/**
+	 * Let sounds run to completion instead of being cut by auto-stop, like
+	 * the original SoundSetAutoStop(0) ... SoundSetAutoStop(10) brackets
+	 * around animations. Calls nest; use SoundSustain where possible.
+	 */
+	void beginSoundSustain();
+	void endSoundSustain();
+
+	/** Ctrl-S: silence and disable sound, or re-enable it. */
+	void toggleSound();
+	bool isSoundEnabled() const { return _soundEnabled; }
+
+	/** ECL sndEffect ($3DE), read by the $BA03 sound call. */
+	void setEclSoundEffect(uint16 value) { _eclSoundEffect = value; }
+	uint16 getEclSoundEffect() const { return _eclSoundEffect; }
 
 	/**
 	 * Selects the sound data file for a given "sound_version" config value:
@@ -498,6 +517,23 @@ public:
 
 extern Engine *g_engine;
 #define SHOULD_QUIT ::Goldbox::g_engine->shouldQuit();
+
+/** Scoped Engine::beginSoundSustain() / endSoundSustain(). */
+class SoundSustain {
+public:
+	SoundSustain() {
+		if (g_engine)
+			g_engine->beginSoundSustain();
+	}
+	~SoundSustain() {
+		if (g_engine)
+			g_engine->endSoundSustain();
+	}
+
+private:
+	SoundSustain(const SoundSustain &);
+	SoundSustain &operator=(const SoundSustain &);
+};
 
 } // End of namespace Goldbox
 

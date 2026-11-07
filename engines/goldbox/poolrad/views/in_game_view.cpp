@@ -551,10 +551,12 @@ bool InGameView::handleDungeonKeypress(const KeypressMessage &msg) {
 		break;
 	case Common::KEYCODE_LEFT:
 		_mapDir = (_mapDir + 6) % 8;
+		playTurnSound();
 		syncDirectionAndRedraw();
 		break;
 	case Common::KEYCODE_RIGHT:
 		_mapDir = (_mapDir + 2) % 8;
+		playTurnSound();
 		syncDirectionAndRedraw();
 		break;
 	case Common::KEYCODE_DOWN:
@@ -659,18 +661,14 @@ void InGameView::handleMenuResult(const MenuResultMessage &result) {
 		if (result._hasIntValue &&
 				result._intValue == Dialogs::DoorDialog::kDoorOpened) {
 			// Door opened — play step sound and advance forward.
-			if (g_engine) {
-				g_engine->soundSetup(10);
-				g_engine->soundPlay(0x0B);
-			}
+			if (g_engine)
+				g_engine->playSfx(kSfxStep);
 			stepForward();
 			queueCommand(kCmdMove);
 		} else {
 			// Door blocked — play blocked sound.
-			if (g_engine) {
-				g_engine->soundSetup(10);
-				g_engine->soundPlay(0x08);
-			}
+			if (g_engine)
+				g_engine->playSfx(kSfxImpact);
 		}
 		redraw();
 		return;
@@ -743,10 +741,12 @@ void InGameView::handleInGameMenuKey(char key) {
 		break;
 	case '4': // Turn left — rotate only, no ONMOVE
 		_mapDir = (_mapDir + 6) % 8;
+		playTurnSound();
 		syncDirectionAndRedraw();
 		break;
 	case '6': // Turn right — rotate only, no ONMOVE
 		_mapDir = (_mapDir + 2) % 8;
+		playTurnSound();
 		syncDirectionAndRedraw();
 		break;
 	case 'A': // Area map toggle
@@ -782,6 +782,11 @@ void InGameView::syncDirectionAndRedraw() {
 		return;
 
 	VmInterface::syncViewDirection(static_cast<uint8>((_mapDir / 2) & 0x03));
+}
+
+void InGameView::playTurnSound() {
+	if (g_engine && _state != GS_WILDERNESS_MAP)
+		g_engine->playSfx(kSfxStep);
 }
 
 bool InGameView::isInGameMenuVisible() const {

@@ -150,6 +150,8 @@ private:
 	// --- Mode-specific input ---
 	bool handleDungeonKeypress(const KeypressMessage &msg);
 	void syncDirectionAndRedraw();
+	/** 3D left/right turn plays the step sound; turning around does not. */
+	void playTurnSound();
 
 public:
 	InGameView();

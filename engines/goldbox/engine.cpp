@@ -258,7 +258,7 @@ Common::Error Engine::syncGameState(Common::Serializer &s) {
 }
 
 void Engine::soundPlay(uint8 soundIndex) {
-	if (_soundMode == kSoundOff || !_soundDriver)
+	if (_soundMode == kSoundOff || !_soundDriver || !_soundEnabled)
 		return;
 
 	// ARRAY_SOUND_MAP = { 0xFF, 0, 1, 2, ... }
@@ -270,13 +270,24 @@ void Engine::soundSetup(uint16 flag) {
 		_soundDriver->setup(flag);
 }
 
-void Engine::setSoundFlag(uint16 flag) {
-	if (_soundDriver)
-		_soundDriver->setSoundFlag(flag);
+void Engine::beginSoundSustain() {
+	if (_soundSustainDepth++ == 0)
+		soundSetup(0);
 }
 
-uint16 Engine::getSoundFlag() const {
-	return _soundDriver ? _soundDriver->getSoundFlag() : 0;
+void Engine::endSoundSustain() {
+	if (_soundSustainDepth > 0 && --_soundSustainDepth == 0)
+		soundSetup(kSoundAutoStop);
+}
+
+void Engine::toggleSound() {
+	if (_soundEnabled) {
+		soundPlay(kSfxStop);
+		_soundEnabled = false;
+	} else {
+		_soundEnabled = true;
+		soundPlay(kSfxStop);
+	}
 }
 
 } // End of namespace Goldbox

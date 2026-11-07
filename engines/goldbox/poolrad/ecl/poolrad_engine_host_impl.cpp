@@ -642,15 +642,15 @@ VmResult PoolradEngineHostImpl::loadMonster(uint8 monsterId, uint8 count,
     const uint8 slotId = allocateMonsterIconSlot();
     bool loadedIcon = false;
 
-    if (graphicId != 0)
+    // EclLoadMon always loads CPIC block graphicId; 0 is a valid picture
+    // (kobolds use it).
+    if (_engine->getDaxCPic().hasBlock(graphicId))
         loadedIcon = iconMgr->loadIcon(slotId,
             Goldbox::Gfx::ICON_KIND_CPIC, graphicId);
 
     if (!loadedIcon) {
-        if (graphicId != 0) {
-            warning("PoolradEngineHostImpl::loadMonster: failed to load CPIC icon %u into slot %u, falling back to MONCHA icon data",
-                (unsigned)graphicId, (unsigned)slotId);
-        }
+        warning("PoolradEngineHostImpl::loadMonster: failed to load CPIC icon %u into slot %u, falling back to MONCHA icon data",
+            (unsigned)graphicId, (unsigned)slotId);
 
         loadedIcon = iconMgr->loadIcon(slotId, templateMonster->iconData, false);
         if (!loadedIcon) {
@@ -1599,13 +1599,13 @@ VmResult PoolradEngineHostImpl::handleCallOpcode(uint16 callId) {
     }
 
     case 0xBA03:
-        // Original: sound indirection through WORD_SOUND_FLAG.
+        // Original: sound selected by the script-written sndEffect.
         if (_engine) {
-            const uint16 flag = _engine->getSoundFlag();
-            if (flag == 8)
-                _engine->soundPlay(0x0B);
-            else if (flag == 10)
-                _engine->soundPlay(0x0C);
+            const uint16 effect = _engine->getEclSoundEffect();
+            if (effect == kEclSoundStep)
+                _engine->playSfx(kSfxStep);
+            else if (effect == kEclSoundCue)
+                _engine->playSfx(kSfxFireball);
         }
         return VM_OK;
 

@@ -993,7 +993,7 @@ bool CombatSession::applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
     cs.attackCount     = 0;
     cs.directionChange = 0;
 
-    VmInterface::soundPlay(0x0B);
+    VmInterface::soundPlay(kSfxStep);
 
     // Guard reactions (opportunity/counter attacks).
     _context->handleGuardReactions(ch, viewCallback, _attackDelegate);

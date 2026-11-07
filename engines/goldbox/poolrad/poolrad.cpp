@@ -1905,11 +1905,17 @@ void PoolradEngine::dispatchPlayerCommand() {
 			_legacySharedState.boolYarashPyramidLeft);
 		WildernessTravel travel;
 		const WildernessTravel::Compass dir = inGameView->getTravelDir();
+		const uint16 wxAddr = layout.vmField(kVmFieldWildernessX).vmAddr;
+		const uint16 wyAddr = layout.vmField(kVmFieldWildernessY).vmAddr;
+		const uint8 prevX = mem.read8(wxAddr);
+		const uint8 prevY = mem.read8(wyAddr);
 		travel.step(wildEnv, dir);
 
 		// Sync the committed wilderness position back to the view.
-		const uint16 wx = mem.read8(layout.vmField(kVmFieldWildernessX).vmAddr);
-		const uint16 wy = mem.read8(layout.vmField(kVmFieldWildernessY).vmAddr);
+		const uint16 wx = mem.read8(wxAddr);
+		const uint16 wy = mem.read8(wyAddr);
+		if (wx != prevX || wy != prevY)
+			playSfx(kSfxStep);
 		inGameView->setMapPosition(wx, wy, inGameView->getMapDir());
 
 		restoreSelectionIfPresent(savedSelection);
@@ -2037,6 +2043,7 @@ void PoolradEngine::dispatchPlayerCommand() {
 		// Barrier predicate (original MAP_StepForward wall check).
 		RuntimeGeoBlock &rtGeo = getRuntimeGeo();
 		bool blocked = false;
+		bool solidWall = false;
 		if (rtGeo.isLoaded()) {
 			const int cx = static_cast<int>(mem.read8(moveXAddr));
 			const int cy = static_cast<int>(mem.read8(moveYAddr));
@@ -2049,11 +2056,15 @@ void PoolradEngine::dispatchPlayerCommand() {
 				if (wallFlag >= 2 && _eclHost)
 					_eclHost->tryOpenDoor();
 				blocked = true;
+				solidWall = (wallFlag == 0);
 			}
 		}
 
 		if (blocked) {
 			// No move, no time commit. Notify direction and restore selection.
+			// ResolveMovement bumps on a wall; the door dialog plays its own.
+			if (solidWall)
+				playSfx(kSfxImpact);
 			if (g_events)
 				g_events->postEclVmMessage(moveDirAddr, moveCardinal);
 			restoreSelectionIfPresent(savedSelection);
@@ -2101,6 +2112,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 		// Commit coordinates now (write DungeonX/DungeonY).
 		mem.write8(moveXAddr, static_cast<uint8>(pendingDestX));
 		mem.write8(moveYAddr, static_cast<uint8>(pendingDestY));
+		// MovePartyForward3D
+		playSfx(kSfxStep);
 		if (g_events) {
 			g_events->postEclVmMessage(moveDirAddr, moveCardinal);
 			g_events->postEclVmMessage(moveXAddr,
@@ -2147,9 +2160,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 		// Re-read position after door logic (position may have changed).
 		captureRuntimeMapSnapshot(snap);
 		if (snap.dungeonPos.x != savedX || snap.dungeonPos.y != savedY) {
-			// PlaySound(SOUND_ID_BLOCKED) - sound index 0x0B
-			if (_eclHost)
-				_eclHost->playSound(0x0B);
+			// Step after a position change (EclVm main loop)
+			playSfx(kSfxStep);
 		}
 
 		_legacySharedState.bool3dRedraw = false;

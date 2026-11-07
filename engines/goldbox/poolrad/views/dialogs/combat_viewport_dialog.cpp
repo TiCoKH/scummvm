@@ -520,9 +520,10 @@ void CombatViewportDialog::animateRangedAttack(
     }
     }
 
-    g_engine->soundPlay(7);
+    SoundSustain sustain;
+    g_engine->playSfx(kSfxRangedStart);
     animateMovingIcon(attackerTile, targetTile, frames, pace);
-    g_engine->soundPlay(13);
+    g_engine->playSfx(kSfxRangedEnd);
 }
 
 // ---------------------------------------------------------------------------
@@ -548,7 +549,9 @@ void CombatViewportDialog::animateDamage(
     }
     draw();
 
-    g_engine->soundPlay(isMagic ? 5 : 4);
+    // Sustained through the flash; the trailing pause is not.
+    g_engine->beginSoundSustain();
+    g_engine->playSfx(isMagic ? kSfxEffect : kSfxDamage);
 
     const uint8 gameDelay = VmInterface::getGameSpeed();
     const int repeatCount = isMagic ? (int)gameDelay : 0;
@@ -581,6 +584,7 @@ void CombatViewportDialog::animateDamage(
                 screen->blitFrom(backup, cell, Common::Point(cell.left, cell.top));
         }
     }
+    g_engine->endSoundSustain();
     flushCombatScreen();
 
     if (repeatCount == 0)

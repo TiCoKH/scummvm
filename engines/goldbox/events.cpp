@@ -176,6 +176,13 @@ void Events::processEvent(Common::Event &ev) {
 			_cursorVisible = false;
 		}
 
+		// Ctrl-S toggles sound from anywhere, like the original ReadGameKey
+		if (ev.kbd.keycode == Common::KEYCODE_s &&
+				(ev.kbd.flags & Common::KBD_CTRL) && g_engine) {
+			g_engine->toggleSound();
+			break;
+		}
+
 		if (ev.kbd.keycode < Common::KEYCODE_NUMLOCK)
 			msgKeypress(KeypressMessage(ev.kbd));
 		break;

@@ -120,12 +120,12 @@ public:
         static const uint16 kWalldefSlot1Addr = 0x6C91; // DAT+0x322
         static const uint16 kWalldefSlot2Addr = 0x6C92; // DAT+0x324
         static const uint16 kWalldefSlot3Addr = 0x6C93; // DAT+0x326
-        static const uint16 kSoundFlagAddr = 0x03DE;    // WORD_SOUND_FLAG
+        static const uint16 kSoundEffectAddr = 0x03DE;  // sndEffect
 
-        if (vmAddr == kSoundFlagAddr) {
-            // Mirror into the sound driver; the normal write still happens.
+        if (vmAddr == kSoundEffectAddr) {
+            // Selects the $BA03 sound; not the driver auto-stop setting.
             if (g_engine)
-                g_engine->setSoundFlag(ioValue);
+                g_engine->setEclSoundEffect(ioValue);
             return false;
         }
 

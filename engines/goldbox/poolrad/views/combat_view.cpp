@@ -1063,15 +1063,18 @@ void CombatView::showSpellCastEffect(::Goldbox::Data::PlayerCharacter *caster,
     if (facing != DIR_NONE)
         updateCharacterFacingAndRedraw(caster, facing, 1, false);
 
-    // Spells 0x2F and 0x33 have their own sound; the rest use effect 3.
-    if (spellId == 0x2F)
-        g_engine->soundPlay(0x0C);
-    else if (spellId == 0x33)
-        g_engine->soundPlay(0x09);
-    else
-        g_engine->soundPlay(0x03);
+    // Fireball and Lightning Bolt have their own sound.
+    {
+        SoundSustain sustain;
+        if (spellId == 0x2F)
+            g_engine->playSfx(kSfxFireball);
+        else if (spellId == 0x33)
+            g_engine->playSfx(kSfxLightning);
+        else
+            g_engine->playSfx(kSfxSpellCast);
 
-    _viewport->animateProjectile(casterTile, target, 18, 30);
+        _viewport->animateProjectile(casterTile, target, 18, 30);
+    }
 
     // Back to the ready pose.
     if (caster->combatState) {
@@ -1093,7 +1096,8 @@ void CombatView::showSpellProjectile(
     if (casterIdx < 0 || targetIdx < 0)
         return;
 
-    g_engine->soundPlay(0x03);
+    SoundSustain sustain;
+    g_engine->playSfx(kSfxSpellCast);
     _viewport->animateProjectile(
         TilePos(table.getTileCol(casterIdx), table.getTileRow(casterIdx)),
         TilePos(table.getTileCol(targetIdx), table.getTileRow(targetIdx)),
@@ -1255,8 +1259,9 @@ void CombatView::drawCharacterDying(::Goldbox::Data::PlayerCharacter *ch) {
         g_events->getScreen()->update();
     }
     // CreatureDowned: DOWNED sound, then PauseOnly.
+    SoundSustain sustain;
     if (g_engine)
-        g_engine->soundPlay(6);
+        g_engine->playSfx(kSfxDowned);
     g_system->delayMillis(
         static_cast<uint32>(VmInterface::getGameSpeed()) * 225);
 }

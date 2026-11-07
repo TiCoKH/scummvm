@@ -69,10 +69,6 @@ public:
     /** SOUND_Setup: 0 = continuous mode, > 0 = short blip mode. */
     void setup(uint16 flag);
 
-    /** Raw access to WORD_SOUND_FLAG (written by ECL scripts). */
-    void setSoundFlag(uint16 flag);
-    uint16 getSoundFlag() const { return _soundFlag; }
-
     void stopAll();
 
     // AudioStream interface
@@ -105,7 +101,7 @@ private:
     uint8 _speakerEnable;  ///< BYTE_SPEAKER_ENABLE
     uint16 _curChannel;    ///< PTR_CURRENT_CHANNEL
     uint16 _subReturn;     ///< PTR_SUB_RET_ADDR
-    uint16 _soundFlag;     ///< WORD_SOUND_FLAG
+    uint16 _soundFlag;     ///< soundAutoStop (SOUND_Setup value)
 
     bool _timerRunning;
     uint32 _timerAccumulator;

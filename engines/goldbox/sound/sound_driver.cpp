@@ -155,11 +155,6 @@ void GoldboxSoundDriver::setup(uint16 flag) {
     _soundFlag = flag;
 }
 
-void GoldboxSoundDriver::setSoundFlag(uint16 flag) {
-    Common::StackLock lock(_mutex);
-    _soundFlag = flag;
-}
-
 void GoldboxSoundDriver::stopAll() {
     if (!_ready)
         return;

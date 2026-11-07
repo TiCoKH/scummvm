@@ -450,7 +450,7 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
 
         if (view)
             view->drawAttackResult(attacker, target, 3, 0, 0, 0);
-        VmInterface::soundPlay(0x08);
+        VmInterface::soundPlay(kSfxImpact);
 
         if (Data::Effects::CharacterEffects *fx = attacker->getEffects()) {
             uint8 blurId = Data::Rules::getBlurEffectId();
@@ -536,7 +536,7 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
                     // resolution; hitsMade is reset only at activation start.
                     if (slot <= 2)
                         ++globals.hitsMade[slot];
-                    VmInterface::soundPlay(0x08);
+                    VmInterface::soundPlay(kSfxImpact);
                     attackHit = true;
 
                     rollAttackDamage(attacker, target, slot);
@@ -563,7 +563,7 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
         }
 
         if (!attackHit) {
-            VmInterface::soundPlay(0x0A);
+            VmInterface::soundPlay(kSfxMiss);
             if (view)
                 view->drawAttackResult(attacker, target, attackResultMode,
                     0, 0, 0);
