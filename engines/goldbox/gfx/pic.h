@@ -85,12 +85,17 @@ public:
 	 * Pass 1: Decode palette (0-15); color 0 marks transparent pixels (mask created).
 	 * Pass 2: Apply color remapping (e.g., 13→0 to make black drawable).
 	 * Result: Color 0 is drawable after remapping, transparency preserved via mask.
+	 * As in the original LoadPic/RemapPic, the mask is taken before the remap;
+	 * sourceColor == targetColor masks only.
 	 * @param daxBlock DAX block containing sprite data
 	 * @param sourceColor Source palette index to remap (usually 13 = bright magenta)
 	 * @param targetColor Target palette index for remapping
+	 * @param combatPalette Bake in SetCombatPalette, which swaps EGA registers
+	 *        0 and 8: art color 8 is shown as black
 	 * @return Decoded Pic with transparency mask and applied remapping
 	 */
-	static Pic *readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint8 targetColor);
+	static Pic *readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint8 targetColor,
+	                              bool combatPalette = false);
 
 	/**
 	 * Render the picture at the given pixel coordinates

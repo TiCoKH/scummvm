@@ -37,7 +37,8 @@ uint8 decodePixelWithMask(uint8 pixel, bool masked) {
     if (pixel == 0)
         return 0xFF;
 
-    if (pixel == 13 || pixel == 8)
+    // animRemapTo: only LightMagenta becomes Black.
+    if (pixel == 13)
         return 0;
 
     return pixel;

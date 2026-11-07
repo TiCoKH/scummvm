@@ -76,7 +76,7 @@ Pic *Pic::readTileFrame(Data::DaxBlockPic *daxBlock, int frameIdx) {
 			uint8 byte = *data++;
 			uint8 hi = (byte & 0xF0) >> 4;
 			uint8 lo = byte & 0x0F;
-			// 0 -> 255 (transparent background), 8 -> 0 (black art)
+			// Combat palette (SetCombatPalette): color 8 is shown as black.
 			pic->setPixel(x,     y, hi == 0 ? 255 : (hi == 8 ? 0 : hi));
 			pic->setPixel(x + 1, y, lo == 0 ? 255 : (lo == 8 ? 0 : lo));
 		}
@@ -166,7 +166,8 @@ Pic *Pic::readEgaPicFrame(Data::DaxBlockSprit *spritBlock, int frameIdx) {
 	return pic;
 }
 
-Pic *Pic::readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint8 targetColor) {
+Pic *Pic::readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint8 targetColor,
+                            bool combatPalette) {
 	int width = daxBlock->width;
 	int height = daxBlock->height;
 	Pic *pic = new Pic(width, height);
@@ -190,16 +191,15 @@ Pic *Pic::readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint
 	}
 
 	// Pass 2: Apply color remapping
-	if (sourceColor != targetColor) {
+	if (sourceColor != targetColor || combatPalette) {
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
 				uint8 pixel = pic->getPixel(x, y);
-				if (pixel == sourceColor) {
-					pic->setPixel(x, y, targetColor);
-				} else if (pixel == 0x08) {
-					// CTILE sprites sometimes encode black as palette index 8; normalize to 0
-					pic->setPixel(x, y, 0);
-				}
+				if (pixel == sourceColor)
+					pixel = targetColor;
+				if (combatPalette && pixel == 8)
+					pixel = 0;
+				pic->setPixel(x, y, pixel);
 			}
 		}
 	}

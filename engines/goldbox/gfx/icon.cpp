@@ -264,13 +264,15 @@ Icon::Icon(uint16 blockId, IconKind kind)
 
 	// Create Pics from blocks with appropriate remapping for CTILE
 	const bool isCTile = (kind == ICON_KIND_CPIC || container->getContentType() == Data::ContentType::CTILE);
-	const uint8 remapSource = 13; // Bright magenta
-	const uint8 remapTarget = 0;  // Drawable black after masking
+	// LoadIconAnim: black is transparent; CPIC turns LightMagenta into
+	// DarkGray, COMSPR keeps every color. These icons are drawn under the
+	// combat palette, where color 8 shows as black.
+	const uint8 remapSource = 13;
+	const uint8 remapTarget = (kind == ICON_KIND_CPIC) ? 8 : 13;
 
 	if (isCTile) {
-		debug(8, "  - Loading with color remapping (CTILE mode)");
-		_readyIcon = Pic::readWithRemapping(readyPicBlock, remapSource, remapTarget);
-		_actionIcon = Pic::readWithRemapping(actionPicBlock, remapSource, remapTarget);
+		_readyIcon = Pic::readWithRemapping(readyPicBlock, remapSource, remapTarget, true);
+		_actionIcon = Pic::readWithRemapping(actionPicBlock, remapSource, remapTarget, true);
 	} else {
 		debug(8, "  - Loading without remapping (PIC mode)");
 		_readyIcon = Pic::read(readyPicBlock);
@@ -411,13 +413,15 @@ bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId,
 	// Cache the base Pics (pre-made from DAX)
 	const bool headIsCTile = VmInterface::getDaxCHead().getContentType() == Data::ContentType::CTILE;
 	const bool bodyIsCTile = VmInterface::getDaxCBody().getContentType() == Data::ContentType::CTILE;
-	const uint8 remapSource = 13; // Bright magenta
-	const uint8 remapTarget = 0;  // Drawable black after masking
+	// CHEAD/CBODY: black is transparent, no color is remapped at load;
+	// drawn under the combat palette, where color 8 shows as black.
+	const uint8 remapSource = 13;
+	const uint8 remapTarget = 13;
 
-	_readyHeadPic = headIsCTile ? Pic::readWithRemapping(readyHeadBlock, remapSource, remapTarget) : Pic::read(readyHeadBlock);
-	_readyBodyPic = bodyIsCTile ? Pic::readWithRemapping(readyBodyBlock, remapSource, remapTarget) : Pic::read(readyBodyBlock);
-	_actionHeadPic = headIsCTile ? Pic::readWithRemapping(actionHeadBlock, remapSource, remapTarget) : Pic::read(actionHeadBlock);
-	_actionBodyPic = bodyIsCTile ? Pic::readWithRemapping(actionBodyBlock, remapSource, remapTarget) : Pic::read(actionBodyBlock);
+	_readyHeadPic = headIsCTile ? Pic::readWithRemapping(readyHeadBlock, remapSource, remapTarget, true) : Pic::read(readyHeadBlock);
+	_readyBodyPic = bodyIsCTile ? Pic::readWithRemapping(readyBodyBlock, remapSource, remapTarget, true) : Pic::read(readyBodyBlock);
+	_actionHeadPic = headIsCTile ? Pic::readWithRemapping(actionHeadBlock, remapSource, remapTarget, true) : Pic::read(actionHeadBlock);
+	_actionBodyPic = bodyIsCTile ? Pic::readWithRemapping(actionBodyBlock, remapSource, remapTarget, true) : Pic::read(actionBodyBlock);
 
 	return true;
 }
