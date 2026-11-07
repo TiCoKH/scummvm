@@ -49,6 +49,8 @@ class EclEngineHost : public SyscallHandler {
 public:
     virtual ~EclEngineHost() = default;
 
+    EclEngineHost *engineHost() override { return this; }
+
     // -----------------------------------------------------------------------
     // Text / I/O
     // -----------------------------------------------------------------------

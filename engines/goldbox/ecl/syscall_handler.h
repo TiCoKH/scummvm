@@ -30,15 +30,22 @@ namespace Goldbox {
 
 namespace ECL {
 
+class EclEngineHost;
+
 /**
  * Interface for ECL syscalls (I/O, combat, menus, etc.).
- * All blocking operations are synchronous: the syscall pumps the event loop
- * internally and only returns when the operation is fully resolved. The ECL VM
- * never suspends mid-script; save points are always between ECL invocations.
+ * Interactive operations may start asynchronously via the begin*Async()
+ * methods, which return VM_YIELD to suspend the VM until they complete.
  */
 class SyscallHandler {
 public:
     virtual ~SyscallHandler() = default;
+
+    /**
+     * @return the extended engine host interface, or nullptr if this
+     * handler does not provide one
+     */
+    virtual EclEngineHost *engineHost() { return nullptr; }
 
     /**
      * Print text to the message/text box.

@@ -58,6 +58,10 @@ static const Goldbox::VmLayout *g_vmLayout = nullptr;
 static const Goldbox::VmGlobalLayout *g_vmGlobalLayout = nullptr;
 static const EclRuntimeLayout *g_runtimeLayout = nullptr;
 static uint16 g_characterBase = 0;
+
+static EclEngineHost *getEngineHost(SyscallHandler *syscalls) {
+	return syscalls ? syscalls->engineHost() : nullptr;
+}
 static uint16 g_characterSize = 0;
 
 Common::RandomSource &getOpcodeRandom() {
@@ -162,22 +166,17 @@ static int runLegacyPrint(EclVM &vm, SyscallHandler *syscalls,
     const Common::String text = getLegacyPrintText(vm);
 
     if (clearBox && text.empty()) {
-        if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
-            host->clearTextBox();
-        else
-            syscalls->printText(text, true);
+        syscalls->clearTextBox();
         syscalls->setTextDelayEnabled(false);
         return VM_OK;
     }
 
     syscalls->setTextDelayEnabled(true);
 
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
-        const VmResult asyncStart = host->beginPrintAsync(text, clearBox);
-        if (asyncStart == VM_YIELD || asyncStart == VM_ERROR) {
-            syscalls->setTextDelayEnabled(false);
-            return asyncStart;
-        }
+    const VmResult asyncStart = syscalls->beginPrintAsync(text, clearBox);
+    if (asyncStart == VM_YIELD || asyncStart == VM_ERROR) {
+        syscalls->setTextDelayEnabled(false);
+        return asyncStart;
     }
 
     // Fallback: synchronous print.
@@ -409,7 +408,7 @@ static int handle_0x0F_INPUT_NUMBER(EclVM &vm, AddressSpace &mem,
     // GB13-003: prefer the async path so the real input dialog yields the VM.
     // The host owns the result address and writes the unsigned 16-bit value on
     // finalize; invalid/cancelled input writes nothing.
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+    if (EclEngineHost *host = getEngineHost(syscalls)) {
         const VmResult asyncStart = host->beginInputNumberAsync(addr, maxDigits);
         if (asyncStart == VM_YIELD || asyncStart == VM_ERROR)
             return asyncStart;
@@ -436,7 +435,7 @@ static int handle_0x10_INPUT_STRING(EclVM &vm, AddressSpace &mem,
 
     // GB13-003: prefer the async path; the host writes the string through the
     // bank-aware VM string writer on finalize.
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+    if (EclEngineHost *host = getEngineHost(syscalls)) {
         const VmResult asyncStart = host->beginInputStringAsync(addr, maxLength);
         if (asyncStart == VM_YIELD || asyncStart == VM_ERROR)
             return asyncStart;
@@ -515,7 +514,7 @@ static int handle_0x0A_LOAD_CHARACTER(EclVM &vm, AddressSpace &mem,
             && EclRuntimeLayout::isValidVmAddr(charRedrawAddr)
             && mem.read8(statusRedrawAddr) != 0
             && mem.read8(charRedrawAddr) != 0) {
-        if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+        if (EclEngineHost *host = getEngineHost(syscalls)) {
             Data::PlayerCharacter *departing =
                 VmInterface::getSelectedCharacter();
             if (departing)
@@ -539,7 +538,7 @@ static int handle_0x0B_LOAD_MONSTER(EclVM &vm, AddressSpace &mem,
         count = 1;
 
     if (syscalls) {
-        EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+        EclEngineHost *host = getEngineHost(syscalls);
         if (host) {
             VmResult result = host->loadMonster(monsterId, count, graphicId);
             if (result != VM_OK)
@@ -772,7 +771,7 @@ static int handle_0x15_VERTICAL_MENU(EclVM &vm, AddressSpace &mem,
     // GB13-003: prefer the async path so the real VerticalMenu yields the VM.
     // The host owns resultAddr and writes the selected index on finalize;
     // cancel/quit write nothing (explicit outcomes, not a blanket -1 write).
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+    if (EclEngineHost *host = getEngineHost(syscalls)) {
         const VmResult asyncStart =
             host->beginVerticalMenuAsync(resultAddr, message, options);
         if (asyncStart == VM_YIELD || asyncStart == VM_ERROR)
@@ -841,7 +840,7 @@ static int handle_0x1C_CLEARMONSTERS(EclVM &vm, AddressSpace &mem,
         uint16 &nextPc, Common::Array<uint16> &callStack, SyscallHandler *syscalls) {
     (void)vm; (void)nextPc; (void)callStack;
     if (syscalls) {
-        EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+        EclEngineHost *host = getEngineHost(syscalls);
         if (host) {
             VmResult result = host->clearMonsters();
             if (result != VM_OK)
@@ -904,7 +903,7 @@ static int handle_0x1E_CHECKPARTY(EclVM &vm, AddressSpace &mem,
     const uint16 addr1         = vm.getOpWord(4);
     const uint16 addr2         = vm.getOpWord(6);
 
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+    if (EclEngineHost *host = getEngineHost(syscalls)) {
         const VmResult result = host->checkParty(attributeAddr, effectID,
             addr1, addr2);
         if (result != VM_OK)
@@ -1122,7 +1121,7 @@ static int handle_0x24_ENCOUNTER(EclVM &vm, AddressSpace &mem,
     if (!syscalls)
         return VM_ERROR;
     const EclLayoutAccess layout = getOpcodeLayout();
-    EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+    EclEngineHost *host = getEngineHost(syscalls);
 
     const uint8 monsterReady = mem.read8(
         layout.runtimeField(kEclRuntimeMonsterLoadReady));
@@ -1308,7 +1307,7 @@ static int handle_0x27_TREASURE(EclVM &vm, AddressSpace &mem,
     (void)mem; (void)nextPc; (void)callStack;
     vm.getOperand(8);
 
-    EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+    EclEngineHost *host = getEngineHost(syscalls);
     if (!host)
         return VM_OK;
 
@@ -1339,7 +1338,7 @@ static int handle_0x28_ROB(EclVM &vm, AddressSpace &mem,
     const uint8 percentMoney = static_cast<uint8>(vm.readVar(2));
     const uint8 itemChance   = percentMoney; // operand 2 drives item theft too
 
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+    if (EclEngineHost *host = getEngineHost(syscalls))
         return host->robParty(wholeParty, percentMoney, itemChance);
 
     return VM_OK;
@@ -1406,7 +1405,7 @@ static int handle_0x29_ENCOUNTER_MENU(EclVM &vm, AddressSpace &mem,
         operands.push_back(0);
     }
 
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+    if (EclEngineHost *host = getEngineHost(syscalls)) {
         const VmResult result = host->encounterMenu(operands);
         if (g_events) {
             g_events->postEclSyscallMessage(vm.getPC(), 0x29,
@@ -1454,7 +1453,7 @@ static int handle_0x2B_HORIZONTAL_MENU(EclVM &vm, AddressSpace &mem,
         options.push_back(vm.readString(static_cast<uint8>(3 + i)));
 
     // Preferred path: host starts menu asynchronously and VM yields.
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+    if (EclEngineHost *host = getEngineHost(syscalls)) {
         const VmResult asyncStart =
             host->beginHorizontalMenuAsync(resultAddr, options);
         if (g_events) {
@@ -1503,7 +1502,7 @@ static int handle_0x2C_PARLAY(EclVM &vm, AddressSpace &mem,
     attitudes.push_back("ABUSIVE");
 
     int16 sel = 0;
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+    if (EclEngineHost *host = getEngineHost(syscalls))
         sel = host->parlayMenu(attitudes);
 
     // The original always resolves to a chosen attitude (the menu has no
@@ -1527,7 +1526,7 @@ static int handle_0x2D_CALL(EclVM &vm, AddressSpace &mem,
     vm.getOperand(1);
     const uint16 callId = vm.getOpWord(1);
 
-    EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+    EclEngineHost *host = getEngineHost(syscalls);
     if (!host)
         return VM_OK;
 
@@ -1696,7 +1695,7 @@ static int handle_0x2E_DAMAGE(EclVM &vm, AddressSpace &mem,
     // selection restore, so a resume never re-applies damage. The host print
     // path owns the "entire party killed" window and the press-enter pause;
     // when no async print path exists the VM simply continues.
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls)) {
+    if (EclEngineHost *host = getEngineHost(syscalls)) {
         const VmResult report =
             host->beginDamageReport(sink.messages(), outcome.partyDefeated);
         if (report != VM_OK)
@@ -1758,7 +1757,7 @@ static int handle_0x32_FIND_ITEM(EclVM &vm, AddressSpace &mem,
     const uint8 itemId = static_cast<uint8>(vm.readVar(1));
     bool found = false;
 
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+    if (EclEngineHost *host = getEngineHost(syscalls))
         found = host->findItemInParty(itemId);
 
     vm.setCmpFlags(found ? EclVM::kCmpEq : EclVM::kCmpNe);
@@ -1791,7 +1790,7 @@ static int handle_0x34_ECL_CLOCK(EclVM &vm, AddressSpace &mem,
             static_cast<int16>(amount));
     }
 
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+    if (EclEngineHost *host = getEngineHost(syscalls))
         return host->advanceClock(amount);
 
     return VM_OK;
@@ -1823,7 +1822,7 @@ static int handle_0x36_ADD_NPC(EclVM &vm, AddressSpace &mem,
     const uint8 monsterId = static_cast<uint8>(vm.readVar(1));
     const uint8 morale    = static_cast<uint8>(vm.readVar(2));
 
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+    if (EclEngineHost *host = getEngineHost(syscalls))
         return host->addNpc(monsterId, morale);
     return VM_OK;
 }
@@ -1910,7 +1909,7 @@ static int handle_0x39_WHO(EclVM &vm, AddressSpace &mem,
     vm.getOperand(1);
     const Common::String message = vm.readString(1);
 
-    EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls);
+    EclEngineHost *host = getEngineHost(syscalls);
     if (!host)
         return VM_OK;
 
@@ -1959,7 +1958,7 @@ static int handle_0x3B_SPELL(EclVM &vm, AddressSpace &mem,
             static_cast<int16>(spellId));
     }
 
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+    if (EclEngineHost *host = getEngineHost(syscalls))
         return host->findSpell(spellId, memberAddr, slotAddr);
 
     return VM_OK;
@@ -1981,7 +1980,7 @@ static int handle_0x3F_HAS_EFFECT(EclVM &vm, AddressSpace &mem,
     const uint8 effectId = static_cast<uint8>(vm.readVar(1));
     bool isActive = false;
 
-    if (EclEngineHost *host = dynamic_cast<EclEngineHost *>(syscalls))
+    if (EclEngineHost *host = getEngineHost(syscalls))
         isActive = host->hasEffectActive(effectId);
     else
         isActive = hasEffectInParty(effectId);

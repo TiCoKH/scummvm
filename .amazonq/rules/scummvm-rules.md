@@ -199,8 +199,10 @@ typedef int (*OpcodeHandler)(EclVM &vm, AddressSpace &mem,
 - Use `setCmpResult(mem, ...)` for all compare-style opcodes; IF opcodes read it.
 - Register a handler for every opcode (unregistered ones return `VM_ERROR`).
 - Every `opcode_table.cpp` entry needs a matching registered handler.
-- New host features go on the host interface as virtual methods with a safe
-  default, not as new `dynamic_cast<EclEngineHost *>(syscalls)` sites in handlers.
+- Never `dynamic_cast` the `syscalls` pointer. Call `SyscallHandler` methods
+  directly; for `EclEngineHost`-only methods use `getEngineHost(syscalls)`
+  (null-safe, backed by the virtual `SyscallHandler::engineHost()`) and handle
+  a null result.
 
 ### Core vs Dialect
 - Core (`ecl_vm` and common handlers): interpreter mechanics (`GOTO/GOSUB/RETURN`,
