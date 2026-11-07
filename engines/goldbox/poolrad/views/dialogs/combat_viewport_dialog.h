@@ -61,7 +61,6 @@ public:
     static const int kViewportX = 8;
     static const int kViewportY = 8;
     static const int kTileSize  = 24;
-    static const uint8 kDefaultFrameDelay = 46;
 
     CombatViewportDialog();
     ~CombatViewportDialog() override {}
@@ -74,8 +73,26 @@ public:
     /** Load the dungeon or wilderness combat tileset. */
     void loadTileset(bool isDungeon);
 
-    /** Load the selection frame and dying icons into the icon slots. */
+    /**
+     * Load the selection frame and the combat effect cells 13..24 (COMSPR
+     * blocks 0..11, second half at +128) into the icon slots.
+     */
     void loadCombatIcons();
+
+    /** Original icon cell (13..25) half 0/1, optionally mirrored. */
+    const ::Goldbox::Gfx::Pic *iconCellFrame(uint8 cell, uint8 half,
+                                             bool mirror) const;
+
+    /** BuildIconFacings: half 0, half 0 mirrored, half 1 mirrored, half 1. */
+    Common::Array<const ::Goldbox::Gfx::Pic *> iconFacings(uint8 cell) const;
+
+    /**
+     * CombatAnimateMovingIcon: fly the frames (cycled) from start to end,
+     * one third-cell step at a time with pace ms between steps.
+     */
+    void animateMovingIcon(TilePos start, TilePos end,
+            const Common::Array<const ::Goldbox::Gfx::Pic *> &frames,
+            uint8 pace);
 
     /** Render the whole battlefield map into the terrain cache. */
     void rebuildTerrain();
@@ -96,20 +113,19 @@ public:
     /** Center the camera on a tile and redraw the viewport. */
     void centerOn(TilePos center);
 
-    /** Draw an SPRIT effect tile on top of a character's viewport cell. */
-    void drawEffectAt(::Goldbox::Data::PlayerCharacter *ch, uint8 blockId);
-
-    /** Walk ch's icon along the path from start to end. */
-    void animateMove(::Goldbox::Data::PlayerCharacter *ch,
-                     TilePos start, TilePos end,
-                     uint8 initialFrame = 0,
-                     uint8 frameDelay = kDefaultFrameDelay);
-
     /**
-     * Projectile path from start to end. Uses the current actor's icon as
-     * the moving sprite (dedicated projectile sprites are not animated yet).
+     * Aim cursor (cursorOn/cursorSize): while set it replaces the frame on
+     * the current actor and covers size x size cells from tile.
      */
-    void animateProjectile(TilePos start, TilePos end, uint8 frameDelay);
+    void setAimCursor(TilePos tile, uint8 size);
+    void clearAimCursor() { _aimCursorOn = false; }
+
+    /** AdvanceAimTarget: fly the aim cursor from one cell to another. */
+    void flyAimCursor(TilePos from, TilePos to);
+
+    /** Spell or gaze projectile: the four facings of icon cell, at pace. */
+    void animateProjectile(TilePos start, TilePos end, uint8 cell,
+                           uint8 pace);
 
     /** Weapon-type specific launch effect plus projectile path. */
     void animateRangedAttack(::Goldbox::Data::PlayerCharacter *attacker,
@@ -132,7 +148,6 @@ private:
     };
 
     static const int kFinePerTile = 3;
-    static const int kAnimFrameCount = 4;
     static const int kPanTiles = 3;
 
     // Original loads COMSPR blocks 0-11 into icon slots 13-24; the dying
@@ -146,27 +161,16 @@ private:
     ::Goldbox::Gfx::CombatTileCache _tileCache;
     ::Goldbox::Gfx::CombatRenderer _combatRenderer;
     Common::Array<::Goldbox::Data::PlayerCharacter *> _attackingCharacters;
+    bool _aimCursorOn = false;
+    TilePos _aimCursorTile;
+    uint8 _aimCursorSize = 1;
 
     bool isAttacking(::Goldbox::Data::PlayerCharacter *ch) const;
-
-    bool cellOf(::Goldbox::Data::PlayerCharacter *ch,
-                Common::Point &pix) const;
-
-    void renderEffectTile(uint8 blockId, int frameIdx,
-                          int pixX, int pixY, bool withLayer = false);
+    void drawAimCursor();
 
     Common::Array<MovementAnimStep> buildMovementAnimationPath(
-        TilePos start, TilePos end);
+        TilePos start, TilePos end, bool everyStep = false);
 
-    void drawMovementAnimation(const ScreenPos &finePos, uint8 animFrame,
-                               uint8 frameDelay,
-                               ::Goldbox::Data::PlayerCharacter *ch,
-                               ::Goldbox::Gfx::IconDirection iconDir,
-                               Graphics::ManagedSurface *screen);
-
-    static uint8 getNextAnimationFrame(uint8 frame) {
-        return (frame + 1) % kAnimFrameCount;
-    }
 
     Common::Point fineToPixel(ScreenPos fine) const {
         return Common::Point(kViewportX + fine.col * (kTileSize / kFinePerTile),

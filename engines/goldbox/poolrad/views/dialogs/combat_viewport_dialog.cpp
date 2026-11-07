@@ -40,43 +40,6 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-namespace {
-
-// Directional projectile tile selection.
-// Tile IDs from SPRIT DAX (confirmed from tileset):
-//
-//   Arrow tiles (single frame):
-//     N=0, NE=1, E=2, S=128, SE=129, W=130
-//
-//   Diagonal blend tiles (two frames, layer on top):
-//     NE=3/SE=131  (NE group: frame 3, SE group: frame 131)
-//     SW=4/NW=132  (SW group: frame 4, NW group: frame 132)
-//
-// The m68k arithmetic maps direction -> DAX block via:
-//   safe_div(dir,2)==0  -> arrow tile, tileId=13+safe_div(dir,4), row=dir>>2
-//   SE or SW            -> blend tile 0xe, row=1, copyViaBuffer=(dir==SW)
-//   else (E,S,W,NW)     -> blend tile 0xe, row=0, copyViaBuffer=(dir==NW)
-//
-// We translate that directly to logical tile IDs here.
-
-struct DirectionalTileParams {
-    uint8 blockId;   // SPRIT DAX block id
-    int   frameIdx;  // frame within block
-    bool  withLayer; // render second layer on top
-};
-
-const DirectionalTileParams kDirectionalTiles[8] = {
-    { 0,   0, false }, // DIR_N
-    { 1,   0, false }, // DIR_NE
-    { 2,   0, false }, // DIR_E
-    { 129, 0, false }, // DIR_SE
-    { 128, 0, false }, // DIR_S
-    { 4,   0, true  }, // DIR_SW  (blend layer)
-    { 130, 0, false }, // DIR_W
-    { 132, 0, true  }, // DIR_NW  (blend layer)
-};
-
-} // namespace
 
 CombatViewportDialog::CombatViewportDialog()
         : Dialog("CombatViewport") {
@@ -99,9 +62,33 @@ void CombatViewportDialog::loadCombatIcons() {
     if (iconMgr) {
         iconMgr->loadIcon(::Goldbox::Gfx::SLOT_SELECTFRAME,
                           ::Goldbox::Gfx::ICON_KIND_SPRITE, kSelectFrameBlock);
-        iconMgr->loadIcon(kDyingIconSlot, ::Goldbox::Gfx::ICON_KIND_SPRITE,
-                          kDyingIconBlock);
+        // GameInit: COMSPR blocks 0..11 fill icon cells 13..24 (24 is the
+        // dying icon).
+        for (uint8 cell = 13; cell <= kDyingIconSlot; ++cell)
+            iconMgr->loadIcon(cell, ::Goldbox::Gfx::ICON_KIND_SPRITE,
+                              static_cast<uint16>(cell - 13));
     }
+}
+
+const ::Goldbox::Gfx::Pic *CombatViewportDialog::iconCellFrame(uint8 cell,
+        uint8 half, bool mirror) const {
+    ::Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+    ::Goldbox::Gfx::Icon *icon = iconMgr ? iconMgr->getIcon(cell) : nullptr;
+    if (!icon)
+        return nullptr;
+    if (half == 0)
+        return mirror ? icon->getReadyIconFlipped() : icon->getReadyIcon();
+    return mirror ? icon->getActionIconFlipped() : icon->getActionIcon();
+}
+
+Common::Array<const ::Goldbox::Gfx::Pic *> CombatViewportDialog::iconFacings(
+        uint8 cell) const {
+    Common::Array<const ::Goldbox::Gfx::Pic *> frames;
+    frames.push_back(iconCellFrame(cell, 0, false));
+    frames.push_back(iconCellFrame(cell, 0, true));
+    frames.push_back(iconCellFrame(cell, 1, true));
+    frames.push_back(iconCellFrame(cell, 1, false));
+    return frames;
 }
 
 void CombatViewportDialog::rebuildTerrain() {
@@ -124,7 +111,54 @@ bool CombatViewportDialog::refreshDirtyTiles() {
 
 void CombatViewportDialog::draw() {
     drawTerrain();
+    drawAimCursor();
     drawCombatants();
+}
+
+void CombatViewportDialog::setAimCursor(TilePos tile, uint8 size) {
+    _aimCursorOn = true;
+    _aimCursorTile = tile;
+    _aimCursorSize = size > 1 ? 2 : 1;
+}
+
+// DrawCursorCell: the cursor sits on the terrain, under any creature.
+void CombatViewportDialog::drawAimCursor() {
+    if (!_aimCursorOn || !_session)
+        return;
+    ::Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+    if (!iconMgr || iconMgr->isSlotEmpty(::Goldbox::Gfx::SLOT_SELECTFRAME))
+        return;
+    const ::Goldbox::Gfx::Pic *cursor =
+        iconMgr->getReadyPic(::Goldbox::Gfx::SLOT_SELECTFRAME);
+    if (!cursor)
+        return;
+
+    Surface s = getSurface();
+    const ::Goldbox::Combat::CombatViewport &vp = _session->getViewport();
+    for (uint8 dy = 0; dy < _aimCursorSize; ++dy) {
+        for (uint8 dx = 0; dx < _aimCursorSize; ++dx) {
+            const ::Goldbox::Combat::ViewportPos pos = vp.mapToViewport(
+                TilePos(_aimCursorTile.col + dx, _aimCursorTile.row + dy));
+            if (!pos.isVisible(::Goldbox::Combat::CombatViewport::VIEW_COLS,
+                               ::Goldbox::Combat::CombatViewport::VIEW_ROWS))
+                continue;
+            cursor->trDraw(&s, kViewportX + pos.column * kTileSize,
+                kViewportY + pos.row * kTileSize,
+                ::Goldbox::Gfx::Icon::TRANSPARENT_COLOR_INDEX);
+        }
+    }
+}
+
+void CombatViewportDialog::flyAimCursor(TilePos from, TilePos to) {
+    ::Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
+    if (!iconMgr || iconMgr->isSlotEmpty(::Goldbox::Gfx::SLOT_SELECTFRAME))
+        return;
+    Common::Array<const ::Goldbox::Gfx::Pic *> frames;
+    frames.push_back(iconMgr->getReadyPic(::Goldbox::Gfx::SLOT_SELECTFRAME));
+    const bool wasOn = _aimCursorOn;
+    _aimCursorOn = false;
+    animateMovingIcon(from, to, frames, 0);
+    _aimCursorOn = wasOn;
 }
 
 void CombatViewportDialog::drawTerrain() {
@@ -202,7 +236,7 @@ void CombatViewportDialog::drawCombatants(
         ::Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
 
         // Draw the frame first so it does not obscure the character sprite.
-        if (ch == _session->getCurrentActor() && iconMgr &&
+        if (!_aimCursorOn && ch == _session->getCurrentActor() && iconMgr &&
                 !iconMgr->isSlotEmpty(::Goldbox::Gfx::SLOT_SELECTFRAME)) {
             const ::Goldbox::Gfx::Pic *cursor =
                 iconMgr->getReadyPic(::Goldbox::Gfx::SLOT_SELECTFRAME);
@@ -241,63 +275,12 @@ void CombatViewportDialog::centerOn(TilePos center) {
     draw();
 }
 
-bool CombatViewportDialog::cellOf(::Goldbox::Data::PlayerCharacter *ch,
-        Common::Point &pix) const {
-    if (!_session || !ch)
-        return false;
-    const ::Goldbox::Combat::CombatantTable &table = _session->getTable();
-    const int idx = table.findIndex(ch);
-    if (idx < 0)
-        return false;
-    const ::Goldbox::Combat::ViewportPos vpos =
-        _session->getViewport().getCharacterViewportPosition(table, idx);
-    pix = Common::Point(kViewportX + vpos.column * kTileSize,
-                        kViewportY + vpos.row * kTileSize);
-    return true;
-}
-
-void CombatViewportDialog::drawEffectAt(::Goldbox::Data::PlayerCharacter *ch,
-        uint8 blockId) {
-    Common::Point pix;
-    if (cellOf(ch, pix))
-        renderEffectTile(blockId, 0, pix.x, pix.y);
-}
-
-void CombatViewportDialog::renderEffectTile(uint8 blockId, int frameIdx,
-        int pixX, int pixY, bool withLayer) {
-    ::Goldbox::Data::DaxBlockContainer &sprit = g_engine->getDaxSprit();
-    ::Goldbox::Data::DaxBlock *raw = sprit.getBlockById(blockId);
-    ::Goldbox::Data::DaxBlockSprit *block =
-        raw ? dynamic_cast<::Goldbox::Data::DaxBlockSprit *>(raw) : nullptr;
-    if (!block)
-        return;
-
-    Surface s = getSurface();
-    Graphics::ManagedSurface *screen =
-        static_cast<Graphics::ManagedSurface *>(&s);
-
-    ::Goldbox::Gfx::Pic *tile = ::Goldbox::Gfx::Pic::readSpriteFrame(block,
-        frameIdx);
-    if (tile) {
-        tile->trDraw(screen, pixX, pixY, tile->getTransparentIndex());
-        delete tile;
-    }
-
-    if (withLayer) {
-        ::Goldbox::Gfx::Pic *layer = ::Goldbox::Gfx::Pic::readSpriteFrame(
-            block, frameIdx + 1);
-        if (layer) {
-            layer->trDraw(screen, pixX, pixY, layer->getTransparentIndex());
-            delete layer;
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Movement animation
 
 Common::Array<CombatViewportDialog::MovementAnimStep>
-CombatViewportDialog::buildMovementAnimationPath(TilePos start, TilePos end) {
+CombatViewportDialog::buildMovementAnimationPath(TilePos start, TilePos end,
+        bool everyStep) {
     Common::Array<MovementAnimStep> steps;
     ::Goldbox::Combat::CombatViewport &viewport = _session->getViewport();
 
@@ -352,8 +335,9 @@ CombatViewportDialog::buildMovementAnimationPath(TilePos start, TilePos end) {
 
     // Walk every direction step, emitting one MovementAnimStep per tile boundary.
     for (int i = 0; i < stepCount; ++i) {
-        // Emit on tile boundaries (both axes aligned).
-        if (finePos.col % kFinePerTile == 0 && finePos.row % kFinePerTile == 0) {
+        // Emit every third-cell step, or only on tile boundaries.
+        if (everyStep || (finePos.col % kFinePerTile == 0
+                && finePos.row % kFinePerTile == 0)) {
             MovementAnimStep s;
             s.finePos = finePos;
             steps.push_back(s);
@@ -416,89 +400,61 @@ CombatViewportDialog::buildMovementAnimationPath(TilePos start, TilePos end) {
     return steps;
 }
 
-void CombatViewportDialog::drawMovementAnimation(
-        const ScreenPos &finePos, uint8 animFrame, uint8 frameDelay,
-        ::Goldbox::Data::PlayerCharacter *ch,
-        ::Goldbox::Gfx::IconDirection iconDir,
-        Graphics::ManagedSurface *screen) {
-    const Common::Point px = fineToPixel(finePos);
-
-    // Draw icon — alternate ready/attack state across the frame cycle.
-    const uint8 slotId = ch->iconData.iconSlotId;
-    ::Goldbox::Gfx::IconManager *iconMgr = VmInterface::getIconManager();
-    if (ch == _session->getCurrentActor() && iconMgr &&
-            !iconMgr->isSlotEmpty(::Goldbox::Gfx::SLOT_SELECTFRAME)) {
-        const ::Goldbox::Gfx::Pic *cursor =
-            iconMgr->getReadyPic(::Goldbox::Gfx::SLOT_SELECTFRAME);
-        if (cursor)
-            cursor->trDraw(screen, px.x, px.y,
-                ::Goldbox::Gfx::Icon::TRANSPARENT_COLOR_INDEX);
-    }
-
-    const bool readyFrame = animFrame < kAnimFrameCount / 2;
-    if (slotId != 0 && iconMgr && !iconMgr->isSlotEmpty(slotId)) {
-        const ::Goldbox::Gfx::Pic *pic = readyFrame
-            ? iconMgr->getReadyPic(slotId)
-            : iconMgr->getActionPic(slotId);
-        if (pic)
-            pic->trDraw(screen, px.x, px.y, pic->getTransparentIndex());
-    } else {
-        _combatRenderer.drawIcon(
-            ch->iconData,
-            readyFrame ? ::Goldbox::Gfx::ICON_STATE_READY
-                       : ::Goldbox::Gfx::ICON_STATE_ATTACK,
-            iconDir, px.x, px.y, screen);
-    }
-
-    g_system->updateScreen();
-    g_system->delayMillis((uint32)frameDelay);
-
-    // Restore background tile behind the icon.
-    const int srcX = px.x - kViewportX;
-    const int srcY = px.y - kViewportY;
-    _tilemap.blitTo(screen,
-        Common::Point(px.x, px.y),
-        Common::Rect(srcX, srcY, srcX + kTileSize, srcY + kTileSize));
+void CombatViewportDialog::animateProjectile(TilePos start, TilePos end,
+        uint8 cell, uint8 pace) {
+    animateMovingIcon(start, end, iconFacings(cell), pace);
 }
 
-void CombatViewportDialog::animateMove(::Goldbox::Data::PlayerCharacter *ch,
-        TilePos start, TilePos end, uint8 initialFrame, uint8 frameDelay) {
-    if (!_session || !ch)
+static void flushCombatScreen() {
+    if (g_events && g_events->getScreen()) {
+        g_events->getScreen()->makeAllDirty();
+        g_events->getScreen()->update();
+    } else {
+        g_system->updateScreen();
+    }
+}
+
+void CombatViewportDialog::animateMovingIcon(TilePos start, TilePos end,
+        const Common::Array<const ::Goldbox::Gfx::Pic *> &frames,
+        uint8 pace) {
+    if (!_session || frames.empty())
         return;
 
-    ::Goldbox::Gfx::IconDirection iconDir =
-        ::Goldbox::Gfx::ICON_DIRECTION_RIGHT;
-    if (ch->combatState) {
-        const uint8 facing = ch->combatState->direction;
-        if (facing >= 5 || facing == 0)
-            iconDir = ::Goldbox::Gfx::ICON_DIRECTION_LEFT;
-    }
+    const Common::Array<MovementAnimStep> path =
+        buildMovementAnimationPath(start, end, pace > 0);
+    if (path.empty())
+        return;
 
+    // The background, icons included, comes back after each step.
+    draw();
     Surface screenSurface = getSurface();
     Graphics::ManagedSurface *screen =
         static_cast<Graphics::ManagedSurface *>(&screenSurface);
+    Graphics::ManagedSurface backup;
+    backup.copyFrom(*screen);
 
-    const Common::Array<MovementAnimStep> path =
-        buildMovementAnimationPath(start, end);
-
-    uint8 animFrame = initialFrame;
+    uint frame = 0;
     for (uint i = 0; i < path.size(); ++i) {
-        drawMovementAnimation(path[i].finePos, animFrame, frameDelay,
-                              ch, iconDir, screen);
-        animFrame = getNextAnimationFrame(animFrame);
+        const Common::Point px = fineToPixel(path[i].finePos);
+        const ::Goldbox::Gfx::Pic *pic = frames[frame];
+        if (pic)
+            pic->trDraw(screen, px.x, px.y, pic->getTransparentIndex());
+        flushCombatScreen();
+        if (pace > 0)
+            g_system->delayMillis(pace);
+
+        const Common::Rect cell(px.x, px.y, px.x + kTileSize, px.y + kTileSize);
+        Common::Rect clipped = cell;
+        clipped.clip(Common::Rect(0, 0, backup.w, backup.h));
+        if (!clipped.isEmpty())
+            screen->blitFrom(backup, clipped,
+                Common::Point(clipped.left, clipped.top));
+
+        frame = (frame + 1) % frames.size();
     }
 
-    // Repaint the character at its final position — the animation loop erases
-    // the icon after each step, leaving the screen blank at the end.
     draw();
-    g_system->updateScreen();
-}
-
-void CombatViewportDialog::animateProjectile(TilePos start, TilePos end,
-        uint8 frameDelay) {
-    if (!_session)
-        return;
-    animateMove(_session->getCurrentActor(), start, end, 0, frameDelay);
+    flushCombatScreen();
 }
 
 // ---------------------------------------------------------------------------
@@ -514,56 +470,59 @@ void CombatViewportDialog::animateRangedAttack(
     if (!ctx)
         return;
 
-    const Direction facing = ctx->getFacingToward(attacker, target);
-
     const ::Goldbox::Combat::CombatantTable &table = _session->getTable();
     const int attackerIdx = table.findIndex(attacker);
     const int targetIdx   = table.findIndex(target);
     if (attackerIdx < 0 || targetIdx < 0)
         return;
 
-    const ::Goldbox::Combat::ViewportPos vpos =
-        _session->getViewport().getCharacterViewportPosition(table,
-            attackerIdx);
-    const int pixX = kViewportX + vpos.column * kTileSize;
-    const int pixY = kViewportY + vpos.row    * kTileSize;
-
     const TilePos attackerTile(
         table.getTileCol(attackerIdx), table.getTileRow(attackerIdx));
     const TilePos targetTile(
         table.getTileCol(targetIdx), table.getTileRow(targetIdx));
 
-    uint8 frameDelay = 10;
-    const uint8 propId = weaponType;
-
-    // Effect group 1: directional projectile (propId 9,21,28,31,73)
-    if (propId == 9 || propId == 21 || propId == 28 ||
-            propId == 31 || propId == 73) {
-        if (facing < 8) {
-            const DirectionalTileParams &p = kDirectionalTiles[facing];
-            renderEffectTile(p.blockId, p.frameIdx, pixX, pixY, p.withLayer);
+    // RangedAttackAnim: frames from icon cells 13.., pace in ms per step.
+    const uint8 dir = static_cast<uint8>(ctx->getFacingToward(attacker, target));
+    Common::Array<const ::Goldbox::Gfx::Pic *> frames;
+    uint8 pace = 10;
+    switch (weaponType) {
+    case 9:  // Dart
+    case 21: // Javelin
+    case 28: // Quarrel
+    case 31: // Spear
+    case 73: // Arrow
+        if (dir & 1) {
+            if (dir == DIR_SE || dir == DIR_SW)
+                frames.push_back(iconCellFrame(14, 1, dir == DIR_SW));
+            else
+                frames.push_back(iconCellFrame(14, 0, dir == DIR_NW));
+        } else {
+            frames.push_back(iconCellFrame(13 + dir % 4, dir / 4, false));
         }
+        break;
+    case 2:  // Hand Axe
+    case 7:  // Club
+    case 20: // Hammer
+        frames = iconFacings(16);
+        pace = 50;
+        break;
+    case 85: // Holy water vial
+    case 86: // Flask of oil
+        frames = iconFacings(17);
+        pace = 50;
+        break;
+    default: {
+        // Sling stone (base item 47) or other missile: two frames.
+        const uint8 cell = (weaponType == 47) ? 21 : 20;
+        frames.push_back(iconCellFrame(cell, 0, false));
+        frames.push_back(iconCellFrame(cell, 1, false));
+        pace = 20;
+        break;
     }
-    // Effect group 2: quad effect 0x10 (propId 2,7,20)
-    else if (propId == 2 || propId == 7 || propId == 20) {
-        renderEffectTile(0x10, 0, pixX, pixY);
-        frameDelay = 50;
-    }
-    // Effect group 3: quad effect 0x11 (propId 85,86)
-    else if (propId == 85 || propId == 86) {
-        renderEffectTile(0x11, 0, pixX, pixY);
-        frameDelay = 50;
-    }
-    // Effect group 4: default two-tile projectile
-    else {
-        const uint8 baseBlock = (propId == 0x2f) ? 14 : 13;
-        renderEffectTile(baseBlock + 7, 0, pixX, pixY);
-        renderEffectTile(baseBlock + 7, 1, pixX, pixY);
-        frameDelay = 20;
     }
 
     g_engine->soundPlay(7);
-    animateProjectile(attackerTile, targetTile, frameDelay);
+    animateMovingIcon(attackerTile, targetTile, frames, pace);
     g_engine->soundPlay(13);
 }
 
@@ -575,32 +534,25 @@ void CombatViewportDialog::animateDamage(
     if (!_session)
         return;
 
-    const uint8 effectTileId = isMagic ? 0x16 : 0x17;
-
-    ::Goldbox::Gfx::Pic *frames[4] = {};
-    ::Goldbox::Data::DaxBlockContainer &sprit = g_engine->getDaxSprit();
-    ::Goldbox::Data::DaxBlock *block = sprit.getBlockById(effectTileId);
-    ::Goldbox::Data::DaxBlockSprit *spritBlock = block
-        ? dynamic_cast<::Goldbox::Data::DaxBlockSprit *>(block) : nullptr;
-    if (spritBlock) {
-        for (int f = 0; f < 4; ++f)
-            frames[f] = ::Goldbox::Gfx::Pic::readSpriteFrame(spritBlock, f);
-    }
+    // PrintNameStringAnim: four facings of cell 22 (effect) or 23 (damage),
+    // 70 ms each; an effect repeats gameDelay + 1 times, damage flashes once
+    // and then pauses.
+    const Common::Array<const ::Goldbox::Gfx::Pic *> frames =
+        iconFacings(isMagic ? 22 : 23);
 
     const ::Goldbox::Combat::CombatantTable &table = _session->getTable();
     const int idx = table.findIndex(target);
     if (idx >= 0) {
         const TilePos pos(table.getTileCol(idx), table.getTileRow(idx));
-        if (!_session->getViewport().isTileVisible(pos)) {
+        if (!_session->getViewport().isTileVisible(pos))
             _session->scrollViewport(pos);
-            draw();
-            g_system->updateScreen();
-        }
     }
+    draw();
 
-    g_engine->soundPlay(isMagic ? 6 : 5);
+    g_engine->soundPlay(isMagic ? 5 : 4);
 
-    const int repeatCount = isMagic ? (int)g_engine->getTextDelay() : 0;
+    const uint8 gameDelay = VmInterface::getGameSpeed();
+    const int repeatCount = isMagic ? (int)gameDelay : 0;
 
     int pixX = kViewportX;
     int pixY = kViewportY;
@@ -614,30 +566,26 @@ void CombatViewportDialog::animateDamage(
     Surface screenSurface = getSurface();
     Graphics::ManagedSurface *screen =
         static_cast<Graphics::ManagedSurface *>(&screenSurface);
+    Graphics::ManagedSurface backup;
+    backup.copyFrom(*screen);
+    Common::Rect cell(pixX, pixY, pixX + kTileSize, pixY + kTileSize);
+    cell.clip(Common::Rect(0, 0, backup.w, backup.h));
 
     for (int rep = 0; rep <= repeatCount; ++rep) {
-        for (int f = 0; f < 4; ++f) {
+        for (uint f = 0; f < frames.size(); ++f) {
             if (frames[f])
                 frames[f]->trDraw(screen, pixX, pixY,
                                   frames[f]->getTransparentIndex());
-
-            g_system->updateScreen();
-            g_system->delayMillis(kDefaultFrameDelay);
-
-            Common::Rect srcRect(pixX - kViewportX, pixY - kViewportY,
-                                 pixX - kViewportX + kTileSize,
-                                 pixY - kViewportY + kTileSize);
-            _tilemap.blitTo(screen, Common::Point(pixX, pixY), srcRect);
+            flushCombatScreen();
+            g_system->delayMillis(70);
+            if (!cell.isEmpty())
+                screen->blitFrom(backup, cell, Common::Point(cell.left, cell.top));
         }
     }
-
-    g_system->updateScreen();
+    flushCombatScreen();
 
     if (repeatCount == 0)
-        g_system->delayMillis(200);
-
-    for (int f = 0; f < 4; ++f)
-        delete frames[f];
+        g_system->delayMillis(static_cast<uint32>(gameDelay) * 225);
 }
 
 void CombatViewportDialog::showDying(::Goldbox::Data::PlayerCharacter *ch) {

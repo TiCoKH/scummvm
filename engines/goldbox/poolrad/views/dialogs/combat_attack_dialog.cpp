@@ -23,26 +23,33 @@
 #include "goldbox/poolrad/views/dialogs/combat_target_command_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_manual_aim_dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/combat/combat_session.h"
+#include "goldbox/combat/combat_context.h"
 #include "goldbox/data/player_character.h"
-#include "goldbox/combat/combat_globals.h"
-#include "goldbox/events.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+namespace {
+
+Common::String rangeText(uint8 range) {
+    return Common::String::format("Range = %u  ", (unsigned)range);
+}
+
+} // namespace
+
 CombatAttackDialog::CombatAttackDialog()
-    : Dialog("CombatAttack"), _attacker(nullptr), _session(nullptr),
-      _targetIndex(0), _state(STATE_TARGET_COMMAND),
-      _pendingTarget(nullptr), _spellMode(false), _tileMode(false),
-      _spellRange(0xFF), _aimTarget(nullptr), _aimTile(0, 0) {
+    : Dialog("CombatAttack"), _host(nullptr), _session(nullptr), _range(1),
+      _state(STATE_IDLE), _index(0), _skipStep(1), _manualCell(0, 0),
+      _pendingTarget(nullptr) {
     _targetCommand = new CombatTargetCommandDialog();
-    _manualAim     = new CombatManualAimDialog();
+    _manualAim = new CombatManualAimDialog();
 
     HorizontalYesNoConfig cfg;
-    cfg.promptTxt       = "Attack Ally?";
-    cfg.promptColor     = 15;
+    cfg.promptTxt       = "Attack Ally: ";
+    cfg.promptColor     = 13;
     cfg.textColor       = 10;
     cfg.selectColor     = 15;
     cfg.backgroundColor = 0;
@@ -55,259 +62,327 @@ CombatAttackDialog::~CombatAttackDialog() {
     delete _allyConfirm;
 }
 
-void CombatAttackDialog::beginAttack(Goldbox::Data::PlayerCharacter *attacker,
+void CombatAttackDialog::beginAttack(::Goldbox::Data::PlayerCharacter *attacker,
                                      Combat::CombatSession *session) {
-    _attacker    = attacker;
-    _session     = session;
-    _targetIndex = 0;
-    _spellMode   = false;
-    _tileMode    = false;
-    _spellRange  = 0xFF;
-    _aimTarget   = nullptr;
-
-    _targetList.targetOrder.clear();
-    if (_attacker && _session)
-        _session->buildFacingTargetList(_attacker, _targetList);
-
-    // Start on the first target (1-based).
-    if (!_targetList.targetOrder.empty())
-        _targetIndex = 1;
+    Combat::AimRequest request;
+    request.attacker = attacker;
+    request.range = 0xFF;
+    request.weaponMode = true;
+    request.groundOk = false;
+    begin(request, session);
 }
 
-void CombatAttackDialog::beginSpellAim(
-        Goldbox::Data::PlayerCharacter *caster,
-        Combat::CombatSession *session, uint8 range, bool tileMode) {
-    beginAttack(caster, session);
-    _spellMode  = true;
-    _tileMode   = tileMode;
-    _spellRange = range;
+void CombatAttackDialog::beginSpellAim(::Goldbox::Data::PlayerCharacter *caster,
+        Combat::CombatSession *session, uint8 range, bool groundOk) {
+    Combat::AimRequest request;
+    request.attacker = caster;
+    request.range = range;
+    request.weaponMode = false;
+    request.groundOk = groundOk;
+    begin(request, session);
+}
 
-    // Only targets within the spell's range can be cycled through.
-    Combat::CombatContext *ctx = session ? session->getContext() : nullptr;
-    if (ctx && caster) {
-        Combat::TargetList inRange;
-        for (uint i = 0; i < _targetList.targetOrder.size(); ++i) {
-            Goldbox::Data::PlayerCharacter *candidate =
-                session->getTable().getCharacter(_targetList.targetOrder[i]);
-            if (candidate &&
-                    ctx->getTargetRange(caster, candidate) <= range)
-                inRange.targetOrder.push_back(_targetList.targetOrder[i]);
-        }
-        _targetList.targetOrder = inRange.targetOrder;
-        _targetIndex = _targetList.targetOrder.empty() ? 0 : 1;
-    }
+void CombatAttackDialog::begin(const Combat::AimRequest &request,
+                               Combat::CombatSession *session) {
+    _request = request;
+    _session = session;
+    _range = Combat::resolveAimRange(request.attacker, request.range);
+    _state = STATE_IDLE;
+    _index = 0;
+    _skipStep = 1;
+    _pendingTarget = nullptr;
 }
 
 void CombatAttackDialog::activate() {
     Dialog::activate();
-    if (_spellMode && _tileMode)
-        enterManualAim();
-    else if (_targetIndex > 0)
-        enterTargetCommand();
-    else if (_spellMode)
-        enterManualAim();  // nothing in range: let the player pick a spot
-    else
-        finishAttack(false);  // no targets — cancel immediately
+    if (!_session || !_request.attacker) {
+        finish(false, false);
+        return;
+    }
+    buildTargets();
+    showTargetMenu();
 }
 
 void CombatAttackDialog::deactivate() {
-    if (_targetCommand->isActive()) {
-        _targetCommand->deactivate();
-        detachDialog(_targetCommand);
-    }
-    if (_manualAim->isActive()) {
-        _manualAim->deactivate();
-        detachDialog(_manualAim);
-    }
-    if (_allyConfirm->isActive()) {
-        _allyConfirm->deactivate();
-        detachDialog(_allyConfirm);
-    }
+    closeChildren();
     _pendingTarget = nullptr;
     Dialog::deactivate();
+}
+
+void CombatAttackDialog::closeChildren() {
+    if (_targetCommand->isActive())
+        _targetCommand->deactivate();
+    detachDialog(_targetCommand);
+    if (_manualAim->isActive())
+        _manualAim->deactivate();
+    detachDialog(_manualAim);
+    if (_allyConfirm->isActive())
+        _allyConfirm->deactivate();
+    detachDialog(_allyConfirm);
 }
 
 void CombatAttackDialog::draw() {
     if (!_isVisible)
         return;
-    if (_allyConfirm->isActive())
-        _allyConfirm->draw();
-    else if (_state == STATE_TARGET_COMMAND && _targetCommand->isActive())
+    switch (_state) {
+    case STATE_TARGET_MENU:
         _targetCommand->draw();
-    else if (_state == STATE_MANUAL_AIM && _manualAim->isActive())
+        break;
+    case STATE_MANUAL_AIM:
         _manualAim->draw();
+        break;
+    case STATE_ALLY_CONFIRM:
+        _allyConfirm->draw();
+        break;
+    default:
+        break;
+    }
 }
 
 bool CombatAttackDialog::msgKeypress(const KeypressMessage &msg) {
     if (!_isActive)
         return false;
-    if (_allyConfirm->isActive())
-        return _allyConfirm->msgKeypress(msg);
-    if (_state == STATE_TARGET_COMMAND && _targetCommand->isActive())
+    switch (_state) {
+    case STATE_TARGET_MENU:
         return _targetCommand->msgKeypress(msg);
-    if (_state == STATE_MANUAL_AIM && _manualAim->isActive())
+    case STATE_MANUAL_AIM:
         return _manualAim->msgKeypress(msg);
-    return false;
+    case STATE_ALLY_CONFIRM:
+        return _allyConfirm->msgKeypress(msg);
+    default:
+        return false;
+    }
 }
 
+// Only the Attack Ally yes/no reports through menu results (1 = yes).
 void CombatAttackDialog::handleMenuResult(const MenuResultMessage &result) {
-    if (!result._hasIntValue)
+    if (_state != STATE_ALLY_CONFIRM || !result._hasIntValue)
         return;
 
-    if (_allyConfirm->isActive()) {
-        _allyConfirm->deactivate();
-        detachDialog(_allyConfirm);
-        Goldbox::Data::PlayerCharacter *target = _pendingTarget;
-        _pendingTarget = nullptr;
-        if (result._success && result._intValue == 1 && _session && target) {
-            _session->makePartyHostile();
-            _session->executeAttackOnTarget(_attacker, target, true, true);
-            finishAttack(true);
-        } else {
-            finishAttack(false);
-        }
-        return;
-    }
+    _allyConfirm->deactivate();
+    detachDialog(_allyConfirm);
+    ::Goldbox::Data::PlayerCharacter *target = _pendingTarget;
+    _pendingTarget = nullptr;
 
-    if (_state == STATE_TARGET_COMMAND) {
-        // Results from CombatTargetCommandDialog.
-        const char cmd = (char)result._intValue;
-        switch (cmd) {
-        case 'N':
-            cycleTarget(+1);
-            enterTargetCommand();
-            break;
-        case 'P':
-            cycleTarget(-1);
-            enterTargetCommand();
-            break;
-        case 'M':
-            enterManualAim();
-            break;
-        case 'T': {
-            // Spell aiming only records the choice; nothing is executed.
-            if (_spellMode) {
-                Goldbox::Data::PlayerCharacter *chosen = currentTarget();
-                _aimTarget = chosen;
-                if (chosen && _session)
-                    _aimTile = _session->getTable().getCharacterPos(chosen);
-                finishAttack(chosen != nullptr);
-                break;
-            }
-            attackTarget(currentTarget());
-            break;
-        }
-        case 'E':
-        default:
-            finishAttack(false);
-            break;
-        }
-    } else if (_state == STATE_MANUAL_AIM) {
-        const CombatManualAimDialog::ManualAimResult aim =
-            _manualAim->getResult();
-        _manualAim->deactivate();
-        detachDialog(_manualAim);
-        if (!result._success) {
-            finishAttack(false);
-        } else if (_spellMode) {
-            _aimTarget = aim.target;
-            _aimTile = TilePos(aim.x, aim.y);
-            finishAttack(true);
-        } else {
-            attackTarget(aim.target);
-        }
+    if (result._success && result._intValue == 1 && target) {
+        _session->makePartyHostile();
+        attack(target, true);
+    } else {
+        returnToMenu();
     }
 }
 
 // ---------------------------------------------------------------------------
-// Private helpers
+// Target cycling
 
-void CombatAttackDialog::cycleTarget(int direction) {
-    if (_targetList.targetOrder.empty())
-        return;
-    const int count = (int)_targetList.targetOrder.size();
-    _targetIndex += direction;
-    if (_targetIndex < 1)
-        _targetIndex = count;
-    if (_targetIndex > count)
-        _targetIndex = 1;
+void CombatAttackDialog::buildTargets() {
+    _targets.clear();
+    _session->buildFacingTargetList(_request.attacker, _targets);
+    const int count = (int)_targets.targetOrder.size();
+    if (_index >= count)
+        _index = count > 0 ? count - 1 : 0;
 }
 
-Goldbox::Data::PlayerCharacter *CombatAttackDialog::currentTarget() const {
-    if (!_session || _targetIndex < 1)
+::Goldbox::Data::PlayerCharacter *CombatAttackDialog::currentTarget() const {
+    if (!_session || _index < 0 || _index >= (int)_targets.targetOrder.size())
         return nullptr;
-    const int idx = _targetIndex - 1;
-    if (idx >= (int)_targetList.targetOrder.size())
-        return nullptr;
-    const uint8 tableIdx = _targetList.targetOrder[idx];
-    return _session->getTable().getCharacter(tableIdx);
+    return _session->getTable().getCharacter(_targets.targetOrder[_index]);
 }
 
-void CombatAttackDialog::enterTargetCommand() {
-    if (_manualAim->isActive()) {
-        _manualAim->deactivate();
-        detachDialog(_manualAim);
-    }
-    if (_targetCommand->isActive()) {
-        _targetCommand->deactivate();
-        detachDialog(_targetCommand);
-    }
+TilePos CombatAttackDialog::currentTile() const {
+    ::Goldbox::Data::PlayerCharacter *target = currentTarget();
+    return target ? _session->getTable().getCharacterPos(target) : TilePos(0, 0);
+}
 
-    _state = STATE_TARGET_COMMAND;
+// COMBAT_cycleTarget: step through the list with wrap-around.
+void CombatAttackDialog::advance(int step, bool animate) {
+    const int count = (int)_targets.targetOrder.size();
+    if (count == 0)
+        return;
+    const TilePos from = currentTile();
+    _index = ((_index + step) % count + count) % count;
+    if (animate && _host && step != 0)
+        _host->aimFlyCursor(from, currentTile());
+}
 
-    Goldbox::Data::PlayerCharacter *target = currentTarget();
-    if (!target) {
-        finishAttack(false);
+// Loop body of COMBAT_AttackTarget: skip what cannot be engaged, then offer
+// the Aim menu on the current creature.
+void CombatAttackDialog::showTargetMenu() {
+    Combat::CombatContext *ctx = _session->getContext();
+    const int count = (int)_targets.targetOrder.size();
+    if (!ctx || count == 0) {
+        finish(false, false);
         return;
     }
 
-    _targetCommand->beginTargetCommand(_attacker, target,
-                                       _spellMode ? _spellRange : 0xFF,
-                                       false, _session);
+    int skipped = 0;
+    while (!ctx->canEngageTarget(_request.attacker, currentTarget())) {
+        if (++skipped > count) {
+            finish(false, false);
+            return;
+        }
+        advance(_skipStep, false);
+    }
+
+    ::Goldbox::Data::PlayerCharacter *target = currentTarget();
+    if (_host) {
+        if (_request.weaponMode)
+            _host->aimShowRange(rangeText(
+                ctx->getTargetRange(_request.attacker, target)));
+        _host->aimShowTarget(target);
+    }
+
+    _state = STATE_TARGET_MENU;
+    _targetCommand->beginTargetCommand(this, Combat::aimTargetOffered(
+        *_session, _request.attacker, target, _range, _request.weaponMode));
     attachDialog(_targetCommand);
     _targetCommand->activate();
+    redraw();
 }
 
-void CombatAttackDialog::enterManualAim() {
-    if (_targetCommand->isActive()) {
-        _targetCommand->deactivate();
-        detachDialog(_targetCommand);
+// After Manual or Target left the run open: rebuild the list and stay on
+// the same entry.
+void CombatAttackDialog::returnToMenu() {
+    buildTargets();
+    showTargetMenu();
+}
+
+void CombatAttackDialog::onAimCommand(AimCommand command) {
+    if (_state == STATE_MANUAL_AIM) {
+        if (command == AIM_CENTER && _host)
+            _host->aimCenterOn(_manualCell);
+        return;
     }
+    if (_state != STATE_TARGET_MENU)
+        return;
+    detachDialog(_targetCommand);
 
-    _state = STATE_MANUAL_AIM;
-
-    _manualAim->beginManualAim(_attacker, currentTarget(),
-                               _spellMode ? _spellRange : 0xFF,
-                               !_spellMode, _spellMode, _session);
-    attachDialog(_manualAim);
-    _manualAim->activate();
-}
-
-void CombatAttackDialog::attackTarget(Goldbox::Data::PlayerCharacter *target) {
-    if (!target || !_session) {
-        finishAttack(false);
+    int step = 0;
+    switch (command) {
+    case AIM_NEXT:
+        _skipStep = 1;
+        step = 1;
+        break;
+    case AIM_PREV:
+        _skipStep = -1;
+        step = -1;
+        break;
+    case AIM_MANUAL:
+        _state = STATE_MANUAL_AIM;
+        _manualAim->beginManualAim(this, _session, _request, _range,
+                                   currentTile());
+        attachDialog(_manualAim);
+        _manualAim->activate();
+        redraw();
+        return;
+    case AIM_TARGET:
+        confirmTarget(currentTarget());
+        return;
+    case AIM_CENTER:
+        if (_host)
+            _host->aimCenterOn(currentTile());
+        break;
+    case AIM_EXIT:
+    default:
+        finish(false, false);
         return;
     }
 
-    if (!_session->confirmAttackNonHostile(_attacker, target)) {
+    advance(step, true);
+    showTargetMenu();
+}
+
+// ---------------------------------------------------------------------------
+// Free cursor
+
+void CombatAttackDialog::onManualAimCursor(TilePos cell,
+                                           const Combat::AimCell &info) {
+    _manualCell = cell;
+    if (!_host)
+        return;
+    if (_request.weaponMode)
+        _host->aimShowRange(info.lineOfSight ? rangeText(info.range)
+                                             : Common::String());
+    _host->aimShowCell(cell, info.occupant);
+}
+
+void CombatAttackDialog::onManualAimFinished(bool picked,
+                                             const Combat::AimPick &pick) {
+    if (_state != STATE_MANUAL_AIM)
+        return;
+    detachDialog(_manualAim);
+
+    if (!picked) {
+        returnToMenu();
+    } else if (_request.weaponMode) {
+        confirmTarget(pick.target);
+    } else {
+        finish(true, false, pick);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Commit (COMBAT_ExecuteAttackOnTarget)
+
+void CombatAttackDialog::confirmTarget(::Goldbox::Data::PlayerCharacter *target) {
+    if (!target) {
+        returnToMenu();
+        return;
+    }
+
+    if (!_request.weaponMode) {
+        Combat::AimPick pick;
+        pick.target = target;
+        pick.tile = _session->getTable().getCharacterPos(target);
+        finish(true, false, pick);
+        return;
+    }
+
+    if (!_session->confirmAttackNonHostile(_request.attacker, target)) {
         _pendingTarget = target;
+        _state = STATE_ALLY_CONFIRM;
         attachDialog(_allyConfirm);
         _allyConfirm->activate();
         redraw();
         return;
     }
 
-    _session->executeAttackOnTarget(_attacker, target, true);
-    finishAttack(true);
+    attack(target, false);
 }
 
-void CombatAttackDialog::finishAttack(bool actionComplete) {
-    if (g_events)
-        g_events->postMenuResult("Combat", actionComplete,
-                                 Common::KEYCODE_RETURN,
-                                 (int)Combat::CombatSession::PA_ATTACK,
-                                 Common::String(), true, false);
-    deactivate();
+void CombatAttackDialog::attack(::Goldbox::Data::PlayerCharacter *target,
+                                bool allyConfirmed) {
+    if (_host) {
+        _host->aimShowRange(Common::String());
+        _host->aimShowTarget(nullptr);
+    }
+
+    const bool done = _session->executeAttackOnTarget(_request.attacker,
+        target, true, allyConfirmed);
+    if (done) {
+        Combat::AimPick pick;
+        pick.target = target;
+        finish(true, true, pick);
+    } else {
+        returnToMenu();
+    }
+}
+
+void CombatAttackDialog::finish(bool committed, bool turnComplete,
+                                const Combat::AimPick &pick) {
+    if (_state == STATE_FINISHED)
+        return;
+    _state = STATE_FINISHED;
+    closeChildren();
+
+    AimOutcome outcome;
+    outcome.committed = committed;
+    outcome.turnComplete = turnComplete;
+    outcome.pick = pick;
+    if (_host) {
+        _host->aimShowRange(Common::String());
+        _host->aimFinished(outcome);
+    }
 }
 
 } // namespace Dialogs

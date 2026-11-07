@@ -77,13 +77,16 @@ class ISpellAimer {
 public:
     virtual ~ISpellAimer() {}
 
-    // Aim at a combatant (tileMode == false) or at a tile for a burst
-    // (tileMode == true). range is SPELL_ComputeRange in tiles. On success
-    // returns true with tile set and target set when a combatant was chosen.
-    // Returns false when the player cancelled.
+    // Pick a combatant, or also a bare cell when groundOk (burst spells).
+    // range is SPELL_ComputeRange in tiles. On success returns true with
+    // tile set and target set when a combatant was chosen. Returns false
+    // when the player cancelled.
     virtual bool aim(Goldbox::Data::PlayerCharacter *caster, uint8 spellId,
-            uint8 range, bool tileMode,
+            uint8 range, bool groundOk,
             Goldbox::Data::PlayerCharacter *&target, TilePos &tile) = 0;
+
+    // A multi-target spell picked the same creature twice.
+    virtual void showAlreadyTargeted() {}
 };
 
 // Presentation hook fired once targeting succeeded, before the memorized slot

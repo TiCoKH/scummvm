@@ -20,17 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/combat_manual_aim_dialog.h"
-#include "goldbox/data/player_character.h"
-#include "goldbox/data/adnd_character.h"
-#include "goldbox/data/items/character_item.h"
 #include "goldbox/combat/combat_session.h"
-#include "goldbox/combat/combat_context.h"
-#include "goldbox/combat/combat_globals.h"
-#include "goldbox/combat/combatant_table.h"
-#include "goldbox/combat/tile_property_provider.h"
-#include "goldbox/core/direction.h"
-#include "goldbox/events.h"
-#include "goldbox/gfx/surface.h"
 #include "common/util.h"
 
 namespace Goldbox {
@@ -38,23 +28,20 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
-// Combat field bounds (mirrors original 50x25 grid).
-static const uint8 kFieldMaxX = 49;
-static const uint8 kFieldMaxY = 24;
+namespace {
 
-// Direction index 8 = center/idle (no movement).
-static const uint8 kDirCenter = 8;
+const int kFieldMaxX = 49;
+const int kFieldMaxY = 24;
 
-// Delta tables for 8-way movement (indices 0-7 = N,NE,E,SE,S,SW,W,NW).
-static const int8 kDirDX[9] = {  0, 1, 1, 1, 0,-1,-1,-1, 0 };
-static const int8 kDirDY[9] = { -1,-1, 0, 1, 1, 1, 0,-1, 0 };
+// N, NE, E, SE, S, SW, W, NW
+const int8 kDirDX[8] = {  0, 1, 1, 1, 0, -1, -1, -1 };
+const int8 kDirDY[8] = { -1, -1, 0, 1, 1, 1, 0, -1 };
+
+} // namespace
 
 CombatManualAimDialog::CombatManualAimDialog()
-    : Dialog("CombatManualAim"), _attacker(nullptr), _maxRange(0xFF),
-      _withWeapon(false), _emptyAllowed(false), _session(nullptr),
-      _cursorX(0), _cursorY(0), _direction(kDirCenter),
-      _valid(false), _selectedCharacter(nullptr), _targetRange(0xFF),
-      _horizontalMenu(nullptr) {
+    : Dialog("CombatManualAim"), _listener(nullptr), _session(nullptr),
+      _range(1), _cursor(0, 0), _horizontalMenu(nullptr) {
     setBounds(Window(0, 24, 39, 24));
 }
 
@@ -62,32 +49,15 @@ CombatManualAimDialog::~CombatManualAimDialog() {
     delete _horizontalMenu;
 }
 
-void CombatManualAimDialog::beginManualAim(
-        Goldbox::Data::PlayerCharacter *attacker,
-        Goldbox::Data::PlayerCharacter *initialTarget,
-        uint8 maxRange,
-        bool withWeapon,
-        bool emptyAllowed,
-        Combat::CombatSession *session) {
-    _attacker     = attacker;
-    _maxRange     = maxRange;
-    _withWeapon   = withWeapon;
-    _emptyAllowed = emptyAllowed;
-    _session      = session;
-    _direction    = kDirCenter;
-    _result       = ManualAimResult();
-
-    // Cursor starts at the initial target's tile, or the attacker's tile.
-    Goldbox::Data::PlayerCharacter *startChar = initialTarget ? initialTarget : attacker;
-    _cursorX = 0;
-    _cursorY = 0;
-    if (startChar && session) {
-        const int idx = session->getTable().findIndex(startChar);
-        if (idx >= 0) {
-            _cursorX = session->getTable().getTileCol(idx);
-            _cursorY = session->getTable().getTileRow(idx);
-        }
-    }
+void CombatManualAimDialog::beginManualAim(CombatAimListener *listener,
+        Combat::CombatSession *session, const Combat::AimRequest &request,
+        uint8 range, TilePos start) {
+    _listener = listener;
+    _session = session;
+    _request = request;
+    _range = range;
+    _cursor = start;
+    _cell = Combat::AimCell();
 }
 
 void CombatManualAimDialog::activate() {
@@ -108,150 +78,58 @@ void CombatManualAimDialog::deactivate() {
 void CombatManualAimDialog::draw() {
     if (!_isVisible || !_horizontalMenu)
         return;
-    Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 8);
     _horizontalMenu->setRedraw();
     _horizontalMenu->draw();
 }
 
 bool CombatManualAimDialog::msgKeypress(const KeypressMessage &msg) {
-    if (!_isActive)
+    if (!_isActive || !_horizontalMenu)
         return false;
 
-    // Directional keys move the cursor directly (no menu involvement).
-    const uint8 dir = decodeDirection(msg);
-    if (dir < kDirCenter) {
-        _direction = dir;
-        // Apply movement and clamp to field bounds.
-        int nx = (int)_cursorX + kDirDX[dir];
-        int ny = (int)_cursorY + kDirDY[dir];
-        _cursorX = (uint8)CLIP(nx, 0, (int)kFieldMaxX);
-        _cursorY = (uint8)CLIP(ny, 0, (int)kFieldMaxY);
+    const int dir = decodeDirection(msg);
+    if (dir >= 0) {
+        _cursor.col = (uint8)CLIP<int>(_cursor.col + kDirDX[dir], 0, kFieldMaxX);
+        _cursor.row = (uint8)CLIP<int>(_cursor.row + kDirDY[dir], 0, kFieldMaxY);
         evaluateCursor();
         buildCommandMenu();
         return true;
     }
 
-    if (!_horizontalMenu)
-        return false;
+    const bool handled = _horizontalMenu->msgKeypress(msg);
+    if (_horizontalMenu->isActive())
+        return handled;
 
-    const bool wasActive = _horizontalMenu->isActive();
-    const bool handled   = _horizontalMenu->msgKeypress(msg);
-
-    if (!handled)
-        return false;
-
-    if (wasActive && !_horizontalMenu->isActive()) {
-        char ascii = msg.ascii;
-        if (ascii >= 'a' && ascii <= 'z')
-            ascii = (char)(ascii - 32);
-
-        if (ascii == 'T') {
-            confirmTarget();
-        } else if (ascii == 'C') {
-            // Center: re-center viewport on cursor (presentation only).
-            if (_session)
-                _session->scrollViewport(TilePos(_cursorX, _cursorY));
-            buildCommandMenu();
-        } else {
-            // Exit / unrecognised.
-            cancelAim();
-        }
+    char key = 'E';
+    if (msg.keycode != Common::KEYCODE_ESCAPE) {
+        const int sel = _menuModel.currentSelection;
+        if (sel >= 0 && sel < (int)_menuModel.items.size())
+            key = _menuModel.items[sel].shortcut;
+        if (key >= 'a' && key <= 'z')
+            key = (char)(key - 32);
     }
 
+    if (key == 'T') {
+        finish(_cell.valid);
+    } else if (key == 'C') {
+        if (_listener)
+            _listener->onAimCommand(AIM_CENTER);
+        buildCommandMenu();
+    } else {
+        finish(false);
+    }
     return true;
 }
 
-void CombatManualAimDialog::handleMenuResult(const MenuResultMessage &) {
-    // Not used — results are posted directly in msgKeypress.
-}
-
-// ---------------------------------------------------------------------------
-// Private helpers
-
 void CombatManualAimDialog::evaluateCursor() {
-    _valid             = false;
-    _selectedCharacter = nullptr;
-    _targetRange       = 0xFF;
-
-    if (!_session || !_attacker)
-        return;
-
-    Combat::CombatContext *ctx = _session->getContext();
-    if (!ctx)
-        return;
-
-    // LOS check from attacker to cursor.
-    const int attackerIdx = _session->getTable().findIndex(_attacker);
-    if (attackerIdx < 0)
-        return;
-
-    const TilePos attackerPos(_session->getTable().getTileCol(attackerIdx),
-                               _session->getTable().getTileRow(attackerIdx));
-    const TilePos cursorPos(_cursorX, _cursorY);
-
-    uint16 rawRange = 0xFFFF;
-    const bool hasLOS = ctx->lineOfSightCheck(attackerPos, cursorPos, rawRange);
-
-    if (!hasLOS)
-        return;
-
-    _targetRange = (uint8)(rawRange >> 1);
-
-    // Resolve occupant.
-    const Combat::CombatContext::CombatCell cell = ctx->getTileAndOccupantAt(cursorPos);
-
-    if (cell.occupantId != 0)
-        _selectedCharacter = _session->getTable().getCharacter(cell.occupantId - 1);
-
-    // Basic validity checks.
-    if (_targetRange > _maxRange)
-        return;
-
-    // Tile passability (0xFF = impassable wall).
-    const Combat::TilePropertyProvider *props =
-        _session->getBattlefieldMap().getTilePropertyProvider();
-    if (props && props->isImpassable(cell.tileId))
-        return;
-
-    if (_selectedCharacter == nullptr) {
-        if (!_emptyAllowed)
-            return;
-    } else {
-        if (!ctx->canEngageTarget(_attacker, _selectedCharacter))
-            return;
-
-        if (_withWeapon) {
-            if (_selectedCharacter == _attacker)
-                return;
-
-            const Goldbox::Data::ADnDCharacter *adnd =
-                dynamic_cast<const Goldbox::Data::ADnDCharacter *>(_attacker);
-            if (adnd && adnd->hasRangedWeapon()) {
-                Data::Items::CharacterItem *rangedItem = nullptr;
-                Data::ADnDCharacter *adndMut =
-                    const_cast<Data::ADnDCharacter *>(adnd);
-                if (!adndMut->getRangedAttackItem(&rangedItem) || !rangedItem)
-                    return;
-
-                Combat::TargetList tmp;
-                _session->buildFacingTargetList(_attacker, tmp);
-                const bool hasTargets = !tmp.targetOrder.empty();
-                if (hasTargets && !adndMut->isEquippedRangedWeapon())
-                    return;
-            }
-        }
-    }
-
-    _valid = true;
+    if (_session)
+        _cell = Combat::evaluateAimCell(*_session, _request, _range, _cursor);
+    if (_listener)
+        _listener->onManualAimCursor(_cursor, _cell);
 }
 
 void CombatManualAimDialog::buildCommandMenu() {
-    delete _horizontalMenu;
-    _horizontalMenu = nullptr;
-
     Common::Array<Common::String> labels;
-    if (_valid)
+    if (_cell.valid)
         labels.push_back("Target");
     labels.push_back("Center");
     labels.push_back("Exit");
@@ -260,14 +138,16 @@ void CombatManualAimDialog::buildCommandMenu() {
     _menuModel.currentSelection = 0;
     _menuModel.generateMenuItems(labels, true);
 
+    delete _horizontalMenu;
+
     HorizontalMenuConfig cfg;
-    cfg.promptTxt             = "Aim:";
+    cfg.promptTxt             = "(Use Cursor keys) ";
     cfg.menuItemList          = &_menuModel;
     cfg.textColor             = 10;
     cfg.selectColor           = 15;
-    cfg.promptColor           = 15;
+    cfg.promptColor           = 13;
     cfg.allowNumPad           = false;
-    cfg.suppressUnhandledKeys = false;
+    cfg.suppressUnhandledKeys = true;
     cfg.backgroundColor       = 8;
     cfg.singleItemMode        = false;
 
@@ -275,44 +155,29 @@ void CombatManualAimDialog::buildCommandMenu() {
     _horizontalMenu->activate();
 }
 
-void CombatManualAimDialog::confirmTarget() {
-    if (!_valid) {
-        buildCommandMenu();
-        return;
+void CombatManualAimDialog::finish(bool picked) {
+    Combat::AimPick pick;
+    if (picked) {
+        pick.target = _cell.occupant;
+        pick.tile = _cursor;
     }
-
-    _result.target = _selectedCharacter;
-    _result.x      = _cursorX;
-    _result.y      = _cursorY;
-
-    if (g_events)
-        g_events->postMenuResult("CombatAttack", true,
-                                 Common::KEYCODE_RETURN,
-                                 1, Common::String(), true, false);
+    CombatAimListener *listener = _listener;
     deactivate();
+    if (listener)
+        listener->onManualAimFinished(picked, pick);
 }
 
-void CombatManualAimDialog::cancelAim() {
-    _result = ManualAimResult();
-    if (g_events)
-        g_events->postMenuResult("CombatAttack", false,
-                                 Common::KEYCODE_ESCAPE,
-                                 0, Common::String(), true, false);
-    deactivate();
-}
-
-// static
-uint8 CombatManualAimDialog::decodeDirection(const KeypressMessage &msg) {
+int CombatManualAimDialog::decodeDirection(const KeypressMessage &msg) {
     switch (msg.keycode) {
-    case Common::KEYCODE_KP8: case Common::KEYCODE_UP:    return 0; // N
-    case Common::KEYCODE_KP9:                             return 1; // NE
-    case Common::KEYCODE_KP6: case Common::KEYCODE_RIGHT: return 2; // E
-    case Common::KEYCODE_KP3:                             return 3; // SE
-    case Common::KEYCODE_KP2: case Common::KEYCODE_DOWN:  return 4; // S
-    case Common::KEYCODE_KP1:                             return 5; // SW
-    case Common::KEYCODE_KP4: case Common::KEYCODE_LEFT:  return 6; // W
-    case Common::KEYCODE_KP7:                             return 7; // NW
-    default:                                              return kDirCenter;
+    case Common::KEYCODE_UP:       case Common::KEYCODE_KP8: return 0;
+    case Common::KEYCODE_PAGEUP:   case Common::KEYCODE_KP9: return 1;
+    case Common::KEYCODE_RIGHT:    case Common::KEYCODE_KP6: return 2;
+    case Common::KEYCODE_PAGEDOWN: case Common::KEYCODE_KP3: return 3;
+    case Common::KEYCODE_DOWN:     case Common::KEYCODE_KP2: return 4;
+    case Common::KEYCODE_END:      case Common::KEYCODE_KP1: return 5;
+    case Common::KEYCODE_LEFT:     case Common::KEYCODE_KP4: return 6;
+    case Common::KEYCODE_HOME:     case Common::KEYCODE_KP7: return 7;
+    default:                                                 return -1;
     }
 }
 

@@ -23,13 +23,18 @@
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_COMBAT_ATTACK_DIALOG_H
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
-#include "goldbox/combat/combat_session.h"
+#include "goldbox/poolrad/views/dialogs/combat_aim_events.h"
 #include "goldbox/combat/combat_globals.h"
 
 namespace Goldbox {
 namespace Data {
 class PlayerCharacter;
 } // namespace Data
+
+namespace Combat {
+class CombatSession;
+} // namespace Combat
+
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
@@ -39,39 +44,31 @@ class CombatManualAimDialog;
 class HorizontalYesNo;
 
 /**
- * DIALOG_CombatAttack — attack target-selection interaction.
+ * COMBAT_AttackTarget as an event-driven controller, shared by the combat
+ * Aim command (weapon mode) and spell target picks.
  *
- * Mirrors the attack branch of DIALOG_CombatMain:
- *   1. Builds the facing target list via CombatSession::buildFacingTargetList().
- *   2. Cycles through targets (Next/Previous).
- *   3. Delegates to CombatTargetCommandDialog for the "Aim:" command menu.
- *   4. Delegates to CombatManualAimDialog for free-cursor targeting.
- *   5. On confirmation, calls CombatSession::executeAttackOnTarget().
- *
- * Posts MenuResultMessage to "Combat" with _intValue = PA_ATTACK when done,
- * or PA_NONE on cancel.
+ * The run cycles through every creature in reach, skipping those the actor
+ * may not engage, and offers the Aim menu on each. Manual hands over to the
+ * free cursor; its Exit returns here. In weapon mode Target attacks (after
+ * the Attack Ally prompt for a same-side target); while the actor still has
+ * attacks left the run stays open on the rebuilt list. The host gets
+ * exactly one aimFinished() per begin.
  */
-class CombatAttackDialog : public Dialog {
+class CombatAttackDialog : public Dialog, public CombatAimListener {
 public:
     CombatAttackDialog();
     ~CombatAttackDialog() override;
 
-    /** Called by CombatView before attaching. */
-    void beginAttack(Goldbox::Data::PlayerCharacter *attacker,
+    void setHost(CombatAimHost *host) { _host = host; }
+
+    /** The combat Aim command: a weapon attack at weapon range. */
+    void beginAttack(::Goldbox::Data::PlayerCharacter *attacker,
                      Combat::CombatSession *session);
 
-    /**
-     * Aim for a spell instead of an attack (mirrors the COMBAT_AttackTarget
-     * call in COMBAT_spellTargetSelection): nothing is executed, the chosen
-     * combatant/tile is recorded. tileMode starts in free-cursor mode so an
-     * empty tile can be chosen for a burst.
-     */
-    void beginSpellAim(Goldbox::Data::PlayerCharacter *caster,
+    /** A spell target pick; groundOk allows a bare cell (bursts). */
+    void beginSpellAim(::Goldbox::Data::PlayerCharacter *caster,
                        Combat::CombatSession *session,
-                       uint8 range, bool tileMode);
-
-    Goldbox::Data::PlayerCharacter *getAimTarget() const { return _aimTarget; }
-    TilePos getAimTile() const { return _aimTile; }
+                       uint8 range, bool groundOk);
 
     void activate() override;
     void deactivate() override;
@@ -79,41 +76,50 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     void handleMenuResult(const MenuResultMessage &result) override;
 
+    // CombatAimListener
+    void onAimCommand(AimCommand command) override;
+    void onManualAimCursor(TilePos cell, const Combat::AimCell &info) override;
+    void onManualAimFinished(bool picked,
+                             const Combat::AimPick &pick) override;
+
 private:
     enum State {
-        STATE_TARGET_COMMAND,  // CombatTargetCommandDialog active
-        STATE_MANUAL_AIM       // CombatManualAimDialog active
+        STATE_IDLE,
+        STATE_TARGET_MENU,
+        STATE_MANUAL_AIM,
+        STATE_ALLY_CONFIRM,
+        STATE_FINISHED
     };
 
-    Goldbox::Data::PlayerCharacter *_attacker;
-    Combat::CombatSession          *_session;
-
-    Combat::TargetList _targetList;
-    int                _targetIndex;  // 1-based, 0 = none
-
+    CombatAimHost *_host;
+    Combat::CombatSession *_session;
+    Combat::AimRequest _request;
+    uint8 _range;
     State _state;
 
+    Combat::TargetList _targets;
+    int _index;            // 0-based into _targets.targetOrder
+    int _skipStep;         // direction used to skip unengageable entries
+    TilePos _manualCell;
+    ::Goldbox::Data::PlayerCharacter *_pendingTarget;
+
     CombatTargetCommandDialog *_targetCommand;
-    CombatManualAimDialog     *_manualAim;
-    HorizontalYesNo           *_allyConfirm;
-    Goldbox::Data::PlayerCharacter *_pendingTarget;  // target awaiting ally-attack confirmation
+    CombatManualAimDialog *_manualAim;
+    HorizontalYesNo *_allyConfirm;
 
-    // Spell aiming mode (see beginSpellAim).
-    bool  _spellMode;
-    bool  _tileMode;
-    uint8 _spellRange;
-    Goldbox::Data::PlayerCharacter *_aimTarget;
-    TilePos _aimTile;
-
-    // --- Helpers ---
-    void cycleTarget(int direction);  // +1 = next, -1 = previous
-    Goldbox::Data::PlayerCharacter *currentTarget() const;
-
-    void enterTargetCommand();
-    void enterManualAim();
-    void attackTarget(Goldbox::Data::PlayerCharacter *target);
-
-    void finishAttack(bool actionComplete);
+    void begin(const Combat::AimRequest &request,
+               Combat::CombatSession *session);
+    void buildTargets();
+    ::Goldbox::Data::PlayerCharacter *currentTarget() const;
+    TilePos currentTile() const;
+    void advance(int step, bool animate);
+    void showTargetMenu();
+    void returnToMenu();
+    void confirmTarget(::Goldbox::Data::PlayerCharacter *target);
+    void attack(::Goldbox::Data::PlayerCharacter *target, bool allyConfirmed);
+    void closeChildren();
+    void finish(bool committed, bool turnComplete,
+                const Combat::AimPick &pick = Combat::AimPick());
 };
 
 } // namespace Dialogs

@@ -24,73 +24,37 @@
 
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/combat_aim_events.h"
 #include "goldbox/core/menu_item.h"
 
 namespace Goldbox {
-namespace Data {
-class PlayerCharacter;
-} // namespace Data
-namespace Combat {
-class CombatSession;
-} // namespace Combat
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
 /**
- * DIALOG_CombatTargetCommand — "Aim:" command menu for a selected target.
- *
- * Mirrors COMBAT_TargetCommandMenu:
- *   - Calculates target range and ranged-weapon eligibility.
- *   - Builds the available command set: Next / Previous / Manual /
- *     Target (or Aim for ranged) / Center / Exit.
- *   - Focuses the target in the combat info panel.
- *   - Runs DIALOG_HorizontalMenu and posts the result.
- *
- * Result codes posted to parent "CombatAttack":
- *   'N' = Next target
- *   'P' = Previous target
- *   'M' = Manual aim
- *   'T' = Confirm target (attack)
- *   'C' = Center viewport
- *   'E' = Exit / cancel
+ * The "Aim:" menu of COMBAT_TargetCommandMenu:
+ * Next Prev Manual [Target] Center Exit. The chosen command, including one
+ * confirmed with Enter on the highlighted item, goes to the listener;
+ * Escape reports Exit.
  */
 class CombatTargetCommandDialog : public Dialog {
 public:
     CombatTargetCommandDialog();
     ~CombatTargetCommandDialog() override;
 
-    /**
-     * Prepare for the given attacker/target pair.
-     * Must be called before activate().
-     * maxRange: maximum attack range (0xFF = unlimited).
-     * showRange: true = ranged-weapon mode (validates ranged weapon,
-     *            rejects self-targeting); false = normal melee mode.
-     */
-    void beginTargetCommand(Goldbox::Data::PlayerCharacter *attacker,
-                            Goldbox::Data::PlayerCharacter *target,
-                            uint8 maxRange,
-                            bool showRange,
-                            Combat::CombatSession *session);
+    void beginTargetCommand(CombatAimListener *listener, bool targetOffered);
 
     void activate() override;
     void deactivate() override;
     void draw() override;
     bool msgKeypress(const KeypressMessage &msg) override;
-    void handleMenuResult(const MenuResultMessage &result) override;
 
 private:
-    Goldbox::Data::PlayerCharacter *_attacker;
-    Goldbox::Data::PlayerCharacter *_target;
-    uint8                           _maxRange;
-    bool                            _showRange;
-    Combat::CombatSession          *_session;
-
-    MenuItemList  _menuModel;
+    CombatAimListener *_listener;
+    bool _targetOffered;
+    MenuItemList _menuModel;
     HorizontalMenu *_horizontalMenu;
-
-    // Command character for the target/aim slot (0 = none).
-    char _targetCmd;
 
     void buildMenu();
 };

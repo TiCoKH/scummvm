@@ -91,6 +91,7 @@ MODULE_OBJS = \
 	combat/combat_setup.o \
 	combat/combat_turn.o \
 	combat/combat_ai.o \
+	combat/combat_aim.o \
 	combat/combat_spell_targeter.o \
 	combat/combat_session.o \
 	combat/combatant_table.o \

@@ -195,6 +195,7 @@ CombatView::CombatView()
     _combatMenu    = new Dialogs::CombatMenuDialog();
     _combatMove    = new Dialogs::CombatMoveDialog();
     _combatAttack  = new Dialogs::CombatAttackDialog();
+    _combatAttack->setHost(this);
     _combatEnd     = new Dialogs::CombatEndDialog();
     {
         Dialogs::HorizontalYesNoConfig cfg;
@@ -347,6 +348,8 @@ void CombatView::draw() {
     _viewport->draw();
     _messageBox->draw();
     _info->draw();
+    if (_aimActive)
+        drawAimRange();
     _needsFullRedraw = false;
 }
 
@@ -630,21 +633,16 @@ void CombatView::onUpdate() {
                 continue;
             }
 
-            // PA_ATTACK is handled by CombatAttackDialog — wait for it to finish.
+            // PA_ATTACK: the Aim run (COMBAT_AttackTarget, weapon mode). It
+            // resolves the attacks itself; the actor's state decides whether
+            // the menu comes back.
             if (action == Combat::CombatSession::PA_ATTACK) {
                 ::Goldbox::Data::PlayerCharacter *actor = _session.getCurrentActor();
                 if (actor && _combatAttack) {
-                    _combatAttack->beginAttack(actor, &_session);
-                    _info->showContent(_combatAttack);
-                    _needsFullRedraw = true;
-                    redraw();
-
-                    _playerActionPending = false;
-                    while (!_playerActionPending)
-                        if (!g_events->pumpModalInputFrame()) break;
-
                     _info->closeContent();
-                    _playerActionPending = false;
+                    _combatAttack->beginAttack(actor, &_session);
+                    if (!runAim())
+                        break;
                 }
                 finishPlayerAction();
                 continue;
@@ -892,33 +890,116 @@ void CombatView::handleMenuResult(const MenuResultMessage &result) {
 }
 
 bool CombatView::aim(::Goldbox::Data::PlayerCharacter *caster, uint8 spellId,
-        uint8 range, bool tileMode,
+        uint8 range, bool groundOk,
         ::Goldbox::Data::PlayerCharacter *&target, TilePos &tile) {
     (void)spellId;
     target = nullptr;
-    if (!_combatAttack || !caster || !g_events)
+    if (!_combatAttack || !caster || !g_events || _aimActive)
         return false;
 
-    _combatAttack->beginSpellAim(caster, &_session, range, tileMode);
+    Dialogs::Dialog *previous = _info->getContent();
+    _info->closeContent();
+    _combatAttack->beginSpellAim(caster, &_session, range, groundOk);
+    if (!runAim() || !_aimOutcome.committed)
+        return false;
+
+    target = _aimOutcome.pick.target;
+    tile = _aimOutcome.pick.tile;
+    // A pick nested in another prompt (item use) hands the prompt back.
+    if (previous && previous != _combatAttack)
+        _info->showContent(previous);
+    return true;
+}
+
+bool CombatView::runAim() {
+    _aimActive = true;
+    _aimDone = false;
+    _aimOutcome = Dialogs::AimOutcome();
+    _aimRangeText.clear();
+
+    // Activation can finish at once (nothing in reach).
     _info->showContent(_combatAttack);
     _needsFullRedraw = true;
     redraw();
 
-    _playerActionPending = false;
-    _lastResultSuccess = false;
-    while (!_playerActionPending)
-        if (!g_events->pumpModalInputFrame()) break;
-
-    const bool chosen = _playerActionPending && _lastResultSuccess;
-    if (chosen) {
-        target = _combatAttack->getAimTarget();
-        tile = _combatAttack->getAimTile();
+    bool alive = true;
+    while (!_aimDone) {
+        if (!g_events->pumpModalInputFrame()) {
+            alive = false;
+            break;
+        }
     }
 
-    _info->closeContent();
-    _playerActionPending = false;
+    _info->closeContent(_combatAttack);
+    _viewport->clearAimCursor();
+    _aimActive = false;
+    _aimRangeText.clear();
+    drawAimRange();
     _needsFullRedraw = true;
-    return chosen;
+    return alive;
+}
+
+void CombatView::aimFinished(const Dialogs::AimOutcome &outcome) {
+    _aimOutcome = outcome;
+    _aimDone = true;
+}
+
+void CombatView::aimShowTarget(::Goldbox::Data::PlayerCharacter *target) {
+    if (!target) {
+        _viewport->clearAimCursor();
+        _needsFullRedraw = true;
+        draw();
+        return;
+    }
+    const Combat::CombatantTable &table = _session.getTable();
+    const int idx = table.findIndex(target);
+    if (idx < 0)
+        return;
+    const TilePos pos = table.getCharacterPos(target);
+    _session.scrollViewport(pos, 3);
+    _viewport->setAimCursor(pos, table.getSize(idx));
+    _messageBox->setActor(target);
+    _needsFullRedraw = true;
+    draw();
+}
+
+void CombatView::aimShowCell(TilePos cell,
+                             ::Goldbox::Data::PlayerCharacter *occupant) {
+    _session.scrollViewport(cell, 3);
+    _viewport->setAimCursor(cell, 1);
+    _messageBox->setActor(occupant);
+    _needsFullRedraw = true;
+    draw();
+}
+
+void CombatView::aimFlyCursor(TilePos from, TilePos to) {
+    _viewport->flyAimCursor(from, to);
+    _needsFullRedraw = true;
+}
+
+void CombatView::aimCenterOn(TilePos cell) {
+    _session.getViewport().centerOn(cell);
+    _needsFullRedraw = true;
+    draw();
+}
+
+void CombatView::aimShowRange(const Common::String &text) {
+    _aimRangeText = text;
+    drawAimRange();
+}
+
+// TargetCommandMenu/manualAim: "Range = n" at the start of row 23.
+void CombatView::drawAimRange() {
+    Surface s = getSurface(Window(0, 23, 39, 23));
+    s.clearBox(0, 0, 39, 0, kBackgroundColor);
+    if (!_aimRangeText.empty())
+        s.writeStringC(0, 0, 10, _aimRangeText);
+}
+
+void CombatView::showAlreadyTargeted() {
+    _info->showInfo("Already been targeted");
+    _needsFullRedraw = true;
+    redraw();
 }
 
 bool CombatView::confirmAbortSpell() {
@@ -971,9 +1052,7 @@ void CombatView::showSpellCastEffect(::Goldbox::Data::PlayerCharacter *caster,
     if (!isValidTilePos(target))
         target = casterTile;
 
-    // Effect quad 0x12 at the caster, then turn toward the target tile.
-    _viewport->drawEffectAt(caster, 0x12);
-
+    // CastSpellNC: turn the caster toward the aim in its attack pose.
     Direction facing = DIR_NONE;
     for (uint8 d = 0; d < 8; ++d) {
         if (Combat::CombatContext::isTargetInArc(static_cast<Direction>(d),
@@ -983,7 +1062,7 @@ void CombatView::showSpellCastEffect(::Goldbox::Data::PlayerCharacter *caster,
         }
     }
     if (facing != DIR_NONE)
-        ctx->setCharacterFacing(caster, facing);
+        updateCharacterFacingAndRedraw(caster, facing, 1, false);
 
     // Spells 0x2F and 0x33 have their own sound; the rest use effect 3.
     if (spellId == 0x2F)
@@ -993,7 +1072,14 @@ void CombatView::showSpellCastEffect(::Goldbox::Data::PlayerCharacter *caster,
     else
         g_engine->soundPlay(0x03);
 
-    _viewport->animateProjectile(casterTile, target, 0x1E);
+    _viewport->animateProjectile(casterTile, target, 18, 30);
+
+    // Back to the ready pose.
+    if (caster->combatState) {
+        const Direction dir = static_cast<Direction>(caster->combatState->direction);
+        updateCharacterFacingAndRedraw(caster, dir, 1, true);
+        updateCharacterFacingAndRedraw(caster, dir, 0, false);
+    }
     _needsFullRedraw = true;
 }
 
@@ -1009,11 +1095,10 @@ void CombatView::showSpellProjectile(
         return;
 
     g_engine->soundPlay(0x03);
-    _viewport->drawEffectAt(caster, 0x12);
     _viewport->animateProjectile(
         TilePos(table.getTileCol(casterIdx), table.getTileRow(casterIdx)),
         TilePos(table.getTileCol(targetIdx), table.getTileRow(targetIdx)),
-        0x1E);
+        18, 30);
     _needsFullRedraw = true;
 }
 
@@ -1170,7 +1255,11 @@ void CombatView::drawCharacterDying(::Goldbox::Data::PlayerCharacter *ch) {
         g_events->getScreen()->makeAllDirty();
         g_events->getScreen()->update();
     }
-    g_system->delayMillis(kStateChangeDelayMs);
+    // CreatureDowned: DOWNED sound, then PauseOnly.
+    if (g_engine)
+        g_engine->soundPlay(6);
+    g_system->delayMillis(
+        static_cast<uint32>(VmInterface::getGameSpeed()) * 225);
 }
 
 void CombatView::drawDamage(::Goldbox::Data::PlayerCharacter *ch,
@@ -1194,8 +1283,11 @@ void CombatView::animateMovement(TilePos from, TilePos to,
         ch = _session.getCurrentActor();
     if (!ch)
         return;
-    _viewport->animateMove(ch, from, to);
-    _needsFullRedraw = true;
+    // CombatMoveCreature: no in-between frames, the icon is redrawn on its
+    // new cell.
+    (void)from;
+    (void)to;
+    presentFrame(0);
 }
 
 void CombatView::updateCharacterFacingAndRedraw(

@@ -1077,18 +1077,14 @@ bool CombatSession::executeAttackOnTarget(Data::PlayerCharacter *attacker,
     // Normal attack path.
     ctx.applyAttackFacingChange(attacker, target);
 
-    // Determine ranged attack item.
+    // Ranged attack item; only a throwable weapon at range 1 strikes as melee.
     Data::Items::CharacterItem *rangedItem = nullptr;
     Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(attacker);
-    if (adnd && adnd->hasRangedWeapon()) {
-        Data::Items::CharacterItem *candidate = nullptr;
-        if (adnd->getRangedAttackItem(&candidate) && candidate) {
-            if (adnd->isEquippedRangedWeapon()) {
-                const uint8 range = ctx.getTargetRange(attacker, target);
-                rangedItem = (range == 1) ? nullptr : candidate;
-            }
-        }
-    }
+    if (adnd && adnd->hasRangedWeapon() &&
+            adnd->getRangedAttackItem(&rangedItem) &&
+            adnd->isEquippedRangedWeapon() &&
+            ctx.getTargetRange(attacker, target) == 1)
+        rangedItem = nullptr;
 
     bool result = false;
     resolveAttack(attacker, target, false, rangedItem, &result, _attackDelegate);

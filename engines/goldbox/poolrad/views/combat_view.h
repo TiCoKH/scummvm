@@ -74,7 +74,8 @@ namespace Views {
  */
 class CombatView : public View, public Combat::CastSpellViewDelegate,
                    public ::Goldbox::Spells::ISpellAimer,
-                   public Dialogs::CombatInfoHost {
+                   public Dialogs::CombatInfoHost,
+                   public Dialogs::CombatAimHost {
 public:
     CombatView();
     ~CombatView() override;
@@ -146,8 +147,18 @@ public:
     // Spells::ISpellAimer — blocks on the aim dialog until the player picks
     // a target/tile or cancels.
     bool aim(Goldbox::Data::PlayerCharacter *caster, uint8 spellId,
-             uint8 range, bool tileMode,
+             uint8 range, bool groundOk,
              Goldbox::Data::PlayerCharacter *&target, TilePos &tile) override;
+    void showAlreadyTargeted() override;
+
+    // Dialogs::CombatAimHost
+    void aimShowTarget(Goldbox::Data::PlayerCharacter *target) override;
+    void aimShowCell(TilePos cell,
+                     Goldbox::Data::PlayerCharacter *occupant) override;
+    void aimFlyCursor(TilePos from, TilePos to) override;
+    void aimCenterOn(TilePos cell) override;
+    void aimShowRange(const Common::String &text) override;
+    void aimFinished(const Dialogs::AimOutcome &outcome) override;
     void suppressRedraw() { _needsRedraw = false; }
     void forceFullRedraw() { _needsFullRedraw = true; }
 
@@ -289,6 +300,16 @@ private:
 
     // Success flag of the last sub-dialog result (cancel vs. confirm).
     bool _lastResultSuccess = true;
+
+    // One aim run (Aim command or spell pick) at a time.
+    bool _aimActive = false;
+    bool _aimDone = false;
+    Dialogs::AimOutcome _aimOutcome;
+    Common::String _aimRangeText;
+
+    /** Run the aim controller until it reports; false on application quit. */
+    bool runAim();
+    void drawAimRange();
 
     /**
      * Focus the actor, refresh its info panel and (re)show the combat menu.

@@ -112,7 +112,7 @@ bool selectAutomatically(const Spells::SpellContext &ctx, CombatContext &cc,
 // Mirrors COMBAT_spellTargetSelection. On success the chosen tile is also
 // stored in globals.targetPos (COMBAT_TARGET_X/Y).
 bool selectOne(const Spells::SpellContext &ctx, CombatContext &cc,
-        const Data::Spells::SpellEntry &entry, uint8 spellId, bool tileMode,
+        const Data::Spells::SpellEntry &entry, uint8 spellId, bool groundOk,
         Pick &pick) {
     const uint8 range = Spells::computeSpellRange(spellId, ctx.casterLevel,
         ctx.fromMagicItem);
@@ -120,7 +120,7 @@ bool selectOne(const Spells::SpellContext &ctx, CombatContext &cc,
 
     bool ok;
     if (!ctx.aiControl && ctx.aimer) {
-        ok = ctx.aimer->aim(ctx.caster, spellId, range, tileMode,
+        ok = ctx.aimer->aim(ctx.caster, spellId, range, groundOk,
             pick.target, pick.tile);
         if (ok && ctx.caster->combatState)
             ctx.caster->combatState->target = pick.target;
@@ -200,7 +200,9 @@ bool CombatSpellTargeter::selectTarget(const Spells::SpellContext &context,
             if (!contains(result.targetCharacters, pick.target)) {
                 result.targetCharacters.push_back(pick.target);
                 --remaining;
-            } else if (!interactive) {
+            } else if (interactive) {
+                context.aimer->showAlreadyTargeted();
+            } else {
                 --remaining;
             }
         }
