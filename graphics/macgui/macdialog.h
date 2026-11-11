@@ -110,7 +110,7 @@ public:
 
 private:
 	const Font *getDialogFont();
-	void drawOutline(Common::Rect &bounds, int *spec, int speclen);
+	void drawEdgeBorder(Common::Rect &bounds, int *spec, int speclen);
 
 public:
 	virtual void paint();
