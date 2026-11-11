@@ -49,9 +49,9 @@ using PoolradCharacter = Goldbox::Poolrad::Data::PoolradCharacter;
 // different thing per game, so the temple MUST key off the raw ids directly.
 //
 // Decimal / hex cross-reference against PoolradEffects:
-//   blindness = 33 (0x21)  == E_POOLRAD_BLINDED
+//   blindness = 33 (0x21)  == E_POOLRAD_BLIND
 //   poison check = 55 (0x37); poison remove = 55,22,15 IN ORDER
-//                            (0x37, 0x16 E_POOLRAD_SLOW_POISON, 0x0F poison dmg)
+//                            (0x37, 0x16 E_POOLRAD_SLOW_POISON_END, 0x0F poison dmg)
 //   disease group = 31,34,43,44,50,57
 //                            (0x1F,0x22 E_POOLRAD_DISEASED,0x2B,0x2C,0x32,0x39)
 // The disease grouping is the temple's own conditional set and is kept DISTINCT
@@ -458,7 +458,7 @@ bool TempleDialog::hasCondition(PoolradCharacter *ch, int index) {
 
     case 7: // Remove Curse (apply logic is GB13-031/task 35)
         // GB13-031 (Req 41.1): present iff a raw curse effect 36
-        // (E_POOLRAD_ACCURSED == 0x24) OR any cursed inventory item is set.
+        // (E_POOLRAD_BESTOW_CURSE == 0x24) OR any cursed inventory item is set.
         // The former predicate keyed off E_BESTOW_CURSE (37), the wrong id;
         // the shared RemoveCurseHandler clears raw 36, so presence must match.
         for (int i = 0; i < ch->inventory.count(); ++i) {
@@ -466,7 +466,7 @@ bool TempleDialog::hasCondition(PoolradCharacter *ch, int index) {
                 return true;
         }
         return ch->effects.hasEffect(
-            (uint8)Goldbox::Data::Effects::E_POOLRAD_ACCURSED);
+            (uint8)Goldbox::Data::Effects::E_POOLRAD_BESTOW_CURSE);
 
     case 8: // Stone to Flesh (apply logic is GB13-030/task 34)
         return ch->healthStatus == Goldbox::Data::S_STONED;
@@ -490,10 +490,16 @@ void TempleDialog::applyHealEffect(PoolradCharacter *ch, int index) {
         // runs. One instance per present id (removeRawEffectInstance removes
         // the first match). For the disease group a non-present id is simply
         // skipped; for poison the fixed 55,22,15 order is the list order.
+        // Cure Disease and Neutralize Poison hold the effect lock so the
+        // periodic disease/poison handlers do not re-arm while removed.
+        if (index != 0 && g_engine)
+            g_engine->setInSpellProcess(true);
         for (uint8 i = 0; i < svc.removeCount; ++i) {
             if (ch->effects.hasEffect(svc.removeIds[i]))
                 removeRawEffectInstance(ch, svc.removeIds[i]);
         }
+        if (index != 0 && g_engine)
+            g_engine->setInSpellProcess(false);
         break;
 
     case 2: // Cure Light Wounds:   1d8
@@ -594,17 +600,22 @@ void TempleDialog::applyRaiseDead(PoolradCharacter *ch) {
     if (!_payment.eligibleAtRequest)
         return;
 
-    // Req 40.1/40.2: remove animation (RAW 32 == E_POOLRAD_ANIMATING_DEAD)
+    // Req 40.1/40.2: remove animation (RAW 32 == E_POOLRAD_ANIMATE_DEAD)
     // and poison (RAW 55) through the shared EffectSystem removal path so the
     // on-remove behavior runs. These are the ORIGINAL PoR raw .SPC ids, not
     // the generic Effects enum ordinals (E_ANIMATE_DEAD==71 was the wrong id
     // the prior body used; the correct animation id is 0x20 == 32).
-    const uint8 kRawAnimateDead = 32;   // E_POOLRAD_ANIMATING_DEAD (0x20)
+    const uint8 kRawAnimateDead = 32;   // E_POOLRAD_ANIMATE_DEAD (0x20)
     const uint8 kRawPoison = 55;        // poison (0x37, == E_POISONED)
+    // Held under the effect lock, so the animation does not "collapse".
+    if (g_engine)
+        g_engine->setInSpellProcess(true);
     while (ch->effects.hasEffect(kRawAnimateDead))
         removeRawEffectInstance(ch, kRawAnimateDead);
     while (ch->effects.hasEffect(kRawPoison))
         removeRawEffectInstance(ch, kRawPoison);
+    if (g_engine)
+        g_engine->setInSpellProcess(false);
 
     ch->hitPoints.current = 1;
     ch->healthStatus = Goldbox::Data::S_OKAY;
@@ -627,7 +638,7 @@ void TempleDialog::applyRemoveCurse(PoolradCharacter *ch) {
     // GB13-031 (Req 41.1/41.2/41.4): run the SHARED one-target Remove Curse
     // RULE on the current target, reusing the existing RemoveCurseHandler
     // sequence rather than "remove all curses". The handler removes raw curse
-    // effect 36 (E_POOLRAD_ACCURSED) FIRST and ONLY IF ABSENT clears the FIRST
+    // effect 36 (E_POOLRAD_BESTOW_CURSE) FIRST and ONLY IF ABSENT clears the FIRST
     // cursed inventory item -- one thing per invocation. Because the temple
     // calls it once per service, successive services peel off
     // effect -> first item -> second item in that order.
@@ -678,16 +689,10 @@ void TempleDialog::applyRemoveCurse(PoolradCharacter *ch) {
 // the first matching node. Removing exactly one instance per call matches the
 // finding's stated "remove one instance when duplicates exist" semantics.
 //
-// SCOPED EFFECT-LOCK / effectLock equivalent -- OPEN:
-//   The finding describes the original temple removal running under a scoped
-//   effect lock that preserves SPECIFIC suppression semantics (NOT blanket
-//   suppression of every callback). No lock/suppression primitive exists in
-//   EffectSystem / EffectRuntime / EffectHostBridge in this tree (grep found
-//   none), and the exact original suppression could not be confirmed from the
-//   available source. We therefore do NOT invent a blanket-suppression guard
-//   that could wrongly swallow callbacks; we run the confirmable on-remove
-//   dispatch via removeEffectById. The precise lock suppression stays OPEN:
-//   when the lock's exact semantics are traced, wrap these calls accordingly.
+// Callers that cure disease, poison or animation hold the effect lock
+// (Engine::setInSpellProcess), as Temple.pas does with GDVars.effectLock.
+// It only stops handlers from re-adding themselves (AddEffectIfNoLock) and
+// the Animate Dead "collapses" message.
 bool TempleDialog::removeRawEffectInstance(PoolradCharacter *ch, uint8 rawId) {
     Goldbox::Data::Effects::EffectSystem effectSystem(
         Goldbox::Data::Effects::g_effectHandler,

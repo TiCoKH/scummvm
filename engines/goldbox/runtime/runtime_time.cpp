@@ -50,6 +50,15 @@ static void timeNormalizeFields(uint16 *timeFields,
     }
 }
 
+static Common::List<Data::Effects::Effect>::iterator findNode(
+        Common::List<Data::Effects::Effect> &list,
+        const Data::Effects::Effect *node) {
+    Common::List<Data::Effects::Effect>::iterator it = list.begin();
+    while (it != list.end() && &*it != node)
+        ++it;
+    return it;
+}
+
 // Process timed effect expiration on all party members.
 // Converts (field, amount) into total base-unit ticks, then decrements
 // effect durations in chunks of <=10. Expired effects are removed via
@@ -57,6 +66,7 @@ static void timeNormalizeFields(uint16 *timeFields,
 static void timeApplyTimeStepEffects(
         Common::List<Data::PlayerCharacter *> &party,
         Data::Effects::EffectHandlerBase *handler,
+        Data::Effects::EffectHostBridge *bridge,
         GameState gameState,
         uint8 field, uint8 amount) {
     using namespace Data::Effects;
@@ -114,41 +124,37 @@ static void timeApplyTimeStepEffects(
 
             Common::List<Effect> &list = fx->effects();
 
-            // Snapshot the iterator to the last effect present at chunk start
-            // so we don't process effects appended during this chunk.
-            Common::List<Effect>::iterator tail = list.end();
-            if (!list.empty()) {
-                --tail;
-            }
-            const bool hasTail = !list.empty();
-            bool reachedTail = false;
+            // Age only the nodes present when the step starts. An expiry
+            // handler may append nodes (re-arming effects) or remove others
+            // (a death removes the 0-HP effects), so each node is looked up
+            // again by address instead of keeping iterators.
+            Common::Array<const Effect *> nodes;
+            for (const Effect &e : list)
+                nodes.push_back(&e);
 
-            for (Common::List<Effect>::iterator ei = list.begin();
-                    ei != list.end();) {
-                if (hasTail && reachedTail && ei != tail) {
-                    // We already processed tail; stop.
-                    break;
-                }
-                if (hasTail && ei == tail)
-                    reachedTail = true;
+            for (uint n = 0; n < nodes.size(); ++n) {
+                Common::List<Effect>::iterator ei = findNode(list, nodes[n]);
+                if (ei == list.end())
+                    continue;
 
                 Effect &effect = *ei;
-
-                if (effect.durationMin == 0 || effect.durationMin == 0xFFFF) {
-                    ++ei;
+                if (effect.durationMin == 0 || effect.durationMin == 0xFFFF)
                     continue;
-                }
 
                 if (static_cast<uint16>(chunkSize) < effect.durationMin) {
                     effect.durationMin -= chunkSize;
                     hasActiveEffects[ci] = true;
-                    ++ei;
-                } else {
-                    if (handler)
-                        handler->apply(EFF_REMOVE, effect, **it);
-                    (*it)->onEffectsChanged();
-                    ei = list.erase(ei);
+                    continue;
                 }
+
+                // FxEngine.RemoveEffect: the handler only runs for nodes
+                // added with onRemove set.
+                if (handler && effect.immediate)
+                    handler->apply(EFF_REMOVE, effect, **it, nullptr, bridge);
+                ei = findNode(list, nodes[n]);
+                if (ei != list.end())
+                    list.erase(ei);
+                (*it)->onEffectsChanged();
             }
 
             // Check remaining effects for timed entries.
@@ -175,7 +181,8 @@ void timeAddUnits(ECL::AddressSpace &mem, const TimeFieldAddresses &clockAddrs,
                   Common::List<Data::PlayerCharacter *> &party,
                   Data::Effects::EffectHandlerBase *handler,
                   GameState gameState,
-                  uint8 field, uint8 amount) {
+                  uint8 field, uint8 amount,
+                  Data::Effects::EffectHostBridge *bridge) {
     // Read 7 time fields from VM memory (byte-width, values < 256).
     uint16 timeFields[kTimeFieldCount];
     for (int i = 0; i < kTimeFieldCount; ++i) {
@@ -194,7 +201,7 @@ void timeAddUnits(ECL::AddressSpace &mem, const TimeFieldAddresses &clockAddrs,
     }
 
     // Process timed effect expiration.
-    timeApplyTimeStepEffects(party, handler, gameState, field, amount);
+    timeApplyTimeStepEffects(party, handler, bridge, gameState, field, amount);
 }
 
 } // namespace Goldbox

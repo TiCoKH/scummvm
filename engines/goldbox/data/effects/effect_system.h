@@ -79,6 +79,10 @@ public:
     bool removeEffect(Goldbox::Data::PlayerCharacter &character,
             CharacterEffects &effects, Effect &effect);
 
+    // Remove the effects that end at 0 HP (FxEngine.RemoveEffectsHp0),
+    // running each node's removal handler when its onRemove flag is set.
+    void removeHpZeroEffects(Goldbox::Data::PlayerCharacter &character);
+
     // Apply a terminal status to a character, mirroring EFFECT_setStatus.
     // Posts the message, mutates character state, clears status effects,
     // fires ETS_ON_DEATH trigger set, then notifies the host.

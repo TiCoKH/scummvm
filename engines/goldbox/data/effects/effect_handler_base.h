@@ -32,7 +32,13 @@
 
 namespace Goldbox {
 namespace Data {
+namespace Items {
+struct CharacterItem;
+}
+
 namespace Effects {
+
+class EffectHandlerBase;
 
 // Effect operation type.
 enum EffectOp {
@@ -44,6 +50,8 @@ enum EffectOp {
 
 // Single call record passed to every handler.
 // combat is null outside of combat (tick, non-combat spell application).
+// item is set for item ready/unready handlers, which act on the item
+// itself; effect then holds a copy of its effect bytes.
 struct EffectCall {
     EffectOp op;
     Effect &effect;
@@ -51,17 +59,19 @@ struct EffectCall {
     Combat::CombatGlobals *combat;
     EffectHostBridge *bridge;
     DamageSystem *damage;
-        const EffectHandlerBase *handler;
+    const EffectHandlerBase *handler;
+    Items::CharacterItem *item;
 
     EffectCall(EffectOp operation, Effect &effectRef,
             Goldbox::Data::PlayerCharacter &characterRef,
             Combat::CombatGlobals *combatGlobals = nullptr,
             EffectHostBridge *hostBridge = nullptr,
-                        DamageSystem *damageSystem = nullptr,
-                        const EffectHandlerBase *handlerRef = nullptr)
+            DamageSystem *damageSystem = nullptr,
+            const EffectHandlerBase *handlerRef = nullptr,
+            Items::CharacterItem *itemRef = nullptr)
             : op(operation), effect(effectRef), character(characterRef),
               combat(combatGlobals), bridge(hostBridge),
-                            damage(damageSystem), handler(handlerRef) {
+              damage(damageSystem), handler(handlerRef), item(itemRef) {
     }
 };
 
@@ -79,7 +89,21 @@ public:
             Combat::CombatGlobals *combat,
             EffectHostBridge *bridge) const;
     void apply(const EffectCall &call) const;
+    // Run effectId's handler on call, whatever call.effect.id holds
+    // (FxEngine.CallEffectHandler with another effect's node).
+    void dispatch(uint8 effectId, const EffectCall &call) const;
     bool hasHandler(uint8 effectType) const;
+
+    // Raw effect ids checked by trigger set setId, in dispatch order.
+    // Returns nullptr when the game uses the runtime's built-in table.
+    virtual const uint8 *getTriggerSet(uint8 setId, uint &count) const;
+
+    // Aura effects that also apply to creatures near the carrier. range is
+    // the combat radius in tiles.
+    virtual bool isGroupRadiatingEffect(uint8 rawId, uint8 &range) const;
+
+    // Effects removed when a creature drops to 0 HP or is put out of play.
+    virtual const uint8 *getHpZeroEffects(uint &count) const;
 
 protected:
     EffectHandlerBase();

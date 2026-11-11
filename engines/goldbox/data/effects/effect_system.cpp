@@ -153,23 +153,42 @@ bool EffectSystem::removeEffectImpl(Goldbox::Data::PlayerCharacter &character,
     if (!_handler)
         return false;
 
-    // Snapshot id and immediate flag before calling the handler: the handler
-    // (or a bridge callback it triggers) may call eraseEffectById on the same
-    // node, invalidating the reference. We erase by id afterward so the node
-    // is always cleaned up regardless of what the handler does.
-    const uint8 savedId = effect.id;
+    // Mirrors FxEngine.RemoveEffect: the handler runs (when the node's
+    // onRemove flag is set) while the node is still listed, then that node
+    // is unlinked. A handler may re-add the same id; the new node survives.
+    // The handler may also have unlinked the node itself, so it is only
+    // matched by address afterwards.
+    const Effect *node = &effect;
     const uint8 wasImmediate = effect.immediate;
 
     const uint8 oldStatus = character.healthStatus;
     const uint32 oldFlags = character.effectState.flags;
     if (wasImmediate)
         _handler->apply(EFF_REMOVE, effect, character, nullptr, _bridge);
+    effects.eraseEffect(node);
     character.onEffectsChanged();
     notifyBridge(_bridge, EFF_REMOVE, character,
         oldStatus, oldFlags, false, true);
-
-    effects.eraseEffectById(savedId);
     return true;
+}
+
+void EffectSystem::removeHpZeroEffects(
+        Goldbox::Data::PlayerCharacter &character) {
+    EffectHandlerBase *handler = _handler ? _handler : g_effectHandler;
+    CharacterEffects *fx = character.getEffects();
+    if (!fx)
+        return;
+
+    uint count = 0;
+    const uint8 *ids = handler ? handler->getHpZeroEffects(count) : nullptr;
+    if (!ids) {
+        character.clearStatusEffects();
+        return;
+    }
+
+    EffectSystem remover(handler, _bridge, _runtime);
+    for (uint i = 0; i < count; ++i)
+        remover.removeEffectById(character, *fx, ids[i]);
 }
 
 void EffectSystem::setStatus(Goldbox::Data::PlayerCharacter &character,
@@ -189,26 +208,21 @@ void EffectSystem::setStatus(Goldbox::Data::PlayerCharacter &character,
     character.enabled = false;
     character.hitPoints.current = 0;
 
-    // 4. Fire EFF_REMOVE for every immediate effect, then strip the list.
-    // The original removeEffect loop called the handler for each immediate
-    // effect (e.g. handleCharm restores combatSide on EFF_REMOVE). We
-    // replicate that here before the raw clear so cleanup handlers run.
+    EffectHandlerBase *handler = _handler ? _handler : g_effectHandler;
     CharacterEffects *fx = character.getEffects();
-    if (_handler && fx) {
-        Common::List<Effect> &list = fx->effects();
-        for (Effect &e : list) {
-            if (e.immediate)
-                _handler->apply(EFF_REMOVE, e, character, nullptr, _bridge);
-        }
-    }
-    character.clearStatusEffects();
 
-    // 5. Fire ETS_ON_DEATH trigger set (on-death passive effects).
-    if (_runtime && fx)
-        _runtime->checkEffectSet(ES_ON_DEATH, *fx, character);
+    // 4. Remove the effects that end at 0 HP.
+    removeHpZeroEffects(character);
+
+    // 5. Run the HP_ZERO trigger set; effect 99 (fight on) may revive.
+    if (fx && handler) {
+        EffectRuntime localRuntime(handler, _bridge);
+        EffectRuntime *runtime = _runtime ? _runtime : &localRuntime;
+        runtime->checkEffectSet(ES_ON_DEATH, *fx, character);
+    }
 
     // 6. Notify host: combat map removal, timing delay, UI refresh.
-    if (_bridge)
+    if (_bridge && !character.enabled)
         _bridge->onCharacterDied(&character);
 }
 

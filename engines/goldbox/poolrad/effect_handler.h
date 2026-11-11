@@ -107,6 +107,10 @@ public:
     void setupHandlers() override;
     Goldbox::Data::Effects::Effects mapRawEffectId(uint8 rawId) const override;
 
+    const uint8 *getTriggerSet(uint8 setId, uint &count) const override;
+    bool isGroupRadiatingEffect(uint8 rawId, uint8 &range) const override;
+    const uint8 *getHpZeroEffects(uint &count) const override;
+
 private:
     static void handleNoop(const Goldbox::Data::Effects::EffectCall &call);
 };

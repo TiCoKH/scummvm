@@ -23,6 +23,7 @@
 
 #include "common/array.h"
 #include "goldbox/combat/combat_context.h"
+#include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect.h"
@@ -218,7 +219,8 @@ static bool isWithinPropagationRange(const Combat::CombatantTable &table,
     return false;
 }
 
-static bool findApplicableEffect(uint8 effectType, PlayerCharacter &target,
+static bool findApplicableEffect(const EffectHandlerBase *handler,
+        uint8 effectType, PlayerCharacter &target,
         const Common::Array<PlayerCharacter *> &party,
         const Combat::CombatantTable *combatTable, Effect *&foundEffect) {
     foundEffect = nullptr;
@@ -231,7 +233,8 @@ static bool findApplicableEffect(uint8 effectType, PlayerCharacter &target,
         return true;
 
     // 2. Otherwise, only radiating group effects may propagate.
-    if (!EffectRuntime::isGroupRadiatingEffect(effectType))
+    uint8 range = 1;
+    if (!handler || !handler->isGroupRadiatingEffect(effectType, range))
         return false;
 
     for (uint i = 0; i < party.size(); ++i) {
@@ -251,8 +254,6 @@ static bool findApplicableEffect(uint8 effectType, PlayerCharacter &target,
         if (!combatTable)
             continue;
 
-        const uint8 range =
-            (effectType == static_cast<uint8>(E_PRAYER)) ? 6 : 1;
         if (isWithinPropagationRange(*combatTable, *member, target, range)) {
             foundEffect = memberEffect;
             return true;
@@ -282,6 +283,15 @@ void EffectRuntime::checkEffectSet(EffectSet triggerSet,
     if (!_handler)
         return;
 
+    uint count = 0;
+    const uint8 *ids = _handler->getTriggerSet(
+        static_cast<uint8>(triggerSet), count);
+    if (ids) {
+        for (uint i = 0; i < count; ++i)
+            checkEffect(character, ids[i], combat);
+        return;
+    }
+
     if (triggerSet == ES_POISON_CYCLE) {
         Common::List<Effect> &list = effects.effects();
         for (Effect &effect : list) {
@@ -302,65 +312,63 @@ void EffectRuntime::checkEffectSet(EffectSet triggerSet,
         return;
 
     for (uint i = 0; i < table->size; ++i)
-        checkEffect(character, static_cast<uint8>(table->ids[i]));
+        checkEffect(character, static_cast<uint8>(table->ids[i]), combat);
 }
 
 bool EffectRuntime::checkEffect(PlayerCharacter &target,
         uint8 effectType) const {
+    return checkEffect(target, effectType, nullptr);
+}
+
+bool EffectRuntime::checkEffect(PlayerCharacter &target, uint8 effectType,
+        Combat::CombatGlobals *combat) const {
     if (!_handler)
         return false;
 
-    Common::Array<PlayerCharacter *> party;
-    if (Goldbox::g_engine) {
+    Combat::CombatContext *combatContext = Goldbox::g_engine ?
+        Goldbox::g_engine->getCombatContext() : nullptr;
+
+    // Aura carriers are searched over every creature: the combat roster in
+    // combat, the party otherwise.
+    Common::Array<PlayerCharacter *> creatures;
+    if (combatContext && !combatContext->params.roster.empty()) {
+        creatures = combatContext->params.roster;
+    } else if (Goldbox::g_engine) {
         Common::List<PlayerCharacter *> *partyList =
             Goldbox::VmInterface::getParty();
         if (partyList) {
             for (PlayerCharacter *member : *partyList) {
                 if (member)
-                    party.push_back(member);
+                    creatures.push_back(member);
             }
         }
     }
 
-    Combat::CombatGlobals *combatGlobals = nullptr;
     const Combat::CombatantTable *combatTable = nullptr;
-    if (Goldbox::g_engine) {
-        Combat::CombatContext *combatContext = Goldbox::g_engine->
-            getCombatContext();
-        if (combatContext) {
-            combatGlobals = &combatContext->globals;
-            combatTable = &combatContext->table;
-        }
+    if (combatContext) {
+        if (!combat)
+            combat = &combatContext->globals;
+        combatTable = &combatContext->table;
     }
 
     Effect *foundEffect = nullptr;
-    if (!findApplicableEffect(effectType, target, party,
+    if (!findApplicableEffect(_handler, effectType, target, creatures,
             combatTable, foundEffect) || !foundEffect)
         return false;
 
+    // No stat rebuild here: trigger handlers adjust values (AC, rolls) that
+    // the caller reads right after the trigger set.
     const uint8 oldStatus = target.healthStatus;
     const uint32 oldFlags = target.effectState.flags;
-    _handler->apply(EFF_ADD, *foundEffect, target, combatGlobals, _bridge);
-    target.onEffectsChanged();
+    _handler->apply(EFF_ADD, *foundEffect, target, combat, _bridge);
     notifyBridge(_bridge, EFF_ADD, target,
         oldStatus, oldFlags, true, true);
     return true;
 }
 
-// Raw effect IDs (Poolrad) that radiate to nearby characters.
-static const uint8 kGroupRadiatingEffects[] = {
-    static_cast<uint8>(E_SILENCE_15_RADIUS),
-    static_cast<uint8>(E_PROT_FROM_EVIL_10_RADIUS),
-    static_cast<uint8>(E_PROT_FROM_GOOD_10_RADIUS),
-    static_cast<uint8>(E_PRAYER)
-};
-
-bool EffectRuntime::isGroupRadiatingEffect(uint8 effectType) {
-    for (uint i = 0; i < ARRAYSIZE(kGroupRadiatingEffects); ++i) {
-        if (kGroupRadiatingEffects[i] == effectType)
-            return true;
-    }
-    return false;
+bool EffectRuntime::isGroupRadiatingEffect(uint8 effectType) const {
+    uint8 range = 1;
+    return _handler && _handler->isGroupRadiatingEffect(effectType, range);
 }
 
 bool EffectRuntime::isAffectedByGroupEffect(uint8 effectType,
@@ -368,7 +376,7 @@ bool EffectRuntime::isAffectedByGroupEffect(uint8 effectType,
         const Common::Array<PlayerCharacter *> &party,
         const Combat::CombatantTable *combatTable) const {
     Effect *foundEffect = nullptr;
-    return findApplicableEffect(effectType, target, party,
+    return findApplicableEffect(_handler, effectType, target, party,
         combatTable, foundEffect);
 }
 

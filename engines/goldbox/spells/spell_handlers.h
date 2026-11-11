@@ -116,7 +116,7 @@ public:
                             const TargetSelection &targets) const override;
 };
 
-// ID13 Reduce: saving throw vs spell; removes E_POOLRAD_ENLARGE_STRENGTHEN.
+// ID13 Reduce: saving throw vs spell; removes E_POOLRAD_ENLARGE.
 class ReduceHandler : public ISpellHandler {
 public:
     SpellCastResult execute(const SpellContext &context,
@@ -190,7 +190,7 @@ public:
 };
 
 // ID26 Slow Poison: status/effect gate; HP floor; applies effect then transitions
-// raw effect 0x4E (EFF_REMOVE) and adds E_POOLRAD_POISON_DAMAGE (0x0F, dur=10, power=0xFF).
+// raw effect 0x4E (EFF_REMOVE) and adds E_POOLRAD_SLOW_POISON_HIT (0x0F, dur=10, power=0xFF).
 class SlowPoisonHandler : public ISpellHandler {
 public:
     SpellCastResult execute(const SpellContext &context,
@@ -207,7 +207,7 @@ public:
                             const TargetSelection &targets) const override;
 };
 
-// ID28 Spiritual Hammer: generic effect path then EFF_ADD on E_POOLRAD_SPIRITUAL_HAMMER
+// ID28 Spiritual Hammer: generic effect path then EFF_ADD on E_POOLRAD_SPIRIT_HAMMER
 // (0x17) fired on the caster.
 class SpiritualHammerHandler : public ISpellHandler {
 public:
@@ -237,7 +237,7 @@ public:
 
 // ID35 Strength: bonus dice by class (mage=1d4, cleric/thief=1d6, fighter=1d8);
 // excess over 18 converts to exceptional strength for fighters (capped at 100);
-// adds E_POOLRAD_ENLARGE_STRENGTHEN (0x0C) with duration from computeSpellDuration.
+// adds E_POOLRAD_ENLARGE (0x0C) with duration from computeSpellDuration.
 class StrengthHandler : public ISpellHandler {
 public:
     SpellCastResult execute(const SpellContext &context,
@@ -248,7 +248,7 @@ public:
 // ID36 Animate Dead: iterates allies filtered by S_DEAD + classType==0;
 // re-places on combat map; converts to undead (combatSide, ai_control,
 // levelUndead=2, npc=0xB2/0xB3, classType=4); revives at max HP;
-// adds E_POOLRAD_ANIMATING_DEAD (0x20) with power = originalSide*16 + casterLevel.
+// adds E_POOLRAD_ANIMATE_DEAD (0x20) with power = originalSide*16 + casterLevel.
 class AnimateDeadHandler : public ISpellHandler {
 public:
     SpellCastResult execute(const SpellContext &context,
@@ -256,7 +256,7 @@ public:
                             const TargetSelection &targets) const override;
 };
 
-// ID37 Cure Blindness: removes E_POOLRAD_BLINDED (0x21) from target;
+// ID37 Cure Blindness: removes E_POOLRAD_BLIND (0x21) from target;
 // posts "can see" only when the effect was actually present and removed.
 class CureBlindnessHandler : public ISpellHandler {
 public:
@@ -281,7 +281,7 @@ public:
                             const TargetSelection &targets) const override;
 };
 
-// ID43 Remove Curse: removes E_POOLRAD_ACCURSED (0x24) from target; if absent,
+// ID43 Remove Curse: removes E_POOLRAD_BESTOW_CURSE (0x24) from target; if absent,
 // clears the cursed flag on the first cursed inventory item found.
 class RemoveCurseHandler : public ISpellHandler {
 public:
@@ -406,7 +406,7 @@ public:
                             const TargetSelection &targets) const override;
 };
 
-// ID59 (SP_MI3): applyStrengthChange(21, 0); posts "is stronger"; adds E_POOLRAD_ENLARGE_STRENGTHEN
+// ID59 (SP_MI3): applyStrengthChange(21, 0); posts "is stronger"; adds E_POOLRAD_ENLARGE
 // with duration from computeSpellDuration.
 class SpellID59Handler : public ISpellHandler {
 public:

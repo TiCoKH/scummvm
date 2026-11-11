@@ -43,6 +43,7 @@ uint8 getOpposingSideMaxReach(const Data::PlayerCharacter *ch,
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/effect_handler_base.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/effects/effect_system.h"
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/spells/spell_casting.h"
 #include "goldbox/vm_interface.h"
@@ -860,7 +861,10 @@ CombatSession::SetStatusResult CombatSession::setCharacterStatus(
     if (ch->combatState) {
         ch->combatState->endTurn();
         if (wasCurrent) {
-            ch->clearStatusEffects();
+            Data::Effects::EffectSystem effectSystem(
+                Data::Effects::g_effectHandler, _params.effectBridge,
+                _params.effectRuntime);
+            effectSystem.removeHpZeroEffects(*ch);
             result.effectsCleared = true;
         }
     }

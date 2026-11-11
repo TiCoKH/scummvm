@@ -37,7 +37,7 @@ enum HandlerId {
     kHandlerHoldPersonShared,
     kHandlerDispelMagicShared,
     kHandlerPrayer,              // ID42: effectPower = casterLevel + combatSide * 16
-    kHandlerRemoveCurse,         // ID43: remove E_POOLRAD_ACCURSED or first cursed item
+    kHandlerRemoveCurse,         // ID43: remove E_POOLRAD_BESTOW_CURSE or first cursed item
     kHandlerBestowCurse,         // ID44: pure generic delegate
     kHandlerBlink,               // ID45: pure generic delegate
     kHandlerFireball,            // ID47: damageDice d6; outdoor AoE from tileX/Y radius 2
@@ -51,7 +51,7 @@ enum HandlerId {
     kHandlerBurningHands,       // ID09: damage = caster level
     kHandlerCharmPerson,        // ID10: type/size check + charm effect
     kHandlerEnlarge,             // ID12: strength buff by caster level
-    kHandlerReduce,              // ID13: saving throw; remove E_POOLRAD_ENLARGE_STRENGTHEN
+    kHandlerReduce,              // ID13: saving throw; remove E_POOLRAD_ENLARGE
     kHandlerFriends,             // ID14: charisma buff 2d4; power = old charisma
     kHandlerMagicMissile,        // ID15: damage = damageLevel + damageLevel*d4; behavior 8
     kHandlerShield,              // ID19: pure effect; no damage
@@ -62,19 +62,19 @@ enum HandlerId {
     kHandlerSilence15Radius,     // ID25: pure effect; delegates to generic path
     kHandlerSlowPoison,          // ID26: status/effect gate; HP floor; effect transition
     kHandlerSnakeCharm,          // ID27: filters enemies by monsterType==0x0E and HP budget
-    kHandlerSpiritualHammer,     // ID28: generic effect path + EFF_ADD on E_POOLRAD_SPIRITUAL_HAMMER
+    kHandlerSpiritualHammer,     // ID28: generic effect path + EFF_ADD on E_POOLRAD_SPIRIT_HAMMER
     kHandlerMirrorImage,         // ID32: effectPowerOverride = 1d4
     kHandlerStinkingCloud,       // ID34: creates persistent cloud object; applies E_STINKING_CLOUD_EXPAIR
     kHandlerStrength,            // ID35: bonus by class; exceptional str for fighters
     kHandlerAnimateDead,         // ID36: converts dead allies to undead combatants
-    kHandlerCureBlindness,       // ID37: removes E_POOLRAD_BLINDED; posts "can see" if removed
+    kHandlerCureBlindness,       // ID37: removes E_POOLRAD_BLIND; posts "can see" if removed
     kHandlerCureDisease,         // ID39: removes disease/affliction effects
     kHandlerCauseDisease,        // ID40: applies disease effect via generic path
     kHandlerSpellID58,           // ID58: cures 0x37+0x16, or afflictions, or heals 1d4+8
     kHandlerLightningBolt,       // ID51: casterLevel d6; resolveAoE + traceSpellPath(8, dmg, 4)
     kHandlerSpellID60,           // ID60 (SP_MI4): 20+1d6; resolveAoE + traceSpellPath(3, 20, 4)
     kHandlerSpellID57,           // ID57 (SP_MI1): remove E_POOLRAD_SLOWED; apply "is Speedy" via generic
-    kHandlerSpellID59,           // ID59 (SP_MI3): applyStrengthChange(21,0); add E_POOLRAD_ENLARGE_STRENGTHEN
+    kHandlerSpellID59,           // ID59 (SP_MI3): applyStrengthChange(21,0); add E_POOLRAD_ENLARGE
     kHandlerSpellID61,           // ID61 (SP_MI5): pure generic delegate — "is paralyzed"
     kHandlerSpellID62,           // ID62 (SP_MI6): heal 2d4+2 HP
     kHandlerSpellID63,           // ID63 (SP_MI7): pure generic delegate — "is invisible"

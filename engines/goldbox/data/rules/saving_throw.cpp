@@ -45,13 +45,15 @@ bool checkSavingThrow(Goldbox::Data::ADnDCharacter &character,
     if (roll == 20)
         return true;
 
-    // Accumulate saving throw modifiers from ES_SAVING_THROW_MODS (set 12),
-    // mirroring UTIL_checkEffectSet(12, char). Works on a copy so the live
-    // combat globals (if any) are left untouched.
+    // FxEngine.RollSavingThrow: the SAVING_THROW handlers (set 12) adjust
+    // the full roll in place; immunities set it to 100. Works on a copy so
+    // the live combat globals (if any) are left untouched.
     Goldbox::Combat::CombatGlobals tempCombat;
     if (combat)
         tempCombat = *combat;
     tempCombat.savingThrowType = saveType;
+    tempCombat.savingThrow = static_cast<int8>(
+        roll + character.saveBonus + saveModifier);
 
     Effects::CharacterEffects *fx = character.getEffects();
     if (fx && handler) {
@@ -61,9 +63,8 @@ bool checkSavingThrow(Goldbox::Data::ADnDCharacter &character,
 
     // SavingThrows fields are laid out in order matching saveType 0-4.
     const uint8 target = (&character.savingThrows.vsParalysis)[static_cast<uint8>(saveType)];
-    const int total = roll + character.saveBonus + saveModifier + tempCombat.savingThrow;
-
-    return total >= target;
+    // The original roll is a byte: penalties below zero wrap to a pass.
+    return static_cast<uint8>(tempCombat.savingThrow) >= target;
 }
 
 } // namespace Rules

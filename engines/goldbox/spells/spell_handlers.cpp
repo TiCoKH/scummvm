@@ -173,7 +173,7 @@ SpellCastResult CharmPersonHandler::execute(const SpellContext &context,
     Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
     Goldbox::Data::Effects::Effect *charmEffect = fx ?
         fx->findEffectById(
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_CHARM_PERSON))
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_CHARM))
         : nullptr;
     if (charmEffect && handler)
         handler->apply(Goldbox::Data::Effects::EFF_ADD, *charmEffect,
@@ -222,7 +222,7 @@ SpellCastResult EnlargeHandler::execute(const SpellContext &context,
 }
 
 // --- Reduce (ID13) ---
-// Saving throw vs spell negates. If save fails, removes E_POOLRAD_ENLARGE_STRENGTHEN
+// Saving throw vs spell negates. If save fails, removes E_POOLRAD_ENLARGE
 // (0x0C) from the target and posts "has been reduced".
 SpellCastResult ReduceHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
@@ -257,7 +257,7 @@ SpellCastResult ReduceHandler::execute(const SpellContext &context,
 
         if (context.effectSystem->removeEffectById(
                 *target, *fx,
-                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE_STRENGTHEN))) {
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE))) {
             if (bridge)
                 bridge->postEffectMessage(target, "has been reduced", true);
         }
@@ -337,7 +337,7 @@ SpellCastResult ShockingGraspHandler::execute(const SpellContext &context,
 
 // --- Sleep (ID21) ---
 // Rolls 4d4 as a shared budget. Each target consumes a level-based cost;
-// targets already carrying E_POOLRAD_HELPLESS_35 or whose cost exceeds the
+// targets already carrying E_POOLRAD_SLEEP or whose cost exceeds the
 // remaining budget are removed from the list before the generic effect path.
 SpellCastResult SleepHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
@@ -366,7 +366,7 @@ SpellCastResult SleepHandler::execute(const SpellContext &context,
         // Already sleeping — skip.
         Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
         if (fx && fx->hasEffect(
-                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_HELPLESS_35)))
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_SLEEP)))
             continue;
         const uint8 highestLevel = poolrad ? poolrad->highestLevel : 1;
 
@@ -491,7 +491,7 @@ SpellCastResult Silence15RadiusHandler::execute(const SpellContext &context,
 //   2. Target must carry raw effect 0x37 (active poison).
 //   3. Target HP is floored to 1 before effect application.
 // After the generic effect path (effectPowerOverride=0xFF), fires EFF_REMOVE
-// on raw effect 0x4E, then adds E_POOLRAD_POISON_DAMAGE (0x0F) with
+// on raw effect 0x4E, then adds E_POOLRAD_SLOW_POISON_HIT (0x0F) with
 // duration=10 and power=0xFF.
 SpellCastResult SlowPoisonHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
@@ -541,10 +541,9 @@ SpellCastResult SlowPoisonHandler::execute(const SpellContext &context,
     }
 
     // Add the resulting slow-poison marker: effect 0x0F, duration 10, power 0xFF.
-    context.effectSystem->addOrRefreshEffect(
-        *fx, *target,
-        static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_POISON_DAMAGE),
-        10, 0xFF, true);
+    target->addEffect(
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_SLOW_POISON_HIT),
+            10, 0xFF, true);
 
     return SpellCastResult(CAST_OK);
 }
@@ -590,7 +589,7 @@ SpellCastResult SnakeCharmHandler::execute(const SpellContext &context,
 
 // --- Spiritual Hammer (ID28) ---
 // Applies the generic effect path on the caster, then fires EFF_ADD on
-// E_POOLRAD_SPIRITUAL_HAMMER (0x17) to activate the weapon-creation side effect.
+// E_POOLRAD_SPIRIT_HAMMER (0x17) to activate the weapon-creation side effect.
 SpellCastResult SpiritualHammerHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -609,7 +608,7 @@ SpellCastResult SpiritualHammerHandler::execute(const SpellContext &context,
         Goldbox::Data::Effects::CharacterEffects *fx = context.caster->getEffects();
         Goldbox::Data::Effects::Effect *hammerEffect = fx ?
             fx->findEffectById(
-                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_SPIRITUAL_HAMMER))
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_SPIRIT_HAMMER))
             : nullptr;
         if (hammerEffect)
             handler->apply(Goldbox::Data::Effects::EFF_ADD, *hammerEffect,
@@ -665,8 +664,7 @@ SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
     // Duration = castingLevel rounds (mirrors original CHARACTER_addEffect call).
     Goldbox::Data::Effects::CharacterEffects *casterFx = context.caster->getEffects();
     if (casterFx) {
-        context.effectSystem->addOrRefreshEffect(
-            *casterFx, *context.caster,
+        context.caster->addEffect(
             static_cast<uint8>(Goldbox::Data::Effects::E_STINKING_CLOUD_EXPAIR),
             context.casterLevel, power, true);
     }
@@ -708,7 +706,7 @@ SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
 // --- Strength (ID35) ---
 // Bonus dice by class (highest priority wins): fighter=1d8, cleric/thief=1d6, mage=1d4.
 // Excess over 18 converts to exceptional strength for fighters (capped at 100).
-// Adds E_POOLRAD_ENLARGE_STRENGTHEN (0x0C) with duration from computeSpellDuration.
+// Adds E_POOLRAD_ENLARGE (0x0C) with duration from computeSpellDuration.
 SpellCastResult StrengthHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -764,9 +762,8 @@ SpellCastResult StrengthHandler::execute(const SpellContext &context,
             static_cast<uint8>(Goldbox::Data::Spells::SP_MUL2_STRENGTH),
             context.casterLevel, context.inCombat);
 
-        context.effectSystem->addOrRefreshEffect(
-            *target->getEffects(), *target,
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE_STRENGTHEN),
+        target->addEffect(
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE),
             duration, effectPower, true);
     }
 
@@ -778,7 +775,7 @@ SpellCastResult StrengthHandler::execute(const SpellContext &context,
 // Re-places each on the combat map at their stored position; converts to undead
 // (combatSide from caster, ai_control=true, levelUndead=2, npc=0xB2/0xB3, classType=4).
 // Clears memorized spells and combat target. Revives at max HP.
-// Adds E_POOLRAD_ANIMATING_DEAD (0x20) with power = originalSide*16 + casterLevel.
+// Adds E_POOLRAD_ANIMATE_DEAD (0x20) with power = originalSide*16 + casterLevel.
 // Budget = casterLevel animations.
 SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
@@ -852,9 +849,8 @@ SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
         // Apply animated effect and set status.
         Goldbox::Data::Effects::CharacterEffects *fx = ch->getEffects();
         if (fx) {
-            context.effectSystem->addOrRefreshEffect(
-                *fx, *ch,
-                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ANIMATING_DEAD),
+            ch->addEffect(
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ANIMATE_DEAD),
                 0, effectPower, true);
         }
 
@@ -871,7 +867,7 @@ SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
 }
 
 // --- Cure Blindness (ID37) ---
-// Removes E_POOLRAD_BLINDED (0x21) from the target via removeEffectById,
+// Removes E_POOLRAD_BLIND (0x21) from the target via removeEffectById,
 // which fires EFF_REMOVE on the effect handler before erasing the record.
 // Posts "can see" only when the effect was actually present and removed.
 SpellCastResult CureBlindnessHandler::execute(const SpellContext &context,
@@ -897,7 +893,7 @@ SpellCastResult CureBlindnessHandler::execute(const SpellContext &context,
 
         if (context.effectSystem->removeEffectById(
                 *target, *fx,
-                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_BLINDED)) && bridge)
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_BLIND)) && bridge)
             bridge->postEffectMessage(target, "can see", true);
     }
 
@@ -919,6 +915,11 @@ static bool removeAfflictions(Goldbox::Data::Effects::EffectSystem *effectSystem
 
     bool removed = false;
 
+    // Magic.RemoveDiseaseEffects holds the effect lock so the disease
+    // handlers do not re-arm while being removed.
+    if (Goldbox::g_engine)
+        Goldbox::g_engine->setInSpellProcess(true);
+
     if (effectSystem->removeEffectById(*target, *fx, 0x22))
         removed = true;
 
@@ -930,11 +931,14 @@ static bool removeAfflictions(Goldbox::Data::Effects::EffectSystem *effectSystem
     }
 
     if (effectSystem->removeEffectById(*target, *fx,
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENDLESS_REGEN))) {
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ROT_NO_HEAL))) {
         removed = true;
         fx->eraseEffectById(
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ROT));
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_MUMMY_ROT));
     }
+
+    if (Goldbox::g_engine)
+        Goldbox::g_engine->setInSpellProcess(false);
 
     return removed;
 }
@@ -967,7 +971,7 @@ SpellCastResult PrayerHandler::execute(const SpellContext &context,
 }
 
 // --- Remove Curse (ID43) ---
-// 1. Try to remove E_POOLRAD_ACCURSED (0x24) from the target; post "is un-cursed" if removed.
+// 1. Try to remove E_POOLRAD_BESTOW_CURSE (0x24) from the target; post "is un-cursed" if removed.
 // 2. Otherwise scan inventory for the first cursed item, clear its flag, post "'s item is un-cursed".
 SpellCastResult RemoveCurseHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
@@ -988,7 +992,7 @@ SpellCastResult RemoveCurseHandler::execute(const SpellContext &context,
 
     if (fx && context.effectSystem->removeEffectById(
             *target, *fx,
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ACCURSED))) {
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_BESTOW_CURSE))) {
         if (bridge)
             bridge->postEffectMessage(target, "is un-cursed", true);
         return SpellCastResult(CAST_OK);
@@ -1112,7 +1116,7 @@ SpellCastResult BlinkHandler::execute(const SpellContext &context,
 // Outdoor combat: rebuild target list from all combatants within
 // Chebyshev distance 2 of targets.tileX/Y (mirrors COMBAT_BuildTargetListCore
 // with radius 2, side 0xFF = all sides).
-// Stores damageDice in combat->attackCount (mirrors UTIL_RollDiceAttack).
+// Stores damageDice in combat->damageDice (mirrors RollDamageDice).
 // Applies damage with behaviorFlags = 9 (fire=0x01 | magic=0x08).
 SpellCastResult FireballHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
@@ -1135,6 +1139,8 @@ SpellCastResult FireballHandler::execute(const SpellContext &context,
     // Roll damage dice.
     const uint8 baseDamage = Goldbox::g_engine ?
         static_cast<uint8>(Goldbox::g_engine->rollDice(damageDice, 6)) : damageDice;
+    if (context.combat)
+        context.combat->damageDice = damageDice;
 
     // Query indoor/outdoor mode from the ECL runtime state.
     bool isIndoor = true;
@@ -1283,7 +1289,7 @@ SpellCastResult SpellID58Handler::execute(const SpellContext &context,
         // Step 1: cure primary condition (raw 0x37) and its associated 0x16.
         if (context.effectSystem->removeEffectById(*target, *fx, 0x37)) {
             fx->eraseEffectById(
-                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_SLOW_POISON));
+                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_SLOW_POISON_END));
             continue;
         }
 
@@ -1322,6 +1328,7 @@ SpellCastResult LightningBoltHandler::execute(const SpellContext &context,
     const uint8 damageDice = context.casterLevel > 0 ? context.casterLevel : 1;
     const uint8 baseDamage = Goldbox::g_engine ?
         static_cast<uint8>(Goldbox::g_engine->rollDice(damageDice, 6)) : damageDice;
+    context.combat->damageDice = damageDice;
 
     const TilePos attackerPos(
         ctx->table.getCharacterCol(context.caster),
@@ -1458,7 +1465,7 @@ SpellCastResult SpellID57Handler::execute(const SpellContext &context,
 
 // --- Spell ID59 (SP_MI3) ---
 // Applies applyStrengthChange(21, 0); posts "is stronger"; adds
-// E_POOLRAD_ENLARGE_STRENGTHEN with duration from computeSpellDuration.
+// E_POOLRAD_ENLARGE with duration from computeSpellDuration.
 SpellCastResult SpellID59Handler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -1483,9 +1490,8 @@ SpellCastResult SpellID59Handler::execute(const SpellContext &context,
             static_cast<uint8>(Goldbox::Data::Spells::SP_MI3),
             context.casterLevel, context.inCombat);
 
-        context.effectSystem->addOrRefreshEffect(
-            *target->getEffects(), *target,
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE_STRENGTHEN),
+        target->addEffect(
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE),
             duration, strengthChange, true);
     }
 

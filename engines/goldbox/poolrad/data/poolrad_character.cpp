@@ -66,14 +66,18 @@ void callItemReadyEffect(PoolradCharacter *character,
 		return;
 	}
 
+	// The handler works on the item (p in the original); the effect node
+	// only carries copies of the item's effect bytes.
 	Effect effect;
 	effect.id = item->effect3;
 	effect.durationMin = 0;
 	effect.power = item->effect2;
 	effect.immediate = 0;
 
-	handler->apply(equipping ? EFF_ADD : EFF_REMOVE, effect, *character,
-		nullptr, Goldbox::Poolrad::getEffectHostBridge());
+	EffectHostBridge *bridge = Goldbox::Poolrad::getEffectHostBridge();
+	Goldbox::Data::DamageSystem damageSystem(bridge);
+	handler->apply(EffectCall(equipping ? EFF_ADD : EFF_REMOVE, effect,
+		*character, nullptr, bridge, &damageSystem, handler, item));
 }
 
 } // namespace
@@ -86,16 +90,48 @@ PoolradCharacter::PoolradCharacter() {
 
 void PoolradCharacter::addEffect(uint8 type, uint16 durationMin,
 		uint8 power, bool immediate) {
-	// The original CHARACTER_addEffect only appends a node to the linked list;
-	// it never fires any handler. Pass immediate=false so addOrRefreshEffect
-	// only appends without triggering EFF_ADD, matching the original behaviour
-	// and avoiding reentrancy when one handler calls addEffect.
-	Goldbox::Data::Effects::EffectSystem effectSystem(
-		Goldbox::Data::Effects::g_effectHandler,
-		Goldbox::Poolrad::getEffectHostBridge());
-	effectSystem.addOrRefreshEffect(effects, *this, type, durationMin,
-		power, false);
+	// FxEngine.AddEffect: always append a new node, never refresh an existing
+	// one and never call the handler. immediate is the node's onRemove flag.
+	Goldbox::Data::Effects::Effect effect;
+	effect.id = type;
+	effect.durationMin = durationMin;
+	effect.power = power;
+	effect.immediate = immediate ? 1 : 0;
+	effects.appendEffect(effect);
 	recalcCombatStats();
+}
+
+bool PoolradCharacter::applyStrengthChange(uint8 newStr, uint8 newExtStr,
+		uint8 &outEncoded) {
+	using namespace Goldbox::Data::Effects;
+
+	uint8 oldStr = abilities.strength.current;
+	uint8 oldExt = abilities.strException.current;
+
+	// Weaker than the current Strength: nothing changes, and the encoded
+	// value is flagged so the Strength handler skips the node.
+	if (newStr < oldStr || (newStr == 18 && newExtStr < oldExt)) {
+		outEncoded = static_cast<uint8>(strengthEncode(newStr, newExtStr) + 0x80);
+		return false;
+	}
+
+	// The first active Enlarge/Strength node hands over the Strength it was
+	// going to restore, and keeps the current one (flagged) instead.
+	for (Effect &e : effects.effects()) {
+		if ((e.id == E_POOLRAD_ENLARGE || e.id == E_POOLRAD_STRENGTH) &&
+				e.power < 0x80) {
+			const uint8 current = strengthEncode(oldStr, oldExt);
+			strengthDecode(e.power, oldStr, oldExt);
+			e.power = static_cast<uint8>(current + 0x80);
+			break;
+		}
+	}
+
+	abilities.strength.current = newStr;
+	abilities.strException.current = newExtStr;
+	recalcCombatStats();
+	outEncoded = strengthEncode(oldStr, oldExt);
+	return true;
 }
 
 void PoolradCharacter::onEffectsChanged() {
@@ -103,11 +139,18 @@ void PoolradCharacter::onEffectsChanged() {
 }
 
 void PoolradCharacter::removeUnconsciousEffect() {
-	Goldbox::Data::Effects::EffectSystem effectSystem(
-		Goldbox::Data::Effects::g_effectHandler,
+	// FxEngine.RestoreHitPoints: an unconscious creature healed outside
+	// combat is woken through the HEAL_WAKE handler (called with no node).
+	using namespace Goldbox::Data::Effects;
+	if (!g_effectHandler)
+		return;
+	Effect wake;
+	wake.id = E_POOLRAD_HEAL_WAKE;
+	wake.durationMin = 0;
+	wake.power = 0xFF;
+	wake.immediate = 0;
+	g_effectHandler->apply(EFF_REMOVE, wake, *this, nullptr,
 		Goldbox::Poolrad::getEffectHostBridge());
-	effectSystem.removeEffectById(*this, effects,
-		Goldbox::Data::Effects::E_POOLRAD_HELPLESS_33);
 }
 
 void PoolradCharacter::initialize() {
@@ -616,14 +659,6 @@ void PoolradCharacter::applyWeaponAndAbilityModifiers() {
 }
 
 void PoolradCharacter::applyEffectStateModifiers(AcComponents &ac) {
-	int acBonus = 0;
-	if (effectState.flags & EF_INVISIBLE)      acBonus += 2;
-	if (effectState.flags & EF_ITEM_INVISIBLE)  acBonus += 2;
-	if (effectState.flags & EF_CAMOUFLAGE)      acBonus += 1;
-	if (effectState.flags & EF_DISPLACE)        acBonus += 2;
-	if (effectState.flags & EF_BLINKING)        acBonus += 4;
-	if (effectState.flags & EF_MIRROR_IMAGE)    acBonus += 2;
-
 	thac0.current = static_cast<uint8>(CLIP<int>(
 		(int)thac0.current + effectState.mods.attackRoll, 0, 255));
 	curPrimaryRoll.action.modifier = static_cast<int8>(CLIP<int>(
@@ -635,7 +670,7 @@ void PoolradCharacter::applyEffectStateModifiers(AcComponents &ac) {
 	movement.current = static_cast<uint8>(CLIP<int>(
 		(int)movement.current + effectState.mods.movement, 0, 255));
 	ac.armorBase = static_cast<uint8>(CLIP<int>(
-		(int)ac.armorBase + effectState.mods.armorClass + acBonus, 0, 255));
+		(int)ac.armorBase + effectState.mods.armorClass, 0, 255));
 
 	debug(4, "PoolradCharacter::recalcCombatStats -> handsEquipped=%u enc=%u ac=%d thac0=%d items=%u",
 			(unsigned)handsEquipped, (unsigned)encumbrance,

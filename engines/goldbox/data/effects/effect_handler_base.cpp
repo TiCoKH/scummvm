@@ -54,9 +54,13 @@ void EffectHandlerBase::apply(EffectOp op, Effect &effect,
 }
 
 void EffectHandlerBase::apply(const EffectCall &call) const {
-    Handler handler = getRawHandler(call.effect.id);
+    dispatch(call.effect.id, call);
+}
+
+void EffectHandlerBase::dispatch(uint8 effectId, const EffectCall &call) const {
+    Handler handler = getRawHandler(effectId);
     if (!handler) {
-        Effects internalId = mapRawEffectId(call.effect.id);
+        Effects internalId = mapRawEffectId(effectId);
         handler = getHandler((uint8)internalId);
     }
     if (handler)
@@ -70,6 +74,32 @@ bool EffectHandlerBase::hasHandler(uint8 effectType) const {
         return true;
 
     return _handlers.contains((uint8)mapRawEffectId(effectType));
+}
+
+const uint8 *EffectHandlerBase::getTriggerSet(uint8 setId, uint &count) const {
+    (void)setId;
+    count = 0;
+    return nullptr;
+}
+
+bool EffectHandlerBase::isGroupRadiatingEffect(uint8 rawId, uint8 &range) const {
+    range = 1;
+    switch (rawId) {
+    case E_SILENCE_15_RADIUS:
+    case E_PROT_FROM_EVIL_10_RADIUS:
+    case E_PROT_FROM_GOOD_10_RADIUS:
+        return true;
+    case E_PRAYER:
+        range = 6;
+        return true;
+    default:
+        return false;
+    }
+}
+
+const uint8 *EffectHandlerBase::getHpZeroEffects(uint &count) const {
+    count = 0;
+    return nullptr;
 }
 
 void EffectHandlerBase::clearHandlers() {

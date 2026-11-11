@@ -34,6 +34,7 @@
 #include "goldbox/poolrad/data/poolrad_rules_provider.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/poolrad/poolrad.h"
+#include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/poolrad/native_save.h"
 #include "goldbox/poolrad/poolrad_runtime_exchange.h"
 #include "goldbox/game_factory.h"
@@ -1836,7 +1837,7 @@ public:
 		// amount = 12) - DOS-reference timing - charged once per permitted
 		// move, including a clamped no-op move.
 		Goldbox::timeAddUnits(_mem, _clockAddrs, _party, _handler,
-			_gameState, 3, 12);
+			_gameState, 3, 12, getEffectHostBridge());
 	}
 
 	void runScriptTransitions() override {
@@ -1984,7 +1985,8 @@ void PoolradEngine::dispatchPlayerCommand() {
 		// (field=2, amount=1) as the search-move path in this same dispatcher.
 		if (_eclVm) {
 			timeAddUnits(_eclVm->getMemory(), kPoolradClockAddrs,
-				_party, effectsRuntime(), getGameState(), 2, 1);
+				_party, effectsRuntime(), getGameState(), 2, 1,
+				getEffectHostBridge());
 		}
 
 		// Now enter the search-loop path: set flags=1, run ONSEARCH, restore.
@@ -2149,10 +2151,12 @@ void PoolradEngine::dispatchPlayerCommand() {
 		const uint8 searchFlags = mem.read8(searchAddr);
 		if ((searchFlags & 1) == 0)
 			timeAddUnits(mem, kPoolradClockAddrs, _party,
-				effectsRuntime(), getGameState(), 1, 1);
+				effectsRuntime(), getGameState(), 1, 1,
+				getEffectHostBridge());
 		else
 			timeAddUnits(mem, kPoolradClockAddrs, _party,
-				effectsRuntime(), getGameState(), 2, 1);
+				effectsRuntime(), getGameState(), 2, 1,
+				getEffectHostBridge());
 	}
 
 	// Sync VM position back to InGameView after ONMOVE/commit.
@@ -2348,7 +2352,7 @@ public:
 		// Original GameTime.AdvanceTime(5, MINUTES): field = 1 (minutes),
 		// amount = 5. Same call shape poolrad.cpp already uses for search.
 		Goldbox::timeAddUnits(_mem, _clockAddrs, _party, _handler,
-			_gameState, 1, 5);
+			_gameState, 1, 5, getEffectHostBridge());
 	}
 
 	bool restoreOneHitPoint(Data::PoolradCharacter *member) override {

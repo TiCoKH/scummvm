@@ -75,6 +75,19 @@ public:
         }
     }
 
+    // Raw erase of one specific node (by address), with no handler callback.
+    // Returns false when the node is no longer in the list.
+    bool eraseEffect(const Effect *effect) {
+        for (Common::List<Effect>::iterator it = _effects.begin();
+                it != _effects.end(); ++it) {
+            if (&*it == effect) {
+                _effects.erase(it);
+                return true;
+            }
+        }
+        return false;
+    }
+
     void clear() { _effects.clear(); }
 
 private:

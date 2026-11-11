@@ -704,11 +704,11 @@ void PoolradRulesProvider::applyStatMinMax(uint8 race, uint8 gender, uint8 class
 }
 
 uint8 PoolradRulesProvider::getBlurEffectId() const {
-	return (uint8)Goldbox::Data::Effects::E_POOLRAD_BLUR;
+	return (uint8)Goldbox::Data::Effects::E_POOLRAD_INVISIBLE;
 }
 
 uint8 PoolradRulesProvider::getEndlessRegenEffectId() const {
-	return (uint8)Goldbox::Data::Effects::E_POOLRAD_ENDLESS_REGEN;
+	return (uint8)Goldbox::Data::Effects::E_POOLRAD_ROT_NO_HEAL;
 }
 
 PoolradRulesProvider &PoolradRulesProvider::instance() {

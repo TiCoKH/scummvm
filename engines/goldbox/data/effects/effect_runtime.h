@@ -93,6 +93,15 @@ public:
             uint8 effectType) const;
 
     /**
+     * Mirrors FxEngine.TriggerEffect: call effectType's handler for target
+     * when it carries the effect itself, or when an aura carrier is in range.
+     * combat is the exchange the handler modifies; when null the active
+     * combat context's globals are used.
+     */
+    bool checkEffect(PlayerCharacter &target, uint8 effectType,
+            Combat::CombatGlobals *combat) const;
+
+    /**
      * Check whether a character is affected by a group-radiating effect
      * (e.g. Silence 15' Radius, Prot from Evil 10' Radius) either directly
      * on themselves or inherited from a nearby party member.
@@ -110,7 +119,7 @@ public:
             const Common::Array<PlayerCharacter *> &party,
             const Combat::CombatantTable *combatTable = nullptr) const;
 
-    static bool isGroupRadiatingEffect(uint8 effectType);
+    bool isGroupRadiatingEffect(uint8 effectType) const;
 
 private:
     EffectHandlerBase *_handler;

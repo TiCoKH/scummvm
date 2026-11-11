@@ -2244,26 +2244,12 @@ VmResult PoolradEngineHostImpl::advanceClock(uint8 amount) {
         layout.vmField(kVmFieldClockYearLo).vmAddr
     }};
 
+    // Periodic effects (poison, disease, regeneration) act when their
+    // timer runs out and re-arm themselves from the expiry handler.
     timeAddUnits(*_memory, clockAddrs, *party,
         Goldbox::Data::Effects::g_effectHandler,
-        VmInterface::getGameStatus(), 1, amount);
-
-    // First runtime trigger-set integration: periodic poison/disease cycle.
-    Goldbox::Data::Effects::EffectRuntime runtime(
-        Goldbox::Data::Effects::g_effectHandler,
+        VmInterface::getGameStatus(), 1, amount,
         Goldbox::Poolrad::getEffectHostBridge());
-    for (Goldbox::Data::PlayerCharacter *character : *party) {
-        if (!character)
-            continue;
-
-        Goldbox::Data::Effects::CharacterEffects *effects =
-            character->getEffects();
-        if (!effects)
-            continue;
-
-        runtime.checkEffectSet(Goldbox::Data::Effects::ES_POISON_CYCLE,
-            *effects, *character);
-    }
 
     if (g_events) {
         g_events->postEclStateMessage(EclVmMessage::ST_STATUS_DIRTY, 1,

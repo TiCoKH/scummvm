@@ -28,6 +28,7 @@
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_handler_base.h"
 #include "goldbox/data/effects/effect_runtime.h"
+#include "goldbox/data/effects/effect_system.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
 #include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/data/damage_system.h"
@@ -1204,8 +1205,11 @@ void CombatView::applyDamageMessage(::Goldbox::Data::PlayerCharacter *ch,
             _bridge->postEffectMessage(ch, r.downMessage, false);
 
         if (inCombat) {
-            ch->clearStatusEffects();
             Combat::CombatContext *ctx = _session.getContext();
+            ::Goldbox::Data::Effects::EffectSystem effectSystem(
+                ::Goldbox::Data::Effects::g_effectHandler, _bridge,
+                ctx ? ctx->params.effectRuntime : nullptr);
+            effectSystem.removeHpZeroEffects(*ch);
             if (ctx && ctx->params.effectRuntime && ch->getEffects())
                 ctx->params.effectRuntime->checkEffectSet(
                     ::Goldbox::Data::Effects::ES_ON_DEATH,

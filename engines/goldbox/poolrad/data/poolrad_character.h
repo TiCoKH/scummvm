@@ -228,6 +228,8 @@ public:
 	// Returns true on success (item added), false on failure (overloaded).
 	bool receiveItem(const Goldbox::Data::Items::CharacterItem &item);
     void addEffect(uint8 type, uint16 durationMin, uint8 power, bool immediate) override;
+    // FxEngine.AdjustForNewStrength.
+    bool applyStrengthChange(uint8 newStr, uint8 newExtStr, uint8 &outEncoded) override;
 
 	void onEffectsChanged() override;
 

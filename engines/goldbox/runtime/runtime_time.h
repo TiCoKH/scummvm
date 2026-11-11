@@ -33,6 +33,7 @@ namespace Data {
 class PlayerCharacter;
 namespace Effects {
 class EffectHandlerBase;
+class EffectHostBridge;
 }
 }
 
@@ -92,12 +93,14 @@ struct TimeFieldAddresses {
  * @param gameState   Current game state (for camping check).
  * @param field       Time field index to increment (1 = minutes, 2 = tens, etc.)
  * @param amount      How many increments to apply.
+ * @param bridge      Message/UI bridge passed to expiring effect handlers.
  */
 void timeAddUnits(ECL::AddressSpace &mem, const TimeFieldAddresses &clockAddrs,
                   Common::List<Data::PlayerCharacter *> &party,
                   Data::Effects::EffectHandlerBase *handler,
                   GameState gameState,
-                  uint8 field, uint8 amount);
+                  uint8 field, uint8 amount,
+                  Data::Effects::EffectHostBridge *bridge = nullptr);
 
 } // namespace Goldbox
 

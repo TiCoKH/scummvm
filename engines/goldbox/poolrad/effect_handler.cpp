@@ -19,6 +19,14 @@
  *
  */
 
+// Pool of Radiance effect handlers, ported from EffHndlr.pas.
+//
+// Handlers ignore the operation unless the original tests `removed`:
+// EFF_REMOVE is the original removed = True (the node expired or was
+// removed with its onRemove flag set), every other op is removed = False
+// (a trigger-set hit or a direct CallEffectHandler). The periodic effects
+// therefore act and re-arm themselves when their timer runs out.
+
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/core/coords.h"
 #include "goldbox/spells/spell_aoe.h"
@@ -27,7 +35,6 @@
 #include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/data/effects/character_effects.h"
-#include "goldbox/data/effects/effect_common_handler.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/poolrad/data/poolrad_effects.h"
@@ -43,2177 +50,1441 @@ namespace Poolrad {
 
 namespace {
 
-// --- Poolrad-specific handler helpers ---
-
 using namespace Goldbox::Data::Effects;
+using Goldbox::Data::PlayerCharacter;
+using Goldbox::Combat::CombatGlobals;
 
-static Data::PoolradCharacter &asPoolrad(Goldbox::Data::PlayerCharacter &ch) {
+// TBaseItemRec.wpnClass melee damage type bits; slash is zero.
+enum {
+    kWpnSlash = 0x00,
+    kWpnPierce = 0x01,
+    kWpnBash = 0x80
+};
+
+// Item name components and base item types tested by the handlers.
+enum {
+    kNameMirror = 118,
+    kNameSilver = 177,
+    kNameHolySymbol = 152,
+    kNameOfTyr = 252,
+    kNameSpiritualHammer = 243,
+    kItemHammer = 20,
+    kItemHolyWater = 85,
+    kItemFlaskOfOil = 86,
+    kItemBoulder = 87,
+    kItemLargeBoulder = 88
+};
+
+// Monster type (charType) values tested by the handlers.
+enum {
+    kTypeHumanoid = 1,
+    kTypeUndead = 4
+};
+
+// --- Shared helpers (EffHndlr / FxEngine counterparts) ---
+
+static Data::PoolradCharacter &asPoolrad(PlayerCharacter &ch) {
     return static_cast<Data::PoolradCharacter &>(ch);
 }
 
-static void applyFlag(EffectOp op, Data::PoolradCharacter &ch, uint32 flag) {
-    if (op == EFF_ADD)
-        ch.effectState.flags |= flag;
-    else if (op == EFF_REMOVE)
-        ch.effectState.flags &= ~flag;
+static Goldbox::Data::ADnDCharacter &asAdnd(PlayerCharacter &ch) {
+    return static_cast<Goldbox::Data::ADnDCharacter &>(ch);
 }
 
-// --- Individual poolrad effect handlers ---
-
-static void handleNotImplemented(const EffectCall &) {
-    // The original Poolrad handler exists but intentionally does nothing.
+static uint8 rollDice(uint8 count, uint8 sides) {
+    return Goldbox::g_engine ?
+        static_cast<uint8>(Goldbox::g_engine->rollDice(count, sides)) : count;
 }
 
-static void handleSilence(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_SILENCED);
-
-    if (c.op != EFF_ADD || !c.character.combatState)
-        return;
-
-    // canUse covers magic items and scrolls; canCast covers memorized spells.
-    // The legacy routine only displayed the message when item/spell use was
-    // still available, then disabled both action categories.
-    if (c.character.combatState->canUse && c.bridge)
-        c.bridge->postEffectMessage(&c.character, "is silenced", true);
-
-    c.character.combatState->canUse = false;
-    c.character.combatState->canCast = false;
+// FxEngine.RollDamageDice: also records the dice count.
+static uint8 rollDamageDice(const EffectCall &c, uint8 count, uint8 sides) {
+    if (c.combat)
+        c.combat->damageDice = count;
+    return rollDice(count, sides);
 }
 
-static void handleInvisibility(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_INVISIBLE);
+static bool effectLocked() {
+    return Goldbox::g_engine && Goldbox::g_engine->isInSpellProcess();
 }
 
-static void handleItemInvisibility(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_ITEM_INVISIBLE);
+static void setEffectLock(bool locked) {
+    if (Goldbox::g_engine)
+        Goldbox::g_engine->setInSpellProcess(locked);
 }
 
-static void handleCamouflage(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_CAMOUFLAGE);
-}
-
-static void handleImmuneElec(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_IMMUNE_ELEC);
-}
-
-static void handleResistFire(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_RESIST_FIRE);
-}
-
-static void handleResistFireAndCold(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_RESIST_FIRE_COLD);
-}
-
-static void handleFireResist(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_FIRE_RESIST);
-
-    // EFFECT_20 operates on the current hit, not by applying damage itself.
-    // DamageSystem consumes these resolved combat values afterward.
-    if (c.op != EFF_ADD || !c.combat || !(c.combat->behaviorFlags &
-            Goldbox::Combat::CombatGlobals::DMG_FIRE))
-        return;
-
-    c.combat->damage >>= 1;
-    c.combat->savingThrow += 3;
-}
-
-static void handleProtNormalMissiles(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_PROT_NORMAL_MISSILES);
-}
-
-static void handleProtDragBreath(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_PROT_DRAG_BREATH);
-}
-
-static void handleMinorGlobe(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_MINOR_GLOBE);
-}
-
-static void handleRakshasaResist(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_RAKSHASA_RESIST);
-}
-
-static void handleDisplace(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_DISPLACE);
-}
-
-static void handleBlur(const EffectCall &c) {
-    if (c.op != EFF_ADD || !c.combat)
-        return;
-
-    const CharacterEffects *effects = c.character.getEffects();
-    if (!effects || !effects->hasEffect(E_POOLRAD_TRUE_SEEING))
-        c.combat->targetUnavailable = true;
-
-    // Blur always imposes a -4 attack-roll penalty, including when True
-    // Seeing suppresses its targeting penalty.
-    c.combat->attackRoll -= 4;
-}
-
-static void handleDwarfTargetBonus(const EffectCall &c) {
-    if (!c.combat || !c.character.combatState ||
-            !c.character.combatState->target)
-        return;
-
-    const Data::PoolradCharacter *target =
-        static_cast<const Data::PoolradCharacter *>(
-            c.character.combatState->target);
-    if (target->monsterType != 1 || target->iconDimension != 1)
-        return;
-
-    static const char *const kTargetNames[] = {
-        "ORC",
-        "ORC LEADER",
-        "GOBLIN",
-        "GOBLIN LEADER",
-        "HOBGOBLIN",
-        "HOBGOBLIN CHIEF",
-        "GAGOOL",
-        "MACE"
-    };
-
-    for (uint i = 0; i < ARRAYSIZE(kTargetNames); ++i) {
-        if (target->name == kTargetNames[i]) {
-            ++c.combat->attackRoll;
-            return;
-        }
-    }
-}
-
-static void handleDuplicated(const EffectCall &c) {
-    if (c.op != EFF_ADD || !c.combat || c.effect.power == 0)
-        return;
-
-    // The legacy roll is 1..power+1; only rolls above 1 consume an image.
-    const uint8 roll = static_cast<uint8>(Goldbox::g_engine ?
-        Goldbox::g_engine->rollDice(1, c.effect.power + 1) : 1);
-    const bool spellInProgress = c.combat->activeSpellId != 0;
-    const bool spellMultiTarget = c.character.combatState &&
-        c.character.combatState->maxTargets > 1;
-    if (roll <= 1 || !spellInProgress || spellMultiTarget)
-        return;
-
-    // EFFECT_protectionIf(0): the consumed image protects the target from
-    // the current spell effect.
-    c.combat->damage = 0;
-
+static void say(const EffectCall &c, PlayerCharacter *ch,
+        const char *text, bool withDelay = true) {
     if (c.bridge)
-        c.bridge->postEffectMessage(&c.character, "lost an image", true);
-
-    --c.effect.power;
-    if (c.effect.power == 0) {
-        CharacterEffects *effects = c.character.getEffects();
-        if (effects)
-            effects->eraseEffectById(c.effect.id);
-    }
+        c.bridge->postEffectMessage(ch, text, withDelay);
 }
 
-static void handleEnfeebled(const EffectCall &c) {
-    if (!c.combat)
-        return;
-
-    // BYTE_DAMAGE -= BYTE_DAMAGE / 4.
-    c.combat->damage -= c.combat->damage / 4;
+static bool inCombat() {
+    return Goldbox::g_engine &&
+        Goldbox::VmInterface::getGameStatus() == GS_COMBAT;
 }
 
-static void handleInStinkingCloudExpire(const EffectCall &c) {
-    if (c.op != EFF_REMOVE)
-        return;
-    // TODO: investigate UTIL_addEffect / EffectSystem tick integration
-    Combat::CombatContext *ctx = Goldbox::g_engine->getCombatContext();
-    if (!ctx)
-        return;
-    const uint8 cloudIndex = c.effect.power >> 4;
-    ctx->clouds.expire(&c.character, cloudIndex, c.bridge);
+static Combat::CombatContext *combatContext() {
+    return Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr;
 }
 
-static void handleNauseated(const EffectCall &c) {
-    if (c.op == EFF_REMOVE) {
-        c.character.effectState.mods.armorClass = 0;
-        return;
-    }
-
-    if (c.op != EFF_ADD)
-        return;
-
-    // Armor class is encoded as 60 - AC. Keep the adjustment in the effect
-    // state so the normal stat rebuild applies it without knowing effect 30.
-    const uint8 currentAC = c.character.armorClass.current;
-    const uint8 targetAC = currentAC < 53 ? 50 : currentAC - 2;
-    c.character.effectState.mods.armorClass =
-        static_cast<int8>(targetAC - currentAC);
-
-    if (!c.character.combatState)
-        return;
-
-    // The original only displayed this when item use was still available.
-    if (c.character.combatState->canUse && c.bridge)
-        c.bridge->postEffectMessage(&c.character, "is coughing", true);
-
-    c.character.combatState->canUse = false;
-    c.character.combatState->canCast = false;
+// GDVars.curChar: the creature acting (attacking or casting).
+static PlayerCharacter *actingCreature(const EffectCall &c) {
+    return c.combat ? c.combat->attacker : nullptr;
 }
 
-static void callChildEffectHandler(const EffectCall &parent, uint8 effectId) {
-    if (!parent.handler)
-        return;
-
-    // UTIL_CallEffectHandler dispatches the same operation and effect data
-    // to another handler. Use a copy so a child cannot replace the composite
-    // effect's id or mutate the effect-list node being iterated by EffectSystem.
-    Effect child = parent.effect;
-    child.id = effectId;
-    parent.handler->apply(EffectCall(parent.op, child, parent.character,
-        parent.combat, parent.bridge, parent.damage, parent.handler));
+// combatAddr^.other: the creature's current combat target.
+static PlayerCharacter *combatTarget(PlayerCharacter &ch) {
+    return ch.combatState ? ch.combatState->target : nullptr;
 }
 
-static void handleDiseased(const EffectCall &c) {
-    // EFFECT_34_Diseased is a composite legacy effect. The original invokes
-    // handlers 0x2B and 0x2C for every operation (add/remove/tick/eval).
-    callChildEffectHandler(c, 0x2B);
-    callChildEffectHandler(c, 0x2C);
+static bool hasEffect(PlayerCharacter &ch, uint8 effectId) {
+    CharacterEffects *fx = ch.getEffects();
+    return fx && fx->hasEffect(effectId);
 }
 
-static void handleAnimatingDead(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    // The legacy handler clears the immediate flag before doing anything
-    // else. This also prevents a later removal from re-entering this logic.
-    c.effect.immediate = 0;
-    const uint8 combatSide = c.effect.power >> 4;
-
-    // There is no separate IN_SPELL_PROCESS global in the modern runtime.
-    // An active combat spell is the corresponding deferred-status case.
-    const bool spellProcessing = c.combat && c.combat->activeSpellId != 0;
-    if (!spellProcessing) {
-        Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
-        effectSystem.setStatus(c.character, Goldbox::Data::S_DEAD, "collapses");
-    }
-
-    Data::PoolradCharacter &character = asPoolrad(c.character);
-    character.combatSide = static_cast<Goldbox::Data::CombatSide>(combatSide);
-    character.ai_control = true;
-    character.levelUndead = 0;
-    character.attackLevel = character.levels[Goldbox::Data::C_FIGHTER];
-    character.movement.base = 12;
-
-    if (character.npc == (int8)0xB3)
-        character.npc = 0;
-
-    // Poolrad uses monsterType as its character/monster type discriminator;
-    // zero is the normal character type restored by the original handler.
-    character.monsterType = 0;
+static EffectSystem effectSystemFor(const EffectCall &c) {
+    return EffectSystem(const_cast<EffectHandlerBase *>(c.handler), c.bridge);
 }
 
-static void handleHalfDamage(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_HALF_DAMAGE);
-}
-
-static void handleHalfFireDamage(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_HALF_FIRE_DAMAGE);
-}
-
-static void handleDamageReduction(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_DAMAGE_REDUCTION);
-}
-
-static void handleFearImmunity(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_FEAR_IMMUNE);
-}
-
-static void handleSlowPoison(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_SLOW_POISON);
-
-    // On wear-off: if the character is still poisoned, they die from poison.
-    // Then remove E_POISON_DAMAGE without triggering its EFF_REMOVE handler
-    // (original clears IN_SPELL_PROCESS guard around UTIL_removeEffect).
-    // We replicate that by clearing the immediate flag before removal so
-    // removeEffectImpl skips the handler call.
-    if (c.op != EFF_REMOVE)
-        return;
-
-    CharacterEffects *fx = c.character.getEffects();
+// FxEngine.RemoveEffect: node when given, else the first node with effectId.
+static void removeEffect(const EffectCall &c, PlayerCharacter &ch,
+        uint8 effectId, Effect *node = nullptr) {
+    CharacterEffects *fx = ch.getEffects();
     if (!fx)
         return;
+    EffectSystem remover = effectSystemFor(c);
+    if (node)
+        remover.removeEffect(ch, *fx, *node);
+    else
+        remover.removeEffectById(ch, *fx, effectId);
+}
 
-    if (fx->hasEffect(static_cast<uint8>(E_POISONED))) {
-        // Delegate to the host bridge for the full death sequence.
-        // EffectSystem::setStatus is not reachable from a handler directly,
-        // so we use the bridge message + status fields, matching what
-        // setStatus does before calling onCharacterDied.
-        if (c.bridge)
-            c.bridge->postEffectMessage(&c.character, "dies from poison", true);
-        c.character.healthStatus = Goldbox::Data::S_DEAD;
-        c.character.enabled = false;
-        c.character.hitPoints.current = 0;
-        if (c.bridge)
-            c.bridge->onCharacterDied(&c.character);
+// EffHndlr.AddEffectIfNoLock: the node always has onRemove set.
+static bool addEffectIfNoLock(PlayerCharacter &ch, uint8 effectId,
+        uint8 strength, uint16 minutes) {
+    if (effectLocked())
+        return false;
+    ch.addEffect(effectId, minutes, strength, true);
+    return true;
+}
+
+// FxEngine.CallEffectHandler. node may be null, as in the original.
+static void callEffectHandler(const EffectCall &c, uint8 effectId,
+        PlayerCharacter &ch, Effect *node, bool removed) {
+    if (!c.handler)
+        return;
+    Effect none;
+    none.id = effectId;
+    none.durationMin = 0;
+    none.power = 0xFF;
+    none.immediate = 0;
+    Effect &effect = node ? *node : none;
+    c.handler->dispatch(effectId, EffectCall(removed ? EFF_REMOVE : EFF_ADD,
+        effect, ch, c.combat, c.bridge, c.damage, c.handler, c.item));
+}
+
+// EffHndlr.NullifyAttack: id 0 always matches, otherwise only the effect
+// under the immunity check.
+static void nullifyAttack(const EffectCall &c, uint8 effectId) {
+    if (!c.combat)
+        return;
+    if (effectId == 0 || c.combat->pendingEffectId == effectId) {
+        c.combat->damage = 0;
+        c.combat->pendingEffectId = 0;
+    }
+}
+
+// EffHndlr.InflictStatusMsg.
+static void inflictStatusMsg(const EffectCall &c, PlayerCharacter &ch,
+        uint8 status, const char *message) {
+    effectSystemFor(c).setStatus(ch, status, message);
+}
+
+// FxEngine.InflictNonWeaponDamage: NONWEAPON_DAMAGE handlers adjust the
+// damage, then the save reduction (1 = none, 2 = half) applies.
+static void inflictNonWeaponDamage(const EffectCall &c, PlayerCharacter &target,
+        uint8 amount, uint8 element, uint8 saveReduction, bool saved) {
+    CombatGlobals local;
+    CombatGlobals *globals = c.combat ? c.combat : &local;
+    globals->behaviorFlags = element;
+    globals->damage = amount;
+
+    CharacterEffects *fx = target.getEffects();
+    if (fx && c.handler) {
+        EffectRuntime runtime(const_cast<EffectHandlerBase *>(c.handler),
+            c.bridge);
+        runtime.checkEffectSet(ES_ON_DAMAGE_TAKEN, *fx, target, globals);
     }
 
-    Effect *poisonDmg = fx->findEffectById(static_cast<uint8>(E_POISON_DAMAGE));
-    if (poisonDmg) {
-        poisonDmg->immediate = 0;
-        fx->eraseEffectById(static_cast<uint8>(E_POISON_DAMAGE));
+    uint8 damage = globals->damage;
+    if (saved) {
+        if (saveReduction == 1)
+            damage = 0;
+        else if (saveReduction == 2)
+            damage /= 2;
     }
-}
-
-static void handleEntangle(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_ENTANGLED);
-}
-
-static void handleAttackBonus2(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 2;
-}
-
-static void handleAttackDamageBonus(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 1;
-    c.combat->damage += 3;
-}
-
-static void handleSaveBonus1(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 1;
-}
-
-static void handleSaveBonus2(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 2;
-}
-
-static void handleSaveBonus3(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 3;
-}
-
-static void handleSaveBonus5(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 5;
-}
-
-static void handleImmunitySleepCharm(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 6;
-    asPoolrad(c.character).effectState.flags |= Data::PoolradCharacter::EF_FEAR_IMMUNE;
-}
-
-static void handleImmunityCold(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_HALF_DAMAGE);
-}
-
-static void handleImmunityFire(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character),
-        Data::PoolradCharacter::EF_RESIST_FIRE |
-        Data::PoolradCharacter::EF_FIRE_RESIST |
-        Data::PoolradCharacter::EF_HALF_FIRE_DAMAGE);
-}
-
-static void handleImmunityParalysisPoisonFear(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character),
-        Data::PoolradCharacter::EF_SLOW_POISON |
-        Data::PoolradCharacter::EF_FEAR_IMMUNE);
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 6;
-}
-
-static void handleImmunityNonmagical(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character),
-        Data::PoolradCharacter::EF_RAKSHASA_RESIST |
-        Data::PoolradCharacter::EF_DAMAGE_REDUCTION);
-}
-
-static void handleSavePenalty2(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll -= 2;
-}
-
-static void handleExtraStrength(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    c.combat->attackRoll += 1;
-    c.combat->damage += 2;
-}
-
-static void handleBonusVsSmall(const EffectCall &c) {
-    if (!c.combat || !c.character.combatState
-            || !c.character.combatState->target)
+    if (damage == 0)
         return;
 
-    const Goldbox::Poolrad::Data::PoolradCharacter *target =
-        static_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(
-            c.character.combatState->target);
-    if (target->monsterType != 1 || target->iconDimension != 1)
-        return;
+    if (c.damage)
+        c.damage->applyLegacy(target, damage, Goldbox::Data::DAMAGE_NORMAL,
+            false, element);
+    else
+        target.damage(damage);
+}
 
-    static const char *const kSmallCreatures[] = {
-        "KOBOLD",
-        "KOBOLD LEADER",
-        "GOBLIN",
-        "GOBLIN LEADER"
-    };
+static bool rollSavingThrow(const EffectCall &c, PlayerCharacter &ch,
+        Goldbox::Data::Spells::SaveVerseType saveType, int8 modifier) {
+    return Goldbox::Data::Rules::checkSavingThrow(asAdnd(ch), c.combat,
+        c.handler, c.bridge, saveType, modifier);
+}
 
-    for (uint i = 0; i < ARRAYSIZE(kSmallCreatures); ++i) {
-        if (target->name == kSmallCreatures[i]) {
-            ++c.combat->attackRoll;
-            return;
+// CharHlp.CalcDistance, in tiles.
+static uint8 calcDistance(PlayerCharacter &from, PlayerCharacter &to) {
+    Combat::CombatContext *ctx = combatContext();
+    if (!ctx)
+        return 0xFF;
+    return ctx->getTargetRange(&from, &to) >> 1;
+}
+
+// Every creature in play (GDVars.creatureList): the combat roster during
+// combat, the party otherwise.
+static Common::Array<PlayerCharacter *> allCreatures() {
+    Common::Array<PlayerCharacter *> list;
+    Combat::CombatContext *ctx = combatContext();
+    if (ctx && !ctx->params.roster.empty())
+        return ctx->params.roster;
+    Common::List<PlayerCharacter *> *party = Goldbox::VmInterface::getParty();
+    if (party) {
+        for (PlayerCharacter *ch : *party) {
+            if (ch)
+                list.push_back(ch);
         }
     }
+    return list;
 }
 
-static void handleFlameTongue(const EffectCall &c) {
-    if (!c.combat || !c.character.combatState || !c.character.combatState->target)
-        return;
-    const Goldbox::Poolrad::Data::PoolradCharacter *target =
-        static_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(c.character.combatState->target);
-    int8 bonus = 0;
-    switch (target->monsterType) {
-    case 10: bonus = 1; break;
-    case  9:
-    case 12: bonus = 2; break;
-    case  4: bonus = 3; break;
-    default: break;
+static uint8 combatSlot(PlayerCharacter *ch) {
+    Combat::CombatContext *ctx = combatContext();
+    if (ctx) {
+        for (uint i = 0; i < ctx->params.roster.size(); ++i) {
+            if (ctx->params.roster[i] == ch)
+                return static_cast<uint8>(i);
+        }
     }
-    c.combat->attackRoll += bonus;
-    c.combat->damage     += bonus;
-    c.combat->behaviorFlags = 9; // DMG_FIRE | DMG_MAGIC
+    return MonsterSpecialAttacks::kInvalidRosterIndex;
 }
 
-static void handleSwordVsUndead(const EffectCall &c) {
-    if (!c.combat || !c.character.combatState || !c.character.combatState->target)
+static PlayerCharacter *creatureInSlot(uint8 slot) {
+    Combat::CombatContext *ctx = combatContext();
+    if (ctx && MonsterSpecialAttacks::victimIndexInRange(slot,
+            ctx->params.roster.size()))
+        return ctx->params.roster[slot];
+    return nullptr;
+}
+
+static void countTeams() {
+    Combat::CombatContext *ctx = combatContext();
+    if (ctx)
+        ctx->updateSideCount();
+}
+
+static void refreshPartyDisplay(const EffectCall &c) {
+    if (!inCombat() && c.bridge)
+        c.bridge->requestRefresh(EffectHostBridge::RF_CHARACTER_PANEL);
+}
+
+// FxEngine.ReviveDeadCreature: put the creature back on its last cell.
+static bool reviveDeadCreature(const EffectCall &c, PlayerCharacter &ch,
+        uint8 hp) {
+    Combat::CombatContext *ctx = combatContext();
+    if (ctx) {
+        uint8 col = ctx->table.getCharacterCol(&ch);
+        uint8 row = ctx->table.getCharacterRow(&ch);
+        const Common::Array<CombatGlobals::DownedMemberRecord> &downed =
+            ctx->globals.downedMembers;
+        for (uint i = 0; i < downed.size(); ++i) {
+            if (downed[i].character == &ch) {
+                col = downed[i].pos.col;
+                row = downed[i].pos.row;
+                break;
+            }
+        }
+        const uint8 size = MAX<uint8>(1, ctx->table.getCharacterSize(&ch));
+        const int idx = ctx->table.addCombatant(&ch, size);
+        if (idx < 0)
+            return false;
+        ctx->table.setPosition(idx, TilePos(col, row));
+    }
+
+    ch.healthStatus = Goldbox::Data::S_OKAY;
+    ch.enabled = true;
+    ch.hitPoints.current = hp;
+    say(c, &ch, ch.combatSide == Goldbox::Data::CS_ENEMY ?
+        "stands up and grins" : "gets back up");
+    countTeams();
+    return true;
+}
+
+// FxEngine.PutOutOfPlayWithStatus.
+static void putOutOfPlayWithStatus(const EffectCall &c, PlayerCharacter &ch,
+        uint8 status, const char *message) {
+    if (!ch.enabled)
         return;
-    const Goldbox::Poolrad::Data::PoolradCharacter *target =
-        static_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(c.character.combatState->target);
-    if (target->monsterType == 4) {
+    say(c, &ch, message);
+    if (Combat::g_combatSession) {
+        Combat::g_combatSession->setCharacterStatus(&ch, status);
+        return;
+    }
+    ch.enabled = false;
+    ch.healthStatus = status;
+    if (status != Goldbox::Data::S_RUNNING)
+        ch.hitPoints.current = 0;
+}
+
+// EffHndlr.FindDamagingWeapon: the ammunition for a bow or crossbow,
+// otherwise the readied weapon; null without one.
+static Goldbox::Data::Items::CharacterItem *findDamagingWeapon(
+        PlayerCharacter *ch) {
+    if (!ch)
+        return nullptr;
+    return asAdnd(*ch).getWeaponOrAmmo();
+}
+
+static Goldbox::Data::Items::CharacterItem *readiedWeapon(PlayerCharacter *ch) {
+    if (!ch)
+        return nullptr;
+    return asAdnd(*ch).getEquippedItem(Goldbox::Data::Items::Slot::S_MAIN_HAND);
+}
+
+// EffHndlr.AvoidRanged: only against an armed attacker more than a cell away.
+static void avoidRanged(const EffectCall &c, uint8 percent) {
+    PlayerCharacter *attacker = actingCreature(c);
+    if (!c.combat || !attacker || !readiedWeapon(attacker))
+        return;
+    if (calcDistance(*attacker, c.character) <= 1)
+        return;
+    if (rollDice(1, 100) > percent)
+        return;
+    say(c, &c.character, "Avoids it");
+    c.combat->damage = 0;
+    c.combat->attackRoll = 0xFF;
+    --c.combat->hitsMade[0];
+}
+
+static bool nameIn(const Common::String &name, const char *const *list,
+        uint count) {
+    for (uint i = 0; i < count; ++i) {
+        if (name == list[i])
+            return true;
+    }
+    return false;
+}
+
+static const char *const kGnomeFoes[] = {
+    "KOBOLD", "KOBOLD LEADER", "GOBLIN", "GOBLIN LEADER"
+};
+
+static const char *const kDwarfFoes[] = {
+    "ORC", "ORC LEADER", "GOBLIN", "GOBLIN LEADER",
+    "HOBGOBLIN", "HOBGOBLIN CHIEF", "GAGOOL", "MACE"
+};
+
+static const char *const kGiantFoes[] = {
+    "OGRE", "OGRE LEADER", "TROLL", "FIRE GIANT", "HILL GIANT"
+};
+
+// EffHndlr.MagicResistance. The chance is a byte, so it wraps for casters
+// far enough below 11th level and the resistance then always succeeds.
+static void magicResistance(const EffectCall &c, uint8 percent) {
+    if (!c.combat)
+        return;
+    uint8 level = 0;
+    PlayerCharacter *caster = actingCreature(c);
+    if (caster)
+        level = asPoolrad(*caster).highestLevel;
+    const uint8 chance = static_cast<uint8>(percent - (11 - level) * 5);
+    if (c.combat->pendingEffectId == 0 &&
+            !(c.combat->behaviorFlags & CombatGlobals::DMG_MAGIC))
+        return;
+    if (rollDice(1, 100) <= chance)
+        nullifyAttack(c, 0);
+}
+
+// Constitution bonus of the Con save effects. The original leaves it
+// unset outside Constitution 4..20; treat that as no bonus.
+static uint8 conSaveBonus(uint8 con) {
+    if (con < 4 || con > 20)
+        return 0;
+    if (con <= 6)
+        return 1;
+    if (con <= 10)
+        return 2;
+    if (con <= 13)
+        return 3;
+    if (con <= 17)
+        return 4;
+    return 5;
+}
+
+static bool hasEquippedMirror(PlayerCharacter &ch) {
+    for (const Goldbox::Data::Items::CharacterItem &item :
+            asAdnd(ch).inventory.items()) {
+        if (item.readied && (item.nameCode1 == kNameMirror ||
+                item.nameCode2 == kNameMirror || item.nameCode3 == kNameMirror))
+            return true;
+    }
+    return false;
+}
+
+// --- Handlers, in EffHndlr order ---
+
+static void handleNull(const EffectCall &) {
+}
+
+// Effect 1
+static void handleBless(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->moraleModifier += 5;
+    ++c.combat->attackRoll;
+}
+
+// Effect 2
+static void handleCurse(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    if (c.combat->moraleModifier < 5)
+        c.combat->moraleModifier = 0;
+    else
+        c.combat->moraleModifier -= 5;
+    --c.combat->attackRoll;
+}
+
+// Effect 3
+static void handleUndeadSlayer(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!c.combat || !target)
+        return;
+    if (asPoolrad(*target).monsterType == kTypeUndead) {
         c.combat->attackRoll += 2;
         c.combat->damage += 2;
     }
 }
 
-static void handleDwarfVsGiant(const EffectCall &c) {
-    if (!c.combat || !c.character.combatState
-            || !c.character.combatState->target)
+// Effect 4: start training with the Manual of Bodily Health.
+static void handleTrainStart(const EffectCall &c) {
+    say(c, &c.character, "starts to train");
+    c.character.addEffect(E_POOLRAD_TRAIN_MANUAL, 43200, 0xFF, true);
+}
+
+// Effect 6
+static void handleFlameTongue(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!c.combat || !target)
         return;
+    uint8 bonus = 0;
+    switch (asPoolrad(*target).monsterType) {
+    case 10:
+        bonus = 1;
+        break;
+    case 9:
+    case 12:
+        bonus = 2;
+        break;
+    case kTypeUndead:
+        bonus = 3;
+        break;
+    default:
+        break;
+    }
+    c.combat->attackRoll += bonus;
+    c.combat->damage += bonus;
+    c.combat->behaviorFlags = CombatGlobals::DMG_FIRE | CombatGlobals::DMG_MAGIC;
+}
 
-    const Data::PoolradCharacter *target =
-        static_cast<const Data::PoolradCharacter *>(
-            c.character.combatState->target);
-    if (target->monsterType != 1 || target->iconDimension != 2)
+// Effect 7: Manual of Bodily Health training done.
+static void handleTrainManual(const EffectCall &c) {
+    Data::PoolradCharacter &ch = asPoolrad(c.character);
+    say(c, &ch, "is hardier");
+    ++ch.abilities.constitution.current;
+    const uint8 con = ch.abilities.constitution.current;
+    if (con >= 20) {
+        ch.addEffect(E_POOLRAD_CON_REGEN, 60, 0xFF, true);
         return;
+    }
+    uint8 hpGain = static_cast<uint8>(ch.hitPoints.max - ch.hitPointsRolled);
+    if (con < 15)
+        return;
+    uint8 hpBonus = 0;
+    for (uint j = 0; j < BASE_CLASS_NUM; ++j) {
+        const uint8 level = ch.levels.levels[j];
+        if (level == 0)
+            continue;
+        if (j == Goldbox::Data::C_FIGHTER)
+            hpBonus += (con - 15) * level;
+        else if (con > 15)
+            hpBonus += level * 2;
+        else
+            hpBonus += level;
+    }
+    if (hpBonus == 0)
+        hpBonus = 1;
+    hpGain /= hpBonus;
+    if (con < 17 || ch.levels[Goldbox::Data::C_FIGHTER] > 0) {
+        ch.hitPoints.max += hpGain;
+        ch.hitPoints.current += hpGain;
+    }
+}
 
-    static const char *const kGiantNames[] = {
-        "HILL GIANT",
-        "STONE GIANT",
-        "FROST GIANT",
-        "FIRE GIANT",
-        "CLOUD GIANT",
-        "STORM GIANT",
-        "OGRE",
-        "OGRE MAGE"
-    };
+static bool isEvil(uint8 alignment) {
+    return alignment == Goldbox::Data::A_LAWFUL_EVIL ||
+        alignment == Goldbox::Data::A_NEUTRAL_EVIL ||
+        alignment == Goldbox::Data::A_CHAOTIC_EVIL;
+}
 
-    for (uint i = 0; i < ARRAYSIZE(kGiantNames); ++i) {
-        if (target->name == kGiantNames[i]) {
-            ++c.combat->attackRoll;
-            return;
+static bool isGood(uint8 alignment) {
+    return alignment == Goldbox::Data::A_LAWFUL_GOOD ||
+        alignment == Goldbox::Data::A_NEUTRAL_GOOD ||
+        alignment == Goldbox::Data::A_CHAOTIC_GOOD;
+}
+
+// Effects 8, 45
+static void handleProtEvil(const EffectCall &c) {
+    PlayerCharacter *attacker = actingCreature(c);
+    if (!c.combat || !attacker || !isEvil(attacker->alignment))
+        return;
+    c.combat->savingThrow += 2;
+    c.combat->attackRoll -= 2;
+}
+
+// Effects 9, 46
+static void handleProtGood(const EffectCall &c) {
+    PlayerCharacter *attacker = actingCreature(c);
+    if (!c.combat || !attacker || !isGood(attacker->alignment))
+        return;
+    c.combat->savingThrow += 2;
+    c.combat->attackRoll -= 2;
+}
+
+// Effect 10
+static void handleResistCold(const EffectCall &c) {
+    if (!c.combat || !(c.combat->behaviorFlags & CombatGlobals::DMG_COLD))
+        return;
+    c.combat->damage /= 2;
+    c.combat->savingThrow += 3;
+}
+
+// Effect 11. strength: bit 5 = applied, bit 6 = saved side, bit 7 = charmer.
+static void handleCharm(const EffectCall &c) {
+    PlayerCharacter &ch = c.character;
+    if (c.op == EFF_REMOVE) {
+        ch.combatSide = (c.effect.power & 0x40) ?
+            Goldbox::Data::CS_ENEMY : Goldbox::Data::CS_PARTY;
+        if (ch.npc == (int8)0xB3)
+            ch.npc = 0;
+        return;
+    }
+
+    if (!(c.effect.power & 0x20)) {
+        c.effect.power = static_cast<uint8>(c.effect.power + 0x20 +
+            static_cast<uint8>(ch.combatSide) * 0x40);
+        ch.combatSide = (c.effect.power & 0x80) ?
+            Goldbox::Data::CS_ENEMY : Goldbox::Data::CS_PARTY;
+        ch.ai_control = true;
+        if (!(ch.npc & (int8)0x80))
+            ch.npc = (int8)0xB3;
+        if (ch.combatState)
+            ch.combatState->target = nullptr;
+        countTeams();
+    }
+    if (c.combat)
+        c.combat->moraleModifier = 100;
+}
+
+// Effects 12, 38: set Strength from this node, then let the strongest other
+// Enlarge/Strength node take over. Nodes above 0x7F are skipped.
+static void handleExtraStr(const EffectCall &c) {
+    if (c.effect.power > 0x7F)
+        return;
+    PlayerCharacter &ch = c.character;
+    uint8 base = 0, exc = 0;
+    strengthDecode(c.effect.power, base, exc);
+    ch.abilities.strength.current = base;
+    ch.abilities.strException.current = exc;
+
+    CharacterEffects *fx = ch.getEffects();
+    if (!fx)
+        return;
+    Effect *best = nullptr;
+    uint8 bestBase = 0, bestExc = 0;
+    for (Effect &e : fx->effects()) {
+        if ((e.id != E_POOLRAD_ENLARGE && e.id != E_POOLRAD_STRENGTH) ||
+                &e == &c.effect)
+            continue;
+        strengthDecode(e.power, base, exc);
+        if (base > bestBase || (bestBase == 18 && exc > bestExc)) {
+            bestBase = base;
+            bestExc = exc;
+            best = &e;
         }
     }
-}
-
-static void handleDwarfVsLargeMonster(const EffectCall &c) {
-    if (!c.combat || !c.character.combatState
-            || !c.character.combatState->target)
-        return;
-
-    const Data::PoolradCharacter *target =
-        static_cast<const Data::PoolradCharacter *>(
-            c.character.combatState->target);
-    if (target->monsterType != 1 || (target->iconDimension & 0x7f) != 2)
-        return;
-
-    static const char *const kLargeMonsters[] = {
-        "OGRE",
-        "OGRE LEADER",
-        "TROLL",
-        "FIRE GIANT",
-        "HILL GIANT"
-    };
-
-    for (uint i = 0; i < ARRAYSIZE(kLargeMonsters); ++i) {
-        if (target->name == kLargeMonsters[i]) {
-            c.combat->attackRoll -= 4;
-            return;
-        }
+    if (best) {
+        best->power = strengthEncode(ch.abilities.strength.current,
+            ch.abilities.strException.current);
+        ch.abilities.strength.current = bestBase;
+        ch.abilities.strException.current = bestExc;
     }
 }
 
-static void handleGnomeVsBugbearGnoll(const EffectCall &c) {
-    if (!c.combat || !c.character.combatState
-            || !c.character.combatState->target)
-        return;
-
-    const Data::PoolradCharacter *target =
-        static_cast<const Data::PoolradCharacter *>(
-            c.character.combatState->target);
-    if (target->monsterType != 1)
-        return;
-
-    if (target->name == "BUGBEAR" || target->name == "GNOLL")
-        c.combat->attackRoll -= 4;
+// Effect 14
+static void handleFriends(const EffectCall &c) {
+    c.character.abilities.charisma.current = c.effect.power;
 }
 
-static void handleGnomeVsLarge(const EffectCall &c) {
-    if (!c.combat || !c.character.combatState
-            || !c.character.combatState->target)
+// Effect 15: Slow Poison, 1 damage every 10 minutes while above 1 HP.
+static void handleSlowPoisonHit(const EffectCall &c) {
+    if (!addEffectIfNoLock(c.character, E_POOLRAD_SLOW_POISON_HIT,
+            c.effect.power, 10))
         return;
-
-    const Data::PoolradCharacter *target =
-        static_cast<const Data::PoolradCharacter *>(
-            c.character.combatState->target);
-    if (target->monsterType != 1 || target->iconDimension != 2)
-        return;
-
-    ++c.combat->attackRoll;
-}
-
-static void handleRegeneration(const EffectCall &c) {
-    if (c.op != EFF_TICK)
-        return;
-    tryAddEffect(c.character, E_POOLRAD_REGEN_3_HP, c.effect.power, 60);
-    if (c.character.healHp(1, true) && c.bridge)
-        c.bridge->showHealResult(&c.character);
-}
-
-static void handleEfreetiFireResistance(const EffectCall &c) {
-    if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
-        return;
-    if (!c.character.combatState)
-        return;
-    const uint8 count = c.character.combatState->attackCount;
-    if (count == 0)
-        return;
-    uint8 dmg = c.combat->damage;
-    for (uint8 i = 0; i < count; ++i) {
-        dmg = (dmg < 1) ? 0 : dmg - 1;
-        if (dmg < count)
-            dmg = count;
+    if (c.character.hitPoints.current > 1) {
+        inflictNonWeaponDamage(c, c.character, 1, 0, 0, false);
+        refreshPartyDisplay(c);
     }
-    c.combat->damage = dmg;
 }
 
-static void handleFireResistance(const EffectCall &c) {
-    if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
+// Effect 17
+static void handleShield(const EffectCall &c) {
+    // 60-biased AC 3.
+    if (c.character.armorClass.current < 57)
+        c.character.armorClass.current = 57;
+    if (!c.combat)
         return;
-
-    const uint8 count = c.character.combatState ? c.character.combatState->attackCount : 0;
-    uint8 dmg = c.combat->damage;
-    for (uint8 i = 0; i < count; ++i) {
-        dmg = (dmg < 2) ? 0 : dmg - 2;
-        if (dmg < count)
-            dmg = count;
-    }
-    c.combat->damage = dmg;
-    c.combat->savingThrow += 4;
-
-    if (!(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_MAGIC))
+    ++c.combat->savingThrow;
+    // Magic Missile
+    if (c.combat->activeSpellId == 15)
         c.combat->damage = 0;
 }
 
-static void handleRegenerating(const EffectCall &c) {
-    if (c.op != EFF_ADD)
+// Effect 18
+static void handleGnomeThac0(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!c.combat || !target)
         return;
-    c.character.addEffect(static_cast<uint8>(E_DAMAGE_REDUCTION), 0, 0xff, false);
+    if (asPoolrad(*target).monsterType != kTypeHumanoid ||
+            target->iconDimension != 1)
+        return;
+    if (nameIn(target->name, kGnomeFoes, ARRAYSIZE(kGnomeFoes)))
+        ++c.combat->attackRoll;
 }
 
-static void handleImmobilized(const EffectCall &c) {
-    handleParalyze(c);
-    if (c.op != EFF_EVAL || !c.character.combatState)
+// Effect 20
+static void handleResistFire(const EffectCall &c) {
+    if (!c.combat || !(c.combat->behaviorFlags & CombatGlobals::DMG_FIRE))
         return;
-    c.character.combatState->movePoints = 0;
+    c.combat->damage /= 2;
+    c.combat->savingThrow += 3;
+}
+
+// Effect 21: Silence 15' radius.
+static void handleSilence(const EffectCall &c) {
+    Goldbox::Data::CombatAction *cs = c.character.combatState;
+    if (!cs)
+        return;
+    if (cs->canUse)
+        say(c, &c.character, "is silenced");
+    cs->canUse = false;
+    cs->canCast = false;
+}
+
+// Effect 22: Slow Poison ran out; a creature still poisoned dies.
+static void handleSlowPoisonEnd(const EffectCall &c) {
+    if (hasEffect(c.character, E_POOLRAD_POISONED))
+        inflictStatusMsg(c, c.character, Goldbox::Data::S_DEAD,
+            "dies from poison");
+    setEffectLock(true);
+    removeEffect(c, c.character, E_POOLRAD_SLOW_POISON_HIT);
+    setEffectLock(false);
+}
+
+// Effect 23: Spiritual Hammer.
+static void handleSpiritHammer(const EffectCall &c) {
+    Goldbox::Data::ADnDCharacter &ch = asAdnd(c.character);
+    Goldbox::Data::Items::CharacterItem *hammer = nullptr;
+    for (Goldbox::Data::Items::CharacterItem &item : ch.inventory.items()) {
+        if (item.typeIndex == kItemHammer &&
+                item.nameCode3 == kNameSpiritualHammer) {
+            hammer = &item;
+            break;
+        }
+    }
+
+    if (c.op == EFF_REMOVE) {
+        if (hammer)
+            ch.removeItem(hammer);
+    } else if (!hammer && ch.inventory.count() < 16) {
+        Goldbox::Data::Items::CharacterItem item = {};
+        item.typeIndex = kItemHammer;
+        item.nameCode2 = 20;
+        item.nameCode3 = kNameSpiritualHammer;
+        item.bonus = 1;
+        item.effect2 = E_POOLRAD_SPIRIT_HAMMER;
+        item.effect3 = E_POOLRAD_SPIRIT_HAMMER_GONE;
+        if (ch.addItem(item))
+            say(c, &ch, "Gains an item");
+    }
+    ch.recalcCombatStats();
+}
+
+// Effect 25: Invisibility.
+static void handleInvisible(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    PlayerCharacter *attacker = actingCreature(c);
+    if (!attacker || !hasEffect(*attacker, E_POOLRAD_SEE_INVISIBLE))
+        c.combat->targetUnavailable = true;
+    c.combat->attackRoll -= 4;
+}
+
+// Effect 26
+static void handleDwarfThac0(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!c.combat || !target)
+        return;
+    if (asPoolrad(*target).monsterType != kTypeHumanoid ||
+            target->iconDimension != 1)
+        return;
+    if (nameIn(target->name, kDwarfFoes, ARRAYSIZE(kDwarfFoes)))
+        ++c.combat->attackRoll;
+}
+
+// Effect 28: an image absorbs a single-target spell unless 1d(images+1)
+// rolls 1.
+static void handleMirrorImage(const EffectCall &c) {
+    if (rollDice(1, c.effect.power + 1) <= 1)
+        return;
+    if (!c.combat || c.combat->activeSpellId == 0 || c.combat->multiTarget)
+        return;
+    nullifyAttack(c, 0);
+    say(c, &c.character, "lost an image");
+    --c.effect.power;
+    if (c.effect.power == 0)
+        removeEffect(c, c.character, E_POOLRAD_MIRROR_IMAGE);
+}
+
+// Effect 29: Ray of Enfeeblement.
+static void handleEnfeeble(const EffectCall &c) {
     if (c.combat)
-        c.combat->effectSet18.value = 0;
+        c.combat->damage -= c.combat->damage / 4;
 }
 
-static void handleRot(const EffectCall &c) {
-    if (c.op != EFF_TICK)
+// Effect 30: coughing in a Stinking Cloud.
+static void handleStinkCough(const EffectCall &c) {
+    Goldbox::Data::ADnDCharacter &ch = asAdnd(c.character);
+    if (ch.combatState) {
+        if (ch.combatState->canUse)
+            say(c, &ch, "is coughing");
+        ch.combatState->canUse = false;
+        ch.combatState->canCast = false;
+    }
+    ch.recalcCombatStats();
+    if (ch.armorClassRear > 52)
+        ch.armorClassRear -= 2;
+    else
+        ch.armorClassRear = 50;
+    ch.armorClass.current = ch.armorClassRear;
+}
+
+// Effect 32: the animation ends (runs on removal).
+static void handleAnimateDead(const EffectCall &c) {
+    c.effect.immediate = 0;
+    const uint8 side = c.effect.power >> 4;
+    Data::PoolradCharacter &ch = asPoolrad(c.character);
+    if (!effectLocked())
+        inflictStatusMsg(c, ch, Goldbox::Data::S_DEAD, "collapses");
+    ch.combatSide = side ? Goldbox::Data::CS_ENEMY : Goldbox::Data::CS_PARTY;
+    ch.ai_control = true;
+    ch.levelUndead = 0;
+    ch.attackLevel = ch.levels[Goldbox::Data::C_FIGHTER];
+    ch.movement.base = 12;
+    if (ch.npc == (int8)0xB3)
+        ch.npc = 0;
+    ch.monsterType = 0;
+}
+
+// Effect 33
+static void handleBlind(const EffectCall &c) {
+    Goldbox::Data::ADnDCharacter &ch = asAdnd(c.character);
+    ch.armorClass.current -= 4;
+    ch.armorClassRear -= 4;
+    if (!c.combat)
         return;
+    c.combat->attackRoll -= 4;
+    c.combat->savingThrow -= 4;
+}
 
-    if (c.bridge)
-        c.bridge->postEffectMessage(&c.character, "Rots...", true);
+// Effect 34: chains the disease handlers 43 and 44 on this node.
+static void handleDiseased(const EffectCall &c) {
+    const bool removed = c.op == EFF_REMOVE;
+    callEffectHandler(c, E_POOLRAD_DISEASE_STR, c.character, &c.effect, removed);
+    callEffectHandler(c, E_POOLRAD_DISEASE_HP, c.character, &c.effect, removed);
+}
 
-    c.character.abilities.charisma.current =
-        MAX<uint8>(3, c.character.abilities.charisma.current - 2);
+// Effect 35: Prayer's bonus for the caster's side.
+static void handleAlliedPrayer(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    ++c.combat->savingThrow;
+    ++c.combat->attackRoll;
+}
 
-    if (c.effect.power / 16 < 2) {
-        Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
-        effectSystem.setStatus(c.character, Goldbox::Data::S_GONE,
-            "Dies rots away");
+// Effect 36
+static void handleBestowCurse(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    c.combat->attackRoll -= 4;
+    c.combat->savingThrow -= 4;
+}
+
+// Effect 37
+static void handleBlinking(const EffectCall &c) {
+    if (!c.combat || !c.character.combatState ||
+            c.character.combatState->initiative == 0)
+        return;
+    c.combat->targetUnavailable = true;
+    c.combat->attackRoll = 0xFF;
+}
+
+// Effect 39: ages the creature once (strength bit 4) and doubles the rate.
+static void handleHasted(const EffectCall &c) {
+    if (!(c.effect.power & 0x10)) {
+        c.effect.power += 0x10;
+        say(c, &c.character, "ages");
+        ++c.character.age;
+    }
+    if (c.combat)
+        c.combat->effectSet18.value *= 2;
+}
+
+// Effect 40: the caster's Stinking Cloud clears.
+static void handleCastStink(const EffectCall &c) {
+    Combat::CombatContext *ctx = combatContext();
+    if (ctx)
+        ctx->clouds.expire(&c.character, c.effect.power >> 4, c.bridge);
+}
+
+// Effect 41: Protection from Normal Missiles.
+static void handleProtMissiles(const EffectCall &c) {
+    Goldbox::Data::Items::CharacterItem *weapon =
+        findDamagingWeapon(actingCreature(c));
+    if (weapon && weapon->bonus == 0)
+        avoidRanged(c, 100);
+}
+
+// Effect 42
+static void handleSlowed(const EffectCall &c) {
+    if (c.combat)
+        c.combat->effectSet18.value /= 2;
+}
+
+static void addHelplessOnce(PlayerCharacter &ch) {
+    if (!hasEffect(ch, E_POOLRAD_HELPLESS))
+        ch.addEffect(E_POOLRAD_HELPLESS, 0, 0xFF, false);
+}
+
+// Effect 43: disease, -1 Strength an hour; helpless at Strength 3.
+static void handleDiseaseStr(const EffectCall &c) {
+    if (!addEffectIfNoLock(c.character, E_POOLRAD_DISEASE_STR,
+            c.effect.power, 60))
+        return;
+    if (c.character.abilities.strength.current > 3) {
+        say(c, &c.character, "is weakened");
+        --c.character.abilities.strength.current;
     } else {
-        c.effect.power -= 16;
-        tryAddEffect(c.character, E_POOLRAD_ROT, c.effect.power, 43200);
+        addHelplessOnce(c.character);
     }
 }
 
-static void handleInvisibleRing(const EffectCall &c) {
-    if (c.op == EFF_ADD)
-        c.character.addEffect(E_POOLRAD_BLUR, 12, 1, false);
+// Effect 44: disease, 1 damage every 10 minutes; helpless at 1 HP.
+static void handleDiseaseHp(const EffectCall &c) {
+    if (!addEffectIfNoLock(c.character, E_POOLRAD_DISEASE_HP,
+            c.effect.power, 10))
+        return;
+    if (c.character.hitPoints.current > 1) {
+        inflictNonWeaponDamage(c, c.character, 1, 0, 0, false);
+        refreshPartyDisplay(c);
+    } else {
+        addHelplessOnce(c.character);
+    }
 }
 
-static void handleHelplessPoolrad(const EffectCall &c) {
-    handleHelpless(c);
-    if (c.op == EFF_ADD)
-        c.character.resetCombatAction();
+// Effect 47: the original tests the attacker's type and size, but the name
+// of the defender's own target.
+static void handleDwarfAcGiant(const EffectCall &c) {
+    PlayerCharacter *attacker = actingCreature(c);
+    PlayerCharacter *other = combatTarget(c.character);
+    if (!c.combat || !attacker || !other)
+        return;
+    if (asPoolrad(*attacker).monsterType != kTypeHumanoid ||
+            (attacker->iconDimension & 0x7F) != 2)
+        return;
+    if (nameIn(other->name, kGiantFoes, ARRAYSIZE(kGiantFoes)))
+        c.combat->attackRoll -= 4;
 }
 
-static void handleEndlessRegen(const EffectCall &c) {
-    applyFlag(c.op, asPoolrad(c.character), Data::PoolradCharacter::EF_REGEN_3);
-    if (c.op != EFF_TICK)
+// Effect 48
+static void handleGnomeAcBug(const EffectCall &c) {
+    PlayerCharacter *attacker = actingCreature(c);
+    if (!c.combat || !attacker ||
+            asPoolrad(*attacker).monsterType != kTypeHumanoid)
+        return;
+    if (attacker->name == "BUGBEAR" || attacker->name == "GNOLL")
+        c.combat->attackRoll -= 4;
+}
+
+// Effect 49: strength bit 4 is the caster's side.
+static void handlePrayer(const EffectCall &c) {
+    const uint8 side = (c.effect.power & 0x10) >> 4;
+    if (static_cast<uint8>(c.character.combatSide) == side) {
+        handleAlliedPrayer(c);
+    } else if (c.combat) {
+        --c.combat->attackRoll;
+        --c.combat->savingThrow;
+    }
+}
+
+// Effect 50: mummy rot blocks healing; 1 HP back every 10 days.
+static void handleRotNoHeal(const EffectCall &c) {
+    if (!addEffectIfNoLock(c.character, E_POOLRAD_ROT_NO_HEAL,
+            c.effect.power, 14400))
         return;
     if (c.character.healHp(1, true) && c.bridge)
         c.bridge->showHealResult(&c.character);
 }
 
-// Mirrors UTIL_CheckUnaffected: runs the ES_APPLY_WITH_MESSAGE_GUARDS immunity
-// set (set 9) against effectId. If the effect is blocked by an immunity, or if
-// checkSave is true and the save succeeded, posts "is Unaffected" and returns
-// false. Otherwise refreshes or adds the effect and posts message.
-// duration == 0 has refresh-always semantics (matches original).
-static bool checkUnaffected(const EffectCall &c, uint8 effectId,
-        uint16 duration, uint8 power, bool immediate,
-        bool checkSave, bool saved,
-        const char *message) {
-    // Run immunity/protection set. The original stores the current effect id
-    // in a global (BYTE_CURRENT_EFFECT) so immunity handlers can zero it.
-    // We replicate by running the set and checking whether the character
-    // already has a blocking immunity effect for this id.
-    // Simplified: check ES_APPLY_WITH_MESSAGE_GUARDS via EffectRuntime.
-    CharacterEffects *fx = c.character.getEffects();
+// Effects 31, 51, 52, 53
+static void handleHelpless(const EffectCall &c) {
+    c.character.resetCombatAction();
+}
 
-    // Immunity check: run set 9 handlers to let them cancel the effect.
-    // We detect cancellation by checking if any set-9 effect for this id
-    // is present and would block it. The original used a mutable global;
-    // here we use the EffectRuntime path which calls handlers in-place.
-    bool blocked = false;
-    if (c.handler && fx) {
-        // Build a temporary combat context to capture set-9 modifier output.
-        Combat::CombatGlobals tempCombat;
-        if (c.combat)
-            tempCombat = *c.combat;
-        EffectRuntime runtime(const_cast<EffectHandlerBase *>(c.handler), c.bridge);
-        runtime.checkEffectSet(ES_APPLY_WITH_MESSAGE_GUARDS, *fx, c.character, &tempCombat);
-        // If the set zeroed the damage (canonical immunity signal), treat as blocked.
-        blocked = (tempCombat.damage == 0 && c.combat && c.combat->damage != 0);
+// Effect 56: Ring of Invisibility.
+static void handleRingInvis(const EffectCall &c) {
+    c.character.addEffect(E_POOLRAD_INVISIBLE, 1, 12, false);
+}
+
+// Effect 57: mummy rot, -2 Charisma a month for 1d6 months, then death.
+static void handleMummyRot(const EffectCall &c) {
+    if (effectLocked())
+        return;
+    PlayerCharacter &ch = c.character;
+    say(c, &ch, "Rots...");
+    uint8 &cha = ch.abilities.charisma.current;
+    cha = cha > 2 ? cha - 2 : 0;
+    if (cha < 3)
+        cha = 3;
+    if ((c.effect.power >> 4) > 1) {
+        c.effect.power -= 0x10;
+        addEffectIfNoLock(ch, E_POOLRAD_MUMMY_ROT, c.effect.power, 43200);
+    } else {
+        inflictStatusMsg(c, ch, Goldbox::Data::S_GONE, "Dies rots away");
     }
+}
 
-    if (blocked || (checkSave && saved)) {
-        if (c.bridge)
-            c.bridge->postEffectMessage(&c.character, "is Unaffected", true);
-        return false;
+// Effect 58
+static void handleImmobile(const EffectCall &c) {
+    if (c.character.combatState)
+        c.character.combatState->movePoints = 0;
+    if (c.combat && c.combat->effectSet18.isMovement)
+        c.combat->effectSet18.value = 0;
+}
+
+// Effect 59: the troll starts regenerating for good.
+static void handleTrollRegen(const EffectCall &c) {
+    c.character.addEffect(E_POOLRAD_REGEN3, 0, 0xFF, false);
+}
+
+// Effect 61: Ring of Fire Resistance, -2 per die (minimum 1 per die) and
+// +4 to save; non-magical fire is nullified.
+static void handleRingFireRes(const EffectCall &c) {
+    if (!c.combat || !(c.combat->behaviorFlags & CombatGlobals::DMG_FIRE))
+        return;
+    const uint8 dice = c.combat->damageDice;
+    for (uint8 i = 0; i < dice; ++i) {
+        c.combat->damage -= 2;
+        if (c.combat->damage < dice)
+            c.combat->damage = dice;
     }
-
-    // Refresh or add the effect, mirroring CHARACTER_findEffect /
-    // CHARACTER_removeEffect / CHARACTER_addEffect sequence.
-    if (fx) {
-        Effect *existing = fx->findEffectById(effectId);
-        if (existing) {
-            const bool shouldRefresh = (duration == 0) ||
-                (existing->durationMin != 0 && existing->durationMin < duration);
-            if (shouldRefresh) {
-                // Remove with handler notification, then re-add below.
-                existing->immediate = 0; // suppress EFF_REMOVE on refresh
-                fx->eraseEffectById(effectId);
-            } else {
-                // Existing effect is at least as long; nothing to do.
-                return false;
-            }
-        }
-    }
-
-    c.character.addEffect(effectId, duration, power, immediate);
-
-    if (message && message[0] != '\0' && c.bridge)
-        c.bridge->postEffectMessage(&c.character, message, true);
-
-    return true;
+    c.combat->savingThrow += 4;
+    if (!(c.combat->behaviorFlags & CombatGlobals::DMG_MAGIC))
+        nullifyAttack(c, 0);
 }
 
-// Thin adapter over the shared Rules::checkSavingThrow (mirrors the
-// original UTIL_CheckSavingThrow), bound to this handler's EffectCall.
-static bool checkSavingThrow(const EffectCall &c,
-        Goldbox::Data::Spells::SaveVerseType saveType, int8 saveModifier) {
-    Goldbox::Data::ADnDCharacter &adnd =
-        static_cast<Goldbox::Data::ADnDCharacter &>(c.character);
-    return Goldbox::Data::Rules::checkSavingThrow(adnd, c.combat, c.handler,
-            c.bridge, saveType, saveModifier);
-}
-
-static void applyPoisonAttack(const EffectCall &c, int8 saveModifier) {
-    if (!c.bridge)
+// Effect 62: Constitution 20+, 1 HP back an hour.
+static void handleConRegen(const EffectCall &c) {
+    if (!addEffectIfNoLock(c.character, E_POOLRAD_CON_REGEN,
+            c.effect.power, 60))
         return;
-    c.bridge->postEffectMessage(&c.character, "is Poisoned", true);
+    if (c.character.healHp(1, true) && c.bridge)
+        c.bridge->showHealResult(&c.character);
+}
 
-    // Remove the poisoned status effect (E_POISONED = 55).
-    CharacterEffects *fx = c.character.getEffects();
-    if (fx)
-        fx->eraseEffectById(static_cast<uint8>(E_POISONED));
-    c.character.effectState.flags &= ~CEF_POISONED;
-
-    if (checkSavingThrow(c, Goldbox::Data::Spells::SVS_POISON, saveModifier))
+// EffHndlr.PoisonTouch: the target saves or dies of poison.
+static void poisonTouch(const EffectCall &c, int8 saveModifier) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!target)
         return;
-
-    Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
-    effectSystem.setStatus(c.character, Goldbox::Data::S_DEAD, "is killed");
-}
-
-static void handlePoisonAttack(const EffectCall &c) {
-    if (c.op == EFF_ADD)
-        applyPoisonAttack(c, 0);
-}
-
-static void handlePoisonAttackSaveBonus4(const EffectCall &c) {
-    if (c.op == EFF_ADD)
-        applyPoisonAttack(c, +4);
-}
-
-static void handlePoisonAttackSaveBonus2(const EffectCall &c) {
-    if (c.op == EFF_ADD)
-        applyPoisonAttack(c, +2);
-}
-
-static void handlePoisonMeleeSavePenalty2(const EffectCall &c) {
-    if (c.op == EFF_ADD)
-        applyPoisonAttack(c, -2);
-}
-
-// Mirrors EFFECT_ApplyParalysis: on a failed save vs paralysis, shows
-// combat feedback and applies the paralyzed status (effect param 12).
-static void applyParalysisAttack(const EffectCall &c, uint8 duration) {
-    if (checkSavingThrow(c, Goldbox::Data::Spells::SVS_POISON, 0))
+    if (rollSavingThrow(c, *target, Goldbox::Data::Spells::SVS_POISON,
+            saveModifier))
         return;
-
-    if (c.bridge)
-        c.bridge->postEffectMessage(&c.character, "is Paralyzed", true);
-
-    c.character.addEffect(E_IMMOBILIZED, duration, 12, false);
+    say(c, target, "is Poisoned", false);
+    target->addEffect(E_POOLRAD_POISONED, 0, 0xFF, false);
+    inflictStatusMsg(c, *target, Goldbox::Data::S_DEAD, "is killed");
 }
 
-static void handleParalysisMeleeAttack(const EffectCall &c) {
-    if (c.op != EFF_ADD)
+// EffHndlr.ParalysisTouch. The original takes a save modifier but never
+// uses it.
+static void paralysisTouch(const EffectCall &c, uint16 minutes) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!target)
         return;
-    const uint8 duration = Goldbox::g_engine ?
-        Goldbox::g_engine->rollDice(2, 8) : 2;   // 2d8
-    applyParalysisAttack(c, duration);
-}
-
-static void handleParalysisMeleeAttackNoElves(const EffectCall &c) {
-    // Elves are immune to this particular paralysis attack.
-    if (c.op != EFF_ADD || c.character.race == Goldbox::Data::R_ELF)
+    if (rollSavingThrow(c, *target, Goldbox::Data::Spells::SVS_POISON, 0))
         return;
-    applyParalysisAttack(c, 63);
+    say(c, target, "is Paralyzed");
+    target->addEffect(E_POOLRAD_PARALYSIS, minutes, 12, false);
 }
 
-static void handleParalysisMeleeAttackStrong(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-    const uint8 duration = (Goldbox::g_engine ?
-        Goldbox::g_engine->rollDice(1, 9) : 1) + 10;   // 1d9 + 10
-    applyParalysisAttack(c, duration);
+// Effects 64, 65, 66, 70
+static void handlePoisonHit0(const EffectCall &c) {
+    poisonTouch(c, 0);
 }
 
-static void handleInvisibleAttack(const EffectCall &c) {
-    if (c.op != EFF_ADD || !c.combat)
+static void handlePoisonHit4(const EffectCall &c) {
+    poisonTouch(c, 4);
+}
+
+static void handlePoisonHit2(const EffectCall &c) {
+    poisonTouch(c, 2);
+}
+
+static void handlePoisonHitM2(const EffectCall &c) {
+    poisonTouch(c, -2);
+}
+
+// Effect 67: thri-kreen, 2d8 minutes.
+static void handleKreenPara(const EffectCall &c) {
+    paralysisTouch(c, rollDice(2, 8));
+}
+
+// Effect 68: ghoul, 63 minutes, not against elves.
+static void handleGhoulPara(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (target && target->race != Goldbox::Data::R_ELF)
+        paralysisTouch(c, 63);
+}
+
+// Effect 69: drider, 1d9+10 minutes (its -2 save modifier is unused).
+static void handleDriderPara(const EffectCall &c) {
+    paralysisTouch(c, rollDice(1, 9) + 10);
+}
+
+// Effect 71: Dust of Disappearance.
+static void handleDustDisappear(const EffectCall &c) {
+    if (!c.combat)
         return;
     c.combat->targetUnavailable = true;
     c.combat->attackRoll -= 4;
 }
 
-static void handleCamouflagedAttack(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    // 95% chance to gain camouflage; fails (and stays uncamouflaged) on a
-    // roll of 96-100. Raw effect id 25 per the decompiled table (not
-    // E_CAMOUFLAGE, which is a different id in this port's Effects enum).
-    const uint8 roll = Goldbox::g_engine ?
-        Goldbox::g_engine->rollDice(1, 100) : 100;
-    if (roll < 96)
-        c.character.addEffect(25, 1, 12, false);
+// Effect 72: camouflage / Cloak of Elvenkind.
+static void handleCamouflage(const EffectCall &c) {
+    if (rollDice(1, 100) <= 95)
+        c.character.addEffect(E_POOLRAD_INVISIBLE, 1, 12, false);
 }
 
-// GB13-016: configure attacker's current roll slot with a TEMPORARY attack
-// profile (count attacks of diceNum d diceSides, no flat modifier) and route it
-// through the real attack resolver so the attack can hit, miss, invoke defenses,
-// dispatch effects and apply the facing change — no guaranteed direct damage.
-// The original roll is saved to restore afterward so no permanent mutated dice
-// survive the activation.
-static bool executeTemporaryAttack(Goldbox::Data::PlayerCharacter &attacker,
-                                   Goldbox::Data::PlayerCharacter *target,
-                                   uint8 attacks, uint8 diceNum, uint8 diceSides) {
-    if (!target)
-        return false;
-
+// CbtActs attack helper: run a temporary attack profile through the real
+// attack resolver, then restore the creature's own profile.
+static bool executeTemporaryAttack(PlayerCharacter &attacker,
+        PlayerCharacter *target, uint8 attacks, uint8 diceNum,
+        uint8 diceSides) {
     Combat::CombatSession *session = Combat::g_combatSession;
-    if (!session || !attacker.combatState)
+    if (!target || !session || !attacker.combatState)
         return false;
 
-    Goldbox::Data::ADnDCharacter *adnd =
-        dynamic_cast<Goldbox::Data::ADnDCharacter *>(&attacker);
-    if (!adnd)
-        return false;
-
-    // Primary slot (attackId 1) carries the temporary secondary-attack config.
-    Goldbox::Data::CombatRoll saved = adnd->getCurRoll(1);
+    Goldbox::Data::ADnDCharacter &adnd = asAdnd(attacker);
+    Goldbox::Data::CombatRoll saved = adnd.getCurRoll(1);
     const uint8 savedAttackId = attacker.combatState->attackId;
 
-    Goldbox::Data::CombatRoll &roll = adnd->getCurRoll(1);
+    Goldbox::Data::CombatRoll &roll = adnd.getCurRoll(1);
     roll.attacks = attacks;
     roll.action.roll.diceNum = diceNum;
     roll.action.roll.diceSides = diceSides;
     roll.action.modifier = 0;
     attacker.combatState->attackId = 1;
 
-    // Commit the target and run the full attack sequence (hit/miss, defenses,
-    // effect dispatch, facing). Both configured attacks may miss.
     session->executeAttackOnTarget(&attacker, target, true);
 
-    // Scope the temporary dice to this activation: restore immediately so the
-    // monster's normal attack profile is unchanged. recalcCombatStats would
-    // otherwise recompute curPrimaryRoll from base at the next activation
-    // boundary; restoring here keeps the same-boundary semantics explicit.
-    adnd->getCurRoll(1) = saved;
+    adnd.getCurRoll(1) = saved;
     attacker.combatState->attackId = savedAttackId;
     return true;
 }
 
-// Rear-claw rake (Requirement 32.1): a monster with a rear claw (e.g. a
-// claw/claw/bite) rakes after its two front-claw attacks land. Eligibility is
-// exactly TWO SUCCESSFUL initial hits this activation (hitsMade[1]==2), NOT two
-// attacks remaining (attacksLeft==2). When eligible it executes TWO secondary
-// 2d4 attacks through the real resolver so each can hit, miss or invoke
-// defenses, then ends the action once.
+// Effect 73 (CbtActs.RearClawRake): after both claws hit, two 2d4 rakes.
 static void handleRearClawRake(const EffectCall &c) {
-    if (c.op != EFF_ADD || !c.combat ||
-        !Combat::CombatGlobals::rakeEligible(c.combat->hitsMade[1]))
+    if (!c.combat || c.combat->hitsMade[1] != 2)
         return;
-
-    Goldbox::Data::PlayerCharacter *target =
-        c.character.combatState ? c.character.combatState->target : nullptr;
+    PlayerCharacter *target = combatTarget(c.character);
     if (!target || !target->enabled)
         return;
-
-    if (c.bridge)
-        c.bridge->postEffectMessage(&c.character, "Rakes...", true);
-
-    // Two secondary 2d4 attacks routed through the resolver (not guaranteed
-    // damage). End the action once, after both secondaries.
+    say(c, &c.character, "Rakes...");
     executeTemporaryAttack(c.character, target, 2, 2, 4);
-
     c.character.resetCombatAction();
 }
 
-// GB13-016: clear the grapple's linked hold on the victim WITHOUT recursive
-// removal and WITHOUT stale roster access. The victim is re-validated by the
-// caller each time (indexInRange) before this is reached, and eraseEffectById
-// is the raw erase (no handler callback), so clearing the hold cannot re-enter
-// a handler that would erase again. Clears the raw immobilize (58) and the raw
-// bite-hold hold (74) — the ongoing-hold Effect_ID74, not EFFECT_77_BiteAndHold.
-static void releaseGrappleHold(Goldbox::Data::PlayerCharacter *victim) {
-    if (!victim)
-        return;
-    CharacterEffects *victimFx = victim->getEffects();
-    if (!victimFx)
-        return;
-    victimFx->eraseEffectById(
-        (uint8)MonsterSpecialAttacks::kImmobilizeEffectId);
-    victimFx->eraseEffectById(
-        (uint8)MonsterSpecialAttacks::kBiteHoldRawEffectId);
-}
-
-// Grapple / bite-and-hold ongoing handler (raw id 74, Effect_ID74 — NOT the
-// EFFECT_77_BiteAndHold attack effect). The victim's roster index is stored in
-// the effect (power in this port; see strength-vs-power OPEN note below). While
-// the hold is active it resolves ONE primary 3d4 from-behind attack through the
-// real resolver each application (hit/miss/defenses retained) and ends the
-// action once. When the grapple ends — victim death, attacker disablement or
-// explicit removal — it clears the linked hold (effect 58 + raw 74) through a
-// re-validated victim handle, then removes itself once (no recursive removal).
-static void handleGrappleAttack(const EffectCall &c) {
-    Combat::CombatContext *ctx = Goldbox::g_engine ?
-        Goldbox::g_engine->getCombatContext() : nullptr;
-
-    // Validated battle-roster handle: dereference the stored victim index only
-    // when it is in range (stale-roster-access guard).
-    Goldbox::Data::PlayerCharacter *target = nullptr;
-    if (ctx && MonsterSpecialAttacks::victimIndexInRange(
-                   c.effect.power, ctx->params.roster.size()))
-        target = ctx->params.roster[c.effect.power];
-
-    const bool victimEnabled = target && target->enabled;
-
-    // Hold still active: resolve one 3d4 from-behind attack through the
-    // resolver and end the action once.
-    if (c.op == EFF_ADD && c.character.enabled && victimEnabled) {
-        executeTemporaryAttack(c.character, target, 1, 3, 4);
-        c.character.resetCombatAction();
-
-        // If the victim did not survive the attack, fall through to cleanup.
-        if (target->enabled)
-            return;
-    }
-
-    // Grapple ended: release the linked hold and remove this effect once.
-    if (MonsterSpecialAttacks::shouldReleaseHold(
-            c.op == EFF_REMOVE, c.character.enabled, victimEnabled))
-        releaseGrappleHold(target);
-
-    // Remove the grapple effect exactly once. eraseEffectById is a raw erase
-    // (no handler callback), so this does not re-enter handleGrappleAttack.
-    if (c.op == EFF_ADD) {
-        c.effect.immediate = 0;
-        CharacterEffects *fx = c.character.getEffects();
-        if (fx)
-            fx->eraseEffectById(c.effect.id);
-    }
-}
-
-// Vampiric attack: effect.power is the target's roster index.
-// Duration is measured in 16-unit ticks; each drain consumes damage*16 ticks.
-static void handleSucksBlood(const EffectCall &c) {
-    Combat::CombatContext *ctx = Goldbox::g_engine ?
-        Goldbox::g_engine->getCombatContext() : nullptr;
-    Goldbox::Data::PlayerCharacter *target =
-        (ctx && c.effect.power < ctx->params.roster.size()) ?
-        ctx->params.roster[c.effect.power] : nullptr;
-
-    if (c.op == EFF_ADD && c.character.enabled && target && target->enabled) {
-        if (c.bridge)
-            c.bridge->postEffectMessage(&c.character, "Sucks some Blood", true);
-
-        const uint8 damage = Goldbox::g_engine ?
-            Goldbox::g_engine->rollDice(1, 4) : 1;
-
-        if (c.combat)
-            c.combat->behaviorFlags = 0;
-        if (c.damage)
-            c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_NORMAL, false);
-
-        c.character.resetCombatAction();
-
-        if (target->enabled && (c.effect.durationMin / 16) > damage) {
-            c.effect.durationMin -= damage * 16;
-        } else {
-            CharacterEffects *fx = c.character.getEffects();
-            if (fx)
-                fx->eraseEffectById(c.effect.id);
+// Effect 74 (CbtActs.BiteAndHold). strength = the victim's combat slot.
+static void handleBiteHold(const EffectCall &c) {
+    PlayerCharacter *victim = creatureInSlot(c.effect.power);
+    const bool removed = c.op == EFF_REMOVE;
+    if (removed || !c.character.enabled || !victim || !victim->enabled) {
+        if (victim)
+            removeEffect(c, *victim, E_POOLRAD_IMMOBILE);
+        if (!removed) {
+            c.effect.immediate = 0;
+            removeEffect(c, c.character, E_POOLRAD_BITE_HOLD, &c.effect);
         }
         return;
     }
 
-    // Drain interrupted (or naturally removed): release the target's immobilization.
-    if (target) {
-        CharacterEffects *targetFx = target->getEffects();
-        if (targetFx)
-            targetFx->eraseEffectById(static_cast<uint8>(E_IMMOBILIZED));
-    }
-
-    if (c.op == EFF_ADD) {
-        c.effect.immediate = 0;
-        CharacterEffects *fx = c.character.getEffects();
-        if (fx)
-            fx->eraseEffectById(c.effect.id);
-    }
-
-    if (c.character.enabled && target && target->enabled && c.character.combatState)
-        c.character.combatState->fleeing = true;
+    executeTemporaryAttack(c.character, victim, 1, 3, 4);
+    c.character.resetCombatAction();
+    if (!victim->enabled)
+        removeEffect(c, c.character, E_POOLRAD_BITE_HOLD, &c.effect);
 }
 
-// Revive: re-places the character on the combat map at their last known tile
-// position. On success, restores status/enabled and posts a revival message,
-// then calls updateSideCount. On failure (tile blocked), reschedules effect 78
-// itself using effect.power as the retry duration.
-static void handleRevive(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    Combat::CombatContext *ctx = Goldbox::g_engine ?
-        Goldbox::g_engine->getCombatContext() : nullptr;
-    if (!ctx)
-        return;
-
-    // Read last known position from the downed-member records, falling back
-    // to the live table entry if the character was never recorded as downed.
-    uint8 col = 0, row = 0;
-    bool found = false;
-    const Common::Array<Combat::CombatGlobals::DownedMemberRecord> &downed =
-        ctx->globals.downedMembers;
-    for (uint i = 0; i < downed.size(); ++i) {
-        if (downed[i].character == &c.character) {
-            col = downed[i].pos.col;
-            row = downed[i].pos.row;
-            found = true;
-            break;
+// Effect 75: blood drain. strength = the victim's combat slot; the
+// duration's upper bits are the remaining damage budget (x16).
+static void handleBloodDrain(const EffectCall &c) {
+    PlayerCharacter *victim = creatureInSlot(c.effect.power);
+    const bool removed = c.op == EFF_REMOVE;
+    if (removed || !c.character.enabled || !victim || !victim->enabled) {
+        if (victim)
+            removeEffect(c, *victim, E_POOLRAD_IMMOBILE);
+        if (!removed) {
+            c.effect.immediate = 0;
+            removeEffect(c, c.character, E_POOLRAD_BLOOD_DRAIN, &c.effect);
         }
-    }
-    if (!found) {
-        col = ctx->table.getCharacterCol(&c.character);
-        row = ctx->table.getCharacterRow(&c.character);
-    }
-
-    const uint8 size = MAX<uint8>(1, ctx->table.getCharacterSize(&c.character));
-    const uint8 hp = c.character.hitPoints.current;
-
-    const int idx = ctx->table.addCombatant(&c.character, size);
-    if (idx < 0) {
-        // Tile blocked: retry next turn.
-        tryAddEffect(c.character, 0x4e, c.effect.power, 1);
+        if (c.character.enabled && victim && victim->enabled &&
+                c.character.combatState)
+            c.character.combatState->fleeing = true;
         return;
     }
-    ctx->table.setPosition(idx, TilePos(col, row));
 
-    c.character.healthStatus = Goldbox::Data::S_OKAY;
-    c.character.enabled = true;
-    c.character.hitPoints.current = hp;
-
-    if (c.bridge) {
-        const char *msg = (c.character.combatSide == Goldbox::Data::CS_ENEMY) ?
-            "stands up and grins" : "gets back up";
-        c.bridge->postEffectMessage(&c.character, msg, true);
-    }
-
-    ctx->updateSideCount();
+    say(c, &c.character, "Sucks some Blood");
+    const uint8 damage = rollDamageDice(c, 1, 4);
+    inflictNonWeaponDamage(c, *victim, damage, 0, 0, false);
+    c.character.resetCombatAction();
+    if (victim->enabled && (c.effect.durationMin >> 4) > damage)
+        c.effect.durationMin -= damage * 16;
+    else
+        removeEffect(c, c.character, E_POOLRAD_BLOOD_DRAIN, &c.effect);
 }
 
-// Bite-and-hold attack: only works against targets with strength < 19.
-// Starts effect 74 (grapple) on the attacker with the target's roster index,
-// then sets and immediately fires effect 58 (E_IMMOBILIZED) on the target.
-static void handleBiteAndHold(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    Goldbox::Data::PlayerCharacter *target =
-        c.character.combatState ? c.character.combatState->target : nullptr;
-    if (!target || target->abilities.strength.current >= 19)
-        return;
-
-    Combat::CombatContext *ctx = Goldbox::g_engine ?
-        Goldbox::g_engine->getCombatContext() : nullptr;
-    uint8 targetIndex = 0xff;
-    if (ctx) {
-        for (uint i = 0; i < ctx->params.roster.size(); ++i) {
-            if (ctx->params.roster[i] == target) {
-                targetIndex = (uint8)i;
-                break;
-            }
-        }
-    }
-
-    c.character.addEffect(0x4a, 0, targetIndex, true);
-    target->addEffect(static_cast<uint8>(E_IMMOBILIZED), 0, 0xff, false);
-
-    if (c.handler) {
-        Effect immobilize;
-        immobilize.id = static_cast<uint8>(E_IMMOBILIZED);
-        immobilize.durationMin = 0;
-        immobilize.power = 0xff;
-        immobilize.immediate = false;
-        c.handler->apply(EFF_ADD, immobilize, *target, c.combat, c.bridge);
-    }
-
-    if (c.bridge)
-        c.bridge->postEffectMessage(target, "is held fast", true);
-}
-
-// Triggers the blood-drain attack: starts effect 75 (vampiric drain) on the
-// attacker with duration=207 ticks and power=target roster index, then sets
-// and immediately fires effect 58 (E_IMMOBILIZED) on the target.
-static void handleBloodDrainingAttack(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    Goldbox::Data::PlayerCharacter *target =
-        c.character.combatState ? c.character.combatState->target : nullptr;
+// Effect 76: latch on with a 12 HP budget and immobilize the target.
+static void handleBloodAttach(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
     if (!target)
         return;
+    c.character.addEffect(E_POOLRAD_BLOOD_DRAIN, 12 * 16 + 15,
+        combatSlot(target), true);
+    target->addEffect(E_POOLRAD_IMMOBILE, 0, 0xFF, false);
+    callEffectHandler(c, E_POOLRAD_IMMOBILE, *target, nullptr, false);
+}
 
-    Combat::CombatContext *ctx = Goldbox::g_engine ?
-        Goldbox::g_engine->getCombatContext() : nullptr;
-    uint8 targetIndex = 0xff;
-    if (ctx) {
-        for (uint i = 0; i < ctx->params.roster.size(); ++i) {
-            if (ctx->params.roster[i] == target) {
-                targetIndex = (uint8)i;
-                break;
-            }
-        }
+// Effect 77: bite and hold, no effect on Strength 19+.
+static void handleBiteAttach(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!target || target->abilities.strength.current >= 19)
+        return;
+    c.character.addEffect(E_POOLRAD_BITE_HOLD, 0, combatSlot(target), true);
+    target->addEffect(E_POOLRAD_IMMOBILE, 0, 0xFF, false);
+    callEffectHandler(c, E_POOLRAD_IMMOBILE, *target, nullptr, false);
+    say(c, target, "is held fast");
+}
+
+// Effect 78: healed from unconscious; retry a minute later if blocked.
+static void handleHealWake(const EffectCall &c) {
+    if (!reviveDeadCreature(c, c.character, c.character.hitPoints.current))
+        addEffectIfNoLock(c.character, E_POOLRAD_HEAL_WAKE, c.effect.power, 1);
+}
+
+// Effect 79: fire touch, 2d10.
+static void handleFireTouch(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (target)
+        inflictNonWeaponDamage(c, *target, rollDamageDice(c, 2, 10),
+            CombatGlobals::DMG_FIRE | CombatGlobals::DMG_MAGIC, 0, false);
+}
+
+// Effect 80: acid squirt, 1d4.
+static void handleAcidSquirt(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (target)
+        inflictNonWeaponDamage(c, *target, rollDamageDice(c, 1, 4),
+            CombatGlobals::DMG_ACID, 0, false);
+}
+
+// FxEngine.AddEffectWithMessage: the EFFECT_IMMUNITY set may veto the
+// effect; an existing node is replaced when the new duration is longer or
+// permanent, and the new node is always added.
+static bool addEffectWithMessage(const EffectCall &c, PlayerCharacter &ch,
+        uint8 effectId, uint16 minutes, uint8 strength, bool onRemove,
+        bool saveNegates, bool saved, const char *message) {
+    CombatGlobals local;
+    CombatGlobals *globals = c.combat ? c.combat : &local;
+    globals->pendingEffectId = effectId;
+
+    CharacterEffects *fx = ch.getEffects();
+    if (fx && c.handler) {
+        EffectRuntime runtime(const_cast<EffectHandlerBase *>(c.handler),
+            c.bridge);
+        runtime.checkEffectSet(ES_APPLY_WITH_MESSAGE_GUARDS, *fx, ch, globals);
     }
 
-    c.character.addEffect(0x4b, 207, targetIndex, true);
-    target->addEffect(static_cast<uint8>(E_IMMOBILIZED), 0, 0xff, false);
+    if (globals->pendingEffectId == 0 || (saved && saveNegates)) {
+        say(c, &ch, "is Unaffected");
+        return false;
+    }
 
-    if (c.handler) {
-        Effect immobilize;
-        immobilize.id = static_cast<uint8>(E_IMMOBILIZED);
-        immobilize.durationMin = 0;
-        immobilize.power = 0xff;
-        immobilize.immediate = false;
-        c.handler->apply(EFF_ADD, immobilize, *target, c.combat, c.bridge);
+    Effect *existing = fx ? fx->findEffectById(effectId) : nullptr;
+    if (existing && ((existing->durationMin > 0 &&
+            minutes > existing->durationMin) || minutes == 0))
+        removeEffect(c, ch, effectId, existing);
+    ch.addEffect(effectId, minutes, strength, onRemove);
+    if (message && *message)
+        say(c, &ch, message);
+    return true;
+}
+
+// Effect 81: each enemy saves vs. spell or, by level, is paralyzed (0..3)
+// or cursed (4, 5) for good.
+static void handleDragonFear(const EffectCall &c) {
+    const Common::Array<PlayerCharacter *> creatures = allCreatures();
+    for (PlayerCharacter *ch : creatures) {
+        if (!ch || !ch->enabled || ch->combatSide == c.character.combatSide)
+            continue;
+        const bool saved = rollSavingThrow(c, *ch,
+            Goldbox::Data::Spells::SVS_SPELL, 0);
+        const uint8 level = asPoolrad(*ch).highestLevel;
+        if (level <= 3)
+            addEffectWithMessage(c, *ch, E_POOLRAD_PARALYSIS, 0, 12, false,
+                true, saved, "is paralyzed with fear");
+        else if (level <= 5)
+            addEffectWithMessage(c, *ch, E_POOLRAD_CURSE, 0, 12, false,
+                true, saved, "is weakened by fear");
     }
 }
 
-// Mirrors EFFECT_81_DragonFearAura: iterates the party and applies a
-// fear effect to each enabled character on the opposite combat side.
-// Level 0-3: paralyzed with fear (E_POOLRAD_HELPLESS_34, power=12).
-// Level 4-5: weakened by fear (E_POOLRAD_CURSED, power=12).
-// Level 6+: unaffected.
-// Saving throw vs. spell (type 4) blocks the effect.
-// Mirrors EFFECT_82_MummyFearAura: iterates the party, first stripping any
-// prior mummy-fear-aura instance from every character, then applying a
-// paralysis-fear effect to enabled characters on the opposite side.
-// Save bonus = (sideCount[target->combatSide] > 5) + (race == human ? 2 : 0).
-// Duration is 1d4 minutes. Save vs. paralysis (type 0) blocks the effect.
-// Mirrors EFFECT_83_PetrifyingGaze.
-// Announces the gaze, checks for a reflective item on the target (redirecting
-// the gaze back at the attacker when found), then rolls save vs. petrification
-// (type 1). On failure, sets the final target's status to S_STONED.
-//
-// TODO: GFX_LoadEffectTileQuad(18) and AnimateGaze() are not yet implemented;
-//       the visual gaze animation is skipped until the gfx effect system is ported.
-// Mirrors EFFECT_84_CharmingGaze.
-// Requires a valid combat target on the opposite side with LOS.
-// Announces the gaze, sets activeSpellId=10, rolls save vs. spell
-// (type 4, modifier -2), then applies charm effect (0x0B) via checkUnaffected.
-// If the effect was accepted, fires its EFF_ADD handler directly to trigger
-// the charm side-effects (combatSide swap, ai_control, etc.).
-//
-// TODO: GFX_LoadEffectTileQuad(18) and COMBAT_AnimateMissilePath are not yet
-//       implemented; the visual gaze animation is skipped.
-static void handleCharmingGaze(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    if (!c.character.combatState || !c.character.combatState->target)
-        return;
-
-    Goldbox::Data::PlayerCharacter *target = c.character.combatState->target;
-
-    Combat::CombatContext *ctx = Goldbox::g_engine ?
-        Goldbox::g_engine->getCombatContext() : nullptr;
-
-    if (!target->enabled || target->combatSide == c.character.combatSide)
-        return;
-
-    if (ctx) {
-        const TilePos attackerPos(
-            ctx->table.getCharacterCol(&c.character),
-            ctx->table.getCharacterRow(&c.character));
-        const TilePos targetPos(
-            ctx->table.getCharacterCol(target),
-            ctx->table.getCharacterRow(target));
-        uint16 range = 0xFF;
-        if (!ctx->lineOfSightCheck(attackerPos, targetPos, range))
-            return;
-    }
-
-    if (c.bridge)
-        c.bridge->postEffectMessage(&c.character, "Gazes...", false);
-
-    // TODO: GFX_LoadEffectTileQuad(18);
-    // TODO: COMBAT_AnimateMissilePath(attackerCol, attackerRow,
-    //                                 targetCol, targetRow, 4, 4);
-
-    if (c.combat)
-        c.combat->activeSpellId = 10;
-
-    // power = attacker's combat side * 0x80 + 12
-    const uint8 power = static_cast<uint8>(
-        static_cast<uint8>(c.character.combatSide) * 0x80 + 12);
-
-    Effect dummy = c.effect;
-    EffectCall tc(EFF_ADD, dummy, *target, c.combat, c.bridge,
-        c.damage, c.handler);
-
-    const bool saved = checkSavingThrow(tc, Goldbox::Data::Spells::SVS_SPELL, -2);
-
-    checkUnaffected(tc, E_POOLRAD_CHARM_PERSON, 0, power, true,
-        true, saved, "is charmed");
-
-    // If the charm effect was accepted, fire its EFF_ADD handler directly.
-    // This mirrors UTIL_CallEffectHandler(target, effect, EO_ADD, 11) which
-    // triggers the combatSide swap and ai_control logic in handleCharm.
-    if (c.handler) {
-        CharacterEffects *fx = target->getEffects();
-        Effect *charmEffect = fx ?
-            fx->findEffectById(E_POOLRAD_CHARM_PERSON) : nullptr;
-        if (charmEffect)
-            c.handler->apply(EFF_ADD, *charmEffect, *target,
-                c.combat, c.bridge);
-    }
-}
-
-static void handlePetrifyingGaze(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    if (!c.character.combatState || !c.character.combatState->target)
-        return;
-
-    Goldbox::Data::PlayerCharacter *target = c.character.combatState->target;
-
-    if (c.bridge)
-        c.bridge->postEffectMessage(&c.character, "gazes...", false);
-
-    // TODO: GFX_LoadEffectTileQuad(18); AnimateGaze(attacker, target);
-
-    // If the attacker carries the reflective-gaze marker (raw 0x7F), check
-    // whether the target has a readied item with nameCode 'v' (0x76).
-    // If found, reflect the gaze back at the attacker.
-    CharacterEffects *attackerFx = c.character.getEffects();
-    if (attackerFx && attackerFx->hasEffect(E_POOLRAD_REFLECTIVE_GAZE_MARKER)) {
-        const Goldbox::Data::ADnDCharacter *adndTarget =
-            static_cast<const Goldbox::Data::ADnDCharacter *>(target);
-        for (const Goldbox::Data::Items::CharacterItem &item :
-                adndTarget->inventory.items()) {
-            if (!item.readied)
-                continue;
-            if (item.nameCode1 == 'v' ||
-                    item.nameCode2 == 'v' ||
-                    item.nameCode3 == 'v') {
-                if (c.bridge)
-                    c.bridge->postEffectMessage(target, "reflects it!", false);
-                // TODO: AnimateGaze(target, attacker);
-                target = &c.character;
-                break;
-            }
-        }
-    }
-
-    Effect dummy = c.effect;
-    EffectCall tc(EFF_ADD, dummy, *target, c.combat, c.bridge,
-        c.damage, c.handler);
-
-    if (!checkSavingThrow(tc, Goldbox::Data::Spells::SVS_PETRIFICATION, 0)) {
-        Goldbox::Data::Effects::EffectSystem effectSystem(
-            const_cast<EffectHandlerBase *>(c.handler), c.bridge);
-        effectSystem.setStatus(*target, Goldbox::Data::S_STONED, "is Stoned");
-    }
-}
-
-static void handleMummyFearAura(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    Common::List<Goldbox::Data::PlayerCharacter *> *party =
-        Goldbox::VmInterface::getParty();
-    if (!party)
-        return;
-
-    const Goldbox::Data::CombatSide sourceSide = c.character.combatSide;
-
-    for (Goldbox::Data::PlayerCharacter *ch : *party) {
+// Effect 82: removes the aura from every creature, then each enemy saves
+// vs. paralysis (+1 with 6+ on its side, +2 if human) or is paralyzed for
+// 1d4 minutes.
+static void handleMummyFear(const EffectCall &c) {
+    const Common::Array<PlayerCharacter *> creatures = allCreatures();
+    const Goldbox::Data::CombatSide side = c.character.combatSide;
+    for (PlayerCharacter *ch : creatures) {
         if (!ch)
             continue;
-
-        // Always strip any prior mummy fear aura instance first.
-        CharacterEffects *fx = ch->getEffects();
-        if (fx)
-            fx->eraseEffectById(E_POOLRAD_MUMMY_FEAR_AURA);
-
-        if (!ch->enabled)
+        removeEffect(c, *ch, E_POOLRAD_MUMMY_FEAR);
+        if (!ch->enabled || ch->combatSide == side)
             continue;
-
-        // Only affect characters on the opposite side from the mummy.
-        if (ch->combatSide == sourceSide)
-            continue;
-
-        // saveBonus = 1 if the target's side has more than 5 members, else 0.
-        // Humans receive an additional +2.
-        int8 saveBonus = 0;
-        if (c.combat && c.combat->sideCount[ch->combatSide] > 5)
-            saveBonus = 1;
+        int8 bonus = 0;
+        if (c.combat && c.combat->sideCount[ch->combatSide] >= 6)
+            ++bonus;
         if (ch->race == Goldbox::Data::R_HUMAN)
-            saveBonus += 2;
-
-        const uint16 duration = Goldbox::g_engine ?
-            static_cast<uint16>(Goldbox::g_engine->rollDice(1, 4)) : 1;
-
-        Effect dummy = c.effect;
-        EffectCall tc(EFF_ADD, dummy, *ch, c.combat, c.bridge,
-            c.damage, c.handler);
-
-        const bool saved = checkSavingThrow(tc, Goldbox::Data::Spells::SVS_POISON, saveBonus);
-
-        checkUnaffected(tc, E_POOLRAD_HELPLESS_34, duration, 12, false,
-            true, saved, "is paralyzed with fear");
+            bonus += 2;
+        const bool saved = rollSavingThrow(c, *ch,
+            Goldbox::Data::Spells::SVS_POISON, bonus);
+        addEffectWithMessage(c, *ch, E_POOLRAD_PARALYSIS, rollDice(1, 4), 12,
+            false, true, saved, "is paralyzed with fear");
     }
 }
 
-static void handleDragonFearAura(const EffectCall &c) {
-    if (c.op != EFF_ADD)
+// Effect 83: save vs. petrification or be stoned; a reflectable gaze is
+// turned back by an equipped mirror.
+static void handlePetrifyGaze(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!target)
         return;
-
-    Common::List<Goldbox::Data::PlayerCharacter *> *party =
-        Goldbox::VmInterface::getParty();
-    if (!party)
-        return;
-
-    const Goldbox::Data::CombatSide dragonSide = c.character.combatSide;
-
-    for (Goldbox::Data::PlayerCharacter *ch : *party) {
-        if (!ch || !ch->enabled)
-            continue;
-
-        // Only affect characters on the opposite side from the dragon.
-        if (ch->combatSide == dragonSide)
-            continue;
-
-        const Data::PoolradCharacter *pch =
-            static_cast<const Data::PoolradCharacter *>(ch);
-        const uint8 level = pch->highestLevel;
-
-        // Level 6+ are immune to dragon fear.
-        if (level >= 6)
-            continue;
-
-        // Build a minimal EffectCall for the target so checkUnaffected and
-        // checkSavingThrow operate on the correct character.
-        Effect dummy = c.effect;
-        EffectCall tc(EFF_ADD, dummy, *ch, c.combat, c.bridge,
-            c.damage, c.handler);
-
-        const bool saved = checkSavingThrow(tc, Goldbox::Data::Spells::SVS_SPELL, 0);
-
-        if (level <= 3) {
-            checkUnaffected(tc, E_POOLRAD_HELPLESS_34, 0, 12, false,
-                true, saved, "is paralyzed with fear");
-        } else {
-            // level == 4 or 5
-            checkUnaffected(tc, E_POOLRAD_CURSED, 0, 12, false,
-                true, saved, "is weakened by fear");
-        }
+    say(c, &c.character, "gazes...", false);
+    if (hasEffect(c.character, E_POOLRAD_GAZE_REFLECTABLE) &&
+            hasEquippedMirror(*target)) {
+        say(c, target, "reflects it!", false);
+        target = &c.character;
     }
+    if (!rollSavingThrow(c, *target, Goldbox::Data::Spells::SVS_PETRIFICATION, 0))
+        inflictStatusMsg(c, *target, Goldbox::Data::S_STONED, "is Stoned");
 }
 
-static void handleAnkhegAcidMeleeAttack(const EffectCall &c) {
-    if (c.op != EFF_ADD || !c.combat)
+// Effect 84: Charm Person by gaze (save vs. spell at -2), no action used.
+static void handleCharmGaze(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!target || !target->enabled ||
+            target->combatSide == c.character.combatSide)
         return;
-
-    Goldbox::Data::PlayerCharacter *target =
-        c.character.combatState ? c.character.combatState->target : nullptr;
-    if (!target || !target->enabled)
-        return;
-
-    c.combat->behaviorFlags = Combat::CombatGlobals::DMG_ACID;
-
-    const uint8 damage = Goldbox::g_engine ?
-        Goldbox::g_engine->rollDice(1, 4) : 1;
-    if (c.damage)
-        c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_NORMAL, false);
-}
-
-static void handleFireTouchAttack(const EffectCall &c) {
-    if (c.op != EFF_ADD || !c.combat)
-        return;
-
-    Goldbox::Data::PlayerCharacter *target =
-        c.character.combatState ? c.character.combatState->target : nullptr;
-    if (!target || !target->enabled)
-        return;
-
-    c.combat->behaviorFlags = 9; // DMG_FIRE | DMG_MAGIC
-
-    const uint8 damage = Goldbox::g_engine ?
-        Goldbox::g_engine->rollDice(2, 10) : 2;
-    if (c.damage)
-        c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_NORMAL, false);
-}
-
-static void handleStudyManualBodilyHealth(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-    if (c.bridge)
-        c.bridge->postEffectMessage(&c.character, "starts to train", true);
-    c.character.addEffect(7, 43200, 0xff, true);
-}
-
-static void handleTrainingManualBodilyHealth(const EffectCall &c) {
-    if (c.op == EFF_TICK) {
-        // On the first tick (immediate flag still set), apply the one-time
-        // constitution and HP bonus, matching the original which fired the
-        // handler body on the first game tick after CHARACTER_addEffect.
-        if (c.effect.immediate) {
-            c.effect.immediate = 0;
-
-            Data::PoolradCharacter &ch = asPoolrad(c.character);
-
-            if (c.bridge)
-                c.bridge->postEffectMessage(&ch, "is hardier", true);
-
-            ch.abilities.constitution.current += 1;
-
-            if (ch.abilities.constitution.current >= 20) {
-                ch.addEffect(0x3e, 0x3c, 0xff, true);
-                return;
-            }
-
-            if (ch.abilities.constitution.current > 14) {
-                uint8 divisor = 0;
-                for (uint8 i = 0; ; ++i) {
-                    const uint8 *slots = &ch.spellSlots.cleric.level1;
-                    uint8 slotVal = (i < 6) ? slots[i] : 0;
-                    if ((int8)slotVal > 0) {
-                        if (i == 2) {
-                            divisor += (ch.abilities.constitution.current - 15) *
-                                       ch.levels[Goldbox::Data::C_FIGHTER];
-                        } else if (ch.abilities.constitution.current < 16) {
-                            divisor += slotVal;
-                        } else {
-                            divisor += slotVal * 2;
-                        }
-                    }
-                    if (i == 7) break;
-                }
-                if (divisor == 0)
-                    divisor = 1;
-                uint8 hpBonus = (ch.hitPoints.max - ch.hitPointsRolled) / divisor;
-                if (ch.abilities.constitution.current < 17 ||
-                        (int8)ch.levels[Goldbox::Data::C_FIGHTER] > 0) {
-                    ch.hitPoints.max     += hpBonus;
-                    ch.hitPoints.current += hpBonus;
-                }
-            }
-        }
-        c.character.heal(1);
-        return;
+    Combat::CombatContext *ctx = combatContext();
+    if (ctx) {
+        const TilePos from(ctx->table.getCharacterCol(&c.character),
+            ctx->table.getCharacterRow(&c.character));
+        const TilePos to(ctx->table.getCharacterCol(target),
+            ctx->table.getCharacterRow(target));
+        uint16 range = 0xFF;
+        if (!ctx->lineOfSightCheck(from, to, range))
+            return;
     }
+    say(c, &c.character, "Gazes...", false);
+    if (c.combat)
+        c.combat->activeSpellId = 10;
+    const uint8 strength = static_cast<uint8>(
+        static_cast<uint8>(c.character.combatSide) * 0x80 + 12);
+    const bool saved = rollSavingThrow(c, *target,
+        Goldbox::Data::Spells::SVS_SPELL, -2);
+    addEffectWithMessage(c, *target, E_POOLRAD_CHARM, 0, strength, true, true,
+        saved, "is charmed");
+    CharacterEffects *fx = target->getEffects();
+    Effect *charm = fx ? fx->findEffectById(E_POOLRAD_CHARM) : nullptr;
+    if (charm)
+        callEffectHandler(c, E_POOLRAD_CHARM, *target, charm, false);
 }
 
-static uint8 selectLevelDrainClass(const Data::PoolradCharacter &ch, int32 &outXp) {
-    int32 bestXp = 0;
-    uint8 bestClass = 0;
+// DrainLevels.ClassToDrain: later classes win ties; xp is the XP floor of
+// the chosen class level.
+static uint8 classToDrain(const Data::PoolradCharacter &ch, int32 &xp) {
+    xp = 0;
+    uint8 best = 0;
     uint8 bestLevel = 0;
-
-    for (uint8 classId = 0; classId < BASE_CLASS_NUM; ++classId) {
-        uint8 classLevel = ch.levels[static_cast<Goldbox::Data::ClassADnD>(classId)];
-        if (classLevel < 2)
-            continue;
-
-        int32 xp = Goldbox::Data::Rules::xpForClassAtLevel(classId, classLevel);
-
-        if (bestLevel <= classLevel) {
-            if (bestXp <= xp || xp == -1) {
-                bestXp = xp;
-                bestLevel = classLevel;
-                bestClass = classId;
-            }
+    for (uint8 j = 0; j < BASE_CLASS_NUM; ++j) {
+        const uint8 level = ch.levels.levels[j];
+        const int32 xpTry = level > 1 ?
+            Goldbox::Data::Rules::xpForClassAtLevel(j, level) : 0;
+        if (level >= bestLevel && (xpTry >= xp || xpTry == -1)) {
+            xp = xpTry;
+            best = j;
+            bestLevel = level;
         }
     }
-
-    outXp = bestXp;
-    return bestClass;
+    return best;
 }
 
-static void applyLevelDrain(Data::PoolradCharacter &ch, uint8 levelCount,
-        EffectHostBridge *bridge) {
-    if (bridge)
-        bridge->postEffectMessage(&ch, "loses a level", true);
+// EffHndlr.DrainLevels.
+static void drainLevels(const EffectCall &c, Data::PoolradCharacter &ch,
+        uint8 levels) {
+    Common::String text = levels > 1 ?
+        Common::String::format("is drained %u levels", (unsigned)levels) :
+        Common::String("is drained a level");
+    say(c, &ch, text.c_str());
 
     if (ch.healthStatus == Goldbox::Data::S_ANIMATED) {
-        Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, bridge);
-        effectSystem.setStatus(ch, Goldbox::Data::S_GONE, "is dead forever");
+        inflictStatusMsg(c, ch, Goldbox::Data::S_GONE, "is dead forever");
         ch.hitPoints.max = 0;
         return;
     }
 
-    for (uint8 drain = 0; drain < levelCount; ++drain) {
+    for (uint8 i = 0; i < levels; ++i) {
         if (ch.healthStatus == Goldbox::Data::S_GONE)
-            break;
-
-        ch.drainedLevels++;
-
+            continue;
+        ++ch.drainedLevels;
         uint8 totalLevels = 0;
-        for (uint8 i = 0; i < BASE_CLASS_NUM; ++i)
-            totalLevels += ch.levels[static_cast<Goldbox::Data::ClassADnD>(i)];
-        if (totalLevels == 0)
-            totalLevels = 1;
-
-        uint8 hpLoss = ch.hitPoints.max / totalLevels;
-
-        for (uint8 i = 0; i < hpLoss; ++i) {
-            if (ch.hitPoints.max > 0)      ch.hitPoints.max--;
-            if (ch.hitPointsRolled > 0)    ch.hitPointsRolled--;
-            if (ch.hitPoints.current > 0)  ch.hitPoints.current--;
-            ch.drainedHPs++;
+        for (uint j = 0; j < BASE_CLASS_NUM; ++j)
+            totalLevels += ch.levels.levels[j];
+        const uint8 hpPerLevel = totalLevels ? ch.hitPoints.max / totalLevels : 0;
+        for (uint8 k = 0; k < hpPerLevel; ++k) {
+            if (ch.hitPoints.max > 0)
+                --ch.hitPoints.max;
+            if (ch.hitPointsRolled > 0)
+                --ch.hitPointsRolled;
+            if (ch.hitPoints.current > 0)
+                --ch.hitPoints.current;
+            ++ch.drainedHPs;
         }
 
-        int32 newXp = 0;
-        uint8 classId = selectLevelDrainClass(ch, newXp);
-
+        int32 xp = 0;
         if (ch.highestLevel < 2) {
-            Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, bridge);
-            effectSystem.setStatus(ch, Goldbox::Data::S_GONE, "is dead forever");
+            inflictStatusMsg(c, ch, Goldbox::Data::S_GONE, "is dead forever");
             ch.hitPoints.max = 0;
-
-            if (ch.levels[static_cast<Goldbox::Data::ClassADnD>(classId)] > 0 &&
-                    levelCount == 2) {
-                int32 dummy = 0;
-                classId = selectLevelDrainClass(ch, dummy);
-                ch.levels[static_cast<Goldbox::Data::ClassADnD>(classId)] = 0;
-            }
+            if (ch.levels.levels[classToDrain(ch, xp)] > 0 && levels == 2)
+                ch.levels.levels[classToDrain(ch, xp)] = 0;
         } else {
-            ch.levels[static_cast<Goldbox::Data::ClassADnD>(classId)]--;
-
+            --ch.levels.levels[classToDrain(ch, xp)];
             if (ch.hitPoints.current == 0 &&
-                    ch.healthStatus != Goldbox::Data::S_DEAD) {
-                Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, bridge);
-                effectSystem.setStatus(ch, Goldbox::Data::S_DEAD, "is killed");
-            }
-
+                    ch.healthStatus != Goldbox::Data::S_DEAD)
+                inflictStatusMsg(c, ch, Goldbox::Data::S_DEAD, "is killed");
             ch.recalcCombatStats();
         }
-
-        int32 updatedXp = 0;
-        classId = selectLevelDrainClass(ch, updatedXp);
-        ch.highestLevel = ch.levels[static_cast<Goldbox::Data::ClassADnD>(classId)];
-        ch.experiencePoints = static_cast<uint32>(updatedXp > 0 ? updatedXp : 0);
-
+        ch.highestLevel = ch.levels.levels[classToDrain(ch, xp)];
+        ch.experiencePoints = static_cast<uint32>(xp);
         ch.recalcCombatStats();
     }
 }
 
-// Mirrors EFFECT_89_CombatTurnTrigger: gates the electricity breath attack
-// on the combat turn counter. When both attackRollCount and attackRoll are
-// zero the trigger flag is cleared (effect ready to fire again next turn).
-// Otherwise, if the trigger has not yet fired this turn, sets attackRoll to
-// 0xFF (attack blocked/redirected) and marks the trigger as fired.
-static void handleConstitutionSavingBonus(const EffectCall &c) {
-    if (!c.combat)
+// Effects 85, 86
+static void handleDrainOne(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (target)
+        drainLevels(c, asPoolrad(*target), 1);
+}
+
+static void handleDrainTwo(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (target)
+        drainLevels(c, asPoolrad(*target), 2);
+}
+
+// Effect 87: mummy rot touch; seeds effect 57's 1d6 countdown.
+static void handleRotTouch(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!target || hasEffect(*target, E_POOLRAD_ROT_NO_HEAL))
         return;
-    const uint8 con = c.character.abilities.constitution.current;
-    uint8 bonus = 0;
-    if      (con >= 18) bonus = 5;
-    else if (con >= 14) bonus = 4;
-    else if (con >= 11) bonus = 3;
-    else if (con >=  7) bonus = 2;
-    else if (con >=  4) bonus = 1;
-    c.combat->savingThrow += bonus;
+    target->addEffect(E_POOLRAD_ROT_NO_HEAL, 14400, 0xFF, true);
+    target->addEffect(E_POOLRAD_MUMMY_ROT, 43200,
+        static_cast<uint8>(rollDice(1, 6) * 16 + 15), true);
+    say(c, target, "is Diseased");
 }
 
-static void handleHalflingPoisonBonus(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    if (c.combat->activeSpellId == 0x0F) {
-        rollAvoid(c.character, *c.combat, c.bridge, 100);
-        if (c.bridge)
-            c.bridge->postEffectMessage(&c.character, "is unaffected", true);
-    } else if (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_ELECTRICITY) {
-        rollAvoid(c.character, *c.combat, c.bridge, 100);
-    }
-}
-
-static void handleThriKreenMissileEvasion60(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    rollAvoid(c.character, *c.combat, c.bridge, 60);
-}
-
-static void applyMagicResistance(const EffectCall &c, uint8 baseChance) {
-    if (!c.combat)
-        return;
-    if (c.combat->activeSpellId == 0 &&
-            !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_MAGIC))
-        return;
-    const Data::PoolradCharacter *attacker =
-        c.combat->attacker ?
-        static_cast<const Data::PoolradCharacter *>(c.combat->attacker) : nullptr;
-    const uint8 castingLevel = attacker ? attacker->highestLevel : 0;
-    const int resistanceChance = baseChance + (castingLevel - 11) * 5;
-    const int roll = Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 100) : 1;
-    if (roll <= resistanceChance)
-        c.combat->damage = 0;
-}
-
-static void handleResistMagic50(const EffectCall &c) {
-    applyMagicResistance(c, 50);
-}
-
-static void handleResistMagic15(const EffectCall &c) {
-    applyMagicResistance(c, 15);
-}
-
-static void protectionIf(const EffectCall &c, uint8 spellId) {
-    if (!c.combat)
-        return;
-    if (spellId == 0 || c.combat->activeSpellId == spellId)
-        c.combat->damage = 0;
-}
-
-static void handleResistSleepCharm90(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const int roll = Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 100) : 1;
-    if (roll < 91) {
-        protectionIf(c, 53);
-        protectionIf(c, 11);
-    }
-}
-
-static void handleImmunitySleepCharmSpell(const EffectCall &c) {
-    protectionIf(c, 11);
-    protectionIf(c, 53);
-}
-
-static void handleImmunityParalysisSpell(const EffectCall &c) {
-    protectionIf(c, 52);
-}
-
-static void handleImmunityColdSpell(const EffectCall &c) {
-    if (c.combat && (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_COLD))
-        c.combat->damage = 0;
-}
-
-static void handleImmunityParalysisPoisonSpell(const EffectCall &c) {
-    protectionIf(c, 55);
-    protectionIf(c, 52);
-    if (c.combat && c.combat->savingThrowType == Goldbox::Data::Spells::SVS_POISON)
-        c.combat->savingThrow = 100;
-}
-
-static void handleImmunityFireSpell(const EffectCall &c) {
-    if (c.combat && (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
-        c.combat->damage = 0;
-}
-
-static void handleEfreetiFireResistanceSpell(const EffectCall &c) {
-    if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
-        return;
-    const uint8 count = c.character.combatState ? c.character.combatState->attackCount : 0;
-    uint8 dmg = c.combat->damage;
-    for (uint8 i = 0; i < count; ++i) {
-        dmg = (dmg < 1) ? 0 : dmg - 1;
-        if (dmg < count)
-            dmg = count;
-    }
-    c.combat->damage = dmg;
-}
-
-static void handleHalfDamageFromElectricity(const EffectCall &c) {
-    if (c.combat && (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_ELECTRICITY))
-        c.combat->damage >>= 1;
-}
-
-static void handleHalfDamageFromPiercingSlashing(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const Goldbox::Data::ADnDCharacter *attacker =
-        c.combat->attacker ?
-        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
-    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
-        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo() : nullptr;
-    if (!weapon)
-        return;
-    const uint8 wpnType = weapon->prop().wpnType;
-    if (wpnType == 0 || (wpnType & 0x01))
-        c.combat->damage >>= 1;
-}
-
-static void handleHalfDamageFromMagicalWeapons(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const Goldbox::Data::ADnDCharacter *attacker =
-        c.combat->attacker ?
-        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
-    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
-        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo() : nullptr;
-    if (weapon && weapon->bonus > 0)
-        c.combat->damage >>= 1;
-}
-
-static void handleVulnerabilityToHolyWater(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const Goldbox::Data::ADnDCharacter *attacker =
-        c.combat->attacker ?
-        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
-    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
-        attacker->getEquippedItem(Goldbox::Data::Items::Slot::S_MAIN_HAND) : nullptr;
-    if (weapon && weapon->typeIndex == 85) {
-        c.combat->damage = static_cast<uint8>(
-            (Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 6) : 1) + 1);
-    }
-}
-
-static void handleHalfDamageFromCold(const EffectCall &c) {
-    if (c.combat && (c.combat->behaviorFlags & Combat::CombatGlobals::DMG_COLD))
-        c.combat->damage >>= 1;
-}
-
-static void handleImmunityNonMagicalWeaponsSpell(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const Goldbox::Data::ADnDCharacter *attacker =
-        c.combat->attacker ?
-        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
-    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
-        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo() : nullptr;
-    if ((weapon == nullptr || weapon->bonus == 0) &&
-            (c.combat->attacker->race != 0 ||
-             static_cast<const Data::PoolradCharacter *>(c.combat->attacker)->highestLevel < 4))
-        c.combat->damage = 0;
-}
-
-static void handleBoulderEvasion(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const Goldbox::Data::ADnDCharacter *attacker =
-        c.combat->attacker ?
-        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
-    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
-        attacker->getEquippedItem(Goldbox::Data::Items::Slot::S_MAIN_HAND) : nullptr;
-    if (weapon && (weapon->typeIndex == 87 || weapon->typeIndex == 88))
-        rollAvoid(c.character, *c.combat, c.bridge, 50);
-}
-
-static void handleAnkhegAcidSquirtAttack(const EffectCall &c) {
-    if (c.op != EFF_ADD || !c.character.combatState)
+// Effect 88 (Magic.DragonBreathHandler).
+static void handleDragonBreath(const EffectCall &c) {
+    if (c.combat && c.combat->turnCounter != 0 && rollDice(1, 100) <= 50)
         return;
 
-    Goldbox::Data::PlayerCharacter *target = c.character.combatState->target;
-    if (!target || !target->enabled)
-        return;
+    say(c, &c.character, "Breathes!");
 
-    // 25% chance to perform the acid squirt.
-    const int roll = Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 100) : 100;
-    if (roll > 25)
-        return;
+    // FxEngine.RemoveInvisibility
+    while (hasEffect(c.character, E_POOLRAD_INVISIBLE))
+        removeEffect(c, c.character, E_POOLRAD_INVISIBLE);
 
-    // TODO: COMBAT_FindTargetFacing(char_ptr, target) < 4 — facing arc check not yet ported.
-    // TODO: COMBAT_resetActionState(char_ptr)
-    // TODO: GFX_LoadEffectTileQuad(23); COMBAT_AnimateMissilePath(...)
-
-    if (c.bridge)
-        c.bridge->postEffectMessage(&c.character, "Spits Acid", true);
-
-    const uint8 damage = Goldbox::g_engine ?
-        static_cast<uint8>(Goldbox::g_engine->rollDice(4, 8)) : 4;
-
-    // Build a target-side EffectCall for checkSavingThrow (type 3 = vs. breath weapon).
-    Effect dummy = c.effect;
-    EffectCall tc(EFF_ADD, dummy, *target, c.combat, c.bridge, c.damage, c.handler);
-    const bool saved = checkSavingThrow(tc, Goldbox::Data::Spells::SVS_BREATH, 0);
-
-    if (c.damage)
-        c.damage->applyLegacy(*target, damage, Goldbox::Data::DAMAGE_HALF, saved);
-
-    // Consume this effect (121) and the related acid-melee setup effect (raw 0x50).
-    CharacterEffects *fx = c.character.getEffects();
-    if (fx) {
-        c.effect.immediate = 0;
-        fx->eraseEffectById(c.effect.id);
-        fx->eraseEffectById(0x50);
-    }
-}
-
-static void handleVulnerabilityToFire(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const Goldbox::Data::ADnDCharacter *attacker =
-        c.combat->attacker ?
-        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
-    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
-        attacker->getEquippedItem(Goldbox::Data::Items::Slot::S_MAIN_HAND) : nullptr;
-    if (weapon && weapon->typeIndex == 86)
-        c.combat->damage = static_cast<uint8>(
-            Goldbox::g_engine ? Goldbox::g_engine->rollDice(3, 8) : 3);
-    if (c.combat->behaviorFlags & (Combat::CombatGlobals::DMG_FIRE |
-                                   Combat::CombatGlobals::DMG_MAGIC))
-        c.combat->damage += c.character.combatState ? c.character.combatState->attackCount : 0;
-}
-
-static void handleImmunityNonMagicalHalfSilver(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const Goldbox::Data::ADnDCharacter *attacker =
-        c.combat->attacker ?
-        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
-    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
-        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo() : nullptr;
-    if (weapon == nullptr) {
-        c.combat->damage = 0;
-    } else if (weapon->bonus == 0 && weapon->nameCode3 == 177) {
-        c.combat->damage >>= 1;
-    } else if (weapon->bonus == 0) {
-        c.combat->damage = 0;
-    }
-}
-
-static void handleResistSleepCharm30(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const int roll = Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 100) : 100;
-    if (roll < 31) {
-        protectionIf(c, 11);
-        protectionIf(c, 53);
-    }
-}
-
-static void handleImmunitySleepCharmParalysisPoison(const EffectCall &c) {
-    protectionIf(c, 11);
-    protectionIf(c, 53);
-    protectionIf(c, 52);
-    protectionIf(c, 55);
-    if (c.combat && c.combat->savingThrowType == Goldbox::Data::Spells::SVS_POISON)
-        c.combat->savingThrow = 100;
-}
-
-static void handleImmuneToGazeAttacks(const EffectCall &c) {
-    if (!c.combat || !c.character.combatState)
-        return;
-
-    Goldbox::Data::PlayerCharacter *target = c.character.combatState->target;
-    if (!target)
-        return;
-
-    const Goldbox::Data::ADnDCharacter *adndTarget =
-        static_cast<const Goldbox::Data::ADnDCharacter *>(target);
-
-    for (const Goldbox::Data::Items::CharacterItem &item :
-            adndTarget->inventory.items()) {
-        if (!item.readied)
-            continue;
-        if ((item.nameCode1 == 0x98 && item.nameCode3 == 0xFC) ||
-                (item.nameCode2 == 0x98 && item.nameCode3 == 0xFC) ||
-                (item.nameCode3 == 0x98) ||
-                item.nameCode1 == 0x76 ||
-                item.nameCode2 == 0x76 ||
-                item.nameCode3 == 0x76) {
-            c.combat->targetUnavailable = true;
-            return;
-        }
-    }
-}
-
-// Mirrors EFFECT_128_ItemEffects and its aliases (effects 128-130, 133, 134, 136, 138, 139).
-// The item's effect2 field is stored in c.effect.power by the item-ready dispatch path.
-// On EFF_ADD: add the sub-effect (power=12, duration=0) then fire its EFF_ADD handler.
-// On EFF_REMOVE: erase the sub-effect from the character's effect list.
-static void handleItemEffect(const EffectCall &c) {
-    const uint8 subEffectId = c.effect.power;
-    if (subEffectId == 0)
-        return;
-
-    CharacterEffects *fx = c.character.getEffects();
-    if (!fx)
-        return;
-
-    if (c.op == EFF_ADD) {
-        c.character.addEffect(subEffectId, 0, 12, false);
-        if (c.handler) {
-            Effect sub;
-            sub.id = subEffectId;
-            sub.durationMin = 0;
-            sub.power = 12;
-            sub.immediate = 0;
-            c.handler->apply(EFF_ADD, sub, c.character, c.combat, c.bridge);
-        }
-    } else if (c.op == EFF_REMOVE) {
-        fx->eraseEffectById(subEffectId);
-    }
-}
-
-static void handleExtraStrengthItem(const EffectCall &c) {
-    if (c.op == EFF_ADD) {
-        uint8 enc = 0;
-        const bool applied = c.character.applyStrengthChange(18, 100, enc);
-        if (applied) {
-            if (c.bridge)
-                c.bridge->postEffectMessage(&c.character, "is stronger", true);
-            Data::PoolradCharacter &ch = asPoolrad(c.character);
-            ch.recalcCombatStats();
-        }
-        c.character.addEffect(E_STRENGTH, 0, enc, true);
-    } else if (c.op == EFF_REMOVE) {
-        CharacterEffects *fx = c.character.getEffects();
-        if (!fx)
-            return;
-        const bool atExtra = (c.character.abilities.strength.current == 18 &&
-                              c.character.abilities.strException.current == 100);
-        for (Effect &e : fx->effects()) {
-            if (e.id != static_cast<uint8>(E_STRENGTH))
-                continue;
-            uint8 str = 0, ext = 0;
-            strengthDecode(e.power & 0x7f, str, ext);
-            if ((atExtra && e.power < 0x80) ||
-                    (!atExtra && str == 18 && ext == 100)) {
-                fx->eraseEffectById(e.id);
-                return;
-            }
-        }
-    }
-}
-
-static void handleRequiresGiantStrength(const EffectCall &c) {
-    if (c.op != EFF_ADD || c.character.abilities.strength.current >= 19)
-        return;
-    Goldbox::Data::ADnDCharacter &adnd =
-        static_cast<Goldbox::Data::ADnDCharacter &>(c.character);
-    for (Goldbox::Data::Items::CharacterItem &item : adnd.inventory.items()) {
-        if (item.readied && item.effect3 == 0x87) {
-            item.readied = 0;
-            if (c.bridge)
-                c.bridge->postEffectMessage(&c.character, "Must have Giant Strength", true);
-            return;
-        }
-    }
-}
-
-static void handleRemoveEffect23OnRemove(const EffectCall &c) {
-    if (c.op == EFF_REMOVE) {
-        CharacterEffects *fx = c.character.getEffects();
-        if (fx)
-            fx->eraseEffectById(23);
-    }
-}
-
-static void handleLingeringBreath(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    // 50% chance to skip unless the turn counter is zero (always fires then).
-    if (c.combat && c.combat->turnCounter != 0) {
-        const int roll = Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 100) : 51;
-        if (roll <= 50)
-            return;
-    }
-
-    (void)(Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr); // ctx reserved for GFX/spell path
-
-    // TODO: COMBAT_GetCharacterX/Y — position lookup not yet used by unported GFX/spell path.
-    // uint8 ax = ctx ? ctx->table.getCharacterCol(&c.character) : 0;
-    // uint8 ay = ctx ? ctx->table.getCharacterRow(&c.character) : 0;
-
-    if (c.bridge)
-        c.bridge->postEffectMessage(&c.character, "Breathes!", true);
-
-    Combat::CombatContext *ctx = Goldbox::g_engine ?
-        Goldbox::g_engine->getCombatContext() : nullptr;
-
+    Combat::CombatContext *ctx = combatContext();
     if (ctx) {
-        const TilePos attackerPos(
-            ctx->table.getCharacterCol(&c.character),
+        const TilePos from(ctx->table.getCharacterCol(&c.character),
             ctx->table.getCharacterRow(&c.character));
-        const TilePos targetPos(
-            c.character.combatState && c.character.combatState->target
-                ? ctx->table.getCharacterCol(c.character.combatState->target) : attackerPos.col,
-            c.character.combatState && c.character.combatState->target
-                ? ctx->table.getCharacterRow(c.character.combatState->target) : attackerPos.row);
-
+        PlayerCharacter *target = combatTarget(c.character);
+        const TilePos to = target ?
+            TilePos(ctx->table.getCharacterCol(target),
+                ctx->table.getCharacterRow(target)) : from;
         const uint8 damage = c.character.hitPoints.max;
-
-        // TODO(spell_aoe): pass presenter (ICombatSpellPresenter*) once
-        // CombatView implements the interface and is reachable here.
-
-        // Initial hit at the target tile. Breath uses its own BREATH save
-        // category; damage is applied even though animations are disabled.
-        (void)Goldbox::Spells::resolveAoEHitAtTile(
-            *ctx, targetPos, damage, Goldbox::Data::Spells::SVS_BREATH, 19,
-            nullptr);
-
-        // Set target position in globals before tracing the path.
-        ctx->globals.targetPos = targetPos;
-
-        // Continue the breath along its path.
-        Goldbox::Spells::traceSpellPath(*ctx, attackerPos,
-                                        3,       // pathLength
-                                        damage,
-                                        Goldbox::Data::Spells::SVS_BREATH, // save category
-                                        true,    // animatePath
-                                        19,      // effectTileId
-                                        nullptr);
+        (void)Goldbox::Spells::resolveAoEHitAtTile(*ctx, to, damage,
+            Goldbox::Data::Spells::SVS_BREATH, 19, nullptr);
+        ctx->globals.targetPos = to;
+        Goldbox::Spells::traceSpellPath(*ctx, from, 10, damage,
+            Goldbox::Data::Spells::SVS_BREATH, false, 19, nullptr);
     }
 
-    // Remove the poison status that the breath attack inflicts on the attacker
-    // (mirrors UTIL_RemovePoison called after SPELL_TraceSpellPath).
-    CharacterEffects *fx = c.character.getEffects();
-    if (fx) {
-        fx->eraseEffectById(static_cast<uint8>(E_POISONED));
-        asPoolrad(c.character).effectState.flags &= ~Data::PoolradCharacter::EF_POISONED;
-    }
-
-    // power >= 0xFE: persistent state — decrement and keep the effect.
-    // Otherwise: consume the effect.
-    if (c.effect.power >= 0xfe) {
+    // Remaining breath charges
+    if (c.effect.power > 253)
         --c.effect.power;
-    } else {
-        c.effect.immediate = 0;
-        if (fx)
-            fx->eraseEffectById(c.effect.id);
-    }
-
+    else
+        removeEffect(c, c.character, E_POOLRAD_DRAGON_BREATH, &c.effect);
     c.character.resetCombatAction();
 }
 
-static void handleTrollFireAcidVulnerability(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    if (c.combat->behaviorFlags & (Combat::CombatGlobals::DMG_FIRE |
-                                   Combat::CombatGlobals::DMG_ACID))
-        return;
-    const uint8 duration = Goldbox::g_engine ?
-        static_cast<uint8>(Goldbox::g_engine->rollDice(3, 6)) : 3;
-    c.character.addEffect(E_POOLRAD_RETURN_FROM_DEATH, duration, 0xff, true);
-}
-
-static void handleApplyDeathRecovery(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-    CharacterEffects *fx = c.character.getEffects();
-    if (!fx)
-        return;
-    if (fx->hasEffect(static_cast<uint8>(E_POOLRAD_REGEN_3_HP_ROUND)))
-        return;
-    if (!fx->hasEffect(static_cast<uint8>(E_REGENERATE_3_HPS)))
-        c.character.addEffect(static_cast<uint8>(E_REGENERATE_3_HPS), 3, 0xff, true);
-}
-
-static void handleReturnFromDeath(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-    // UTIL_Revive heals hp_max and restores status. It fails (returns false)
-    // when the character cannot receive healing (S_DEAD, S_GONE, S_STONED, etc.).
-    const uint8 status = c.character.healthStatus;
-    const bool canRevive = (status == Goldbox::Data::S_OKAY ||
-                            status == Goldbox::Data::S_ANIMATED ||
-                            status == Goldbox::Data::S_UNCONSCIOUS ||
-                            status == Goldbox::Data::S_DYING);
-    if (!canRevive) {
-        tryAddEffect(c.character, c.effect.id, c.effect.power, 1);
-        return;
-    }
-    c.character.hitPoints.current = c.character.hitPoints.max;
-    c.character.healthStatus = Goldbox::Data::S_OKAY;
-    c.character.enabled = true;
-}
-
-static void handleGaseousEscape(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-    c.effect.immediate = 0;
-    // TODO: COMBAT_FocusCharacter(char_ptr, 3, 0) — viewport focus not yet ported.
-    Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
-    effectSystem.setStatus(c.character, Goldbox::Data::S_RUNNING,
-        "Turns gaseous and escapes");
-}
-
-static void handleRegen3HpRound(const EffectCall &c) {
-    if (c.op != EFF_TICK)
-        return;
-    if (c.character.healHp(3, true) && c.bridge)
-        c.bridge->showHealResult(&c.character);
-}
-
-static void handleKeepFightingAfterUnconscious(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-
-    uint8 reviveAmount = 0;
-    if (c.character.healthStatus == Goldbox::Data::S_DYING &&
-            c.character.combatState &&
-            c.character.combatState->bleeding < 6)
-        reviveAmount = 6 - c.character.combatState->bleeding;
-    else if (c.character.healthStatus == Goldbox::Data::S_UNCONSCIOUS)
-        reviveAmount = 6;
-
-    if (reviveAmount == 0)
-        return;
-
-    // Revive: restore HP, status, and enabled flag.
-    c.character.hitPoints.current =
-        MIN<uint8>(c.character.hitPoints.max,
-                   c.character.hitPoints.current + reviveAmount);
-    c.character.healthStatus = Goldbox::Data::S_OKAY;
-    c.character.enabled = true;
-
-    const uint8 duration = static_cast<uint8>(
-        (Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 4) : 1) + 1);
-    c.character.addEffect(E_POOLRAD_FIGHT_ON_AT_ZERO_HP, duration, 0xff, true);
-
-    c.effect.immediate = 0;
-    CharacterEffects *fx = c.character.getEffects();
-    if (fx)
-        fx->eraseEffectById(c.effect.id);
-}
-
-static void handleHalfDamageFromFire(const EffectCall &c) {
-    if (!c.combat || !(c.combat->behaviorFlags & Combat::CombatGlobals::DMG_FIRE))
-        return;
-    c.combat->damage >>= 1;
-}
-
-static void handleHalfDamageBluntPiercing(const EffectCall &c) {
-    if (!c.combat || !c.combat->attacker)
-        return;
-    const Goldbox::Data::ADnDCharacter *attacker =
-        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker);
-    const Goldbox::Data::Items::CharacterItem *weapon =
-        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo();
-    if (weapon == nullptr)
-        return;
-    const Goldbox::Data::Items::ItemProperty &prop = weapon->prop();
-    if (prop.wpnType & 0x81)
-        c.combat->damage >>= 1;
-}
-
-static void handleImmunityNonSilverNonMagical(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const Goldbox::Data::ADnDCharacter *attacker =
-        c.combat->attacker ?
-        static_cast<const Goldbox::Data::ADnDCharacter *>(c.combat->attacker) : nullptr;
-    const Goldbox::Data::Items::CharacterItem *weapon = attacker ?
-        const_cast<Goldbox::Data::ADnDCharacter *>(attacker)->getWeaponOrAmmo() : nullptr;
-    if (weapon == nullptr ||
-            (weapon->bonus == 0 && weapon->nameCode3 != 0xB1))
-        c.combat->damage = 0;
-}
-
-static void handleFightOnAtZeroHp(const EffectCall &c) {
-    if (c.op != EFF_ADD)
-        return;
-    c.effect.immediate = 0;
-    if (!c.character.enabled)
-        return;
-    Goldbox::Data::Effects::EffectSystem effectSystem(nullptr, c.bridge);
-    effectSystem.setStatus(c.character, Goldbox::Data::S_DEAD, "Falls dead");
-}
-
-static void handleDwarfSaveBonus(const EffectCall &c) {
-    if (!c.combat)
-        return;
-    const uint8 type = static_cast<uint8>(c.combat->savingThrowType);
-    if (type != static_cast<uint8>(Goldbox::Data::Spells::SVS_ROD_STAFF_WAND) &&
-            type != static_cast<uint8>(Goldbox::Data::Spells::SVS_SPELL))
-        return;
-    const uint8 con = c.character.abilities.constitution.current;
-    uint8 bonus = 0;
-    if      (con >= 18) bonus = 5;
-    else if (con >= 14) bonus = 4;
-    else if (con >= 11) bonus = 3;
-    else if (con >=  7) bonus = 2;
-    else if (con >=  4) bonus = 1;
-    c.combat->savingThrow += bonus;
-}
-
-static void handleCombatTurnTrigger(const EffectCall &c) {
+// Effect 89: strength bit 4 = already displaced an attack this round.
+static void handleDisplaced(const EffectCall &c) {
     if (!c.combat)
         return;
     if (c.combat->turnCounter == 0 && c.combat->attackRoll == 0) {
@@ -2224,51 +1495,516 @@ static void handleCombatTurnTrigger(const EffectCall &c) {
     }
 }
 
-static void handleDiseaseMeleeAttack(const EffectCall &c) {
-    if (c.op != EFF_ADD)
+// Effect 90: Constitution bonus vs. paralysis/poison.
+static void handleConPsnSave(const EffectCall &c) {
+    if (c.combat &&
+            c.combat->savingThrowType == Goldbox::Data::Spells::SVS_POISON)
+        c.combat->savingThrow +=
+            conSaveBonus(c.character.abilities.constitution.current);
+}
+
+// Effect 91: immune to electricity and Magic Missile.
+static void handleImmuneMM(const EffectCall &c) {
+    if (!c.combat)
         return;
+    if (c.combat->activeSpellId == 15) {
+        nullifyAttack(c, 0);
+        say(c, &c.character, "is unaffected");
+    } else if (c.combat->behaviorFlags & CombatGlobals::DMG_ELECTRICITY) {
+        nullifyAttack(c, 0);
+    }
+}
 
-    Goldbox::Data::PlayerCharacter *target =
-        c.character.combatState ? c.character.combatState->target : nullptr;
-    if (!target || !target->enabled)
+// Effect 93
+static void handleHalfFire(const EffectCall &c) {
+    if (c.combat && (c.combat->behaviorFlags & CombatGlobals::DMG_FIRE))
+        c.combat->damage /= 2;
+}
+
+// Effect 94: half damage from piercing or bashing weapons.
+static void handleHalfBash(const EffectCall &c) {
+    Goldbox::Data::Items::CharacterItem *weapon =
+        findDamagingWeapon(actingCreature(c));
+    if (c.combat && weapon && (weapon->prop().wpnType & (kWpnPierce | kWpnBash)))
+        c.combat->damage /= 2;
+}
+
+// Effect 95: fighting on at 0 HP ran out.
+static void handleFightOn(const EffectCall &c) {
+    c.effect.immediate = 0;
+    if (c.character.enabled)
+        inflictStatusMsg(c, c.character, Goldbox::Data::S_DEAD, "Falls dead");
+}
+
+// Effect 96: only silver or magical weapons hurt it.
+static void handleNeedSilver(const EffectCall &c) {
+    Goldbox::Data::Items::CharacterItem *weapon =
+        findDamagingWeapon(actingCreature(c));
+    if (c.combat && (!weapon ||
+            (weapon->bonus == 0 && weapon->nameCode3 != kNameSilver)))
+        c.combat->damage = 0;
+}
+
+// Effect 97: Constitution bonus vs. spells and wands.
+static void handleConSpellSave(const EffectCall &c) {
+    if (!c.combat)
         return;
+    if (c.combat->savingThrowType == Goldbox::Data::Spells::SVS_SPELL ||
+            c.combat->savingThrowType == Goldbox::Data::Spells::SVS_ROD_STAFF_WAND)
+        c.combat->savingThrow +=
+            conSaveBonus(c.character.abilities.constitution.current);
+}
 
-    CharacterEffects *fx = target->getEffects();
-    if (fx && fx->hasEffect(E_POOLRAD_DISEASED))
+// Effect 98: regenerate 3 HP a round.
+static void handleRegen3(const EffectCall &c) {
+    c.character.hitPoints.current = MIN<uint8>(c.character.hitPoints.max,
+        c.character.hitPoints.current + 3);
+}
+
+// Effect 99: revive a dying (overkill < 6) or unconscious creature to fight
+// on for 1d4+1 minutes.
+static void handleCanFightOn(const EffectCall &c) {
+    PlayerCharacter &ch = c.character;
+    uint8 hp = 0;
+    if (ch.healthStatus == Goldbox::Data::S_DYING && ch.combatState &&
+            ch.combatState->bleeding < 6)
+        hp = 6 - ch.combatState->bleeding;
+    if (ch.healthStatus == Goldbox::Data::S_UNCONSCIOUS)
+        hp = 6;
+    if (hp == 0 || !reviveDeadCreature(c, ch, hp))
         return;
+    ch.addEffect(E_POOLRAD_FIGHT_ON, rollDice(1, 4) + 1, 0xFF, true);
+    c.effect.immediate = 0;
+    removeEffect(c, ch, E_POOLRAD_CAN_FIGHT_ON, &c.effect);
+}
 
-    target->addEffect(E_POOLRAD_DISEASED, 14400, 0xff, true);
+// Effect 100: unless burnt or dissolved, the troll comes back in 3d6 minutes.
+static void handleTrollBurn(const EffectCall &c) {
+    if (c.combat && (c.combat->behaviorFlags &
+            (CombatGlobals::DMG_FIRE | CombatGlobals::DMG_ACID)))
+        return;
+    c.character.addEffect(E_POOLRAD_TROLL_RETURN, rollDice(3, 6), 0xFF, true);
+}
 
-    const uint8 roll = Goldbox::g_engine ?
-        static_cast<uint8>(Goldbox::g_engine->rollDice(1, 6)) : 1;
-    target->addEffect(E_POOLRAD_ROT, 43200, roll * 16 + 15, true);
+// Effect 101
+static void handleTrollHeal(const EffectCall &c) {
+    if (!hasEffect(c.character, E_POOLRAD_REGEN3) &&
+            !hasEffect(c.character, E_POOLRAD_TROLL_REGEN))
+        c.character.addEffect(E_POOLRAD_TROLL_REGEN, 3, 0xFF, true);
+}
 
+// Effect 102: the troll gets back up at full HP.
+static void handleTrollReturn(const EffectCall &c) {
+    if (!reviveDeadCreature(c, c.character, c.character.hitPoints.max))
+        addEffectIfNoLock(c.character, E_POOLRAD_TROLL_RETURN,
+            c.effect.power, 1);
+}
+
+// Effect 103. It runs from HP_ZERO on a creature already out of play, so
+// PutOutOfPlayWithStatus returns at once in the original as well.
+static void handleGaseous(const EffectCall &c) {
+    c.effect.immediate = 0;
+    putOutOfPlayWithStatus(c, c.character, Goldbox::Data::S_RUNNING,
+        "Turns gaseous and escapes");
+}
+
+// Effect 104: thri-kreen dodge missiles 60%.
+static void handleKreenDodge(const EffectCall &c) {
+    avoidRanged(c, 60);
+}
+
+// Effect 105
+static void handleMagicRes50(const EffectCall &c) {
+    magicResistance(c, 50);
+}
+
+// Effect 106: the original passes 15, not 85.
+static void handleMagicRes85(const EffectCall &c) {
+    magicResistance(c, 15);
+}
+
+// Effect 107: elves resist sleep and charm 90%.
+static void handleElfResist(const EffectCall &c) {
+    if (rollDice(1, 100) <= 90) {
+        nullifyAttack(c, E_POOLRAD_SLEEP);
+        nullifyAttack(c, E_POOLRAD_CHARM);
+    }
+}
+
+// Effect 108
+static void handleNoSleepCharm(const EffectCall &c) {
+    nullifyAttack(c, E_POOLRAD_CHARM);
+    nullifyAttack(c, E_POOLRAD_SLEEP);
+}
+
+// Effect 109
+static void handleNoParalysis(const EffectCall &c) {
+    nullifyAttack(c, E_POOLRAD_PARALYSIS);
+}
+
+// Effect 110
+static void handleNoCold(const EffectCall &c) {
+    if (c.combat && (c.combat->behaviorFlags & CombatGlobals::DMG_COLD))
+        nullifyAttack(c, 0);
+}
+
+// Effect 111: paralysis/poison immunity; those saves always succeed.
+static void handleNoParaPoison(const EffectCall &c) {
+    nullifyAttack(c, E_POOLRAD_POISONED);
+    nullifyAttack(c, E_POOLRAD_PARALYSIS);
+    if (c.combat &&
+            c.combat->savingThrowType == Goldbox::Data::Spells::SVS_POISON)
+        c.combat->savingThrow = 100;
+}
+
+// Effect 112
+static void handleNoFire(const EffectCall &c) {
+    if (c.combat && (c.combat->behaviorFlags & CombatGlobals::DMG_FIRE))
+        nullifyAttack(c, 0);
+}
+
+// Effect 113: -1 per die, at least 1 per die.
+static void handleEfreetiFire(const EffectCall &c) {
+    if (!c.combat || !(c.combat->behaviorFlags & CombatGlobals::DMG_FIRE))
+        return;
+    const uint8 dice = c.combat->damageDice;
+    for (uint8 i = 0; i < dice; ++i) {
+        --c.combat->damage;
+        if (c.combat->damage < dice)
+            c.combat->damage = dice;
+    }
+}
+
+// Effect 114
+static void handleHalfElec(const EffectCall &c) {
+    if (c.combat && (c.combat->behaviorFlags & CombatGlobals::DMG_ELECTRICITY))
+        c.combat->damage /= 2;
+}
+
+// Effect 115: half damage from piercing or slashing weapons.
+static void handleHalfPierce(const EffectCall &c) {
+    Goldbox::Data::Items::CharacterItem *weapon =
+        findDamagingWeapon(actingCreature(c));
+    if (!c.combat || !weapon)
+        return;
+    const uint8 wpnClass = weapon->prop().wpnType;
+    if (wpnClass == kWpnSlash || (wpnClass & kWpnPierce))
+        c.combat->damage /= 2;
+}
+
+// Effect 116
+static void handleHalfMagical(const EffectCall &c) {
+    Goldbox::Data::Items::CharacterItem *weapon =
+        findDamagingWeapon(actingCreature(c));
+    if (c.combat && weapon && weapon->bonus > 0)
+        c.combat->damage /= 2;
+}
+
+// Effect 117: a vial of holy water does 1d6+1.
+static void handleHolyWater(const EffectCall &c) {
+    Goldbox::Data::Items::CharacterItem *weapon = readiedWeapon(actingCreature(c));
+    if (c.combat && weapon && weapon->typeIndex == kItemHolyWater)
+        c.combat->damage = rollDamageDice(c, 1, 6) + 1;
+}
+
+// Effect 118
+static void handleHalfCold(const EffectCall &c) {
+    if (c.combat && (c.combat->behaviorFlags & CombatGlobals::DMG_COLD))
+        c.combat->damage /= 2;
+}
+
+// Effect 119: non-magical and unarmed attacks fail, unless a monster of
+// level 4+ makes them.
+static void handleNeedMagic(const EffectCall &c) {
+    PlayerCharacter *attacker = actingCreature(c);
+    Goldbox::Data::Items::CharacterItem *weapon = findDamagingWeapon(attacker);
+    if (!c.combat || !attacker || (weapon && weapon->bonus != 0))
+        return;
+    if (attacker->race > Goldbox::Data::R_MONSTER ||
+            asPoolrad(*attacker).highestLevel < 4)
+        c.combat->damage = 0;
+}
+
+// Effect 120: dodge a thrown boulder 50%.
+static void handleBoulderDodge(const EffectCall &c) {
+    Goldbox::Data::Items::CharacterItem *weapon = readiedWeapon(actingCreature(c));
+    if (weapon && (weapon->typeIndex == kItemBoulder ||
+            weapon->typeIndex == kItemLargeBoulder))
+        avoidRanged(c, 50);
+}
+
+// Effect 121: anhkheg acid spit, 25% within 4 cells, 8d4, save vs. breath
+// for half; then it is used up.
+static void handleAnhkhegAcid(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!target)
+        return;
+    if (rollDice(1, 100) > 25)
+        return;
+    if (calcDistance(c.character, *target) >= 4)
+        return;
+    c.character.resetCombatAction();
+    say(c, &c.character, "Spits Acid");
+    const uint8 damage = rollDamageDice(c, 8, 4);
+    const bool saved = rollSavingThrow(c, *target,
+        Goldbox::Data::Spells::SVS_BREATH, 0);
+    inflictNonWeaponDamage(c, *target, damage,
+        c.combat ? c.combat->behaviorFlags : 0, 2, saved);
+    removeEffect(c, c.character, E_POOLRAD_ANHKHEG_ACID, &c.effect);
+    removeEffect(c, c.character, E_POOLRAD_ACID_SQUIRT);
+}
+
+// Effect 122: a flask of oil does 3d8; magic or fire +1 per die.
+static void handleMummyFire(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    Goldbox::Data::Items::CharacterItem *weapon = readiedWeapon(actingCreature(c));
+    if (weapon && weapon->typeIndex == kItemFlaskOfOil)
+        c.combat->damage = rollDamageDice(c, 3, 8);
+    if (c.combat->behaviorFlags &
+            (CombatGlobals::DMG_FIRE | CombatGlobals::DMG_MAGIC))
+        c.combat->damage += c.combat->damageDice;
+}
+
+// Effect 123: silver does half, magic full, anything else nothing.
+static void handleSilverMagic(const EffectCall &c) {
+    if (!c.combat)
+        return;
+    Goldbox::Data::Items::CharacterItem *weapon =
+        findDamagingWeapon(actingCreature(c));
+    if (!weapon)
+        c.combat->damage = 0;
+    else if (weapon->bonus == 0 && weapon->nameCode3 == kNameSilver)
+        c.combat->damage /= 2;
+    else if (weapon->bonus == 0)
+        c.combat->damage = 0;
+}
+
+// Effect 124: half-elves resist sleep and charm 30%.
+static void handleHalfElfResist(const EffectCall &c) {
+    if (rollDice(1, 100) <= 30) {
+        nullifyAttack(c, E_POOLRAD_CHARM);
+        nullifyAttack(c, E_POOLRAD_SLEEP);
+    }
+}
+
+// Effect 125: sleep/charm/paralysis/poison immunity.
+static void handleNoCharmPoison(const EffectCall &c) {
+    nullifyAttack(c, E_POOLRAD_CHARM);
+    nullifyAttack(c, E_POOLRAD_SLEEP);
+    nullifyAttack(c, E_POOLRAD_PARALYSIS);
+    nullifyAttack(c, E_POOLRAD_POISONED);
+    if (c.combat &&
+            c.combat->savingThrowType == Goldbox::Data::Spells::SVS_POISON)
+        c.combat->savingThrow = 100;
+}
+
+// Effect 126: the gaze is blocked by the target's equipped mirror or
+// Wooden Holy Symbol of Tyr.
+static void handleGazeBlock(const EffectCall &c) {
+    PlayerCharacter *target = combatTarget(c.character);
+    if (!c.combat || !target)
+        return;
+    for (const Goldbox::Data::Items::CharacterItem &item :
+            asAdnd(*target).inventory.items()) {
+        if (c.combat->targetUnavailable)
+            break;
+        if (!item.readied)
+            continue;
+        const uint8 names[3] = { item.nameCode1, item.nameCode2, item.nameCode3 };
+        for (uint j = 0; j < 3; ++j) {
+            if ((names[j] == kNameHolySymbol && item.nameCode3 == kNameOfTyr) ||
+                    names[j] == kNameMirror)
+                c.combat->targetUnavailable = true;
+        }
+    }
+}
+
+// Effects 128..130, 133, 134, 136, 138, 139: readying the item adds its
+// effect byte as a permanent effect and runs that handler.
+static void handleReadyItem(const EffectCall &c) {
+    const uint8 effectId = c.item ? c.item->effect2 : c.effect.power;
+    if (c.op == EFF_REMOVE) {
+        removeEffect(c, c.character, effectId);
+        return;
+    }
+    c.character.addEffect(effectId, 0, 12, false);
+    callEffectHandler(c, effectId, c.character, nullptr, false);
+}
+
+// Effect 131: Gauntlets of Ogre Power. Unreadying removes the first Strength
+// node when at 18/00, else the first one holding 18/00.
+static void handleGauntlets(const EffectCall &c) {
+    PlayerCharacter &ch = c.character;
+    if (c.op == EFF_REMOVE) {
+        CharacterEffects *fx = ch.getEffects();
+        if (!fx)
+            return;
+        const bool isOgre = ch.abilities.strength.current == 18 &&
+            ch.abilities.strException.current == 100;
+        for (Effect &e : fx->effects()) {
+            if (e.id != E_POOLRAD_STRENGTH)
+                continue;
+            uint8 base = 0, exc = 0;
+            strengthDecode(e.power, base, exc);
+            if (isOgre || (base == 18 && exc == 100)) {
+                removeEffect(c, ch, E_POOLRAD_STRENGTH, &e);
+                return;
+            }
+        }
+        return;
+    }
+
+    uint8 encoded = 0;
+    if (ch.applyStrengthChange(18, 100, encoded))
+        say(c, &ch, "is stronger");
     if (c.bridge)
-        c.bridge->postEffectMessage(target, "is Diseased", true);
+        c.bridge->requestRefresh(EffectHostBridge::RF_CHARACTER_PANEL);
+    ch.addEffect(E_POOLRAD_STRENGTH, 0, encoded, true);
 }
 
-static void handleDrain1Level(const EffectCall &c) {
-    if (c.op != EFF_ADD)
+// Effect 132: the item's effect byte holds the required alignment (low
+// nibble); another wielder drops it and takes the upper nibble in damage.
+static void handleAlignedWeapon(const EffectCall &c) {
+    if (c.op == EFF_REMOVE || !c.item)
         return;
-    Data::PoolradCharacter *target = c.character.combatState
-        ? static_cast<Data::PoolradCharacter *>(c.character.combatState->target)
-        : nullptr;
-    if (target)
-        applyLevelDrain(*target, 1, c.bridge);
+    if ((c.item->effect2 & 0x0F) == c.character.alignment)
+        return;
+    c.item->readied = 0;
+    inflictNonWeaponDamage(c, c.character, c.item->effect2 >> 4,
+        CombatGlobals::DMG_MAGIC, 0, false);
+    if (c.bridge)
+        c.bridge->requestRefresh(EffectHostBridge::RF_CHARACTER_PANEL);
 }
 
-static void handleDrain2Levels(const EffectCall &c) {
-    if (c.op != EFF_ADD)
+// Effect 135: a boulder needs giant Strength.
+static void handleBoulder(const EffectCall &c) {
+    if (c.op == EFF_REMOVE || !c.item)
         return;
-    Data::PoolradCharacter *target = c.character.combatState
-        ? static_cast<Data::PoolradCharacter *>(c.character.combatState->target)
-        : nullptr;
-    if (target)
-        applyLevelDrain(*target, 2, c.bridge);
+    if (c.character.abilities.strength.current < 19) {
+        c.item->readied = 0;
+        say(c, &c.character, "Must have Giant Strength");
+    }
 }
+
+// Effect 137: the Spiritual Hammer was unreadied.
+static void handleHammerGone(const EffectCall &c) {
+    if (c.op == EFF_REMOVE)
+        removeEffect(c, c.character, E_POOLRAD_SPIRIT_HAMMER);
+}
+
+// --- Tables (FxEngine.TriggerEffectsWithCondition, GDConsts) ---
+
+struct TriggerSet {
+    const uint8 *ids;
+    uint count;
+};
+
+#define TRIGGER_SET(name, ...) \
+    static const uint8 name[] = { __VA_ARGS__ }
+
+TRIGGER_SET(kAttackerVeto, E_POOLRAD_GAZE_BLOCK);
+TRIGGER_SET(kTargetVeto, E_POOLRAD_UNUSED_63, E_POOLRAD_BLINKING,
+    E_POOLRAD_INVISIBLE, E_POOLRAD_DUST_DISAPPEAR);
+TRIGGER_SET(kHitPhase1, E_POOLRAD_DRAIN_ONE, E_POOLRAD_DRAIN_TWO,
+    E_POOLRAD_ROT_TOUCH, E_POOLRAD_GHOUL_PARA, E_POOLRAD_FIRE_TOUCH,
+    E_POOLRAD_ACID_SQUIRT, E_POOLRAD_BLOOD_ATTACH, E_POOLRAD_REAR_CLAW_RAKE,
+    E_POOLRAD_BITE_ATTACH);
+TRIGGER_SET(kHitPhase2, E_POOLRAD_POISON_HIT0, E_POOLRAD_POISON_HIT4,
+    E_POOLRAD_POISON_HIT2, E_POOLRAD_KREEN_PARA, E_POOLRAD_GHOUL_PARA,
+    E_POOLRAD_DRIDER_PARA, E_POOLRAD_POISON_HIT_M2, E_POOLRAD_FIRE_TOUCH,
+    E_POOLRAD_DRAIN_ONE, E_POOLRAD_DRAIN_TWO, E_POOLRAD_ROT_TOUCH);
+TRIGGER_SET(kWeaponDamageAtt, E_POOLRAD_ENFEEBLE, E_POOLRAD_UNDEAD_SLAYER,
+    E_POOLRAD_FLAME_TONGUE);
+TRIGGER_SET(kWeaponDamageDef, E_POOLRAD_MIRROR_IMAGE, E_POOLRAD_PROT_MISSILES,
+    E_POOLRAD_KREEN_DODGE, E_POOLRAD_BOULDER_DODGE, E_POOLRAD_TROLL_HEAL,
+    E_POOLRAD_HALF_PIERCE, E_POOLRAD_HALF_MAGICAL, E_POOLRAD_NEED_MAGIC,
+    E_POOLRAD_SILVER_MAGIC, E_POOLRAD_NEED_SILVER, E_POOLRAD_HALF_BASH,
+    E_POOLRAD_UNUSED_60, E_POOLRAD_MUMMY_FIRE, E_POOLRAD_HOLY_WATER);
+TRIGGER_SET(kNonweaponDamage, E_POOLRAD_EFREETI_FIRE, E_POOLRAD_RING_FIRE_RES,
+    E_POOLRAD_MUMMY_FIRE, E_POOLRAD_UNUSED_60, E_POOLRAD_IMMUNE_MM,
+    E_POOLRAD_RESIST_COLD, E_POOLRAD_RESIST_FIRE, E_POOLRAD_MAGIC_RES50,
+    E_POOLRAD_MAGIC_RES85, E_POOLRAD_NO_FIRE, E_POOLRAD_HALF_ELEC,
+    E_POOLRAD_HALF_COLD, E_POOLRAD_SHIELD, E_POOLRAD_HALF_FIRE,
+    E_POOLRAD_TROLL_HEAL, E_POOLRAD_MIRROR_IMAGE);
+TRIGGER_SET(kTurnStart, E_POOLRAD_SNAKE_CHARM, E_POOLRAD_PARALYSIS,
+    E_POOLRAD_SLEEP, E_POOLRAD_HELPLESS);
+TRIGGER_SET(kCombatStart, E_POOLRAD_CAN_FIGHT_ON, E_POOLRAD_DRAGON_FEAR,
+    E_POOLRAD_MUMMY_FEAR, E_POOLRAD_DISPLACED, E_POOLRAD_CAMOUFLAGE,
+    E_POOLRAD_RING_INVIS);
+TRIGGER_SET(kEffectImmunity, E_POOLRAD_MAGIC_RES50, E_POOLRAD_MAGIC_RES85,
+    E_POOLRAD_ELF_RESIST, E_POOLRAD_NO_SLEEP_CHARM, E_POOLRAD_NO_PARALYSIS,
+    E_POOLRAD_NO_COLD, E_POOLRAD_NO_PARA_POISON, E_POOLRAD_NO_FIRE,
+    E_POOLRAD_HALF_ELF_RESIST, E_POOLRAD_NO_CHARM_POISON);
+TRIGGER_SET(kAttackRollAtt, E_POOLRAD_BLESS, E_POOLRAD_CURSE, E_POOLRAD_BLIND,
+    E_POOLRAD_BESTOW_CURSE, E_POOLRAD_PRAYER, E_POOLRAD_UNDEAD_SLAYER,
+    E_POOLRAD_FLAME_TONGUE, E_POOLRAD_GNOME_THAC0, E_POOLRAD_DWARF_THAC0);
+TRIGGER_SET(kDefenderAc, E_POOLRAD_BLIND, E_POOLRAD_SHIELD, E_POOLRAD_PROT_EVIL,
+    E_POOLRAD_PROT_GOOD, E_POOLRAD_PROT_EVIL_10FT, E_POOLRAD_PROT_GOOD_10FT,
+    E_POOLRAD_STINK_COUGH);
+TRIGGER_SET(kSavingThrow, E_POOLRAD_PROT_EVIL, E_POOLRAD_PROT_GOOD,
+    E_POOLRAD_RESIST_COLD, E_POOLRAD_SHIELD, E_POOLRAD_RESIST_FIRE,
+    E_POOLRAD_BLIND, E_POOLRAD_BESTOW_CURSE, E_POOLRAD_PROT_EVIL_10FT,
+    E_POOLRAD_PROT_GOOD_10FT, E_POOLRAD_PRAYER, E_POOLRAD_RING_FIRE_RES,
+    E_POOLRAD_NO_PARA_POISON, E_POOLRAD_NO_CHARM_POISON,
+    E_POOLRAD_CON_PSN_SAVE, E_POOLRAD_CON_SPELL_SAVE);
+TRIGGER_SET(kHpZero, E_POOLRAD_CAN_FIGHT_ON, E_POOLRAD_TROLL_BURN,
+    E_POOLRAD_GASEOUS, E_POOLRAD_BLOOD_DRAIN, E_POOLRAD_BITE_HOLD);
+TRIGGER_SET(kMonsterSpecial, E_POOLRAD_PETRIFY_GAZE, E_POOLRAD_CHARM_GAZE,
+    E_POOLRAD_DRAGON_BREATH, E_POOLRAD_ANHKHEG_ACID);
+TRIGGER_SET(kActionStart, E_POOLRAD_SILENCE, E_POOLRAD_STINK_COUGH,
+    E_POOLRAD_BITE_HOLD, E_POOLRAD_BLOOD_DRAIN, E_POOLRAD_CHARM);
+TRIGGER_SET(kAttackRollDef, E_POOLRAD_INVISIBLE, E_POOLRAD_DUST_DISAPPEAR,
+    E_POOLRAD_BLINKING, E_POOLRAD_DWARF_AC_GIANT, E_POOLRAD_GNOME_AC_BUG,
+    E_POOLRAD_DISPLACED);
+TRIGGER_SET(kMoraleCheck, E_POOLRAD_BLESS, E_POOLRAD_CURSE, E_POOLRAD_CHARM);
+TRIGGER_SET(kMoveAttackRate, E_POOLRAD_HASTED, E_POOLRAD_SLOWED,
+    E_POOLRAD_IMMOBILE);
+TRIGGER_SET(kRoundEnd, E_POOLRAD_REGEN3, E_POOLRAD_SPIRIT_HAMMER,
+    E_POOLRAD_CAMOUFLAGE, E_POOLRAD_RING_INVIS, E_POOLRAD_CHARM);
+
+#undef TRIGGER_SET
+
+// Indexed by C_Cond (= EffectSet).
+static const TriggerSet kTriggerSets[] = {
+    { kAttackerVeto, ARRAYSIZE(kAttackerVeto) },
+    { kTargetVeto, ARRAYSIZE(kTargetVeto) },
+    { kHitPhase1, ARRAYSIZE(kHitPhase1) },
+    { kHitPhase2, ARRAYSIZE(kHitPhase2) },
+    { kWeaponDamageAtt, ARRAYSIZE(kWeaponDamageAtt) },
+    { kWeaponDamageDef, ARRAYSIZE(kWeaponDamageDef) },
+    { kNonweaponDamage, ARRAYSIZE(kNonweaponDamage) },
+    { kTurnStart, ARRAYSIZE(kTurnStart) },
+    { kCombatStart, ARRAYSIZE(kCombatStart) },
+    { kEffectImmunity, ARRAYSIZE(kEffectImmunity) },
+    { kAttackRollAtt, ARRAYSIZE(kAttackRollAtt) },
+    { kDefenderAc, ARRAYSIZE(kDefenderAc) },
+    { kSavingThrow, ARRAYSIZE(kSavingThrow) },
+    { kHpZero, ARRAYSIZE(kHpZero) },
+    { kMonsterSpecial, ARRAYSIZE(kMonsterSpecial) },
+    { kActionStart, ARRAYSIZE(kActionStart) },
+    { kAttackRollDef, ARRAYSIZE(kAttackRollDef) },
+    { kMoraleCheck, ARRAYSIZE(kMoraleCheck) },
+    { kMoveAttackRate, ARRAYSIZE(kMoveAttackRate) },
+    { kRoundEnd, ARRAYSIZE(kRoundEnd) }
+};
+
+static_assert(ARRAYSIZE(kTriggerSets) == ES_SPELL_POST_PROCESS + 1,
+    "One trigger set per C_Cond value");
+
+// GDConsts.hpZeroEffects
+static const uint8 kHpZeroEffects[] = {
+    E_POOLRAD_TRAIN_MANUAL, E_POOLRAD_CHARM, E_POOLRAD_STINK_COUGH,
+    E_POOLRAD_HELPLESS, E_POOLRAD_ANIMATE_DEAD, E_POOLRAD_SNAKE_CHARM,
+    E_POOLRAD_PARALYSIS, E_POOLRAD_SLEEP, E_POOLRAD_DRAGON_AURA,
+    E_POOLRAD_IMMOBILE, E_POOLRAD_TROLL_REGEN, E_POOLRAD_FIGHT_ON,
+    E_POOLRAD_REGEN3, E_POOLRAD_SPIRIT_HAMMER_GONE, E_POOLRAD_BITE_HOLD,
+    E_POOLRAD_BLOOD_DRAIN
+};
+
 } // namespace
 
-// --- UTIL_CheckCloudEffect ---
+// --- FxEngine.ConsiderStinkingCloud ---
 
 void checkCloudEffect(Goldbox::Data::PlayerCharacter &ch,
                       Goldbox::Data::Effects::EffectHandlerBase *handler,
@@ -2276,44 +2012,44 @@ void checkCloudEffect(Goldbox::Data::PlayerCharacter &ch,
     if (!ch.enabled)
         return;
 
-    // Query the tile under the character (direction W8_NONE = current tile).
-    Combat::CombatContext *ctx = Goldbox::g_engine ?
-        Goldbox::g_engine->getCombatContext() : nullptr;
+    Combat::CombatContext *ctx = combatContext();
     if (!ctx)
         return;
 
     int occupant = 0;
     uint8 groundTile = 0;
     ctx->getGroundInfo(&ch, 0xFF, &occupant, &groundTile);
-
     if (groundTile != Combat::CloudEffectManager::kTileCloud)
         return;
 
-    // Skip if any cloud-related or immunity effect is already present.
+    if (hasEffect(ch, E_POOLRAD_STINK_COUGH) ||
+            hasEffect(ch, E_POOLRAD_HELPLESS) ||
+            hasEffect(ch, E_POOLRAD_ANIMATE_DEAD) ||
+            hasEffect(ch, E_POOLRAD_NO_PARA_POISON) ||
+            hasEffect(ch, E_POOLRAD_NO_CHARM_POISON))
+        return;
+
+    Effect none;
+    none.id = 0;
+    none.durationMin = 0;
+    none.power = 0;
+    none.immediate = 0;
+    Goldbox::Data::DamageSystem damageSystem(bridge);
+    EffectCall c(EFF_ADD, none, ch, &ctx->globals, bridge, &damageSystem,
+        handler);
+
+    const bool saved = rollSavingThrow(c, ch, Goldbox::Data::Spells::SVS_POISON, 0);
     CharacterEffects *fx = ch.getEffects();
-    if (!fx)
-        return;
-    if (fx->hasEffect(0x1E) || fx->hasEffect(0x1F) || fx->hasEffect(0x20) ||
-            fx->hasEffect(0x6F) || fx->hasEffect(0x7D))
-        return;
-
-    // Build a minimal EffectCall so we can reuse the file-local helpers.
-    Effect dummy;
-    dummy.id          = 0;
-    dummy.durationMin = 0;
-    dummy.power       = 0;
-    dummy.immediate   = 0;
-    EffectCall c(EFF_ADD, dummy, ch, nullptr, bridge, nullptr, handler);
-
-    const bool saved = checkSavingThrow(c, Goldbox::Data::Spells::SVS_POISON, 0);
-
     if (saved) {
-        checkUnaffected(c, 0x1E, 1, 0xFF, false, true, saved, "starts to cough");
+        addEffectWithMessage(c, ch, E_POOLRAD_STINK_COUGH, 1, 0xFF, false,
+            false, saved, "starts to cough");
+        callEffectHandler(c, E_POOLRAD_STINK_COUGH, ch,
+            fx ? fx->findEffectById(E_POOLRAD_STINK_COUGH) : nullptr, false);
     } else {
-        const uint8 duration = Goldbox::g_engine ?
-            static_cast<uint8>(Goldbox::g_engine->rollDice(1, 4) + 1) : 2;
-        checkUnaffected(c, 0x1F, duration, 0xFF, false, true, saved,
-            "chokes and gags from nausea");
+        addEffectWithMessage(c, ch, E_POOLRAD_HELPLESS, rollDice(1, 4) + 1,
+            0xFF, false, false, saved, "chokes and gags from nausea");
+        callEffectHandler(c, E_POOLRAD_HELPLESS, ch,
+            fx ? fx->findEffectById(E_POOLRAD_HELPLESS) : nullptr, false);
     }
 }
 
@@ -2324,13 +2060,14 @@ bool checkUnaffectedEffect(Goldbox::Data::PlayerCharacter &ch,
                            uint8 effectId, uint16 duration, uint8 power,
                            bool immediate, bool checkSave, bool saved,
                            const char *message) {
-    Effect dummy;
-    dummy.id          = effectId;
-    dummy.durationMin = duration;
-    dummy.power       = power;
-    dummy.immediate   = immediate ? 1 : 0;
-    EffectCall c(EFF_ADD, dummy, ch, combat, bridge, nullptr, handler);
-    return checkUnaffected(c, effectId, duration, power, immediate,
+    Effect none;
+    none.id = effectId;
+    none.durationMin = duration;
+    none.power = power;
+    none.immediate = immediate ? 1 : 0;
+    Goldbox::Data::DamageSystem damageSystem(bridge);
+    EffectCall c(EFF_ADD, none, ch, combat, bridge, &damageSystem, handler);
+    return addEffectWithMessage(c, ch, effectId, duration, power, immediate,
         checkSave, saved, message);
 }
 
@@ -2342,272 +2079,193 @@ void EffectHandler::setupHandlers() {
     clearHandlers();
     setDefaultHandler(&EffectHandler::handleNoop);
 
-    // Register shared common handlers first; game-specific ones below override.
-    setupCommonHandlers(*this);
+    // EffHndlr.InitEffectHandlers. Every id 1..139 is registered by its
+    // raw value, so no generic id mapping is involved.
+    static const struct {
+        uint8 id;
+        Handler handler;
+    } kHandlers[] = {
+        { E_POOLRAD_BLESS, handleBless },
+        { E_POOLRAD_CURSE, handleCurse },
+        { E_POOLRAD_UNDEAD_SLAYER, handleUndeadSlayer },
+        { E_POOLRAD_TRAIN_START, handleTrainStart },
+        { E_POOLRAD_DETECT_MAGIC, handleNull },
+        { E_POOLRAD_FLAME_TONGUE, handleFlameTongue },
+        { E_POOLRAD_TRAIN_MANUAL, handleTrainManual },
+        { E_POOLRAD_PROT_EVIL, handleProtEvil },
+        { E_POOLRAD_PROT_GOOD, handleProtGood },
+        { E_POOLRAD_RESIST_COLD, handleResistCold },
+        { E_POOLRAD_CHARM, handleCharm },
+        { E_POOLRAD_ENLARGE, handleExtraStr },
+        { E_POOLRAD_REDUCE, handleNull },
+        { E_POOLRAD_FRIENDS, handleFriends },
+        { E_POOLRAD_SLOW_POISON_HIT, handleSlowPoisonHit },
+        { E_POOLRAD_READ_MAGIC, handleNull },
+        { E_POOLRAD_SHIELD, handleShield },
+        { E_POOLRAD_GNOME_THAC0, handleGnomeThac0 },
+        { E_POOLRAD_FIND_TRAPS, handleNull },
+        { E_POOLRAD_RESIST_FIRE, handleResistFire },
+        { E_POOLRAD_SILENCE, handleSilence },
+        { E_POOLRAD_SLOW_POISON_END, handleSlowPoisonEnd },
+        { E_POOLRAD_SPIRIT_HAMMER, handleSpiritHammer },
+        { E_POOLRAD_SEE_INVISIBLE, handleNull },
+        { E_POOLRAD_INVISIBLE, handleInvisible },
+        { E_POOLRAD_DWARF_THAC0, handleDwarfThac0 },
+        { E_POOLRAD_FEATHER_FALL, handleNull },
+        { E_POOLRAD_MIRROR_IMAGE, handleMirrorImage },
+        { E_POOLRAD_ENFEEBLE, handleEnfeeble },
+        { E_POOLRAD_STINK_COUGH, handleStinkCough },
+        { E_POOLRAD_HELPLESS, handleHelpless },
+        { E_POOLRAD_ANIMATE_DEAD, handleAnimateDead },
+        { E_POOLRAD_BLIND, handleBlind },
+        { E_POOLRAD_DISEASED, handleDiseased },
+        { E_POOLRAD_ALLIED_PRAYER, handleAlliedPrayer },
+        { E_POOLRAD_BESTOW_CURSE, handleBestowCurse },
+        { E_POOLRAD_BLINKING, handleBlinking },
+        { E_POOLRAD_STRENGTH, handleExtraStr },
+        { E_POOLRAD_HASTED, handleHasted },
+        { E_POOLRAD_CAST_STINK, handleCastStink },
+        { E_POOLRAD_PROT_MISSILES, handleProtMissiles },
+        { E_POOLRAD_SLOWED, handleSlowed },
+        { E_POOLRAD_DISEASE_STR, handleDiseaseStr },
+        { E_POOLRAD_DISEASE_HP, handleDiseaseHp },
+        { E_POOLRAD_PROT_EVIL_10FT, handleProtEvil },
+        { E_POOLRAD_PROT_GOOD_10FT, handleProtGood },
+        { E_POOLRAD_DWARF_AC_GIANT, handleDwarfAcGiant },
+        { E_POOLRAD_GNOME_AC_BUG, handleGnomeAcBug },
+        { E_POOLRAD_PRAYER, handlePrayer },
+        { E_POOLRAD_ROT_NO_HEAL, handleRotNoHeal },
+        { E_POOLRAD_SNAKE_CHARM, handleHelpless },
+        { E_POOLRAD_PARALYSIS, handleHelpless },
+        { E_POOLRAD_SLEEP, handleHelpless },
+        { E_POOLRAD_DRAGON_AURA, handleNull },
+        { E_POOLRAD_POISONED, handleNull },
+        { E_POOLRAD_RING_INVIS, handleRingInvis },
+        { E_POOLRAD_MUMMY_ROT, handleMummyRot },
+        { E_POOLRAD_IMMOBILE, handleImmobile },
+        { E_POOLRAD_TROLL_REGEN, handleTrollRegen },
+        { E_POOLRAD_UNUSED_60, handleNull },
+        { E_POOLRAD_RING_FIRE_RES, handleRingFireRes },
+        { E_POOLRAD_CON_REGEN, handleConRegen },
+        { E_POOLRAD_UNUSED_63, handleNull },
+        { E_POOLRAD_POISON_HIT0, handlePoisonHit0 },
+        { E_POOLRAD_POISON_HIT4, handlePoisonHit4 },
+        { E_POOLRAD_POISON_HIT2, handlePoisonHit2 },
+        { E_POOLRAD_KREEN_PARA, handleKreenPara },
+        { E_POOLRAD_GHOUL_PARA, handleGhoulPara },
+        { E_POOLRAD_DRIDER_PARA, handleDriderPara },
+        { E_POOLRAD_POISON_HIT_M2, handlePoisonHitM2 },
+        { E_POOLRAD_DUST_DISAPPEAR, handleDustDisappear },
+        { E_POOLRAD_CAMOUFLAGE, handleCamouflage },
+        { E_POOLRAD_REAR_CLAW_RAKE, handleRearClawRake },
+        { E_POOLRAD_BITE_HOLD, handleBiteHold },
+        { E_POOLRAD_BLOOD_DRAIN, handleBloodDrain },
+        { E_POOLRAD_BLOOD_ATTACH, handleBloodAttach },
+        { E_POOLRAD_BITE_ATTACH, handleBiteAttach },
+        { E_POOLRAD_HEAL_WAKE, handleHealWake },
+        { E_POOLRAD_FIRE_TOUCH, handleFireTouch },
+        { E_POOLRAD_ACID_SQUIRT, handleAcidSquirt },
+        { E_POOLRAD_DRAGON_FEAR, handleDragonFear },
+        { E_POOLRAD_MUMMY_FEAR, handleMummyFear },
+        { E_POOLRAD_PETRIFY_GAZE, handlePetrifyGaze },
+        { E_POOLRAD_CHARM_GAZE, handleCharmGaze },
+        { E_POOLRAD_DRAIN_ONE, handleDrainOne },
+        { E_POOLRAD_DRAIN_TWO, handleDrainTwo },
+        { E_POOLRAD_ROT_TOUCH, handleRotTouch },
+        { E_POOLRAD_DRAGON_BREATH, handleDragonBreath },
+        { E_POOLRAD_DISPLACED, handleDisplaced },
+        { E_POOLRAD_CON_PSN_SAVE, handleConPsnSave },
+        { E_POOLRAD_IMMUNE_MM, handleImmuneMM },
+        { E_POOLRAD_UNUSED_92, handleNull },
+        { E_POOLRAD_HALF_FIRE, handleHalfFire },
+        { E_POOLRAD_HALF_BASH, handleHalfBash },
+        { E_POOLRAD_FIGHT_ON, handleFightOn },
+        { E_POOLRAD_NEED_SILVER, handleNeedSilver },
+        { E_POOLRAD_CON_SPELL_SAVE, handleConSpellSave },
+        { E_POOLRAD_REGEN3, handleRegen3 },
+        { E_POOLRAD_CAN_FIGHT_ON, handleCanFightOn },
+        { E_POOLRAD_TROLL_BURN, handleTrollBurn },
+        { E_POOLRAD_TROLL_HEAL, handleTrollHeal },
+        { E_POOLRAD_TROLL_RETURN, handleTrollReturn },
+        { E_POOLRAD_GASEOUS, handleGaseous },
+        { E_POOLRAD_KREEN_DODGE, handleKreenDodge },
+        { E_POOLRAD_MAGIC_RES50, handleMagicRes50 },
+        { E_POOLRAD_MAGIC_RES85, handleMagicRes85 },
+        { E_POOLRAD_ELF_RESIST, handleElfResist },
+        { E_POOLRAD_NO_SLEEP_CHARM, handleNoSleepCharm },
+        { E_POOLRAD_NO_PARALYSIS, handleNoParalysis },
+        { E_POOLRAD_NO_COLD, handleNoCold },
+        { E_POOLRAD_NO_PARA_POISON, handleNoParaPoison },
+        { E_POOLRAD_NO_FIRE, handleNoFire },
+        { E_POOLRAD_EFREETI_FIRE, handleEfreetiFire },
+        { E_POOLRAD_HALF_ELEC, handleHalfElec },
+        { E_POOLRAD_HALF_PIERCE, handleHalfPierce },
+        { E_POOLRAD_HALF_MAGICAL, handleHalfMagical },
+        { E_POOLRAD_HOLY_WATER, handleHolyWater },
+        { E_POOLRAD_HALF_COLD, handleHalfCold },
+        { E_POOLRAD_NEED_MAGIC, handleNeedMagic },
+        { E_POOLRAD_BOULDER_DODGE, handleBoulderDodge },
+        { E_POOLRAD_ANHKHEG_ACID, handleAnhkhegAcid },
+        { E_POOLRAD_MUMMY_FIRE, handleMummyFire },
+        { E_POOLRAD_SILVER_MAGIC, handleSilverMagic },
+        { E_POOLRAD_HALF_ELF_RESIST, handleHalfElfResist },
+        { E_POOLRAD_NO_CHARM_POISON, handleNoCharmPoison },
+        { E_POOLRAD_GAZE_BLOCK, handleGazeBlock },
+        { E_POOLRAD_GAZE_REFLECTABLE, handleNull },
+        { E_POOLRAD_READY_FEATHER_FALL, handleReadyItem },
+        { E_POOLRAD_READY_FIRE_RES, handleReadyItem },
+        { E_POOLRAD_READY_ITEM_130, handleReadyItem },
+        { E_POOLRAD_GAUNTLETS, handleGauntlets },
+        { E_POOLRAD_ALIGNED_WEAPON, handleAlignedWeapon },
+        { E_POOLRAD_READY_DISPLACEMENT, handleReadyItem },
+        { E_POOLRAD_READY_ELVENKIND, handleReadyItem },
+        { E_POOLRAD_BOULDER, handleBoulder },
+        { E_POOLRAD_READY_ITEM_136, handleReadyItem },
+        { E_POOLRAD_SPIRIT_HAMMER_GONE, handleHammerGone },
+        { E_POOLRAD_READY_ITEM_138, handleReadyItem },
+        { E_POOLRAD_READY_RING_INVIS, handleReadyItem }
+    };
 
-    // Poolrad-specific raw ID registrations.
-    // IDs that identity-map correctly to a common handler are omitted:
-    //   0x14 (20=E_RESIST_FIRE), 0x15 (21=E_SILENCE_15_RADIUS),
-    //   0x16 (22=E_SLOW_POISON), 0x3B (59=E_REGENERATE_3_HPS).
-    setSpecHandler(E_POOLRAD_DETECT_MAGIC,          handleNotImplemented);
-    setSpecHandler(E_POOLRAD_ENLARGE_STRENGTHEN,    handleEnlargeStrengthened);
-    setSpecHandler(E_POOLRAD_UNIMPLEMENTED_0D,      handleNotImplemented);
-    setSpecHandler(E_POOLRAD_FRIENDLY,              handleFriendly);
-    setSpecHandler(E_POOLRAD_POISON_DAMAGE,         handlePoisonDamage);
-    setSpecHandler(E_POOLRAD_READ_MAGIC,            handleNotImplemented);
-    setSpecHandler(E_POOLRAD_SHIELD,                handleShield);
-    setSpecHandler(E_POOLRAD_SMALL_VS_NORMAL,       handleBonusVsSmall);
-    setSpecHandler(E_POOLRAD_UNIMPLEMENTED_13,      handleNotImplemented);
-    setSpecHandler(E_POOLRAD_SPIRITUAL_HAMMER,      handleSpiritualHammer);
-    setSpecHandler(E_POOLRAD_TRUE_SEEING,           handleNotImplemented);
-    setSpecHandler(E_POOLRAD_BLUR,                  handleBlur);
-    setSpecHandler(E_POOLRAD_DWARF_TARGET_BONUS,    handleDwarfTargetBonus);
-    setSpecHandler(E_POOLRAD_DUPLICATED,            handleDuplicated);
-    setSpecHandler(E_POOLRAD_ENFEEBLED,             handleEnfeebled);
-    setSpecHandler(E_POOLRAD_NAUSEATED,             handleNauseated);
-    setSpecHandler(E_POOLRAD_HELPLESS,              handleHelplessPoolrad);
-    setSpecHandler(E_POOLRAD_ANIMATING_DEAD,        handleAnimatingDead);
-    setSpecHandler(E_POOLRAD_BLINDED,               handleBlinded);
-    setSpecHandler(E_POOLRAD_DISEASED,              handleDiseased);
-    setSpecHandler(E_POOLRAD_PRAYER,                handlePrayer);
-    setSpecHandler(E_POOLRAD_ACCURSED,              handleAccursed);
-    setSpecHandler(E_POOLRAD_PROT_NORMAL_WEAPONS,   handleProtNormalWeapons);
-    setSpecHandler(E_POOLRAD_SLOWED,                handleSlow);
-    setSpecHandler(E_POOLRAD_PROT_FROM_EVIL_10,     handleProtectionFromEvil);
-    setSpecHandler(E_POOLRAD_PROT_FROM_GOOD_10,     handleProtectionFromGood);
-    setSpecHandler(E_POOLRAD_DWARF_VS_GIANT,        handleDwarfVsGiant);
-    setHandler(E_DWARF_AND_GNOME_VS_GIANTS,          handleDwarfVsLargeMonster);
-    setHandler(E_GNOME_LARGE_MONSTER,                 handleGnomeVsBugbearGnoll);
-    setSpecHandler(E_POOLRAD_GNOME_VS_LARGE,        handleGnomeVsLarge);
-    setSpecHandler(E_POOLRAD_PRAYER_2,              handlePrayer);
-    setSpecHandler(E_POOLRAD_ENDLESS_REGEN,         handleEndlessRegen);
-    setSpecHandler(E_POOLRAD_INVISIBLE_RING,         handleInvisibleRing);
-    setSpecHandler(E_POOLRAD_HELPLESS_33,           handleHelpless);
-    setSpecHandler(E_POOLRAD_HELPLESS_34,           handleHelpless);
-    setSpecHandler(E_POOLRAD_HELPLESS_35,           handleHelpless);
-    setSpecHandler(0x36,                            handleNotImplemented);
-    setSpecHandler(0x37,                            handleNotImplemented);
-    setSpecHandler(E_POOLRAD_FIRE_RESISTANCE,        handleFireResistance);
-    setSpecHandler(E_POOLRAD_REGENERATING,          handleRegenerating);
-    setSpecHandler(E_POOLRAD_ROT,                   handleRot);
-    // Raw 0x3A identity-maps to E_IMMOBILIZED=58; no Poolrad-specific alias needed.
-    setSpecHandler(E_IMMOBILIZED,                   handleImmobilized);
-    setSpecHandler(E_POOLRAD_REGEN_3_HP,            handleRegeneration);
-    setSpecHandler(E_POOLRAD_FLAME_TONGUE_WEAPON,   handleFlameTongue);
-    setSpecHandler(E_POOLRAD_SWORD_VS_UNDEAD,       handleSwordVsUndead);
-    setSpecHandler(E_POOLRAD_STUDY_MANUAL_BODILY_HEALTH, handleStudyManualBodilyHealth);
-    setSpecHandler(E_POOLRAD_TRAIN_MANUAL_BODILY_HEALTH, handleTrainingManualBodilyHealth);
-    setHandler(E_STINKING_CLOUD_EXPAIR,             handleInStinkingCloudExpire);
-    setHandler(E_SILENCE_15_RADIUS,                 handleSilence);
-    setHandler(E_INVISIBILITY,                      handleInvisibility);
-    setHandler(E_INVISIBLE,                         handleInvisibility);
-    setHandler(E_ITEM_INVISIBILITY,                 handleItemInvisibility);
-    setHandler(E_CAMOUFLAGE,                        handleCamouflage);
-    setHandler(E_IMMUNE_TO_ELECTRICITY,             handleImmuneElec);
-    setHandler(E_RESIST_FIRE,                       handleResistFire);
-    setHandler(E_RESIST_FIRE_AND_COLD,              handleResistFireAndCold);
-    setHandler(E_FIRE_RESIST,                       handleFireResist);
-    setHandler(E_PROT_FROM_NORMAL_MISSILES,         handleProtNormalMissiles);
-    setHandler(E_PROT_DRAG_BREATH,                  handleProtDragBreath);
-    setHandler(E_MINOR_GLOBE_OF_INVULNERABILITY,    handleMinorGlobe);
-    setHandler(E_RAKSHASA_RESIST_NORMAL_WEAPONS,    handleRakshasaResist);
-    setHandler(E_DISPLACE,                          handleDisplace);
-    setHandler(E_HALF_DAMAGE,                       handleHalfDamage);
-    setHandler(E_HALF_FIRE_DAMAGE,                  handleHalfFireDamage);
-    setHandler(E_DAMAGE_REDUCTION,                  handleDamageReduction);
-    setHandler(E_FEAR_IMMUNITY,                     handleFearImmunity);
-    setHandler(E_SLOW_POISON,                       handleSlowPoison);
-    setHandler(E_ENTANGLE,                          handleEntangle);
-    setHandler(E_PETRIFYING_GAZE,                   handleAttackBonus2);
-    setHandler(E_AFFECT_4A,                         handleAttackBonus2);
-    setHandler(E_AFFECT_4E,                         handleAttackBonus2);
-    setHandler(E_FIRE_ATTACK_2D10,                  handleAttackDamageBonus);
-    setHandler(E_ANKHEG_ACID_ATTACK,                handleAttackDamageBonus);
-    setHandler(E_BREATH_ELEC,                       handleAttackDamageBonus);
-    setHandler(E_BREATH_ACID,                       handleAttackDamageBonus);
-    setHandler(E_CLOUD_KILL,                        handleAttackDamageBonus);
-    setHandler(E_ANKHEG_ACID_SQUIRT_ATTACK,         handleAttackDamageBonus);
-    setHandler(E_WILD_BOAR_DIE_AFTER_EXTRA_FIGHT_TIME_AFFECT_5F, handleAttackDamageBonus);
-    setHandler(E_OWLBEAR_HUG_CHECK,                 handleAttackDamageBonus);
-    setHandler(E_WILD_BOAR_AND_BULLETTE_AFFECT_63,  handleAttackDamageBonus);
-    setHandler(E_THRI_KREEN_MISSILE_EVASION,        handleSaveBonus2);
-    setHandler(E_BOULDER_EVASION,                   handleSaveBonus2);
-    setHandler(E_RESIST_MAGIC_15,                   handleSaveBonus1);
-    setHandler(E_RESIST_SLEEP_CHARM_30,             handleSaveBonus2);
-    setHandler(E_RESIST_MAGIC_50,                   handleSaveBonus3);
-    setHandler(E_RESIST_SLEEP_CHARM_90,             handleSaveBonus5);
-    setHandler(E_IMMUNITY_SLEEP_CHARM,              handleImmunitySleepCharm);
-    setHandler(E_IMMUNITY_PARALYSIS,                handleImmunitySleepCharm);
-    setHandler(E_IMMUNITY_SLEEP_CHARM_PARALYSIS_POISON, handleImmunitySleepCharm);
-    setHandler(E_IMMUNITY_GAZE_ATTACKS,             handleImmunitySleepCharm);
-    setHandler(E_IMMUNITY_COLD,                     handleImmunityCold);
-    setHandler(E_IMMUNITY_FIRE,                     handleImmunityFire);
-    setHandler(E_EFREETI_FIRE_RESISTANCE,           handleEfreetiFireResistance);
-    setHandler(E_IMMUNITY_PARALYSIS_POISON,         handleImmunityParalysisPoisonFear);
-    setHandler(E_IMMUNITY_NONMAGICAL_WEAPONS,       handleImmunityNonmagical);
-    setHandler(E_IMMUNITY_NONMAGICAL_HALF_SILVER,   handleImmunityNonmagical);
-    setHandler(E_HALF_DAMAGE_ELECTRICITY,           handleHalfDamage);
-    setHandler(E_HALF_DAMAGE_PIERCING_SLASHING,     handleHalfDamage);
-    setHandler(E_HALF_DAMAGE_MAGICAL_WEAPONS,       handleHalfDamage);
-    setHandler(E_HALF_DAMAGE_COLD,                  handleHalfDamage);
-    setHandler(E_VULNERABILITY_HOLY_WATER,          handleSavePenalty2);
-    setHandler(E_VULNERABILITY_FIRE,                handleSavePenalty2);
-    setHandler(E_TROLL_FIRE_OR_ACID,                handleSavePenalty2);
-    setHandler(E_EXTRA_STRENGTH_130,                handleExtraStrength);
-    // Poolrad raw IDs 64/65/66/70: poison attack effects with varying save modifiers.
-    setSpecHandler(0x40,                            handlePoisonAttack);
-    setSpecHandler(0x41,                            handlePoisonAttackSaveBonus4);
-    setSpecHandler(0x42,                            handlePoisonAttackSaveBonus2);
-    setSpecHandler(0x46,                            handlePoisonMeleeSavePenalty2);
-    // Poolrad raw IDs 67/68/69: paralysis melee attack effects.
-    setSpecHandler(0x43,                            handleParalysisMeleeAttack);
-    setSpecHandler(0x44,                            handleParalysisMeleeAttackNoElves);
-    setSpecHandler(0x45,                            handleParalysisMeleeAttackStrong);
-    // Poolrad raw ID 71: invisible attacker, target unavailable + attack penalty.
-    setSpecHandler(0x47,                            handleInvisibleAttack);
-    // Poolrad raw ID 72: chance to camouflage on attack.
-    setSpecHandler(0x48,                            handleCamouflagedAttack);
-    // Poolrad raw ID 73: rear-claw rake bonus attack.
-    setSpecHandler(0x49,                            handleRearClawRake);
-    // Poolrad raw ID 74: grapple attack against a roster-indexed target.
-    setSpecHandler(0x4a,                            handleGrappleAttack);
-    // Poolrad raw ID 75: vampiric blood-drain attack.
-    setSpecHandler(0x4b,                            handleSucksBlood);
-    // Poolrad raw ID 76: blood-drain attack trigger; sets up effects 75/58.
-    setSpecHandler(0x4c,                            handleBloodDrainingAttack);
-    // Poolrad raw ID 77: bite-and-hold attack; sets up effects 74/58.
-    setSpecHandler(0x4d,                            handleBiteAndHold);
-    // Poolrad raw ID 78: revive — re-place on combat map, retry via effect.power on failure.
-    setSpecHandler(0x4e,                            handleRevive);
-    // Poolrad raw ID 79: fire-touch attack — 2d10 fire+magic damage, no saving throw.
-    setSpecHandler(0x4f,                            handleFireTouchAttack);
-    // Poolrad raw ID 80: ankheg acid melee attack — 1d4 acid damage, no saving throw.
-    setSpecHandler(0x50,                            handleAnkhegAcidMeleeAttack);
-    // Poolrad raw ID 81: dragon fear aura — fear effect on all opposite-side party members.
-    setSpecHandler(0x51,                            handleDragonFearAura);
-    // Poolrad raw ID 82: mummy fear aura — strips prior aura, then paralysis-fear on opposite side.
-    setSpecHandler(0x52,                            handleMummyFearAura);
-    // Poolrad raw ID 83: petrifying gaze — save vs. petrification or stoned; reflective item check.
-    setSpecHandler(0x53,                            handlePetrifyingGaze);
-    // Poolrad raw ID 84: charming gaze — opposite-side LOS check, save vs. spell(-2) or charmed.
-    setSpecHandler(0x54,                            handleCharmingGaze);
-    // Poolrad raw ID 85: drain 1 level from combat target.
-    setSpecHandler(0x55,                            handleDrain1Level);
-    // Poolrad raw ID 86: drain 2 levels from combat target.
-    setSpecHandler(0x56,                            handleDrain2Levels);
-    // Poolrad raw ID 87: disease melee attack — applies disease + disease damage to target.
-    setSpecHandler(0x57,                            handleDiseaseMeleeAttack);
-    // Poolrad raw ID 88: lingering breath - fires breath attack each turn; power>=0xFE persists.
-    setSpecHandler(0x58,                            handleLingeringBreath);
-    // Poolrad raw ID 89: combat turn trigger — gates electricity breath on turn counter.
-    setSpecHandler(0x59,                            handleCombatTurnTrigger);
-    // Poolrad raw ID 90: constitution saving throw bonus (racial).
-    setSpecHandler(E_POOLRAD_CON_SAVING_BONUS,      handleConstitutionSavingBonus);
-    // Poolrad raw ID 91: halfling poison/electricity immunity (racial).
-    setSpecHandler(E_POOLRAD_HALFLING_POISON_BONUS, handleHalflingPoisonBonus);
-    // Poolrad raw ID 93: half damage from fire attacks.
-    setSpecHandler(E_POOLRAD_HALF_DAMAGE_FROM_FIRE,      handleHalfDamageFromFire);
-    // Poolrad raw ID 94: half damage from blunt/piercing weapons (wpnType & 0x81).
-    setSpecHandler(E_POOLRAD_HALF_DAMAGE_BLUNT_PIERCING, handleHalfDamageBluntPiercing);
-    // Poolrad raw ID 95: fight on after being reduced to 0 HP; clears immediate, then kills if enabled.
-    setSpecHandler(E_POOLRAD_FIGHT_ON_AT_ZERO_HP,        handleFightOnAtZeroHp);
-    // Poolrad raw ID 96: immunity to non-silver, non-magical weapons.
-    setSpecHandler(E_POOLRAD_IMMUNITY_NON_SILVER_NON_MAGICAL, handleImmunityNonSilverNonMagical);
-    // Poolrad raw ID 97: dwarf constitution saving throw bonus (vs. rod/staff/wand and vs. spell).
-    setSpecHandler(E_POOLRAD_DWARF_SAVE_BONUS,           handleDwarfSaveBonus);
-    // Poolrad raw ID 98: regenerate 3 HP per round.
-    setSpecHandler(E_POOLRAD_REGEN_3_HP_ROUND,           handleRegen3HpRound);
-    // Poolrad raw ID 99: keep fighting after becoming unconscious/dying; revives and adds fight-on effect.
-    setSpecHandler(E_POOLRAD_KEEP_FIGHTING_AFTER_UNCONSCIOUS, handleKeepFightingAfterUnconscious);
-    // Poolrad raw ID 100: troll fire/acid vulnerability — adds return-from-death effect if not fire/acid hit.
-    setSpecHandler(E_POOLRAD_TROLL_FIRE_ACID_VULNERABILITY,  handleTrollFireAcidVulnerability);
-    // Poolrad raw ID 101: apply death recovery — bootstraps E_REGENERATE_3_HPS if not already regenerating.
-    setSpecHandler(E_POOLRAD_APPLY_DEATH_RECOVERY,           handleApplyDeathRecovery);
-    // Poolrad raw ID 102: return from death — revive with full HP, retry next tick on failure.
-    setSpecHandler(E_POOLRAD_RETURN_FROM_DEATH,              handleReturnFromDeath);
-    // Poolrad raw ID 103: running — clears immediate, sets S_RUNNING status (gaseous escape).
-    setSpecHandler(E_POOLRAD_GASEOUS_ESCAPE,                        handleGaseousEscape);
-    // Poolrad raw ID 104: thri-kreen missile evasion at 60% — reuses rollAvoid helper.
-    setSpecHandler(E_POOLRAD_THRI_KREEN_MISSILE_EVASION_60,         handleThriKreenMissileEvasion60);
-    // Poolrad raw ID 105: resist magic 50% — base 50% chance scaled by caster level.
-    setSpecHandler(0x69,                                             handleResistMagic50);
-    // Poolrad raw ID 106: resist magic 15% — base 15% chance scaled by caster level.
-    setSpecHandler(0x6a,                                             handleResistMagic15);
-    // Poolrad raw ID 107: 90% resistance to sleep/charm spells.
-    setSpecHandler(0x6b,                                             handleResistSleepCharm90);
-    // Poolrad raw ID 108: full immunity to sleep and charm spells.
-    setSpecHandler(0x6c,                                             handleImmunitySleepCharmSpell);
-    // Poolrad raw ID 109: full immunity to paralysis spells.
-    setSpecHandler(0x6d,                                             handleImmunityParalysisSpell);
-    // Poolrad raw ID 110: full immunity to cold damage.
-    setSpecHandler(0x6e,                                             handleImmunityColdSpell);
-    // Poolrad raw ID 111: immunity to paralysis and poison saving throws.
-    setSpecHandler(0x6f,                                             handleImmunityParalysisPoisonSpell);
-    // Poolrad raw ID 112: full immunity to fire damage.
-    setSpecHandler(0x70,                                             handleImmunityFireSpell);
-    // Poolrad raw ID 113: Efreeti fire resistance — reduce damage by 1 per attack count.
-    setSpecHandler(0x71,                                             handleEfreetiFireResistanceSpell);
-    // Poolrad raw ID 114: half damage from electricity.
-    setSpecHandler(0x72,                                             handleHalfDamageFromElectricity);
-    // Poolrad raw ID 115: half damage from piercing/slashing weapons (wpnType==0 or bit 0 set).
-    setSpecHandler(0x73,                                             handleHalfDamageFromPiercingSlashing);
-    // Poolrad raw ID 116: half damage from magical weapons (bonus > 0).
-    setSpecHandler(0x74,                                             handleHalfDamageFromMagicalWeapons);
-    // Poolrad raw ID 117: vulnerability to holy water (typeIndex==85) — replace damage with 1d6+1.
-    setSpecHandler(0x75,                                             handleVulnerabilityToHolyWater);
-    // Poolrad raw ID 118: half damage from cold.
-    setSpecHandler(0x76,                                             handleHalfDamageFromCold);
-    // Poolrad raw ID 119: immunity to non-magical weapons; bypassed by non-human or level >= 4 attacker.
-    setSpecHandler(0x77,                                             handleImmunityNonMagicalWeaponsSpell);
-    // Poolrad raw ID 120: boulder evasion — 50% avoid chance when attacker wields typeIndex 87 or 88.
-    setSpecHandler(0x78,                                             handleBoulderEvasion);
-    // Poolrad raw ID 121: ankheg acid squirt — 25% chance, 4d8 acid, save vs. breath for half, self-removes.
-    setSpecHandler(0x79,                                             handleAnkhegAcidSquirtAttack);
-    // Poolrad raw ID 122: vulnerability to fire — typeIndex 86 replaces damage with 3d8; DMG_FIRE|DMG_MAGIC adds attackCount.
-    setSpecHandler(0x7a,                                             handleVulnerabilityToFire);
-    // Poolrad raw ID 123: immunity to non-magical weapons; silver weapons deal half damage.
-    setSpecHandler(0x7b,                                             handleImmunityNonMagicalHalfSilver);
-    // Poolrad raw ID 124: 30% resistance to sleep/charm spells.
-    setSpecHandler(0x7c,                                             handleResistSleepCharm30);
-    // Poolrad raw ID 125: immunity to sleep, charm, paralysis, and poison; auto-pass vs. paralysis saves.
-    setSpecHandler(0x7d,                                             handleImmunitySleepCharmParalysisPoison);
-    // Poolrad raw ID 126: gaze immunity — set targetUnavailable if target carries a mirror/anti-gaze item.
-    setSpecHandler(0x7e,                                             handleImmuneToGazeAttacks);
-    // Poolrad raw ID 127: not implemented.
-    setSpecHandler(0x7f,                                             handleNotImplemented);
-    // Poolrad raw IDs 128-130, 131, 133, 134, 135, 136, 137, 138, 139: item-granted sub-effect (effect2 in power).
-    setSpecHandler(0x80,                                             handleItemEffect);
-    setSpecHandler(0x81,                                             handleItemEffect);
-    setSpecHandler(0x82,                                             handleItemEffect);
-    setSpecHandler(0x83,                                             handleExtraStrengthItem);
-    setSpecHandler(0x85,                                             handleItemEffect);
-    setSpecHandler(0x86,                                             handleItemEffect);
-    setSpecHandler(0x87,                                             handleRequiresGiantStrength);
-    setSpecHandler(0x88,                                             handleItemEffect);
-    setSpecHandler(0x89,                                             handleRemoveEffect23OnRemove);
-    setSpecHandler(0x8a,                                             handleItemEffect);
-    setSpecHandler(0x8b,                                             handleItemEffect);
+    static_assert(ARRAYSIZE(kHandlers) == E_POOLRAD_LAST,
+        "One handler per Pool of Radiance effect id");
+
+    for (uint i = 0; i < ARRAYSIZE(kHandlers); ++i)
+        setSpecHandler(kHandlers[i].id, kHandlers[i].handler);
 }
 
 Goldbox::Data::Effects::Effects EffectHandler::mapRawEffectId(uint8 rawId) const {
-    using namespace Goldbox::Data::Effects;
+    // Every raw id has its own handler; anything else is unknown.
+    (void)rawId;
+    return Goldbox::Data::Effects::E_MISC;
+}
 
-    switch (rawId) {
-    case E_POOLRAD_BLESSED:
-        return E_BLESSED;
-    case E_POOLRAD_CURSED:
-        return E_CURSED;
-    case E_POOLRAD_PROTECTION_FROM_EVIL:
-        return E_PROTECTION_FROM_EVIL;
-    case E_POOLRAD_PROTECTION_FROM_GOOD:
-        return E_PROTECTION_FROM_GOOD;
-    case E_POOLRAD_RESIST_COLD:
-        return E_RESIST_COLD;
-    case E_POOLRAD_CHARM_PERSON:
-        return E_CHARM_PERSON;
-    default:
-        return static_cast<Effects>(rawId);
+const uint8 *EffectHandler::getTriggerSet(uint8 setId, uint &count) const {
+    if (setId >= ARRAYSIZE(kTriggerSets)) {
+        count = 0;
+        return nullptr;
     }
+    count = kTriggerSets[setId].count;
+    return kTriggerSets[setId].ids;
+}
+
+bool EffectHandler::isGroupRadiatingEffect(uint8 rawId, uint8 &range) const {
+    range = 1;
+    switch (rawId) {
+    case E_POOLRAD_SILENCE:
+    case E_POOLRAD_PROT_EVIL_10FT:
+    case E_POOLRAD_PROT_GOOD_10FT:
+        return true;
+    case E_POOLRAD_PRAYER:
+        range = 6;
+        return true;
+    default:
+        return false;
+    }
+}
+
+const uint8 *EffectHandler::getHpZeroEffects(uint &count) const {
+    count = ARRAYSIZE(kHpZeroEffects);
+    return kHpZeroEffects;
 }
 
 void EffectHandler::handleNoop(const Goldbox::Data::Effects::EffectCall &) {

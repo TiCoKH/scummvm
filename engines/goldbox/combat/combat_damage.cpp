@@ -21,10 +21,12 @@
 
 #include "goldbox/combat/combat_damage.h"
 #include "goldbox/combat/combat_context.h"
+#include "goldbox/combat/combat_params.h"
 #include "goldbox/data/damage_system.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/character_effects.h"
+#include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/rules/rules_types.h"
 
 namespace Goldbox {
@@ -77,10 +79,15 @@ DamageResult applyDamage(CombatContext &ctx,
         // character transitions to a disabled state.
         ctx.updateSideCount();
 
-        if (effectRuntime && ch->getEffects()) {
-            ch->getEffects()->clear();
-            effectRuntime->checkEffectSet(ES_ON_DEATH,
-                    *ch->getEffects(), *ch, &ctx.globals);
+        // FxEngine.InflictNonWeaponDamage: drop the 0-HP effects, then run
+        // HP_ZERO, which can revive (fight on) or remove the creature.
+        if (ch->getEffects()) {
+            EffectSystem effectSystem(g_effectHandler, ctx.params.effectBridge,
+                effectRuntime);
+            effectSystem.removeHpZeroEffects(*ch);
+            if (effectRuntime)
+                effectRuntime->checkEffectSet(ES_ON_DEATH,
+                        *ch->getEffects(), *ch, &ctx.globals);
         }
     }
 

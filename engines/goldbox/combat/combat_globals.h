@@ -87,6 +87,12 @@ struct CombatGlobals {
     int8 moraleModifier;     // COMBAT_MORALE_MOD
     uint8 behaviorFlags;     // bitmask of DamageTypeMask
     uint8 activeSpellId;     // BYTE_SPELL_INPORCESS
+    // Effect id under the EFFECT_IMMUNITY check; an immunity handler zeroes
+    // it to block the effect (GDVars.pendingEffectId).
+    uint8 pendingEffectId;
+    // Dice count of the last damage roll (GDVars.gDamageDice), used by the
+    // per-die fire resistances.
+    uint8 damageDice;
     /**
      * Record for a downed/sleeping party member placed as a ground marker.
      * Mirrors original ARRAY_MEMBER_DOWN_ICONS[].
@@ -161,6 +167,8 @@ struct CombatGlobals {
         moraleModifier = 0;
         behaviorFlags = 0;
         activeSpellId = 0;
+        pendingEffectId = 0;
+        damageDice = 0;
         membersOnGround = 0;
         downedMembers.clear();
         combatFlag1 = 0;
