@@ -687,6 +687,9 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 	// binary compatibility with the original save format.
 	out.writeByte(3);
 
+	// SaveLoad: zone0 settings := monsterPics * 2 + portraitsOn.
+	mem->write8(0x49FF, (uint8)((_monsterPics ? 2 : 0) | (_portraitsOn ? 1 : 0)));
+
 	writeVmBlockWord(0x4900, 0x0400); // VMBANK0_WORLD_STATE (0x0400 words = 0x0800 bytes)
 	writeVmBlockWord(0x6B00, 0x0400); // VMBANK1_PARTY_STATE (0x0400 words = 0x0800 bytes)
 	writeVmBlockWord(0x9700, 0x0200); // VMBANK2_COMBAT_STATE (0x0200 words = 0x0400 bytes)
@@ -850,6 +853,13 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	readVmBlockWord(0x6B00, 0x0400); // VMBANK1_PARTY_STATE (0x0400 words = 0x0800 bytes)
 	readVmBlockWord(0x9700, 0x0200); // VMBANK2_COMBAT_STATE (0x0200 words = 0x0400 bytes)
 	readVmBlockByte(0x9900, 0x1E00); // VMBANK3_ECL_SCRIPT  (byte-addressed)
+
+	// SaveLoad: monsterPics := settings div 2, portraitsOn := settings and 1.
+	{
+		const uint8 settings = mem->read8(0x49FF);
+		_monsterPics = (settings >> 1) != 0;
+		_portraitsOn = (settings & 1) != 0;
+	}
 
 	// Legacy save tail struct (8 bytes):
 	// +0x00 u8 dungeonX, +0x01 u8 dungeonY, +0x02 u8 dir (8-way),
@@ -2381,6 +2391,29 @@ private:
 } // namespace
 
 bool PoolradEngine::runRest() {
+	if (!beginRest(campRestMinutes()))
+		return false;
+	while (stepRest(64)) {
+	}
+	return restInterrupted();
+}
+
+uint16 PoolradEngine::campRestMinutes() {
+	uint16 maxMinutes = 0;
+	for (Common::List<Goldbox::Data::PlayerCharacter *>::iterator it =
+			_party.begin(); it != _party.end(); ++it) {
+		Data::PoolradCharacter *member =
+			dynamic_cast<Data::PoolradCharacter *>(*it);
+		if (!member)
+			continue;
+		const uint16 minutes = SpellPreparation(member).campPrepTime();
+		if (minutes > maxMinutes)
+			maxMinutes = minutes;
+	}
+	return maxMinutes;
+}
+
+bool PoolradEngine::beginRest(uint32 minutes) {
 	if (!_eclVm)
 		return false;
 
@@ -2394,51 +2427,25 @@ bool PoolradEngine::runRest() {
 		party.push_back(static_cast<Data::PoolradCharacter *>(*it));
 	}
 
-	// Max regain time (ACTION_Rest): the party-wide maximum spell preparation
-	// requirement, in minutes. The original reads CHARACTER_GetSpellRegain;
-	// no C++ port of that helper exists yet, so the requested duration is
-	// derived from pending work at 15 minutes per spell level (3 ticks/level *
-	// 5 minutes). OPEN: swap to the exact CHARACTER_GetSpellRegain minutes if
-	// a port lands.
-	uint16 maxRegainMinutes = 0;
-	for (uint i = 0; i < party.size(); ++i) {
-		Data::PoolradCharacter *member = party[i];
-		if (!member)
-			continue;
-		SpellPreparation prep(member);
-		// Each pending memorize slot costs its spell level in 15-minute units
-		// (3 ticks/level * 5 min). Estimate from the pending count; the tick
-		// simulation enforces the exact per-level timing as it runs.
-		const uint8 pendingMem = prep.countPendingMemorized();
-		if (pendingMem > 0) {
-			const uint16 estimate = (uint16)(pendingMem * 15);
-			if (estimate > maxRegainMinutes)
-				maxRegainMinutes = estimate;
-		}
-	}
-
 	// Area safe-rest fields (zone1[REST_SAFE_TIME], zone1[REST_INTERRUPT_PCT]).
 	const uint8 safeTime = mem.read8(
 		layout.vmGlobalField(kVmGlobalFieldRestSafeTime).vmAddr);
 	const uint8 interruptPct = mem.read8(
 		layout.vmGlobalField(kVmGlobalFieldRestInterruptChance).vmAddr);
 
-	RestOperation rest;
-	rest.start(party, maxRegainMinutes, safeTime, interruptPct);
+	_restOp.start(party, minutes, safeTime, interruptPct);
+	return true;
+}
 
-	HostRestEnvironment env(mem, kPoolradClockAddrs, _party,
+bool PoolradEngine::stepRest(int maxTicks) {
+	if (!_eclVm || !_restOp.isResting())
+		return false;
+
+	HostRestEnvironment env(_eclVm->getMemory(), kPoolradClockAddrs, _party,
 		effectsRuntime(), getGameState());
-
-	// Drive the simulation to completion. Ticks are bounded per iteration to
-	// stay responsive without changing the simulated order or count; a real
-	// frame-bounded driver would yield here between batches.
-	const int kMaxTicksPerBatch = 64;
-	while (rest.isResting()) {
-		for (int i = 0; i < kMaxTicksPerBatch && rest.isResting(); ++i)
-			rest.advanceTick(env);
-	}
-
-	return rest.shouldRunInterruptionEcl();
+	for (int i = 0; i < maxTicks && _restOp.isResting(); ++i)
+		_restOp.advanceTick(env);
+	return _restOp.isResting();
 }
 
 } // namespace Poolrad

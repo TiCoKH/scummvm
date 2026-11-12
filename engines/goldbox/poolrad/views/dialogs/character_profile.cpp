@@ -22,6 +22,7 @@
 #include "goldbox/poolrad/views/dialogs/character_profile.h"
 #include "goldbox/events.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/poolrad.h"
 #include "goldbox/data/items/character_item.h"
 #include "common/keyboard.h"
 
@@ -272,6 +273,10 @@ void CharacterProfile::drawPortrait() {
     drawWindow(28, 1, 38, 11);
     Surface s = getSurface();
     if (!_poolradPc)
+        return;
+    // ViewChar: the portrait only when portraits are on (Alter > Pics).
+    if (Goldbox::Poolrad::g_engine &&
+            !Goldbox::Poolrad::g_engine->portraitsOn())
         return;
 
     // Load head portrait using the correct DAX block ID

@@ -93,7 +93,7 @@ RestOperation::RestOperation()
 
 void RestOperation::start(
 		const Common::Array<Data::PoolradCharacter *> &party,
-		uint16 requestedMinutes, uint8 safeTime, uint8 interruptPct) {
+		uint32 requestedMinutes, uint8 safeTime, uint8 interruptPct) {
 	_party = party;
 
 	// CampRest zeroes every per-character preparation timer up front

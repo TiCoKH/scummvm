@@ -88,6 +88,49 @@ public:
     // magic-user spell book (memorize cleric/mage per available slots).
     bool canDoActivity(Activity activity) const;
 
+    /**
+     * Camp.CanDoSpellActivity: the refusal text shown after the character's
+     * name, or nullptr when the activity is allowed. Casting is refused in an
+     * anti-magic area; an animated or disabled character can do nothing.
+     */
+    const char *activityRefusal(Activity activity, bool antimagicArea) const;
+
+    /**
+     * Camp.CampSpellPrepTime: rest minutes this character needs for its
+     * pending memorizing and scribing, 15 per pending spell level plus a base
+     * of 4 hours (6 when any pending spell is level 3). Stores the base hours
+     * in the character's spell preparation timer.
+     */
+    uint16 campPrepTime();
+
+    /** Spell slots for a spell's class and level. */
+    uint8 slotCapacity(Goldbox::Data::Spells::Spells spell) const {
+        return slotCapacityForSpell(spell);
+    }
+
+    /** Spell slots of a class and level (Camp: slots[typ, lvl]). */
+    uint8 slotAllowance(Goldbox::Data::Spells::SpellClass spellClass,
+                        uint8 level) const;
+
+    /**
+     * Camp.SpellSlotsRemaining: allowance minus memorized and pending spells
+     * of that class and level; the byte wraps when more are memorized.
+     */
+    uint8 slotsRemaining(Goldbox::Data::Spells::SpellClass spellClass,
+                         uint8 level) const;
+
+    /** Any spell on a scroll (Magic.AddAllScrollSpells(False) not empty). */
+    bool hasScrollSpells() const;
+    /** Any scroll spell queued for scribing. */
+    bool hasPendingScribe() const;
+    /** A scroll spell matching @p spell is already queued for scribing. */
+    bool isScribing(Goldbox::Data::Spells::Spells spell) const;
+    /**
+     * Camp.CampScribeMenu: mark the first unmarked scroll payload holding
+     * @p spell as pending. Returns false when there is none.
+     */
+    bool markScribe(Goldbox::Data::Spells::Spells spell);
+
     // Map 'C' gate (Explore.MapMainMenu + Camp.NoncombatCastMenu).
     enum NoncombatCastCheck {
         NCC_ALLOWED = 0,

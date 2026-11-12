@@ -467,7 +467,8 @@ bool InGameView::msgKeypress(const KeypressMessage &msg) {
 	// Camp dialog consumes most keys when active — blocks navigation.
 	// Party list gets first pass at scroll keys.
 	if (_campMenuDialog && _campMenuDialog->isActive()) {
-		if (_showPartyPanel && _partyList && _partyList->isActive()) {
+		if (_showPartyPanel && _partyList && _partyList->isActive() &&
+				!_campMenuDialog->capturesPartyKeys()) {
 			if (_partyList->msgKeypress(msg)) {
 				redraw();
 				return true;

@@ -1027,6 +1027,51 @@ bool PoolradEngineHostImpl::removeLoadedCharacter(
     return true;
 }
 
+bool PoolradEngineHostImpl::moveCharacterInParty(
+        Goldbox::Data::PlayerCharacter *member, bool up) {
+    if (!_engine || !member)
+        return false;
+
+    Common::List<Goldbox::Data::PlayerCharacter *> &party = _engine->getParty();
+    if (party.size() < 2)
+        return false;
+
+    Common::List<Goldbox::Data::PlayerCharacter *>::iterator it = party.begin();
+    while (it != party.end() && *it != member)
+        ++it;
+    if (it == party.end())
+        return false;
+
+    // Camp.OrderMoveUp / OrderMoveDown: one place earlier or later; the first
+    // wraps to the end and the last to the front.
+    if (up) {
+        if (it == party.begin()) {
+            party.erase(it);
+            party.push_back(member);
+        } else {
+            Common::List<Goldbox::Data::PlayerCharacter *>::iterator prev = it;
+            --prev;
+            party.erase(it);
+            party.insert(prev, member);
+        }
+    } else {
+        Common::List<Goldbox::Data::PlayerCharacter *>::iterator next = it;
+        ++next;
+        if (next == party.end()) {
+            party.erase(it);
+            party.push_front(member);
+        } else {
+            ++next;
+            party.erase(it);
+            party.insert(next, member);
+        }
+    }
+
+    _syncPartyWindow(member);
+    _updateViewState();
+    return true;
+}
+
 void PoolradEngineHostImpl::invalidatePendingForCharacter(uint16 charId) {
     const uint32 count = _pendingOps.invalidateForCharacter(charId);
     if (count != 0) {
@@ -1733,9 +1778,11 @@ VmResult PoolradEngineHostImpl::drawEncounterStage(uint8 resourceId,
     _pendingEncounterHeadRevealTime = 0;
     cache.loadSprite(resourceId, variantId, distance);
 
-    // Load head if distance == 0 (adjacent encounter).
+    // Load head if distance == 0 (adjacent encounter). EclMenu.DisplayMonster
+    // skips the close-up during an encounter when monster pictures are off.
     // Show the last sprite frame briefly, then reveal head/body.
-    if (distance == 0) {
+    if (distance == 0 && Goldbox::Poolrad::g_engine &&
+            Goldbox::Poolrad::g_engine->monsterPicsOn()) {
         uint8 speed = _memory->read8(layout.vmField(kVmFieldGameSpeed).vmAddr);
         if (speed == 0)
             speed = 1;
@@ -1770,7 +1817,8 @@ VmResult PoolradEngineHostImpl::redrawEncounterStage(uint8 newDistance) {
     Goldbox::Gfx::EncounterSpriteCache &cache = _engine->getEncounterSpriteCache();
     cache.setDistance(newDistance);
 
-    if (newDistance == 0) {
+    if (newDistance == 0 && Goldbox::Poolrad::g_engine &&
+            Goldbox::Poolrad::g_engine->monsterPicsOn()) {
         // Show last sprite frame briefly, then reveal head/body immediately.
         // Original engine draws the closest-frame sprite for one animation
         // tick before compositing the portrait on top.

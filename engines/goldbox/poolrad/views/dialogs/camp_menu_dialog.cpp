@@ -20,10 +20,17 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/camp_menu_dialog.h"
+#include "goldbox/poolrad/views/dialogs/game_speed_dialog.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
+#include "goldbox/poolrad/views/dialogs/load_save_dialog.h"
+#include "goldbox/poolrad/views/dialogs/rest_dialog.h"
+#include "goldbox/poolrad/views/dialogs/set_icon.h"
 #include "goldbox/poolrad/views/dialogs/spell_book_dialog.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/poolrad/poolrad.h"
+#include "goldbox/poolrad/training_rules.h"
 #include "goldbox/gfx/pic.h"
 #include "goldbox/gfx/picture_display_cache.h"
 #include "goldbox/data/daxblock.h"
@@ -37,28 +44,62 @@ namespace Poolrad {
 namespace Views {
 namespace Dialogs {
 
+namespace {
+
+// The menu key a HorizontalMenu ended on: its shortcut, the highlighted
+// entry for Return, 27 for Escape, or 0 for anything else.
+char resolveMenuKey(const KeypressMessage &msg, const MenuItemList &model) {
+    if (msg.keycode == Common::KEYCODE_ESCAPE)
+        return 27;
+
+    char ascii = msg.ascii;
+    if (ascii >= 'a' && ascii <= 'z')
+        ascii = ascii - 32;
+    for (uint i = 0; i < model.items.size(); ++i) {
+        if (model.items[i].shortcut == ascii)
+            return ascii;
+    }
+
+    if (msg.keycode == Common::KEYCODE_RETURN) {
+        const int sel = model.currentSelection;
+        if (sel >= 0 && sel < (int)model.items.size())
+            return model.items[sel].shortcut;
+    }
+    return 0;
+}
+
+} // namespace
+
 CampMenuDialog::CampMenuDialog(const Common::String &name)
     : Dialog(name), _horizontalMenu(nullptr),
-            _spellBookDialog(nullptr),
+      _spellBookDialog(nullptr),
       _currentFrame(0), _lastFrameTime(0), _frameIntervalMs(500),
       _isInterrupted(false) {
     setBounds(Window(0, 0, 39, 24));
 
-        _spellBookDialog = new SpellBookDialog();
-        _spellBookDialog->deactivate();
-        subView(_spellBookDialog);
+    _spellBookDialog = new SpellBookDialog();
+    _spellBookDialog->deactivate();
+    subView(_spellBookDialog);
+
+    _loadSaveDialog = new LoadSaveDialog("CampSave");
+    _loadSaveDialog->deactivate();
+    _speedDialog = new GameSpeedDialog();
+    _speedDialog->deactivate();
+    _restDialog = new RestDialog("CampRest");
+    _restDialog->deactivate();
 }
 
 CampMenuDialog::~CampMenuDialog() {
-    if (_horizontalMenu) {
-        delete _horizontalMenu;
-        _horizontalMenu = nullptr;
-    }
-
-    if (_spellBookDialog) {
-        delete _spellBookDialog;
-        _spellBookDialog = nullptr;
-    }
+    delete _horizontalMenu;
+    _horizontalMenu = nullptr;
+    delete _spellBookDialog;
+    _spellBookDialog = nullptr;
+    delete _subMenu;
+    delete _yesNo;
+    delete _loadSaveDialog;
+    delete _speedDialog;
+    delete _iconDialog;
+    delete _restDialog;
 }
 
 void CampMenuDialog::buildMenuModel() {
@@ -89,6 +130,10 @@ void CampMenuDialog::activate() {
     Dialog::activate();
     _isInterrupted = false;
     _inSpellBook = false;
+    _stage = CAMP_MENU;
+    _orderPlacing = false;
+    _messageText.clear();
+    _showCampText = true;
 
     if (_spellBookDialog)
         _spellBookDialog->deactivate();
@@ -142,6 +187,21 @@ void CampMenuDialog::deactivate() {
     if (_spellBookDialog)
         _spellBookDialog->deactivate();
 
+    closeSubMenu();
+    closeYesNo();
+    if (_loadSaveDialog && _loadSaveDialog->isActive())
+        _loadSaveDialog->deactivate();
+    if (_speedDialog && _speedDialog->isActive())
+        _speedDialog->deactivate();
+    if (_restDialog && _restDialog->isActive())
+        _restDialog->deactivate();
+    if (_iconDialog) {
+        detachDialog(_iconDialog);
+        delete _iconDialog;
+        _iconDialog = nullptr;
+    }
+    _stage = CAMP_MENU;
+
     if (_horizontalMenu) {
         _horizontalMenu->deactivate();
         delete _horizontalMenu;
@@ -165,14 +225,62 @@ void CampMenuDialog::draw() {
     if (!_isVisible)
         return;
 
+    // Full-screen children draw on their own.
+    if (_stage == CAMP_ICON && _iconDialog) {
+        _iconDialog->draw();
+        return;
+    }
+    if (_stage == CAMP_SAVE && _loadSaveDialog &&
+            _loadSaveDialog->isActive()) {
+        _loadSaveDialog->draw();
+        return;
+    }
+
     Surface s = getSurface();
 
     s.clearBox(1, 17, 38, 22, 0);
-    s.writeStringC(1, 18, 10, "The party makes camp...");
+    if (!_messageText.empty()) {
+        Goldbox::Data::PlayerCharacter *ch = selectedCharacter();
+        if (ch) {
+            s.writeStringC(1, 18, ch->enabled ? 11 : 12, ch->name);
+            s.writeStringC(1, 19, 10, _messageText);
+        }
+    } else if (_showCampText) {
+        s.writeStringC(1, 18, 10, "The party makes camp...");
+    }
 
     if (_spellBookDialog && _spellBookDialog->isActive()) {
         _spellBookDialog->draw();
         return;
+    }
+
+    switch (_stage) {
+    case CAMP_REST:
+        if (_restDialog && _restDialog->isActive())
+            _restDialog->draw();
+        return;
+    case CAMP_SPEED:
+        if (_speedDialog && _speedDialog->isActive())
+            _speedDialog->draw();
+        return;
+    case CAMP_QUIT_CONFIRM:
+    case CAMP_DROP_CONFIRM:
+    case CAMP_DROP_QUIT:
+        if (_yesNo && _yesNo->isActive()) {
+            _yesNo->setRedraw();
+            _yesNo->draw();
+        }
+        return;
+    case CAMP_ALTER:
+    case CAMP_ORDER:
+    case CAMP_PICS:
+        if (_subMenu) {
+            _subMenu->setRedraw();
+            _subMenu->draw();
+        }
+        return;
+    default:
+        break;
     }
 
     // Draw menu at row 24.
@@ -184,6 +292,8 @@ void CampMenuDialog::draw() {
 
 bool CampMenuDialog::tick() {
     resumeAfterSpellBook();
+    if (_stage == CAMP_REST && _restDialog && _restDialog->isActive())
+        _restDialog->tick();
     return Dialog::tick();
 }
 
@@ -206,6 +316,63 @@ bool CampMenuDialog::msgKeypress(const KeypressMessage &msg) {
     resumeAfterSpellBook();
     if (!_isActive)
         return true;
+
+    switch (_stage) {
+    case CAMP_REST:
+        if (_restDialog && _restDialog->isActive())
+            _restDialog->msgKeypress(msg);
+        redraw();
+        return true;
+    case CAMP_SAVE:
+        if (_loadSaveDialog && _loadSaveDialog->isActive())
+            _loadSaveDialog->msgKeypress(msg);
+        redraw();
+        return true;
+    case CAMP_ICON:
+        if (_iconDialog)
+            _iconDialog->msgKeypress(msg);
+        redraw();
+        return true;
+    case CAMP_SPEED:
+        if (_speedDialog && _speedDialog->isActive())
+            _speedDialog->msgKeypress(msg);
+        redraw();
+        return true;
+    case CAMP_QUIT_CONFIRM:
+    case CAMP_DROP_CONFIRM:
+    case CAMP_DROP_QUIT:
+        if (_yesNo && _yesNo->isActive())
+            _yesNo->msgKeypress(msg);
+        redraw();
+        return true;
+    case CAMP_ORDER:
+        // CampOrderMenu Place mode: Home moves up, End moves down.
+        if (_orderPlacing) {
+            if (msg.keycode == Common::KEYCODE_HOME ||
+                    msg.keycode == Common::KEYCODE_KP7) {
+                handleOrderMoveKey(true);
+                return true;
+            }
+            if (msg.keycode == Common::KEYCODE_END ||
+                    msg.keycode == Common::KEYCODE_KP1) {
+                handleOrderMoveKey(false);
+                return true;
+            }
+        }
+        // fall through
+    case CAMP_ALTER:
+    case CAMP_PICS:
+        if (_subMenu) {
+            const bool wasActive = _subMenu->isActive();
+            _subMenu->msgKeypress(msg);
+            if (wasActive && !_subMenu->isActive())
+                handleSubMenuKey(resolveMenuKey(msg, _subModel));
+        }
+        redraw();
+        return true;
+    default:
+        break;
+    }
 
     if (!_horizontalMenu)
         return false;
@@ -236,31 +403,12 @@ bool CampMenuDialog::msgKeypress(const KeypressMessage &msg) {
             return true;
         }
 
-        char ascii = msg.ascii;
-        if (ascii >= 'a' && ascii <= 'z')
-            ascii = ascii - 32;
+        const char key = resolveMenuKey(msg, _menuModel);
+        if (key != 0)
+            handleMenuKey(key);
 
-        bool validKey = false;
-        for (uint i = 0; i < _menuModel.items.size(); ++i) {
-            if (_menuModel.items[i].shortcut == ascii) {
-                validKey = true;
-                break;
-            }
-        }
-
-        if (!validKey && msg.keycode == Common::KEYCODE_RETURN) {
-            int sel = _menuModel.currentSelection;
-            if (sel >= 0 && sel < (int)_menuModel.items.size()) {
-                ascii = _menuModel.items[sel].shortcut;
-                validKey = true;
-            }
-        }
-
-        if (validKey)
-            handleMenuKey(ascii);
-
-        // Reactivate menu unless we're exiting.
-        if (_isActive && _horizontalMenu
+        // Reactivate menu unless a sub-menu took over or we are exiting.
+        if (_isActive && _horizontalMenu && _stage == CAMP_MENU
             && !(_spellBookDialog && _spellBookDialog->isActive())) {
             _horizontalMenu->activate();
             _horizontalMenu->setRedraw();
@@ -274,7 +422,7 @@ bool CampMenuDialog::msgKeypress(const KeypressMessage &msg) {
 void CampMenuDialog::handleMenuKey(char key) {
     switch (key) {
     case 'S':
-        // TODO: DIALOG_SaveGame + quit prompt
+        beginSave();
         break;
     case 'V':
         addView("ViewCharacter");
@@ -288,17 +436,18 @@ void CampMenuDialog::handleMenuKey(char key) {
         }
         break;
     case 'R':
-        // ACTION_Rest: drive the shared rest operation. The engine owns the
-        // timers/counters; the dialog only records whether an interruption
-        // occurred so exitCamp routes through the ONRESTINTR ECL entry.
-        if (Goldbox::Poolrad::g_engine)
-            _isInterrupted = Goldbox::Poolrad::g_engine->runRest();
-        // CampMainMenu leaves its loop on an interruption.
-        if (_isInterrupted)
-            exitCamp();
+        // Camp.CampRestMenu: the rest menu, then resting in ticks. The
+        // engine owns the timers; an interruption ends the camp so exitCamp
+        // routes through the ONRESTINTR ECL entry.
+        closeSubMenu();
+        _stage = CAMP_REST;
+        if (_horizontalMenu)
+            _horizontalMenu->deactivate();
+        _restDialog->setParent(this);
+        _restDialog->begin();
         break;
     case 'A':
-        // TODO: DIALOG_Preferences
+        openAlterMenu();
         break;
     case 'E':
         exitCamp();
@@ -306,6 +455,50 @@ void CampMenuDialog::handleMenuKey(char key) {
     default:
         break;
     }
+}
+
+void CampMenuDialog::handleMenuResult(const MenuResultMessage &result) {
+    switch (_stage) {
+    case CAMP_REST:
+        if (_restDialog && _restDialog->wasInterrupted()) {
+            _isInterrupted = true;
+            exitCamp();
+        } else {
+            returnToCampMenu();
+        }
+        break;
+    case CAMP_SAVE:
+        // SaveLoad.SaveGame returns whether or not a game was saved; the
+        // quit question follows either way.
+        if (_loadSaveDialog && _loadSaveDialog->isActive())
+            _loadSaveDialog->deactivate();
+        openYesNo(CAMP_QUIT_CONFIRM, "Quit TO DOS ");
+        break;
+    case CAMP_ICON:
+        // SetIcon commits (Y) or reverts (cancel) by itself.
+        if (_iconDialog) {
+            detachDialog(_iconDialog);
+            delete _iconDialog;
+            _iconDialog = nullptr;
+        }
+        openAlterMenu();
+        break;
+    case CAMP_SPEED:
+        if (_speedDialog && _speedDialog->isActive())
+            _speedDialog->deactivate();
+        _messageText.clear();
+        openAlterMenu();
+        break;
+    case CAMP_QUIT_CONFIRM:
+    case CAMP_DROP_CONFIRM:
+    case CAMP_DROP_QUIT:
+        handleYesNo(result._success &&
+            result._keyCode == Common::KEYCODE_y);
+        break;
+    default:
+        break;
+    }
+    redraw();
 }
 
 void CampMenuDialog::resumeAfterSpellBook() {
@@ -341,6 +534,312 @@ void CampMenuDialog::exitCamp() {
             Common::String(), true, false);
     }
     deactivate();
+}
+
+// --- Sub-menus ---
+
+void CampMenuDialog::openSubMenu(CampStage stage, const Common::String &prompt,
+        const Common::Array<Common::String> &labels) {
+    closeSubMenu();
+    _stage = stage;
+    if (_horizontalMenu)
+        _horizontalMenu->deactivate();
+
+    _subModel.items.clear();
+    _subModel.currentSelection = 0;
+    _subModel.generateMenuItems(labels, true);
+
+    HorizontalMenuConfig cfg;
+    cfg.promptTxt = prompt;
+    cfg.menuItemList = &_subModel;
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.promptColor = 13;
+    cfg.allowNumPad = false;
+    cfg.suppressUnhandledKeys = true;
+    cfg.backgroundColor = 0;
+    cfg.singleItemMode = false;
+
+    _subMenu = new HorizontalMenu("CampSubMenu", cfg);
+    _subMenu->activate();
+    redraw();
+}
+
+void CampMenuDialog::closeSubMenu() {
+    if (_subMenu) {
+        _subMenu->deactivate();
+        delete _subMenu;
+        _subMenu = nullptr;
+    }
+}
+
+void CampMenuDialog::openYesNo(CampStage stage, const Common::String &prompt) {
+    closeSubMenu();
+    closeYesNo();
+    _stage = stage;
+    if (_horizontalMenu)
+        _horizontalMenu->deactivate();
+
+    // MenuCore.YesNoMenu(query, Yellow, LightGreen, White).
+    HorizontalYesNoConfig cfg;
+    cfg.promptTxt = prompt;
+    cfg.promptColor = 14;
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.backgroundColor = 0;
+    _yesNo = new HorizontalYesNo("CampYesNo", cfg);
+    setDialogParent(_yesNo, this);
+    _yesNo->activate();
+    redraw();
+}
+
+void CampMenuDialog::closeYesNo() {
+    if (_yesNo) {
+        _yesNo->deactivate();
+        delete _yesNo;
+        _yesNo = nullptr;
+    }
+}
+
+void CampMenuDialog::returnToCampMenu() {
+    closeSubMenu();
+    closeYesNo();
+    _stage = CAMP_MENU;
+    _orderPlacing = false;
+    if (_horizontalMenu) {
+        _horizontalMenu->activate();
+        _horizontalMenu->setRedraw();
+    }
+    redraw();
+}
+
+// Camp.CampAlterMenu.
+void CampMenuDialog::openAlterMenu() {
+    Common::Array<Common::String> labels;
+    labels.push_back("Order");
+    labels.push_back("Drop");
+    labels.push_back("Speed");
+    labels.push_back("Icon");
+    labels.push_back("Pics");
+    labels.push_back("Exit");
+    openSubMenu(CAMP_ALTER, "Alter: ", labels);
+}
+
+// Camp.CampOrderMenu: Select mode picks the character, Place mode moves it.
+void CampMenuDialog::openOrderMenu() {
+    Common::Array<Common::String> labels;
+    labels.push_back(_orderPlacing ? "Place" : "Select");
+    labels.push_back("Exit");
+    openSubMenu(CAMP_ORDER, "Party Order: ", labels);
+}
+
+// Camp.CampAlterMenu 'P': toggle monster pictures and portraits.
+void CampMenuDialog::openPicsMenu() {
+    const bool monsters = Poolrad::g_engine && Poolrad::g_engine->monsterPicsOn();
+    const bool portraits = Poolrad::g_engine && Poolrad::g_engine->portraitsOn();
+    Common::Array<Common::String> labels;
+    labels.push_back(monsters ? "Monsters on" : "Monsters off");
+    labels.push_back(portraits ? "Portraits on" : "Portraits off");
+    labels.push_back("Exit");
+    openSubMenu(CAMP_PICS, "", labels);
+}
+
+void CampMenuDialog::handleSubMenuKey(char key) {
+    switch (_stage) {
+    case CAMP_ALTER:
+        switch (key) {
+        case 'O':
+            _orderPlacing = false;
+            openOrderMenu();
+            break;
+        case 'D':
+            beginDrop();
+            break;
+        case 'S':
+            beginSpeed();
+            break;
+        case 'I':
+            beginIcon();
+            break;
+        case 'P':
+            openPicsMenu();
+            break;
+        case 'E':
+        case 27:
+            returnToCampMenu();
+            break;
+        default:
+            openAlterMenu();
+            break;
+        }
+        break;
+
+    case CAMP_ORDER:
+        if (key == 'S' || key == 'P') {
+            _orderPlacing = !_orderPlacing;
+            if (_orderPlacing)
+                showNameMessage("has been selected", false);
+            else
+                _messageText.clear();
+            openOrderMenu();
+        } else if (key == 'E' || key == 27) {
+            _orderPlacing = false;
+            _messageText.clear();
+            openAlterMenu();
+        } else {
+            openOrderMenu();
+        }
+        break;
+
+    case CAMP_PICS:
+        if (key == 'M' && Poolrad::g_engine)
+            Poolrad::g_engine->setMonsterPics(!Poolrad::g_engine->monsterPicsOn());
+        else if (key == 'P' && Poolrad::g_engine)
+            Poolrad::g_engine->setPortraitsOn(!Poolrad::g_engine->portraitsOn());
+
+        if (key == 'E' || key == 27)
+            openAlterMenu();
+        else
+            openPicsMenu();
+        break;
+
+    default:
+        break;
+    }
+}
+
+void CampMenuDialog::handleOrderMoveKey(bool up) {
+    Goldbox::Data::PlayerCharacter *ch = selectedCharacter();
+    PoolradEngineHostImpl *host =
+        Poolrad::g_engine ? Poolrad::g_engine->getEclHost() : nullptr;
+    if (ch && host)
+        host->moveCharacterInParty(ch, up);
+    redraw();
+}
+
+// SaveLoad.SaveGame, then the quit question.
+void CampMenuDialog::beginSave() {
+    closeSubMenu();
+    _stage = CAMP_SAVE;
+    if (_horizontalMenu)
+        _horizontalMenu->deactivate();
+    _loadSaveDialog->setMode(LoadSaveDialog::kModeSave);
+    _loadSaveDialog->setParent(this);
+    _loadSaveDialog->activate();
+    redraw();
+}
+
+// Camp.CampDropMenu.
+void CampMenuDialog::beginDrop() {
+    Common::List<Goldbox::Data::PlayerCharacter *> *party =
+        VmInterface::getParty();
+    if (!party || party->empty() || !selectedCharacter()) {
+        openAlterMenu();
+        return;
+    }
+
+    // The last member can only quit the game.
+    if (party->size() == 1) {
+        openYesNo(CAMP_DROP_QUIT, "quit TO DOS: ");
+        return;
+    }
+
+    showNameMessage("will be gone", false);
+    openYesNo(CAMP_DROP_CONFIRM, "Drop from party? ");
+}
+
+void CampMenuDialog::beginSpeed() {
+    closeSubMenu();
+    _stage = CAMP_SPEED;
+    _speedDialog->setParent(this);
+    _speedDialog->activate();
+    redraw();
+}
+
+// CharGen.CustomizeIcon for the selected character.
+void CampMenuDialog::beginIcon() {
+    Goldbox::Poolrad::Data::PoolradCharacter *pc =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
+            selectedCharacter());
+    if (!pc) {
+        openAlterMenu();
+        return;
+    }
+
+    closeSubMenu();
+    _stage = CAMP_ICON;
+    _iconDialog = new SetIcon("CampSetIcon", pc);
+    attachDialog(_iconDialog);
+    redraw();
+}
+
+void CampMenuDialog::handleYesNo(bool yes) {
+    const CampStage stage = _stage;
+    closeYesNo();
+
+    switch (stage) {
+    case CAMP_QUIT_CONFIRM:
+        if (yes && Poolrad::g_engine) {
+            Poolrad::g_engine->quitGame();
+            return;
+        }
+        returnToCampMenu();
+        break;
+
+    case CAMP_DROP_QUIT:
+        if (yes) {
+            Goldbox::Data::PlayerCharacter *ch = selectedCharacter();
+            if (ch)
+                RosterActions::removeSelectedFromParty(ch,
+                    RosterActions::ACTION_DROP);
+            if (Poolrad::g_engine)
+                Poolrad::g_engine->quitGame();
+            return;
+        }
+        openAlterMenu();
+        break;
+
+    case CAMP_DROP_CONFIRM: {
+        Goldbox::Data::PlayerCharacter *ch = selectedCharacter();
+        if (yes && ch) {
+            showNameMessage(ch->enabled ? "bids you farewell"
+                                        : "is dumped in a ditch", true);
+            RosterActions::removeSelectedFromParty(ch,
+                RosterActions::ACTION_DROP);
+        } else {
+            showNameMessage("Breathes A sigh of relief", true);
+        }
+        openAlterMenu();
+        break;
+    }
+
+    default:
+        returnToCampMenu();
+        break;
+    }
+}
+
+void CampMenuDialog::showNameMessage(const Common::String &text, bool pause) {
+    _messageText = text;
+    _showCampText = false;
+    redraw();
+    if (!pause)
+        return;
+
+    // TextRend.PauseOnly, then CharHlp.ClearMessageWindow.
+    if (g_events) {
+        const uint32 end = g_system->getMillis() +
+            VmInterface::getTextDelay() * 225;
+        while (g_system->getMillis() < end)
+            if (!g_events->pumpModalInputFrame())
+                break;
+    }
+    _messageText.clear();
+    redraw();
+}
+
+Goldbox::Data::PlayerCharacter *CampMenuDialog::selectedCharacter() const {
+    return VmInterface::getSelectedCharacter();
 }
 
 } // namespace Dialogs

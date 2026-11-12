@@ -275,7 +275,8 @@ void SpellsMenu::buildSpellList() {
                         Goldbox::Spells::getSpellName(
                             Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx]).c_str());
                     appendSpellEntry(spellIdx,
-                        Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx]);
+                        Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx],
+                        0, true);
                 }
             }
         }
@@ -334,16 +335,36 @@ void SpellsMenu::buildSpellList() {
                 if (spellIdx >= 0 &&
                         spellIdx < Goldbox::Poolrad::Data::POOLRAD_KNOWN_SIZE) {
                     appendSpellEntry(spellIdx,
-                        Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx]);
+                        Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx],
+                        0, effects[e] > 0x7F);
                 }
             }
         }
         break;
 
-    case SL_TO_BE_SCRIBED:
-        // TODO: Build from item spell payloads once scroll spell mapping
-        // is wired into the inventory system.
+    case SL_TO_BE_SCRIBED: {
+        // Magic.AddAllScrollSpells(True): scroll spells queued for scribing.
+        Goldbox::Data::Items::CharacterInventory &inv =
+            _character->getInventory();
+        for (int i = 0; i < inv.count(); ++i) {
+            const Goldbox::Data::Items::CharacterItem &item = inv[i];
+            if (!item.isMissileOrScroll())
+                continue;
+            const uint8 effects[3] = { item.effect1, item.effect2,
+                item.effect3 };
+            for (int e = 0; e < 3; ++e) {
+                if (effects[e] <= 0x7F)
+                    continue;
+                const int spellIdx = (effects[e] & 0x7F) - 1;
+                if (spellIdx >= 0 &&
+                        spellIdx < Goldbox::Poolrad::Data::POOLRAD_KNOWN_SIZE)
+                    appendSpellEntry(spellIdx,
+                        Goldbox::Poolrad::Data::kPoolradSpellMapping[spellIdx],
+                        0, true);
+            }
+        }
         break;
+    }
     }
 
     // Phase 2: build _spellMenuList with interleaved level-separator rows.
@@ -392,8 +413,9 @@ void SpellsMenu::buildPromptOptions() {
 }
 
 void SpellsMenu::appendSpellEntry(int legacyIndex,
-        Goldbox::Data::Spells::Spells spellId, uint8 count) {
-    _spellEntries.push_back(SpellListEntry(legacyIndex, spellId, count));
+        Goldbox::Data::Spells::Spells spellId, uint8 count, bool pending) {
+    _spellEntries.push_back(SpellListEntry(legacyIndex, spellId, count,
+        pending));
 }
 
 void SpellsMenu::handleExit() {
@@ -496,9 +518,8 @@ Common::String SpellsMenu::getActionLabel() const {
 Common::String SpellsMenu::formatSpellLine(const SpellListEntry &entry) const {
     Common::String spellName = Goldbox::Spells::getSpellName(entry.spellId);
 
-    // Original SPELL_addToList prefixes with " " (space) for memorized or
-    // "*" for pending-memorize. All spell names start 2 chars from border.
-    if (_location == SL_TO_BE_MEMORIZED) {
+    // Magic.AddSpellToList: " *" for a pending spell, else two spaces.
+    if (entry.pending) {
         return Common::String::format(" *%s", spellName.c_str());
     }
 

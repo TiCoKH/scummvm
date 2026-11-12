@@ -199,6 +199,13 @@ public:
     bool removeLoadedCharacter(Goldbox::Data::PlayerCharacter *member) override;
 
     /**
+     * Camp.OrderMoveUp / OrderMoveDown: move @p member one place earlier
+     * (@p up) or later in the party, wrapping at either end, then resync the
+     * party window and selection.
+     */
+    bool moveCharacterInParty(Goldbox::Data::PlayerCharacter *member, bool up);
+
+    /**
      * DIALOG_OpenDoor equivalent: attempt to open a door in the party's
      * current facing direction at the current position using RuntimeGeoBlock.
      * Returns true if a door was opened (wall flag cleared).

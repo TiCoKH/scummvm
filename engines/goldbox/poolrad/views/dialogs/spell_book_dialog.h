@@ -46,6 +46,7 @@ namespace Views {
 namespace Dialogs {
 class HorizontalMenu;
 class HorizontalYesNo;
+class RestDialog;
 class SpellsMenu;
 class SpellTargetPicker;
 class VerticalMenu;
@@ -59,8 +60,10 @@ public:
         STAGE_MAIN_MENU = 0,
         STAGE_CAST,
         STAGE_MEMORIZE,
+        STAGE_MEMORIZE_REVIEW,     // view-only "to be memorized" list
         STAGE_MEMORIZE_CONFIRM,
         STAGE_SCRIBE,
+        STAGE_SCRIBE_REVIEW,       // view-only "to be scribed" list
         STAGE_SCRIBE_CONFIRM,
         STAGE_DISPLAY,
         STAGE_REST,
@@ -75,6 +78,7 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     void draw() override;
     void handleMenuResult(const MenuResultMessage &result) override;
+    bool tick() override;
 
     bool wasInterrupted() const { return _interrupted; }
 
@@ -103,6 +107,7 @@ private:
     SpellsMenu *_spellsMenu;
     HorizontalYesNo *_confirmDialog;
     VerticalMenu *_displayMenu;
+    RestDialog *_restDialog = nullptr;
     SpellTargetPicker *_targetPicker;
     HorizontalYesNo *_loseItDialog;
 
@@ -110,14 +115,19 @@ private:
     enum CastMessage {
         CAST_MSG_NONE,
         CAST_MSG_CASTS,
-        CAST_MSG_COMBAT_ONLY
+        CAST_MSG_COMBAT_ONLY,
+        CAST_MSG_NAME,         // "<name> <_nameMessage>"
+        CAST_MSG_BOTTOM        // _nameMessage on the bottom line
     };
     CastMessage _castMessage = CAST_MSG_NONE;
+    Common::String _nameMessage;
     Goldbox::Data::Spells::Spells _castSpell = Goldbox::Data::Spells::SP_NONE;
 
-    // Memorize/scribe pending state
-    bool _pendingMemorizeSpells;
-    bool _pendingScribeSpells;
+    // Camp.CampMemorizeMenu / CampScribeMenu: the confirm after the
+    // selection loop (idx <> -1) rather than the one before it.
+    bool _prepFinalPass = false;
+    // The spell selection list was shown (idx <> -1).
+    bool _prepSelectionRan = false;
 
     // Scroll items passed to SpellsMenu for scribe selection (kept alive for
     // the duration of the scribe sub-stage).
@@ -149,6 +159,18 @@ private:
 
     // PrintCastSpellMsg(curChar, 'casts', spell): shown, paused, cleared.
     void showCastsMessage();
+    void showNameMessage(const Common::String &text);
+    void showBottomMessage(const Common::String &text);
+    void pauseMessage();
+    void openPrepReview(bool memorize);
+    void openPrepConfirm(bool memorize);
+    void enterMemorizeSelection();
+    void enterScribeSelection();
+    void finishPrep(bool memorize);
+    void handleReviewResult(const MenuResultMessage &result);
+    void drawSpellSlots();
+    bool refuseActivity(int activity);
+    void refreshCharacter();
     void setCastMessage(CastMessage message);
     void drawCastMessage();
     // Back to the cast list after a cast or a refused combat-only spell.
@@ -161,6 +183,7 @@ private:
     void collectScribeScrolls();
     // Build the per-character active-effect list for STAGE_DISPLAY.
     void buildActiveEffectDisplay();
+    static Common::String effectDisplayName(uint8 id);
 
     void exitView();
 };

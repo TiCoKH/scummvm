@@ -65,6 +65,11 @@ public:
     void draw() override;
     void clear();
     void setRedraw() { _redraw = true; }
+    void setPrompt(const Common::String &text, uint8 color) {
+        _promptTxt = text;
+        _promptColor = color;
+        _redraw = true;
+    }
 };
 
 } // namespace Dialogs

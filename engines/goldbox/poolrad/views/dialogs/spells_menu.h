@@ -83,15 +83,18 @@ public:
         int legacyIndex;
         Goldbox::Data::Spells::Spells spellId;
         uint8 count;
+        // Bit 7 set (memorizing or scribing pending): listed with " *".
+        bool pending;
 
         SpellListEntry()
             : legacyIndex(-1), spellId(Goldbox::Data::Spells::SP_NONE),
-              count(0) {
+              count(0), pending(false) {
         }
 
         SpellListEntry(int index, Goldbox::Data::Spells::Spells spell,
-                uint8 spellCount = 0)
-            : legacyIndex(index), spellId(spell), count(spellCount) {
+                uint8 spellCount = 0, bool isPending = false)
+            : legacyIndex(index), spellId(spell), count(spellCount),
+              pending(isPending) {
         }
     };
 
@@ -151,7 +154,8 @@ private:
     void buildSpellList();
     void buildPromptOptions();
     void appendSpellEntry(int legacyIndex,
-        Goldbox::Data::Spells::Spells spellId, uint8 count = 0);
+        Goldbox::Data::Spells::Spells spellId, uint8 count = 0,
+        bool pending = false);
     void handleExit();
 
     int getWindowBottom() const;

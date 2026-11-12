@@ -132,6 +132,174 @@ bool SpellPreparation::canDoActivity(Activity activity) const {
     }
 }
 
+const char *SpellPreparation::activityRefusal(Activity activity,
+        bool antimagicArea) const {
+    if (!_character)
+        return nullptr;
+    if (activity == ACT_CAST && antimagicArea)
+        return "cannot cast spells in this area";
+    if (_character->healthStatus == Goldbox::Data::S_ANIMATED ||
+            !_character->enabled) {
+        switch (activity) {
+        case ACT_CAST:
+            return "is in no condition to cast any spells";
+        case ACT_MEMORIZE:
+            return "is in no condition to memorize spells";
+        case ACT_SCRIBE:
+            return "is in no condition to scribe any scrolls";
+        default:
+            break;
+        }
+    }
+    return nullptr;
+}
+
+uint16 SpellPreparation::campPrepTime() {
+    if (!_character)
+        return 0;
+
+    uint8 maxMem = 0;
+    uint8 maxScr = 0;
+    uint8 sumMem = 0;
+    uint8 sumScr = 0;
+
+    for (int i = 0; i < Data::POOLRAD_MEMORIZED_SIZE; ++i) {
+        const uint8 v = _character->spells.memorizedSpells[i];
+        if (v < 0x80)
+            continue;
+        const uint8 lvl = classLevelForLegacyIndex((v & 0x7F) - 1).level;
+        maxMem = MAX(maxMem, lvl);
+        sumMem += lvl;
+    }
+
+    Goldbox::Data::Items::CharacterInventory &inv = _character->inventory;
+    for (int i = 0; i < inv.count(); ++i) {
+        const Goldbox::Data::Items::CharacterItem &item = inv[i];
+        if (!item.isMissileOrScroll())
+            continue;
+        const uint8 effects[3] = { item.effect1, item.effect2, item.effect3 };
+        for (int e = 0; e < 3; ++e) {
+            if (effects[e] < 0x80)
+                continue;
+            const uint8 lvl = classLevelForLegacyIndex(
+                (effects[e] & 0x7F) - 1).level;
+            maxScr = MAX(maxScr, lvl);
+            sumScr += lvl;
+        }
+    }
+
+    uint8 base = 0;
+    if (sumMem > 0 || sumScr > 0)
+        base = 4;
+    if (maxMem > 2 || maxScr > 2)
+        base = 6;
+    _character->spellRegainRate = base;
+    return (uint16)(base * 60 + sumMem * 15 + sumScr * 15);
+}
+
+uint8 SpellPreparation::slotAllowance(SpellClass spellClass,
+        uint8 level) const {
+    if (!_character || level < 1 || level > 3)
+        return 0;
+    const Goldbox::Data::SpellSlots *slots = nullptr;
+    if (spellClass == SC_CLERIC)
+        slots = &_character->spellSlots.cleric;
+    else if (spellClass == SC_MAGICUSER)
+        slots = &_character->spellSlots.magicUser;
+    if (!slots)
+        return 0;
+    switch (level) {
+    case 1: return slots->level1;
+    case 2: return slots->level2;
+    default: return slots->level3;
+    }
+}
+
+uint8 SpellPreparation::slotsRemaining(SpellClass spellClass,
+        uint8 level) const {
+    if (!_character)
+        return 0;
+    uint8 count = 0;
+    for (int i = 0; i < Data::POOLRAD_MEMORIZED_SIZE; ++i) {
+        const uint8 v = _character->spells.memorizedSpells[i];
+        if (v == 0)
+            continue;
+        const SpellClassLevel have = classLevelForLegacyIndex((v & 0x7F) - 1);
+        if (have.spellClass == spellClass && have.level == level)
+            ++count;
+    }
+    return (uint8)(slotAllowance(spellClass, level) - count);
+}
+
+bool SpellPreparation::hasScrollSpells() const {
+    if (!_character)
+        return false;
+    Goldbox::Data::Items::CharacterInventory &inv = _character->inventory;
+    for (int i = 0; i < inv.count(); ++i) {
+        const Goldbox::Data::Items::CharacterItem &item = inv[i];
+        if (item.isMissileOrScroll() &&
+                (item.effect1 || item.effect2 || item.effect3))
+            return true;
+    }
+    return false;
+}
+
+bool SpellPreparation::hasPendingScribe() const {
+    if (!_character)
+        return false;
+    Goldbox::Data::Items::CharacterInventory &inv = _character->inventory;
+    for (int i = 0; i < inv.count(); ++i) {
+        const Goldbox::Data::Items::CharacterItem &item = inv[i];
+        if (item.isMissileOrScroll() && (item.effect1 > 0x7F ||
+                item.effect2 > 0x7F || item.effect3 > 0x7F))
+            return true;
+    }
+    return false;
+}
+
+bool SpellPreparation::isScribing(Spells spell) const {
+    if (!_character)
+        return false;
+    const int legacyIndex = legacyIndexForSpell(spell);
+    if (legacyIndex < 0)
+        return false;
+    const uint8 tag = (uint8)(legacyIndex + 1);
+    Goldbox::Data::Items::CharacterInventory &inv = _character->inventory;
+    for (int i = 0; i < inv.count(); ++i) {
+        const Goldbox::Data::Items::CharacterItem &item = inv[i];
+        if (!item.isMissileOrScroll())
+            continue;
+        const uint8 effects[3] = { item.effect1, item.effect2, item.effect3 };
+        for (int e = 0; e < 3; ++e)
+            if (effects[e] > 0x7F && (effects[e] & 0x7F) == tag)
+                return true;
+    }
+    return false;
+}
+
+bool SpellPreparation::markScribe(Spells spell) {
+    if (!_character)
+        return false;
+    const int legacyIndex = legacyIndexForSpell(spell);
+    if (legacyIndex < 0)
+        return false;
+    const uint8 tag = (uint8)(legacyIndex + 1);
+    Goldbox::Data::Items::CharacterInventory &inv = _character->inventory;
+    for (int i = 0; i < inv.count(); ++i) {
+        Goldbox::Data::Items::CharacterItem &item = inv[i];
+        if (!item.isMissileOrScroll())
+            continue;
+        uint8 *effects[3] = { &item.effect1, &item.effect2, &item.effect3 };
+        for (int e = 0; e < 3; ++e) {
+            if (*effects[e] == tag) {
+                *effects[e] = (uint8)(tag | 0x80);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 SpellPreparation::NoncombatCastCheck SpellPreparation::checkNoncombatCast(
         bool dungeonMap, bool antimagicArea) const {
     if (!_character)

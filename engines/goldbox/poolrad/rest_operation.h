@@ -110,7 +110,7 @@ public:
 	 * @param interruptPct    REST_INTERRUPT_PCT (zone1): d100 threshold.
 	 */
 	void start(const Common::Array<Data::PoolradCharacter *> &party,
-			uint16 requestedMinutes, uint8 safeTime, uint8 interruptPct);
+			uint32 requestedMinutes, uint8 safeTime, uint8 interruptPct);
 
 	/**
 	 * Run exactly one five-minute tick. Returns true while resting should
@@ -139,7 +139,7 @@ public:
 	}
 
 	// Remaining requested minutes (original dsRestingTimeGbvm converted).
-	uint16 remainingMinutes() const { return _remainingMinutes; }
+	uint32 remainingMinutes() const { return _remainingMinutes; }
 	// Total five-minute ticks simulated so far (elapsed = this * 5 minutes).
 	uint32 elapsedTicks() const { return _elapsedTicks; }
 
@@ -167,7 +167,7 @@ private:
 	Common::Array<Data::PoolradCharacter *> _party;
 	Common::Array<uint8> _prepTimers; // per-char 3-ticks/level timer (byte wrap)
 
-	uint16 _remainingMinutes;
+	uint32 _remainingMinutes;
 	uint32 _elapsedTicks;
 
 	uint16 _healTicks;  // 1 HP per member every 288 ticks

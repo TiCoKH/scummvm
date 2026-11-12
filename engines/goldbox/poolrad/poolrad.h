@@ -34,6 +34,7 @@
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/ecl/runtime_layout.h"
 #include "goldbox/poolrad/location_context.h"
+#include "goldbox/poolrad/rest_operation.h"
 #include "goldbox/data/daxblock.h"
 #include "common/ptr.h"
 //#include "goldbox/poolrad/data/character.h"
@@ -68,6 +69,10 @@ const int MAX_NPC_IN_PARTY = 2;
 
 class PoolradEngine : public Goldbox::Engine {
 private:
+	bool _monsterPics = true;
+	bool _portraitsOn = true;
+	RestOperation _restOp;
+
 	Poolrad::Views::Views *_views = nullptr;
 	Gfx::IconManager *_iconManager = nullptr;
 	Gfx::BattlefieldTilemap _battlefield;
@@ -236,6 +241,13 @@ public:
 	void initGameDefaults();
 	bool getActiveMapPosition(uint16 &x, uint16 &y, uint8 &dir) const;
 	uint8 getGameSpeed() const;
+
+	// GDVars.monsterPics / portraitsOn (Camp Alter > Pics). Kept outside
+	// VM memory and copied into zone0 settings when saving.
+	bool monsterPicsOn() const { return _monsterPics; }
+	bool portraitsOn() const { return _portraitsOn; }
+	void setMonsterPics(bool on) { _monsterPics = on; }
+	void setPortraitsOn(bool on) { _portraitsOn = on; }
 	// Legacy DOS import/export path: reads/writes the original-format
 	// SAVGAM%c.DAT plus per-character .SAV/.ITM/.SPC companions. This is a
 	// separate, working path and is NOT the native ScummVM save (that native
@@ -308,6 +320,24 @@ public:
 	 * interruption entry. Returns true when an interruption ended the rest.
 	 */
 	bool runRest();
+
+	/**
+	 * Camp.CampRestMenu: the party's longest CampSpellPrepTime in minutes;
+	 * also sets each character's base preparation timer.
+	 */
+	uint16 campRestMinutes();
+
+	/** GameTime.CampRest: start resting for @p minutes (frame-driven). */
+	bool beginRest(uint32 minutes);
+
+	/** Run up to @p maxTicks five-minute ticks; true while still resting. */
+	bool stepRest(int maxTicks);
+
+	/** "Stop Resting?" answered Yes. */
+	void stopRest() { _restOp.requestStop(); }
+
+	uint32 restRemainingMinutes() const { return _restOp.remainingMinutes(); }
+	bool restInterrupted() const { return _restOp.shouldRunInterruptionEcl(); }
 
 	/**
 	 * GB13-007 (Requirement 31.1): host-owned PROGRAM service entry.
