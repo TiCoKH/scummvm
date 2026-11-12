@@ -144,7 +144,7 @@ void StoreDialog::openBuySelector() {
     cfg.promptTxt = "Items: ";
     cfg.promptOptions = &_buyPromptOpts;
     cfg.menuItemList = &_shopMenuItems;
-    cfg.headColor = 15;
+    cfg.headColor = 13;
     cfg.textColor = 10;
     cfg.selectColor = 15;
     cfg.xStart = 1;

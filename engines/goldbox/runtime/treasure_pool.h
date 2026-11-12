@@ -67,6 +67,8 @@ public:
     ~TreasurePool();
 
     void clear();
+    /** Clear the pooled coins only; the item list is kept. */
+    void clearMoney();
 
     // --- Coin access (uses existing ValuableType enum) ---
 

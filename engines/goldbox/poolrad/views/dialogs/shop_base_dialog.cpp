@@ -133,25 +133,11 @@ void ShopBaseDialog::beginSession(const LocationContext &caller,
     // Bring the view up (menu rebuild / stage reset) once per genuine entry.
     activate();
 
-    // Once-on-entry reset: fire the pool/coin reset EXACTLY ONCE on genuine
-    // entry, never on refocus. resumeChild() never consumes this.
-    //
-    // CONFIRMED once-on-entry work: clear the shared runtime money pool so a
-    // brand-new service session starts with an empty pool (matching the
-    // original entry reset's observable effect on the pooled coins).
-    //
-    // OPEN(GB13-025): the exact original FillChar + treasureMoneyFlag field
-    // set cannot be fully confirmed from the available code. Only the
-    // pool-clear is applied here; any additional entry-flag reset is left
-    // documented until the original reset set is traced.
-    //
-    // SCOPE: the entry pool-clear applies to STORE/TEMPLE only. SHOP_TREASURE
-    // uses the pool as its post-combat loot inventory (populated by the host's
-    // setupTreasure BEFORE entry); clearing it there would wipe the loot the
-    // player came to collect, so treasure keeps the ADD TREASURE pool intact.
+    // ShopMainMenu and TempleMainMenu clear only the pooled money: the
+    // store's stock is the pool's item list. The loot menu keeps both.
     if (_session.consumeEntryReset() && _shopType != SHOP_TREASURE) {
         Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
-        pool.clear();
+        pool.clearMoney();
         debugShopMoney("begin-session:entry-reset");
     }
 }

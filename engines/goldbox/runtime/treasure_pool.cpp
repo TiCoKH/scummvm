@@ -93,6 +93,11 @@ void TreasurePool::clear() {
     _items->clear();
 }
 
+void TreasurePool::clearMoney() {
+    for (int i = 0; i < Data::VALUABLE_COUNT; ++i)
+        _coins[i] = 0;
+}
+
 uint16 TreasurePool::coin(Data::ValuableType type) const {
     if (type < Data::VAL_COPPER || type >= Data::VALUABLE_COUNT)
         return 0;
