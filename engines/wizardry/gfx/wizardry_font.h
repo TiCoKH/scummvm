@@ -63,20 +63,6 @@ public:
 
 };
 
-class WizardryFontNormal : public WizardryFont {
-public:
-	WizardryFontNormal();
-	~WizardryFontNormal() override {
-	}
-};
-
-class WizardryFontGfx : public WizardryFont {
-public:
-	WizardryFontGfx();
-	~WizardryFontGfx() override {
-	}
-};
-
 } // namespace Wizardry
 
 #endif

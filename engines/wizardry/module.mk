@@ -6,15 +6,37 @@ MODULE_OBJS = \
 	events.o \
 	messages.o \
 	metaengine.o \
+	profile.o \
 	data/globals.o \
 	data/scenario.o \
+	game/character.o \
+	game/party.o \
 	libs/memory.o \
 	libs/wizardry_archive.o \
+	resources/cell_image.o \
+	resources/charset.o \
+	resources/dump.o \
+	resources/files.o \
+	resources/messages.o \
+	resources/picture_file.o \
+	resources/scenario_file.o \
+	resources/title_image.o \
+	gfx/cell_renderer.o \
+	gfx/cell_screen.o \
 	gfx/palette.o \
 	gfx/surface.o \
+	gfx/text_window.o \
 	gfx/wizardry_font.o \
 	views/view.o \
-	views/castle.o
+	views/castle.o \
+	views/cell_view.o \
+	views/gallery.o \
+	views/title.o \
+	views/town/castle.o \
+	views/town/tavern.o \
+	views/town/town_view.o \
+	ui/menu.o \
+	ui/town_screens.o
 
 # This module can be built as a plugin
 ifeq ($(ENABLE_WIZARDRY), DYNAMIC_PLUGIN)

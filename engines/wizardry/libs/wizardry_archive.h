@@ -76,7 +76,7 @@ public:
 
 namespace Compressed {
 
-// TODO: Neither of these properly work yet
+// TODO: This doesn't properly work yet
 
 class WizardryV1Archive : public WizardryArchive {
 	const int BLOCK_SIZE = 512;
@@ -92,26 +92,6 @@ class WizardryV1Archive : public WizardryArchive {
 	};
 public:
 	WizardryV1Archive();
-};
-
-class WizardryV2Archive : public WizardryArchive {
-	const int BLOCK_SIZE = 512;
-
-	struct DirEntry {
-		uint16 FIRSTBLK = 0;
-		uint16 LASTBLK = 0;
-		struct {
-			FileType FT = VOLHEAD;
-		} FILEKIND;
-		Common::String FILENAME;
-		uint16 SIGNATURE = 0;
-		uint16 DISK_FLAGS = 0;
-		uint16 CHECKSUM = 0;
-
-		void load(Common::MemoryReadStream &src);
-	};
-public:
-	WizardryV2Archive();
 };
 
 } // namespace Compressed

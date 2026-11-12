@@ -24,13 +24,28 @@
 
 #include "common/file.h"
 #include "wizardry/data/scenario.h"
+#include "wizardry/game/party.h"
+#include "wizardry/resources/scenario_file.h"
+#include "wizardry/gfx/cell_renderer.h"
+#include "wizardry/gfx/cell_screen.h"
 #include "wizardry/gfx/wizardry_font.h"
+#include "wizardry/resources/messages.h"
+#include "wizardry/resources/picture_file.h"
 
 namespace Wizardry {
 
 struct Globals {
 	WizardryFont *_normalFont = nullptr;
 	WizardryFont *_gfxFont = nullptr;
+
+	// Releases that draw through the cell screen (all but the Apple II one)
+	CellScreen _cells;
+	CellRenderer _renderer;
+	PictureFile _pictures;
+	MessageFile _messages;
+	ScenarioFile _scenario;
+	Party _party;
+
 	TSCNTOC _SCNTOC;
 	int _LLBASE04 = -1;
 	int _SCNTOCBL = 0;
@@ -48,6 +63,11 @@ struct Globals {
 	~Globals();
 
 	void setup();
+
+	/**
+	 * Copies the cells that changed to the screen
+	 */
+	void present();
 };
 
 extern Globals *g_globals;

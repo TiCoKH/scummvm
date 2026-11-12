@@ -30,6 +30,9 @@ namespace Wizardry {
 class Console : public GUI::Debugger {
 private:
 	bool Cmd_test(int argc, const char **argv);
+	bool Cmd_profile(int argc, const char **argv);
+	bool Cmd_dump(int argc, const char **argv);
+	bool Cmd_roster(int argc, const char **argv);
 public:
 	Console();
 	~Console() override;

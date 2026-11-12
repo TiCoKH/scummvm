@@ -33,6 +33,7 @@ bool Castle::msgFocus(const FocusMessage &msg) {
 	_G(PARTYCNT) = 0;
 	_G(DIRECTIO) = 0;
 	_G(ACMOD2) = 0;
+	return true;
 }
 
 bool Castle::msgKeypress(const KeypressMessage &msg) {

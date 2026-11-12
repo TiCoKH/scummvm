@@ -36,6 +36,7 @@
 
 #include "wizardry/detection.h"
 #include "wizardry/events.h"
+#include "wizardry/profile.h"
 #include "wizardry/data/globals.h"
 
 namespace Wizardry {
@@ -47,6 +48,7 @@ private:
 	const WizardryGameDescription *_gameDescription;
 	Common::RandomSource _randomSource;
 	Globals _globals;
+	const Profile *_profile = nullptr;
 
 protected:
 	// Engine APIs
@@ -65,8 +67,35 @@ public:
 
 	uint32 getFeatures() const;
 
-	WizardryVersion getVersion() const;
-	bool isUncompressed() const;
+	GameType getGameType() const;
+	DataFamily getFamily() const;
+	Common::Platform getPlatform() const;
+
+	/**
+	 * Apple II only: true if the data is inside a disk image
+	 */
+	bool isDiskImage() const;
+
+	/**
+	 * File names and formats of this release. It is nullptr for the
+	 * Apple II release, which does not use the table.
+	 */
+	const Profile *getProfile() const {
+		return _profile;
+	}
+
+	/**
+	 * The graphics files to use: the "200" or the "400" set, as chosen
+	 * in the game options and as far as the release has them
+	 */
+	const GfxSet &getGfxSet() const;
+
+	/**
+	 * True for the releases whose town can be entered so far
+	 */
+	bool hasTown() const {
+		return getGameType() == kWizardry1 && getFamily() == kFamilyIBM;
+	}
 
 	/**
 	 * Returns the game Id

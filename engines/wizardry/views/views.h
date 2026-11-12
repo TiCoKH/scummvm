@@ -23,11 +23,19 @@
 #define WIZARDRY_VIEWS_H
 
 #include "wizardry/views/castle.h"
+#include "wizardry/views/gallery.h"
+#include "wizardry/views/title.h"
+#include "wizardry/views/town/castle.h"
+#include "wizardry/views/town/tavern.h"
 
 namespace Wizardry {
 
 struct Views {
 	Castle _castle;
+	Title _title;
+	Gallery _gallery;
+	Town::Castle _townCastle;
+	Town::Tavern _townTavern;
 };
 
 } // namespace Wizardry

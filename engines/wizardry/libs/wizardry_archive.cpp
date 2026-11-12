@@ -127,55 +127,5 @@ WizardryV1Archive::WizardryV1Archive() {
 	_files.push_back(FileEntry("font2", &fe->_data[1024], 64 * 8));
 }
 
-/*------------------------------------------------------------------------*/
-
-void WizardryV2Archive::DirEntry::load(Common::MemoryReadStream &src) {
-	FIRSTBLK = src.readUint16LE();
-	LASTBLK = src.readUint16LE();
-	FILEKIND.FT = (FileType)src.readByte();
-	src.skip(1);
-
-	byte len = src.readByte();
-	char buf[14];
-	assert(len <= 13);
-	src.read(buf, 13);
-	buf[len] = '\0';
-	FILENAME = Common::String(buf);
-
-	SIGNATURE = src.readUint16LE();
-	DISK_FLAGS = src.readUint16LE();
-	CHECKSUM = src.readUint16LE();
-}
-
-WizardryV2Archive::WizardryV2Archive() {
-	Common::Array<byte> data;
-
-	// Load the data
-	Common::File f;
-	if (!f.open("wiz1.dsk"))
-		error("Could not open - wiz1.dsk");
-
-	data.resize(f.size());
-	f.read(&data[0], f.size());
-
-	// Parse the directory
-	const byte *buf = &data[2 * BLOCK_SIZE];
-	DirEntry dirEntry;
-
-	Common::MemoryReadStream src(buf, 26 * 20);
-	dirEntry.load(src);		// Skip over the WIZBOOT entry
-
-	for (;;) {
-		dirEntry.load(src);
-		if (dirEntry.SIGNATURE != 0x6776)
-			break;
-
-		if (dirEntry.FILEKIND.FT >= BADBLK && dirEntry.FILEKIND.FT <= FOTOFILE)
-			_files.push_back(FileEntry(dirEntry.FILENAME,
-				&data[dirEntry.FIRSTBLK * BLOCK_SIZE],
-				(dirEntry.LASTBLK - dirEntry.FIRSTBLK) * BLOCK_SIZE));
-	}
-}
-
 } // namespace Compressed
 } // namespace Wizardry

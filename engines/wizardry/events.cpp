@@ -47,7 +47,7 @@ void Events::runGame() {
 	if (saveSlot != -1)
 		g_engine->loadGameState(saveSlot);
 
-	addView("Castle");
+	addView(g_engine->getFamily() == kFamilyApple ? "Castle" : "Title");
 
 	Common::Event e;
 	while (!_views.empty() && !shouldQuit()) {

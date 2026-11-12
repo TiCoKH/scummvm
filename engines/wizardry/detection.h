@@ -34,15 +34,35 @@ enum WizardryDebugChannels {
 	kDebugScript,
 };
 
-enum WizardryVersion {
-	kWizardryNone, kWizardry1V1, kWizardry1V2
+enum GameType {
+	kWizardryNone = 0,
+	kWizardry1,
+	kWizardry2,
+	kWizardry3,
+	kWizardry4,
+	kWizardry5
+};
+
+/**
+ * Which build line a release belongs to. It decides how records in the
+ * scenario file are packed and which text files exist.
+ */
+enum DataFamily {
+	kFamilyApple,     ///< Original Apple II release (6502 Apple Pascal)
+	kFamilyIBM,       ///< IBM-PC releases of the p-code engine
+	kFamilyJapanese   ///< PC-98, PC-88, FM-7, X1: kana and kanji in the records
+};
+
+enum GameFeatures {
+	kFeatureDiskImage = 1 << 0   ///< Apple II only: data is inside a .dsk image
 };
 
 struct WizardryGameDescription {
 	AD_GAME_DESCRIPTION_HELPERS(desc);
 	ADGameDescription desc;
-	WizardryVersion version;
-	bool uncompressed;
+	uint8 game;      ///< GameType
+	uint8 family;    ///< DataFamily
+	uint8 features;  ///< GameFeatures
 };
 
 extern const PlainGameDescriptor wizardryGames[];
@@ -50,6 +70,7 @@ extern const PlainGameDescriptor wizardryGames[];
 extern const WizardryGameDescription gameDescriptions[];
 
 #define GAMEOPTION_ORIGINAL_SAVELOAD GUIO_GAMEOPTIONS1
+#define GAMEOPTION_HIRES             GUIO_GAMEOPTIONS2
 
 } // End of namespace Wizardry
 

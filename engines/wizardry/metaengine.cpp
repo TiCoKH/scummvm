@@ -39,6 +39,17 @@ static const ADExtraGuiOptionsMap optionsList[] = {
 			0
 		}
 	},
+	{
+		GAMEOPTION_HIRES,
+		{
+			_s("Use 400-line graphics"),
+			_s("Use the 640x400 character set and pictures instead of the 640x200 ones"),
+			"hires",
+			true,
+			0,
+			0
+		}
+	},
 	AD_EXTRA_GUI_OPTIONS_TERMINATOR
 };
 

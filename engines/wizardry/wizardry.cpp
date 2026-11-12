@@ -26,6 +26,7 @@
 #include "common/config-manager.h"
 #include "common/debug-channels.h"
 #include "common/events.h"
+#include "common/rendermode.h"
 #include "common/system.h"
 #include "engines/util.h"
 #include "graphics/paletteman.h"
@@ -46,12 +47,40 @@ uint32 WizardryEngine::getFeatures() const {
 	return _gameDescription->desc.flags;
 }
 
-WizardryVersion WizardryEngine::getVersion() const {
-	return _gameDescription->version;
+GameType WizardryEngine::getGameType() const {
+	return (GameType)_gameDescription->game;
 }
 
-bool WizardryEngine::isUncompressed() const {
-	return _gameDescription->uncompressed;
+DataFamily WizardryEngine::getFamily() const {
+	return (DataFamily)_gameDescription->family;
+}
+
+Common::Platform WizardryEngine::getPlatform() const {
+	return _gameDescription->desc.platform;
+}
+
+bool WizardryEngine::isDiskImage() const {
+	return (_gameDescription->features & kFeatureDiskImage) != 0;
+}
+
+const GfxSet &WizardryEngine::getGfxSet() const {
+	assert(_profile);
+	bool high;
+
+	if (getPlatform() == Common::kPlatformDOS) {
+		// The original picks the two-colour set when Alt is held at start-up
+		high = ConfMan.hasKey("render_mode") &&
+			Common::parseRenderMode(ConfMan.get("render_mode")) == Common::kRenderCGA_BW;
+	} else {
+		high = !ConfMan.hasKey("hires") || ConfMan.getBool("hires");
+	}
+
+	if (high && !_profile->high.isPresent())
+		high = false;
+	if (!high && !_profile->low.isPresent())
+		high = true;
+
+	return high ? _profile->high : _profile->low;
 }
 
 Common::String WizardryEngine::getGameId() const {
@@ -59,8 +88,21 @@ Common::String WizardryEngine::getGameId() const {
 }
 
 Common::Error WizardryEngine::run() {
-	// Initialize 320x200 paletted graphics mode
-	initGraphics(320, 200);
+	if (getFamily() != kFamilyApple) {
+		_profile = findProfile(getGameType(), getPlatform());
+		if (!_profile)
+			error("No profile for %s on %s", getGameId().c_str(),
+				Common::getPlatformDescription(getPlatform()));
+	}
+
+	if (_profile) {
+		// 320x200 for the four-colour CGA set. Everything else is 640
+		// wide and is shown at 640x400; see CellRenderer.
+		const GfxSet &gfx = getGfxSet();
+		initGraphics(gfx.screenW, gfx.screenW == 320 ? 200 : 400);
+	} else {
+		initGraphics(320, 200);
+	}
 
 	// Set the engine's debugger console
 	setDebugger(new Console());
