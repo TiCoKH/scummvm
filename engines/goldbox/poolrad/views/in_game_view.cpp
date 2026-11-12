@@ -401,6 +401,8 @@ void InGameView::draw() {
 				_mainScreenDialog->draw(); // Redraw viewport with new frame.
 		}
 		_campMenuDialog->draw();
+		if (_campMenuDialog->coversScreen())
+			return;
 
 		if (_showPartyPanel && _partyList && _partyList->isActive())
 			_partyList->draw();

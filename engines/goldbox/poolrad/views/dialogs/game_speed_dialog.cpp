@@ -23,6 +23,7 @@
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/engine.h"
 #include "goldbox/events.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -95,7 +96,7 @@ void GameSpeedDialog::rebuild() {
     cfg.promptColor           = 10;
     cfg.allowNumPad           = false;
     cfg.suppressUnhandledKeys = false;
-    cfg.backgroundColor       = 8;
+    cfg.backgroundColor       = _backgroundColor;
     cfg.singleItemMode        = false;
 
     _horizontalMenu = new HorizontalMenu("GameSpeedHMenu", cfg);
@@ -105,6 +106,8 @@ void GameSpeedDialog::rebuild() {
 
 void GameSpeedDialog::activate() {
     Dialog::activate();
+    _backgroundColor =
+        (VmInterface::getGameStatus() == GS_COMBAT) ? 8 : 0;
     _speed = textDelayToSpeed(g_engine ? g_engine->getTextDelay() : 1);
     rebuild();
 }
@@ -122,7 +125,7 @@ void GameSpeedDialog::draw() {
     if (!_isVisible || !_horizontalMenu)
         return;
     Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 8);
+    s.clearBox(0, 24, 39, 24, _backgroundColor);
     _horizontalMenu->setRedraw();
     _horizontalMenu->draw();
 }

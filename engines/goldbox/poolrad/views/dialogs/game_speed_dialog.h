@@ -77,6 +77,8 @@ private:
 
     // Working 0..9 speed, seeded from the engine timing on activate().
     int _speed;
+    // Prompt-line background: gray in combat, black elsewhere (camp).
+    uint8 _backgroundColor = 0;
 
     void rebuild();
     void confirmAndReturn();

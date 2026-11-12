@@ -770,6 +770,7 @@ void CampMenuDialog::beginIcon() {
     _stage = CAMP_ICON;
     _iconDialog = new SetIcon("CampSetIcon", pc);
     attachDialog(_iconDialog);
+    _iconDialog->activate();
     redraw();
 }
 

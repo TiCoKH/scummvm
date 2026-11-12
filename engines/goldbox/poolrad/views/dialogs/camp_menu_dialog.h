@@ -165,7 +165,15 @@ public:
      * party list must not use them to change the selection.
      */
     bool capturesPartyKeys() const {
-        return _stage == CAMP_ORDER && _orderPlacing;
+        return (_stage == CAMP_ORDER && _orderPlacing) || coversScreen();
+    }
+
+    /**
+     * The icon editor (CharGen.CustomizeIcon) and the save screen use the
+     * whole window: no party panel or status area is drawn over them.
+     */
+    bool coversScreen() const {
+        return _stage == CAMP_ICON || _stage == CAMP_SAVE;
     }
 };
 

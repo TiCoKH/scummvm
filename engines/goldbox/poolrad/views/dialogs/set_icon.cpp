@@ -482,11 +482,16 @@ void SetIcon::drawEditorIcons() {
     // NEW ICON: Working edits
     drawIconPair(1, 4, SLOT_EDITOR_WORKING);
 
-    // Dynamic content: menus and dialogs
-    if (_menu)
+    // Dynamic content: menus and dialogs. drawEditorText cleared the whole
+    // screen, so the prompt line must be repainted every time.
+    if (_menu) {
+        _menu->setRedraw();
         _menu->draw();
-    if (_yesNoPrompt)
+    }
+    if (_yesNoPrompt) {
+        _yesNoPrompt->setRedraw();
         _yesNoPrompt->draw();
+    }
 }
 
 void SetIcon::redrawWorkingIcons() {
