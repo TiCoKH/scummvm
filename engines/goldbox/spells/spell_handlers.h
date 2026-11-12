@@ -378,26 +378,6 @@ public:
                             const TargetSelection &targets) const override;
 };
 
-// Lingering breath attack: same path-trace mechanic as Lightning Bolt but
-// uses a different effect tile and damage parameters supplied by the caller.
-class BreathWeaponHandler : public ISpellHandler {
-public:
-    explicit BreathWeaponHandler(uint8 effectTileId, uint8 baseDamage,
-                                 uint8 pathLength,
-                                 Data::Spells::SaveVerseType saveCategory)
-        : _effectTileId(effectTileId), _baseDamage(baseDamage),
-          _pathLength(pathLength), _saveCategory(saveCategory) {}
-
-    SpellCastResult execute(const SpellContext &context,
-                            const SpellDefinition &definition,
-                            const TargetSelection &targets) const override;
-private:
-    uint8 _effectTileId;
-    uint8 _baseDamage;
-    uint8 _pathLength;
-    Data::Spells::SaveVerseType _saveCategory;
-};
-
 // ID57 (SP_MI1): removes E_POOLRAD_SLOWED (0x2A); if removed, applies "is Speedy" via generic path.
 class SpellID57Handler : public ISpellHandler {
 public:
@@ -406,7 +386,7 @@ public:
                             const TargetSelection &targets) const override;
 };
 
-// ID59 (SP_MI3): applyStrengthChange(21, 0); posts "is stronger"; adds E_POOLRAD_ENLARGE
+// ID59 (SP_MI3): applyStrengthChange(21, 0); posts "is stronger"; adds E_POOLRAD_STRENGTH
 // with duration from computeSpellDuration.
 class SpellID59Handler : public ISpellHandler {
 public:
@@ -441,6 +421,23 @@ public:
 
 // ID65 (SP_MI9): effectPower = rollDiceAttack(2,4)+2; applies via generic path with behavior 8.
 class SpellID65Handler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID66 (SP_MI10): unused item spell, does nothing.
+class UnusedSpellHandler : public ISpellHandler {
+public:
+    SpellCastResult execute(const SpellContext &context,
+                            const SpellDefinition &definition,
+                            const TargetSelection &targets) const override;
+};
+
+// ID67 (SP_MI11) Manual of Bodily Health: generic path at power 255,
+// fired when added.
+class SpellID67Handler : public ISpellHandler {
 public:
     SpellCastResult execute(const SpellContext &context,
                             const SpellDefinition &definition,

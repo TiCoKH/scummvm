@@ -153,6 +153,8 @@ SpellCastingService::SpellCastingService()
     _registry.setHandler(kHandlerStrength,        &_strengthHandler);
     _registry.setHandler(kHandlerAnimateDead,     &_animateDeadHandler);
     _registry.setHandler(kHandlerCureBlindness,    &_cureBlindnessHandler);
+    _registry.setHandler(kHandlerCureDisease,       &_cureDiseaseHandler);
+    _registry.setHandler(kHandlerCauseDisease,      &_causeDiseaseHandler);
     _registry.setHandler(kHandlerDispelMagicShared, &_dispelMagicHandler);
     _registry.setHandler(kHandlerPrayer,            &_prayerHandler);
     _registry.setHandler(kHandlerRemoveCurse,       &_removeCurseHandler);
@@ -171,7 +173,8 @@ SpellCastingService::SpellCastingService()
     _registry.setHandler(kHandlerSpellID65,          &_spellID65Handler);
     _registry.setHandler(kHandlerSpellID58,          &_spellID58Handler);
     _registry.setHandler(kHandlerRestore,            &_restoreHandler);
-    _registry.setHandler(kHandlerBreathWeapon,       &_breathWeaponHandler);
+    _registry.setHandler(kHandlerUnused,             &_unusedSpellHandler);
+    _registry.setHandler(kHandlerSpellID67,          &_spellID67Handler);
 
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL1_BLESS,
         kHandlerBless);
@@ -223,6 +226,10 @@ SpellCastingService::SpellCastingService()
         kHandlerAnimateDead);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_CURE_BLINDNESS,
         kHandlerCureBlindness);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_CURE_DISEASE,
+        kHandlerCureDisease);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_CAUSE_DISEASE,
+        kHandlerCauseDisease);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL3_DISPEL_MAGIC,
         kHandlerDispelMagicShared);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_DISPEL_MAGIC,
@@ -236,6 +243,8 @@ SpellCastingService::SpellCastingService()
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_BLINK,
         kHandlerBlink);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_FIREBALL,
+        kHandlerFireball);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI8,
         kHandlerFireball);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MUL3_HASTE,
         kHandlerHaste);
@@ -262,7 +271,9 @@ SpellCastingService::SpellCastingService()
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_CL7_RESTORATION,
         kHandlerRestore);
     _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI10,
-        kHandlerBreathWeapon);
+        kHandlerUnused);
+    _registry.setHandlerForSpell(Goldbox::Data::Spells::SP_MI11,
+        kHandlerSpellID67);
 }
 
 SpellCastingService::~SpellCastingService() {

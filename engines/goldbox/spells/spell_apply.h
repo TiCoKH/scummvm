@@ -43,10 +43,13 @@ struct SpellApplyParams {
     bool effectImmediate;
     // Non-zero overrides the effect power (default: caster level).
     uint8 effectPowerOverride;
+    // Dice count of the damage roll (FxEngine.RollDamageDice); 0 leaves
+    // the combat's last value untouched.
+    uint8 damageDice;
 
     SpellApplyParams()
         : behaviorFlags(0), baseDamage(0), effectImmediate(false),
-        effectPowerOverride(0) {}
+        effectPowerOverride(0), damageDice(0) {}
 };
 
 /**

@@ -26,7 +26,6 @@
 #include "goldbox/combat/combat_globals.h"
 #include "goldbox/combat/combat_turn.h"
 #include "goldbox/data/adnd_character.h"
-#include "goldbox/data/damage_system.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/effects/effect_runtime.h"
 #include "goldbox/data/effects/effect_system.h"
@@ -58,6 +57,14 @@ SpellCastResult applyOnTargets(const SpellContext &context,
     if (list->empty() && context.caster && !context.inCombat) {
         singleCaster.push_back(context.caster);
         list = &singleCaster;
+    }
+    // Magic.ResolveSpell: the element mask is visible to the save and
+    // effect handlers (e.g. Ring of Fire Resistance) for the whole resolve.
+    if (context.combat) {
+        context.combat->behaviorFlags =
+            params.baseDamage ? params.behaviorFlags : 0;
+        if (params.damageDice)
+            context.combat->damageDice = params.damageDice;
     }
     if (list->empty())
         return SpellCastResult(context.inCombat ? CAST_OK
@@ -108,11 +115,11 @@ SpellCastResult applyOnTargets(const SpellContext &context,
             }
         }
 
-        if (baseDamage != 0 && context.damageSystem) {
-            context.damageSystem->applyLegacy(*target, baseDamage,
-                static_cast<Goldbox::Data::DamageModifier>(entry.savingEffect),
-                saved, params.behaviorFlags);
-        }
+        // savingEffect is the original's save reduction: 1 negates, 2 halves.
+        if (baseDamage != 0)
+            Goldbox::Poolrad::inflictSpellDamage(*target, baseDamage,
+                params.behaviorFlags, static_cast<uint8>(entry.savingEffect),
+                saved, handler, bridge, context.combat);
         if (spellId == static_cast<uint8>(
                     Goldbox::Data::Spells::SP_MI9))
             debug(0, "[SPELL EFFECT] spell=%u target='%s' side=%u damage=%u "
@@ -133,6 +140,8 @@ SpellCastResult applyOnTargets(const SpellContext &context,
         }
     }
 
+    if (context.combat)
+        context.combat->behaviorFlags = 0;
     return SpellCastResult(CAST_OK);
 }
 

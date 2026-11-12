@@ -24,6 +24,7 @@
 #include "goldbox/combat/cloud_effect_manager.h"
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/combat/combat_context.h"
+#include "goldbox/combat/combat_params.h"
 #include "goldbox/combat/combatant_table.h"
 #include "goldbox/core/direction.h"
 #include "goldbox/data/adnd_character.h"
@@ -57,7 +58,8 @@ SpellCastResult UnimplementedSpellHandler::execute(const SpellContext &context,
 }
 
 // --- Cure Light Wounds (ID03) ---
-// Heals 1d8 HP on each target. Mirrors CHARACTER_HealHp + CHARACTER_ShowHealResult.
+// Heals 1d8 HP on each target. FxEngine.RestoreHitPoints with bypassRot
+// False, so mummy rot blocks it.
 SpellCastResult CureLightWoundsHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -76,7 +78,7 @@ SpellCastResult CureLightWoundsHandler::execute(const SpellContext &context,
         const uint8 amount = static_cast<uint8>(
             Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 8) : 4);
 
-        if (target->healHp(amount, true) && bridge)
+        if (target->healHp(amount, false) && bridge)
             bridge->showHealResult(target);
     }
 
@@ -114,6 +116,7 @@ SpellCastResult CauseLightWoundsHandler::execute(const SpellContext &context,
     SpellApplyParams params;
     params.baseDamage = damage;
     params.behaviorFlags = 8;
+    params.damageDice = 1;
     return applyOnTargets(context, definition, targets, params);
 }
 
@@ -183,9 +186,10 @@ SpellCastResult CharmPersonHandler::execute(const SpellContext &context,
 }
 
 // --- Enlarge (ID12) ---
-// Strength buff scaled by caster level (table: 1->0, 2->1, 3->51, 4->76, 5->91, 6->100).
-// Mutates strength first, then delegates effect application to applyToTargets
-// with the encoded previous-strength as the power override.
+// Strength 18 with exceptional strength by caster level (1->0, 2->1, 3->51,
+// 4->76, 5->91, 6->100), then a plain AddEffect (no save or message) whose
+// power is the encoded previous strength. The original leaves levels above 6
+// at a stale value; they are clamped to 6 here.
 SpellCastResult EnlargeHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -211,11 +215,11 @@ SpellCastResult EnlargeHandler::execute(const SpellContext &context,
                 bridge->postEffectMessage(target, "is stronger", true);
         }
 
-        // Delegate effect record creation to applyToTargets with the encoded
-        // previous-strength as the power override, mirroring Friends pattern.
-        TargetSelection single;
-        single.targetCharacters.push_back(target);
-        GenericSpellHandler::applyToTargets(context, definition, single, effectValue);
+        target->addEffect(
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE),
+            computeSpellDuration(static_cast<uint8>(definition.id),
+                context.casterLevel, context.inCombat),
+            effectValue, true);
     }
 
     return SpellCastResult(CAST_OK);
@@ -288,8 +292,9 @@ SpellCastResult FriendsHandler::execute(const SpellContext &context,
 
 // --- Magic Missile (ID15) ---
 // damageLevel = (casterLevel + 1) >> 1
-// damage = damageLevel + rollDice(damageLevel, 4)
-// Applies damage with behavior flag 8 via DamageSystem::applyLegacy.
+// damage = damageLevel + rollDice(damageLevel, 4), element mask 8.
+// The original uses casterLevel >> 1, so a 1st-level caster does no damage;
+// rounding up keeps one missile at 1st level.
 SpellCastResult MagicMissileHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -305,6 +310,7 @@ SpellCastResult MagicMissileHandler::execute(const SpellContext &context,
     SpellApplyParams params;
     params.baseDamage = baseDamage;
     params.behaviorFlags = 8;
+    params.damageDice = damageLevel;
     return applyOnTargets(context, definition, targets, params);
 }
 
@@ -332,6 +338,7 @@ SpellCastResult ShockingGraspHandler::execute(const SpellContext &context,
     SpellApplyParams params;
     params.baseDamage = baseDamage;
     params.behaviorFlags = 12;
+    params.damageDice = 1;
     return applyOnTargets(context, definition, targets, params);
 }
 
@@ -490,9 +497,9 @@ SpellCastResult Silence15RadiusHandler::execute(const SpellContext &context,
 //   1. Target must not be STATUS_ANIMATED.
 //   2. Target must carry raw effect 0x37 (active poison).
 //   3. Target HP is floored to 1 before effect application.
-// After the generic effect path (effectPowerOverride=0xFF), fires EFF_REMOVE
-// on raw effect 0x4E, then adds E_POOLRAD_SLOW_POISON_HIT (0x0F) with
-// duration=10 and power=0xFF.
+// After the generic effect path (effectPowerOverride=0xFF), runs the
+// HEAL_WAKE (0x4E) handler with no node, which revives the target, then adds
+// E_POOLRAD_SLOW_POISON_HIT (0x0F) with duration=10 and power=0xFF.
 SpellCastResult SlowPoisonHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -532,12 +539,15 @@ SpellCastResult SlowPoisonHandler::execute(const SpellContext &context,
     single.targetCharacters.push_back(target);
     GenericSpellHandler::applyToTargets(context, definition, single, 0xFF, true);
 
-    // Fire EFF_REMOVE on raw effect 0x4E to perform the poison-state transition.
+    // FxEngine.CallEffectHandler(HEAL_WAKE, tgt, nil, True): the target
+    // need not carry the effect.
     if (handler) {
-        Goldbox::Data::Effects::Effect *rawEffect = fx->findEffectById(0x4E);
-        if (rawEffect)
-            handler->apply(Goldbox::Data::Effects::EFF_REMOVE, *rawEffect,
-                *target, context.combat, bridge);
+        Goldbox::Data::Effects::Effect wake;
+        wake.id = static_cast<uint8>(
+            Goldbox::Data::Effects::E_POOLRAD_HEAL_WAKE);
+        wake.power = 0xFF;
+        handler->apply(Goldbox::Data::Effects::EFF_REMOVE, wake,
+            *target, context.combat, bridge);
     }
 
     // Add the resulting slow-poison marker: effect 0x0F, duration 10, power 0xFF.
@@ -549,7 +559,7 @@ SpellCastResult SlowPoisonHandler::execute(const SpellContext &context,
 }
 
 // --- Snake Charm (ID27) ---
-// Ignores the pre-selected target list. Builds its own from context.enemies:
+// Ignores the pre-selected target list. Builds its own from every creature:
 // only characters with monsterType == 0x0E (snake) whose hp_current fits
 // within the remaining HP budget (starting at caster's hp_current) are kept.
 // Each accepted snake consumes its hp_current from the budget.
@@ -563,9 +573,15 @@ SpellCastResult SnakeCharmHandler::execute(const SpellContext &context,
 
     uint8 remainingHp = context.caster->hitPoints.current;
 
+    // GDVars.creatureList: every creature, whatever its side.
+    Goldbox::Combat::CombatContext *ctx = context.inCombat && Goldbox::g_engine
+        ? Goldbox::g_engine->getCombatContext() : nullptr;
+    const Common::Array<Goldbox::Data::PlayerCharacter *> &creatures =
+        ctx ? ctx->params.roster : context.allies;
+
     TargetSelection filtered;
-    for (uint i = 0; i < context.enemies.size(); ++i) {
-        Goldbox::Data::PlayerCharacter *candidate = context.enemies[i];
+    for (uint i = 0; i < creatures.size(); ++i) {
+        Goldbox::Data::PlayerCharacter *candidate = creatures[i];
         if (!candidate)
             continue;
 
@@ -706,7 +722,7 @@ SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
 // --- Strength (ID35) ---
 // Bonus dice by class (highest priority wins): fighter=1d8, cleric/thief=1d6, mage=1d4.
 // Excess over 18 converts to exceptional strength for fighters (capped at 100).
-// Adds E_POOLRAD_ENLARGE (0x0C) with duration from computeSpellDuration.
+// Adds E_POOLRAD_STRENGTH (0x26) with duration from computeSpellDuration.
 SpellCastResult StrengthHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -763,7 +779,7 @@ SpellCastResult StrengthHandler::execute(const SpellContext &context,
             context.casterLevel, context.inCombat);
 
         target->addEffect(
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE),
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_STRENGTH),
             duration, effectPower, true);
     }
 
@@ -771,12 +787,11 @@ SpellCastResult StrengthHandler::execute(const SpellContext &context,
 }
 
 // --- Animate Dead (ID36) ---
-// Iterates context.allies filtered by S_DEAD + classType==0 (normal party member).
-// Re-places each on the combat map at their stored position; converts to undead
-// (combatSide from caster, ai_control=true, levelUndead=2, npc=0xB2/0xB3, classType=4).
-// Clears memorized spells and combat target. Revives at max HP.
-// Adds E_POOLRAD_ANIMATE_DEAD (0x20) with power = originalSide*16 + casterLevel.
-// Budget = casterLevel animations.
+// Magic.AnimateDeadHandler: up to casterLevel dead humans (charType 0) from
+// every creature in the combat, each only if it fits back on its own cell.
+// It joins the caster's side as an undead (charType 4) under AI control and
+// is revived at full HP with E_POOLRAD_ANIMATE_DEAD (0x20), power
+// originalSide * 16 + casterLevel.
 SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -791,76 +806,52 @@ SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
 
     Goldbox::Data::Effects::EffectHostBridge *bridge =
         context.effectSystem->getHostBridge();
+    const Goldbox::Data::Effects::EffectHandlerBase *handler =
+        context.effectSystem->getHandler();
 
     uint8 remaining = context.casterLevel;
+    const Common::Array<Goldbox::Data::PlayerCharacter *> &roster =
+        ctx->params.roster;
 
-    for (uint i = 0; i < context.allies.size() && remaining > 0; ++i) {
-        Goldbox::Data::PlayerCharacter *ch = context.allies[i];
-        if (!ch)
+    for (uint i = 0; i < roster.size() && remaining > 0; ++i) {
+        Goldbox::Data::PlayerCharacter *ch = roster[i];
+        Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
+            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(ch);
+        if (!poolrad || poolrad->healthStatus != Goldbox::Data::S_DEAD ||
+                poolrad->monsterType != 0)
             continue;
 
-        // Only dead normal party members (classType==0 mirrors original type!=0 skip).
-        const Goldbox::Poolrad::Data::PoolradCharacter *poolrad =
-            dynamic_cast<const Goldbox::Poolrad::Data::PoolradCharacter *>(ch);
-        if (!poolrad ||
-                poolrad->healthStatus != static_cast<uint8>(Goldbox::Data::S_DEAD) ||
-                ch->classType != 0)
-            continue;
-
-        // Re-place on combat map at stored position.
-        const uint8 col = ctx->table.getCharacterCol(ch);
-        const uint8 row = ctx->table.getCharacterRow(ch);
-        const int slot = ctx->table.addCombatant(ch, ch->iconDimension);
-        if (slot < 0)
-            continue;
-        ctx->table.setPosition(slot, TilePos(col, row));
-
-        // Capture original side before mutation.
-        const uint8 originalSide = static_cast<uint8>(ch->combatSide);
-        const uint8 effectPower = static_cast<uint8>(originalSide * 16 + context.casterLevel);
-
-        // Convert to undead combatant.
+        // The revive message already reads the new side, so switch it first
+        // and undo it when the cell is taken.
+        const Goldbox::Data::CombatSide originalSide = ch->combatSide;
         ch->combatSide = context.caster->combatSide;
-        ch->ai_control = true;
-
-        Goldbox::Data::ADnDCharacter *adnd =
-            dynamic_cast<Goldbox::Data::ADnDCharacter *>(ch);
-        if (adnd) {
-            adnd->levelUndead = 2;
-            adnd->attackLevel = 0;
-            for (int j = 0; j <= 20; ++j)
-                adnd->spells.memorizedSpells[j] = 0;
-            adnd->npc = (adnd->npc < static_cast<int8>(0x80)) ?
-                static_cast<int8>(0xB3) : static_cast<int8>(0xB2);
+        if (!Goldbox::Poolrad::reviveCreature(*ch, ch->hitPoints.max,
+                bridge)) {
+            ch->combatSide = originalSide;
+            continue;
         }
+        --remaining;
 
-        ch->movement.current = 6;
-        ch->classType = 4;
-
-        // Clear combat target.
+        const uint8 effectPower = static_cast<uint8>(
+            static_cast<uint8>(originalSide) * 16 + context.casterLevel);
+        ch->ai_control = true;
+        poolrad->levelUndead = 2;
+        poolrad->attackLevel = 0;
+        poolrad->movement.base = 6;
+        for (int j = 0; j <= 20; ++j)
+            poolrad->spells.memorizedSpells[j] = 0;
+        // C_Npc.ANIMATED_NPC / ANIMATED_PC by the NPC flag (bit 7).
+        poolrad->npc = (poolrad->npc < 0) ?
+            static_cast<int8>(0xB2) : static_cast<int8>(0xB3);
+        poolrad->monsterType = 4;
         if (ch->combatState)
             ch->combatState->target = nullptr;
 
-        --remaining;
-
-        // Revive at max HP.
-        ch->hitPoints.current = ch->hitPoints.max;
-
-        // Apply animated effect and set status.
-        Goldbox::Data::Effects::CharacterEffects *fx = ch->getEffects();
-        if (fx) {
-            ch->addEffect(
-                static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ANIMATE_DEAD),
-                0, effectPower, true);
-        }
-
-        Goldbox::Poolrad::Data::PoolradCharacter *poolradMut =
-            dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(ch);
-        if (poolradMut)
-            poolradMut->healthStatus = static_cast<uint8>(Goldbox::Data::S_ANIMATED);
-
-        if (bridge)
-            bridge->postEffectMessage(ch, "is animated", true);
+        Goldbox::Poolrad::checkUnaffectedEffect(*ch, handler, bridge,
+            context.combat,
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ANIMATE_DEAD),
+            0, effectPower, true, false, false, "is animated");
+        ch->healthStatus = Goldbox::Data::S_ANIMATED;
     }
 
     return SpellCastResult(CAST_OK);
@@ -1399,49 +1390,9 @@ SpellCastResult SpellID60Handler::execute(const SpellContext &context,
     return SpellCastResult(CAST_OK);
 }
 
-// --- Breath Weapon (lingering) ---
-// Driven by effect 88 (handleLingeringBreath in effect_handler.cpp).
-// This handler is the spell-cast entry point for a one-shot breath attack
-// using the same path-trace mechanic; parameters are supplied at construction.
-//
-// TODO(spell_aoe): pass context.presenter once SpellContext carries it.
-SpellCastResult BreathWeaponHandler::execute(const SpellContext &context,
-        const SpellDefinition &definition,
-        const TargetSelection &targets) const {
-    (void)definition;
-    if (!context.combat)
-        return SpellCastResult(CAST_NOT_ALLOWED);
-
-    Goldbox::Combat::CombatContext *ctx =
-        Goldbox::g_engine ? Goldbox::g_engine->getCombatContext() : nullptr;
-    if (!ctx)
-        return SpellCastResult(CAST_ERROR);
-
-    const TilePos attackerPos(
-        ctx->table.getCharacterCol(context.caster),
-        ctx->table.getCharacterRow(context.caster));
-    const TilePos targetPos(
-        static_cast<uint8>(targets.tileX),
-        static_cast<uint8>(targets.tileY));
-
-    (void)Spells::resolveAoEHitAtTile(*ctx, targetPos, _baseDamage,
-                                      _saveCategory, _effectTileId, nullptr);
-
-    ctx->globals.targetPos = targetPos;
-    Spells::traceSpellPath(*ctx, attackerPos,
-                           _pathLength,
-                           _baseDamage,
-                           _saveCategory,   // caller's own save category
-                           true,            // animatePath
-                           _effectTileId,
-                           nullptr);
-
-    return SpellCastResult(CAST_OK);
-}
-
 // --- Spell ID57 (SP_MI1) ---
-// Removes E_POOLRAD_SLOWED (0x2A) from the target. If removed, applies
-// the spell via the generic path ("is Speedy").
+// Removes E_POOLRAD_SLOWED (0x2A) from the target; only when there was none
+// to remove is the spell applied via the generic path ("is Speedy").
 SpellCastResult SpellID57Handler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -1455,7 +1406,7 @@ SpellCastResult SpellID57Handler::execute(const SpellContext &context,
         return SpellCastResult(CAST_INVALID_TARGET);
 
     Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
-    if (!fx || !context.effectSystem->removeEffectById(
+    if (fx && context.effectSystem->removeEffectById(
             *target, *fx,
             static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_SLOWED)))
         return SpellCastResult(CAST_OK);
@@ -1465,7 +1416,7 @@ SpellCastResult SpellID57Handler::execute(const SpellContext &context,
 
 // --- Spell ID59 (SP_MI3) ---
 // Applies applyStrengthChange(21, 0); posts "is stronger"; adds
-// E_POOLRAD_ENLARGE with duration from computeSpellDuration.
+// E_POOLRAD_STRENGTH with duration from computeSpellDuration.
 SpellCastResult SpellID59Handler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -1491,7 +1442,7 @@ SpellCastResult SpellID59Handler::execute(const SpellContext &context,
             context.casterLevel, context.inCombat);
 
         target->addEffect(
-            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE),
+            static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_STRENGTH),
             duration, strengthChange, true);
     }
 
@@ -1551,7 +1502,28 @@ SpellCastResult SpellID65Handler::execute(const SpellContext &context,
     SpellApplyParams params;
     params.baseDamage = damage;
     params.behaviorFlags = 8;
+    params.damageDice = 2;
     return applyOnTargets(context, definition, targets, params);
+}
+
+// --- Spell ID66 (SP_MI10) ---
+// Magic.UnusedSpellHandler: does nothing.
+SpellCastResult UnusedSpellHandler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    (void)context;
+    (void)definition;
+    (void)targets;
+    return SpellCastResult(CAST_OK);
+}
+
+// --- Spell ID67 (SP_MI11) ---
+// Manual of Bodily Health: the effect at power 255, fired when added.
+SpellCastResult SpellID67Handler::execute(const SpellContext &context,
+        const SpellDefinition &definition,
+        const TargetSelection &targets) const {
+    return GenericSpellHandler::applyToTargets(context, definition, targets,
+        0xFF, true);
 }
 
 // --- Restore (ID56) ---
@@ -1631,35 +1603,36 @@ SpellCastResult RestoreHandler::execute(const SpellContext &context,
     poolrad->drainedHPs    -= restoredHp;
     poolrad->drainedLevels -= 1;
 
-    // Find the best class slot to restore: lowest XP threshold among slots
-    // that have a level and haven't hit their racial/strength cap.
-    uint8 bestSlot = 0;
-    int32 bestXp   = 0x7FFFFFFF;
+    // Magic.RestorationHandler: scanning in class order, a class becomes the
+    // pick when its level is not above the current pick's, its next-level XP
+    // is nonzero and smaller, and it is not at its level cap.
+    int bestSlot   = -1;
+    int32 bestXp   = 10000000;
     uint8 bestLvl  = 13;
 
     for (uint8 slot = 0; slot < BASE_CLASS_NUM; ++slot) {
         const uint8 lvl = poolrad->levels.levels[slot];
-        if (lvl == 0 || lvl > 13)
+        if (lvl == 0 || lvl > bestLvl)
             continue;
         if (restoreCheckLevelRequired(poolrad, slot))
             continue;
 
         const int32 xpNeeded =
             Goldbox::Data::Rules::xpForClassAtLevel(slot, lvl);
-        if (xpNeeded < 0)
+        if (xpNeeded <= 0 || xpNeeded >= bestXp)
             continue;
 
-        if (xpNeeded < bestXp || (xpNeeded == bestXp && lvl < bestLvl)) {
-            bestSlot = slot;
-            bestLvl  = lvl;
-            bestXp   = xpNeeded;
-        }
+        bestSlot = slot;
+        bestLvl  = lvl;
+        bestXp   = xpNeeded;
     }
 
-    poolrad->levels.levels[bestSlot] += 1;
-
-    if (poolrad->experiencePoints < static_cast<uint32>(bestXp))
-        poolrad->experiencePoints = static_cast<uint32>(bestXp);
+    // The original raises an uninitialized class when none qualifies.
+    if (bestSlot >= 0) {
+        poolrad->levels.levels[bestSlot] += 1;
+        if (poolrad->experiencePoints < static_cast<uint32>(bestXp))
+            poolrad->experiencePoints = static_cast<uint32>(bestXp);
+    }
 
     poolrad->recalcCombatStats();
 

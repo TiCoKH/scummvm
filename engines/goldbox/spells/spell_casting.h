@@ -80,6 +80,8 @@ private:
     StrengthHandler _strengthHandler;
     AnimateDeadHandler _animateDeadHandler;
     CureBlindnessHandler _cureBlindnessHandler;
+    CureDiseaseHandler _cureDiseaseHandler;
+    CauseDiseaseHandler _causeDiseaseHandler;
     DispelMagicHandler _dispelMagicHandler;
     PrayerHandler _prayerHandler;
     RemoveCurseHandler _removeCurseHandler;
@@ -100,9 +102,8 @@ private:
     SpellID63Handler _spellID63Handler;
     SpellID65Handler _spellID65Handler;
     RestoreHandler _restoreHandler;
-    // effectTileId=19 (lightning/breath), baseDamage=0 (uses hp_max at runtime),
-    // pathLength=3, save category BREATH — matches EFFECT_88_LingeringBreath.
-    BreathWeaponHandler _breathWeaponHandler{19, 0, 3, Data::Spells::SVS_BREATH};
+    UnusedSpellHandler _unusedSpellHandler;
+    SpellID67Handler _spellID67Handler;
 };
 
 extern SpellCastingService *g_spellCasting;

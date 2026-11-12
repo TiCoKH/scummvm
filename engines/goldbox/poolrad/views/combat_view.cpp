@@ -1111,6 +1111,16 @@ void CombatView::showSpellMessage(::Goldbox::Data::PlayerCharacter *caster,
     printCombatMessage(caster, text, 10);
 }
 
+// ViewChar.UseItem in combat: "Item:" and the item name on row 23.
+void CombatView::showItemUse(::Goldbox::Data::PlayerCharacter *user,
+        const Common::String &itemName) {
+    printCombatMessage(user, "uses an item", 10);
+    Surface s = getSurface(Window(0, 23, 39, 23));
+    s.clearBox(0, 0, 39, 0, kBackgroundColor);
+    s.writeStringC(0, 0, 10, "Item:");
+    s.writeStringC(5, 0, 10, itemName);
+}
+
 void CombatView::refreshViewport(::Goldbox::Data::PlayerCharacter *ch,
         Direction direction) {
     if (ch) {

@@ -31,6 +31,7 @@
 #include "goldbox/poolrad/views/dialogs/party_selector.h"
 #include "goldbox/poolrad/views/dialogs/spell_target_picker.h"
 #include "goldbox/poolrad/noncombat_spell_cast.h"
+#include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/vm_interface.h"
@@ -759,6 +760,9 @@ void ItemsMenu::executeItemUse(Goldbox::Data::Items::CharacterItem *item,
 		// (COMBAT_spellTargetSelection via the CombatView aimer) rather than
 		// the automatic non-combat picker. useSpell returns true only on a
 		// confirmed CAST_OK; a cancelled aim aborts and returns false.
+		// ViewChar.UseItem announces wands and the like, not scrolls.
+		if (_castDelegate && !item->isMissileOrScroll())
+			_castDelegate->showItemUse(_character, item->getDisplayName());
 		castSucceeded = Goldbox::Combat::useSpell(
 			_character, spellId, /*aiControl=*/false, _castDelegate,
 			/*fromMagicItem=*/true);
@@ -776,6 +780,15 @@ void ItemsMenu::executeItemUse(Goldbox::Data::Items::CharacterItem *item,
 			}
 		}
 	} else {
+		// ViewChar.UseItem: "uses an item" with the item below, not for
+		// scrolls.
+		Goldbox::Data::Effects::EffectHostBridge *bridge =
+			getEffectHostBridge();
+		if (bridge && !item->isMissileOrScroll()) {
+			bridge->postEffectMessage(_character, "uses an item", false);
+			bridge->postEffectMessage(nullptr, item->getDisplayName(), true);
+		}
+
 		// Each item use starts a fresh castTarget.
 		if (_targetPicker)
 			_targetPicker->resetCastTarget();

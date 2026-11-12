@@ -87,6 +87,7 @@ struct CombatGlobals {
     int8 moraleModifier;     // COMBAT_MORALE_MOD
     uint8 behaviorFlags;     // bitmask of DamageTypeMask
     uint8 activeSpellId;     // BYTE_SPELL_INPORCESS
+    bool usingItem;          // GDVars.usingItem: the active spell is cast from an item
     // Effect id under the EFFECT_IMMUNITY check; an immunity handler zeroes
     // it to block the effect (GDVars.pendingEffectId).
     uint8 pendingEffectId;
@@ -167,6 +168,7 @@ struct CombatGlobals {
         moraleModifier = 0;
         behaviorFlags = 0;
         activeSpellId = 0;
+        usingItem = false;
         pendingEffectId = 0;
         damageDice = 0;
         membersOnGround = 0;

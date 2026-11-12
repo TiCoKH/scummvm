@@ -58,6 +58,25 @@ bool checkUnaffectedEffect(Goldbox::Data::PlayerCharacter &ch,
                            const char *message);
 
 /**
+ * FxEngine.InflictNonWeaponDamage for spell damage: runs the nonweapon
+ * damage effects with element as the element mask, then applies the save
+ * reduction (1 negates, 2 halves) when saved.
+ */
+void inflictSpellDamage(Goldbox::Data::PlayerCharacter &target,
+                        uint8 amount, uint8 element, uint8 saveReduction,
+                        bool saved,
+                        const Goldbox::Data::Effects::EffectHandlerBase *handler,
+                        Goldbox::Data::Effects::EffectHostBridge *bridge,
+                        Goldbox::Combat::CombatGlobals *combat);
+
+/**
+ * FxEngine.ReviveDeadCreature: in combat the creature must fit back on its
+ * own cell. Returns false when it does not.
+ */
+bool reviveCreature(Goldbox::Data::PlayerCharacter &ch, uint8 hp,
+                    Goldbox::Data::Effects::EffectHostBridge *bridge);
+
+/**
  * GB13-016 — pure decision helpers for monster special attacks that route
  * through the real attack resolver (Requirement 32). These carry no engine
  * state so the eligibility / validation / cleanup decisions are unit-testable

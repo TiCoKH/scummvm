@@ -137,6 +137,8 @@ public:
     void showBeginsCasting(Goldbox::Data::PlayerCharacter *caster) override;
     void showSpellMessage(Goldbox::Data::PlayerCharacter *caster,
                           const Common::String &text) override;
+    void showItemUse(Goldbox::Data::PlayerCharacter *user,
+                     const Common::String &itemName) override;
     bool confirmAbortSpell() override;
     void showSpellCastEffect(Goldbox::Data::PlayerCharacter *caster,
                              uint8 spellId, TilePos target) override;

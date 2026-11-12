@@ -924,8 +924,9 @@ bool useSpell(Data::PlayerCharacter *actor,
         return false;
     }
 
-    // SPELL_showUseMessage (combat): "Casts a Spell".
-    if (view)
+    // Magic.CastSpellNC announces only memorized casts; item use is
+    // announced by the caller (ViewChar.UseItem).
+    if (view && !fromMagicItem)
         view->showSpellMessage(actor, "Casts a Spell");
 
     Data::Effects::EffectSystem effectSystem(Data::Effects::g_effectHandler,
@@ -979,6 +980,7 @@ bool useSpell(Data::PlayerCharacter *actor,
 
     // BYTE_SPELL_INPORCESS is visible to handlers for the whole cast.
     cc->globals.activeSpellId = spellId;
+    cc->globals.usingItem = fromMagicItem;
     Spells::SpellCastResult result(Spells::CAST_ABORTED);
     for (;;) {
         result = service->castSpell(ctx,
@@ -990,6 +992,7 @@ bool useSpell(Data::PlayerCharacter *actor,
             break;
     }
     cc->globals.activeSpellId = 0;
+    cc->globals.usingItem = false;
     cc->globals.multiTarget = false;
 
     debug(0, "[SPELL] '%s': spell=%u item=%d level=%u status=%d",

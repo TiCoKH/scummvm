@@ -28,9 +28,10 @@
 #include "goldbox/combat/tile_property_provider.h"
 #include "goldbox/data/player_character.h"
 #include "goldbox/data/adnd_character.h"
-#include "goldbox/data/damage_system.h"
+#include "goldbox/data/effects/effect_handler_base.h"
 #include "goldbox/data/rules/saving_throw.h"
 #include "goldbox/data/spells/spell.h"
+#include "goldbox/poolrad/effect_handler.h"
 
 namespace Goldbox {
 namespace Spells {
@@ -89,19 +90,16 @@ AoEHitResult resolveAoEHitAtTile(Combat::CombatContext &ctx,
 
     ctx.globals.behaviorFlags = 12;
 
-    // The saving throw uses the caller's category (SPELL for lightning, BREATH
-    // for breath) with modifier zero, not a flat modifier on a fixed category.
+    // Magic.LightningAttackAt: half damage on a save of the caller's
+    // category (SPELL for lightning, BREATH for breath).
     Data::ADnDCharacter *adnd = dynamic_cast<Data::ADnDCharacter *>(target);
     bool saved = false;
     if (adnd)
-        saved = Data::Rules::checkSavingThrow(
-            *adnd, &ctx.globals, nullptr, nullptr, saveCategory, 0);
-
-    // Apply damage through the real nonweapon damage routine, halving on a
-    // successful save. Neither the save result nor the damage is discarded.
-    Data::DamageSystem damageSystem(ctx.params.effectBridge);
-    damageSystem.applyLegacy(*target, baseDamage, Data::DAMAGE_HALF, saved,
-                             ctx.globals.behaviorFlags);
+        saved = Data::Rules::checkSavingThrow(*adnd, &ctx.globals,
+            Data::Effects::g_effectHandler, ctx.params.effectBridge,
+            saveCategory, 0);
+    Goldbox::Poolrad::inflictSpellDamage(*target, baseDamage, 12, 2, saved,
+        Data::Effects::g_effectHandler, ctx.params.effectBridge, &ctx.globals);
 
     if (presenter)
         presenter->renderEffectTile(pos, effectTileId);

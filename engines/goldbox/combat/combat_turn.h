@@ -331,6 +331,16 @@ struct CastSpellViewDelegate {
         (void)text;
     }
 
+    /**
+     * ViewChar.UseItem: "uses an item" plus the item name, shown before a
+     * non-scroll item's spell is cast.
+     */
+    virtual void showItemUse(Data::PlayerCharacter *user,
+                             const Common::String &itemName) {
+        (void)user;
+        (void)itemName;
+    }
+
     /** Interactive aiming hook for player casts; nullptr = automatic. */
     virtual Spells::ISpellAimer *getSpellAimer() { return nullptr; }
 

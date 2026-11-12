@@ -30,6 +30,7 @@
 #include "goldbox/poolrad/effect_handler.h"
 #include "goldbox/core/coords.h"
 #include "goldbox/spells/spell_aoe.h"
+#include "goldbox/spells/spell_duration.h"
 #include "goldbox/combat/cloud_effect_manager.h"
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/combat/combat_params.h"
@@ -294,28 +295,61 @@ static void refreshPartyDisplay(const EffectCall &c) {
         c.bridge->requestRefresh(EffectHostBridge::RF_CHARACTER_PANEL);
 }
 
+// CbtMap.IsValidCreatureLoc(creature, x, y, True) at the creature's own
+// cell: restore its footprint if the cell is free and passable, clear its
+// downed record and put the saved terrain back.
+static bool placeRevivedCreature(Combat::CombatContext &ctx,
+        PlayerCharacter &ch) {
+    const int idx = ctx.table.findIndex(&ch);
+    if (idx < 0)
+        return false;
+    const TilePos pos = ctx.table.getTilePos(idx);
+    const uint8 size = ch.iconDimension & 7;
+    ctx.table.setSize(idx, size ? size : 1);
+    ctx.table.rebuildOccupancy();
+
+    int occupant = 0;
+    uint8 tile = 0;
+    ctx.getGroundInfo(&ch, 0xFF, &occupant, &tile);
+    const Combat::TilePropertyProvider *props =
+        ctx.map.getTilePropertyProvider();
+    const Combat::TileProp *prop =
+        (props && tile != 0) ? props->getTileProp(tile - 1) : nullptr;
+    if (occupant != 0 || tile == 0 || (prop && prop->passable == -1)) {
+        ctx.table.setSize(idx, 0);
+        ctx.table.rebuildOccupancy();
+        return false;
+    }
+
+    if (ch.combatState && !ch.combatState->notInTeam) {
+        Common::Array<CombatGlobals::DownedMemberRecord> &downed =
+            ctx.globals.downedMembers;
+        for (uint i = 0; i < downed.size(); ++i) {
+            if (downed[i].character != &ch)
+                continue;
+            if (downed[i].savedTile !=
+                    Combat::CombatantTable::TILE_DOWNED_MEMBER)
+                tile = downed[i].savedTile;
+            downed[i] = CombatGlobals::DownedMemberRecord();
+        }
+        bool found = false;
+        for (uint i = 0; i < downed.size(); ++i) {
+            if (downed[i].character && downed[i].pos == pos)
+                found = true;
+        }
+        if (!found)
+            ctx.map.setRawTile(pos, tile);
+    }
+    return true;
+}
+
 // FxEngine.ReviveDeadCreature: put the creature back on its last cell.
+// Outside combat the location check always passes.
 static bool reviveDeadCreature(const EffectCall &c, PlayerCharacter &ch,
         uint8 hp) {
-    Combat::CombatContext *ctx = combatContext();
-    if (ctx) {
-        uint8 col = ctx->table.getCharacterCol(&ch);
-        uint8 row = ctx->table.getCharacterRow(&ch);
-        const Common::Array<CombatGlobals::DownedMemberRecord> &downed =
-            ctx->globals.downedMembers;
-        for (uint i = 0; i < downed.size(); ++i) {
-            if (downed[i].character == &ch) {
-                col = downed[i].pos.col;
-                row = downed[i].pos.row;
-                break;
-            }
-        }
-        const uint8 size = MAX<uint8>(1, ctx->table.getCharacterSize(&ch));
-        const int idx = ctx->table.addCombatant(&ch, size);
-        if (idx < 0)
-            return false;
-        ctx->table.setPosition(idx, TilePos(col, row));
-    }
+    Combat::CombatContext *ctx = inCombat() ? combatContext() : nullptr;
+    if (ctx && !placeRevivedCreature(*ctx, ch))
+        return false;
 
     ch.healthStatus = Goldbox::Data::S_OKAY;
     ch.enabled = true;
@@ -399,10 +433,12 @@ static const char *const kGiantFoes[] = {
 static void magicResistance(const EffectCall &c, uint8 percent) {
     if (!c.combat)
         return;
+    // CharHlp.GetCasterLevel: the level of the spell's class, 6 from an item.
     uint8 level = 0;
     PlayerCharacter *caster = actingCreature(c);
     if (caster)
-        level = asPoolrad(*caster).highestLevel;
+        level = Goldbox::Spells::getSpellCastingLevel(caster,
+            c.combat->activeSpellId, c.combat->usingItem);
     const uint8 chance = static_cast<uint8>(percent - (11 - level) * 5);
     if (c.combat->pendingEffectId == 0 &&
             !(c.combat->behaviorFlags & CombatGlobals::DMG_MAGIC))
@@ -2069,6 +2105,25 @@ bool checkUnaffectedEffect(Goldbox::Data::PlayerCharacter &ch,
     EffectCall c(EFF_ADD, none, ch, combat, bridge, &damageSystem, handler);
     return addEffectWithMessage(c, ch, effectId, duration, power, immediate,
         checkSave, saved, message);
+}
+
+void inflictSpellDamage(Goldbox::Data::PlayerCharacter &target,
+                        uint8 amount, uint8 element, uint8 saveReduction,
+                        bool saved, const EffectHandlerBase *handler,
+                        EffectHostBridge *bridge,
+                        Goldbox::Combat::CombatGlobals *combat) {
+    Effect none;
+    Goldbox::Data::DamageSystem damageSystem(bridge);
+    EffectCall c(EFF_ADD, none, target, combat, bridge, &damageSystem,
+        handler);
+    inflictNonWeaponDamage(c, target, amount, element, saveReduction, saved);
+}
+
+bool reviveCreature(Goldbox::Data::PlayerCharacter &ch, uint8 hp,
+                    EffectHostBridge *bridge) {
+    Effect none;
+    EffectCall c(EFF_ADD, none, ch, nullptr, bridge);
+    return reviveDeadCreature(c, ch, hp);
 }
 
 EffectHandler::EffectHandler() {

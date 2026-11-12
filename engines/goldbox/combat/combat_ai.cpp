@@ -1296,6 +1296,9 @@ bool tryUseItem(Data::PlayerCharacter *actor, CombatContext &ctx,
         actor->name.c_str(), selectedItem->getDisplayName().c_str(),
         (unsigned)selectedItem->typeIndex, (unsigned)spellId,
         (unsigned)selectedItem->effect1);
+    // CombatAi.SelectItemToUse only picks non-readable items.
+    if (view)
+        view->showItemUse(actor, selectedItem->getDisplayName());
     const bool used = useSpell(actor, spellId, true, view, true);
     if (!used) {
         debug(0, "[tryUseItem] '%s' item spell %u failed",
