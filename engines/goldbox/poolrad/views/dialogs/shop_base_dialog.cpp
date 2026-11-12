@@ -536,21 +536,26 @@ void ShopBaseDialog::actionExit() {
     bool hasItems, hasMoney;
     getTreasurePoolFlags(hasMoney, hasItems);
 
-    // GB13-026: warn whenever anything remains — money only, items only, or
-    // both. The fast exit only applies to a genuinely EMPTY pool (nothing to
-    // leave behind), so an item-only pool is no longer silently disposed.
-    if (!hasMoney && !hasItems) {
+    // Shop and Temple warn about pooled money only (the store's stock lives
+    // in the pool's item list); the loot menu warns about money or items.
+    const bool leftBehind = hasMoney ||
+        (_shopType == SHOP_TREASURE && hasItems);
+    if (!leftBehind) {
         commitExit();
         return;
     }
 
-    // Pool/items remain — show shopkeeper warning and Y/N confirmation.
     _stage = STAGE_EXIT_CONFIRM;
 
+    // TextRend.DisplayMessageWindow: word-wrapped in the message window,
+    // the second text continuing where the first ended.
     Surface s = getSurface();
-    s.clearBox(0, 17, 39, 22, 0);
-    s.writeStringC(0, 17, 10, _config.exitConfirmLine1);
-    s.writeStringC(0, 18, 10, _config.exitConfirmLine2);
+    s.clearBox(1, 17, 38, 22, 0);
+    int col = 1;
+    int row = 17;
+    writeMessageWindow(s, col, row, 10, _config.exitConfirmLine1);
+    writeMessageWindow(s, col, row, _config.exitConfirmColor2,
+        _config.exitConfirmLine2);
 
     if (_exitConfirmMenu) {
         delete _exitConfirmMenu;
@@ -594,7 +599,7 @@ void ShopBaseDialog::closeExitConfirm() {
 
     // Clear the confirmation text area (rows 17-22).
     Surface s = getSurface();
-    s.clearBox(0, 17, 39, 22, 0);
+    s.clearBox(1, 17, 38, 22, 0);
 
     recreateHorizontalMenu();
     redraw();
@@ -707,6 +712,37 @@ void ShopBaseDialog::handleTakeResult(const MenuResultMessage &result) {
     debugShopMoney("take:close");
     recreateHorizontalMenu();
     refreshScreen();
+    onTakeClosed();
+}
+
+void ShopBaseDialog::writeMessageWindow(Surface &s, int &col, int &row,
+        uint8 color, const Common::String &text) {
+    const int kLeft = 1;
+    const int kRight = 38;
+    const int kBottom = 22;
+
+    uint i = 0;
+    while (i < text.size() && row <= kBottom) {
+        if (text[i] == ' ') {
+            if (col > kLeft && col <= kRight)
+                ++col;
+            ++i;
+            continue;
+        }
+        uint end = i;
+        while (end < text.size() && text[end] != ' ')
+            ++end;
+        const Common::String word(text.c_str() + i, end - i);
+        if (col > kLeft && col + (int)word.size() - 1 > kRight) {
+            col = kLeft;
+            ++row;
+            if (row > kBottom)
+                break;
+        }
+        s.writeStringC(col, row, color, word);
+        col += word.size();
+        i = end;
+    }
 }
 
 // --- Appraise action implementation ---
@@ -750,17 +786,17 @@ void ShopBaseDialog::openAppraiseScreen() {
     Surface s = getSurface();
     s.clearBox(1, 1, 38, 22, 0);
     s.writeStringC(1, 1, 15, ch->name);
-    s.writeStringC(1, 7, 10, "You have a fine collection of:");
+    s.writeStringC(1, 7, 15, "You have a fine collection of:");
 
     if (gems > 0) {
         Common::String gemStr = Common::String::format("%u %s",
             gems, (gems == 1) ? "Gem" : "Gems");
-        s.writeStringC(1, 9, 10, gemStr);
+        s.writeStringC(1, 9, 15, gemStr);
     }
     if (jewelry > 0) {
         Common::String jewStr = Common::String::format("%u %s",
             jewelry, (jewelry == 1) ? "piece of Jewelry" : "pieces of Jewelry");
-        s.writeStringC(1, 10, 10, jewStr);
+        s.writeStringC(1, 10, 15, jewStr);
     }
 
     buildAppraiseMenuModel();
@@ -891,7 +927,7 @@ void ShopBaseDialog::appraiseItem(AppraiseType type) {
     Surface s = getSurface();
     Common::String valueStr = Common::String::format("The %s is Valued at %u gp.",
         (type == APPRAISE_GEM) ? "Gem" : "Jewel", _appraiseValue);
-    s.writeStringC(1, 12, 10, valueStr);
+    s.writeStringC(1, 12, 15, valueStr);
 
     // Determine keep/sell options
     buildKeepSellModel();
@@ -1011,38 +1047,16 @@ void ShopBaseDialog::handleKeepSellResult(const MenuResultMessage &result) {
 
         ch->receiveItem(newItem);
     } else {
-        // Sell: pay `value div 5` in PLATINUM (money.pas GivePlatinum), not
-        // gold. Platinum is worth 5 gp, so value/5 platinum equals the sold
-        // valuation in total gold value (1000 gp -> 200 platinum). The payout
-        // goes through the shared capacity-aware transfer so overflow the
-        // character cannot carry stays in the POOL (recoverable via Take),
-        // instead of being written to the coin slot with a saturating clamp
-        // that silently loses it. VAL_PLATINUM fits Word for normal
-        // valuations; addCoinWide/takeMoney keep the wider intermediate so the
-        // GB13-027 Word/LongInt boundaries are not narrowed here.
+        // Sell: money.pas GivePlatinum pays value div 5 platinum; what the
+        // character cannot carry goes into the pool.
         if (ch) {
             const uint32 platinum = (uint32)(_appraiseValue / 5);
             Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
-
-            // Stage the payout in the pool, then move it to the character. On
-            // overload takeMoney transfers 0 and leaves the whole amount in
-            // the pool (TRANSFER_OVERLOADED); on success the character gets it.
-            // Either way the overflow is retained in the pool, never clamped.
-            //
-            // OPEN(GB13-028): the original GivePlatinum's exact partial-vs-
-            // all-or-nothing split on overload is not fully confirmed against
-            // takeMoney's all-or-nothing TakeMoney semantics. Both satisfy the
-            // requirement (overflow retained in the pool and recoverable);
-            // nothing is clamped or lost. Revisit if GivePlatinum is traced to
-            // a partial give.
-            pool.addCoinWide(Goldbox::Data::VAL_PLATINUM, platinum);
-            const Runtime::TreasurePool::MoneyTransfer xfer =
-                pool.takeMoney(*ch, Goldbox::Data::VAL_PLATINUM, platinum);
-            debug(1, "[Shop:%s] appraise-sell: value=%u platinum=%u "
-                "transferred=%u poolRemainder=%u status=%d",
+            if (pool.givePlatinum(*ch, platinum))
+                showPromptMessage("Overloaded.  Money will be put in Pool.");
+            debug(1, "[Shop:%s] appraise-sell: value=%u platinum=%u",
                 getName().c_str(), (unsigned)_appraiseValue,
-                (unsigned)platinum, (unsigned)xfer.transferred,
-                (unsigned)xfer.remainder, (int)xfer.status);
+                (unsigned)platinum);
         }
     }
 

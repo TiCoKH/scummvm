@@ -232,6 +232,24 @@ TreasurePool::MoneyTransfer TreasurePool::takeMoney(
     return result;
 }
 
+bool TreasurePool::givePlatinum(Data::ADnDCharacter &character,
+        uint32 amount) {
+    character.recalcCombatStats();
+
+    uint32 takable = 0;
+    const bool overloaded = checkOverload(character, amount, takable);
+    const uint32 given = overloaded ? takable : amount;
+    if (overloaded)
+        _coins[Data::VAL_PLATINUM] += amount - takable;
+
+    const uint32 balance =
+        (uint32)character.valuableItems[Data::VAL_PLATINUM] + given;
+    character.valuableItems[Data::VAL_PLATINUM] = (balance > 0xFFFF)
+        ? (uint16)0xFFFF : (uint16)balance;
+    character.recalcCombatStats();
+    return overloaded;
+}
+
 bool TreasurePool::poolMoneyFromParty(
         Common::List<Data::PlayerCharacter *> &party) {
     for (Common::List<Data::PlayerCharacter *>::const_iterator it =

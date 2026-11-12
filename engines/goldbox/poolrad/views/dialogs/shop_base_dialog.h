@@ -57,6 +57,8 @@ struct ShopBaseConfig {
     ShopType type;
     Common::String exitConfirmLine1;
     Common::String exitConfirmLine2;
+    // Colour of the second exit line (the first is light green).
+    uint8 exitConfirmColor2 = 15;
     Common::String menuPrompt;
 };
 
@@ -174,9 +176,18 @@ protected:
     /** Session-ownership model (GB13-025). Shared by Store/Temple/Treasure. */
     ShopSession _session;
 
+    /**
+     * Called when the money Take dialog closes, after the menu rebuild.
+     * Treasure uses it to return to its Money/Items choice.
+     */
+    virtual void onTakeClosed() {}
+
+    /** Rebuild the main menu from the current pool flags. */
+    void recreateHorizontalMenu();
+
     // --- Common action implementations ---
     void actionView();
-    void actionTake();
+    virtual void actionTake();
     void actionPool();
     void actionShare();
     void actionAppraise();
@@ -208,7 +219,6 @@ private:
     HorizontalYesNo *_exitConfirmMenu;
 
     void buildMenuModel();
-    void recreateHorizontalMenu();
     void refreshScreen();
     void handleMenuKey(char key);
     void commitExit();
@@ -240,6 +250,8 @@ private:
     uint16 rollGemValue();
     uint16 rollJewelryValue();
     void showPromptMessage(const Common::String &msg);
+    static void writeMessageWindow(Surface &s, int &col, int &row,
+                                   uint8 color, const Common::String &text);
 };
 
 } // namespace Dialogs

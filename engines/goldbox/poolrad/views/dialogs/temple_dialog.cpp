@@ -95,7 +95,7 @@ const TempleDialog::HealService TempleDialog::kHealServices[] = {
 // "not affected" messages per service index.
 static const char *kNotAffectedMsg[] = {
     "is not blind.",
-    "is not diseased.",
+    "is not Diseased.",
     nullptr,  // wound cures always proceed
     nullptr,
     nullptr,
@@ -109,9 +109,10 @@ static ShopBaseConfig makeTempleConfig() {
     ShopBaseConfig cfg;
     cfg.type = SHOP_TEMPLE;
     cfg.menuPrompt = "";
-    cfg.exitConfirmLine1 = "As you leave a priest says, 'Excuse me"
-        " but you left some things here.'";
-    cfg.exitConfirmLine2 = "Do you want to go back and retrieve them?";
+    cfg.exitConfirmLine1 = "As you leave a priest says, \"Excuse me"
+        " but you have left some money here\" ";
+    cfg.exitConfirmLine2 = "Do you want to go back and retrieve your money?";
+    cfg.exitConfirmColor2 = 10;
     return cfg;
 }
 
@@ -289,7 +290,7 @@ void TempleDialog::showNotAffectedPrompt() {
     }
 
     HorizontalYesNoConfig cfg;
-    cfg.promptTxt = "Cast cure anyway?";
+    cfg.promptTxt = "cast cure anyway: ";
     cfg.promptColor = 28;
     cfg.textColor = 10;
     cfg.selectColor = 15;
@@ -316,7 +317,7 @@ void TempleDialog::showPayConfirmPrompt() {
     s.writeStringC(2, 18, 28, costMsg);
 
     HorizontalYesNoConfig cfg;
-    cfg.promptTxt = "Pay for cure?";
+    cfg.promptTxt = "pay for cure ";
     cfg.promptColor = 16;
     cfg.textColor = 10;
     cfg.selectColor = 15;
@@ -398,7 +399,7 @@ void TempleDialog::handlePayConfirmResult(const MenuResultMessage &result) {
     case PaymentPlan::FUND_NONE:
     default:
         // Neither source alone is sufficient: no mutation, no cure.
-        showHealMessage("Not enough money");
+        showHealMessage("Not enough money.");
         _payment = PaymentPlan();
         _healStage = HEAL_SELECTOR;
         if (_healSelector)
@@ -505,10 +506,11 @@ void TempleDialog::applyHealEffect(PoolradCharacter *ch, int index) {
     case 2: // Cure Light Wounds:   1d8
     case 3: // Cure Serious Wounds:  2d8 + 1
     case 4: { // Cure Critical Wounds: 3d8 + 3
-        // GB13-029 (Req 36.4): dice come from metadata; roll ONCE, heal once.
+        // FxEngine.RestoreHitPoints(..., False): only the living, blocked by
+        // mummy rot, wakes the unconscious; the result is ignored.
         uint8 rolled = (uint8)(VmInterface::rollDice(svc.healDiceNum,
             svc.healDiceSides) + svc.healBonus);
-        ch->heal(rolled);
+        ch->healHp(rolled, false);
         break;
     }
 
@@ -610,10 +612,9 @@ void TempleDialog::applyRaiseDead(PoolradCharacter *ch) {
     // Held under the effect lock, so the animation does not "collapse".
     if (g_engine)
         g_engine->setInSpellProcess(true);
-    while (ch->effects.hasEffect(kRawAnimateDead))
-        removeRawEffectInstance(ch, kRawAnimateDead);
-    while (ch->effects.hasEffect(kRawPoison))
-        removeRawEffectInstance(ch, kRawPoison);
+    // Temple.RaiseDead removes one node of each, as here.
+    removeRawEffectInstance(ch, kRawAnimateDead);
+    removeRawEffectInstance(ch, kRawPoison);
     if (g_engine)
         g_engine->setInSpellProcess(false);
 

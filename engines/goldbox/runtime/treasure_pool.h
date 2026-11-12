@@ -144,6 +144,13 @@ public:
         Data::ValuableType type, uint32 amount);
 
     /**
+     * money.pas GivePlatinum: give `amount` platinum to a character; the
+     * part that would overload it goes into the pool. Returns true when the
+     * character was overloaded.
+     */
+    bool givePlatinum(Data::ADnDCharacter &character, uint32 amount);
+
+    /**
      * ACTION_PoolMoney: strip coins from every eligible party member into the
      * pool. Eligible members are true PCs (npc == 0) and animated PCs
      * (npc == ANIMATED_PC); other NPCs keep their coins. All seven

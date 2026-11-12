@@ -39,8 +39,9 @@ static ShopBaseConfig makeStoreConfig() {
     cfg.type = SHOP_STORE;
     cfg.menuPrompt = "";
     cfg.exitConfirmLine1 = "As you Leave the Shopkeeper says,"
-        " 'Excuse me but you left some things here.'";
-    cfg.exitConfirmLine2 = "Do you want to go back and get your stuff?";
+        " \"Excuse me but you have Left Some Money here.\"  ";
+    cfg.exitConfirmLine2 = "Do you want to go back and get your Money?";
+    cfg.exitConfirmColor2 = 15;
     return cfg;
 }
 
@@ -225,7 +226,7 @@ void StoreDialog::attemptBuy() {
         getName().c_str(), (int)received);
     debugShopMoney("buy:after-receive");
     if (!received) {
-        showMessage("Overloaded");
+        showMessage("OverLoaded");
         return;
     }
 

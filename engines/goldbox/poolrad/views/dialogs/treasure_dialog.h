@@ -22,12 +22,17 @@
 #ifndef GOLDBOX_POOLRAD_VIEWS_DIALOGS_TREASURE_DIALOG_H
 #define GOLDBOX_POOLRAD_VIEWS_DIALOGS_TREASURE_DIALOG_H
 
+#include "goldbox/core/menu_item.h"
 #include "goldbox/poolrad/views/dialogs/shop_base_dialog.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 namespace Dialogs {
+
+class HorizontalMenu;
+class PromptMessage;
+class VerticalMenu;
 
 /**
  * Post-combat treasure division dialog (DIALOG_Treasure equivalent).
@@ -39,12 +44,49 @@ namespace Dialogs {
 class TreasureDialog : public ShopBaseDialog {
 public:
     TreasureDialog(const Common::String &name = "Treasure");
+    ~TreasureDialog() override;
+
+    void deactivate() override;
+    bool msgKeypress(const KeypressMessage &msg) override;
+    void handleMenuResult(const MenuResultMessage &result) override;
+    void draw() override;
 
 protected:
     void actionDetect() override;
     bool hasDetectSpell() const override;
+    void actionTake() override;
+    void onTakeClosed() override;
+    void resetServiceChildren() override;
 
 private:
+    // PostCbt.LootTakeMenu / LootTakeItemMenu.
+    enum TakeStage {
+        TAKE_NONE = 0,
+        TAKE_CHOICE,    // "Take: Money Items Exit"
+        TAKE_ITEMS      // the Loot item list
+    };
+    TakeStage _takeStage = TAKE_NONE;
+    // The Money/Items/Exit loop runs while both kinds are left.
+    bool _inTakeChoice = false;
+    MenuItemList _takeChoiceModel;
+    HorizontalMenu *_takeChoiceMenu = nullptr;
+    MenuItemList _lootItems;
+    Common::Array<Common::String> _lootPromptOpts;
+    VerticalMenu *_lootSelector = nullptr;
+    PromptMessage *_lootPrompt = nullptr;
+
+    void openTakeChoice();
+    void closeTakeChoice();
+    void handleTakeChoiceResult(const MenuResultMessage &result);
+    void continueTakeChoice();
+    void buildLootItemList();
+    void openLootSelector();
+    void closeLootSelector();
+    void handleLootSelectorResult(const MenuResultMessage &result);
+    void takeLootItem();
+    void returnToLootMenu();
+    void clearTakeChildren();
+
     uint8 _detectSpellType = 0;
     // True once a Detect spell has been confirmed in this treasure session;
     // drives the identify-marker display refresh without mutating per-item

@@ -20,7 +20,11 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/treasure_dialog.h"
+#include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
+#include "goldbox/poolrad/views/dialogs/prompt_message.h"
+#include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/runtime/treasure_pool.h"
 #include "goldbox/poolrad/noncombat_spell_cast.h"
 #include "goldbox/spells/spell_casting.h"
 #include "goldbox/spells/spell_context.h"
@@ -43,13 +47,346 @@ static ShopBaseConfig makeTreasureConfig() {
     ShopBaseConfig cfg;
     cfg.type = SHOP_TREASURE;
     cfg.menuPrompt = "";
-    cfg.exitConfirmLine1 = "There is still treasure left.";
-    cfg.exitConfirmLine2 = "Do you want to go back and claim it?";
+    cfg.exitConfirmLine1 = "There is still treasure left.  ";
+    cfg.exitConfirmLine2 = "Do you want to go back and claim your treasure?";
+    cfg.exitConfirmColor2 = 15;
     return cfg;
 }
 
 TreasureDialog::TreasureDialog(const Common::String &name)
     : ShopBaseDialog(name, makeTreasureConfig()) {
+}
+
+TreasureDialog::~TreasureDialog() {
+    delete _takeChoiceMenu;
+    delete _lootSelector;
+    delete _lootPrompt;
+}
+
+void TreasureDialog::deactivate() {
+    clearTakeChildren();
+    ShopBaseDialog::deactivate();
+}
+
+void TreasureDialog::resetServiceChildren() {
+    clearTakeChildren();
+    ShopBaseDialog::resetServiceChildren();
+}
+
+void TreasureDialog::clearTakeChildren() {
+    closeTakeChoice();
+    if (_lootSelector) {
+        _lootSelector->deactivate();
+        delete _lootSelector;
+        _lootSelector = nullptr;
+    }
+    if (_lootPrompt) {
+        _lootPrompt->deactivate();
+        delete _lootPrompt;
+        _lootPrompt = nullptr;
+    }
+    _takeStage = TAKE_NONE;
+    _inTakeChoice = false;
+}
+
+// PostCbt.LootTakeMenu: both kinds left loop on a Money/Items/Exit menu,
+// otherwise go straight to the money or the item menu.
+void TreasureDialog::actionTake() {
+    bool hasMoney = false;
+    bool hasItems = false;
+    getTreasurePoolFlags(hasMoney, hasItems);
+    if (hasMoney && hasItems) {
+        _inTakeChoice = true;
+        openTakeChoice();
+    } else if (hasMoney) {
+        ShopBaseDialog::actionTake();
+    } else if (hasItems) {
+        openLootSelector();
+    }
+}
+
+void TreasureDialog::onTakeClosed() {
+    if (_inTakeChoice)
+        continueTakeChoice();
+}
+
+void TreasureDialog::openTakeChoice() {
+    closeTakeChoice();
+    _takeStage = TAKE_CHOICE;
+
+    Common::Array<Common::String> opts;
+    opts.push_back("Money");
+    opts.push_back("Items");
+    opts.push_back("Exit");
+    _takeChoiceModel.items.clear();
+    _takeChoiceModel.currentSelection = 0;
+    _takeChoiceModel.generateMenuItems(opts, true);
+
+    HorizontalMenuConfig cfg;
+    cfg.promptTxt = "Take: ";
+    cfg.menuItemList = &_takeChoiceModel;
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.promptColor = 13;
+    cfg.allowNumPad = false;
+    cfg.suppressUnhandledKeys = true;
+    cfg.backgroundColor = 0;
+    cfg.singleItemMode = false;
+
+    _takeChoiceMenu = new HorizontalMenu("LootTakeMenu", cfg);
+    setDialogParent(_takeChoiceMenu, this);
+    _takeChoiceMenu->activate();
+    redraw();
+}
+
+void TreasureDialog::closeTakeChoice() {
+    if (_takeChoiceMenu) {
+        _takeChoiceMenu->deactivate();
+        delete _takeChoiceMenu;
+        _takeChoiceMenu = nullptr;
+    }
+    if (_takeStage == TAKE_CHOICE)
+        _takeStage = TAKE_NONE;
+}
+
+void TreasureDialog::handleTakeChoiceResult(const MenuResultMessage &result) {
+    char key = 0;
+    if (result._keyCode == Common::KEYCODE_RETURN) {
+        const int sel = _takeChoiceModel.currentSelection;
+        if (sel >= 0 && sel < (int)_takeChoiceModel.items.size())
+            key = _takeChoiceModel.items[sel].shortcut;
+    } else {
+        key = (char)result._keyCode;
+        if (key >= 'a' && key <= 'z')
+            key -= 32;
+    }
+
+    closeTakeChoice();
+    if (key == 'M') {
+        ShopBaseDialog::actionTake();
+    } else if (key == 'I') {
+        openLootSelector();
+    } else {
+        // 'E' or Escape leaves the loop.
+        _inTakeChoice = false;
+        returnToLootMenu();
+    }
+}
+
+void TreasureDialog::continueTakeChoice() {
+    bool hasMoney = false;
+    bool hasItems = false;
+    getTreasurePoolFlags(hasMoney, hasItems);
+    if (hasMoney && hasItems) {
+        openTakeChoice();
+        return;
+    }
+    _inTakeChoice = false;
+    returnToLootMenu();
+}
+
+void TreasureDialog::returnToLootMenu() {
+    _takeStage = TAKE_NONE;
+    recreateHorizontalMenu();
+    if (g_events)
+        g_events->postEclStateMessage(EclVmMessage::ST_SCREEN_REFRESH, 0,
+            EclVmMessage::VT_UINT8);
+    redraw();
+}
+
+// The loot list is built by prepending, so it runs newest first.
+void TreasureDialog::buildLootItemList() {
+    const int keep = _lootItems.currentSelection;
+    _lootItems.items.clear();
+
+    const Common::Array<Goldbox::Data::Items::CharacterItem> &items =
+        VmInterface::getTreasurePool().items();
+    for (int i = (int)items.size() - 1; i >= 0; --i) {
+        MenuItem mi;
+        mi.text = items[i].getDisplayName();
+        mi.shortcut = 0;
+        mi.active = true;
+        mi.shortcutFirst = false;
+        _lootItems.items.push_back(mi);
+    }
+
+    _lootItems.currentSelection = 0;
+    if (keep > 0 && !_lootItems.items.empty())
+        _lootItems.currentSelection =
+            MIN<int>(keep, (int)_lootItems.items.size() - 1);
+}
+
+// PostCbt.LootTakeItemSelection: the "Loot" window with an Items/Take menu.
+void TreasureDialog::openLootSelector() {
+    if (_lootSelector) {
+        _lootSelector->deactivate();
+        delete _lootSelector;
+        _lootSelector = nullptr;
+    }
+
+    buildLootItemList();
+    if (_lootItems.items.empty()) {
+        closeLootSelector();
+        return;
+    }
+    _takeStage = TAKE_ITEMS;
+
+    _lootPromptOpts.clear();
+    _lootPromptOpts.push_back("Take");
+
+    VerticalMenuConfig cfg;
+    cfg.promptTxt = "Items: ";
+    cfg.promptOptions = &_lootPromptOpts;
+    cfg.menuItemList = &_lootItems;
+    cfg.headColor = 15;
+    cfg.textColor = 10;
+    cfg.selectColor = 15;
+    cfg.xStart = 1;
+    cfg.yStart = 4;
+    cfg.xEnd = 38;
+    cfg.yEnd = 22;
+    cfg.title = "";
+    cfg.addExit = true;
+
+    _lootSelector = new VerticalMenu("LootItemMenu", cfg);
+    setDialogParent(_lootSelector, this);
+    _lootSelector->activate();
+    redraw();
+}
+
+void TreasureDialog::closeLootSelector() {
+    if (_lootSelector) {
+        _lootSelector->deactivate();
+        delete _lootSelector;
+        _lootSelector = nullptr;
+    }
+    _lootItems.currentSelection = 0;
+    _takeStage = TAKE_NONE;
+
+    if (_inTakeChoice)
+        continueTakeChoice();
+    else
+        returnToLootMenu();
+}
+
+void TreasureDialog::handleLootSelectorResult(const MenuResultMessage &result) {
+    const Common::KeyCode key = result._keyCode;
+    if (result._success &&
+            (key == Common::KEYCODE_t || key == Common::KEYCODE_RETURN))
+        takeLootItem();
+    else
+        closeLootSelector();
+}
+
+// PostCbt.LootTakeItemMenu: give a copy to the current character (or print
+// OverLoaded), then drop it from the loot; the menu ends when none is left.
+void TreasureDialog::takeLootItem() {
+    Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
+    Common::Array<Goldbox::Data::Items::CharacterItem> &items = pool.items();
+    const int sel = _lootItems.currentSelection;
+    const int poolIdx = (int)items.size() - 1 - sel;
+    if (poolIdx < 0 || poolIdx >= (int)items.size()) {
+        closeLootSelector();
+        return;
+    }
+
+    Goldbox::Poolrad::Data::PoolradCharacter *ch =
+        dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(
+            VmInterface::getSelectedCharacter());
+    if (!ch) {
+        closeLootSelector();
+        return;
+    }
+
+    Goldbox::Data::Items::CharacterItem item = items[poolIdx];
+    item.readied = 0;
+    if (!ch->receiveItem(item)) {
+        if (_lootPrompt) {
+            delete _lootPrompt;
+            _lootPrompt = nullptr;
+        }
+        PromptMessageConfig cfg;
+        cfg.message = "OverLoaded";
+        cfg.textColor = 10;
+        _lootPrompt = new PromptMessage("LootTakeMsg", cfg);
+        setDialogParent(_lootPrompt, this);
+        _lootPrompt->activate();
+        if (_lootSelector)
+            _lootSelector->activateHorizontalMenu();
+        redraw();
+        return;
+    }
+
+    items.remove_at(poolIdx);
+    if (items.empty())
+        closeLootSelector();
+    else
+        openLootSelector();
+}
+
+bool TreasureDialog::msgKeypress(const KeypressMessage &msg) {
+    if (!_isActive)
+        return false;
+
+    if (_lootPrompt && _lootPrompt->isActive()) {
+        _lootPrompt->handleKeypress(msg);
+        return true;
+    }
+
+    switch (_takeStage) {
+    case TAKE_CHOICE:
+        if (_takeChoiceMenu && _takeChoiceMenu->isActive())
+            return _takeChoiceMenu->msgKeypress(msg);
+        return true;
+    case TAKE_ITEMS:
+        if (_lootSelector && _lootSelector->isActive())
+            return _lootSelector->dispatchKeypress(msg);
+        return true;
+    default:
+        break;
+    }
+    return ShopBaseDialog::msgKeypress(msg);
+}
+
+void TreasureDialog::handleMenuResult(const MenuResultMessage &result) {
+    switch (_takeStage) {
+    case TAKE_CHOICE:
+        handleTakeChoiceResult(result);
+        return;
+    case TAKE_ITEMS:
+        handleLootSelectorResult(result);
+        return;
+    default:
+        break;
+    }
+    ShopBaseDialog::handleMenuResult(result);
+}
+
+void TreasureDialog::draw() {
+    if (!_isVisible)
+        return;
+
+    switch (_takeStage) {
+    case TAKE_CHOICE:
+        if (_takeChoiceMenu) {
+            _takeChoiceMenu->setRedraw();
+            _takeChoiceMenu->draw();
+        }
+        break;
+    case TAKE_ITEMS:
+        if (_lootSelector && _lootSelector->isActive()) {
+            Surface s = getSurface();
+            s.drawWindow(1, 1, 38, 22, 0, 15, "Loot");
+            _lootSelector->draw();
+        }
+        break;
+    default:
+        ShopBaseDialog::draw();
+        break;
+    }
+
+    if (_lootPrompt && _lootPrompt->isActive())
+        _lootPrompt->draw();
 }
 
 bool TreasureDialog::hasDetectSpell() const {
