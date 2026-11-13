@@ -23,6 +23,7 @@
 #define WIZARDRY_GAME_ITEMS_H
 
 #include "common/array.h"
+#include "common/serializer.h"
 #include "wizardry/game/character.h"
 #include "wizardry/resources/scenario_file.h"
 
@@ -39,7 +40,20 @@ struct Item {
 	};
 
 	int16 kind = 0;       ///< 0 weapon, 1 armour, 2 shield, 3 helmet, 4 gauntlets, 5 special, 6 other
+	int16 alignment = 0;  ///< 0 for anyone; otherwise it turns on a wearer of another alignment
 	bool cursed = false;
+	int16 specialPower = 0;   ///< 1 to 27: what invoking it does; see Equip::invokePower()
+	int16 changeTo = 0;       ///< the item it becomes when it breaks
+	int16 changeChance = 0;   ///< how likely that is, in percent
+	int16 healPoints = 0;
+	uint16 protectVs = 0;
+	uint16 resist = 0;
+	int16 armorMod = 0;       ///< taken off the armour class
+	int16 hitMod = 0;
+	Dice3 damage = { 0, 0, 0 };
+	int16 swings = 0;
+	bool criticalHits = false;
+	uint16 doubleDamageVs = 0;
 	int64 price = 0;
 	int16 stock = 0;      ///< pieces at the trading post; below -1: not on sale yet
 	uint16 classUse = 0;  ///< a bit for each class that can use it
@@ -62,6 +76,13 @@ public:
 	 * @returns false if the item records are not the kind this class knows
 	 */
 	bool load(const ScenarioFile &scenario);
+
+	/**
+	 * Saves or loads what changes during a game: the stock of the
+	 * trading post
+	 * @returns false if what was loaded is for another list of items
+	 */
+	bool synchronize(Common::Serializer &s);
 
 	uint size() const { return _items.size(); }
 	Item &operator[](uint id) { return _items[id]; }

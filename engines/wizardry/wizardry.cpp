@@ -117,12 +117,25 @@ Common::Error WizardryEngine::run() {
 }
 
 Common::Error WizardryEngine::syncGame(Common::Serializer &s) {
-	// The Serializer has methods isLoading() and isSaving()
-	// if you need to specific steps; for example setting
-	// an array size after reading it's length, whereas
-	// for saving it would write the existing array's length
-	int dummy = 0;
-	s.syncAsUint32LE(dummy);
+	// Only the releases with a game to play have anything to save
+	if (!hasTown()) {
+		int dummy = 0;
+		s.syncAsUint32LE(dummy);
+		return Common::kNoError;
+	}
+
+	// What the original writes back into its scenario file: the
+	// characters, who is in the party, and the stock of the trading post
+	const uint32 kSaveVersion = 1;
+	if (!s.syncVersion(kSaveVersion))
+		return Common::kReadingFailed;
+
+	if (!_globals._party.synchronize(s) || !_globals._items.synchronize(s))
+		return Common::kReadingFailed;
+
+	// The view on screen may show what is no longer true
+	if (s.isLoading() && focusedView())
+		replaceView("Town.Castle", true);
 
 	return Common::kNoError;
 }

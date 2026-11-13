@@ -157,6 +157,31 @@ public:
 	 */
 	void drawSheetNotice(const Common::String &text);
 
+	// ---- equipping
+
+	/**
+	 * The items of one kind to choose from
+	 * @param kindIndex  Which of the six kinds, in the order asked
+	 * @param slots      Their places in the pack
+	 * @param prompt     Whether to ask which one
+	 */
+	void drawEquipChoices(const Character &c, int kindIndex, const Common::Array<uint> &slots, bool prompt);
+
+	/**
+	 * The notice that a cursed item has put itself on
+	 */
+	void drawEquipCursed();
+	void drawInvokePower(const Character &c, uint slot);
+
+	// ---- the spell books
+
+	void drawSpellBooks(const Character &c, Menu &menu);
+
+	/**
+	 * The spells the character knows, one column for each spell level
+	 */
+	void drawSpellList(const Character &c, bool mage);
+
 	/**
 	 * The window of the temple, as it is, to print into
 	 */

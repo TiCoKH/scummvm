@@ -36,6 +36,7 @@ enum {
 	kOfsStatus = 40,
 	kOfsAlignment = 42,
 	kOfsAttributes = 44,   // two words with three attributes of five bits each
+	kOfsSavingThrows = 48, // two words with five numbers of five bits
 	kOfsGold = 52,         // three words of four decimal digits, lowest first
 	kOfsItemCount = 58,
 	kOfsItems = 60,        // eight times four words: equipped, cursed, identified, item
@@ -47,7 +48,15 @@ enum {
 	kOfsLevel = 132,
 	kOfsHp = 134,
 	kOfsHpMax = 136,
+	kOfsHitBonus = 174,
 	kOfsArmorClass = 176,
+	kOfsHealPoints = 178,
+	kOfsCriticalHits = 180,
+	kOfsSwingCount = 182,
+	kOfsDamage = 184,      // three words: dice, sides, bonus
+	kOfsProtectVs = 190,
+	kOfsResist = 194,
+	kOfsDoubleDamageVs = 198,
 	kOfsPoison = 200,
 	kOfsLostPosition = 202,
 	kOfsLostLevel = 204
@@ -103,6 +112,10 @@ void Character::removeItem(uint index) {
 	--itemCount;
 }
 
+void Character::forgetSpell(uint spell) {
+	record[kOfsSpellsKnown + spell / 8] &= ~(1 << (spell % 8));
+}
+
 void Character::load(const byte *src) {
 	memcpy(record, src, kRecordSize);
 
@@ -127,6 +140,18 @@ void Character::load(const byte *src) {
 	hp = READ_LE_INT16(src + kOfsHp);
 	hpMax = READ_LE_INT16(src + kOfsHpMax);
 	armorClass = READ_LE_INT16(src + kOfsArmorClass);
+	for (uint i = 0; i < 5; ++i)
+		savingThrows[i] = (READ_LE_UINT16(src + kOfsSavingThrows + (i / 3) * 2) >> ((i % 3) * 5)) & 0x1f;
+	hitBonus = READ_LE_INT16(src + kOfsHitBonus);
+	healPoints = READ_LE_INT16(src + kOfsHealPoints);
+	criticalHits = (READ_LE_UINT16(src + kOfsCriticalHits) & 1) != 0;
+	swingCount = READ_LE_INT16(src + kOfsSwingCount);
+	damage.count = READ_LE_INT16(src + kOfsDamage);
+	damage.sides = READ_LE_INT16(src + kOfsDamage + 2);
+	damage.bonus = READ_LE_INT16(src + kOfsDamage + 4);
+	protectVs = READ_LE_UINT16(src + kOfsProtectVs);
+	resist = READ_LE_UINT16(src + kOfsResist);
+	doubleDamageVs = READ_LE_UINT16(src + kOfsDoubleDamageVs);
 	poison = READ_LE_INT16(src + kOfsPoison);
 	lostPosition = READ_LE_INT16(src + kOfsLostPosition);
 	lostLevel = READ_LE_INT16(src + kOfsLostLevel);
@@ -170,6 +195,23 @@ void Character::save(byte *dst) {
 	WRITE_LE_INT16(record + kOfsHp, hp);
 	WRITE_LE_INT16(record + kOfsHpMax, hpMax);
 	WRITE_LE_INT16(record + kOfsArmorClass, armorClass);
+	for (uint w = 0; w < 2; ++w) {
+		// The bits above the numbers are kept as they were
+		uint word = READ_LE_UINT16(record + kOfsSavingThrows + w * 2) & (w ? 0xfc00 : 0x8000);
+		for (uint i = 0; i < (w ? 2u : 3u); ++i)
+			word |= (savingThrows[w * 3 + i] & 0x1f) << (i * 5);
+		WRITE_LE_UINT16(record + kOfsSavingThrows + w * 2, word);
+	}
+	WRITE_LE_INT16(record + kOfsHitBonus, hitBonus);
+	WRITE_LE_INT16(record + kOfsHealPoints, healPoints);
+	WRITE_LE_UINT16(record + kOfsCriticalHits, criticalHits ? 1 : 0);
+	WRITE_LE_INT16(record + kOfsSwingCount, swingCount);
+	WRITE_LE_INT16(record + kOfsDamage, damage.count);
+	WRITE_LE_INT16(record + kOfsDamage + 2, damage.sides);
+	WRITE_LE_INT16(record + kOfsDamage + 4, damage.bonus);
+	WRITE_LE_UINT16(record + kOfsProtectVs, protectVs);
+	WRITE_LE_UINT16(record + kOfsResist, resist);
+	WRITE_LE_UINT16(record + kOfsDoubleDamageVs, doubleDamageVs);
 	WRITE_LE_INT16(record + kOfsPoison, poison);
 	WRITE_LE_INT16(record + kOfsLostPosition, lostPosition);
 	WRITE_LE_INT16(record + kOfsLostLevel, lostLevel);

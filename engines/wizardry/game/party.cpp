@@ -46,6 +46,45 @@ bool Party::loadRoster(const ScenarioFile &scenario) {
 	return true;
 }
 
+bool Party::synchronize(Common::Serializer &s) {
+	uint16 count = _roster.size();
+	s.syncAsUint16LE(count);
+	if (s.isLoading()) {
+		if (count > 64)
+			return false;
+		_roster.resize(count);
+	}
+
+	for (uint i = 0; i < count; ++i) {
+		byte record[Character::kRecordSize];
+		if (s.isSaving())
+			_roster[i].save(record);
+		s.syncBytes(record, Character::kRecordSize);
+		if (s.isLoading())
+			_roster[i].load(record);
+	}
+
+	uint16 members = _members.size();
+	s.syncAsUint16LE(members);
+	if (s.isLoading()) {
+		if (members > kMaxMembers)
+			return false;
+		_members.resize(members);
+	}
+
+	for (uint i = 0; i < members; ++i) {
+		uint16 index = _members[i];
+		s.syncAsUint16LE(index);
+		if (s.isLoading()) {
+			if (index >= count)
+				return false;
+			_members[i] = index;
+		}
+	}
+
+	return true;
+}
+
 int Party::alignment() const {
 	int result = kAlignNeutral;
 

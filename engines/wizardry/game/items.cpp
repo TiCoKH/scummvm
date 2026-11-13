@@ -26,7 +26,20 @@ namespace Wizardry {
 
 enum {
 	kOfsKind = 0,
+	kOfsAlignment = 2,
 	kOfsCursed = 4,
+	kOfsSpecialPower = 6,
+	kOfsChangeTo = 8,
+	kOfsChangeChance = 10,
+	kOfsHealPoints = 24,
+	kOfsProtectVs = 26,
+	kOfsResist = 28,
+	kOfsArmorMod = 30,
+	kOfsHitMod = 32,
+	kOfsDamage = 34,
+	kOfsSwings = 40,
+	kOfsCriticalHits = 42,
+	kOfsDoubleDamageVs = 44,
 	kOfsPrice = 12,   // three words of four decimal digits, lowest first
 	kOfsStock = 18,
 	kOfsClassUse = 22
@@ -52,8 +65,35 @@ bool ItemList::load(const ScenarioFile &scenario) {
 			READ_LE_UINT16(src + kOfsPrice + 4) * (int64)100000000;
 		item.stock = READ_LE_INT16(src + kOfsStock);
 		item.classUse = READ_LE_UINT16(src + kOfsClassUse);
+		item.alignment = READ_LE_INT16(src + kOfsAlignment);
+		item.specialPower = READ_LE_INT16(src + kOfsSpecialPower);
+		item.changeTo = READ_LE_INT16(src + kOfsChangeTo);
+		item.changeChance = READ_LE_INT16(src + kOfsChangeChance);
+		item.healPoints = READ_LE_INT16(src + kOfsHealPoints);
+		item.protectVs = READ_LE_UINT16(src + kOfsProtectVs);
+		item.resist = READ_LE_UINT16(src + kOfsResist);
+		item.armorMod = READ_LE_INT16(src + kOfsArmorMod);
+		item.hitMod = READ_LE_INT16(src + kOfsHitMod);
+		item.damage.count = READ_LE_INT16(src + kOfsDamage);
+		item.damage.sides = READ_LE_INT16(src + kOfsDamage + 2);
+		item.damage.bonus = READ_LE_INT16(src + kOfsDamage + 4);
+		item.swings = READ_LE_INT16(src + kOfsSwings);
+		item.criticalHits = (READ_LE_UINT16(src + kOfsCriticalHits) & 1) != 0;
+		item.doubleDamageVs = READ_LE_UINT16(src + kOfsDoubleDamageVs);
 		_items.push_back(item);
 	}
+
+	return true;
+}
+
+bool ItemList::synchronize(Common::Serializer &s) {
+	uint16 count = _items.size();
+	s.syncAsUint16LE(count);
+	if (count != _items.size())
+		return false;
+
+	for (uint i = 0; i < count; ++i)
+		s.syncAsSint16LE(_items[i].stock);
 
 	return true;
 }

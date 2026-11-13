@@ -27,6 +27,14 @@ namespace Wizardry {
 
 // Message numbers of Wizardry I
 enum {
+	kMsgInvoke1 = 251,
+	kMsgInvoke2 = 252,
+	kMsgInvokeYesNo = 253,
+	kMsgEquipWhich = 256,
+	kMsgEquipNone = 257,
+	kMsgSelectKind = 258,
+	kMsgKindNames = 259,         // weapon, armor, shield, helm, gauntlets, misc. item
+	kMsgCursed = 265,
 	kMsgRosterDeadOut = 300,     // "D/O": dead, and lying in the maze
 	kMsgRosterDead = 301,
 	kMsgRosterOut = 302,
@@ -46,6 +54,14 @@ enum {
 	kMsgSheetStrength = 605,     // the labels of the sheet follow, to 618
 	kMsgEnteringName = 501,
 	kMsgEdgeMenu = 502,
+	kMsgPressReturn = 900,
+	kMsgSpellsEquals = 901,
+	kMsgBookMage = 902,
+	kMsgBookPriest = 903,
+	kMsgBookMenu = 904,
+	kMsgMageSpells = 905,
+	kMsgPriestSpells = 906,
+	kMsgSpellNames = 5000,       // + spell; a '*' in front starts a spell level
 	kMsgRaceNames = 9999,        // + race
 	kMsgAttributeNames = 10020,  // + attribute
 	kMsgPoison = 401,
@@ -588,6 +604,93 @@ void TownScreens::drawSheetNotice(const Common::String &text) {
 	TextWindow window = openWindow(13, 8, 26, 5);
 	window.MVCURSOR(0, 1);
 	window.printCenteredLine("* " + text + " *");
+}
+
+void TownScreens::drawEquipChoices(const Character &c, int kindIndex, const Common::Array<uint> &slots, bool prompt) {
+	TextWindow window = openWindow(8, 8, 24, 15);
+
+	window.printCenteredLine(substCaret(_messages.get(kMsgSelectKind), _messages.get(kMsgKindNames + kindIndex)));
+	window.newLine();
+
+	for (uint i = 0; i < slots.size(); ++i) {
+		const ItemSlot &slot = c.items[slots[i]];
+		window.printInt(i + 1, 1);
+		window.PRINTCHR(')');
+		// - cursed, ? not identified
+		window.PRINTCHR(slot.cursed ? '-' : (slot.identified ? ' ' : '?'));
+		window.PRINTSTR(_messages.get(ItemList::nameMessage(slot.id, slot.identified)));
+		window.newLine();
+	}
+
+	if (prompt) {
+		window.MVCURSOR(0, window.cursorY() + 1);
+		window.printCenteredLine(_messages.get(kMsgEquipWhich));
+		window.printCenteredLine(_messages.get(kMsgEquipNone));
+	}
+}
+
+void TownScreens::drawEquipCursed() {
+	TextWindow window = openWindow(8, 8, 24, 15);
+	window.MVCURSOR(0, 4);
+	window.printCenteredLine(_messages.get(kMsgCursed));
+}
+
+void TownScreens::drawInvokePower(const Character &c, uint slot) {
+	TextWindow window = openWindow(4, 12, 32, 8);
+	const ItemSlot &item = c.items[slot];
+
+	window.printCenteredLine(_messages.get(kMsgInvoke1));
+	window.printCenteredLine(substCaret(_messages.get(kMsgInvoke2),
+		_messages.get(ItemList::nameMessage(item.id, item.identified))));
+	window.newLine();
+	window.printCenteredLine(_messages.get(kMsgInvokeYesNo));
+}
+
+void TownScreens::drawSpellBooks(const Character &c, Menu &menu) {
+	TextWindow window = openWindow(0, 7, 40, 17);
+
+	for (int book = 0; book < 2; ++book) {
+		const int16 *slots = book ? c.priestSlots : c.mageSlots;
+		window.PRINTSTR(_messages.get(book ? kMsgBookPriest : kMsgBookMage));
+		window.PRINTSTR(_messages.get(kMsgSpellsEquals));
+		for (int i = 0; i < 7; ++i) {
+			if (i)
+				window.PRINTCHR('/');
+			window.printInt(slots[i], 1);
+		}
+		window.newLine();
+	}
+
+	window.MVCURSOR(8, 4);
+	menu.print(window, _messages.get(kMsgBookMenu));
+}
+
+void TownScreens::drawSpellList(const Character &c, bool mage) {
+	TextWindow window = openWindow(0, 7, 40, 17);
+	const uint first = mage ? 1 : 22, last = mage ? 21 : 50;
+
+	// Four spell levels side by side, the others below them
+	int level = 0, x = 0, y = 0;
+	for (uint spell = first; spell <= last; ++spell) {
+		Common::String name = _messages.get(kMsgSpellNames + spell);
+
+		if (!name.empty() && name[0] == '*') {
+			x = (level % 4) * 9;
+			y = (level / 4) * 7;
+			if (++level == 4)
+				++x;   // as the original has it
+			name.deleteChar(0);
+		}
+
+		if (c.knowsSpell(spell))
+			window.PRINTSTR(x, y++, name);
+	}
+
+	// The heading sits at the lower right
+	const Common::String &title = _messages.get(mage ? kMsgMageSpells : kMsgPriestSpells);
+	const Common::String &press = _messages.get(kMsgPressReturn);
+	window.PRINTSTR(window.width() - title.size(), 13, title);
+	window.PRINTSTR(window.width() - press.size(), 14, press);
 }
 
 TextWindow TownScreens::templeWindow() {

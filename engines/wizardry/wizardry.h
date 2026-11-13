@@ -117,10 +117,11 @@ public:
 	};
 
 	bool canLoadGameStateCurrently(Common::U32String *msg = nullptr) override {
-		return true;
+		return hasTown();
 	}
 	bool canSaveGameStateCurrently(Common::U32String *msg = nullptr) override {
-		return true;
+		// Not on the title screen, where there is nothing yet to save
+		return hasTown() && isPresent("Town.Castle");
 	}
 
 	/**

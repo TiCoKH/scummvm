@@ -27,9 +27,11 @@
 #include "wizardry/views/title.h"
 #include "wizardry/views/town/castle.h"
 #include "wizardry/views/town/edge.h"
+#include "wizardry/views/town/equip.h"
 #include "wizardry/views/town/inn.h"
 #include "wizardry/views/town/sheet.h"
 #include "wizardry/views/town/shop.h"
+#include "wizardry/views/town/spell_books.h"
 #include "wizardry/views/town/temple.h"
 #include "wizardry/views/town/training.h"
 #include "wizardry/views/town/tavern.h"
@@ -48,6 +50,8 @@ struct Views {
 	Town::Edge _townEdge;
 	Town::TrainingView _townTraining;
 	Town::SheetView _townSheet;
+	Town::SpellBooks _townSpellBooks;
+	Town::EquipView _townEquip;
 };
 
 } // namespace Wizardry

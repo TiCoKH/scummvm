@@ -10,6 +10,7 @@ MODULE_OBJS = \
 	data/globals.o \
 	data/scenario.o \
 	game/character.o \
+	game/equip.o \
 	game/inn.o \
 	game/items.o \
 	game/party.o \
@@ -39,9 +40,11 @@ MODULE_OBJS = \
 	views/title.o \
 	views/town/castle.o \
 	views/town/edge.o \
+	views/town/equip.o \
 	views/town/inn.o \
 	views/town/sheet.o \
 	views/town/shop.o \
+	views/town/spell_books.o \
 	views/town/tavern.o \
 	views/town/temple.o \
 	views/town/training.o \

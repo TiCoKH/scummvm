@@ -48,6 +48,13 @@ enum Alignment {
 };
 
 /**
+ * Dice: so many of so many sides, and something added
+ */
+struct Dice3 {
+	int16 count, sides, bonus;
+};
+
+/**
  * One place in a character's pack
  */
 struct ItemSlot {
@@ -88,6 +95,18 @@ struct Character {
 	int16 priestSlots[7] = {};
 	int16 hp = 0, hpMax = 0;
 	int16 armorClass = 0;
+
+	// Battle figures. They follow from level, class, race and what is
+	// equipped, and are worked out again by Equip::recalc().
+	int16 savingThrows[5] = {};   ///< a roll of 1 to 20 must not be above them
+	int16 hitBonus = 0;
+	int16 healPoints = 0;         ///< hit points regained every round
+	bool criticalHits = false;
+	int16 swingCount = 0;         ///< attacks in a round
+	Dice3 damage = { 0, 0, 0 };
+	uint16 protectVs = 0;         ///< a bit for each kind of monster
+	uint16 resist = 0;
+	uint16 doubleDamageVs = 0;
 	int16 poison = 0;
 	int16 lostPosition = 0;    ///< where in the maze the body lies; 0 in town
 	int16 lostLevel = 0;       ///< maze level where the body lies; 0 in town
@@ -109,6 +128,7 @@ struct Character {
 	 */
 	bool knowsSpell(uint spell) const;
 	void learnSpell(uint spell);
+	void forgetSpell(uint spell);
 };
 
 } // End of namespace Wizardry

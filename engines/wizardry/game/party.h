@@ -23,6 +23,7 @@
 #define WIZARDRY_GAME_PARTY_H
 
 #include "common/array.h"
+#include "common/serializer.h"
 #include "wizardry/game/character.h"
 #include "wizardry/resources/scenario_file.h"
 
@@ -50,6 +51,14 @@ public:
 	 * class knows (IBM-PC Wizardry I)
 	 */
 	bool loadRoster(const ScenarioFile &scenario);
+
+	/**
+	 * Saves or loads the roster and the party. The characters are kept
+	 * as the records of the scenario file, so a saved roster can be told
+	 * apart from the original's only by where it is stored.
+	 * @returns false if what was loaded cannot be a roster
+	 */
+	bool synchronize(Common::Serializer &s);
 
 	uint rosterSize() const { return _roster.size(); }
 	Character &rosterEntry(uint index) { return _roster[index]; }
