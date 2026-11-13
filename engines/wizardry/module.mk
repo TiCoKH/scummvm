@@ -13,6 +13,7 @@ MODULE_OBJS = \
 	game/equip.o \
 	game/inn.o \
 	game/items.o \
+	game/maze.o \
 	game/party.o \
 	game/shop.o \
 	game/temple.o \
@@ -38,6 +39,7 @@ MODULE_OBJS = \
 	views/cell_view.o \
 	views/gallery.o \
 	views/title.o \
+	views/maze/maze_view.o \
 	views/town/castle.o \
 	views/town/edge.o \
 	views/town/equip.o \
@@ -49,6 +51,7 @@ MODULE_OBJS = \
 	views/town/temple.o \
 	views/town/training.o \
 	views/town/town_view.o \
+	ui/maze_view.o \
 	ui/menu.o \
 	ui/town_screens.o
 

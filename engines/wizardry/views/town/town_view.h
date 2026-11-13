@@ -56,6 +56,8 @@ protected:
 	 */
 	enum {
 		kKeyBackspace = 8,
+		kKeyLeft = 9,
+		kKeyRight = 12,
 		kKeyDown = 10,
 		kKeyUp = 11,
 		kKeyReturn = 13,
@@ -87,6 +89,13 @@ public:
 	TownView(const Common::String &name) : CellView(name, false) {}
 
 	bool msgKeypress(const KeypressMessage &msg) override;
+
+	/**
+	 * Turns a key into the character the original would get: letters in
+	 * upper case, and codes for RETURN, the cursor keys and so on.
+	 * @returns 0 for a key that means nothing
+	 */
+	static uint16 keyToAscii(const KeypressMessage &msg);
 	bool msgMouseDown(const MouseDownMessage &msg) override;
 };
 

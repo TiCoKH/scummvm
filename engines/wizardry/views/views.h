@@ -24,6 +24,7 @@
 
 #include "wizardry/views/castle.h"
 #include "wizardry/views/gallery.h"
+#include "wizardry/views/maze/maze_view.h"
 #include "wizardry/views/title.h"
 #include "wizardry/views/town/castle.h"
 #include "wizardry/views/town/edge.h"
@@ -52,6 +53,7 @@ struct Views {
 	Town::SheetView _townSheet;
 	Town::SpellBooks _townSpellBooks;
 	Town::EquipView _townEquip;
+	InMaze::MazeView _maze;
 };
 
 } // namespace Wizardry

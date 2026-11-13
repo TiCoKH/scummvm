@@ -20,6 +20,7 @@
  */
 
 #include "wizardry/views/town/edge.h"
+#include "wizardry/views/maze/maze_view.h"
 #include "wizardry/wizardry.h"
 
 namespace Wizardry {
@@ -60,9 +61,7 @@ void Edge::choose(int result, uint16 ascii) {
 		if (!party.size())
 			break;
 
-		// TODO: the maze. Until then, show the announcement and come back.
-		_entering = true;
-		notice("NOT IN THIS VERSION YET");
+		InMaze::MazeView::enter();
 		break;
 
 	case kCastle:

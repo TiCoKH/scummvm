@@ -22,6 +22,7 @@
 #ifndef WIZARDRY_UI_TOWN_SCREENS_H
 #define WIZARDRY_UI_TOWN_SCREENS_H
 
+#include "wizardry/game/maze.h"
 #include "wizardry/game/party.h"
 #include "wizardry/game/shop.h"
 #include "wizardry/gfx/cell_screen.h"
@@ -156,6 +157,20 @@ public:
 	 * What the sheet says in that window, between asterisks
 	 */
 	void drawSheetNotice(const Common::String &text);
+
+	// ---- the maze
+
+	/**
+	 * The view, the line of commands above it and the party below
+	 * @param windows  Whether the line of commands shows
+	 * @param party    Whether the party shows
+	 */
+	void drawMaze(const MazeLevel &level, const MazeState &state, bool windows, bool party);
+
+	/**
+	 * A box in the middle of the view with one line, or two
+	 */
+	void drawMazePopup(const Common::String &text, const Common::String &second = Common::String());
 
 	// ---- equipping
 

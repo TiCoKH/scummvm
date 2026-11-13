@@ -21,6 +21,7 @@
 
 #include "wizardry/game/inn.h"
 #include "wizardry/game/training.h"
+#include "wizardry/ui/maze_view.h"
 #include "wizardry/ui/town_screens.h"
 
 namespace Wizardry {
@@ -54,6 +55,7 @@ enum {
 	kMsgSheetStrength = 605,     // the labels of the sheet follow, to 618
 	kMsgEnteringName = 501,
 	kMsgEdgeMenu = 502,
+	kMsgMazeCommands = 717,
 	kMsgPressReturn = 900,
 	kMsgSpellsEquals = 901,
 	kMsgBookMage = 902,
@@ -604,6 +606,33 @@ void TownScreens::drawSheetNotice(const Common::String &text) {
 	TextWindow window = openWindow(13, 8, 26, 5);
 	window.MVCURSOR(0, 1);
 	window.printCenteredLine("* " + text + " *");
+}
+
+void TownScreens::drawMaze(const MazeLevel &level, const MazeState &state, bool windows, bool party) {
+	_screen.clear();
+
+	TextWindow view = openWindow(1, 1, 38, 22);
+	MazeViewDrawer drawer(view, level, state, state.lightDuration > 0);
+	drawer.draw();
+
+	if (windows) {
+		TextWindow title = openWindow(0, 0, 40, 3);
+		title.PRINTSTR(_messages.get(kMsgMazeCommands));
+	}
+
+	if (party)
+		drawParty();
+}
+
+void TownScreens::drawMazePopup(const Common::String &text, const Common::String &second) {
+	const int width = MAX(text.size(), second.size());
+	const int half = (width + 1) / 2;
+	const int rows = second.empty() ? 1 : 2;
+
+	TextWindow window = openWindow(19 - half, 10, half * 2 + 2, rows + 2);
+	window.PRINTSTR(text);
+	if (!second.empty())
+		window.PRINTSTR(0, 1, second);
 }
 
 void TownScreens::drawEquipChoices(const Character &c, int kindIndex, const Common::Array<uint> &slots, bool prompt) {

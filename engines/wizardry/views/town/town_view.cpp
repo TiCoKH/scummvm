@@ -53,10 +53,7 @@ void TownView::timeout() {
 	redraw();
 }
 
-bool TownView::msgKeypress(const KeypressMessage &msg) {
-	if (!_notice.empty())
-		return true;
-
+uint16 TownView::keyToAscii(const KeypressMessage &msg) {
 	uint16 ascii = msg.ascii;
 	if (msg.keycode == Common::KEYCODE_RETURN || msg.keycode == Common::KEYCODE_KP_ENTER)
 		ascii = kKeyReturn;
@@ -68,8 +65,21 @@ bool TownView::msgKeypress(const KeypressMessage &msg) {
 		ascii = kKeyUp;
 	else if (msg.keycode == Common::KEYCODE_DOWN)
 		ascii = kKeyDown;
+	else if (msg.keycode == Common::KEYCODE_LEFT)
+		ascii = kKeyLeft;
+	else if (msg.keycode == Common::KEYCODE_RIGHT)
+		ascii = kKeyRight;
 	else if (ascii >= 'a' && ascii <= 'z')
 		ascii -= 0x20;
+
+	return ascii;
+}
+
+bool TownView::msgKeypress(const KeypressMessage &msg) {
+	if (!_notice.empty())
+		return true;
+
+	const uint16 ascii = keyToAscii(msg);
 	if (!ascii)
 		return true;
 

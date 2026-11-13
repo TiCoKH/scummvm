@@ -25,6 +25,7 @@
 #include "common/file.h"
 #include "wizardry/data/scenario.h"
 #include "wizardry/game/items.h"
+#include "wizardry/game/maze.h"
 #include "wizardry/game/party.h"
 #include "wizardry/resources/scenario_file.h"
 #include "wizardry/gfx/cell_renderer.h"
@@ -47,6 +48,8 @@ struct Globals {
 	ScenarioFile _scenario;
 	Party _party;
 	ItemList _items;
+	MazeLevel _mazeLevel;
+	MazeState _mazeState;
 
 	TSCNTOC _SCNTOC;
 	int _LLBASE04 = -1;
