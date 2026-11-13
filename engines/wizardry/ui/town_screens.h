@@ -22,6 +22,7 @@
 #ifndef WIZARDRY_UI_TOWN_SCREENS_H
 #define WIZARDRY_UI_TOWN_SCREENS_H
 
+#include "wizardry/game/battle.h"
 #include "wizardry/game/maze.h"
 #include "wizardry/game/party.h"
 #include "wizardry/game/shop.h"
@@ -171,6 +172,26 @@ public:
 	 * A box in the middle of the view with one line, or two
 	 */
 	void drawMazePopup(const Common::String &text, const Common::String &second = Common::String());
+
+	// ---- fights
+
+	/**
+	 * The fight: the list of monsters, the window for what is told and
+	 * asked, the picture of the first group, and the party
+	 * @param picture  Picture of the monsters, or nullptr
+	 */
+	void drawBattle(const Battle &battle, const CellImage *picture);
+
+	/**
+	 * The window in which the fight is told, as it is, to print into
+	 */
+	TextWindow battleWindow();
+
+	/**
+	 * A member's choices
+	 * @param options  The '/'-separated list built for this member
+	 */
+	void drawBattleOptions(const Character &c, const Common::String &options, Menu &menu);
 
 	// ---- equipping
 

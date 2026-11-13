@@ -22,12 +22,14 @@
 #include "wizardry/views/maze/maze_view.h"
 #include "wizardry/game/equip.h"
 #include "wizardry/game/inn.h"
+#include "wizardry/views/maze/battle_view.h"
 #include "wizardry/wizardry.h"
 
 namespace Wizardry {
 namespace InMaze {
 
 enum {
+	kMsgEncounter = 702,
 	kMsgStairsDown = 703,
 	kMsgStairsUp = 704,
 	kMsgTakeThem = 705,
@@ -86,6 +88,7 @@ void MazeView::enter() {
 
 bool MazeView::msgFocus(const FocusMessage &msg) {
 	_state = kWalking;
+	_encounter = -1;
 	loadLevel();
 	return TownView::msgFocus(msg);
 }
@@ -136,6 +139,14 @@ void MazeView::timeout() {
 	if (_leaveAfterSaid) {
 		_leaveAfterSaid = false;
 		backToTown();
+		return;
+	}
+
+	if (_encounter >= 0) {
+		const int monster = _encounter;
+		_encounter = -1;
+		_state = kWalking;
+		BattleView::start(monster, true);
 		return;
 	}
 
@@ -305,6 +316,14 @@ void MazeView::choose(int result, uint16 ascii) {
 
 		EngineDice dice;
 		Maze::poisonAndRegen(party, dice);
+
+		// A fight, now and then. TODO: the guardians of rooms, who are
+		// met once for certain, and the fixed encounters
+		if (_state == kWalking && Maze::encounterHappens(_G(mazeLevel), state, dice)) {
+			_encounter = Maze::pickMonster(_G(mazeLevel), dice);
+			say(messages.get(kMsgEncounter));
+			return;
+		}
 	} else if (command < kCmdRight) {
 		Maze::turn(state, 3);
 	} else if (command < kCmdAbout) {

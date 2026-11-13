@@ -34,7 +34,8 @@ enum {
 	kOfsFightSquares = 480,   // 40 words, one bit for each square
 	kOfsSquareIndex = 560,    // 100 words, four bits for each square
 	kOfsSquareType = 760,     // 4 words, four bits for each of the 16 kinds
-	kOfsAux = 768             // three arrays of 16 words
+	kOfsAux = 768,            // three arrays of 16 words
+	kOfsEncounters = 864      // three tables of five words
 };
 
 static const uint16 WALL_OFFSETS[4] = { kOfsWallsNorth, kOfsWallsEast, kOfsWallsSouth, kOfsWallsWest };
@@ -76,6 +77,32 @@ uint MazeLevel::squareType(uint index) const {
 
 int MazeLevel::aux(uint which, uint index) const {
 	return (int16)word(kOfsAux + which * 32 + index * 2);
+}
+
+int MazeLevel::encounterTable(uint table, uint field) const {
+	return (int16)word(kOfsEncounters + (table * 5 + field) * 2);
+}
+
+int Maze::pickMonster(const MazeLevel &level, Dice &dice) {
+	uint table = 0;
+	while (dice.roll(4) == 2 && table < 2)
+		++table;
+
+	const int first = level.encounterTable(table, 0), step = level.encounterTable(table, 1);
+	const int maxSteps = level.encounterTable(table, 2), range = level.encounterTable(table, 3);
+	const int stepChance = level.encounterTable(table, 4);
+
+	int steps = 0;
+	while ((int)dice.roll(100) < stepChance && steps < maxSteps)
+		++steps;
+
+	return first + step * steps + dice.roll(MAX(range, 1));
+}
+
+bool Maze::encounterHappens(const MazeLevel &level, const MazeState &state, Dice &dice) {
+	if (dice.roll(99) == 35)
+		return true;
+	return level.isFightSquare(state.x, state.y) && dice.roll(8) == 3;
 }
 
 void Maze::offset(int &x, int &y, int facing, int right, int forward) {

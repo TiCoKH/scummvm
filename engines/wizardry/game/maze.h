@@ -81,6 +81,12 @@ public:
 
 	/** The three numbers of a kind of square */
 	int aux(uint which, uint index) const;
+
+	/**
+	 * A number of one of the level's three tables of monsters: first
+	 * monster, step, most steps, range, chance in percent of each step
+	 */
+	int encounterTable(uint table, uint field) const;
 };
 
 /**
@@ -140,6 +146,18 @@ public:
 
 	/** True if anyone in the party can still walk */
 	static bool anyoneAlive(const Party &party);
+
+	/**
+	 * Picks the monster of an encounter from the level's tables: the
+	 * first table three times in four, tougher monsters now and then
+	 */
+	static int pickMonster(const MazeLevel &level, Dice &dice);
+
+	/**
+	 * True if walking on brings a fight: about one step in a hundred
+	 * anywhere, and one in eight on entering a square of a room
+	 */
+	static bool encounterHappens(const MazeLevel &level, const MazeState &state, Dice &dice);
 };
 
 } // End of namespace Wizardry

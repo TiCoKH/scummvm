@@ -111,6 +111,12 @@ public:
 	void disband();
 
 	/**
+	 * Puts the members in a new order
+	 * @param order  For each new place, the old place of the member
+	 */
+	void reorder(const Common::Array<uint> &order);
+
+	/**
 	 * Returns a free place in the roster, or -1 if it is full
 	 */
 	int freeSlot() const;

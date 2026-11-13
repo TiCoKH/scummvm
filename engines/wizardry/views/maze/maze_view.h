@@ -49,6 +49,7 @@ private:
 	bool _windows = true;       ///< the line of commands and the party show
 	bool _partyShown = true;
 	bool _leaveAfterSaid = false;
+	int _encounter = -1;        ///< monster of a fight about to start
 
 	void say(const Common::String &text);
 	void loadLevel();

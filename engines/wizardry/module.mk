@@ -9,11 +9,13 @@ MODULE_OBJS = \
 	profile.o \
 	data/globals.o \
 	data/scenario.o \
+	game/battle.o \
 	game/character.o \
 	game/equip.o \
 	game/inn.o \
 	game/items.o \
 	game/maze.o \
+	game/monsters.o \
 	game/party.o \
 	game/shop.o \
 	game/temple.o \
@@ -39,6 +41,7 @@ MODULE_OBJS = \
 	views/cell_view.o \
 	views/gallery.o \
 	views/title.o \
+	views/maze/battle_view.o \
 	views/maze/maze_view.o \
 	views/town/castle.o \
 	views/town/edge.o \

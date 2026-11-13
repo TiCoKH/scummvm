@@ -57,6 +57,7 @@ enum {
 	kMsgEdgeMenu = 502,
 	kMsgMazeCommands = 717,
 	kMsgPressReturn = 900,
+	kMsgOptionsOf = 1027,
 	kMsgSpellsEquals = 901,
 	kMsgBookMage = 902,
 	kMsgBookPriest = 903,
@@ -633,6 +634,54 @@ void TownScreens::drawMazePopup(const Common::String &text, const Common::String
 	window.PRINTSTR(text);
 	if (!second.empty())
 		window.PRINTSTR(0, 1, second);
+}
+
+TextWindow TownScreens::battleWindow() {
+	return TextWindow(_screen, Common::Rect(0, 5, 40, 11), true);
+}
+
+void TownScreens::drawBattle(const Battle &battle, const CellImage *picture) {
+	_screen.clear();
+	openWindow(1, 1, 38, 22);
+
+	// The picture sits in the middle of the main window, below the text
+	if (picture && !picture->empty())
+		_screen.addImage(*picture, 2 + 15, 2 + 9);
+
+	TextWindow enemies = openWindow(2, 0, 36, 6);
+	for (int g = 1; g < Battle::kGroupCount; ++g) {
+		if (battle.group(g).aliveCount <= 0)
+			continue;
+
+		int able = 0;
+		const Common::String line = battle.groupLine(g, able);
+		enemies.printInt(g, 1);
+		enemies.PRINTSTR(") ");
+		enemies.PRINTSTR(line);
+		enemies.MVCURSOR(enemies.width() - 6, enemies.cursorY());
+		enemies.PRINTSTR(" (");
+		enemies.printInt(able, 1);
+		enemies.PRINTCHR(')');
+		enemies.newLine();
+	}
+
+	battleWindow().clear();
+	drawParty();
+}
+
+void TownScreens::drawBattleOptions(const Character &c, const Common::String &options, Menu &menu) {
+	int rows = 1;
+	for (uint i = 0; i < options.size(); ++i)
+		rows += options[i] == '/';
+
+	const Common::String title = c.name + _messages.get(kMsgOptionsOf);
+	const int width = MAX<int>(title.size(), Menu::textWidth(options));
+
+	TextWindow window(_screen, TextWindow::centeredBounds(width, 8, rows + 4), true);
+	window.clear();
+	window.printCenteredLine(title);
+	window.newLine();
+	menu.print(window, options);
 }
 
 void TownScreens::drawEquipChoices(const Character &c, int kindIndex, const Common::Array<uint> &slots, bool prompt) {

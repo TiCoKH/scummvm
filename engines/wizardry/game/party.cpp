@@ -151,6 +151,16 @@ void Party::divvyGold() {
 	member(size() - 1).gold = total;
 }
 
+void Party::reorder(const Common::Array<uint> &order) {
+	if (order.size() != _members.size())
+		return;
+
+	Common::Array<uint> members;
+	for (uint i = 0; i < order.size(); ++i)
+		members.push_back(_members[order[i]]);
+	_members = members;
+}
+
 void Party::disband() {
 	for (uint i = 0; i < size(); ++i) {
 		Character &c = member(i);
