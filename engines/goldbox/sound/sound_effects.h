@@ -45,6 +45,11 @@ enum SoundEffect {
 	kSfxRangedEnd = 13
 };
 
+/** "sound_tempo" range and default, in percent of the original rate. */
+static const int kMinSoundTempo = 50;
+static const int kMaxSoundTempo = 150;
+static const int kDefaultSoundTempo = 100;
+
 /** Original per-command auto-stop value (SoundSetAutoStop(10)). */
 static const uint16 kSoundAutoStop = 10;
 

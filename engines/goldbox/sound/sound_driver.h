@@ -63,13 +63,20 @@ public:
     bool init(const Common::Path &dataFile);
 
     /** SOUND_Play: 0 = sound off, 1 = sound on, 0xFF = silence,
-     *  n >= 2 = play sound table entry n - 1. */
-    void play(uint8 sound);
+     *  n >= 2 = play sound table entry n - 1. In blip mode a nonzero
+     *  sustainMs replaces the blip length. */
+    void play(uint8 sound, uint32 sustainMs = 0);
 
     /** SOUND_Setup: 0 = continuous mode, > 0 = short blip mode. */
     void setup(uint16 flag);
 
     void stopAll();
+
+    /**
+     * Sequencer speed in percent of the original 236.7 Hz timer; pitch is
+     * unaffected.
+     */
+    void setTempo(int percent);
 
     // AudioStream interface
     int readBuffer(int16 *buffer, const int numSamples) override;
@@ -104,8 +111,16 @@ private:
     uint16 _soundFlag;     ///< soundAutoStop (SOUND_Setup value)
 
     bool _timerRunning;
-    uint32 _timerAccumulator;
+    uint64 _timerAccumulator;
+    int _tempo;            ///< percent of the original timer rate
     int _blipTicks;
+    // The original blocks for each blip, so a sound asked for during one
+    // starts when it ends; one waiting sound is kept.
+    int _queuedSound;      ///< tune id, or -1
+    int _queuedTicks;
+    // Leaving continuous mode lets the playing tune finish (the original
+    // cuts it); _blipTicks caps the wait.
+    bool _draining;
 
     // PC speaker: PIT channel 2 divisor and port 61h bits 0-1
     uint16 _pitDivisor;
@@ -125,6 +140,8 @@ private:
 
     void loadSound(Bank &bank, uint16 id);
     void loadActive(uint16 id);
+    int blipLength(uint32 sustainMs) const;
+    bool tuneActive() const;
     void timerTick();
     void speakerDma();
     void tandyDma();

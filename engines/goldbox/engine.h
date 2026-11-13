@@ -153,12 +153,21 @@ public:
 	void playSfx(SoundEffect sfx) { soundPlay(static_cast<uint8>(sfx)); }
 
 	/**
+	 * Play a sound that runs for ms before auto-stop cuts it, like a
+	 * SoundSetAutoStop(0) bracket around a pause that cannot block here.
+	 */
+	void playSfxFor(SoundEffect sfx, uint32 ms);
+
+	/**
 	 * Let sounds run to completion instead of being cut by auto-stop, like
 	 * the original SoundSetAutoStop(0) ... SoundSetAutoStop(10) brackets
 	 * around animations. Calls nest; use SoundSustain where possible.
 	 */
 	void beginSoundSustain();
 	void endSoundSustain();
+
+	/** Applies the "sound_tempo" setting as well. */
+	void syncSoundSettings() override;
 
 	/** Ctrl-S: silence and disable sound, or re-enable it. */
 	void toggleSound();

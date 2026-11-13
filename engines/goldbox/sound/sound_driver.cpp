@@ -24,6 +24,7 @@
 #include "common/endian.h"
 #include "common/textconsole.h"
 #include "common/util.h"
+#include "goldbox/sound/sound_effects.h"
 
 namespace Goldbox {
 
@@ -42,6 +43,9 @@ const int16 kSpeakerAmplitude = 6000;
  * before silencing; at 13 driver ticks per BIOS tick this is 13-26 ticks.
  */
 const int kBlipTicks = 20;
+
+/** Longest a sustained tune may run on after its animation (~2 s). */
+const int kMaxDrainTicks = 470;
 
 // Channel structure field offsets
 enum {
@@ -72,8 +76,10 @@ GoldboxSoundDriver::GoldboxSoundDriver(Audio::Mixer *mixer, SoundMode mode)
         : _mixer(mixer), _mode(mode), _outputRate(0), _ready(false),
         _soundId(0), _speakerEnable(1), _curChannel(0), _subReturn(0),
         _soundFlag(0), _timerRunning(false), _timerAccumulator(0),
-        _blipTicks(0), _pitDivisor(0), _speakerGate(0), _pitPhase(0),
-        _pitAccumulator(0) {
+        _tempo(100),
+        _blipTicks(0), _queuedSound(-1), _queuedTicks(0), _draining(false),
+        _pitDivisor(0),
+        _speakerGate(0), _pitPhase(0), _pitAccumulator(0) {
     _outputRate = _mixer ? _mixer->getOutputRate() : 0;
     memset(&_speaker, 0, sizeof(_speaker));
     memset(&_tandy, 0, sizeof(_tandy));
@@ -110,10 +116,18 @@ bool GoldboxSoundDriver::init(const Common::Path &dataFile) {
     return true;
 }
 
-void GoldboxSoundDriver::play(uint8 sound) {
+void GoldboxSoundDriver::play(uint8 sound, uint32 sustainMs) {
     if (!_ready)
         return;
     Common::StackLock lock(_mutex);
+
+    if (_soundFlag > 0 && _blipTicks > 0 && sound >= 2 && sound != 0xFF) {
+        _queuedSound = sound - 1;
+        _queuedTicks = blipLength(sustainMs);
+        return;
+    }
+    _queuedSound = -1;
+    _draining = false;
 
     if (_soundFlag > 0)
         startTimer();
@@ -138,7 +152,15 @@ void GoldboxSoundDriver::play(uint8 sound) {
 
     // The original blocks for the blip length here; the stream ends the
     // blip asynchronously instead.
-    _blipTicks = (_soundFlag > 0) ? kBlipTicks : 0;
+    _blipTicks = (_soundFlag > 0) ? blipLength(sustainMs) : 0;
+}
+
+// Blips and run-ons are real-time lengths, so they scale with the tempo.
+int GoldboxSoundDriver::blipLength(uint32 sustainMs) const {
+    const int ticks = (sustainMs == 0) ? kBlipTicks * _tempo / 100 :
+        (int)((uint64)sustainMs * kPitClock * _tempo /
+            ((uint64)kTimerDivisor * 1000 * 100));
+    return ticks < 1 ? 1 : ticks;
 }
 
 void GoldboxSoundDriver::setup(uint16 flag) {
@@ -146,10 +168,18 @@ void GoldboxSoundDriver::setup(uint16 flag) {
         return;
     Common::StackLock lock(_mutex);
 
-    if (flag > 0 && _soundFlag == 0)
-        stopTimer();
+    if (flag > 0 && _soundFlag == 0) {
+        if (_timerRunning && tuneActive()) {
+            _draining = true;
+            _blipTicks = kMaxDrainTicks * _tempo / 100;
+        } else {
+            stopTimer();
+        }
+    }
     if (flag == 0) {
         _blipTicks = 0;
+        _queuedSound = -1;
+        _draining = false;
         startTimer();
     }
     _soundFlag = flag;
@@ -162,7 +192,14 @@ void GoldboxSoundDriver::stopAll() {
     loadSound(_tandy, 0);
     loadSound(_speaker, 0);
     _blipTicks = 0;
+    _queuedSound = -1;
+    _draining = false;
     stopTimer();
+}
+
+void GoldboxSoundDriver::setTempo(int percent) {
+    Common::StackLock lock(_mutex);
+    _tempo = CLIP(percent, kMinSoundTempo, kMaxSoundTempo);
 }
 
 byte GoldboxSoundDriver::read8(uint16 addr) const {
@@ -232,11 +269,33 @@ void GoldboxSoundDriver::timerTick() {
     else
         tandyDma();
 
+    if (_draining && !tuneActive())
+        _blipTicks = 1;
     if (_blipTicks > 0 && --_blipTicks == 0) {
+        _draining = false;
         loadSound(_tandy, 0);
         loadSound(_speaker, 0);
-        stopTimer();
+        if (_queuedSound >= 0) {
+            silence();
+            loadActive((uint16)_queuedSound);
+            _blipTicks = _queuedTicks;
+            _queuedSound = -1;
+        } else {
+            stopTimer();
+        }
     }
+}
+
+bool GoldboxSoundDriver::tuneActive() const {
+    if (_soundId == 0)
+        return false;
+    const Bank &bank = (_mode == kSoundPCSpeaker) ? _speaker : _tandy;
+    uint16 si = bank.chanBase;
+    for (int i = 0; i < kBankChannels; ++i, si += kChannelSize) {
+        if (read16(si + CH_DURATION))
+            return true;
+    }
+    return false;
 }
 
 void GoldboxSoundDriver::speakerDma() {
@@ -529,9 +588,10 @@ int16 GoldboxSoundDriver::speakerSample() {
 int GoldboxSoundDriver::readBuffer(int16 *buffer, const int numSamples) {
     Common::StackLock lock(_mutex);
 
-    const uint32 tickThreshold = kTimerDivisor * _outputRate;
+    // One tick per kTimerDivisor PIT clocks, scaled by the tempo.
+    const uint64 tickThreshold = (uint64)kTimerDivisor * _outputRate * 100;
     for (int i = 0; i < numSamples; ++i) {
-        _timerAccumulator += kPitClock;
+        _timerAccumulator += (uint64)kPitClock * _tempo;
         while (_timerAccumulator >= tickThreshold) {
             _timerAccumulator -= tickThreshold;
             if (_timerRunning)

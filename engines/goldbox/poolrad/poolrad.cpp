@@ -1929,15 +1929,13 @@ void PoolradEngine::dispatchPlayerCommand() {
 		const WildernessTravel::Compass dir = inGameView->getTravelDir();
 		const uint16 wxAddr = layout.vmField(kVmFieldWildernessX).vmAddr;
 		const uint16 wyAddr = layout.vmField(kVmFieldWildernessY).vmAddr;
-		const uint8 prevX = mem.read8(wxAddr);
-		const uint8 prevY = mem.read8(wyAddr);
 		travel.step(wildEnv, dir);
 
-		// Sync the committed wilderness position back to the view.
+		// Sync the committed wilderness position back to the view. No step
+		// sound: MovePartyWilderness plays none, and the EclVm loop's step
+		// only follows gMapX/gMapY, which wilderness travel leaves alone.
 		const uint16 wx = mem.read8(wxAddr);
 		const uint16 wy = mem.read8(wyAddr);
-		if (wx != prevX || wy != prevY)
-			playSfx(kSfxStep);
 		inGameView->setMapPosition(wx, wy, inGameView->getMapDir());
 
 		restoreSelectionIfPresent(savedSelection);
@@ -2041,6 +2039,9 @@ void PoolradEngine::dispatchPlayerCommand() {
 	const uint16 moveYAddr = layout.vmGlobalField(kVmGlobalFieldDungeonY).vmAddr;
 	const uint8 moveCardinal =
 		static_cast<uint8>((inGameView->getMapDir() / 2) & 0x03);
+	// zone0^.previousX/Y: the EclVm loop steps again if the move changed it.
+	const uint8 previousX = mem.read8(moveXAddr);
+	const uint8 previousY = mem.read8(moveYAddr);
 
 	// Prospective destination, computed in PREPARE_INTENT (NOT yet committed).
 	int pendingDestX = 0;
@@ -2178,22 +2179,16 @@ void PoolradEngine::dispatchPlayerCommand() {
 	}
 
 	if (!_eclVm->eclReady) {
-		// Legacy post-ONMOVE branch: save position, try door, check bump.
-		RuntimeMapSnapshot snap;
-		captureRuntimeMapSnapshot(snap);
-		const uint16 savedX = snap.dungeonPos.x;
-		const uint16 savedY = snap.dungeonPos.y;
-
+		// Legacy post-ONMOVE branch: try door, check bump.
 		// DIALOG_OpenDoor: attempt to open door in facing direction.
 		if (_eclHost)
 			_eclHost->tryOpenDoor();
 
-		// Re-read position after door logic (position may have changed).
-		captureRuntimeMapSnapshot(snap);
-		if (snap.dungeonPos.x != savedX || snap.dungeonPos.y != savedY) {
-			// Step after a position change (EclVm main loop)
+		// The EclVm loop's own step when the move changed the position, on
+		// top of the one MovePartyForward3D played.
+		if (mem.read8(moveXAddr) != previousX ||
+				mem.read8(moveYAddr) != previousY)
 			playSfx(kSfxStep);
-		}
 
 		_legacySharedState.bool3dRedraw = false;
 		_legacySharedState.boolPictureReady = true;

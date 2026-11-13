@@ -448,9 +448,9 @@ void resolveAttackSequence(Data::PlayerCharacter *attacker,
 
         ++globals.attackDisplayCount[cs.attackId];
 
+        VmInterface::soundPlay(kSfxImpact);
         if (view)
             view->drawAttackResult(attacker, target, 3, 0, 0, 0);
-        VmInterface::soundPlay(kSfxImpact);
 
         if (Data::Effects::CharacterEffects *fx = attacker->getEffects()) {
             uint8 blurId = Data::Rules::getBlurEffectId();

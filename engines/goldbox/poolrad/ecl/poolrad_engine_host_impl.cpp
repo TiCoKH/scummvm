@@ -221,6 +221,13 @@ public:
         if (!character || !Goldbox::g_events)
             return;
 
+        // CbtMap.CreatureDowned out of combat: the DOWNED sound runs
+        // through the PauseOnly that follows.
+        if (Goldbox::VmInterface::getGameStatus() != Goldbox::GS_COMBAT &&
+                Goldbox::g_engine)
+            Goldbox::g_engine->playSfxFor(Goldbox::kSfxDowned,
+                (uint32)Goldbox::VmInterface::getGameSpeed() * 225);
+
         // Remove from combat map if in combat.
         Goldbox::Poolrad::PoolradEngine *poolEngine =
             dynamic_cast<Goldbox::Poolrad::PoolradEngine *>(Goldbox::g_engine);

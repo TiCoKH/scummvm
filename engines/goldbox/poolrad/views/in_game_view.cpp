@@ -654,9 +654,7 @@ void InGameView::handleMenuResult(const MenuResultMessage &result) {
 			result._stringValue == "DoorResult") {
 		if (result._hasIntValue &&
 				result._intValue == Dialogs::DoorDialog::kDoorOpened) {
-			// Door opened: the engine commits the step from VM memory.
-			if (g_engine)
-				g_engine->playSfx(kSfxStep);
+			// Door opened: the engine commits the step (and its sounds).
 			queueCommand(kCmdMove);
 		} else {
 			// Door blocked — play blocked sound.

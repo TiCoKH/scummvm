@@ -111,6 +111,7 @@ void Engine::setup() {
 				version.c_str());
 		_soundDriver = new GoldboxSoundDriver(_mixer, _soundMode);
 		if (_soundDriver->init(Common::Path(dataFile))) {
+			syncSoundSettings();
 			_soundDriver->setup(100);
 		} else {
 			warning("Goldbox: could not initialize sound using %s", dataFile);
@@ -263,6 +264,23 @@ void Engine::soundPlay(uint8 soundIndex) {
 
 	// ARRAY_SOUND_MAP = { 0xFF, 0, 1, 2, ... }
 	_soundDriver->play(soundIndex == 0 ? 0xFF : soundIndex - 1);
+}
+
+void Engine::playSfxFor(SoundEffect sfx, uint32 ms) {
+	if (_soundMode == kSoundOff || !_soundDriver || !_soundEnabled)
+		return;
+	if (sfx == kSfxStop) {
+		soundPlay(kSfxStop);
+		return;
+	}
+	_soundDriver->play(static_cast<uint8>(sfx) - 1, ms);
+}
+
+void Engine::syncSoundSettings() {
+	::Engine::syncSoundSettings();
+	if (_soundDriver)
+		_soundDriver->setTempo(ConfMan.hasKey("sound_tempo") ?
+			ConfMan.getInt("sound_tempo") : kDefaultSoundTempo);
 }
 
 void Engine::soundSetup(uint16 flag) {
