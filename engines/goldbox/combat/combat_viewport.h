@@ -74,6 +74,7 @@ public:
     CombatViewport();
 
     void centerOn(TilePos pos);
+    void centerOn(int col, int row);
     bool adjustToInclude(TilePos target, uint8 radius = 0xFF);
 
     int getTopLeftCol() const { return _topLeftCol; }

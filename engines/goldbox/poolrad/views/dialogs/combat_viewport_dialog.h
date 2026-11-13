@@ -145,10 +145,10 @@ public:
 private:
     struct MovementAnimStep {
         ScreenPos finePos;  // fine-grid position relative to viewport top-left
+        TilePos viewTopLeft;
     };
 
     static const int kFinePerTile = 3;
-    static const int kPanTiles = 3;
 
     // Original loads COMSPR blocks 0-11 into icon slots 13-24; the dying
     // icon drawn by COMBAT_HandleDeathOnMap is slot 24 (COMSPR block 11).
@@ -166,6 +166,7 @@ private:
     uint8 _aimCursorSize = 1;
 
     bool isAttacking(::Goldbox::Data::PlayerCharacter *ch) const;
+    void showViewAt(TilePos topLeft);
     void drawAimCursor();
 
     Common::Array<MovementAnimStep> buildMovementAnimationPath(

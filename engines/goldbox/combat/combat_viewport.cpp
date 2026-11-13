@@ -30,38 +30,48 @@ CombatViewport::CombatViewport() : _topLeftCol(0), _topLeftRow(0) {
 }
 
 void CombatViewport::centerOn(TilePos pos) {
-    _topLeftCol = pos.col - CENTER_X;
-    _topLeftRow = pos.row - CENTER_Y;
+    centerOn((int)pos.col, (int)pos.row);
+}
+
+void CombatViewport::centerOn(int col, int row) {
+    _topLeftCol = col - CENTER_X;
+    _topLeftRow = row - CENTER_Y;
     clamp();
 }
 
+// BuildViewBuffer: an axis only moves when the target is outside the band on
+// that axis. Returns true whenever the view is rebuilt.
 bool CombatViewport::adjustToInclude(TilePos target, uint8 radius) {
     int centerCol = _topLeftCol + CENTER_X;
     int centerRow = _topLeftRow + CENTER_Y;
+    const int band = (radius == 0xFF) ? 0 : radius;
+    const int col = target.col;
+    const int row = target.row;
 
-    if (radius != 0xFF) {
-        if (ABS((int)target.col - centerCol) <= (int)radius &&
-            ABS((int)target.row - centerRow) <= (int)radius)
-            return false;
+    if (radius != 0xFF &&
+        col >= centerCol - band && col <= centerCol + band &&
+        row >= centerRow - band && row <= centerRow + band)
+        return false;
+
+    if (col < centerCol - band) {
+        while (col < centerCol && centerCol > CENTER_X)
+            centerCol--;
+    } else if (col > centerCol + band) {
+        while (col > centerCol && centerCol < MAP_COLS - 1 - CENTER_X)
+            centerCol++;
     }
-
-    int oldCol = _topLeftCol;
-    int oldRow = _topLeftRow;
-
-    while ((int)target.col < centerCol && centerCol > CENTER_X)
-        centerCol--;
-    while ((int)target.col > centerCol && centerCol < MAP_COLS - 1 - CENTER_X)
-        centerCol++;
-    while ((int)target.row < centerRow && centerRow > CENTER_Y)
-        centerRow--;
-    while ((int)target.row > centerRow && centerRow < MAP_ROWS - 1 - CENTER_Y)
-        centerRow++;
+    if (row < centerRow - band) {
+        while (row < centerRow && centerRow > CENTER_Y)
+            centerRow--;
+    } else if (row > centerRow + band) {
+        while (row > centerRow && centerRow < MAP_ROWS - 1 - CENTER_Y)
+            centerRow++;
+    }
 
     _topLeftCol = centerCol - CENTER_X;
     _topLeftRow = centerRow - CENTER_Y;
     clamp();
-
-    return (_topLeftCol != oldCol || _topLeftRow != oldRow);
+    return true;
 }
 
 ViewportPos CombatViewport::getCharacterViewportPosition(

@@ -338,7 +338,7 @@ void CombatView::draw() {
         if (ctx) {
             if (!ctx->isCharacterInBounds(_aiFacingChar, true)) {
                 const TilePos pos = _session.getTable().getCharacterPos(_aiFacingChar);
-                _session.getViewport().centerOn(pos);
+                _session.scrollViewport(pos, 3);
             }
             ctx->setCharacterFacing(_aiFacingChar, _aiFacingDir);
         }
@@ -1157,7 +1157,7 @@ bool CombatView::centerCameraOn(::Goldbox::Data::PlayerCharacter *ch) {
     Combat::CombatContext *ctx = _session.getContext();
     if (!ch || !ctx || ctx->isCharacterInBounds(ch, true))
         return false;
-    _session.getViewport().centerOn(_session.getTable().getCharacterPos(ch));
+    _session.scrollViewport(_session.getTable().getCharacterPos(ch), 3);
     return true;
 }
 
@@ -1327,7 +1327,7 @@ void CombatView::updateCharacterFacingAndRedraw(
 
     // Scroll viewport to include the full footprint if needed.
     if (!ctx->isCharacterInBounds(ch, true))
-        _viewport->centerOn(_session.getTable().getCharacterPos(ch));
+        _session.scrollViewport(_session.getTable().getCharacterPos(ch), 3);
 
     ctx->setCharacterFacing(ch, direction);
     // Erase the previous silhouette before drawing either icon phase.

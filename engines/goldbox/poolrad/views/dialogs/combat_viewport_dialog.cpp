@@ -274,6 +274,12 @@ void CombatViewportDialog::centerOn(TilePos center) {
     draw();
 }
 
+void CombatViewportDialog::showViewAt(TilePos topLeft) {
+    centerOn(TilePos(
+        (uint8)(topLeft.col + ::Goldbox::Combat::CombatViewport::CENTER_X),
+        (uint8)(topLeft.row + ::Goldbox::Combat::CombatViewport::CENTER_Y)));
+}
+
 // ---------------------------------------------------------------------------
 // Movement animation
 
@@ -306,95 +312,107 @@ CombatViewportDialog::buildMovementAnimationPath(TilePos start, TilePos end,
     if (stepCount < 2)
         return steps;
 
-    // Determine initial viewport center.
+    typedef ::Goldbox::Combat::CombatViewport Viewport;
+    const int kFineMax = (Viewport::VIEW_COLS - 1) * kFinePerTile;
+
+    // Initial camera: keep the view unless an endpoint is off-view; a short
+    // flight is framed on its midpoint, a long one pans as it goes.
     const int deltaX = (int)end.col - (int)start.col;
     const int deltaY = (int)end.row - (int)start.row;
-    TilePos redrawCenter;
-    if (viewport.isTileVisible(start) && viewport.isTileVisible(end)) {
-        redrawCenter = viewport.getCenter();
-    } else if (ABS(deltaX) < ::Goldbox::Combat::CombatViewport::VIEW_COLS &&
-               ABS(deltaY) < ::Goldbox::Combat::CombatViewport::VIEW_ROWS) {
-        redrawCenter = TilePos((uint8)(start.col + deltaX / 2),
-                               (uint8)(start.row + deltaY / 2));
-    } else {
-        redrawCenter = viewport.getCenter();
-    }
-    centerOn(redrawCenter);
-
-    const int kFineViewCols =
-        ::Goldbox::Combat::CombatViewport::VIEW_COLS * kFinePerTile;
-    const int kFineViewRows =
-        ::Goldbox::Combat::CombatViewport::VIEW_ROWS * kFinePerTile;
-
-    TilePos vpTopLeft = viewport.getTopLeft();
-    ScreenPos finePos(
-        (int16)((start.col - vpTopLeft.col) * kFinePerTile),
-        (int16)((start.row - vpTopLeft.row) * kFinePerTile));
-    ScreenPos subtileOffset(0, 0);
-
-    // Walk every direction step, emitting one MovementAnimStep per tile boundary.
-    for (int i = 0; i < stepCount; ++i) {
-        // Emit every third-cell step, or only on tile boundaries.
-        if (everyStep || (finePos.col % kFinePerTile == 0
-                && finePos.row % kFinePerTile == 0)) {
-            MovementAnimStep s;
-            s.finePos = finePos;
-            steps.push_back(s);
-        }
-
-        if (i + 1 >= stepCount)
-            break;
-
-        const Direction dir = directions[i + 1];
-        finePos.col += kDirDeltaX[dir];
-        finePos.row += kDirDeltaY[dir];
-
-        const bool leftViewport =
-            finePos.col < 0 || finePos.col >= kFineViewCols ||
-            finePos.row < 0 || finePos.row >= kFineViewRows;
-
-        if (!leftViewport) {
-            subtileOffset.col += kDirDeltaX[dir];
-            subtileOffset.row += kDirDeltaY[dir];
-            if (ABS((int)subtileOffset.col) == kFinePerTile) {
-                redrawCenter.col = (uint8)((int)redrawCenter.col +
-                    (subtileOffset.col > 0 ? 1 : -1));
-                subtileOffset.col = 0;
-            }
-            if (ABS((int)subtileOffset.row) == kFinePerTile) {
-                redrawCenter.row = (uint8)((int)redrawCenter.row +
-                    (subtileOffset.row > 0 ? 1 : -1));
-                subtileOffset.row = 0;
-            }
+    TilePos topLeft = viewport.getTopLeft();
+    int camCol = topLeft.col + Viewport::CENTER_X;
+    int camRow = topLeft.row + Viewport::CENTER_Y;
+    bool lastPass = true;
+    if (!viewport.isTileVisible(start) || !viewport.isTileVisible(end)) {
+        if (ABS(deltaX) < Viewport::VIEW_COLS &&
+            ABS(deltaY) < Viewport::VIEW_ROWS) {
+            camCol = start.col + deltaX / 2;
+            camRow = start.row + deltaY / 2;
         } else {
-            // Pan viewport kPanTiles toward movement direction and recalculate.
-            redrawCenter.col = (uint8)((int)redrawCenter.col +
-                kDirDeltaX[dir] * kPanTiles);
-            redrawCenter.row = (uint8)((int)redrawCenter.row +
-                kDirDeltaY[dir] * kPanTiles);
-            centerOn(redrawCenter);
-
-            vpTopLeft = viewport.getTopLeft();
-            const TilePos curTile(
-                (uint8)(start.col + subtileOffset.col / kFinePerTile),
-                (uint8)(start.row + subtileOffset.row / kFinePerTile));
-            finePos.col = (int16)((curTile.col - vpTopLeft.col) * kFinePerTile +
-                kDirDeltaX[dir]);
-            finePos.row = (int16)((curTile.row - vpTopLeft.row) * kFinePerTile +
-                kDirDeltaY[dir]);
-            subtileOffset = ScreenPos(0, 0);
+            lastPass = false;
         }
     }
+    viewport.centerOn(camCol, camRow);
 
-    // Always emit the final tile position.
-    if (!viewport.isTileVisible(end))
-        centerOn(end);
-    vpTopLeft = viewport.getTopLeft();
-    MovementAnimStep last;
-    last.finePos = ScreenPos(
-        (int16)((end.col - vpTopLeft.col) * kFinePerTile),
-        (int16)((end.row - vpTopLeft.row) * kFinePerTile));
-    steps.push_back(last);
+    int tileCol = start.col;
+    int tileRow = start.row;
+    int accCol = 0;
+    int accRow = 0;
+    int n = 0;
+    for (;;) {
+        topLeft = viewport.getTopLeft();
+        ScreenPos finePos(
+            (int16)((tileCol - topLeft.col) * kFinePerTile + accCol),
+            (int16)((tileRow - topLeft.row) * kFinePerTile + accRow));
+        const int prevCol = tileCol;
+        const int prevRow = tileRow;
+        bool leftViewport = false;
+        do {
+            if (everyStep || finePos.col % kFinePerTile == 0 ||
+                finePos.row % kFinePerTile == 0) {
+                MovementAnimStep s;
+                s.finePos = finePos;
+                s.viewTopLeft = topLeft;
+                steps.push_back(s);
+            }
+
+            ++n;
+            const int dx = n < stepCount ? kDirDeltaX[directions[n]] : 0;
+            const int dy = n < stepCount ? kDirDeltaY[directions[n]] : 0;
+            finePos.col += dx;
+            finePos.row += dy;
+            if (finePos.col < 0 || finePos.col > kFineMax ||
+                finePos.row < 0 || finePos.row > kFineMax)
+                leftViewport = true;
+
+            if (!leftViewport && n < stepCount) {
+                accCol += dx;
+                accRow += dy;
+                if (ABS(accCol) == kFinePerTile) {
+                    const int sign = accCol > 0 ? 1 : -1;
+                    tileCol += sign;
+                    camCol += sign;
+                    accCol = 0;
+                }
+                if (ABS(accRow) == kFinePerTile) {
+                    const int sign = accRow > 0 ? 1 : -1;
+                    tileRow += sign;
+                    camRow += sign;
+                    accRow = 0;
+                }
+            }
+        } while (n < stepCount && !leftViewport);
+
+        if (n < stepCount) {
+            // Off the edge: re-frame with the projectile at the far side.
+            if (prevCol != tileCol) {
+                if (tileCol >= topLeft.col + Viewport::VIEW_COLS - 1)
+                    camCol = tileCol + Viewport::CENTER_X;
+                else if (tileCol <= topLeft.col)
+                    camCol = tileCol - Viewport::CENTER_X;
+            }
+            if (prevRow != tileRow) {
+                if (tileRow >= topLeft.row + Viewport::VIEW_ROWS - 1)
+                    camRow = tileRow + Viewport::CENTER_Y;
+                else if (tileRow <= topLeft.row)
+                    camRow = tileRow - Viewport::CENTER_Y;
+            }
+            viewport.centerOn(camCol, camRow);
+        } else {
+            lastPass = true;
+            if (!viewport.isTileVisible(end))
+                viewport.adjustToInclude(end, 3);
+            topLeft = viewport.getTopLeft();
+            MovementAnimStep last;
+            last.finePos = ScreenPos(
+                (int16)((end.col - topLeft.col) * kFinePerTile),
+                (int16)((end.row - topLeft.row) * kFinePerTile));
+            last.viewTopLeft = topLeft;
+            steps.push_back(last);
+        }
+        if (lastPass)
+            break;
+    }
 
     return steps;
 }
@@ -424,8 +442,10 @@ void CombatViewportDialog::animateMovingIcon(TilePos start, TilePos end,
     if (path.empty())
         return;
 
-    // The background, icons included, comes back after each step.
-    draw();
+    // The background, icons included, comes back after each step; a pan
+    // redraws it.
+    TilePos shownTopLeft = path[0].viewTopLeft;
+    showViewAt(shownTopLeft);
     Surface screenSurface = getSurface();
     Graphics::ManagedSurface *screen =
         static_cast<Graphics::ManagedSurface *>(&screenSurface);
@@ -434,6 +454,11 @@ void CombatViewportDialog::animateMovingIcon(TilePos start, TilePos end,
 
     uint frame = 0;
     for (uint i = 0; i < path.size(); ++i) {
+        if (path[i].viewTopLeft != shownTopLeft) {
+            shownTopLeft = path[i].viewTopLeft;
+            showViewAt(shownTopLeft);
+            backup.copyFrom(*screen);
+        }
         const Common::Point px = fineToPixel(path[i].finePos);
         const ::Goldbox::Gfx::Pic *pic = frames[frame];
         if (pic)
@@ -543,9 +568,9 @@ void CombatViewportDialog::animateDamage(
     const ::Goldbox::Combat::CombatantTable &table = _session->getTable();
     const int idx = table.findIndex(target);
     if (idx >= 0) {
-        const TilePos pos(table.getTileCol(idx), table.getTileRow(idx));
-        if (!_session->getViewport().isTileVisible(pos))
-            _session->scrollViewport(pos);
+        const ::Goldbox::Combat::CombatContext *ctx = _session->getContext();
+        if (ctx && !ctx->isCharacterInBounds(target, true))
+            _session->scrollViewport(table.getTilePos(idx), 3);
     }
     draw();
 
@@ -602,7 +627,7 @@ void CombatViewportDialog::showDying(::Goldbox::Data::PlayerCharacter *ch) {
 
     ::Goldbox::Combat::CombatContext *ctx = _session->getContext();
     if (ctx && !ctx->isCharacterInBounds(ch, true)) {
-        _session->scrollViewport(table.getTilePos(idx));
+        _session->scrollViewport(table.getTilePos(idx), 3);
         draw();
     }
 

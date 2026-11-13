@@ -795,12 +795,15 @@ bool CombatSession::cancelMove(Data::PlayerCharacter *ch,
     // character (we have not moved it yet), so an occupant slot pointing at a
     // different index is a genuine block.
     const uint8 occupant = _table.getOccupant(origPos); // 1-based, 0 = empty
-    if (originBlockedByOther(occupant, idx))
-        return false; // original failure path: origin is occupied
+    if (originBlockedByOther(occupant, idx)) {
+        // original failure path: origin is occupied
+        scrollViewport(_table.getTilePos(idx), 0);
+        return false;
+    }
 
     _table.setPosition(idx, origPos);
     _table.rebuildOccupancy();
-    scrollViewport(origPos, 2);
+    scrollViewport(origPos, 0);
     return true;
 }
 
@@ -981,7 +984,7 @@ bool CombatSession::applyMoveStep(Data::PlayerCharacter *ch, uint8 direction,
     if (ch->ai_control) {
         scrollRadius = 3;
         // If destination is outside the viewport, scroll to source first.
-        if (!_context->isCharacterInBounds(ch, false))
+        if (!_viewport.isTileVisible(dst))
             scrollViewport(src, 2);
     }
 
