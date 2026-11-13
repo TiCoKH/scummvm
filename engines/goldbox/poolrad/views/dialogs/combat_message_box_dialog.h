@@ -54,6 +54,13 @@ public:
     static const int kBottom = 21;
     static const int kInfoBottom = 9;
     static const int kTextColor = 10;
+    static const int kInjuredColor = 14;
+    static const int kStatusColor = 15;
+    static const int kPartyNameColor = 11;
+    static const int kEnemyNameColor = 14;
+    static const int kDisabledNameColor = 12;
+    static const int kWeaponTop = 7;
+    static const int kWeaponBottom = 9;
     static const uint8 kBackgroundColor = 8;
     static const uint8 kDefaultMessageRow = 10;
 
@@ -64,8 +71,12 @@ public:
     void setActor(::Goldbox::Data::PlayerCharacter *ch) { _actor = ch; }
     ::Goldbox::Data::PlayerCharacter *getActor() const { return _actor; }
 
-    /** Draw the info block for ch now (COMBATVIEW_drawCombatInfo). */
-    void drawActorInfo(::Goldbox::Data::PlayerCharacter *ch);
+    /**
+     * Draw the info block for ch now (CombatPrintCreatureInfo). clearPanel
+     * also wipes the message rows, as the original does.
+     */
+    void drawActorInfo(::Goldbox::Data::PlayerCharacter *ch,
+                       bool clearPanel = false);
 
     // MessageBoxApi
     void showMessage(::Goldbox::Data::PlayerCharacter *speaker,
@@ -78,6 +89,10 @@ public:
 
 private:
     ::Goldbox::Data::PlayerCharacter *_actor = nullptr;
+
+    static int drawWrapped(Surface &s, int topRow, int bottomRow,
+                           const Common::String &text);
+    static bool isHelpless(::Goldbox::Data::PlayerCharacter *ch);
 };
 
 } // namespace Dialogs

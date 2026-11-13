@@ -1162,7 +1162,7 @@ bool CombatView::centerCameraOn(::Goldbox::Data::PlayerCharacter *ch) {
 }
 
 void CombatView::drawCombatInfo(::Goldbox::Data::PlayerCharacter *ch) {
-    _messageBox->drawActorInfo(ch);
+    _messageBox->drawActorInfo(ch, true);
 }
 
 // ---------------------------------------------------------------------------
