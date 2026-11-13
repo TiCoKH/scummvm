@@ -41,7 +41,24 @@ enum {
 	kMsgDispelFails = 1115,
 	kMsgDispelsOne = 1116,
 	kMsgDispelsMany = 1117,
+	kMsgResists = 1118,
+	kMsgSpellKilled = 1119,
 	kMsgTakesDamage = 1120,
+	kMsgIsWord = 1121,         // "^ IS &"
+	kMsgIsNotWord = 1122,
+	kMsgRestored = 1123,
+	kMsgCompletelyHealed = 1124,
+	kMsgHeld = 1125,
+	kMsgSilenced = 1126,
+	kMsgDoesNotWork = 1127,
+	kMsgSlain = 1128,
+	kMsgSlept = 1129,
+	kMsgNothingHappens = 1130,
+	kMsgCured = 1131,
+	kMsgNotCured = 1132,
+	kMsgCannotSpeak = 1133,
+	kMsgFizzles = 1134,
+	kMsgCasts = 1136,
 	kMsgBreathes = 1135,
 	kMsgMonsterVerbs = 1150,   // five of them
 	kMsgPartyVerbs = 1155,     // five of them
@@ -57,7 +74,18 @@ enum {
 	// Bits of a character's resistances
 	kResistPoison = 3,
 	kResistDrain = 4,
-	kResistStoning = 5
+	kResistStoning = 5,
+	kResistSpells = 6,    // spells aimed at this one are wasted
+
+	// Kinds of damage a spell can do
+	kElementNone = 0,
+	kElementFire = 1,
+	kElementCold = 2
+};
+
+// What a spell does to a mind that does not resist
+enum StatusEffect {
+	kEffectSleep, kEffectSilence, kEffectDeath
 };
 
 enum Affliction {
@@ -79,7 +107,7 @@ static Common::String isWord(const Common::String &text, const Common::String &n
 }
 
 Battle::Battle(Party &party, const MonsterList &monsters, const MessageFile &messages,
-		const MazeState &maze, Dice &dice) :
+		MazeState &maze, Dice &dice) :
 		_party(party), _monsters(monsters), _messages(messages), _maze(maze), _dice(dice) {
 	for (int g = 0; g < kGroupCount; ++g) {
 		_groups[g].identified = false;
@@ -443,6 +471,11 @@ void Battle::orderParry(uint member) {
 	_groups[0].members[member].action = kParry;
 }
 
+void Battle::orderCast(uint member, int spell, int target) {
+	_groups[0].members[member].action = spell;
+	_groups[0].members[member].target = target;
+}
+
 bool Battle::tryRun() {
 	int chance = 75;
 	if (_party.size() < 4)
@@ -496,9 +529,11 @@ void Battle::enemiesChoose() {
 			if (!enemyCanAffect(gi, f.target))
 				continue;
 
-			// TODO: spells come first here, when there is no surprise
+			// Spells come first, but not in a round of surprise
+			if (_surprise == kNoSurprise)
+				pickSpell(gi, i);
 
-			if (g.enemy.breathType > 0 && _dice.roll(100) < 60)
+			if (f.action == kParry && g.enemy.breathType > 0 && _dice.roll(100) < 60)
 				f.action = kBreath;
 			if (f.action == kParry && (g.enemy.flags & Monster::kMayCallHelp) && g.aliveCount < 8 &&
 					_dice.roll(100) < 75)
@@ -506,6 +541,10 @@ void Battle::enemiesChoose() {
 			if (f.action == kParry && (g.enemy.flags & Monster::kMayRun) && _enemyStrength < _partyStrength &&
 					_dice.roll(100) < 65)
 				f.action = kRunAway;
+
+			// A spell at someone whom spells cannot touch is wasted
+			if (f.action > 0 && ((_party.member(f.target).resist >> kResistSpells) & 1))
+				f.initiative = -1;
 
 			// Otherwise fight, but only from near the front
 			if (f.action == kParry && (i <= 4 - gi || (int)_dice.roll(100) >= 60 - 10 * gi)) {
@@ -778,6 +817,13 @@ void Battle::breathe(int gi, int index) {
 
 void Battle::runRound(Common::Array<Common::String> &lines) {
 	_lines = &lines;
+
+	// The spells ordered are paid for now, cast or not
+	for (uint i = 0; i < _party.size(); ++i) {
+		if (_groups[0].members[i].action > 0)
+			Spells::spend(_party.member(i), _groups[0].members[i].action);
+	}
+
 	enemiesChoose();
 
 	for (int step = 1; step <= 10; ++step) {
@@ -789,7 +835,12 @@ void Battle::runRound(Common::Array<Common::String> &lines) {
 				if (f.status != kStatusOk || f.initiative != step)
 					continue;
 
-				if (gi == 0) {
+				if (_outcome != kUndecided)
+					continue;
+
+				if (f.action > 0) {
+					cast(gi, i);
+				} else if (gi == 0) {
 					if (f.action == kFight)
 						memberAttacks(i);
 					else if (f.action == kDispel)
@@ -818,6 +869,414 @@ void Battle::runRound(Common::Array<Common::String> &lines) {
 
 	writeBack();
 	_lines = nullptr;
+}
+
+Common::String Battle::fighterName(int group, int index) const {
+	return group == 0 ? _party.member(index).name : monsterName(group);
+}
+
+void Battle::pickSpell(int gi, int index) {
+	Group &g = _groups[gi];
+	Fighter &f = g.members[index];
+
+	if (g.enemy.mageSpellLevel > 0 && (g.enemy.monsterClass == 1 || _dice.roll(100) < 75)) {
+		// Often a spell of a lower level than the highest
+		int level = g.enemy.mageSpellLevel;
+		while (level > 1 && _dice.roll(100) > 70)
+			--level;
+
+		// Now and then the group loses its highest spell level
+		// (the place of this roll among the others is not certain)
+		if (_dice.roll(g.aliveCount + 2) == 0)
+			--g.enemy.mageSpellLevel;
+
+		// One time in three the first of the two, else the second
+		static const uint8 CHOICES[7][2] = {
+			{ HALITO, KATINO }, { HALITO, DILTO }, { MAHALITO, MOLITO }, { LAHALITO, DALTO },
+			{ MADALTO, LAHALITO }, { ZILWAN, MADALTO }, { TILTOWAIT, TILTOWAIT }
+		};
+		f.action = CHOICES[CLIP(level, 1, 7) - 1][_dice.roll(100) < 34 ? 0 : 1];
+	}
+
+	if (f.action == kParry && g.enemy.priestSpellLevel > 0 &&
+			(g.enemy.monsterClass == 2 || _dice.roll(100) < 75)) {
+		static const uint8 CHOICES[7][2] = {
+			{ BADIOS, BADIOS }, { MONTINO, MONTINO }, { BADIAL, BADIOS }, { BADIAL, BADIAL },
+			{ BADI, BADIALMA }, { MABADI, LORTO }, { MABADI, MABADI }
+		};
+		f.action = CHOICES[CLIP<int>(g.enemy.priestSpellLevel, 1, 7) - 1][_dice.roll(100) < 34 ? 0 : 1];
+	}
+}
+
+void Battle::cast(int gi, int index) {
+	Fighter &f = _groups[gi].members[index];
+	const int spell = f.action;
+	const Common::String who = fighterName(gi, index);
+	const Common::String what = Spells::name(_messages, spell);
+
+	if (f.silencedRounds > 0) {
+		say(format(kMsgCannotSpeak, who, what));
+		return;
+	}
+	if (_maze.spellsFizzle) {
+		say(format(kMsgFizzles, who, what));
+		return;
+	}
+	say(format(kMsgCasts, who, what));
+
+	// The party aims at a group, and each member at the monster of it
+	// that stands opposite; a monster aims at one of the party
+	int targetGroup = 0, targetMember = f.target;
+	if (gi == 0) {
+		targetGroup = f.target;
+		targetMember = 0;
+		if (targetGroup > 0 && targetGroup < kGroupCount && _groups[targetGroup].aliveCount > 0)
+			targetMember = index % _groups[targetGroup].aliveCount;
+	}
+
+	applyMage(spell, gi, index, targetGroup, targetMember, f.level);
+	applyPriest(spell, gi, index, targetGroup, targetMember, f.level);
+}
+
+bool Battle::groupResists(int group) {
+	if (group < 1)
+		return false;
+
+	if ((int)_dice.roll(100) < _groups[group].enemy.magicResistance) {
+		say(format(kMsgResists, monsterName(group)));
+		return true;
+	}
+	return false;
+}
+
+void Battle::spellKill(int group, int index) {
+	Fighter &f = _groups[group].members[index];
+	f.hp = 0;
+	if (f.status < kStatusDead)
+		f.status = kStatusDead;
+}
+
+void Battle::spellDamage(int group, int index, int damage) {
+	Fighter &f = _groups[group].members[index];
+
+	damage = (damage < 0) ? 0 : MAX(damage, 1);
+	if (f.status >= kStatusDead || groupResists(group))
+		return;
+
+	f.hp -= damage;
+	if (f.hp < 1)
+		spellKill(group, index);
+
+	say(format(f.hp < 1 ? kMsgSpellKilled : kMsgTakesDamage, fighterName(group, index),
+		Common::String(), Common::String(), damage));
+}
+
+void Battle::spellDamageDice(int group, int index, int count, int sides) {
+	const Dice3 dice = { (int16)count, (int16)sides, 0 };
+	spellDamage(group, index, rollDice(dice));
+}
+
+void Battle::spellDamageGroup(int group, int count, int sides, int element) {
+	Group &g = _groups[group];
+
+	for (int i = 0; i < g.aliveCount; ++i) {
+		// Half the dice against one who withstands this kind of damage
+		const uint resist = (group == 0) ? _party.member(i).resist : g.enemy.elementResist;
+		if (element != kElementNone && ((resist >> element) & 1))
+			spellDamageDice(group, i, count / 2 + 1, sides);
+		else
+			spellDamageDice(group, i, count, sides);
+	}
+}
+
+void Battle::statusAttack(int group, int index, int resistChance, uint word, int effect) {
+	if (groupResists(group))
+		return;
+
+	Fighter &f = _groups[group].members[index];
+	resistChance = MAX(resistChance, 5);
+
+	uint message = kMsgIsNotWord;
+	if ((int)_dice.roll(100) >= resistChance) {
+		message = kMsgIsWord;
+		switch (effect) {
+		case kEffectSleep:
+			f.status = kStatusAsleep;
+			break;
+		case kEffectSilence:
+			f.silencedRounds = _dice.roll(4) + 2;
+			break;
+		default:
+			spellKill(group, index);
+			break;
+		}
+	}
+
+	say(isWord(_messages.get(message), fighterName(group, index), _messages.get(word)));
+}
+
+void Battle::adjustAC(int group, int by, int first, int last) {
+	for (int i = first; i <= last && i < kMaxInGroup; ++i)
+		_groups[group].members[i].acModifier += by;
+}
+
+void Battle::heal(int member, int count, int sides) {
+	if (member < 0 || member >= (int)_party.size())
+		return;
+
+	const Dice3 dice = { (int16)count, (int16)sides, 0 };
+	const int amount = rollDice(dice);
+	Fighter &f = _groups[0].members[member];
+	const Character &c = _party.member(member);
+
+	f.hp = MIN<int>(f.hp + amount, c.hpMax);
+	say(format(f.hp == c.hpMax ? kMsgCompletelyHealed : kMsgRestored, c.name,
+		Common::String(), Common::String(), amount));
+}
+
+void Battle::applyMage(int spell, int gi, int index, int targetGroup, int targetMember, int casterLevel) {
+	const int lastMember = (int)_party.size() - 1;
+
+	switch (spell) {
+	case HALITO:
+		spellDamageDice(targetGroup, targetMember, 1, 8);
+		break;
+	case MOGREF:
+		adjustAC(0, 2, index, index);
+		break;
+	case KATINO: {
+		Group &g = _groups[targetGroup];
+		for (int i = 0; i < g.aliveCount; ++i) {
+			if (g.members[i].status >= kStatusAsleep)
+				continue;
+			int chance = (g.members[i].level - casterLevel) * 5 + 50;
+			// Monsters that cannot be put to sleep never are
+			if (targetGroup != 0 && !(g.enemy.flags & Monster::kCanSleep))
+				chance += 100;
+			statusAttack(targetGroup, i, chance, kMsgSlept, kEffectSleep);
+		}
+		break;
+	}
+	case DILTO:
+		adjustAC(targetGroup, -2, 0, _groups[targetGroup].aliveCount - 1);
+		break;
+	case SOPIC:
+		adjustAC(0, 4, index, index);
+		break;
+	case MAHALITO:
+		spellDamageGroup(targetGroup, 4, 6, kElementFire);
+		break;
+	case MOLITO:
+		spellDamageGroup(targetGroup, 3, 6, kElementNone);
+		break;
+	case MORLIS:
+		adjustAC(targetGroup, -3, 0, _groups[targetGroup].aliveCount - 1);
+		break;
+	case DALTO:
+		spellDamageGroup(targetGroup, 6, 6, kElementCold);
+		break;
+	case LAHALITO:
+		spellDamageGroup(targetGroup, 6, 6, kElementFire);
+		break;
+	case MAMORLIS:
+		for (int g = 1; g < kGroupCount; ++g)
+			adjustAC(g, -3, 0, _groups[g].aliveCount - 1);
+		break;
+	case MAKANITO:
+		// Kills every group that is not undead and below level 8
+		for (int g = 1; g < kGroupCount; ++g) {
+			if (_groups[g].aliveCount > 0 && _groups[g].enemy.monsterClass != kClassUndead &&
+					_groups[g].enemy.hitDice.count < 8) {
+				for (int i = 0; i < _groups[g].aliveCount; ++i)
+					spellDamage(g, i, _groups[g].members[i].hp);
+			}
+		}
+		break;
+	case MADALTO:
+		spellDamageGroup(targetGroup, 8, 8, kElementCold);
+		break;
+	case LAKANITO:
+		// Smothers the living
+		if (_groups[targetGroup].enemy.monsterClass != kClassUndead) {
+			for (int i = 0; i < _groups[targetGroup].aliveCount; ++i) {
+				if (_groups[targetGroup].members[i].status < kStatusDead)
+					statusAttack(targetGroup, i, _groups[targetGroup].enemy.hitDice.count * 6,
+						kMsgSlain, kEffectDeath);
+			}
+		}
+		break;
+	case ZILWAN:
+		// Dissolves one of the undead
+		if (_groups[targetGroup].enemy.monsterClass == kClassUndead)
+			spellDamageDice(targetGroup, targetMember, 10, 200);
+		break;
+	case MASOPIC:
+		adjustAC(0, 4, 0, lastMember);
+		break;
+	case HAMAN:
+	case MAHAMAN:
+		// TODO: the boons of the gods
+		say(_messages.get(kMsgDoesNotWork));
+		break;
+	case MALOR:
+		// Out of the fight to a place at random, perhaps some levels down
+		_maze.x = _dice.roll(MazeLevel::kSize);
+		_maze.y = _dice.roll(MazeLevel::kSize);
+		while (_dice.roll(100) <= 29)
+			++_maze.level;
+		while (_dice.roll(100) <= 9)
+			++_maze.level;
+		// TODO: the original turns back to level 1 at the level of the last fight
+		if (_maze.level > 10)
+			_maze.level = 1;
+		_outcome = kTeleported;
+		break;
+	case TILTOWAIT:
+		if (gi == 0) {
+			for (int g = 1; g < kGroupCount; ++g)
+				spellDamageGroup(g, 10, 15, kElementNone);
+		} else {
+			spellDamageGroup(0, 10, 15, kElementNone);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+void Battle::applyPriest(int spell, int gi, int index, int targetGroup, int targetMember, int casterLevel) {
+	const int lastMember = (int)_party.size() - 1;
+	// A spell for one of the party carries the member where the others carry the group
+	const int member = targetGroup;
+	const bool validMember = member >= 0 && member < (int)_party.size();
+
+	switch (spell) {
+	case KALKI:
+		adjustAC(0, 1, 0, lastMember);
+		break;
+	case DIOS:
+		heal(member, 1, 8);
+		break;
+	case BADIOS:
+		spellDamageDice(targetGroup, targetMember, 1, 8);
+		break;
+	case MILWA:
+		_maze.lightDuration += 30 + _dice.roll(15);
+		break;
+	case PORFIC:
+		adjustAC(0, 4, index, index);
+		break;
+	case MATU:
+		adjustAC(0, 2, 0, lastMember);
+		break;
+	case MANIFO: {
+		Group &g = _groups[targetGroup];
+		for (int i = 0; i < g.aliveCount; ++i) {
+			if (g.members[i].status < kStatusParalysed)
+				statusAttack(targetGroup, i, (g.members[i].level - casterLevel) * 5 + 50, kMsgHeld, kEffectSleep);
+		}
+		break;
+	}
+	case MONTINO: {
+		Group &g = _groups[targetGroup];
+		for (int i = 0; i < g.aliveCount; ++i)
+			statusAttack(targetGroup, i, (g.members[i].level - casterLevel) * 5 + 40, kMsgSilenced, kEffectSilence);
+		break;
+	}
+	case LOMILWA:
+		_maze.lightDuration = 10000;
+		break;
+	case DIALKO:
+		if (validMember) {
+			Fighter &f = _groups[0].members[member];
+			const bool cured = f.status == kStatusParalysed || f.status == kStatusAsleep;
+			if (cured)
+				f.status = kStatusOk;
+			say(format(cured ? kMsgCured : kMsgNotCured, _party.member(member).name));
+		}
+		break;
+	case LATUMAPIC:
+		for (int g = 1; g < kGroupCount; ++g)
+			_groups[g].identified = true;
+		_maze.monstersIdentified = 0x7fff;
+		break;
+	case BAMATU:
+		adjustAC(0, 4, 0, lastMember);
+		break;
+	case DIAL:
+		heal(member, 2, 8);
+		break;
+	case BADIAL:
+		spellDamageDice(targetGroup, targetMember, 2, 8);
+		break;
+	case LATUMOFIS:
+		if (validMember) {
+			say(format(kMsgCured, _party.member(member).name));
+			_party.member(member).poison = 0;
+		}
+		break;
+	case MAPORFIC:
+		_maze.acBonus = 2;
+		break;
+	case DIALMA:
+		heal(member, 3, 8);
+		break;
+	case BADIALMA:
+		spellDamageDice(targetGroup, targetMember, 3, 8);
+		break;
+	case LITOKAN:
+		spellDamageGroup(targetGroup, 3, 8, kElementFire);
+		break;
+	case KANDI:
+	case DI:
+	case KADORTO:
+		// These are for the camp
+		say(_messages.get(kMsgDoesNotWork));
+		break;
+	case BADI: {
+		const int chance = (_groups[targetGroup].members[targetMember].level - casterLevel) * 5 + 50;
+		statusAttack(targetGroup, targetMember, MAX(chance, 25), kMsgSlain, kEffectDeath);
+		break;
+	}
+	case LORTO:
+		spellDamageGroup(targetGroup, 6, 6, kElementNone);
+		break;
+	case MADI:
+		if (validMember) {
+			Fighter &f = _groups[0].members[member];
+			f.hp = _party.member(member).hpMax;
+			if (f.status < kStatusDead)
+				f.status = kStatusOk;
+			_party.member(member).poison = 0;
+			heal(member, 1, 1);
+		}
+		break;
+	case MABADI:
+		// Leaves the victim with one to eight hit points
+		spellDamage(targetGroup, targetMember,
+			_groups[targetGroup].members[targetMember].hp - (int)_dice.roll(8) - 1);
+		break;
+	case LOKTOFEIT: {
+		// Back to the castle, if it works: at the price of all items and most gold
+		if (MIN(casterLevel + 65, 95) < (int)_dice.roll(100)) {
+			say(_messages.get(kMsgNothingHappens));
+			break;
+		}
+		for (uint i = 0; i < _party.size(); ++i) {
+			Character &c = _party.member(i);
+			c.itemCount = 0;
+			c.gold %= 10000;
+		}
+		_outcome = kRecalled;
+		break;
+	}
+	case MALIKTO:
+		for (int g = 1; g < kGroupCount; ++g)
+			spellDamageGroup(g, 12, 6, kElementNone);
+		break;
+	default:
+		break;
+	}
 }
 
 int64 Battle::awardExperience() {

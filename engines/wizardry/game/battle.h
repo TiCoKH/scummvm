@@ -24,6 +24,7 @@
 
 #include "wizardry/game/maze.h"
 #include "wizardry/game/monsters.h"
+#include "wizardry/game/spells.h"
 #include "wizardry/resources/messages.h"
 
 namespace Wizardry {
@@ -35,8 +36,10 @@ namespace Wizardry {
  * 10 and acts in that step, the party before the monsters. The party gives
  * its orders before the round; the monsters choose when it starts.
  *
- * Not in yet: spells and the use of items, for either side; friendly
- * monsters.
+ * An action above zero is the casting of the spell of that number.
+ *
+ * Not in yet: the use of items, friendly monsters, and the two spells that
+ * ask the gods for a boon (HAMAN and MAHAMAN).
  */
 class Battle {
 public:
@@ -65,7 +68,9 @@ public:
 		kUndecided,
 		kVictory,
 		kRanAway,
-		kDefeat       ///< nobody in the party can act any more
+		kDefeat,      ///< nobody in the party can act any more
+		kRecalled,    ///< LOKTOFEIT: back in the castle, without items and most gold
+		kTeleported   ///< MALOR: somewhere else in the maze
 	};
 
 	struct Fighter {
@@ -92,7 +97,7 @@ private:
 	Party &_party;
 	const MonsterList &_monsters;
 	const MessageFile &_messages;
-	const MazeState &_maze;
+	MazeState &_maze;
 	Dice &_dice;
 
 	Group _groups[kGroupCount];
@@ -128,9 +133,24 @@ private:
 	void monsterRuns(int group, int index);
 	void breathe(int group, int index);
 
+	// ---- spells
+	void pickSpell(int group, int index);
+	void cast(int group, int index);
+	void applyMage(int spell, int group, int index, int targetGroup, int targetMember, int casterLevel);
+	void applyPriest(int spell, int group, int index, int targetGroup, int targetMember, int casterLevel);
+	Common::String fighterName(int group, int index) const;
+	bool groupResists(int group);
+	void spellKill(int group, int index);
+	void spellDamage(int group, int index, int damage);
+	void spellDamageDice(int group, int index, int count, int sides);
+	void spellDamageGroup(int group, int count, int sides, int element);
+	void statusAttack(int group, int index, int resistChance, uint word, int effect);
+	void adjustAC(int group, int by, int first, int last);
+	void heal(int member, int count, int sides);
+
 public:
 	Battle(Party &party, const MonsterList &monsters, const MessageFile &messages,
-		const MazeState &maze, Dice &dice);
+		MazeState &maze, Dice &dice);
 
 	/**
 	 * Sets up the fight
@@ -172,6 +192,12 @@ public:
 	void orderFight(uint member, int group);
 	void orderDispel(uint member, int group);
 	void orderParry(uint member);
+
+	/**
+	 * Orders a spell
+	 * @param target  A member or a group, as the spell needs; else ignored
+	 */
+	void orderCast(uint member, int spell, int target);
 
 	/**
 	 * Tries to run. If it works the fight is over; if not, nobody in the

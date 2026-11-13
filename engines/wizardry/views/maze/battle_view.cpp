@@ -33,6 +33,12 @@ enum {
 	kMsgMonstersSurprise = 1021,
 	kMsgOptFight = 1022,       // "f)IGHT/"
 	kMsgOptDispel = 1023,      // "D)ISPELL/"
+	kMsgOptSpell = 1024,       // "S)PELL/"
+	kMsgSpellPointsExhausted = 1015,
+	kMsgDontKnowSpell = 1016,
+	kMsgCastOnPerson = 1017,
+	kMsgCastOnGroup = 1018,
+	kMsgSpellName = 1019,
 	kMsgOptRest = 1025,        // "U)SE ITEM/p)ARRY/R)UN/T)AKE BACK"
 	kMsgDispelWhich = 1028,
 	kMsgFightWhich = 1030,
@@ -88,6 +94,18 @@ void BattleView::drawTown(TownScreens &screens) {
 
 	case kWhichGroup:
 		window.PRINTSTR(messages.get(_dispelling ? kMsgDispelWhich : kMsgFightWhich));
+		break;
+
+	case kSpellName:
+		window.PRINTSTR(messages.get(kMsgSpellName));
+		window.PRINTSTR(_typed);
+		if (!_refusal.empty())
+			window.PRINTSTR(0, 2, _refusal);
+		break;
+
+	case kSpellTarget:
+		window.PRINTSTR(messages.get(Spells::target(_spell) == Spells::kTargetMember ?
+			kMsgCastOnPerson : kMsgCastOnGroup));
 		break;
 
 	case kConfirm:
@@ -158,7 +176,7 @@ void BattleView::askMember(uint member) {
 		_options += messages.get(kMsgOptFight);
 	if (_battle->mayDispel(member))
 		_options += messages.get(kMsgOptDispel);
-	// TODO: spells, which the original offers here
+	_options += messages.get(kMsgOptSpell);
 	_options += messages.get(kMsgOptRest);
 
 	// Without "fight", parrying is what RETURN gives; the list marks it
@@ -179,6 +197,7 @@ void BattleView::playRound() {
 		nextRound();
 		return;
 	}
+	// What was told is shown before a spell carries the party away
 
 	_state = kTelling;
 	delayFrames(kPauseFrames);
@@ -203,8 +222,14 @@ void BattleView::finish() {
 		_ending.push_back(messages.get(kMsgLeaveCemetery));
 		break;
 
+	case Battle::kRecalled:
+		// LOKTOFEIT: home
+		g_events->replaceView("Town.Castle", true);
+		return;
+
 	default:
-		// Ran away: straight back to the maze
+		// Ran away, or carried off by MALOR: back to the maze, which
+		// loads the level again when it gets the focus
 		close();
 		return;
 	}
@@ -271,6 +296,13 @@ void BattleView::choose(int result, uint16 ascii) {
 			nextMember();
 			return;
 
+		case 'S':
+			_typed.clear();
+			_refusal.clear();
+			_state = kSpellName;
+			redraw();
+			return;
+
 		case 'R':
 			if (_battle->tryRun())
 				finish();
@@ -300,6 +332,67 @@ void BattleView::choose(int result, uint16 ascii) {
 			_battle->orderDispel(_member, group);
 		else
 			_battle->orderFight(_member, group);
+		nextMember();
+		return;
+	}
+
+	case kSpellName: {
+		if (ascii == kKeyBackspace) {
+			if (!_typed.empty())
+				_typed.deleteLastChar();
+		} else if (ascii == kKeyEscape) {
+			_typed.clear();
+		} else if (ascii != kKeyReturn) {
+			if (ascii >= 'A' && ascii <= 'Z' && _typed.size() < 12)
+				_typed += (char)ascii;
+		} else if (_typed.empty()) {
+			// No name: back to the choices
+			askMember(_member);
+			return;
+		} else {
+			// The name, or as much of it as tells it from the others known.
+			// TODO: the original lists the spells when several begin alike.
+			const Character &c = party.member(_member);
+			const Common::Array<int> found = Spells::find(messages, c, _typed);
+			_typed.clear();
+
+			if (found.size() != 1 || !c.knowsSpell(found[0])) {
+				_refusal = messages.get(kMsgDontKnowSpell);
+			} else if (!Spells::canCast(c, found[0])) {
+				_refusal = messages.get(kMsgSpellPointsExhausted);
+			} else {
+				_spell = found[0];
+				const Spells::Target target = Spells::target(_spell);
+				if (target == Spells::kTargetNone) {
+					_battle->orderCast(_member, _spell, 0);
+					nextMember();
+					return;
+				}
+				if (target == Spells::kTargetGroup && _battle->enemyGroups() == 1) {
+					_battle->orderCast(_member, _spell, 1);
+					nextMember();
+					return;
+				}
+				_state = kSpellTarget;
+			}
+		}
+		if (ascii != kKeyReturn)
+			_refusal.clear();
+		redraw();
+		return;
+	}
+
+	case kSpellTarget: {
+		const int number = ascii - '0';
+		if (Spells::target(_spell) == Spells::kTargetMember) {
+			if (number < 1 || number > (int)party.size())
+				return;
+			_battle->orderCast(_member, _spell, number - 1);
+		} else {
+			if (number < 1 || number > _battle->enemyGroups())
+				return;
+			_battle->orderCast(_member, _spell, number);
+		}
 		nextMember();
 		return;
 	}

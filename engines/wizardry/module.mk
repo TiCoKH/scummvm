@@ -18,6 +18,7 @@ MODULE_OBJS = \
 	game/monsters.o \
 	game/party.o \
 	game/shop.o \
+	game/spells.o \
 	game/temple.o \
 	game/training.o \
 	libs/memory.o \

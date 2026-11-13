@@ -38,6 +38,8 @@ private:
 		kAnnounce,     ///< who surprised whom, for a moment
 		kOptions,      ///< a member's choices
 		kWhichGroup,   ///< which group to fight or dispel
+		kSpellName,    ///< typing the name of a spell
+		kSpellTarget,  ///< whom, or which group, the spell is for
 		kConfirm,      ///< fight, or take the orders back
 		kTelling,      ///< the round, a line at a time
 		kOver          ///< how it ended, until RETURN
@@ -54,6 +56,9 @@ private:
 	State _state = kAnnounce;
 	uint _member = 0;
 	bool _dispelling = false;
+	Common::String _typed;
+	int _spell = 0;
+	Common::String _refusal;       ///< why the spell cannot be cast
 	Common::String _options;
 	Common::Array<Common::String> _lines;
 	uint _line = 0;
