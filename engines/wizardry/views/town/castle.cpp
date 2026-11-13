@@ -44,15 +44,23 @@ void Castle::choose(int result, uint16 ascii) {
 		break;
 
 	case kInn:
-	case kTemple:
-	case kTradingPost:
-		// These need a party, as in the original
+		// The places below need a party, as in the original
 		if (_G(party).size())
-			notice("NOT IN THIS VERSION YET");   // TODO
+			addView("Town.Inn");
+		break;
+
+	case kTemple:
+		if (_G(party).size())
+			addView("Town.Temple");
+		break;
+
+	case kTradingPost:
+		if (_G(party).size())
+			addView("Town.Shop");
 		break;
 
 	case kEdgeOfTown:
-		notice("NOT IN THIS VERSION YET");       // TODO
+		addView("Town.Edge");
 		break;
 
 	default:

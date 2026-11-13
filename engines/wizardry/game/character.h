@@ -37,10 +37,24 @@ enum CharacterStatus {
 	kStatusStoned, kStatusDead, kStatusAshes, kStatusLost
 };
 
+enum Attribute {
+	kStrength, kIQ, kPiety, kVitality, kAgility, kLuck, kAttributeCount
+};
+
 enum Alignment {
 	kAlignGood = 1,
 	kAlignNeutral = 2,
 	kAlignEvil = 3
+};
+
+/**
+ * One place in a character's pack
+ */
+struct ItemSlot {
+	bool equipped;
+	bool cursed;
+	bool identified;
+	int16 id;   ///< number of the item record
 };
 
 /**
@@ -53,7 +67,8 @@ enum Alignment {
  */
 struct Character {
 	enum {
-		kRecordSize = 208
+		kRecordSize = 208,
+		kMaxItems = 8
 	};
 
 	Common::String name;
@@ -65,11 +80,19 @@ struct Character {
 	int16 status = kStatusLost;
 	int16 alignment = kAlignNeutral;
 	int64 gold = 0;
+	int16 attributes[6] = {};  ///< strength, IQ, piety, vitality, agility, luck
+	int64 experience = 0;
+	int16 maxLevel = 0;        ///< highest level reached
 	int16 level = 0;
+	int16 mageSlots[7] = {};   ///< spells that can be cast, by spell level
+	int16 priestSlots[7] = {};
 	int16 hp = 0, hpMax = 0;
 	int16 armorClass = 0;
 	int16 poison = 0;
+	int16 lostPosition = 0;    ///< where in the maze the body lies; 0 in town
 	int16 lostLevel = 0;       ///< maze level where the body lies; 0 in town
+	int16 itemCount = 0;
+	ItemSlot items[kMaxItems] = {};
 
 	byte record[kRecordSize] = {};
 
@@ -77,6 +100,15 @@ struct Character {
 	void save(byte *dst);
 
 	bool isFree() const { return status == kStatusLost; }
+
+	bool addItem(int16 id, bool identified);
+	void removeItem(uint index);
+
+	/**
+	 * Spells are numbered 1 to 21 (mage) and 22 to 50 (priest)
+	 */
+	bool knowsSpell(uint spell) const;
+	void learnSpell(uint spell);
 };
 
 } // End of namespace Wizardry

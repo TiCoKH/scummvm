@@ -10,7 +10,12 @@ MODULE_OBJS = \
 	data/globals.o \
 	data/scenario.o \
 	game/character.o \
+	game/inn.o \
+	game/items.o \
 	game/party.o \
+	game/shop.o \
+	game/temple.o \
+	game/training.o \
 	libs/memory.o \
 	libs/wizardry_archive.o \
 	resources/cell_image.o \
@@ -33,7 +38,13 @@ MODULE_OBJS = \
 	views/gallery.o \
 	views/title.o \
 	views/town/castle.o \
+	views/town/edge.o \
+	views/town/inn.o \
+	views/town/sheet.o \
+	views/town/shop.o \
 	views/town/tavern.o \
+	views/town/temple.o \
+	views/town/training.o \
 	views/town/town_view.o \
 	ui/menu.o \
 	ui/town_screens.o

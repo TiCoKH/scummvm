@@ -41,9 +41,26 @@ protected:
 	Menu _menu;
 
 	/**
-	 * Draws the place over the common background
+	 * Draws what lies behind the place: the castle heading and the party
+	 */
+	virtual void drawBackground(TownScreens &screens);
+
+	/**
+	 * Draws the place over the background
 	 */
 	virtual void drawTown(TownScreens &screens) = 0;
+
+	/**
+	 * Codes of keys that are not characters, as the original gets them
+	 * from its keyboard driver
+	 */
+	enum {
+		kKeyBackspace = 8,
+		kKeyDown = 10,
+		kKeyUp = 11,
+		kKeyReturn = 13,
+		kKeyEscape = 27
+	};
 
 	/**
 	 * Called with the result of the menu, or with -1 for a key that
@@ -57,6 +74,11 @@ protected:
 	 */
 	void notice(const Common::String &text);
 	virtual void noticeDone() {}
+
+	enum {
+		/** The pause of the original after it has said something: 40 timer ticks of the PC */
+		kPauseFrames = FRAME_RATE * 40 / 18
+	};
 
 	void drawCells(TextWindow &window) override;
 	void timeout() override;

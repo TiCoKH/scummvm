@@ -112,4 +112,103 @@ void Party::divvyGold() {
 	member(size() - 1).gold = total;
 }
 
+void Party::disband() {
+	for (uint i = 0; i < size(); ++i) {
+		Character &c = member(i);
+		c.inMaze = false;
+		c.lostPosition = 0;
+		c.lostLevel = 0;
+	}
+
+	_members.clear();
+}
+
+int Party::freeSlot() const {
+	for (uint i = 0; i < _roster.size(); ++i) {
+		if (_roster[i].isFree())
+			return i;
+	}
+
+	return -1;
+}
+
+bool Party::nameInUse(const Common::String &name) const {
+	for (uint i = 0; i < _roster.size(); ++i) {
+		if (!_roster[i].isFree() && _roster[i].name == name)
+			return true;
+	}
+
+	return false;
+}
+
+int Party::memberIndexOf(uint rosterIndex) const {
+	for (uint i = 0; i < _members.size(); ++i) {
+		if (_members[i] == rosterIndex)
+			return i;
+	}
+
+	return -1;
+}
+
+void Party::deleteCharacter(uint rosterIndex) {
+	const int memberIndex = memberIndexOf(rosterIndex);
+	if (memberIndex >= 0)
+		_members.remove_at(memberIndex);
+
+	_roster[rosterIndex].status = kStatusLost;
+	_roster[rosterIndex].inMaze = false;
+}
+
+Party::TradeAnswer Party::giveGold(Character &from, Character &to, const Common::String &amount) {
+	if (amount.size() > 12)
+		return kTradeBadAmount;
+
+	int64 value = 0;
+	for (uint i = 0; i < amount.size(); ++i) {
+		if (amount[i] < '0' || amount[i] > '9')
+			return kTradeBadAmount;
+		value = value * 10 + (amount[i] - '0');
+	}
+
+	if (from.gold < value)
+		return kTradeTooMuch;
+
+	to.gold = MIN<int64>(to.gold + value, 999999999999LL);
+	from.gold -= value;
+	return kTradeDone;
+}
+
+Party::TradeAnswer Party::giveItem(Character &from, Character &to, uint item) {
+	if (to.itemCount >= Character::kMaxItems)
+		return kTradeFull;
+	if (from.items[item].cursed)
+		return kTradeCursed;
+	if (from.items[item].equipped)
+		return kTradeEquipped;
+
+	to.items[to.itemCount++] = from.items[item];
+	from.removeItem(item);
+	return kTradeDone;
+}
+
+Party::TradeAnswer Party::dropItem(Character &c, uint item) {
+	if (c.items[item].cursed)
+		return kTradeCursed;
+	if (c.items[item].equipped)
+		return kTradeEquipped;
+
+	c.removeItem(item);
+	return kTradeDone;
+}
+
+void Party::poolGold(uint memberIndex) {
+	int64 total = 0;
+	for (uint i = 0; i < size(); ++i) {
+		total += member(i).gold;
+		member(i).gold = 0;
+	}
+
+	member(memberIndex).gold = MIN<int64>(total, 999999999999LL);
+}
+
 } // End of namespace Wizardry

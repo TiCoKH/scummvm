@@ -90,6 +90,61 @@ public:
 	 * Shares the party's gold equally; the last member gets the remainder
 	 */
 	void divvyGold();
+
+	/**
+	 * Gives all the party's gold to one member
+	 */
+	void poolGold(uint memberIndex);
+
+	/**
+	 * Sends everyone home: the party is empty afterwards
+	 */
+	void disband();
+
+	/**
+	 * Returns a free place in the roster, or -1 if it is full
+	 */
+	int freeSlot() const;
+
+	bool nameInUse(const Common::String &name) const;
+
+	/**
+	 * Returns the place of a roster entry in the party, or -1
+	 */
+	int memberIndexOf(uint rosterIndex) const;
+
+	/**
+	 * Removes a character from the roster: its place is free afterwards
+	 */
+	void deleteCharacter(uint rosterIndex);
+
+	/**
+	 * Why a trade cannot be made
+	 */
+	enum TradeAnswer {
+		kTradeDone,
+		kTradeBadAmount,   ///< not a number of at most twelve digits
+		kTradeTooMuch,     ///< more gold than the giver has
+		kTradeFull,        ///< the receiver carries eight items
+		kTradeCursed,
+		kTradeEquipped
+	};
+
+	/**
+	 * Gives gold from one character to another
+	 * @param amount  What was typed
+	 */
+	static TradeAnswer giveGold(Character &from, Character &to, const Common::String &amount);
+
+	/**
+	 * Gives an item from one character to another
+	 */
+	static TradeAnswer giveItem(Character &from, Character &to, uint item);
+
+	/**
+	 * Drops an item, unless it is cursed or equipped
+	 */
+	static TradeAnswer dropItem(Character &c, uint item);
 };
 
 } // End of namespace Wizardry

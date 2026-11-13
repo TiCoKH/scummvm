@@ -21,6 +21,8 @@
 
 #include "wizardry/views/town/tavern.h"
 #include "wizardry/data/globals.h"
+#include "wizardry/views/town/sheet.h"
+#include "wizardry/wizardry.h"
 
 namespace Wizardry {
 namespace Town {
@@ -37,6 +39,8 @@ enum TavernChoice {
 
 enum {
 	kMsgBadAlignment = 409,
+	kMsgIncorrectPassword = 411,
+	kMaxPassword = 15,
 	kTaken = TownScreens::kNobody
 };
 
@@ -51,6 +55,8 @@ void Tavern::drawTown(TownScreens &screens) {
 	if (_state == kAdd) {
 		// Names already taken leave a gap, as in the original
 		screens.drawTavernAdd(_available);
+	} else if (_state == kPassword) {
+		screens.drawTavernPassword(_available, _letter, _marks);
 	} else if (_state == kRemove) {
 		screens.drawTavernRemove();
 	}
@@ -65,6 +71,22 @@ void Tavern::choose(int result, uint16 ascii) {
 			_state = kMenu;
 		else if (ascii >= 'A' && ascii < 'A' + (int)_available.size())
 			addChosen(ascii - 'A');
+		redraw();
+		return;
+
+	case kPassword:
+		if (ascii == 13) {
+			if (_typed == party.rosterEntry(_available[_letter]).password) {
+				_state = kAdd;
+				join(_letter);
+			} else {
+				notice(_G(messages).get(kMsgIncorrectPassword));
+			}
+		} else if (_typed.size() < kMaxPassword) {
+			_typed += (char)ascii;
+			// One or two marks for each character, so the length stays unknown
+			_marks += 1 + g_engine->getRandomNumber(1);
+		}
 		redraw();
 		return;
 
@@ -91,8 +113,16 @@ void Tavern::choose(int result, uint16 ascii) {
 		if (party.size())
 			_state = kRemove;
 	} else if (result >= kInspectFirst && result <= kInspectLast) {
-		if (party.size())
-			notice("NOT IN THIS VERSION YET");   // TODO: the character sheet
+		if (party.size()) {
+			// The digit chose the member
+			const uint member = result - kInspectFirst;
+			for (uint i = 0; i < party.rosterSize(); ++i) {
+				if (party.memberIndexOf(i) == (int)member) {
+					SheetView::open(i, SheetView::kFromTavern);
+					return;
+				}
+			}
+		}
 	} else if (result == kDivvyGold) {
 		party.divvyGold();
 	} else if (result == kLeave) {
@@ -115,9 +145,21 @@ void Tavern::addChosen(uint letter) {
 		return;
 	}
 
-	// TODO: ask for the character's password, if it has one
+	if (!party.rosterEntry(rosterIndex).password.empty()) {
+		_letter = letter;
+		_typed.clear();
+		_marks = 0;
+		_state = kPassword;
+		return;
+	}
 
-	party.add(rosterIndex);
+	join(letter);
+}
+
+void Tavern::join(uint letter) {
+	Party &party = _G(party);
+
+	party.add(_available[letter]);
 	_available[letter] = kTaken;
 	if (party.isFull())
 		_state = kMenu;
@@ -125,6 +167,7 @@ void Tavern::addChosen(uint letter) {
 
 void Tavern::noticeDone() {
 	// The original goes back to the tavern menu after "bad alignment"
+	// and after a wrong password
 	_state = kMenu;
 }
 

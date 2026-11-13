@@ -26,8 +26,8 @@ namespace Wizardry {
 namespace Town {
 
 void TownView::drawCells(TextWindow &window) {
-	TownScreens screens(_G(cells), _G(messages), _G(party));
-	screens.drawBackground();
+	TownScreens screens(_G(cells), _G(messages), _G(party), _G(items));
+	drawBackground(screens);
 
 	// The menu is printed again by drawTown() where there is one
 	_menu = Menu();
@@ -35,6 +35,10 @@ void TownView::drawCells(TextWindow &window) {
 
 	if (!_notice.empty())
 		screens.drawNotice(_notice);
+}
+
+void TownView::drawBackground(TownScreens &screens) {
+	screens.drawBackground();
 }
 
 void TownView::notice(const Common::String &text) {
@@ -55,7 +59,15 @@ bool TownView::msgKeypress(const KeypressMessage &msg) {
 
 	uint16 ascii = msg.ascii;
 	if (msg.keycode == Common::KEYCODE_RETURN || msg.keycode == Common::KEYCODE_KP_ENTER)
-		ascii = 13;
+		ascii = kKeyReturn;
+	else if (msg.keycode == Common::KEYCODE_BACKSPACE)
+		ascii = kKeyBackspace;
+	else if (msg.keycode == Common::KEYCODE_ESCAPE)
+		ascii = kKeyEscape;
+	else if (msg.keycode == Common::KEYCODE_UP)
+		ascii = kKeyUp;
+	else if (msg.keycode == Common::KEYCODE_DOWN)
+		ascii = kKeyDown;
 	else if (ascii >= 'a' && ascii <= 'z')
 		ascii -= 0x20;
 	if (!ascii)

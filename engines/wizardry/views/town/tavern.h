@@ -35,13 +35,19 @@ private:
 	enum State {
 		kMenu,
 		kAdd,
+		kPassword,   ///< typing the password of the character chosen in kAdd
 		kRemove
 	};
 
 	State _state = kMenu;
 	Common::Array<uint> _available;   ///< roster numbers behind the letters; ~0 once taken
 
+	uint _letter = 0;                 ///< who the password is asked for
+	Common::String _typed;
+	uint _marks = 0;
+
 	void addChosen(uint letter);
+	void join(uint letter);
 
 protected:
 	void drawTown(TownScreens &screens) override;
