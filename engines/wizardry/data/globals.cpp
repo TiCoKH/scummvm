@@ -79,7 +79,8 @@ void Globals::setup() {
 
 		// Wizardry V keeps its data in a file this class cannot read yet
 		if (_scenario.open(profile.scenario) && g_engine->hasTown()) {
-			if (!_party.loadRoster(_scenario) || !_items.load(_scenario) || !_monsters.load(_scenario))
+			if (!_party.loadRoster(_scenario) || !_items.load(_scenario) || !_monsters.load(_scenario) ||
+					!_rewards.load(_scenario))
 				error("%s does not have the expected character, item and monster records", profile.scenario);
 		}
 	}

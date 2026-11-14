@@ -90,6 +90,41 @@ public:
 };
 
 /**
+ * Which squares of a level still have their guardians. Every room is
+ * guarded when the party comes to the level; the guardians of a room are
+ * fought once, on stepping into it.
+ */
+class RoomFights {
+private:
+	bool _pending[MazeLevel::kSize][MazeLevel::kSize];
+	bool _visited[MazeLevel::kSize][MazeLevel::kSize];
+
+	void visit(const MazeLevel &level, int x, int y, uint wall);
+
+public:
+	RoomFights();
+
+	/** All rooms of a level get their guardians */
+	void reset(const MazeLevel &level);
+
+	bool isPending(int x, int y) const { return _pending[x][y]; }
+
+	/**
+	 * Clears the room a square belongs to: every square reached from it
+	 * through open sides. Walls and doors end a room, and so do the
+	 * squares of fixed encounters.
+	 */
+	void clearRoom(const MazeLevel &level, int x, int y);
+};
+
+enum EncounterKind {
+	kEncounterNone = -1,
+	kEncounterCorridor = 0,   ///< wandering monsters
+	kEncounterRoom = 1,       ///< in a room already cleared: twice the gold
+	kEncounterGuardians = 2   ///< the guardians of a room, with their chest
+};
+
+/**
  * Where the party is, and what lasts while it is in the maze
  */
 struct MazeState {
@@ -100,6 +135,8 @@ struct MazeState {
 	int16 monstersIdentified = 0;  ///< the same
 	int16 acBonus = 0;             ///< taken off everyone's armour class
 	bool spellsFizzle = false;
+	bool randomPosition = false;   ///< after a teleporter: put down on a plain square
+	bool alarm = false;            ///< an alarm rang: a fight follows at once
 };
 
 /**
@@ -154,10 +191,12 @@ public:
 	static int pickMonster(const MazeLevel &level, Dice &dice);
 
 	/**
-	 * True if walking on brings a fight: about one step in a hundred
-	 * anywhere, and one in eight on entering a square of a room
+	 * Whether a step brings a fight, and of what kind: the guardians of a
+	 * room not yet cleared for certain; otherwise about one step in a
+	 * hundred anywhere, and one in eight in a room
 	 */
-	static bool encounterHappens(const MazeLevel &level, const MazeState &state, Dice &dice);
+	static EncounterKind encounter(const MazeLevel &level, const MazeState &state,
+		const RoomFights &rooms, Dice &dice);
 };
 
 } // End of namespace Wizardry

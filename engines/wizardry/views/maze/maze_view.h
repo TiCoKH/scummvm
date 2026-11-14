@@ -50,6 +50,8 @@ private:
 	bool _partyShown = true;
 	bool _leaveAfterSaid = false;
 	int _encounter = -1;        ///< monster of a fight about to start
+	int _encounterKind = 0;     ///< its EncounterKind
+	int _loadedLevel = -1;      ///< level whose rooms are being kept track of
 
 	void say(const Common::String &text);
 	void loadLevel();

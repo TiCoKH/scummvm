@@ -20,6 +20,7 @@
  */
 
 #include "wizardry/views/maze/battle_view.h"
+#include "wizardry/views/maze/rewards_view.h"
 #include "wizardry/wizardry.h"
 
 namespace Wizardry {
@@ -28,7 +29,6 @@ namespace InMaze {
 enum {
 	kMsgSlaughtered = 510,
 	kMsgLeaveCemetery = 511,
-	kMsgEachSurvivorGets = 926,   // the next message ends the sentence
 	kMsgPartySurprises = 1020,
 	kMsgMonstersSurprise = 1021,
 	kMsgOptFight = 1022,       // "f)IGHT/"
@@ -55,8 +55,10 @@ BattleView::~BattleView() {
 	delete _battle;
 }
 
-void BattleView::start(int monsterId, bool canRun) {
+void BattleView::start(int monsterId, bool canRun, int kind) {
 	BattleView *view = static_cast<BattleView *>(g_events->findView("Battle"));
+	view->_monsterId = monsterId;
+	view->_kind = kind;
 
 	delete view->_battle;
 	view->_battle = new Battle(_G(party), _G(monsters), _G(messages), _G(mazeState), view->_dice);
@@ -209,13 +211,10 @@ void BattleView::finish() {
 	_ending.clear();
 
 	switch (_battle->outcome()) {
-	case Battle::kVictory: {
-		const int64 share = _battle->awardExperience();
-		_ending.push_back(messages.get(kMsgEachSurvivorGets) + Common::String::format("%lld", (long long)share) +
-			messages.get(kMsgEachSurvivorGets + 1));
-		// TODO: the treasure, with its chest and traps
-		break;
-	}
+	case Battle::kVictory:
+		// Experience, the chest and the treasure have their own view
+		RewardsView::start(_battle->awardExperience(), _monsterId, _kind);
+		return;
 
 	case Battle::kDefeat:
 		_ending.push_back(messages.get(kMsgSlaughtered));

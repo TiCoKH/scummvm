@@ -10,6 +10,7 @@ MODULE_OBJS = \
 	data/globals.o \
 	data/scenario.o \
 	game/battle.o \
+	game/camp_spells.o \
 	game/character.o \
 	game/equip.o \
 	game/inn.o \
@@ -21,6 +22,7 @@ MODULE_OBJS = \
 	game/spells.o \
 	game/temple.o \
 	game/training.o \
+	game/treasure.o \
 	libs/memory.o \
 	libs/wizardry_archive.o \
 	resources/cell_image.o \
@@ -43,7 +45,9 @@ MODULE_OBJS = \
 	views/gallery.o \
 	views/title.o \
 	views/maze/battle_view.o \
+	views/maze/camp_view.o \
 	views/maze/maze_view.o \
+	views/maze/rewards_view.o \
 	views/town/castle.o \
 	views/town/edge.o \
 	views/town/equip.o \

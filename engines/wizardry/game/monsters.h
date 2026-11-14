@@ -57,6 +57,8 @@ struct Monster {
 	Dice3 attackDamage[kMaxAttacks] = {};
 	int16 levelDrain = 0;
 	int16 regeneration = 0;
+	int16 rewardWandering = 0;      ///< reward table for a fight in a corridor
+	int16 rewardLair = 0;           ///< reward table for the guardians of a room, with a chest
 	int16 partnerId = 0;            ///< the monster that may come along as the next group
 	int16 partnerChance = 0;
 	int16 mageSpellLevel = 0;

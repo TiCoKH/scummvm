@@ -41,6 +41,8 @@ void SpellBooks::open(uint rosterIndex, bool inTraining) {
 void SpellBooks::drawBackground(TownScreens &screens) {
 	if (_inTraining)
 		screens.drawTrainingBackground();
+	else if (g_events->isPresent("Maze"))
+		screens.drawCampBackground(false);
 	else
 		screens.drawBackground(false);
 }

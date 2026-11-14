@@ -63,6 +63,8 @@ private:
 	Common::Array<Common::String> _lines;
 	uint _line = 0;
 	Common::Array<Common::String> _ending;
+	int _monsterId = 0;
+	int _kind = 0;                 ///< an EncounterKind
 
 	void nextRound();
 	void askMember(uint member);
@@ -84,7 +86,7 @@ public:
 	 * Starts a fight over the current view
 	 * @param canRun  False for fights the party cannot run from
 	 */
-	static void start(int monsterId, bool canRun);
+	static void start(int monsterId, bool canRun, int kind = 0);
 };
 
 } // End of namespace InMaze

@@ -99,10 +99,53 @@ int Maze::pickMonster(const MazeLevel &level, Dice &dice) {
 	return first + step * steps + dice.roll(MAX(range, 1));
 }
 
-bool Maze::encounterHappens(const MazeLevel &level, const MazeState &state, Dice &dice) {
-	if (dice.roll(99) == 35)
-		return true;
-	return level.isFightSquare(state.x, state.y) && dice.roll(8) == 3;
+EncounterKind Maze::encounter(const MazeLevel &level, const MazeState &state,
+		const RoomFights &rooms, Dice &dice) {
+	const bool room = level.isFightSquare(state.x, state.y);
+	const bool wandering = dice.roll(99) == 35;
+
+	if (rooms.isPending(state.x, state.y))
+		return kEncounterGuardians;
+	if (wandering)
+		return room ? kEncounterRoom : kEncounterCorridor;
+	if (room && dice.roll(8) == 3)
+		return kEncounterRoom;
+	return kEncounterNone;
+}
+
+RoomFights::RoomFights() {
+	memset(_pending, 0, sizeof(_pending));
+	memset(_visited, 0, sizeof(_visited));
+}
+
+void RoomFights::reset(const MazeLevel &level) {
+	for (int x = 0; x < MazeLevel::kSize; ++x) {
+		for (int y = 0; y < MazeLevel::kSize; ++y)
+			_pending[x][y] = level.isFightSquare(x, y);
+	}
+}
+
+void RoomFights::visit(const MazeLevel &level, int x, int y, uint wall) {
+	if (wall != kOpen)
+		return;
+
+	x = (x + MazeLevel::kSize) % MazeLevel::kSize;
+	y = (y + MazeLevel::kSize) % MazeLevel::kSize;
+	if (_visited[x][y] || level.squareTypeAt(x, y) == kSquareEncounter)
+		return;
+
+	_visited[x][y] = true;
+	_pending[x][y] = false;
+
+	visit(level, x, y + 1, level.wall(x, y, kNorth));
+	visit(level, x + 1, y, level.wall(x, y, kEast));
+	visit(level, x, y - 1, level.wall(x, y, kSouth));
+	visit(level, x - 1, y, level.wall(x, y, kWest));
+}
+
+void RoomFights::clearRoom(const MazeLevel &level, int x, int y) {
+	memset(_visited, 0, sizeof(_visited));
+	visit(level, x, y, kOpen);
 }
 
 void Maze::offset(int &x, int &y, int facing, int right, int forward) {

@@ -63,6 +63,19 @@ public:
 	 * heading and the party
 	 */
 	void drawBackground(bool withParty = true);
+
+	/**
+	 * The same for the camp in the maze, with its own heading
+	 */
+	void drawCampBackground(bool withParty = true);
+	void drawCampMenu(Menu &menu);
+
+	/**
+	 * Putting the party in a new order
+	 * @param chosen  Places in the party already picked, front first
+	 * @param asking  Whether the next place is being asked for
+	 */
+	void drawReorder(const Common::Array<uint> &chosen, bool asking);
 	void drawParty();
 
 	/**
@@ -192,6 +205,20 @@ public:
 	 * @param options  The '/'-separated list built for this member
 	 */
 	void drawBattleOptions(const Character &c, const Common::String &options, Menu &menu);
+
+	// ---- treasure
+
+	/**
+	 * The window of the chest, as it is, to print into
+	 */
+	TextWindow chestWindow();
+	void drawChest(Menu &menu);
+
+	/**
+	 * "Who will open?" and the like
+	 * @param deed  Message with what is to be done
+	 */
+	void drawChestWho(uint deed);
 
 	// ---- equipping
 

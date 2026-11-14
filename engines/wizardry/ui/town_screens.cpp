@@ -36,6 +36,7 @@ enum {
 	kMsgSelectKind = 258,
 	kMsgKindNames = 259,         // weapon, armor, shield, helm, gauntlets, misc. item
 	kMsgCursed = 265,
+	kMsgReordering = 266,
 	kMsgRosterDeadOut = 300,     // "D/O": dead, and lying in the maze
 	kMsgRosterDead = 301,
 	kMsgRosterOut = 302,
@@ -55,7 +56,13 @@ enum {
 	kMsgSheetStrength = 605,     // the labels of the sheet follow, to 618
 	kMsgEnteringName = 501,
 	kMsgEdgeMenu = 502,
+	kMsgCamp = 652,
+	kMsgCampMenu = 653,
 	kMsgMazeCommands = 717,
+	kMsgWhoWill = 800,
+	kMsgChestReturn = 801,
+	kMsgChest = 825,
+	kMsgChestMenu = 826,
 	kMsgPressReturn = 900,
 	kMsgOptionsOf = 1027,
 	kMsgSpellsEquals = 901,
@@ -118,6 +125,45 @@ TextWindow TownScreens::openWindow(int x, int y, int width, int height) {
 	TextWindow window(_screen, Common::Rect(x, y, x + width, y + height), true);
 	window.clear();
 	return window;
+}
+
+void TownScreens::drawCampBackground(bool withParty) {
+	_screen.clear();
+	openWindow(1, 1, 38, 22);
+
+	const Common::String &title = _messages.get(kMsgCamp);
+	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	heading.clear();
+	heading.PRINTSTR(title);
+
+	if (withParty)
+		drawParty();
+}
+
+void TownScreens::drawCampMenu(Menu &menu) {
+	const Common::String &options = _messages.get(kMsgCampMenu);
+
+	TextWindow window(_screen, TextWindow::centeredBounds(Menu::textWidth(options), 4, 6), true);
+	window.clear();
+	menu.print(window, options);
+}
+
+void TownScreens::drawReorder(const Common::Array<uint> &chosen, bool asking) {
+	TextWindow window = openWindow(8, 4, 24, 10);
+	window.printCenteredLine(_messages.get(kMsgReordering));
+
+	for (uint i = 0; i < _party.size(); ++i) {
+		window.MVCURSOR(0, i + 2);
+		window.printInt(i + 1, 1);
+		window.PRINTCHR(')');
+
+		if (i < chosen.size()) {
+			window.PRINTCHR(' ');
+			window.PRINTSTR(_party.member(chosen[i]).name);
+		} else if (i == chosen.size() && asking) {
+			window.PRINTCHR('>');
+		}
+	}
 }
 
 void TownScreens::drawBackground(bool withParty) {
@@ -682,6 +728,27 @@ void TownScreens::drawBattleOptions(const Character &c, const Common::String &op
 	window.printCenteredLine(title);
 	window.newLine();
 	menu.print(window, options);
+}
+
+TextWindow TownScreens::chestWindow() {
+	return TextWindow(_screen, Common::Rect(0, 2, 40, 8), true);
+}
+
+void TownScreens::drawChest(Menu &menu) {
+	TextWindow window = chestWindow();
+	window.clear();
+	window.printCenteredLine(_messages.get(kMsgChest));
+	window.MVCURSOR(0, 2);
+	menu.print(window, _messages.get(kMsgChestMenu));
+}
+
+void TownScreens::drawChestWho(uint deed) {
+	TextWindow window = chestWindow();
+	window.clear();
+	window.printCenteredLine(_messages.get(kMsgChest));
+	window.MVCURSOR(0, 2);
+	window.printCenteredLine(substCaret(_messages.get(kMsgWhoWill), _messages.get(deed)));
+	window.printCenteredLine(_messages.get(kMsgChestReturn));
 }
 
 void TownScreens::drawEquipChoices(const Character &c, int kindIndex, const Common::Array<uint> &slots, bool prompt) {

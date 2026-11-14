@@ -35,7 +35,8 @@ class SheetView : public TownView {
 public:
 	enum Mode {
 		kFromTraining,   ///< read the spell books, or leave
-		kFromTavern      ///< also equip, trade, drop, pool gold and identify
+		kFromTavern,     ///< also equip, trade, drop, pool gold and identify
+		kFromCamp        ///< all of that, and for the healthy casting spells and using items
 	};
 
 private:
@@ -45,7 +46,9 @@ private:
 		kTradeWho,
 		kTradeGold,
 		kTradeItem,
-		kSaid        ///< a notice in the small window, then on
+		kSpellName,     ///< typing the name of a spell to cast
+		kSpellTarget,   ///< whom the spell is for
+		kSaid           ///< a notice in the small window, then on
 	};
 
 	Mode _mode = kFromTavern;
@@ -55,6 +58,11 @@ private:
 	Common::String _said;
 	Common::String _input;
 	uint _receiver = 0;   ///< party member who gets what is traded
+	int _spell = 0;
+
+	bool fullMenu() const;
+	void castSpell(uint target);
+	void sayText(const Common::String &text, State next);
 
 	Character &character();
 	void say(uint message, State next);

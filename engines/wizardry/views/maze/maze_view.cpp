@@ -76,6 +76,7 @@ void MazeView::enter() {
 	MazeState &state = _G(mazeState);
 
 	state = MazeState();
+	static_cast<MazeView *>(g_events->findView("Maze"))->_loadedLevel = -1;
 
 	// Everyone goes in with all spells and with figures worked out afresh
 	for (uint i = 0; i < party.size(); ++i) {
@@ -87,15 +88,47 @@ void MazeView::enter() {
 }
 
 bool MazeView::msgFocus(const FocusMessage &msg) {
+	MazeState &state = _G(mazeState);
+	EngineDice dice;
+
 	_state = kWalking;
 	_encounter = -1;
 	loadLevel();
+
+	// After a teleporter the party comes down on a plain square
+	if (state.randomPosition) {
+		for (int tries = 0; tries < 1000 && _G(mazeLevel).squareTypeAt(state.x, state.y) != kSquareNormal; ++tries) {
+			state.x = dice.roll(MazeLevel::kSize);
+			state.y = dice.roll(MazeLevel::kSize);
+		}
+		state.randomPosition = false;
+	}
+
+	// There is no fight in the room the party stands in
+	_G(roomFights).clearRoom(_G(mazeLevel), state.x, state.y);
+
+	// An alarm brings its fight at once
+	if (state.alarm) {
+		_encounterKind = kEncounterGuardians;
+		_encounter = Maze::pickMonster(_G(mazeLevel), dice);
+		_said = _G(messages).get(kMsgEncounter);
+		_said2.clear();
+		_state = kSaid;
+		delayFrames(kPauseFrames);
+	}
+
 	return TownView::msgFocus(msg);
 }
 
 void MazeView::loadLevel() {
 	if (!_G(mazeLevel).load(_G(scenario), _G(mazeState).level))
 		error("Could not load level %d of the maze", _G(mazeState).level);
+
+	// Coming to a level, all its rooms are guarded
+	if (_loadedLevel != _G(mazeState).level) {
+		_loadedLevel = _G(mazeState).level;
+		_G(roomFights).reset(_G(mazeLevel));
+	}
 }
 
 void MazeView::drawBackground(TownScreens &screens) {
@@ -146,7 +179,7 @@ void MazeView::timeout() {
 		const int monster = _encounter;
 		_encounter = -1;
 		_state = kWalking;
-		BattleView::start(monster, true);
+		BattleView::start(monster, true, _encounterKind);
 		return;
 	}
 
@@ -317,12 +350,15 @@ void MazeView::choose(int result, uint16 ascii) {
 		EngineDice dice;
 		Maze::poisonAndRegen(party, dice);
 
-		// A fight, now and then. TODO: the guardians of rooms, who are
-		// met once for certain, and the fixed encounters
-		if (_state == kWalking && Maze::encounterHappens(_G(mazeLevel), state, dice)) {
-			_encounter = Maze::pickMonster(_G(mazeLevel), dice);
-			say(messages.get(kMsgEncounter));
-			return;
+		// A fight: the guardians of a room for certain, others now and
+		// then. TODO: the fixed encounters
+		if (_state == kWalking) {
+			_encounterKind = Maze::encounter(_G(mazeLevel), state, _G(roomFights), dice);
+			if (_encounterKind != kEncounterNone) {
+				_encounter = Maze::pickMonster(_G(mazeLevel), dice);
+				say(messages.get(kMsgEncounter));
+				return;
+			}
 		}
 	} else if (command < kCmdRight) {
 		Maze::turn(state, 3);
@@ -336,8 +372,11 @@ void MazeView::choose(int result, uint16 ascii) {
 		_partyShown = !_partyShown;
 	} else if (command == kCmdQuit) {
 		_state = kQuit;
+	} else if (command == kCmdCamp) {
+		addView("Camp");
+		return;
 	} else {
-		// TODO: the message delay, the camp and inspecting
+		// TODO: the message delay and inspecting
 		notice("NOT IN THIS VERSION YET");
 		return;
 	}

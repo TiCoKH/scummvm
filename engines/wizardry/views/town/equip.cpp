@@ -58,7 +58,10 @@ Character &EquipView::character() {
 }
 
 void EquipView::drawBackground(TownScreens &screens) {
-	screens.drawBackground(false);
+	if (g_events->isPresent("Maze"))
+		screens.drawCampBackground(false);
+	else
+		screens.drawBackground(false);
 }
 
 void EquipView::drawTown(TownScreens &screens) {

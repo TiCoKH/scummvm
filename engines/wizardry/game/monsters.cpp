@@ -52,6 +52,8 @@ bool MonsterList::load(const ScenarioFile &scenario) {
 			m.attackDamage[a] = readDice(src + 20 + a * 6);
 		m.levelDrain = READ_LE_INT16(src + 68);
 		m.regeneration = READ_LE_INT16(src + 70);
+		m.rewardWandering = READ_LE_INT16(src + 72);
+		m.rewardLair = READ_LE_INT16(src + 74);
 		m.partnerId = READ_LE_INT16(src + 76);
 		m.partnerChance = READ_LE_INT16(src + 78);
 		m.mageSpellLevel = READ_LE_INT16(src + 80);

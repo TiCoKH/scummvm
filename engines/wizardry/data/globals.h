@@ -27,6 +27,7 @@
 #include "wizardry/game/items.h"
 #include "wizardry/game/maze.h"
 #include "wizardry/game/monsters.h"
+#include "wizardry/game/treasure.h"
 #include "wizardry/game/party.h"
 #include "wizardry/resources/scenario_file.h"
 #include "wizardry/gfx/cell_renderer.h"
@@ -50,6 +51,8 @@ struct Globals {
 	Party _party;
 	ItemList _items;
 	MonsterList _monsters;
+	RewardList _rewards;
+	RoomFights _roomFights;
 	MazeLevel _mazeLevel;
 	MazeState _mazeState;
 

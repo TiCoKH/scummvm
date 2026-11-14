@@ -21,6 +21,8 @@
 
 #include "wizardry/views/town/sheet.h"
 #include "wizardry/data/globals.h"
+#include "wizardry/game/camp_spells.h"
+#include "wizardry/wizardry.h"
 #include "wizardry/views/town/equip.h"
 #include "wizardry/views/town/spell_books.h"
 
@@ -29,6 +31,20 @@ namespace Town {
 
 enum {
 	kMsgReturnToLeave = 600,
+	kMsgCannotCast = 619,
+	kMsgFizzle = 620,
+	kMsgCastOnWhom = 621,
+	kMsgNow = 623,
+	kMsgOk = 624,
+	kMsgOops = 625,
+	kMsgNotDead = 626,
+	kMsgLost = 627,
+	kMsgTryKadorto = 628,
+	kMsgCastWhatSpell = 629,
+	kMsgSpellPrompt = 630,
+	kMsgWhat = 631,
+	kMsgDone = 632,
+	kMsgMenuCamp = 649,
 	kMsgDropWhich = 636,
 	kMsgCursed = 637,
 	kMsgEquipped = 638,
@@ -48,10 +64,79 @@ enum {
 	kMaxAmount = 12
 };
 
-// Results of "R)EAD/E)QUIP/T)RADE/D)ROP/P)OOL GOLD/I)DENTIFY/l)EAVE"
+// Results of "R)EAD/E)QUIP/T)RADE/D)ROP/P)OOL GOLD/I)DENTIFY/l)EAVE"; in camp, for
+// the healthy, "S)PELL/U)SE" come before "l)EAVE"
 enum {
-	kRead, kEquip, kTrade, kDrop, kPoolGold, kIdentify, kLeaveSheet
+	kRead, kEquip, kTrade, kDrop, kPoolGold, kIdentify, kLeaveSheet,
+	kCastSpell = 100, kUseItem
 };
+
+namespace {
+
+class EngineDice : public Dice {
+public:
+	uint roll(uint count) override {
+		return g_engine->getRandomNumber(count - 1);
+	}
+};
+
+} // End of anonymous namespace
+
+bool SheetView::fullMenu() const {
+	return _mode == kFromCamp && _G(party).rosterEntry(_rosterIndex).status == kStatusOk;
+}
+
+void SheetView::sayText(const Common::String &text, State next) {
+	_said = text;
+	_afterSaid = next;
+	_state = kSaid;
+	delayFrames(kPauseFrames);
+	redraw();
+}
+
+void SheetView::castSpell(uint target) {
+	Party &party = _G(party);
+	const MessageFile &messages = _G(messages);
+	const int member = party.memberIndexOf(_rosterIndex);
+	if (member < 0)
+		return;
+
+	EngineDice dice;
+	switch (CampSpells::cast(party, member, _spell, target, _G(mazeState), dice)) {
+	case CampSpells::kNotACampSpell:
+		say(kMsgWhat, kMenu);
+		break;
+	case CampSpells::kNotYet:
+		sayText("NOT IN THIS VERSION YET", kMenu);   // TODO: KANDI, DUMAPIC, MALOR
+		break;
+	case CampSpells::kFizzled:
+		say(kMsgFizzle, kMenu);
+		break;
+	case CampSpells::kHealed: {
+		const Character &c = party.member(target);
+		sayText(messages.get(kMsgNow) + Common::String::format("%5d/%4d", c.hp, c.hpMax), kMenu);
+		break;
+	}
+	case CampSpells::kNotDead:
+		say(kMsgNotDead, kMenu);
+		break;
+	case CampSpells::kIsLost:
+		say(kMsgLost, kMenu);
+		break;
+	case CampSpells::kTryKadorto:
+		say(kMsgTryKadorto, kMenu);
+		break;
+	case CampSpells::kRaised:
+		say(kMsgOk, kMenu);
+		break;
+	case CampSpells::kRaiseFailed:
+		say(kMsgOops, kMenu);
+		break;
+	default:
+		say(kMsgDone, kMenu);
+		break;
+	}
+}
 
 void SheetView::open(uint rosterIndex, Mode mode) {
 	SheetView *view = static_cast<SheetView *>(g_events->findView("Town.Sheet"));
@@ -69,6 +154,8 @@ void SheetView::drawBackground(TownScreens &screens) {
 	// The sheet takes the place of the party
 	if (_mode == kFromTraining)
 		screens.drawTrainingBackground();
+	else if (_mode == kFromCamp)
+		screens.drawCampBackground(false);
 	else
 		screens.drawBackground(false);
 }
@@ -81,7 +168,24 @@ void SheetView::drawTown(TownScreens &screens) {
 
 	switch (_state) {
 	case kMenu:
-		screens.drawSheetMenu(_mode == kFromTraining ? kMsgMenuTraining : kMsgMenuTavern, _menu);
+		screens.drawSheetMenu(_mode == kFromTraining ? kMsgMenuTraining :
+			(fullMenu() ? kMsgMenuCamp : kMsgMenuTavern), _menu);
+		break;
+
+	case kSpellName: {
+		lines.push_back(messages.get(kMsgCastWhatSpell));
+		lines.push_back(messages.get(kMsgReturnToLeave));
+		const Common::String input = messages.get(kMsgSpellPrompt) + _input;
+		screens.drawSheetPopup(lines, &input);
+		break;
+	}
+
+	case kSpellTarget:
+		screens.drawParty();
+		lines.push_back("");
+		lines.push_back(messages.get(kMsgCastOnWhom));
+		lines.push_back(messages.get(kMsgReturnToLeave));
+		screens.drawSheetPopup(lines, nullptr);
 		break;
 
 	case kDropWhich:
@@ -151,7 +255,18 @@ void SheetView::choose(int result, uint16 ascii) {
 			return;
 		}
 
+		// With the long menu, casting and using come before leaving
+		if (fullMenu() && result >= kLeaveSheet)
+			result = (result == kLeaveSheet) ? kCastSpell : (result == kLeaveSheet + 1 ? kUseItem : kLeaveSheet);
+
 		switch (result) {
+		case kCastSpell:
+			_input.clear();
+			_state = kSpellName;
+			break;
+		case kUseItem:
+			notice("NOT IN THIS VERSION YET");       // TODO: using items
+			return;
 		case kRead:
 			SpellBooks::open(_rosterIndex, false);
 			return;
@@ -186,6 +301,56 @@ void SheetView::choose(int result, uint16 ascii) {
 			return;
 		}
 		break;
+
+	case kSpellName: {
+		if (ascii == kKeyBackspace) {
+			if (!_input.empty())
+				_input.deleteLastChar();
+			break;
+		}
+		if (ascii == kKeyEscape) {
+			_input.clear();
+			break;
+		}
+		if (ascii != kKeyReturn) {
+			if (ascii >= 'A' && ascii <= 'Z' && _input.size() < 15)
+				_input += (char)ascii;
+			break;
+		}
+		if (_input.empty()) {
+			_state = kMenu;
+			break;
+		}
+
+		// TODO: the original lists the spells when several begin alike
+		const Common::Array<int> found = Spells::find(_G(messages), c, _input);
+		if (found.size() != 1 || !CampSpells::isCampSpell(found[0])) {
+			say(kMsgWhat, kMenu);
+			return;
+		}
+		if (!Spells::canCast(c, found[0])) {
+			say(kMsgCannotCast, kMenu);
+			return;
+		}
+
+		_spell = found[0];
+		if (!CampSpells::needsTarget(_spell)) {
+			castSpell(0);
+			return;
+		}
+		_state = kSpellTarget;
+		break;
+	}
+
+	case kSpellTarget:
+		if (ascii == kKeyReturn || ascii == '0') {
+			say(kMsgOops - 3, kMenu);     // "OOPS"
+			return;
+		}
+		if (ascii < '1' || ascii > '0' + (int)party.size())
+			return;
+		castSpell(ascii - '1');
+		return;
 
 	case kDropWhich:
 		if (ascii == kKeyReturn || ascii == '0') {
