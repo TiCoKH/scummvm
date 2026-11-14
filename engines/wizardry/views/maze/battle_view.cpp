@@ -415,9 +415,7 @@ void BattleView::choose(int result, uint16 ascii) {
 		if (ascii != kKeyReturn)
 			return;
 		if (_battle->outcome() == Battle::kDefeat) {
-			// TODO: what the original does to a party that was wiped out
-			while (party.size())
-				party.remove(party.size() - 1);
+			Maze::wipedOut(party, _G(mazeState), _dice);
 			g_events->replaceView("Town.Castle", true);
 		} else {
 			close();

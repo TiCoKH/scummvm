@@ -53,7 +53,8 @@ struct Globals {
 	MonsterList _monsters;
 	RewardList _rewards;
 	RoomFights _roomFights;
-	MazeLevel _mazeLevel;
+	MazeLevel _mazeLevel;                     ///< the level the party is on
+	Common::Array<MazeLevel> _mazeLevels;     ///< all levels, as they are after what happened on them
 	MazeState _mazeState;
 
 	TSCNTOC _SCNTOC;

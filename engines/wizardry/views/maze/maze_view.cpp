@@ -22,6 +22,7 @@
 #include "wizardry/views/maze/maze_view.h"
 #include "wizardry/game/equip.h"
 #include "wizardry/game/inn.h"
+#include "wizardry/game/specials.h"
 #include "wizardry/views/maze/battle_view.h"
 #include "wizardry/wizardry.h"
 
@@ -29,7 +30,15 @@ namespace Wizardry {
 namespace InMaze {
 
 enum {
+	kMsgYesNo = 100,
+	kMsgGotAnItem = 102,
+	kMsgWillYouSearch = 107,
+	kMsgEventYes = 115,
+	kMsgEventNo = 116,
+	kMsgSlaughtered = 510,
+	kMsgLeaveCemetery = 511,
 	kMsgEncounter = 702,
+	kMsgCongratulations = 1600,
 	kMsgStairsDown = 703,
 	kMsgStairsUp = 704,
 	kMsgTakeThem = 705,
@@ -111,6 +120,7 @@ bool MazeView::msgFocus(const FocusMessage &msg) {
 	if (state.alarm) {
 		_encounterKind = kEncounterGuardians;
 		_encounter = Maze::pickMonster(_G(mazeLevel), dice);
+		_canRun = true;
 		_said = _G(messages).get(kMsgEncounter);
 		_said2.clear();
 		_state = kSaid;
@@ -121,14 +131,48 @@ bool MazeView::msgFocus(const FocusMessage &msg) {
 }
 
 void MazeView::loadLevel() {
-	if (!_G(mazeLevel).load(_G(scenario), _G(mazeState).level))
-		error("Could not load level %d of the maze", _G(mazeState).level);
+	const int level = _G(mazeState).level;
+	Common::Array<MazeLevel> &levels = _G(mazeLevels);
 
-	// Coming to a level, all its rooms are guarded
-	if (_loadedLevel != _G(mazeState).level) {
-		_loadedLevel = _G(mazeState).level;
-		_G(roomFights).reset(_G(mazeLevel));
+	// The levels are kept as they are played, since they change
+	if (levels.empty()) {
+		for (int n = 1; n <= 64; ++n) {
+			MazeLevel one;
+			if (!one.load(_G(scenario), n))
+				break;
+			levels.push_back(one);
+		}
 	}
+	if (level < 1 || level > (int)levels.size())
+		error("There is no level %d in the maze", level);
+	_G(mazeLevel) = levels[level - 1];
+
+	// Coming to a level, it is decided afresh which rooms are guarded,
+	// and a field where spells fizzle is left behind
+	if (_loadedLevel != level) {
+		EngineDice dice;
+		_loadedLevel = level;
+		_G(roomFights).reset(_G(mazeLevel), dice);
+		_G(mazeState).spellsFizzle = false;
+	}
+}
+
+void MazeView::storeLevel() {
+	const int level = _G(mazeState).level;
+	if (level >= 1 && level <= (int)_G(mazeLevels).size())
+		_G(mazeLevels)[level - 1] = _G(mazeLevel);
+}
+
+void MazeView::partyWipedOut() {
+	EngineDice dice;
+	Maze::wipedOut(_G(party), _G(mazeState), dice);
+
+	_mainText.clear();
+	_mainText.push_back(_G(messages).get(kMsgSlaughtered));
+	_mainText.push_back("");
+	_mainText.push_back(_G(messages).get(kMsgLeaveCemetery));
+	_state = kMainText;
+	redraw();
 }
 
 void MazeView::drawBackground(TownScreens &screens) {
@@ -141,6 +185,23 @@ void MazeView::drawTown(TownScreens &screens) {
 	screens.drawMaze(_G(mazeLevel), state, _windows, _windows && _partyShown);
 
 	switch (_state) {
+	case kMainText:
+		screens.drawMainText(_mainText);
+		break;
+	case kElevator: {
+		const uint index = _G(mazeLevel).squareIndex(state.x, state.y);
+		screens.drawElevator(_G(mazeLevel).aux(1, index) - _G(mazeLevel).aux(2, index) + 1);
+		break;
+	}
+	case kEventText:
+		_eventNext = screens.drawEventText(_eventLines, _eventPage);
+		break;
+	case kEventSearch:
+		screens.drawEventLine("", _G(messages).get(kMsgWillYouSearch) + _G(messages).get(kMsgYesNo));
+		break;
+	case kEventFound:
+		screens.drawEventLine(_said);
+		break;
 	case kSaid:
 		screens.drawMazePopup(_said, _said2);
 		break;
@@ -179,7 +240,13 @@ void MazeView::timeout() {
 		const int monster = _encounter;
 		_encounter = -1;
 		_state = kWalking;
-		BattleView::start(monster, true, _encounterKind);
+		BattleView::start(monster, _canRun, _encounterKind);
+		return;
+	}
+
+	// A pit or a trap may have finished the party
+	if (!Maze::anyoneAlive(_G(party))) {
+		partyWipedOut();
 		return;
 	}
 
@@ -188,9 +255,110 @@ void MazeView::timeout() {
 }
 
 void MazeView::backToTown() {
-	// TODO: what the original does on coming back: the amulet, and
-	// leaving those behind who cannot walk
+	const MessageFile &messages = _G(messages);
+
+	if (Maze::returnToTown(_G(party))) {
+		// The amulet was brought back: the text ends with a line "!END!"
+		_mainText.clear();
+		for (uint id = kMsgCongratulations; messages.contains(id) && messages.get(id) != "!END!"; ++id)
+			_mainText.push_back(messages.get(id));
+		_state = kMainText;
+		redraw();
+		return;
+	}
+
 	g_events->replaceView("Town.Castle", true);
+}
+
+void MazeView::showEventText(int text) {
+	_eventLines = Specials::text(_G(messages), text);
+	_eventPage = 0;
+
+	if (_eventLines.empty()) {
+		eventAfterText();
+	} else {
+		_state = kEventText;
+		redraw();
+	}
+}
+
+void MazeView::startEvent(uint index) {
+	MazeState &state = _G(mazeState);
+
+	_event = Specials::begin(_G(mazeLevel), index);
+	storeLevel();
+	_eventRefusal = false;
+	if (!_event.happens)
+		return;
+
+	// Two kinds say nothing if the party may pass
+	if (_event.kind == Specials::kRequireItem || _event.kind == Specials::kAlignmentGate) {
+		const bool passes = (_event.kind == Specials::kRequireItem) ?
+			Specials::anyoneCarries(_G(party), _event.param) : Specials::gateLetsBy(_G(party), _event.param);
+		if (passes)
+			return;
+
+		Specials::pushBack(state);
+		_eventRefusal = true;
+		showEventText(_event.text);
+		return;
+	}
+
+	showEventText(_event.text);
+}
+
+void MazeView::eventGive(int item) {
+	const int member = Specials::giveItem(_G(party), item);
+	if (member < 0) {
+		_state = kWalking;
+	} else {
+		_said = substCaret(_G(messages).get(kMsgGotAnItem), _G(party).member(member).name);
+		_state = kEventFound;
+	}
+	redraw();
+}
+
+void MazeView::eventAfterText() {
+	MazeState &state = _G(mazeState);
+	_state = kWalking;
+
+	if (_eventRefusal) {
+		redraw();
+		return;
+	}
+
+	switch (_event.kind) {
+	case Specials::kGiveItem:
+		eventGive(_event.param);
+		return;
+
+	case Specials::kSearch:
+		_state = kEventSearch;
+		break;
+
+	case Specials::kLightOrArmor:
+		Specials::lightOrArmor(state, _event.param);
+		break;
+
+	case Specials::kToCastle:
+		backToTown();
+		return;
+
+	case Specials::kArmRooms:
+		_G(roomFights).arm(state.x, state.y, _event.param);
+		break;
+
+	case Specials::kPool:
+	case Specials::kRiddle:
+	case Specials::kPayFee:
+		// TODO: none of these is used by the first scenario
+		break;
+
+	default:
+		break;
+	}
+
+	redraw();
 }
 
 void MazeView::transfer(uint index) {
@@ -271,8 +439,29 @@ void MazeView::enterSquare() {
 		state.spellsFizzle = true;
 		break;
 
+	case kSquareElevator:
+		_state = kElevator;
+		break;
+
+	case kSquareSpecial:
+		startEvent(index);
+		break;
+
+	case kSquareEncounter: {
+		MazeLevel &changing = _G(mazeLevel);
+		const int monster = Maze::fixedEncounter(changing, state, _G(roomFights), dice);
+		storeLevel();
+		if (monster >= 0) {
+			// No running from these
+			_encounter = monster;
+			_encounterKind = kEncounterGuardians;
+			_canRun = false;
+			say(messages.get(kMsgEncounter));
+		}
+		break;
+	}
+
 	default:
-		// TODO: elevators, special squares and fixed encounters
 		break;
 	}
 }
@@ -294,6 +483,83 @@ void MazeView::choose(int result, uint16 ascii) {
 		} else {
 			return;
 		}
+		redraw();
+		return;
+
+	case kMainText:
+		if (ascii != kKeyReturn)
+			return;
+		g_events->replaceView("Town.Castle", true);
+		return;
+
+	case kElevator: {
+		const MazeLevel &level = _G(mazeLevel);
+		const uint index = level.squareIndex(state.x, state.y);
+		const int first = level.aux(2, index), last = level.aux(1, index);
+
+		// RETURN stays on this floor
+		if (ascii == kKeyReturn) {
+			_state = kWalking;
+			redraw();
+			return;
+		}
+		if (ascii < 'A' || ascii > 'A' + (last - first))
+			return;
+
+		// Some elevators let the party out at a place at random
+		if (level.aux(0, index) > 0) {
+			EngineDice dice;
+			state.x = dice.roll(MazeLevel::kSize);
+			state.y = dice.roll(MazeLevel::kSize);
+		}
+		state.level = first + (ascii - 'A');
+		_state = kWalking;
+		if (state.level <= 0) {
+			backToTown();
+			return;
+		}
+		loadLevel();
+		_G(roomFights).clearRoom(_G(mazeLevel), state.x, state.y);
+		redraw();
+		return;
+	}
+
+	case kEventText:
+		if (ascii != kKeyReturn)
+			return;
+		if (_eventNext < _eventLines.size()) {
+			_eventPage = _eventNext;
+			redraw();
+		} else {
+			eventAfterText();
+		}
+		return;
+
+	case kEventSearch:
+		if (ascii == (byte)messages.get(kMsgEventNo)[0]) {
+			_state = kWalking;
+			redraw();
+		} else if (ascii == (byte)messages.get(kMsgEventYes)[0]) {
+			const int monster = Specials::searchMonster(_event);
+			if (monster >= 0) {
+				// What was waiting does not let the party run
+				_encounter = monster;
+				_encounterKind = kEncounterCorridor;
+				_canRun = false;
+				say(messages.get(kMsgEncounter));
+			} else if (Specials::searchItem(_event) >= 0) {
+				eventGive(Specials::searchItem(_event));
+			} else {
+				_state = kWalking;
+				redraw();
+			}
+		}
+		return;
+
+	case kEventFound:
+		if (ascii != kKeyReturn)
+			return;
+		_state = kWalking;
 		redraw();
 		return;
 
@@ -350,12 +616,18 @@ void MazeView::choose(int result, uint16 ascii) {
 		EngineDice dice;
 		Maze::poisonAndRegen(party, dice);
 
-		// A fight: the guardians of a room for certain, others now and
-		// then. TODO: the fixed encounters
+		// The step may have been the party's last
+		if (!Maze::anyoneAlive(party) && _state != kSaid) {
+			partyWipedOut();
+			return;
+		}
+
+		// A fight: the guardians of a room for certain, others now and then
 		if (_state == kWalking) {
 			_encounterKind = Maze::encounter(_G(mazeLevel), state, _G(roomFights), dice);
 			if (_encounterKind != kEncounterNone) {
 				_encounter = Maze::pickMonster(_G(mazeLevel), dice);
+				_canRun = true;
 				say(messages.get(kMsgEncounter));
 				return;
 			}

@@ -82,6 +82,11 @@ public:
 	/** The three numbers of a kind of square */
 	int aux(uint which, uint index) const;
 
+	// A level changes while it is played: encounters and events that
+	// happen only so many times count down, and their squares turn plain
+	void setAux(uint which, uint index, int value);
+	void setSquareType(uint index, uint type);
+
 	/**
 	 * A number of one of the level's three tables of monsters: first
 	 * monster, step, most steps, range, chance in percent of each step
@@ -104,8 +109,15 @@ private:
 public:
 	RoomFights();
 
-	/** All rooms of a level get their guardians */
-	void reset(const MazeLevel &level);
+	/**
+	 * Coming to a level, it is decided afresh which rooms are guarded:
+	 * up to sixteen rooms picked at random, and the rooms of all fixed
+	 * encounters
+	 */
+	void reset(const MazeLevel &level, Dice &dice);
+
+	/** Guards every square within a distance of a place, but not the place itself */
+	void arm(int x, int y, int distance);
 
 	bool isPending(int x, int y) const { return _pending[x][y]; }
 
@@ -183,6 +195,30 @@ public:
 
 	/** True if anyone in the party can still walk */
 	static bool anyoneAlive(const Party &party);
+
+	/**
+	 * A fixed encounter on the party's square, if it is still there: its
+	 * guardians are met as long as the room has not been cleared. Some
+	 * are there only so many times.
+	 * @returns the monster, or -1 for no fight
+	 */
+	static int fixedEncounter(MazeLevel &level, const MazeState &state, RoomFights &rooms, Dice &dice);
+
+	/**
+	 * The party is wiped out: everyone is dead at least, loses half the
+	 * gold and, by luck, items; the bodies lie where they fell, unless
+	 * they are lost altogether, which is likelier the deeper it happened.
+	 * The party is empty afterwards.
+	 */
+	static void wipedOut(Party &party, const MazeState &state, Dice &dice);
+
+	/**
+	 * The party comes back to the castle. Those who cannot walk leave the
+	 * party, to wait for the temple.
+	 * @returns true if the amulet was brought back; it is taken away, and
+	 * everyone is rewarded
+	 */
+	static bool returnToTown(Party &party);
 
 	/**
 	 * Picks the monster of an encounter from the level's tables: the

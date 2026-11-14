@@ -110,6 +110,7 @@ struct Character {
 	int16 poison = 0;
 	int16 lostPosition = 0;    ///< where in the maze the body lies; 0 in town
 	int16 lostLevel = 0;       ///< maze level where the body lies; 0 in town
+	uint16 honors = 0;         ///< marks of honour; bit 0 for bringing back the amulet
 	int16 itemCount = 0;
 	ItemSlot items[kMaxItems] = {};
 
@@ -121,6 +122,7 @@ struct Character {
 	bool isFree() const { return status == kStatusLost; }
 
 	bool addItem(int16 id, bool identified);
+	bool carries(int16 id) const;
 	void removeItem(uint index);
 
 	/**

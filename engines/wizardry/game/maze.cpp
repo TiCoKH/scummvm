@@ -79,6 +79,16 @@ int MazeLevel::aux(uint which, uint index) const {
 	return (int16)word(kOfsAux + which * 32 + index * 2);
 }
 
+void MazeLevel::setAux(uint which, uint index, int value) {
+	WRITE_LE_UINT16(_data + kOfsAux + which * 32 + index * 2, (uint16)value);
+}
+
+void MazeLevel::setSquareType(uint index, uint type) {
+	const uint offset = kOfsSquareType + (index / 4) * 2;
+	const uint shift = (index % 4) * 4;
+	WRITE_LE_UINT16(_data + offset, (word(offset) & ~(15 << shift)) | ((type & 15) << shift));
+}
+
 int MazeLevel::encounterTable(uint table, uint field) const {
 	return (int16)word(kOfsEncounters + (table * 5 + field) * 2);
 }
@@ -118,11 +128,64 @@ RoomFights::RoomFights() {
 	memset(_visited, 0, sizeof(_visited));
 }
 
-void RoomFights::reset(const MazeLevel &level) {
-	for (int x = 0; x < MazeLevel::kSize; ++x) {
-		for (int y = 0; y < MazeLevel::kSize; ++y)
-			_pending[x][y] = level.isFightSquare(x, y);
+// Marks the squares of a room: those of a room joined through open sides
+static void floodRoom(const MazeLevel &level, bool marked[MazeLevel::kSize][MazeLevel::kSize], int x, int y) {
+	x = (x + MazeLevel::kSize) % MazeLevel::kSize;
+	y = (y + MazeLevel::kSize) % MazeLevel::kSize;
+	if (marked[x][y] || !level.isFightSquare(x, y))
+		return;
+
+	marked[x][y] = true;
+	if (level.wall(x, y, kNorth) == kOpen)
+		floodRoom(level, marked, x, y + 1);
+	if (level.wall(x, y, kEast) == kOpen)
+		floodRoom(level, marked, x + 1, y);
+	if (level.wall(x, y, kSouth) == kOpen)
+		floodRoom(level, marked, x, y - 1);
+	if (level.wall(x, y, kWest) == kOpen)
+		floodRoom(level, marked, x - 1, y);
+}
+
+void RoomFights::reset(const MazeLevel &level, Dice &dice) {
+	const int total = MazeLevel::kSize * MazeLevel::kSize;
+	memset(_pending, 0, sizeof(_pending));
+
+	for (int room = 0; room < 16; ++room) {
+		// A room square not yet marked, searching on from a place at random
+		const int start = dice.roll(total);
+		int found = -1;
+		for (int n = 0; n < total && found < 0; ++n) {
+			const int at = (start + n) % total;
+			if (level.isFightSquare(at / MazeLevel::kSize, at % MazeLevel::kSize) &&
+					!_pending[at / MazeLevel::kSize][at % MazeLevel::kSize])
+				found = at;
+		}
+		if (found < 0)
+			break;
+
+		floodRoom(level, _pending, found / MazeLevel::kSize, found % MazeLevel::kSize);
 	}
+
+	// The rooms of the fixed encounters are always guarded. A fixed
+	// encounter outside any room guards its own square.
+	for (int x = 0; x < MazeLevel::kSize; ++x) {
+		for (int y = 0; y < MazeLevel::kSize; ++y) {
+			if (level.squareTypeAt(x, y) != kSquareEncounter)
+				continue;
+			if (level.isFightSquare(x, y))
+				floodRoom(level, _pending, x, y);
+			else
+				_pending[x][y] = true;
+		}
+	}
+}
+
+void RoomFights::arm(int x, int y, int distance) {
+	for (int dx = -distance; dx <= distance; ++dx) {
+		for (int dy = -distance; dy <= distance; ++dy)
+			_pending[(x + dx + MazeLevel::kSize * 2) % MazeLevel::kSize][(y + dy + MazeLevel::kSize * 2) % MazeLevel::kSize] = true;
+	}
+	_pending[x][y] = false;
 }
 
 void RoomFights::visit(const MazeLevel &level, int x, int y, uint wall) {
@@ -243,6 +306,93 @@ void Maze::quitHere(Party &party, const MazeState &state) {
 	// Emptying the party clears "with a party" for everyone
 	while (party.size())
 		party.remove(party.size() - 1);
+}
+
+int Maze::fixedEncounter(MazeLevel &level, const MazeState &state, RoomFights &rooms, Dice &dice) {
+	const uint index = level.squareIndex(state.x, state.y);
+	const int times = level.aux(0, index);
+
+	if (times == 0 || !rooms.isPending(state.x, state.y))
+		return -1;
+
+	int monster = level.aux(2, index);
+	if (level.aux(1, index) > 1)
+		monster += dice.roll(level.aux(1, index));
+
+	// A number above zero is how often it is still there; below, always
+	if (times > 0) {
+		level.setAux(0, index, times - 1);
+		if (times == 1)
+			level.setSquareType(index, kSquareNormal);
+	}
+
+	rooms.clearRoom(level, state.x, state.y);
+	return monster;
+}
+
+void Maze::wipedOut(Party &party, const MazeState &state, Dice &dice) {
+	for (uint i = 0; i < party.size(); ++i) {
+		Character &c = party.member(i);
+
+		if (c.status < kStatusDead)
+			c.status = kStatusDead;
+		c.hp = 0;
+		c.gold /= 2;
+
+		// Each item not cursed is lost unless luck holds
+		for (int item = c.itemCount - 1; item >= 0; --item) {
+			if (!c.items[item].cursed && (int)dice.roll(21) > c.attributes[kLuck])
+				c.removeItem(item);
+		}
+
+		if ((int)dice.roll(50) < state.level) {
+			c.status = kStatusLost;
+		} else {
+			// The body stays, for another party to find
+			c.lostPosition = state.x * 100 + state.y;
+			c.lostLevel = state.level;
+		}
+	}
+
+	while (party.size())
+		party.remove(party.size() - 1);
+}
+
+bool Maze::returnToTown(Party &party) {
+	enum {
+		kAmulet = 94
+	};
+	bool won = false;
+
+	for (uint i = 0; i < party.size(); ++i) {
+		Character &c = party.member(i);
+		for (int item = c.itemCount - 1; item >= 0; --item) {
+			if (c.items[item].id == kAmulet) {
+				c.removeItem(item);
+				won = true;
+			}
+		}
+		c.poison = 0;
+		c.lostPosition = 0;
+		c.lostLevel = 0;
+	}
+
+	if (won) {
+		for (uint i = 0; i < party.size(); ++i) {
+			Character &c = party.member(i);
+			c.experience = MIN<int64>(c.experience + 50000, 999999999999LL);
+			c.gold = MIN<int64>(c.gold + 50000, 999999999999LL);
+			c.honors |= 1;
+		}
+	}
+
+	// Those who cannot walk are left to the care of the temple
+	for (int i = (int)party.size() - 1; i >= 0; --i) {
+		if (party.member(i).status != kStatusOk)
+			party.remove(i);
+	}
+
+	return won;
 }
 
 bool Maze::anyoneAlive(const Party &party) {

@@ -220,6 +220,35 @@ public:
 	 */
 	void drawChestWho(uint deed);
 
+	// ---- special squares
+
+	/**
+	 * A page of an event's text in a window at the top, with the prompt
+	 * to go on below it
+	 * @param lines  All lines of the text
+	 * @param first  The line the page starts with
+	 * @returns the line the next page starts with, or the number of lines
+	 *          if this was the last page
+	 */
+	uint drawEventText(const Common::Array<Common::String> &lines, uint first);
+
+	/**
+	 * One line in that window, and a second if it is not empty
+	 */
+	void drawEventLine(const Common::String &line, const Common::String &second = Common::String());
+
+	/**
+	 * The buttons of an elevator
+	 * @param floors  How many there are, lettered from A
+	 */
+	void drawElevator(int floors);
+
+	/**
+	 * The screen of a party that is no more, or of one that won: lines
+	 * centred in the main window
+	 */
+	void drawMainText(const Common::Array<Common::String> &lines);
+
 	// ---- equipping
 
 	/**

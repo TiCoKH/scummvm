@@ -37,6 +37,7 @@ enum {
 	kMsgKindNames = 259,         // weapon, armor, shield, helm, gauntlets, misc. item
 	kMsgCursed = 265,
 	kMsgReordering = 266,
+	kMsgEventPress = 101,
 	kMsgRosterDeadOut = 300,     // "D/O": dead, and lying in the maze
 	kMsgRosterDead = 301,
 	kMsgRosterOut = 302,
@@ -58,6 +59,9 @@ enum {
 	kMsgEdgeMenu = 502,
 	kMsgCamp = 652,
 	kMsgCampMenu = 653,
+	kMsgButtonsHere = 710,
+	kMsgMarkedThrough = 711,
+	kMsgPressOne = 712,
 	kMsgMazeCommands = 717,
 	kMsgWhoWill = 800,
 	kMsgChestReturn = 801,
@@ -749,6 +753,70 @@ void TownScreens::drawChestWho(uint deed) {
 	window.MVCURSOR(0, 2);
 	window.printCenteredLine(substCaret(_messages.get(kMsgWhoWill), _messages.get(deed)));
 	window.printCenteredLine(_messages.get(kMsgChestReturn));
+}
+
+uint TownScreens::drawEventText(const Common::Array<Common::String> &lines, uint first) {
+	// The page ends before a line that starts with '@', or after 13 lines
+	uint end = first;
+	while (end < lines.size() && end - first < 13 && !(end > first && lines[end].hasPrefix("@")))
+		++end;
+
+	// The window is as high as the longest page of the text
+	uint longest = 1, run = 0;
+	for (uint i = 0; i < lines.size(); ++i) {
+		run = lines[i].hasPrefix("@") ? 1 : run + 1;
+		longest = MAX(longest, run);
+	}
+	longest = MIN<uint>(longest, 13);
+
+	TextWindow window = openWindow(0, 0, 40, longest + 2);
+	int width = 0;
+	for (uint i = first; i < end; ++i) {
+		Common::String line = lines[i];
+		if (line.hasPrefix("@"))
+			line.deleteChar(0);
+
+		int x;
+		if (line.hasPrefix("$")) {
+			// At the left; a line under it lines up with a full line
+			line.deleteChar(0);
+			x = 0;
+			width = window.width();
+		} else if (line.hasPrefix("^")) {
+			// Under the line before
+			line.deleteChar(0);
+			x = window.width() / 2 - (width + 1) / 2;
+		} else {
+			width = line.size();
+			x = window.width() / 2 - (width + 1) / 2;
+		}
+		window.PRINTSTR(x, i - first, line);
+	}
+
+	drawPopup(_messages.get(kMsgEventPress), longest + 3);
+	return end;
+}
+
+void TownScreens::drawEventLine(const Common::String &line, const Common::String &second) {
+	TextWindow window = openWindow(0, 0, 40, second.empty() ? 3 : 4);
+	window.printCenteredLine(line);
+	if (!second.empty())
+		window.printCenteredLine(second);
+}
+
+void TownScreens::drawElevator(int floors) {
+	TextWindow window = openWindow(0, 0, 40, 5);
+	window.printCenteredLine(_messages.get(kMsgButtonsHere));
+	window.printCenteredLine(substCaret(_messages.get(kMsgMarkedThrough), Common::String((char)('A' + floors - 1))));
+	window.printCenteredLine(_messages.get(kMsgPressOne));
+}
+
+void TownScreens::drawMainText(const Common::Array<Common::String> &lines) {
+	_screen.clear();
+	TextWindow window = openWindow(1, 1, 38, 22);
+	window.MVCURSOR(0, MAX<int>((window.height() - (int)lines.size()) / 2, 0));
+	for (uint i = 0; i < lines.size(); ++i)
+		window.printCenteredLine(lines[i]);
 }
 
 void TownScreens::drawEquipChoices(const Character &c, int kindIndex, const Common::Array<uint> &slots, bool prompt) {

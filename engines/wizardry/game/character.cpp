@@ -59,7 +59,8 @@ enum {
 	kOfsDoubleDamageVs = 198,
 	kOfsPoison = 200,
 	kOfsLostPosition = 202,
-	kOfsLostLevel = 204
+	kOfsLostLevel = 204,
+	kOfsHonors = 206
 };
 
 static Common::String readPascalString(const byte *src) {
@@ -101,6 +102,14 @@ bool Character::addItem(int16 id, bool identified) {
 	const ItemSlot slot = { false, false, identified, id };
 	items[itemCount++] = slot;
 	return true;
+}
+
+bool Character::carries(int16 id) const {
+	for (int i = 0; i < itemCount; ++i) {
+		if (items[i].id == id)
+			return true;
+	}
+	return false;
 }
 
 void Character::removeItem(uint index) {
@@ -155,6 +164,7 @@ void Character::load(const byte *src) {
 	poison = READ_LE_INT16(src + kOfsPoison);
 	lostPosition = READ_LE_INT16(src + kOfsLostPosition);
 	lostLevel = READ_LE_INT16(src + kOfsLostLevel);
+	honors = READ_LE_UINT16(src + kOfsHonors);
 
 	itemCount = CLIP<int>(READ_LE_INT16(src + kOfsItemCount), 0, kMaxItems);
 	for (uint i = 0; i < kMaxItems; ++i) {
@@ -215,6 +225,7 @@ void Character::save(byte *dst) {
 	WRITE_LE_INT16(record + kOfsPoison, poison);
 	WRITE_LE_INT16(record + kOfsLostPosition, lostPosition);
 	WRITE_LE_INT16(record + kOfsLostLevel, lostLevel);
+	WRITE_LE_UINT16(record + kOfsHonors, honors);
 
 	// Places past the last item keep whatever the record had
 	WRITE_LE_INT16(record + kOfsItemCount, itemCount);

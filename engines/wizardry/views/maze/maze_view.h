@@ -22,6 +22,7 @@
 #ifndef WIZARDRY_VIEWS_MAZE_MAZE_VIEW_H
 #define WIZARDRY_VIEWS_MAZE_MAZE_VIEW_H
 
+#include "wizardry/game/specials.h"
 #include "wizardry/views/town/town_view.h"
 
 namespace Wizardry {
@@ -41,7 +42,12 @@ private:
 		kWalking,
 		kSaid,        ///< a box with a message for a moment, then on
 		kStairs,      ///< stairs: take them, yes or no
-		kQuit         ///< leave the expedition, yes or no
+		kQuit,        ///< leave the expedition, yes or no
+		kElevator,    ///< which button
+		kEventText,   ///< the text of a special square, page by page
+		kEventSearch, ///< search, yes or no
+		kEventFound,  ///< who got the item, until RETURN
+		kMainText     ///< the party wiped out, or the game won: until RETURN
 	};
 
 	State _state = kWalking;
@@ -52,6 +58,19 @@ private:
 	int _encounter = -1;        ///< monster of a fight about to start
 	int _encounterKind = 0;     ///< its EncounterKind
 	int _loadedLevel = -1;      ///< level whose rooms are being kept track of
+	Specials::Event _event;
+	Common::Array<Common::String> _eventLines;
+	uint _eventPage = 0, _eventNext = 0;
+	bool _eventRefusal = false;      ///< the text shown is that of being turned back
+	bool _canRun = true;
+	Common::Array<Common::String> _mainText;
+
+	void startEvent(uint index);
+	void showEventText(int text);
+	void eventAfterText();
+	void eventGive(int item);
+	void storeLevel();
+	void partyWipedOut();
 
 	void say(const Common::String &text);
 	void loadLevel();
