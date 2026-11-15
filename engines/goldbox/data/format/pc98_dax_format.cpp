@@ -144,6 +144,10 @@ bool Pc98DaxFormat::normalize(const Common::Path &file, ContentType type,
 	}
 }
 
+uint8 Pc98DaxFormat::digitalToEga(uint8 color) {
+	return kDigitalToEga[color & 7];
+}
+
 bool Pc98DaxFormat::planarToDos(uint8 blockId, bool cells16, uint planeCount,
 		Common::Array<uint8> &data) {
 	if (data.size() < kPc98PicHeaderSize) {

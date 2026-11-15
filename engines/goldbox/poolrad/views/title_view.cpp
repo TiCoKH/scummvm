@@ -31,26 +31,16 @@ namespace Poolrad {
 namespace Views {
 
 bool TitleView::msgFocus(const FocusMessage &msg) {
-	// Some ports keep their title screens outside the DAX files.
-	if (!g_engine->getGfx().hasTitlePictures()) {
-		_pic1 = _pic2 = nullptr;
-		return true;
+	// Some ports keep their title screens outside the game data; without
+	// both pictures the title goes on to the credits.
+	Goldbox::Gfx::GfxBackend &gfx = g_engine->getGfx();
+	Goldbox::Data::DaxFileManager &dax = VmInterface::getDaxManager();
+	_pic1 = gfx.loadTitlePicture(dax, 1);
+	_pic2 = _pic1 ? gfx.loadTitlePicture(dax, 2) : nullptr;
+	if (!_pic2) {
+		delete _pic1;
+		_pic1 = nullptr;
 	}
-
-	Goldbox::Data::DaxBlockContainer &titleContainer = VmInterface::getDaxManager().getTitle();
-
-	Goldbox::Data::DaxBlock *daxBlock = titleContainer.getBlockById(1);
-	if (!daxBlock) {
-		error("Failed to load title block 1 from title container");
-	}
-	_pic1 = Goldbox::Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
-
-	daxBlock = titleContainer.getBlockById(2);
-	if (!daxBlock) {
-		error("Failed to load title block 2 from title container");
-	}
-	_pic2 = Goldbox::Gfx::Pic::read(dynamic_cast<Goldbox::Data::DaxBlockPic*>(daxBlock));
-
 	return true;
 }
 

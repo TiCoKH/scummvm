@@ -38,7 +38,7 @@ public:
 	void setupPalette() override;
 	Graphics::Font *createFont(Data::DaxFileManager &dax) override;
 	uint8 mapChar(uint8 chr) const override;
-	bool hasTitlePictures() const override { return false; }
+	Pic *loadTitlePicture(Data::DaxFileManager &dax, int index) const override;
 	int cellSize() const override { return 16; }
 	const ArtColors &artColors() const override;
 };

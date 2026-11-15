@@ -49,6 +49,12 @@ public:
 	void familyFiles(const char *pattern, uint16 dosIndices,
 		Common::Array<Common::Path> &files) const override;
 
+	/**
+	 * The EGA color the engine uses for a digital color (bit 0 blue, bit 1
+	 * red, bit 2 green).
+	 */
+	static uint8 digitalToEga(uint8 color);
+
 private:
 	/**
 	 * Convert planar art to the DOS layout at its own (double) size, with

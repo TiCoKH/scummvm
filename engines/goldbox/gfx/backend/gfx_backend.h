@@ -34,6 +34,8 @@ class DaxFileManager;
 
 namespace Gfx {
 
+class Pic;
+
 /**
  * Platform side of the graphics: screen mode, palette, text font and the
  * platform's own artwork. Common rendering code asks the backend instead of
@@ -128,7 +130,13 @@ public:
 	}
 
 	/** Whether the title screens are pictures in the title DAX family. */
-	virtual bool hasTitlePictures() const = 0;
+	/**
+	 * Load title picture 1 or 2, or nullptr when the port keeps its title
+	 * outside the game data (the Amiga "intro" program).
+	 */
+	virtual Pic *loadTitlePicture(Data::DaxFileManager &dax, int index) const {
+		return nullptr;
+	}
 
 	/** Pixel size of a text cell; the PC-98 draws at double resolution. */
 	virtual int cellSize() const { return 8; }

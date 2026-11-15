@@ -54,7 +54,6 @@ public:
 		uint32 glyph, int x, int y, uint32 color) const override;
 	bool drawFrame(Graphics::ManagedSurface &dst, int startX, int startY,
 		int endX, int endY) const override;
-	bool hasTitlePictures() const override { return false; }
 	/** CustomizeIcon_ShowIconFrames draws the ready cursor frame twice. */
 	uint8 iconEditorActionCursorFrame() const override { return 0; }
 	const ArtColors &artColors() const override;

@@ -27,6 +27,7 @@
 #include "graphics/paletteman.h"
 #include "goldbox/data/daxfilemanager.h"
 #include "goldbox/gfx/dax_font.h"
+#include "goldbox/gfx/pic.h"
 
 namespace Goldbox {
 namespace Gfx {
@@ -59,6 +60,15 @@ const GfxBackend::ArtColors &DosGfxBackend::artColors() const {
 		{ 0x91, 0xA2, 0xB3, 0xC4, 0xE6, 0xF7 }
 	};
 	return kColors;
+}
+
+Pic *DosGfxBackend::loadTitlePicture(Data::DaxFileManager &dax, int index) const {
+	// TITLE.DAX blocks 1 and 2.
+	Data::DaxBlockPic *block = dynamic_cast<Data::DaxBlockPic *>(
+		dax.getTitle().getBlockById(index));
+	if (!block)
+		error("Failed to load title block %d from title container", index);
+	return Pic::read(block);
 }
 
 uint8 DosGfxBackend::fontIndex(uint8 chr) {

@@ -37,7 +37,7 @@ public:
 
 	/** The glyph of a character in the DOS font order, 0xFF for none. */
 	static uint8 fontIndex(uint8 chr);
-	bool hasTitlePictures() const override { return true; }
+	Pic *loadTitlePicture(Data::DaxFileManager &dax, int index) const override;
 	const ArtColors &artColors() const override;
 };
 
