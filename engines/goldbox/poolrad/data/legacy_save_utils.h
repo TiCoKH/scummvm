@@ -26,12 +26,29 @@
 #include "common/path.h"
 #include "common/stream.h"
 #include "common/str.h"
+#include "goldbox/data/format/dax_format.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Data {
 
 class PoolradCharacter;
+
+/** Original save file names and layouts of the running platform. */
+const ::Goldbox::Data::SaveFileLayout &legacySaveLayout();
+const ::Goldbox::Data::RecordLayout &legacyRecordLayout();
+
+/** Game state file of a slot ('A'-'J'), e.g. SAVGAMA.DAT. */
+Common::String legacyGameFileName(char slotLetter);
+
+/**
+ * Whether a slot holds a saved game: its game file exists and, on
+ * platforms with a slot index file, the index lists it.
+ */
+bool isLegacySlotUsed(const Common::Path &savePath, char slotLetter);
+
+/** List a slot in the slot index file, on platforms that have one. */
+bool markLegacySlotUsed(const Common::Path &savePath, char slotLetter);
 
 Common::String makeLegacyCharacterBaseName(
 		const PoolradCharacter *pc, char slotLetter, uint8 ordinal,

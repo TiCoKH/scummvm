@@ -28,46 +28,48 @@ namespace Goldbox {
 namespace Data {
 namespace Effects {
 
-void CharacterEffects::loadFromStream(Common::SeekableReadStream &f) {
+void CharacterEffects::loadFromStream(Common::SeekableReadStream &f,
+        const RecordLayout &layout) {
     _effects.clear();
 
     const int32 fileSize = f.size();
     if (fileSize <= 0)
         return;
 
-    // X86 Pool of Radiance effect node size = 9 bytes.
-    // Future m68k variant (10 bytes) can be supported by versioning or heuristic.
-    if (fileSize % 9 != 0) {
-        warning("CharacterEffects::loadFromStream: size %d not multiple of 9 (x86 node)",
-            fileSize);
+    const int nodeSize = Effect::recordSize(layout);
+    if (fileSize % nodeSize != 0) {
+        warning("CharacterEffects::loadFromStream: size %d not multiple of %d",
+            fileSize, nodeSize);
     }
 
-    const int count = fileSize / 9;
+    const int count = fileSize / nodeSize;
     for (int i = 0; i < count; ++i) {
         Effect e;
-        e.load(f);
+        e.load(f, layout);
         _effects.push_back(e);
     }
 }
 
-bool CharacterEffects::load(const Common::String &filename) {
+bool CharacterEffects::load(const Common::String &filename,
+        const RecordLayout &layout) {
     Common::File f;
     if (!f.open(filename.c_str()))
         return false;
 
-    loadFromStream(f);
+    loadFromStream(f, layout);
 
     f.close();
     return true;
 }
 
-bool CharacterEffects::save(const Common::String &filename) const {
+bool CharacterEffects::save(const Common::String &filename,
+        const RecordLayout &layout) const {
     Common::DumpFile f;
     if (!f.open(filename.c_str()))
         return false;
 
     for (const auto &effect : _effects)
-        effect.save(f);
+        effect.save(f, layout);
 
     f.flush();
     f.close();

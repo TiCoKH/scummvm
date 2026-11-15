@@ -29,6 +29,7 @@
 #include "goldbox/poolrad/views/add_character_view.h"
 #include "goldbox/poolrad/views/dialogs/vertical_menu.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/poolrad/data/legacy_save_utils.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -156,8 +157,11 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
     if (savePath.empty())
         savePath = getCharacterSavePath();
 
-    // Load .CHR
-    Common::String chrFilename = baseFilename + ".CHA";
+    const Goldbox::Data::SaveFileLayout &files = Goldbox::Poolrad::Data::legacySaveLayout();
+    const Goldbox::Data::RecordLayout &records = Goldbox::Poolrad::Data::legacyRecordLayout();
+
+    // Load the roster character
+    Common::String chrFilename = baseFilename + files.rosterExt;
     Common::File characterFile;
     const Common::Path chrPath = savePath / chrFilename;
     Common::FSNode chrNode(chrPath);
@@ -168,12 +172,12 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
     }
 
     Goldbox::Poolrad::Data::PoolradCharacter *character = new Goldbox::Poolrad::Data::PoolradCharacter();
-    character->load(characterFile);
+    character->load(characterFile, records);
     characterFile.close();
 
-    Common::String itmFilename = baseFilename + ".ITM";
+    Common::String itmFilename = baseFilename + files.itemExt;
     const Common::Path itmPath = savePath / itmFilename;
-    if (character->inventory.load(itmPath.toString())) {
+    if (character->inventory.load(itmPath.toString(), records)) {
         debug(4, "Loaded items file: %s", itmFilename.c_str());
         for (const auto &item : character->inventory.items()) {
             debug(4, "Item: %s", item.name.c_str());
@@ -183,9 +187,9 @@ void AddCharacterView::loadCharacter(int selectedIndex) {
         debug(4, "Items file not found or failed to load: %s", itmFilename.c_str());
     }
 
-    Common::String spcFilename = baseFilename + ".SPC";
+    Common::String spcFilename = baseFilename + files.effectExt;
     const Common::Path spcPath = savePath / spcFilename;
-    if (character->effects.load(spcPath.toString())) {
+    if (character->effects.load(spcPath.toString(), records)) {
         debug(4, "Loaded spells file: %s", spcFilename.c_str());
     } else {
         debug(4, "Spells file not found or failed to load: %s", spcFilename.c_str());
@@ -218,10 +222,14 @@ void AddCharacterView::loadRosterList() {
         return;
     }
 
-    Common::Path charListPath = _characterDataPath / "CHARLIST.TXT";
+    const Common::String listName =
+        Goldbox::Poolrad::Data::legacySaveLayout().rosterList;
+    Common::Path charListPath = _characterDataPath / listName;
     Common::File charListFile;
     if (!charListFile.open(Common::FSNode(charListPath))) {
-        charListPath = _characterDataPath / "charlist.txt";
+        Common::String lowerName = listName;
+        lowerName.toLowercase();
+        charListPath = _characterDataPath / lowerName;
         if (!charListFile.open(Common::FSNode(charListPath))) {
             warning("Failed to open CHARLIST.TXT in legacy save directory: %s",
                 _characterDataPath.toString().c_str());

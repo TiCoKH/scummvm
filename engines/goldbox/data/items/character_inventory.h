@@ -26,6 +26,7 @@
 #include "common/list.h"
 #include "common/str.h"
 #include "goldbox/data/items/character_item.h"
+#include "goldbox/data/record_io.h"
 
 namespace Goldbox {
 namespace Data {
@@ -47,14 +48,17 @@ public:
     };
 
     /// Reads every 63‐byte record from `filename`; leaves `_items` empty if the file is missing.
-    bool load(const Common::String &filename);
+    bool load(const Common::String &filename,
+            const RecordLayout &layout = RecordLayout::dos());
 
     /// Loads inventory items from a stream (e.g., DAX block data).
     /// Parses consecutive 63-byte records until stream end.
-    void loadFromStream(Common::SeekableReadStream &stream);
+    void loadFromStream(Common::SeekableReadStream &stream,
+            const RecordLayout &layout = RecordLayout::dos());
 
     /// Writes back in the same layout (optional).
-    bool save(const Common::String &filename) const;
+    bool save(const Common::String &filename,
+            const RecordLayout &layout = RecordLayout::dos()) const;
 
     void clear() { _items.clear(); }
 

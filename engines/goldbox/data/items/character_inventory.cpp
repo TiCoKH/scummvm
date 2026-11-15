@@ -28,12 +28,12 @@ namespace Goldbox {
 namespace Data {
 namespace Items {
 
-using Goldbox::Data::PascalStringBuffer;
-
-void CharacterInventory::loadFromStream(Common::SeekableReadStream &s) {
+void CharacterInventory::loadFromStream(Common::SeekableReadStream &s,
+        const RecordLayout &layout) {
     clear();
 
-    const int recSize = 63;
+    // DOS 63 bytes; the Amiga record pads weight and value to even offsets.
+    const int recSize = layout.alignWords ? 65 : 63;
     const int total = s.size();
 
     if ((total % recSize) != 0) {
@@ -41,40 +41,40 @@ void CharacterInventory::loadFromStream(Common::SeekableReadStream &s) {
               total, recSize);
     }
 
-    int index = 0;
     while (s.pos() + recSize <= total) {
         CharacterItem it;
+        RecordReader in(s, layout);
 
-        it.name = PascalStringBuffer<41>::read(s);
+        it.name = in.readName(41);
         // --- dynamic fields at offsets 0x2A-0x3E ---
-        it.nextAddress = s.readUint32LE();
-        it.typeIndex   = s.readByte();
-        it.nameCode1   = s.readByte();
-        it.nameCode2   = s.readByte();
-        it.nameCode3   = s.readByte();
-        it.bonus       = s.readByte();
-        it.saveBonus   = s.readByte();
-        it.readied     = s.readByte();
-        it.hidden      = s.readByte();
-        it.cursed      = s.readByte();
+        it.nextAddress = in.readUint32();
+        it.typeIndex   = in.readByte();
+        it.nameCode1   = in.readByte();
+        it.nameCode2   = in.readByte();
+        it.nameCode3   = in.readByte();
+        it.bonus       = in.readByte();
+        it.saveBonus   = in.readByte();
+        it.readied     = in.readByte();
+        it.hidden      = in.readByte();
+        it.cursed      = in.readByte();
 
-        it.weight      = s.readUint16LE();
-        it.stackSize   = s.readByte();
-        it.value       = s.readUint16LE();
+        it.weight      = in.readUint16();
+        it.stackSize   = in.readByte();
+        it.value       = in.readUint16();
 
-        it.effect1     = s.readByte();
-        it.effect2     = s.readByte();
-        it.effect3     = s.readByte();
+        it.effect1     = in.readByte();
+        it.effect2     = in.readByte();
+        it.effect3     = in.readByte();
 
         _items.push_back(it);
-        ++index;
     }
 
     debug(4, "CharacterInventory::loadFromStream: loaded %u items",
           (unsigned)_items.size());
 }
 
-bool CharacterInventory::load(const Common::String &filename) {
+bool CharacterInventory::load(const Common::String &filename,
+        const RecordLayout &layout) {
     clear();
 
     Common::File file;
@@ -86,39 +86,39 @@ bool CharacterInventory::load(const Common::String &filename) {
     debug(4, "CharacterInventory::load: file '%s' size=%d",
           filename.c_str(), (int)file.size());
 
-    loadFromStream(file);
+    loadFromStream(file, layout);
     file.close();
     return true;
 }
 
-bool CharacterInventory::save(const Common::String &filename) const {
+bool CharacterInventory::save(const Common::String &filename,
+        const RecordLayout &layout) const {
     Common::DumpFile file;
     if (!file.open(filename.c_str()))
         return false;
 
-    auto &s = file;  // DumpFile supports WriteStream
-
     for (const auto &it : _items) {
-        PascalStringBuffer<41>::write(s, it.name);
+        RecordWriter out(file, layout);
+        out.writeName(it.name, 41);
 
-        s.writeUint32LE(it.nextAddress);
-        s.writeByte(it.typeIndex);
-        s.writeByte(it.nameCode1);
-        s.writeByte(it.nameCode2);
-        s.writeByte(it.nameCode3);
-        s.writeByte(it.bonus);
-        s.writeByte(it.saveBonus);
-        s.writeByte(it.readied);
-        s.writeByte(it.hidden);
-        s.writeByte(it.cursed);
+        out.writeUint32(it.nextAddress);
+        out.writeByte(it.typeIndex);
+        out.writeByte(it.nameCode1);
+        out.writeByte(it.nameCode2);
+        out.writeByte(it.nameCode3);
+        out.writeByte(it.bonus);
+        out.writeByte(it.saveBonus);
+        out.writeByte(it.readied);
+        out.writeByte(it.hidden);
+        out.writeByte(it.cursed);
 
-        s.writeUint16LE(it.weight);
-        s.writeByte(it.stackSize);
-        s.writeUint16LE(it.value);
+        out.writeUint16(it.weight);
+        out.writeByte(it.stackSize);
+        out.writeUint16(it.value);
 
-        s.writeByte(it.effect1);
-        s.writeByte(it.effect2);
-        s.writeByte(it.effect3);
+        out.writeByte(it.effect1);
+        out.writeByte(it.effect2);
+        out.writeByte(it.effect3);
     }
 
     file.flush();

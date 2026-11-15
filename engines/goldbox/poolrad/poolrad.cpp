@@ -566,8 +566,9 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		}
 	}
 
-	const Common::Path gameSavePath =
-		savePath / Common::String::format("SAVGAM%c.DAT", slot);
+	const ::Goldbox::Data::SaveFileLayout &files = Data::legacySaveLayout();
+	const ::Goldbox::Data::RecordLayout &records = Data::legacyRecordLayout();
+	const Common::Path gameSavePath = savePath / Data::legacyGameFileName(slot);
 
 	Common::DumpFile out;
 	if (!out.open(gameSavePath)) {
@@ -576,11 +577,15 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		return false;
 	}
 
+	// Banks 0-2 hold words; only the low byte is kept (byte-sized fields).
 	auto writeVmBlockWord = [&](uint16 firstVmAddr, uint16 wordCount) {
 		for (uint16 i = 0; i < wordCount; ++i) {
 			const uint16 addr = static_cast<uint16>(firstVmAddr + i);
-			out.writeByte(mem->read8(addr)); // lo byte (the value)
-			out.writeByte(0);                // hi byte (always 0 for byte-sized fields)
+			if (records.bigEndian)
+				out.writeByte(0);
+			out.writeByte(mem->read8(addr));
+			if (!records.bigEndian)
+				out.writeByte(0);
 		}
 	};
 
@@ -589,13 +594,10 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 			out.writeByte(mem->read8(static_cast<uint16>(startAddr + i)));
 	};
 
-	// BYTE_FAVAIL / leading legacy byte:
-	// - x86 loads it back into BYTE_FAVAIL from DAT bank state.
-	// - m68k/Amiga code appears to don't save it at all,
-	//   when creating a legacy save file.
-	// ScummVM does not use it for runtime behavior; we keep the byte for
-	// binary compatibility with the original save format.
-	out.writeByte(3);
+	// BYTE_FAVAIL: the DOS disk set the numbered DAX files come from. Not
+	// used by ScummVM; the Amiga has no such byte.
+	if (files.diskByte)
+		out.writeByte(3);
 
 	// SaveLoad: zone0 settings := monsterPics * 2 + portraitsOn.
 	mem->write8(0x49FF, (uint8)((_monsterPics ? 2 : 0) | (_portraitsOn ? 1 : 0)));
@@ -637,10 +639,15 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		usedBases.push_back(base);
 
 		const uint32 tableOffset = (characterCount - 1) * 0x29;
-		Goldbox::Data::PascalStringBuffer<0x28>::writeToBuffer(
-			&characterTable[tableOffset], base, 0x29);
+		if (records.cStringNames) {
+			memcpy(&characterTable[tableOffset], base.c_str(),
+				MIN<uint>(base.size(), 0x28));
+		} else {
+			Goldbox::Data::PascalStringBuffer<0x28>::writeToBuffer(
+				&characterTable[tableOffset], base, 0x29);
+		}
 
-		const Common::Path savPath = savePath / (base + ".SAV");
+		const Common::Path savPath = savePath / (base + files.characterExt);
 		Common::DumpFile charOut;
 		if (!charOut.open(savPath)) {
 			errorMessage = Common::String::format("Failed to save %s",
@@ -648,14 +655,14 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 			out.close();
 			return false;
 		}
-		pc->save(charOut, getDaxManager().getFormat().recordLayout());
+		pc->save(charOut, records);
 		charOut.close();
 
-		const Common::Path itmPath = savePath / (base + ".ITM");
-		const Common::Path spcPath = savePath / (base + ".SPC");
+		const Common::Path itmPath = savePath / (base + files.itemExt);
+		const Common::Path spcPath = savePath / (base + files.effectExt);
 
 		if (!pc->inventory.items().empty()) {
-			if (!pc->inventory.save(itmPath.toString())) {
+			if (!pc->inventory.save(itmPath.toString(), records)) {
 				errorMessage = Common::String::format("Failed to save %s",
 					itmPath.toString().c_str());
 				out.close();
@@ -666,7 +673,7 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		}
 
 		if (!pc->effects.effects().empty()) {
-			if (!pc->effects.save(spcPath.toString())) {
+			if (!pc->effects.save(spcPath.toString(), records)) {
 				errorMessage = Common::String::format("Failed to save %s",
 					spcPath.toString().c_str());
 				out.close();
@@ -677,27 +684,35 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		}
 	}
 
-	// Legacy save tail layout (0x150 bytes):
-	// +0x00 u8 dungeonX, +0x01 u8 dungeonY, +0x02 u8 dir (8-way),
-	// +0x03 u8 posNibble (walldef in facing dir), +0x04 u8 posEventId,
-	// +0x05 u8 vmMapType, +0x06 u8 gameState, +0x07 u8 charCount,
-	// +0x08..+0x14f char table.
-	byte tail[0x150];
-	memset(tail, 0, sizeof(tail));
-	tail[0x00] = static_cast<byte>(posX & 0xFF);
-	tail[0x01] = static_cast<byte>(posY & 0xFF);
-	tail[0x02] = static_cast<byte>(posDir * 2);  // 4-way to 8-way
-	tail[0x03] = snapshot.wallNibble;   // position nibble (walldef type)
-	tail[0x04] = snapshot.eventId;      // position event ID
-	tail[0x05] = vmMapType;
-	tail[0x06] = static_cast<byte>(getGameState());
-	tail[0x07] = characterCount;
-	memcpy(&tail[0x08], characterTable, sizeof(characterTable));
-	out.write(tail, sizeof(tail));
+	// Save tail: party position (gbPosition: x, y, 8-way direction, wall
+	// nibble, event id; the Amiga writes 10 bytes from it), map type, game
+	// state, character count and the 8 x 0x29 character file names.
+	out.writeByte(static_cast<byte>(posX & 0xFF));
+	out.writeByte(static_cast<byte>(posY & 0xFF));
+	out.writeByte(static_cast<byte>(posDir * 2));  // 4-way to 8-way
+	out.writeByte(snapshot.wallNibble);
+	out.writeByte(snapshot.eventId);
+	for (uint i = 5; i < files.positionSize; ++i)
+		out.writeByte(0);
+	out.writeByte(vmMapType);
+	out.writeByte(static_cast<byte>(getGameState()));
+	out.writeByte(characterCount);
+	out.write(characterTable, sizeof(characterTable));
 	out.flush();
 	out.close();
 
+	if (!Data::markLegacySlotUsed(savePath, slot)) {
+		errorMessage = "Failed to update the save slot list";
+		return false;
+	}
+
 	return true;
+}
+
+static Common::String lowerExt(const char *ext) {
+	Common::String lower(ext);
+	lower.toLowercase();
+	return lower;
 }
 
 bool PoolradEngine::loadGameSlotX86(char slotLetter,
@@ -719,8 +734,9 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 	Common::Path savePath = resolveSavePath();
 
-	const Common::Path gameSavePath =
-		savePath / Common::String::format("SAVGAM%c.DAT", slot);
+	const ::Goldbox::Data::SaveFileLayout &files = Data::legacySaveLayout();
+	const ::Goldbox::Data::RecordLayout &records = Data::legacyRecordLayout();
+	const Common::Path gameSavePath = savePath / Data::legacyGameFileName(slot);
 	debug(2, "PoolradEngine::loadGameSlotX86 path=%s",
 		gameSavePath.toString().c_str());
 
@@ -734,8 +750,9 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		return false;
 	}
 
-	// Skip leading BYTE_FAVAIL / legacy placeholder byte.
-	in->readByte();
+	// Skip the leading BYTE_FAVAIL disk set byte (DOS only).
+	if (files.diskByte)
+		in->readByte();
 
 	// Load the 4 VM banks directly into ECL flat memory.
 	// VMBANK0-2 are word-addressed in the original: each logical VM address
@@ -744,10 +761,11 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	// original VM_ReadVar / VM_ReadMemory behavior.
 	auto readVmBlockWord = [&](uint16 firstVmAddr, uint16 wordCount) {
 		for (uint16 i = 0; i < wordCount; ++i) {
-			const uint8 lo = in->readByte();
-			in->readByte(); // hi byte (unused in flat byte-addressed memory)
+			// Only the low byte is kept in flat byte-addressed memory.
+			const uint16 word = records.bigEndian ? in->readUint16BE()
+				: in->readUint16LE();
 			const uint16 addr = static_cast<uint16>(firstVmAddr + i);
-			mem->write8(addr, lo);
+			mem->write8(addr, static_cast<uint8>(word & 0xFF));
 		}
 	};
 
@@ -780,6 +798,7 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 	const uint8 dir8way        = in->readByte();
 	const uint8 wallNibble     = in->readByte();
 	const uint8 eventId        = in->readByte();
+	in->skip(files.positionSize - 5);
 	const uint8 vmMapType      = in->readByte();
 	const uint8 byteGameState  = in->readByte();
 
@@ -826,7 +845,10 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		const byte *entry = &characterTable[i * 0x29];
 		const uint8 entryLen = entry[0];
 		Common::String base;
-		if (entryLen <= 0x28) {
+		if (records.cStringNames) {
+			for (uint j = 0; j < 0x28 && entry[j] != '\0'; ++j)
+				base += static_cast<char>(entry[j]);
+		} else if (entryLen <= 0x28) {
 			base = Goldbox::Data::PascalStringBuffer<0x28>::readFromBuffer(
 				entry, 0x29);
 		} else {
@@ -841,7 +863,7 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		debug(2, "PoolradEngine::loadGameSlotX86 char[%u] base=%s",
 			(unsigned)(i + 1), base.c_str());
 
-		const Common::Path charSavPath = savePath / (base + ".SAV");
+		const Common::Path charSavPath = savePath / (base + files.characterExt);
 		Common::FSNode charNode(charSavPath);
 		Common::SeekableReadStream *charStream = charNode.createReadStream();
 		if (!charStream) {
@@ -852,15 +874,15 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 
 		// Character files use the platform's record layout.
 		Data::PoolradCharacter *pc = new Data::PoolradCharacter();
-		pc->load(*charStream, getDaxManager().getFormat().recordLayout());
+		pc->load(*charStream, records);
 		delete charStream;
 
 		Common::Path itmResolvedPath;
 		Common::SeekableReadStream *itmStream = nullptr;
 		const bool itmLoaded = Data::openLegacyCompanionStream(savePath, base, slot,
-			".ITM", ".itm", itmResolvedPath, itmStream);
+			files.itemExt, lowerExt(files.itemExt), itmResolvedPath, itmStream);
 		if (itmLoaded && itmStream) {
-			pc->inventory.loadFromStream(*itmStream);
+			pc->inventory.loadFromStream(*itmStream, records);
 			delete itmStream;
 			itmStream = nullptr;
 			pc->resolveEquippedItems();
@@ -869,9 +891,9 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 		Common::Path spcResolvedPath;
 		Common::SeekableReadStream *spcStream = nullptr;
 		const bool spcLoaded = Data::openLegacyCompanionStream(savePath, base, slot,
-			".SPC", ".spc", spcResolvedPath, spcStream);
+			files.effectExt, lowerExt(files.effectExt), spcResolvedPath, spcStream);
 		if (spcLoaded && spcStream) {
-			pc->effects.loadFromStream(*spcStream);
+			pc->effects.loadFromStream(*spcStream, records);
 			delete spcStream;
 			spcStream = nullptr;
 		}

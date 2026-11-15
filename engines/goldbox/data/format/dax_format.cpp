@@ -38,6 +38,16 @@ DaxFormat *DaxFormat::create(Common::Platform platform) {
 	}
 }
 
+const SaveFileLayout &DaxFormat::saveFileLayout() const {
+	// DOS: SAVE\SAVGAMx.DAT starts with BYTE_FAVAIL (the disk set the
+	// numbered DAX files come from); the slots are found by their files.
+	static const SaveFileLayout kDos = {
+		"save", "SAVGAM%c.DAT", ".SAV", ".ITM", ".SPC", ".CHA", "CHARLIST.TXT",
+		true, 5, nullptr
+	};
+	return kDos;
+}
+
 Common::String DaxFormat::singleFileName(const char *pattern) {
 	Common::String name(pattern);
 	const size_t pos = name.find("%d");

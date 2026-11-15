@@ -25,6 +25,8 @@
 
 #include "goldbox/poolrad/data/legacy_save_utils.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/engine.h"
+#include "goldbox/data/format/dax_format.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -61,6 +63,71 @@ static bool hasPrefixNoCase(const Common::String &s,
 }
 
 } // namespace
+
+const ::Goldbox::Data::SaveFileLayout &legacySaveLayout() {
+	return ::Goldbox::g_engine->getDaxManager().getFormat().saveFileLayout();
+}
+
+const ::Goldbox::Data::RecordLayout &legacyRecordLayout() {
+	return ::Goldbox::g_engine->getDaxManager().getFormat().recordLayout();
+}
+
+Common::String legacyGameFileName(char slotLetter) {
+	if (slotLetter >= 'a' && slotLetter <= 'z')
+		slotLetter -= 'a' - 'A';
+	return Common::String::format(legacySaveLayout().gameFile, slotLetter);
+}
+
+static const uint kSlotCount = 10;
+
+// Slot index file (Amiga "save"): one byte per slot A-J, the slot letter
+// when the slot is used, otherwise a space.
+static void readSlotIndex(const Common::Path &savePath, char index[kSlotCount]) {
+	memset(index, ' ', kSlotCount);
+	Common::FSNode node(savePath / legacySaveLayout().slotIndexFile);
+	Common::SeekableReadStream *in = node.exists() ? node.createReadStream() : nullptr;
+	if (in) {
+		in->read(index, kSlotCount);
+		delete in;
+	}
+}
+
+bool isLegacySlotUsed(const Common::Path &savePath, char slotLetter) {
+	if (slotLetter >= 'a' && slotLetter <= 'z')
+		slotLetter -= 'a' - 'A';
+	if (savePath.empty() || slotLetter < 'A' || slotLetter > 'J')
+		return false;
+
+	Common::FSNode gameFile(savePath / legacyGameFileName(slotLetter));
+	if (!gameFile.exists() || gameFile.isDirectory())
+		return false;
+
+	if (!legacySaveLayout().slotIndexFile)
+		return true;
+	char index[kSlotCount];
+	readSlotIndex(savePath, index);
+	return index[slotLetter - 'A'] == slotLetter;
+}
+
+bool markLegacySlotUsed(const Common::Path &savePath, char slotLetter) {
+	if (!legacySaveLayout().slotIndexFile)
+		return true;
+	if (slotLetter >= 'a' && slotLetter <= 'z')
+		slotLetter -= 'a' - 'A';
+	if (slotLetter < 'A' || slotLetter > 'J')
+		return false;
+
+	char index[kSlotCount];
+	readSlotIndex(savePath, index);
+	index[slotLetter - 'A'] = slotLetter;
+
+	Common::DumpFile out;
+	if (!out.open(savePath / legacySaveLayout().slotIndexFile))
+		return false;
+	out.write(index, kSlotCount);
+	out.close();
+	return true;
+}
 
 Common::String makeLegacyCharacterBaseName(
 		const PoolradCharacter *pc, char slotLetter, uint8 ordinal,
@@ -191,10 +258,12 @@ bool saveNewCharacter(PoolradCharacter *pc, const Common::Path &savePath) {
 		return false;
 	}
 
+	const ::Goldbox::Data::SaveFileLayout &files = legacySaveLayout();
+	const ::Goldbox::Data::RecordLayout &records = legacyRecordLayout();
 	const Common::String base = formatLegacyBaseFilename(pc->name);
-	const Common::Path chrFile = savePath / (base + ".CHA");
-	const Common::Path itmFile = savePath / (base + ".ITM");
-	const Common::Path spcFile = savePath / (base + ".SPC");
+	const Common::Path chrFile = savePath / (base + files.rosterExt);
+	const Common::Path itmFile = savePath / (base + files.itemExt);
+	const Common::Path spcFile = savePath / (base + files.effectExt);
 
 	debug(4, "saveNewCharacter: opening '%s' for write", chrFile.toString().c_str());
 	Common::DumpFile out;
@@ -202,16 +271,16 @@ bool saveNewCharacter(PoolradCharacter *pc, const Common::Path &savePath) {
 		warning("Failed to create %s", chrFile.toString().c_str());
 		return false;
 	}
-	pc->save(out);
+	pc->save(out, records);
 	out.close();
 	debug(4, "saveNewCharacter: successfully saved '%s'", chrFile.toString().c_str());
 
 	debug(4, "saveNewCharacter: saving inventory to '%s'", itmFile.toString().c_str());
-	pc->inventory.save(itmFile.toString());
+	pc->inventory.save(itmFile.toString(), records);
 	debug(4, "saveNewCharacter: saving effects to '%s'", spcFile.toString().c_str());
-	pc->effects.save(spcFile.toString());
+	pc->effects.save(spcFile.toString(), records);
 
-	const bool listOk = appendLegacyTextFileLine(savePath, "CHARLIST.TXT", pc->name);
+	const bool listOk = appendLegacyTextFileLine(savePath, files.rosterList, pc->name);
 	debug(4, "saveNewCharacter: completed save for character '%s'", pc->name.c_str());
 	return listOk;
 }

@@ -24,6 +24,7 @@
 
 #include "common/str.h"
 #include "goldbox/engine.h"
+#include "goldbox/data/record_io.h"
 
 namespace Goldbox {
 namespace Data {
@@ -211,21 +212,36 @@ struct Effect {
     //  Our on-disk representation in .SPC mirrors the x86 layout exactly.
 
     void load(Common::SeekableReadStream &s) {
-        id = s.readByte();
-        durationMin = s.readUint16LE();
-        power = s.readByte();
-        immediate = s.readByte();
-        // Legacy next-pointer field (far ptr) is ignored at runtime.
-        s.readUint32LE();
+        load(s, RecordLayout::dos());
     }
 
     void save(Common::WriteStream &s) const {
-        s.writeByte(id);
-        s.writeUint16LE(durationMin);
-        s.writeByte(power);
-        s.writeByte(immediate);
-        // Keep DOS save layout compatible: always serialize null next-pointer.
-        s.writeUint32LE(kLegacySerializedNextAddress);
+        save(s, RecordLayout::dos());
+    }
+
+    /** Read or write one effect node in a platform's layout (9 or 10 bytes). */
+    void load(Common::SeekableReadStream &s, const RecordLayout &layout) {
+        RecordReader in(s, layout);
+        id = in.readByte();
+        durationMin = in.readUint16();
+        power = in.readByte();
+        immediate = in.readByte();
+        // Legacy next-pointer field (far ptr) is ignored at runtime.
+        in.readUint32();
+    }
+
+    void save(Common::WriteStream &s, const RecordLayout &layout) const {
+        RecordWriter out(s, layout);
+        out.writeByte(id);
+        out.writeUint16(durationMin);
+        out.writeByte(power);
+        out.writeByte(immediate);
+        // Keep the save layout compatible: always serialize null next-pointer.
+        out.writeUint32(kLegacySerializedNextAddress);
+    }
+
+    static uint recordSize(const RecordLayout &layout) {
+        return layout.alignWords ? 10 : 9;
     }
 };
 

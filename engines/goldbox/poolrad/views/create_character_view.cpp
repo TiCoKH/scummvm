@@ -498,6 +498,8 @@ void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
 	if (_listmenu) {
 		_listmenu->rebuild(_menuItems, topline);
 		setActiveSubView(_listmenu);
+		// Reused menu keeps _needsRedraw cleared; force repaint of the new list
+		redraw();
 	} else {
 		_listmenu = new Dialogs::VerticalMenu("CreateCharMenu", menuConfig);
 		attachDialog(_listmenu);

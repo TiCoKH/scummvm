@@ -25,6 +25,7 @@
 #include "goldbox/events.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/views/dialogs/load_save_dialog.h"
+#include "goldbox/poolrad/data/legacy_save_utils.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -64,7 +65,7 @@ char LoadSaveDialog::toUpperAscii(char c) {
 }
 
 Common::String LoadSaveDialog::slotName(char slotLetter) {
-	return Common::String::format("SAVGAM%c.DAT", toUpperAscii(slotLetter));
+	return Data::legacyGameFileName(slotLetter);
 }
 
 LoadSaveDialog::LoadSaveDialog(const Common::String &name)
@@ -203,20 +204,7 @@ bool LoadSaveDialog::msgKeypress(const KeypressMessage &msg) {
 }
 
 bool LoadSaveDialog::slotExists(char slotLetter) const {
-	const Common::Path savePath = getSavePath();
-	if (savePath.empty())
-		return false;
-
-	const Common::Path upperPath = savePath / slotName(slotLetter);
-	Common::FSNode upperNode(upperPath);
-	if (upperNode.exists() && !upperNode.isDirectory())
-		return true;
-
-	// Be tolerant on case-sensitive filesystems.
-	const Common::Path lowerPath =
-		savePath / Common::String::format("savgam%c.dat", toUpperAscii(slotLetter));
-	Common::FSNode lowerNode(lowerPath);
-	return lowerNode.exists() && !lowerNode.isDirectory();
+	return Data::isLegacySlotUsed(getSavePath(), slotLetter);
 }
 
 void LoadSaveDialog::activate() {

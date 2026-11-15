@@ -44,6 +44,7 @@ public:
 	void addAliases(const Common::Path &file,
 		DaxBlockContainer &container) const override;
 	const RecordLayout &recordLayout() const override;
+	const SaveFileLayout &saveFileLayout() const override;
 
 private:
 	/**

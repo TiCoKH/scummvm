@@ -392,7 +392,8 @@ static void loadMonsterItems(Goldbox::Engine *engine, uint8 monsterId,
         return;
 
     Common::MemoryReadStream stream(rawBlock->_data.data(), rawBlock->_data.size());
-    monster.inventory.loadFromStream(stream);
+    monster.inventory.loadFromStream(stream,
+        engine->getDaxManager().getFormat().recordLayout());
     monster.numOfItems = static_cast<int8>(monster.inventory.count());
     monster.resolveEquippedItems();
 }
@@ -405,11 +406,13 @@ static void loadMonsterEffects(Goldbox::Engine *engine, uint8 monsterId,
         return;
 
     Common::MemoryReadStream stream(rawBlock->_data.data(), rawBlock->_data.size());
-    const uint32 recSize = 9;
+    const Goldbox::Data::RecordLayout &layout =
+        engine->getDaxManager().getFormat().recordLayout();
+    const uint32 recSize = Goldbox::Data::Effects::Effect::recordSize(layout);
     const uint32 total = rawBlock->_data.size();
     while (stream.pos() + recSize <= total) {
         Goldbox::Data::Effects::Effect effect;
-        effect.load(stream);
+        effect.load(stream, layout);
         monster.effects.appendEffect(effect);
     }
 }

@@ -21,12 +21,9 @@
 
 #include "goldbox/data/record_io.h"
 #include "common/util.h"
-#include "goldbox/data/pascal_string_buffer.h"
 
 namespace Goldbox {
 namespace Data {
-
-static const uint kNameLength = 15;
 
 const RecordLayout &RecordLayout::dos() {
 	static const RecordLayout kDos = { false, false, false };
@@ -60,14 +57,22 @@ void RecordReader::read(void *buffer, uint32 size) {
 	_stream.read(buffer, size);
 }
 
-Common::String RecordReader::readName() {
-	if (!_layout.cStringNames)
-		return PascalStringBuffer<kNameLength>::read(_stream);
-
-	char buffer[kNameLength + 1];
-	_stream.read(buffer, sizeof(buffer));
-	buffer[kNameLength] = 0;
-	return Common::String(buffer);
+Common::String RecordReader::readName(uint maxLength) {
+	char buffer[256] = {};
+	maxLength = MIN<uint>(maxLength, sizeof(buffer) - 1);
+	uint length;
+	if (_layout.cStringNames) {
+		// maxLength + 1 bytes ending in a zero.
+		_stream.read(buffer, maxLength + 1);
+		length = 0;
+		while (length < maxLength && buffer[length])
+			++length;
+	} else {
+		// Length byte, then maxLength characters.
+		length = MIN<uint>(_stream.readByte(), maxLength);
+		_stream.read(buffer, maxLength);
+	}
+	return Common::String(buffer, length);
 }
 
 void RecordReader::align() {
@@ -113,17 +118,14 @@ void RecordWriter::write(const void *buffer, uint32 size) {
 	_size += size;
 }
 
-void RecordWriter::writeName(const Common::String &name) {
-	if (!_layout.cStringNames) {
-		PascalStringBuffer<kNameLength>::write(_stream, name);
-		_size += kNameLength + 1;
-		return;
-	}
-
-	char buffer[kNameLength + 1] = {};
-	const uint length = MIN<uint>(name.size(), kNameLength);
-	memcpy(buffer, name.c_str(), length);
-	write(buffer, sizeof(buffer));
+void RecordWriter::writeName(const Common::String &name, uint maxLength) {
+	const uint length = MIN<uint>(name.size(), maxLength);
+	if (!_layout.cStringNames)
+		writeByte(length);
+	for (uint i = 0; i < maxLength; ++i)
+		writeByte(i < length ? name[i] : 0);
+	if (_layout.cStringNames)
+		writeByte(0);
 }
 
 void RecordWriter::finish() {

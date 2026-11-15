@@ -25,6 +25,7 @@
 #include "common/list.h"
 #include "common/str.h"
 #include "goldbox/data/effects/effect.h"
+#include "goldbox/data/record_io.h"
 
 namespace Goldbox {
 namespace Data {
@@ -32,9 +33,12 @@ namespace Effects {
 
 class CharacterEffects {
 public:
-    bool load(const Common::String &filename);
-    void loadFromStream(Common::SeekableReadStream &stream);
-    bool save(const Common::String &filename) const;
+    bool load(const Common::String &filename,
+            const RecordLayout &layout = RecordLayout::dos());
+    void loadFromStream(Common::SeekableReadStream &stream,
+            const RecordLayout &layout = RecordLayout::dos());
+    bool save(const Common::String &filename,
+            const RecordLayout &layout = RecordLayout::dos()) const;
 
     const Common::List<Effect> &effects() const { return _effects; }
     Common::List<Effect> &effects() { return _effects; }

@@ -36,6 +36,20 @@ namespace Data {
 class DaxBlockContainer;
 class DaxHeaderContainer;
 
+/** Names and layout of the original save files (SAVGAM, CHRDATA). */
+struct SaveFileLayout {
+	const char *directory;      ///< Save folder below the game folder
+	const char *gameFile;       ///< Game state file, "%c" is the slot letter
+	const char *characterExt;   ///< Character record file
+	const char *itemExt;        ///< Inventory file
+	const char *effectExt;      ///< Effects file
+	const char *rosterExt;      ///< Character kept outside a game (roster)
+	const char *rosterList;     ///< Text file naming the roster characters
+	bool diskByte;              ///< Game file starts with the disk set byte
+	uint8 positionSize;         ///< Bytes written for the party position
+	const char *slotIndexFile;  ///< File listing used slots, or nullptr
+};
+
 /**
  * Platform layout of the DAX resource files. Every port stores the same
  * blocks with its own directory, packing, file names and picture format.
@@ -76,6 +90,9 @@ public:
 	virtual const RecordLayout &recordLayout() const {
 		return RecordLayout::dos();
 	}
+
+	/** Names and layout of the original save files. */
+	virtual const SaveFileLayout &saveFileLayout() const;
 
 	/**
 	 * Add block ids a DOS file has but this platform shares with another

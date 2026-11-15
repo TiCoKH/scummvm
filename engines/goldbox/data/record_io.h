@@ -52,8 +52,8 @@ public:
 	uint32 readUint32();
 	void read(void *buffer, uint32 size);
 
-	/** A 16-byte name field holding up to 15 characters. */
-	Common::String readName();
+	/** A name field of maxLength + 1 bytes holding up to maxLength characters. */
+	Common::String readName(uint maxLength = 15);
 
 private:
 	void align();
@@ -74,10 +74,13 @@ public:
 	void writeUint32(uint32 value);
 	void write(const void *buffer, uint32 size);
 
-	/** A 16-byte name field holding up to 15 characters. */
-	void writeName(const Common::String &name);
+	/** A name field of maxLength + 1 bytes holding up to maxLength characters. */
+	void writeName(const Common::String &name, uint maxLength = 15);
 
-	/** Pad the record to its stored size (even when words are aligned). */
+	/**
+	 * Pad the record to an even size when words are aligned, as a C struct
+	 * written with sizeof(); not every record is stored that way.
+	 */
 	void finish();
 
 private:

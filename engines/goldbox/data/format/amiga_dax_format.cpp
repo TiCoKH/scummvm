@@ -144,6 +144,16 @@ const RecordLayout &AmigaDaxFormat::recordLayout() const {
 	return kAmiga;
 }
 
+const SaveFileLayout &AmigaDaxFormat::saveFileLayout() const {
+	// poolsave: is data/save. SaveGame writes no disk set byte, 10 bytes
+	// from the 5-byte gbPosition, and lists used slots in the "save" file.
+	static const SaveFileLayout kAmiga = {
+		"data/save", "savgam%c.dat", ".sav", ".itm", ".spc", ".cha", "charlist.txt",
+		false, 10, "save"
+	};
+	return kAmiga;
+}
+
 void AmigaDaxFormat::addAliases(const Common::Path &file,
 		DaxBlockContainer &container) const {
 	Common::String name = file.baseName();

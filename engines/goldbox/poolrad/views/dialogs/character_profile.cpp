@@ -100,7 +100,7 @@ void CharacterProfile::redrawStats() {
     if (!_poolradPc)
         return;
     Surface s = getSurface(kPaneStats);
-    s.clearBox(0, 0, kPaneStats.width() - 1, kPaneStats.height() - 1, 0);
+    s.clearBox(0, 0, kPaneStats.width(), kPaneStats.height(), 0);
     drawStats();
 }
 
@@ -109,7 +109,7 @@ void CharacterProfile::redrawValuables() {
     if (!_poolradPc)
         return;
     Surface s = getSurface(kPaneValuables);
-    s.clearBox(0, 0, kPaneValuables.width() - 1, kPaneValuables.height() - 1, 0);
+    s.clearBox(0, 0, kPaneValuables.width(), kPaneValuables.height(), 0);
     drawValuables();
 }
 
@@ -118,7 +118,7 @@ void CharacterProfile::redrawCombat() {
     if (!_poolradPc)
         return;
     Surface s = getSurface(kPaneCombat);
-    s.clearBox(0, 0, kPaneCombat.width() - 1, kPaneCombat.height() - 1, 0);
+    s.clearBox(0, 0, kPaneCombat.width(), kPaneCombat.height(), 0);
     drawCombat();
 }
 
@@ -138,7 +138,7 @@ void CharacterProfile::redrawName() {
     if (!_poolradPc)
         return;
     Surface s = getSurface(kPaneIdentity);
-    s.clearBox(0, 0, kPaneIdentity.width() - 1, 0, 0);
+    s.clearBox(0, 0, kPaneIdentity.width(), 0, 0);
     drawName();
 }
 

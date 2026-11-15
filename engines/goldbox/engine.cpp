@@ -33,6 +33,7 @@
 #include "common/path.h"
 #include "engines/util.h"
 #include "graphics/palette.h"
+#include "goldbox/data/format/dax_format.h"
 #include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
@@ -191,7 +192,7 @@ Common::Path Engine::resolveGameDataPath() const {
 Common::Path Engine::resolveSavePath() const {
 	Common::Path gamePath = resolveGameDataPath();
 	if (!gamePath.empty())
-		gamePath.joinInPlace("save");
+		gamePath.joinInPlace(_daxManager.getFormat().saveFileLayout().directory);
 	if (!gamePath.empty())
 		return gamePath;
 
