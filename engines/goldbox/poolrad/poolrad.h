@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_POOLRAD_H
 
 #include "goldbox/engine.h"
+#include "goldbox/data/format/dax_format.h"
 #include "goldbox/poolrad/views/views.h"
 #include "goldbox/gfx/icon_manager.h"
 #include "goldbox/gfx/battlefield_tilemap.h"
@@ -69,6 +70,10 @@ const int MAX_NPC_IN_PARTY = 2;
 
 class PoolradEngine : public Goldbox::Engine {
 private:
+	/** Write SAVGAMx.DAT and the party files in a platform's save format. */
+	bool saveLegacyGame(char slotLetter, const Common::Path &savePath,
+		const ::Goldbox::Data::DaxFormat &format, Common::String &errorMessage);
+
 	bool _monsterPics = true;
 	bool _portraitsOn = true;
 	RestOperation _restOp;
@@ -255,6 +260,12 @@ public:
 	// path is disabled for GB13-033 containment while Engine::syncGame is a
 	// placeholder - see Engine::kNativeSaveImplemented).
 	bool saveGameSlotX86(char slotLetter, Common::String &errorMessage);
+	/**
+	 * Write the current game as an original save of another version (DOS or
+	 * Amiga), into that version's save directory under the game path.
+	 */
+	bool saveGameSlotAs(char slotLetter, Common::Platform platform,
+		Common::Path &savePath, Common::String &errorMessage);
 	bool loadGameSlotX86(char slotLetter, Common::String &errorMessage);
 
 	/**

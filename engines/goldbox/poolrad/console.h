@@ -23,6 +23,7 @@
 #ifndef GOLDBOX_POOLRAD_CONSOLE_H
 #define GOLDBOX_POOLRAD_CONSOLE_H
 
+#include "common/platform.h"
 #include "goldbox/console.h"
 
 namespace Goldbox {
@@ -39,6 +40,9 @@ private:
 	bool cmdDumpPic(int argc, const char **argv);
 	bool cmdDumpIconStore(int argc, const char **argv);
 	bool cmdDumpBattlefield(int argc, const char **argv);
+	bool cmdSaveAsAmiga(int argc, const char **argv);
+	bool cmdSaveAsPC(int argc, const char **argv);
+	bool saveAs(int argc, const char **argv, Common::Platform platform);
 public:
 	Console();
 	~Console() override {}

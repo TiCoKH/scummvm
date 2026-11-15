@@ -23,6 +23,7 @@
 #define GOLDBOX_POOLRAD_DATA_LEGACY_SAVE_UTILS_H
 
 #include "common/array.h"
+#include "common/platform.h"
 #include "common/path.h"
 #include "common/stream.h"
 #include "common/str.h"
@@ -38,8 +39,16 @@ class PoolradCharacter;
 const ::Goldbox::Data::SaveFileLayout &legacySaveLayout();
 const ::Goldbox::Data::RecordLayout &legacyRecordLayout();
 
+/**
+ * The file formats of a platform's original saves, whichever platform's
+ * game data is loaded; used to write a save for another version.
+ */
+const ::Goldbox::Data::DaxFormat &legacySaveFormat(Common::Platform platform);
+
 /** Game state file of a slot ('A'-'J'), e.g. SAVGAMA.DAT. */
 Common::String legacyGameFileName(char slotLetter);
+Common::String legacyGameFileName(char slotLetter,
+		const ::Goldbox::Data::SaveFileLayout &files);
 
 /**
  * Whether a slot holds a saved game: its game file exists and, on
@@ -49,6 +58,8 @@ bool isLegacySlotUsed(const Common::Path &savePath, char slotLetter);
 
 /** List a slot in the slot index file, on platforms that have one. */
 bool markLegacySlotUsed(const Common::Path &savePath, char slotLetter);
+bool markLegacySlotUsed(const Common::Path &savePath, char slotLetter,
+		const ::Goldbox::Data::SaveFileLayout &files);
 
 Common::String makeLegacyCharacterBaseName(
 		const PoolradCharacter *pc, char slotLetter, uint8 ordinal,

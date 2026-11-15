@@ -26,7 +26,9 @@
 #include "goldbox/poolrad/data/legacy_save_utils.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/engine.h"
+#include "goldbox/data/format/amiga_dax_format.h"
 #include "goldbox/data/format/dax_format.h"
+#include "goldbox/data/format/dos_dax_format.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -72,19 +74,33 @@ const ::Goldbox::Data::RecordLayout &legacyRecordLayout() {
 	return ::Goldbox::g_engine->getDaxManager().getFormat().recordLayout();
 }
 
+const ::Goldbox::Data::DaxFormat &legacySaveFormat(Common::Platform platform) {
+	static const ::Goldbox::Data::AmigaDaxFormat kAmiga;
+	static const ::Goldbox::Data::DosDaxFormat kDos;
+	if (platform == Common::kPlatformAmiga)
+		return kAmiga;
+	return kDos;
+}
+
 Common::String legacyGameFileName(char slotLetter) {
+	return legacyGameFileName(slotLetter, legacySaveLayout());
+}
+
+Common::String legacyGameFileName(char slotLetter,
+		const ::Goldbox::Data::SaveFileLayout &files) {
 	if (slotLetter >= 'a' && slotLetter <= 'z')
 		slotLetter -= 'a' - 'A';
-	return Common::String::format(legacySaveLayout().gameFile, slotLetter);
+	return Common::String::format(files.gameFile, slotLetter);
 }
 
 static const uint kSlotCount = 10;
 
 // Slot index file (Amiga "save"): one byte per slot A-J, the slot letter
 // when the slot is used, otherwise a space.
-static void readSlotIndex(const Common::Path &savePath, char index[kSlotCount]) {
+static void readSlotIndex(const Common::Path &savePath, char index[kSlotCount],
+		const ::Goldbox::Data::SaveFileLayout &files) {
 	memset(index, ' ', kSlotCount);
-	Common::FSNode node(savePath / legacySaveLayout().slotIndexFile);
+	Common::FSNode node(savePath / files.slotIndexFile);
 	Common::SeekableReadStream *in = node.exists() ? node.createReadStream() : nullptr;
 	if (in) {
 		in->read(index, kSlotCount);
@@ -105,12 +121,17 @@ bool isLegacySlotUsed(const Common::Path &savePath, char slotLetter) {
 	if (!legacySaveLayout().slotIndexFile)
 		return true;
 	char index[kSlotCount];
-	readSlotIndex(savePath, index);
+	readSlotIndex(savePath, index, legacySaveLayout());
 	return index[slotLetter - 'A'] == slotLetter;
 }
 
 bool markLegacySlotUsed(const Common::Path &savePath, char slotLetter) {
-	if (!legacySaveLayout().slotIndexFile)
+	return markLegacySlotUsed(savePath, slotLetter, legacySaveLayout());
+}
+
+bool markLegacySlotUsed(const Common::Path &savePath, char slotLetter,
+		const ::Goldbox::Data::SaveFileLayout &files) {
+	if (!files.slotIndexFile)
 		return true;
 	if (slotLetter >= 'a' && slotLetter <= 'z')
 		slotLetter -= 'a' - 'A';
@@ -118,11 +139,11 @@ bool markLegacySlotUsed(const Common::Path &savePath, char slotLetter) {
 		return false;
 
 	char index[kSlotCount];
-	readSlotIndex(savePath, index);
+	readSlotIndex(savePath, index, files);
 	index[slotLetter - 'A'] = slotLetter;
 
 	Common::DumpFile out;
-	if (!out.open(savePath / legacySaveLayout().slotIndexFile))
+	if (!out.open(savePath / files.slotIndexFile))
 		return false;
 	out.write(index, kSlotCount);
 	out.close();

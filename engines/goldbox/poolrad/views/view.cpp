@@ -127,8 +127,11 @@ void View::detachDialog(Dialogs::Dialog *dialog) {
 
 bool View::msgFocus(const FocusMessage &msg) {
 	_focusedElement = nullptr;
-	// Views that show another kind of screen switch after this.
-	::Goldbox::g_engine->getGfx().setPaletteMode(::Goldbox::Gfx::GfxBackend::kPaletteNormal);
+	// Views that show another kind of screen switch after this. Child
+	// dialogs also get focus when the mouse moves over them; they keep the
+	// palette of the screen they are on.
+	if (!_parent || _parent == g_events)
+		::Goldbox::g_engine->getGfx().setPaletteMode(::Goldbox::Gfx::GfxBackend::kPaletteNormal);
 	return UIElement::msgFocus(msg);
 }
 

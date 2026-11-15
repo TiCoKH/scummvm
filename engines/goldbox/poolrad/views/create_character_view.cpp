@@ -284,6 +284,9 @@ void CreateCharacterView::draw() {
 	}
 	if (_stage != CC_STATE_ICON && _profileDialog && _profileDialog->isActive()) {
 		_profileDialog->draw();
+	} else if (_stage != CC_STATE_ICON) {
+		// CreateCharacterMenu: the character creation palette.
+		::Goldbox::g_engine->getGfx().setPaletteMode(::Goldbox::Gfx::GfxBackend::kPaletteCharacter);
 	}
 	if (_activeSubView && _activeSubView != static_cast<Dialogs::Dialog *>(_profileDialog)) {
 		_activeSubView->draw();

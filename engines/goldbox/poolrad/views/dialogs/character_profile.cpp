@@ -23,6 +23,7 @@
 #include "goldbox/events.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
 #include "goldbox/poolrad/poolrad.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/data/items/character_item.h"
 #include "common/keyboard.h"
 
@@ -75,6 +76,9 @@ void CharacterProfile::activate() {
 void CharacterProfile::draw() {
     if (!_poolradPc)
         return;
+	// DisplayChar: the character sheet and portrait use the normal palette,
+	// also during character creation.
+	::Goldbox::g_engine->getGfx().setPaletteMode(::Goldbox::Gfx::GfxBackend::kPaletteNormal);
 	drawWindow(1, 1, 38, 22);
 
 	drawIdentity();

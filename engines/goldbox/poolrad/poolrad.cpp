@@ -32,6 +32,7 @@
 #include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/data/strings_data.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "common/tokenizer.h"
 #include "goldbox/poolrad/data/legacy_save_utils.h"
 #include "goldbox/poolrad/data/poolrad_rules_provider.h"
 #include "goldbox/poolrad/data/poolrad_vm_layout.h"
@@ -542,6 +543,35 @@ void PoolradEngine::setLegacyMenuStatus(uint8 status) {
 
 bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		Common::String &errorMessage) {
+	return saveLegacyGame(slotLetter, resolveSavePath(),
+		getDaxManager().getFormat(), errorMessage);
+}
+
+bool PoolradEngine::saveGameSlotAs(char slotLetter, Common::Platform platform,
+		Common::Path &savePath, Common::String &errorMessage) {
+	const ::Goldbox::Data::DaxFormat &format = Data::legacySaveFormat(platform);
+	savePath = resolveGameDataPath();
+	if (savePath.empty()) {
+		errorMessage = "Game path is unknown";
+		return false;
+	}
+	// The other version's save directory may not exist yet, nor its parents
+	// (the Amiga's is data/save).
+	Common::StringTokenizer dirs(format.saveFileLayout().directory, "/");
+	while (!dirs.empty()) {
+		savePath.joinInPlace(dirs.nextToken());
+		Common::FSNode dir(savePath);
+		if (!dir.isDirectory() && !dir.createDirectory()) {
+			errorMessage = Common::String::format("Failed to create %s",
+				savePath.toString(Common::Path::kNativeSeparator).c_str());
+			return false;
+		}
+	}
+	return saveLegacyGame(slotLetter, savePath, format, errorMessage);
+}
+
+bool PoolradEngine::saveLegacyGame(char slotLetter, const Common::Path &savePath,
+		const ::Goldbox::Data::DaxFormat &format, Common::String &errorMessage) {
 	errorMessage.clear();
 
 	const char slot = toUpperAscii(slotLetter);
@@ -556,8 +586,6 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		return false;
 	}
 
-	Common::Path savePath = resolveSavePath();
-
 	Common::FSNode saveNode(savePath);
 	if (!saveNode.isDirectory()) {
 		if (!saveNode.createDirectory()) {
@@ -566,9 +594,9 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 		}
 	}
 
-	const ::Goldbox::Data::SaveFileLayout &files = Data::legacySaveLayout();
-	const ::Goldbox::Data::RecordLayout &records = Data::legacyRecordLayout();
-	const Common::Path gameSavePath = savePath / Data::legacyGameFileName(slot);
+	const ::Goldbox::Data::SaveFileLayout &files = format.saveFileLayout();
+	const ::Goldbox::Data::RecordLayout &records = format.recordLayout();
+	const Common::Path gameSavePath = savePath / Data::legacyGameFileName(slot, files);
 
 	Common::DumpFile out;
 	if (!out.open(gameSavePath)) {
@@ -701,7 +729,7 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 	out.flush();
 	out.close();
 
-	if (!Data::markLegacySlotUsed(savePath, slot)) {
+	if (!Data::markLegacySlotUsed(savePath, slot, files)) {
 		errorMessage = "Failed to update the save slot list";
 		return false;
 	}

@@ -284,6 +284,37 @@ Console::Console() : Goldbox::Console() {
 	registerCmd("dumpPic", WRAP_METHOD(Console, cmdDumpPic));
 	registerCmd("dumpIconStore", WRAP_METHOD(Console, cmdDumpIconStore));
 	registerCmd("dumpBattlefield", WRAP_METHOD(Console, cmdDumpBattlefield));
+	registerCmd("saveasAmiga", WRAP_METHOD(Console, cmdSaveAsAmiga));
+	registerCmd("saveasPC", WRAP_METHOD(Console, cmdSaveAsPC));
+}
+
+bool Console::cmdSaveAsAmiga(int argc, const char **argv) {
+	return saveAs(argc, argv, Common::kPlatformAmiga);
+}
+
+bool Console::cmdSaveAsPC(int argc, const char **argv) {
+	return saveAs(argc, argv, Common::kPlatformDOS);
+}
+
+bool Console::saveAs(int argc, const char **argv, Common::Platform platform) {
+	const char *version = platform == Common::kPlatformAmiga ? "Amiga" : "PC";
+	if (argc != 2 || strlen(argv[1]) != 1) {
+		debugPrintf("Usage: %s <slot A-J>\n", argv[0]);
+		debugPrintf("Saves the current game as an original %s save, whichever "
+			"version's data is loaded.\n", version);
+		return true;
+	}
+
+	Common::Path savePath;
+	Common::String error;
+	if (!g_engine->saveGameSlotAs(argv[1][0], platform, savePath, error)) {
+		debugPrintf("Save failed: %s\n", error.c_str());
+		return true;
+	}
+	debugPrintf("Saved slot %c as a %s save in %s\n",
+		toupper((unsigned char)argv[1][0]), version,
+		savePath.toString(Common::Path::kNativeSeparator).c_str());
+	return true;
 }
 
 bool Console::cmdFont(int argc, const char **argv) {
