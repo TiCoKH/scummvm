@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/gfx/icon.h"
+#include "goldbox/gfx/surface.h"
 #include "goldbox/engine.h"
 #include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/data/daxblock.h"
@@ -611,8 +612,8 @@ void Icon::drawAtIconPos(Graphics::ManagedSurface *surface, int iconX, int iconY
 	int charY = iconY * 3 + 1;
 
 	// Convert character coordinates to pixels (8x8 per char)
-	int pixelX = charX * 8;
-	int pixelY = charY * 8;
+	int pixelX = charX * FONT_W;
+	int pixelY = charY * FONT_H;
 
 	// Draw using the composite's transparent index (0 for PIC, 255 for CTILE)
 	_composite->trDraw(surface, pixelX, pixelY, _composite->getTransparentIndex());

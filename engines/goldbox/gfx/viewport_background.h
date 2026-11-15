@@ -45,10 +45,13 @@ namespace Gfx {
  */
 class ViewportBackground {
 public:
-	/** Viewport geometry constants (in pixels). */
+	/** Viewport geometry in DOS pixels; see viewportRect() for the screen. */
 	static const int kViewportX = 24;
 	static const int kViewportY = 24;
 	static const int kViewportSize = 88;
+
+	/** The viewport on the screen, scaled by the cell size. */
+	static Common::Rect viewportRect();
 
 	ViewportBackground();
 

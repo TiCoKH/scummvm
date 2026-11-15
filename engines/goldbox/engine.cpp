@@ -51,6 +51,8 @@ Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine
 	g_engine = this;
 	_treasurePool = new Runtime::TreasurePool();
 	_gfx = Gfx::GfxBackend::create(gameDesc->desc.platform);
+	// Before any game object sizes itself from the cell size.
+	Shared::Gfx::g_cellSize = _gfx->cellSize();
 }
 
 Engine::~Engine() {

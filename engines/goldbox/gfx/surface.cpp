@@ -32,6 +32,8 @@ namespace Gfx {
 #define BACK_COLOR 0
 #define FONT_COLOR 10
 
+int g_cellSize = 8;
+
 Surface::Surface() : Graphics::ManagedSurface() {
 	_currentFont = g_engine->_font;
 }
@@ -174,7 +176,7 @@ void Surface::clearBox(int start_x, int start_y, int end_x, int end_y, uint32 co
 void Surface::writeTile(int charX, int charY, uint16 globalTileId,
 		uint32 bgColor, uint32 tpColorIndex) {
 	// Resolves globalTileId through the engine tile cache and blits the
-	// 8×8 tile at (charX*8, charY*8).
+	// cell-sized tile at the cell position.
 	// blitFrom is used so dirty-rect tracking matches every other draw path.
 	const Graphics::ManagedSurface *tile =
 		g_engine->getTileCache().tileSurface(globalTileId);
@@ -189,15 +191,15 @@ void Surface::writeTile(int charX, int charY, uint16 globalTileId,
 		return;
 	}
 
-	for (int py = 0; py < FONT_H; ++py) {
-		for (int px = 0; px < FONT_W; ++px) {
+	for (int py = 0; py < tile->h; ++py) {
+		for (int px = 0; px < tile->w; ++px) {
 			const uint32 srcPixel = tile->getPixel(px, py);
 			const uint32 outPixel = (srcPixel == tpColorIndex) ? bgColor : srcPixel;
 			setPixel(dstX + px, dstY + py, outPixel);
 		}
 	}
 
-	addDirtyRect(Common::Rect(dstX, dstY, dstX + FONT_W, dstY + FONT_H));
+	addDirtyRect(Common::Rect(dstX, dstY, dstX + tile->w, dstY + tile->h));
 }
 
 void Surface::drawFrameTiles(int startX, int startY, int endX, int endY,

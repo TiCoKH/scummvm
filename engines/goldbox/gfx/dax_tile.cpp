@@ -19,6 +19,7 @@
  *
  */
 #include "goldbox/gfx/dax_tile.h"
+#include "goldbox/gfx/surface.h"
 
 namespace Goldbox {
 namespace Gfx {
@@ -42,10 +43,11 @@ void DaxTile::load() {
 
     for (int i = 0; i < _daxBlock->item_count; ++i) {
         Graphics::ManagedSurface &s = _chars[i];
-        s.create(FONT_W, FONT_H);
+        // Cells are 8x8, or 16x16 on the PC-98.
+        s.create(_daxBlock->width, _daxBlock->height);
 
-        for (int y = 0; y < FONT_H; y++) {
-            for (int x = 0; x < FONT_W; x += 2) {
+        for (int y = 0; y < _daxBlock->height; y++) {
+            for (int x = 0; x < _daxBlock->width; x += 2) {
                 uint8 byte = *data++;
                 // Extract high nibble and set the corresponding pixel
                 s.setPixel(x, y, (byte & 0xF0) >> 4);

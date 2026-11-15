@@ -1361,7 +1361,7 @@ void PoolradEngine::initializeMapRuntimeForState(GameState state) {
 	// Clear menu row 24 immediately (visible before message dispatch).
 	Graphics::Screen *screen = getScreen();
 	if (screen) {
-		screen->fillRect(Common::Rect(0, 24 * 8, 320, 25 * 8), 0);
+		screen->fillRect(Common::Rect(0, 24 * FONT_H, screen->w, 25 * FONT_H), 0);
 	}
 
 	// Hide the in-game menu during ONINIT.

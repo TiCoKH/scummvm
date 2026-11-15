@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/gfx/walldef_surface_builder.h"
+#include "goldbox/gfx/surface.h"
 
 #include "common/bitarray.h"
 #include "goldbox/engine.h"
@@ -65,7 +66,7 @@ Common::SharedPtr<Pic> buildRegionSurface(
 	const int rows = slice.rows(regionId);
 	// Wall tiles see through a platform-specific art color.
 	const uint8 transparentColor = g_engine->getGfx().artColors().wallTransparent;
-	Common::SharedPtr<Pic> region(new Pic(cols * 8, rows * 8));
+	Common::SharedPtr<Pic> region(new Pic(cols * FONT_W, rows * FONT_H));
 	region->clear(transparentColor);
 	region->setTransparentIndex(transparentColor);
 
@@ -86,7 +87,7 @@ Common::SharedPtr<Pic> buildRegionSurface(
 			if (!tile)
 				continue;
 
-			blitSymbol(*tile, *region, col * 8, row * 8, mask,
+			blitSymbol(*tile, *region, col * FONT_W, row * FONT_H, mask,
 					transparentColor);
 		}
 	}

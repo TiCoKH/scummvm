@@ -54,10 +54,6 @@ public:
 	static const int k3dViewOffsetX = 3;
 	static const int k3dViewOffsetY = 3;
 
-	/** Pixels per character cell (8×8). */
-	static const int kCharW = 8;
-	static const int kCharH = 8;
-
 	/**
 	 * Render the 3D dungeon view onto dst.
 	 *

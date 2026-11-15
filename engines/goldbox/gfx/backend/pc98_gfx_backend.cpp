@@ -25,6 +25,9 @@
 #include "engines/util.h"
 #include "graphics/palette.h"
 #include "graphics/paletteman.h"
+#include "goldbox/data/daxfilemanager.h"
+#include "goldbox/gfx/backend/dos_gfx_backend.h"
+#include "goldbox/gfx/dax_font.h"
 
 namespace Goldbox {
 namespace Gfx {
@@ -34,10 +37,19 @@ void Pc98GfxBackend::initScreen() {
 }
 
 void Pc98GfxBackend::setupPalette() {
-	// Digital palette: bit 0 = blue plane, bit 1 = red, bit 2 = green.
-	Graphics::Palette pal(8);
-	for (uint i = 0; i < 8; ++i)
-		pal.set(i, (i & 2) ? 0xFF : 0, (i & 4) ? 0xFF : 0, (i & 1) ? 0xFF : 0);
+	// The 8 digital colors, in EGA index order: Pc98DaxFormat converts the
+	// art to EGA indices and the engine names colors by EGA index. Each dark
+	// EGA color shows as its bright digital color; 8 (dark gray) is the
+	// opaque black of masked art.
+	static const uint8 kEgaRgb[16][3] = {
+		{ 0, 0, 0 },       { 0, 0, 255 },     { 0, 255, 0 },   { 0, 255, 255 },
+		{ 255, 0, 0 },     { 255, 0, 255 },   { 255, 255, 0 }, { 255, 255, 255 },
+		{ 0, 0, 0 },       { 0, 0, 255 },     { 0, 255, 0 },   { 0, 255, 255 },
+		{ 255, 0, 0 },     { 255, 0, 255 },   { 255, 255, 0 }, { 255, 255, 255 }
+	};
+	Graphics::Palette pal(16);
+	for (uint i = 0; i < 16; ++i)
+		pal.set(i, kEgaRgb[i][0], kEgaRgb[i][1], kEgaRgb[i][2]);
 	g_system->getPaletteManager()->setPalette(pal);
 }
 
@@ -51,9 +63,20 @@ const GfxBackend::ArtColors &Pc98GfxBackend::artColors() const {
 	return kColors;
 }
 
+static const uint8 kPc98FontBlock = 201;
+
 Graphics::Font *Pc98GfxBackend::createFont(Data::DaxFileManager &dax) {
-	error("PC-98 text output is not implemented yet");
-	return nullptr;
+	// 8X8D block 201: the 177 DOS glyphs redrawn at 16x16, one bit per pixel.
+	Data::DaxBlock8x8D *block = dynamic_cast<Data::DaxBlock8x8D *>(
+		dax.get8x8d().getBlockById(kPc98FontBlock));
+	if (!block)
+		error("Failed to load font block %d from 8x8d container", kPc98FontBlock);
+	return new DaxFont(block, 16);
+}
+
+uint8 Pc98GfxBackend::mapChar(uint8 chr) const {
+	// Same glyph order as the DOS font.
+	return DosGfxBackend::fontIndex(chr);
 }
 
 } // namespace Gfx

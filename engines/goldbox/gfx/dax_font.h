@@ -32,39 +32,41 @@ namespace Goldbox {
 namespace Gfx {
 
 /**
- * Implements a plain fixed width font
+ * Implements a plain fixed width font from the 8X8D font block: square
+ * glyphs of one bit per pixel, 8x8 on DOS and 16x16 on the PC-98.
  */
 class DaxFont : public Graphics::Font {
 private:
 	Data::DaxBlock8x8D *_daxBlock;
-	uint8 _glyphCount;
+	uint _glyphCount;
+	int _glyphSize;
 
 	void load();
 	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 
 public:
-	DaxFont(Data::DaxBlock8x8D *daxBlock);
+	DaxFont(Data::DaxBlock8x8D *daxBlock, int glyphSize = 8);
 	~DaxFont() override {}
 
 	/**
 	 * Get the font height
 	 */
 	int getFontHeight() const override {
-		return FONT_H;
+		return _glyphSize;
 	}
 
 	/**
 	 * Get the maximum character width
 	 */
 	int getMaxCharWidth() const override {
-		return FONT_W;
+		return _glyphSize;
 	}
 
 	/**
 	 * Get the width of the given character
 	 */
 	int getCharWidth(uint32 chr) const override {
-		return FONT_W;
+		return _glyphSize;
 	}
 };
 

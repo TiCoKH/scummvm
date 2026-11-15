@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/gfx/backend/gfx_backend.h"
+#include "goldbox/gfx/surface.h"
 #include "goldbox/gfx/first_person_renderer.h"
 #include "goldbox/gfx/viewport_background.h"
 #include "goldbox/gfx/area_map_cache.h"
@@ -212,8 +213,8 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 			::Goldbox::Poolrad::g_engine->getPictureDisplayCache();
 		const ::Goldbox::Gfx::Pic *headPic = picCache.currentHeadFrame();
 		if (headPic) {
-			const int vpX = 3 * 8;
-			const int vpY = 3 * 8;
+			const int vpX = 3 * FONT_W;
+			const int vpY = 3 * FONT_H;
 			setPalette(::Goldbox::Gfx::GfxBackend::kPalettePicture);
 			headPic->draw(&s, vpX, vpY);
 			return;
@@ -226,13 +227,13 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 		const ::Goldbox::Gfx::PictureDisplayCache &picCache =
 			::Goldbox::Poolrad::g_engine->getPictureDisplayCache();
 		if (picCache.isActive()) {
-			const int vpX = 3 * 8;
-			const int vpY = 3 * 8;
+			const int vpX = 3 * FONT_W;
+			const int vpY = 3 * FONT_H;
 			setPalette(picCache.bodyPic() ? ::Goldbox::Gfx::GfxBackend::kPaletteNormal : ::Goldbox::Gfx::GfxBackend::kPalettePicture);
 			if (picCache.headPic())
 				picCache.headPic()->draw(&s, vpX, vpY);
 			if (picCache.bodyPic())
-				picCache.bodyPic()->draw(&s, vpX, vpY + 5 * 8);
+				picCache.bodyPic()->draw(&s, vpX, vpY + 5 * FONT_H);
 		}
 		return;
 	}
@@ -270,15 +271,9 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 		// Blit the cached sky/floor background before drawing walls.
 		const Gfx::ViewportBackground &vpBg =
 			::Goldbox::Poolrad::g_engine->getViewportBackground();
-		s.blitFrom(vpBg.surface(),
-			Common::Rect(
-				Gfx::ViewportBackground::kViewportX,
-				Gfx::ViewportBackground::kViewportY,
-				Gfx::ViewportBackground::kViewportX + Gfx::ViewportBackground::kViewportSize,
-				Gfx::ViewportBackground::kViewportY + Gfx::ViewportBackground::kViewportSize),
-			Common::Point(
-				Gfx::ViewportBackground::kViewportX,
-				Gfx::ViewportBackground::kViewportY));
+		const Common::Rect vpRect = Gfx::ViewportBackground::viewportRect();
+		s.blitFrom(vpBg.surface(), vpRect,
+			Common::Point(vpRect.left, vpRect.top));
 
 		// Rendering priority:
 		// 1. EncounterSpriteCache (SPRITE_START/ADVANCE) -> 3D + sprite overlay
@@ -291,13 +286,13 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 
 		if (!spriteCache.isSpriteLoaded() && picCache.isActive()) {
 			// PICTURE opcode portrait/scene — replaces 3D view.
-			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * 8;
-			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * 8;
+			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * FONT_W;
+			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * FONT_H;
 			setPalette(picCache.bodyPic() ? ::Goldbox::Gfx::GfxBackend::kPaletteNormal : ::Goldbox::Gfx::GfxBackend::kPalettePicture);
 			if (picCache.headPic())
 				picCache.headPic()->draw(&s, vpX, vpY);
 			if (picCache.bodyPic())
-				picCache.bodyPic()->draw(&s, vpX, vpY + 5 * 8);
+				picCache.bodyPic()->draw(&s, vpX, vpY + 5 * FONT_H);
 			return;
 		}
 
@@ -311,8 +306,8 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 		// Draw encounter sprite overlay if active.
 		if (spriteCache.isSpriteLoaded() && spriteCache.spritePic()) {
 			const ::Goldbox::Gfx::Pic *sprite = spriteCache.spritePic();
-			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * 8;
-			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * 8;
+			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * FONT_W;
+			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * FONT_H;
 			// Sprite xPos/yPos from header are in char units; multiply by 8.
 			::Goldbox::Data::DaxBlock *rawSp =
 				::Goldbox::VmInterface::getDaxSprit().getBlockById(
@@ -324,16 +319,16 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 				const ::Goldbox::Data::DaxBlockSprit::FrameInfo *fi =
 					spBlock->frameInfo(static_cast<int>(spriteCache.distance()));
 				if (fi) {
-					sprX += static_cast<int>(fi->xPos) * 8;
-					sprY += static_cast<int>(fi->yPos) * 8;
+					sprX += static_cast<int>(fi->xPos) * FONT_W;
+					sprY += static_cast<int>(fi->yPos) * FONT_H;
 				}
 			}
 			sprite->trDraw(&s, sprX, sprY, sprite->getTransparentIndex());
 		}
 		// Draw head/portrait on top when at distance 0 (adjacent).
 		if (spriteCache.isSpriteLoaded() && spriteCache.distance() == 0) {
-			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * 8;
-			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * 8;
+			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * FONT_W;
+			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * FONT_H;
 			const uint8 headPicId = spriteCache.lastHeadPicId();
 			const uint8 bodyPicId = spriteCache.bodyPicId();
 
@@ -355,7 +350,7 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 					Common::SharedPtr< ::Goldbox::Gfx::Pic> bodyPic(
 						::Goldbox::Gfx::Pic::read(bodyBlock));
 					if (bodyPic)
-						bodyPic->draw(&s, vpX, vpY + 5 * 8);
+						bodyPic->draw(&s, vpX, vpY + 5 * FONT_H);
 				}
 			}
 		}

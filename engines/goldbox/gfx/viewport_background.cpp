@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/gfx/viewport_background.h"
+#include "goldbox/gfx/surface.h"
 
 #include "common/rect.h"
 
@@ -28,8 +29,15 @@ namespace Gfx {
 
 ViewportBackground::ViewportBackground()
 		: _colorSky(0), _colorSkyline(0), _colorHorizon(0), _colorFloor(0) {
-	_surface.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
-	_surface.fillRect(Common::Rect(0, 0, 320, 200), 0);
+	_surface.create(TEXT_W * FONT_W, TEXT_H * FONT_H,
+		Graphics::PixelFormat::createFormatCLUT8());
+	_surface.fillRect(Common::Rect(0, 0, _surface.w, _surface.h), 0);
+}
+
+Common::Rect ViewportBackground::viewportRect() {
+	const int scale = Shared::Gfx::cellScale();
+	return Common::Rect(kViewportX * scale, kViewportY * scale,
+		(kViewportX + kViewportSize) * scale, (kViewportY + kViewportSize) * scale);
 }
 
 void ViewportBackground::set3DViewportColors(uint8 sky, uint8 skyline,
@@ -46,18 +54,20 @@ void ViewportBackground::set3DViewportColors(uint8 sky, uint8 skyline,
 }
 
 void ViewportBackground::rebuild() {
-	const int x0 = kViewportX;
-	const int x1 = kViewportX + kViewportSize;
-	const int y0 = kViewportY;
+	const Common::Rect vp = viewportRect();
+	const int x0 = vp.left;
+	const int x1 = vp.right;
+	const int y0 = vp.top;
+	const int s = Shared::Gfx::cellScale();
 
 	// Sky: 43 rows
-	_surface.fillRect(Common::Rect(x0, y0, x1, y0 + 43), _colorSky);
+	_surface.fillRect(Common::Rect(x0, y0, x1, y0 + 43 * s), _colorSky);
 	// Skyline: 1 row
-	_surface.fillRect(Common::Rect(x0, y0 + 43, x1, y0 + 44), _colorSkyline);
+	_surface.fillRect(Common::Rect(x0, y0 + 43 * s, x1, y0 + 44 * s), _colorSkyline);
 	// Horizon: 2 rows
-	_surface.fillRect(Common::Rect(x0, y0 + 44, x1, y0 + 46), _colorHorizon);
+	_surface.fillRect(Common::Rect(x0, y0 + 44 * s, x1, y0 + 46 * s), _colorHorizon);
 	// Floor: 42 rows
-	_surface.fillRect(Common::Rect(x0, y0 + 46, x1, y0 + 88), _colorFloor);
+	_surface.fillRect(Common::Rect(x0, y0 + 46 * s, x1, y0 + 88 * s), _colorFloor);
 }
 
 } // namespace Gfx

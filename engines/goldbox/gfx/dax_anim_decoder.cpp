@@ -19,6 +19,7 @@
  */
 
 #include "goldbox/gfx/dax_anim_decoder.h"
+#include "goldbox/gfx/surface.h"
 
 #include "goldbox/data/daxblock.h"
 #include "goldbox/gfx/pic.h"
@@ -177,8 +178,8 @@ bool DaxAnimDecoder::decodeFromDescriptors(
 
         const int frameW = static_cast<int>(fd._widthBytes) * 8;
         const int frameH = static_cast<int>(fd._height);
-        const int offsetX = static_cast<int>(fd._xPosChars) * 8;
-        const int offsetY = static_cast<int>(fd._yPosChars) * 8;
+        const int offsetX = static_cast<int>(fd._xPosChars) * FONT_W;
+        const int offsetY = static_cast<int>(fd._yPosChars) * FONT_H;
 
         int canvasW = defaultCanvasW;
         int canvasH = defaultCanvasH;

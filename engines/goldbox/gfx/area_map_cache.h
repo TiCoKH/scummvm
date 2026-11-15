@@ -52,11 +52,8 @@ class Tile8x8Cache;
 class AreaMapCache {
 public:
     static const int kGridSize = 16;
-    static const int kCellSize = 8;
-    static const int kSurfaceSize = kGridSize * kCellSize; // 128
-
+    // Cells are text cells (FONT_W, 16 pixels on the PC-98).
     static const int kViewCells = 11;
-    static const int kViewSize = kViewCells * kCellSize; // 88
 
     static const uint16 kBaseTileId = 0x104;
     static const uint16 kCursorTileBase = 0x100;

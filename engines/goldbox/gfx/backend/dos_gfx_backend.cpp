@@ -61,7 +61,7 @@ const GfxBackend::ArtColors &DosGfxBackend::artColors() const {
 	return kColors;
 }
 
-uint8 DosGfxBackend::mapChar(uint8 chr) const {
+uint8 DosGfxBackend::fontIndex(uint8 chr) {
 	// The DOS font holds A-Z at 0x01-0x1A and punctuation and digits at
 	// their ASCII codes; '$' and '%' have no glyph.
 	if (chr >= 'a' && chr <= 'z')

@@ -28,16 +28,18 @@ namespace Goldbox {
 namespace Gfx {
 
 /**
- * PC-98: 640x400 with three bitplanes (8 digital colors). Japanese text is
- * drawn through the text VRAM and is not implemented yet.
+ * PC-98: 640x400 with three bitplanes (8 digital colors), drawn at double
+ * the DOS resolution. The game font is the DOS font redrawn at 16x16;
+ * Japanese (Shift-JIS) text is not implemented yet.
  */
 class Pc98GfxBackend : public GfxBackend {
 public:
 	void initScreen() override;
 	void setupPalette() override;
 	Graphics::Font *createFont(Data::DaxFileManager &dax) override;
-	uint8 mapChar(uint8 chr) const override { return chr; }
+	uint8 mapChar(uint8 chr) const override;
 	bool hasTitlePictures() const override { return false; }
+	int cellSize() const override { return 16; }
 	const ArtColors &artColors() const override;
 };
 

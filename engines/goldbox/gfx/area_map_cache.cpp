@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/gfx/area_map_cache.h"
+#include "goldbox/gfx/surface.h"
 
 #include "common/algorithm.h"
 #include "goldbox/gfx/walldef_surface_builder.h"
@@ -31,14 +32,14 @@ namespace Goldbox {
 namespace Gfx {
 
 AreaMapCache::AreaMapCache() : _built(false) {
-    _surface.create(kSurfaceSize, kSurfaceSize,
+    _surface.create(kGridSize * FONT_W, kGridSize * FONT_H,
             Graphics::PixelFormat::createFormatCLUT8());
-    _surface.fillRect(Common::Rect(0, 0, kSurfaceSize, kSurfaceSize), 0);
+    _surface.fillRect(Common::Rect(0, 0, _surface.w, _surface.h), 0);
 }
 
 void AreaMapCache::rebuild(const RuntimeGeoBlock &geo,
         const Tile8x8Cache &tileCache) {
-    _surface.fillRect(Common::Rect(0, 0, kSurfaceSize, kSurfaceSize), 0);
+    _surface.fillRect(Common::Rect(0, 0, _surface.w, _surface.h), 0);
 
     for (int y = 0; y < kGridSize; ++y) {
         for (int x = 0; x < kGridSize; ++x) {
@@ -77,13 +78,14 @@ void AreaMapCache::blitTileToCache(int cellX, int cellY,
     if (!tile)
         return;
 
-    const int dstX = cellX * kCellSize;
-    const int dstY = cellY * kCellSize;
+    const int cell = FONT_W;
+    const int dstX = cellX * cell;
+    const int dstY = cellY * cell;
 
-    for (int py = 0; py < kCellSize; ++py) {
+    for (int py = 0; py < cell; ++py) {
         const byte *srcRow = (const byte *)tile->getBasePtr(0, py);
         byte *dstRow = (byte *)_surface.getBasePtr(dstX, dstY + py);
-        for (int px = 0; px < kCellSize; ++px)
+        for (int px = 0; px < cell; ++px)
             dstRow[px] = srcRow[px];
     }
 }
@@ -103,13 +105,15 @@ void AreaMapCache::drawViewport(Graphics::ManagedSurface &dst,
     if (viewOriginY > 5) viewOriginY = 5;
 
     // Blit 88x88 region from cached surface to viewport position.
-    const int srcX = viewOriginX * kCellSize;
-    const int srcY = viewOriginY * kCellSize;
-    const int vpX = ViewportBackground::kViewportX;
-    const int vpY = ViewportBackground::kViewportY;
+    const int cell = FONT_W;
+    const int viewSize = kViewCells * cell;
+    const int srcX = viewOriginX * cell;
+    const int srcY = viewOriginY * cell;
+    const int vpX = ViewportBackground::viewportRect().left;
+    const int vpY = ViewportBackground::viewportRect().top;
 
     dst.blitFrom(_surface,
-            Common::Rect(srcX, srcY, srcX + kViewSize, srcY + kViewSize),
+            Common::Rect(srcX, srcY, srcX + viewSize, srcY + viewSize),
             Common::Point(vpX, vpY));
 
     // Draw cursor arrow at party position within viewport.
@@ -121,15 +125,15 @@ void AreaMapCache::drawViewport(Graphics::ManagedSurface &dst,
     if (!cursorTile)
         return;
 
-    const int cursorDstX = vpX + cursorCol * kCellSize;
-    const int cursorDstY = vpY + cursorRow * kCellSize;
+    const int cursorDstX = vpX + cursorCol * cell;
+    const int cursorDstY = vpY + cursorRow * cell;
 
     // Blit cursor with color 13 as transparent (background color of
     // the arrow tiles in the 8x8 tileset).
-    for (int py = 0; py < kCellSize; ++py) {
+    for (int py = 0; py < cell; ++py) {
         const byte *srcRow = (const byte *)cursorTile->getBasePtr(0, py);
         byte *dstRow = (byte *)dst.getBasePtr(cursorDstX, cursorDstY + py);
-        for (int px = 0; px < kCellSize; ++px) {
+        for (int px = 0; px < cell; ++px) {
             if (srcRow[px] != 13)
                 dstRow[px] = srcRow[px];
         }

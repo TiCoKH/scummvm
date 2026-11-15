@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/gfx/first_person_renderer.h"
+#include "goldbox/gfx/surface.h"
 
 #include "graphics/managed_surface.h"
 #include "goldbox/gfx/pic.h"
@@ -296,15 +297,15 @@ void FirstPersonRenderer::drawRegion(Graphics::ManagedSurface *dst,
 	if (!pic)
 		return;
 
-	const int dstX = (colStart + k3dViewOffsetX) * kCharW;
-	const int dstY = (rowStart + k3dViewOffsetY) * kCharH;
+	const int dstX = (colStart + k3dViewOffsetX) * FONT_W;
+	const int dstY = (rowStart + k3dViewOffsetY) * FONT_H;
 
-	// Clip to the 3D viewport bounds to avoid overwriting borders.
-	static const int kVpX0 = k3dViewOffsetX * kCharW;
-	static const int kVpY0 = k3dViewOffsetY * kCharH;
-	static const int kVpX1 = kVpX0 + 88;
-	static const int kVpY1 = kVpY0 + 88;
-	blitClipped(*pic, dst, dstX, dstY, kVpX0, kVpY0, kVpX1, kVpY1);
+	// Clip to the 3D viewport bounds (11 x 11 cells) to avoid overwriting
+	// borders.
+	const int vpX0 = k3dViewOffsetX * FONT_W;
+	const int vpY0 = k3dViewOffsetY * FONT_H;
+	blitClipped(*pic, dst, dstX, dstY, vpX0, vpY0, vpX0 + 11 * FONT_W,
+		vpY0 + 11 * FONT_H);
 }
 
 void FirstPersonRenderer::blitClipped(const Pic &src,

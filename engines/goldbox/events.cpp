@@ -23,6 +23,7 @@
 #include "graphics/cursorman.h"
 #include "graphics/screen.h"
 #include "goldbox/events.h"
+#include "goldbox/gfx/surface.h"
 #include "goldbox/engine.h"
 
 namespace Goldbox {
@@ -352,7 +353,7 @@ void Events::setCursor(int cursorNum) {
 /*------------------------------------------------------------------------*/
 
 Bounds::Bounds(Common::Rect &innerBounds) :
-		_bounds(0, 0, 320, 200),
+		_bounds(0, 0, TEXT_W * FONT_W, TEXT_H * FONT_H),
 		_innerBounds(innerBounds),
 		left(_bounds.left), top(_bounds.top),
 		right(_bounds.right), bottom(_bounds.bottom) {
@@ -516,7 +517,7 @@ void UIElement::subView(UIElement *child) {
 
 void UIElement::setBounds(const Window &win) {
 	Common::Rect r(win.left * FONT_W, win.top * FONT_H, (win.right + 1) * FONT_W, (win.bottom + 1) * FONT_H);
-	r.translate(win._xOffset, win._yOffset);
+	r.translate(win._xOffset * Shared::Gfx::cellScale(), win._yOffset * Shared::Gfx::cellScale());
 	setBounds(r);
 };
 
@@ -531,7 +532,7 @@ Surface UIElement::getSurface(const Common::Rect &r) const {
 Surface UIElement::getSurface(const Window &win) const {
 	Common::Rect r(_innerBounds.left + win.left * FONT_W, _innerBounds.top + win.top * FONT_H,
 					_innerBounds.left + (win.right + 1) * FONT_W, _innerBounds.top + (win.bottom + 1) * FONT_H);
-	r.translate(win._xOffset, win._yOffset);
+	r.translate(win._xOffset * Shared::Gfx::cellScale(), win._yOffset * Shared::Gfx::cellScale());
 	r.clip(_innerBounds);
 
 	return Surface(*g_events->getScreen(), r);

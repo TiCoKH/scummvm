@@ -21,6 +21,7 @@
 
 #include "common/system.h"
 #include "goldbox/gfx/pic.h"
+#include "goldbox/gfx/surface.h"
 #include "goldbox/data/daxblock.h"
 
 namespace Goldbox {
@@ -251,11 +252,11 @@ void Pic::trDraw(Graphics::ManagedSurface *dst, int x, int y, uint32 tpColorInde
 }
 
 void Pic::drawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY) const {
-	draw(dst, charX * 8, charY * 8);
+	draw(dst, charX * FONT_W, charY * FONT_H);
 }
 
 void Pic::trDrawAtCharPos(Graphics::ManagedSurface *dst, int charX, int charY, uint32 tpColorIndex) const {
-	trDraw(dst, charX * 8, charY * 8, tpColorIndex);
+	trDraw(dst, charX * FONT_W, charY * FONT_H, tpColorIndex);
 }
 
 void Pic::drawAtIconPos(Graphics::ManagedSurface *dst, int iconX, int iconY) const {

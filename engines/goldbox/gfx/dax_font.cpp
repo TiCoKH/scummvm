@@ -25,28 +25,27 @@
 namespace Goldbox {
 namespace Gfx {
 
-DaxFont::DaxFont(Data::DaxBlock8x8D *daxBlock) : _daxBlock(daxBlock), _glyphCount(0) {
+DaxFont::DaxFont(Data::DaxBlock8x8D *daxBlock, int glyphSize) :
+        _daxBlock(daxBlock), _glyphCount(0), _glyphSize(glyphSize) {
     load();
 }
 
 void DaxFont::load() {
     assert(_daxBlock != nullptr);
-    _glyphCount = _daxBlock->item_count;
+    _glyphCount = _daxBlock->_data.size() / (_glyphSize * _glyphSize / 8);
 }
 
 void DaxFont::drawChar(Graphics::Surface *dst, uint32 index, int x, int y, uint32 color) const {
-    if (index > _glyphCount)
+    if (index >= _glyphCount)
         return; // if index is out of bounds, do nothing
-    const byte *src = &_daxBlock->_data[index * 8];
-    byte *dest;
-    byte bits;
+    const int rowBytes = _glyphSize / 8;
+    const byte *src = &_daxBlock->_data[index * _glyphSize * rowBytes];
 
-    for (int yc = 0; yc < FONT_H; ++yc, ++y, ++src) {
-        bits = *src;
-        dest = (byte *)dst->getBasePtr(x, y);
-
-        for (int xc = 0; xc < FONT_W; ++xc, ++dest, bits <<= 1) {
-            if (bits & 0x80)
+    // One bit per pixel, rows of whole bytes, high bit first.
+    for (int yc = 0; yc < _glyphSize; ++yc, ++y, src += rowBytes) {
+        byte *dest = (byte *)dst->getBasePtr(x, y);
+        for (int xc = 0; xc < _glyphSize; ++xc, ++dest) {
+            if (src[xc / 8] & (0x80 >> (xc & 7)))
                 *dest = color;
         }
     }

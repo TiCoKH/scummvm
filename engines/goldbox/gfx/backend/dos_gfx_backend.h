@@ -33,7 +33,10 @@ public:
 	void initScreen() override;
 	void setupPalette() override;
 	Graphics::Font *createFont(Data::DaxFileManager &dax) override;
-	uint8 mapChar(uint8 chr) const override;
+	uint8 mapChar(uint8 chr) const override { return fontIndex(chr); }
+
+	/** The glyph of a character in the DOS font order, 0xFF for none. */
+	static uint8 fontIndex(uint8 chr);
 	bool hasTitlePictures() const override { return true; }
 	const ArtColors &artColors() const override;
 };

@@ -33,8 +33,20 @@ namespace Gfx {
 
 #define TEXT_W 40
 #define TEXT_H 25
-#define FONT_W 8
-#define FONT_H 8
+
+/**
+ * Pixel size of a text cell: 8, or 16 on the PC-98, whose art is drawn at
+ * double resolution. Layout stays in DOS cells and pixels; the drawing
+ * primitives scale it. Set from the gfx backend when the engine starts.
+ */
+extern int g_cellSize;
+#define FONT_W (::Goldbox::Shared::Gfx::g_cellSize)
+#define FONT_H (::Goldbox::Shared::Gfx::g_cellSize)
+
+/** Scale of positions given in DOS pixels (1, or 2 on the PC-98). */
+inline int cellScale() {
+	return g_cellSize / 8;
+}
 
 // Poolrad frame tiles (slot 4, base 0x100; t_offs = 0)
 static const uint16 kFrameCornerTile = 0x114;

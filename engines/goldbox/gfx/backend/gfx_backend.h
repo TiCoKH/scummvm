@@ -120,6 +120,9 @@ public:
 	/** Whether the title screens are pictures in the title DAX family. */
 	virtual bool hasTitlePictures() const = 0;
 
+	/** Pixel size of a text cell; the PC-98 draws at double resolution. */
+	virtual int cellSize() const { return 8; }
+
 	/**
 	 * Cursor frame under the icon editor's action icon (ShowIconFrames):
 	 * DOS uses the action frame, other ports may reuse the ready frame.

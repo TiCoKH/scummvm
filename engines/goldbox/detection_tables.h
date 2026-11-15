@@ -55,6 +55,20 @@ const GoldboxGameDescription gameDescriptions[] = {
 	},
 
 	{
+		// PC-98 (Pony Canyon): Japanese text, 640x400 art in 8 colors.
+		{
+			"poolrad",
+			nullptr,
+			AD_ENTRY1s("title1b.dax", "5705070b44df72e2d42459925480761f", 5734),
+			Common::JA_JPN,
+			Common::kPlatformPC98,
+			ADGF_UNSTABLE,
+			GUIO1(GAMEOPTION_ORIGINAL_SAVELOAD)
+		},
+		GAMETYPE_POOLRAD
+	},
+
+	{
 		// Placeholder checksum: no real Curse of the Azure Bonds data files
 		// have been analyzed yet, so this entry cannot match a real install.
 		// It exists to exercise the GAMETYPE_CURSE -> GameFactory -> engine

@@ -85,8 +85,6 @@ static const uint16 kVmBank0GeoMetadataOffset = 0x4900;
 
 static const int kPicture3DAreaCharX = 3;
 static const int kPicture3DAreaCharY = 3;
-static const int kPicture3DAreaPixelX = kPicture3DAreaCharX * 8;
-static const int kPicture3DAreaPixelY = kPicture3DAreaCharY * 8;
 static uint32 kModalMenuSinkCounter = 0;
 
 static const char *kEffectStatusChangedEventName = "EffectStatusChanged";
