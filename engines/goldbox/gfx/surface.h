@@ -36,6 +36,11 @@ namespace Gfx {
 #define FONT_W 8
 #define FONT_H 8
 
+// Poolrad frame tiles (slot 4, base 0x100; t_offs = 0)
+static const uint16 kFrameCornerTile = 0x114;
+static const uint16 kFrameSideTile = 0x115; // vertical side
+static const uint16 kFrameEdgeTile = 0x116; // horizontal edge
+
 struct Window : public Common::Rect {
 	int _xOffset = 0;
 	int _yOffset = 0;

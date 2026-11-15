@@ -66,6 +66,7 @@ MODULE_OBJS = \
 	spells/spell_registry.o \
 	spells/spell_targeter.o \
 	spells/spell_generic_handler.o \
+	gfx/amiga_borders.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/dax_renderer.o \

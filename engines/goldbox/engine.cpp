@@ -33,6 +33,7 @@
 #include "common/path.h"
 #include "engines/util.h"
 #include "graphics/palette.h"
+#include "goldbox/gfx/amiga_borders.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/sound/sound_driver.h"
@@ -57,6 +58,7 @@ Engine::~Engine() {
 	delete _soundDriver;
 	delete _fixedTileCacheSlot0;
 	delete _font;
+	delete _amigaBorders;
 	_daxManager.clear();
 	for (Common::List<Data::PlayerCharacter *>::iterator it = _party.begin(); it != _party.end(); ++it)
 		delete *it;

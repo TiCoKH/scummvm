@@ -59,6 +59,7 @@ namespace Runtime { class TreasurePool; }
 namespace Data { namespace Effects { class EffectHandlerBase; } }
 namespace Spells { class SpellCastingService; }
 namespace Combat { struct CombatContext; }
+namespace Gfx { class AmigaBorders; }
 
 class Engine : public ::Engine, public Events {
 private:
@@ -109,6 +110,7 @@ protected:
 
 public:
 	Graphics::Font * _font = nullptr;
+	Gfx::AmigaBorders *_amigaBorders = nullptr; ///< Amiga window border bitmaps
 	GameText _gameText;
 	Gfx::WalldefSlotCache _walldefSlotCache;
 	Gfx::Tile8x8Cache _tileCache;
