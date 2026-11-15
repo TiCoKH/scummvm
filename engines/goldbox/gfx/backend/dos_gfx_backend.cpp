@@ -1,0 +1,65 @@
+/* ScummVM - Graphic Adventure Engine
+ *
+ * ScummVM is the legal property of its developers, whose names
+ * are too numerous to list here. Please refer to the COPYRIGHT
+ * file distributed with this source distribution.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#include "goldbox/gfx/backend/dos_gfx_backend.h"
+#include "common/system.h"
+#include "common/textconsole.h"
+#include "engines/util.h"
+#include "graphics/palette.h"
+#include "graphics/paletteman.h"
+#include "goldbox/data/daxfilemanager.h"
+#include "goldbox/gfx/dax_font.h"
+
+namespace Goldbox {
+namespace Gfx {
+
+static const uint8 kDosFontBlock = 201;
+
+void DosGfxBackend::initScreen() {
+	initGraphics(320, 200);
+}
+
+void DosGfxBackend::setupPalette() {
+	g_system->getPaletteManager()->setPalette(Graphics::Palette::createEGAPalette());
+}
+
+Graphics::Font *DosGfxBackend::createFont(Data::DaxFileManager &dax) {
+	Data::DaxBlock8x8D *block = dynamic_cast<Data::DaxBlock8x8D *>(
+		dax.get8x8d().getBlockById(kDosFontBlock));
+	if (!block)
+		error("Failed to load font block %d from 8x8d container", kDosFontBlock);
+	return new DaxFont(block);
+}
+
+uint8 DosGfxBackend::mapChar(uint8 chr) const {
+	// The DOS font holds A-Z at 0x01-0x1A and punctuation and digits at
+	// their ASCII codes; '$' and '%' have no glyph.
+	if (chr >= 'a' && chr <= 'z')
+		chr -= 'a' - 'A';
+	if (chr >= 'A' && chr <= 'Z')
+		return chr - 0x40;
+	if (chr >= 0x20 && chr <= 0x40)
+		return (chr == '$' || chr == '%') ? 0xFF : chr;
+	return 0xFF;
+}
+
+} // namespace Gfx
+} // namespace Goldbox

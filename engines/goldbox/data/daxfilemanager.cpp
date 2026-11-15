@@ -23,12 +23,13 @@
 #include "common/debug.h"
 #include "goldbox/data/daxfilemanager.h"
 #include "goldbox/data/daxresourcefile.h"
+#include "goldbox/data/format/dax_format.h"
 
 namespace Goldbox {
 namespace Data {
 
 DaxFileManager::DaxFileManager(Common::Platform platform) :
-    _platform(platform),
+    _format(DaxFormat::create(platform)),
     _container8x8d(ContentType::TILE),
     _containerBacpac(ContentType::TILE),
     _containerDungcom(ContentType::TILE),
@@ -63,12 +64,18 @@ void DaxFileManager::loadFromFiles(const Common::Array<Common::Path> &paths) {
     }
 }
 
+void DaxFileManager::loadFamily(const char *pattern, uint16 dosIndices) {
+    Common::Array<Common::Path> files;
+    _format->familyFiles(pattern, dosIndices, files);
+    loadFromFiles(files);
+}
+
 void DaxFileManager::loadFile(const Common::Path &path) {
     Common::String filename = path.toString(Common::Path::kNativeSeparator);
     filename.toUppercase();
 
     DaxResourceFile file;
-    if (!file.open(path, _platform)) {
+    if (!file.open(path, *_format)) {
         warning("DaxFileManager::loadFile: Failed to open file: %s",
                 path.toString(Common::Path::kNativeSeparator).c_str());
         return;

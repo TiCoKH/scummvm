@@ -40,15 +40,21 @@ Pic *Pic::read(Data::DaxBlockPic *daxBlock) {
 Pic *Pic::readFrame(Data::DaxBlockPic *daxBlock, int frameIdx) {
 	int width = daxBlock->width;
 	int height = daxBlock->height;
+	int frameSize = (width * height) / 2;
+	int offset = frameIdx * frameSize;
 
-	if (!daxBlock->hasFrame(frameIdx))
+	if (offset + frameSize > (int)daxBlock->_data.size())
 		return nullptr;
 
 	Pic *pic = new Pic(width, height);
 	pic->setTransparentIndex(0);
+	const uint8 *data = daxBlock->_data.data() + offset;
 	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x++)
-			pic->setPixel(x, y, daxBlock->pixelAt(frameIdx, x, y));
+		for (int x = 0; x < width; x += 2) {
+			uint8 byte = *data++;
+			pic->setPixel(x, y, (byte & 0xF0) >> 4);
+			pic->setPixel(x + 1, y, byte & 0x0F);
+		}
 	}
 	return pic;
 }
@@ -56,17 +62,23 @@ Pic *Pic::readFrame(Data::DaxBlockPic *daxBlock, int frameIdx) {
 Pic *Pic::readTileFrame(Data::DaxBlockPic *daxBlock, int frameIdx) {
 	int width = daxBlock->width;
 	int height = daxBlock->height;
+	int frameSize = (width * height) / 2;
+	int offset = frameIdx * frameSize;
 
-	if (!daxBlock->hasFrame(frameIdx))
+	if (offset + frameSize > (int)daxBlock->_data.size())
 		return nullptr;
 
 	Pic *pic = new Pic(width, height);
 	pic->setTransparentIndex(255); // sentinel: original index-0 pixels
+	const uint8 *data = daxBlock->_data.data() + offset;
 	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x++) {
-			uint8 c = daxBlock->pixelAt(frameIdx, x, y);
+		for (int x = 0; x < width; x += 2) {
+			uint8 byte = *data++;
+			uint8 hi = (byte & 0xF0) >> 4;
+			uint8 lo = byte & 0x0F;
 			// Combat palette (SetCombatPalette): color 8 is shown as black.
-			pic->setPixel(x, y, c == 0 ? 255 : (c == 8 ? 0 : c));
+			pic->setPixel(x,     y, hi == 0 ? 255 : (hi == 8 ? 0 : hi));
+			pic->setPixel(x + 1, y, lo == 0 ? 255 : (lo == 8 ? 0 : lo));
 		}
 	}
 	return pic;
@@ -163,10 +175,18 @@ Pic *Pic::readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint
 	pic->setTransparentIndex(255);
 
 	// Pass 1: Decode pixel data and create transparency mask
+	const uint8 *data = daxBlock->_data.begin();
 	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x++) {
-			uint8 c = daxBlock->pixelAt(0, x, y);
-			pic->setPixel(x, y, (c == 0) ? 255 : c);
+		for (int x = 0; x < width; x += 2) {
+			uint8 byte = *data++;
+
+			// High nibble
+			uint8 pixelHigh = (byte & 0xF0) >> 4;
+			pic->setPixel(x, y, (pixelHigh == 0) ? 255 : pixelHigh);
+
+			// Low nibble
+			uint8 pixelLow = byte & 0x0F;
+			pic->setPixel(x + 1, y, (pixelLow == 0) ? 255 : pixelLow);
 		}
 	}
 

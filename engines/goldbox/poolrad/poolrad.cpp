@@ -23,8 +23,7 @@
 #include "common/fs.h"
 #include "common/file.h"
 #include "common/str.h"
-#include "graphics/fonts/amigafont.h"
-#include "goldbox/gfx/amiga_borders.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"
@@ -242,36 +241,13 @@ bool PoolradEngine::initializeGameData() {
 bool PoolradEngine::loadGameAssets() {
 	Surface::setupPalette();
 
-	if (getPlatform() == Common::kPlatformAmiga)
-		loadAmigaDaxFiles();
-	else
-		loadDosDaxFiles();
+	loadDaxFiles();
 
 	// Initialize icon manager
 	_iconManager = new Gfx::IconManager();
 
-	if (getPlatform() == Common::kPlatformAmiga) {
-		// The Amiga version draws text with its "poolrad" 8-pixel disk font.
-		Common::File *fontFile = new Common::File();
-		if (!fontFile->open(Common::Path("fonts/poolrad/8"))) {
-			delete fontFile;
-			error("Failed to open Amiga font fonts/poolrad/8");
-		}
-		_font = new Graphics::AmigaFont(fontFile);
-		delete fontFile;
-
-		_amigaBorders = new Gfx::AmigaBorders();
-		if (!_amigaBorders->load(Common::Path("poolradamigagfx.dat")))
-			warning("poolradamigagfx.dat not found; using DOS frame tiles");
-	} else {
-		// Populate daxFont from container
-		Goldbox::Data::DaxBlock *pc_font = getDax8x8d().getBlockById(201);
-		if (!pc_font) {
-			error("Failed to load font block 201 from 8x8d container");
-		}
-		auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(pc_font));
-		_font = daxFont;
-	}
+	_font = getGfx().createFont(getDaxManager());
+	getGfx().loadArtwork();
 
 	// Engine-wide fixed tile cache preload (original Goldbox behavior):
 	// slot 4 <- symbols block 202, slot 0 <- block 203.
@@ -280,145 +256,40 @@ bool PoolradEngine::loadGameAssets() {
 	return true;
 }
 
-void PoolradEngine::loadDosDaxFiles() {
-	// Load all 8x8d files via DaxFileManager (auto-sorts to correct container)
-	getDaxManager().loadFile(Common::Path("8x8d1.dax"));
-	getDaxManager().loadFile(Common::Path("8x8d2.dax"));
-	getDaxManager().loadFile(Common::Path("8x8d3.dax"));
-	getDaxManager().loadFile(Common::Path("8x8d4.dax"));
-	getDaxManager().loadFile(Common::Path("8x8d5.dax"));
-	getDaxManager().loadFile(Common::Path("8x8d6.dax"));
-	getDaxManager().loadFile(Common::Path("8x8d7.dax"));
-	getDaxManager().loadFile(Common::Path("8x8d8.dax"));
-
-	// Load tile-based DAX files
-	getDaxManager().loadFile(Common::Path("bacpac.dax"));
-	getDaxManager().loadFile(Common::Path("dungcom.dax"));
-	getDaxManager().loadFile(Common::Path("randcom.dax"));
-	getDaxManager().loadFile(Common::Path("sqrpaci.dax"));
-	getDaxManager().loadFile(Common::Path("wildcom.dax"));
-
-	// Load geo and monster resource DAX files
-	getDaxManager().loadFile(Common::Path("geo1.dax"));
-	getDaxManager().loadFile(Common::Path("geo2.dax"));
-	getDaxManager().loadFile(Common::Path("geo3.dax"));
-	getDaxManager().loadFile(Common::Path("geo4.dax"));
-	getDaxManager().loadFile(Common::Path("geo5.dax"));
-	getDaxManager().loadFile(Common::Path("geo6.dax"));
-	getDaxManager().loadFile(Common::Path("geo7.dax"));
-	getDaxManager().loadFile(Common::Path("geo8.dax"));
-	getDaxManager().loadFile(Common::Path("pic1.dax"));
-	getDaxManager().loadFile(Common::Path("pic2.dax"));
-	getDaxManager().loadFile(Common::Path("pic3.dax"));
-	getDaxManager().loadFile(Common::Path("pic4.dax"));
-	getDaxManager().loadFile(Common::Path("pic5.dax"));
-	getDaxManager().loadFile(Common::Path("pic6.dax"));
-	getDaxManager().loadFile(Common::Path("pic7.dax"));
-	getDaxManager().loadFile(Common::Path("pic8.dax"));
-	getDaxManager().loadFile(Common::Path("cpic1.dax"));
-	getDaxManager().loadFile(Common::Path("cpic2.dax"));
-	getDaxManager().loadFile(Common::Path("cpic3.dax"));
-	getDaxManager().loadFile(Common::Path("cpic4.dax"));
-	getDaxManager().loadFile(Common::Path("cpic5.dax"));
-	getDaxManager().loadFile(Common::Path("cpic6.dax"));
-	getDaxManager().loadFile(Common::Path("cpic7.dax"));
-	getDaxManager().loadFile(Common::Path("cpic8.dax"));
-	getDaxManager().loadFile(Common::Path("mon1cha.dax"));
-	getDaxManager().loadFile(Common::Path("mon2cha.dax"));
-	getDaxManager().loadFile(Common::Path("mon3cha.dax"));
-	getDaxManager().loadFile(Common::Path("mon4cha.dax"));
-	getDaxManager().loadFile(Common::Path("mon5cha.dax"));
-	getDaxManager().loadFile(Common::Path("mon6cha.dax"));
-	getDaxManager().loadFile(Common::Path("mon7cha.dax"));
-	getDaxManager().loadFile(Common::Path("mon8cha.dax"));
-	getDaxManager().loadFile(Common::Path("mon1itm.dax"));
-	getDaxManager().loadFile(Common::Path("mon2itm.dax"));
-	getDaxManager().loadFile(Common::Path("mon3itm.dax"));
-	getDaxManager().loadFile(Common::Path("mon4itm.dax"));
-	getDaxManager().loadFile(Common::Path("mon5itm.dax"));
-	getDaxManager().loadFile(Common::Path("mon6itm.dax"));
-	getDaxManager().loadFile(Common::Path("mon7itm.dax"));
-	getDaxManager().loadFile(Common::Path("mon8itm.dax"));
-	getDaxManager().loadFile(Common::Path("mon2spc.dax"));
-	getDaxManager().loadFile(Common::Path("mon4spc.dax"));
-	getDaxManager().loadFile(Common::Path("mon5spc.dax"));
-	getDaxManager().loadFile(Common::Path("mon6spc.dax"));
-	getDaxManager().loadFile(Common::Path("mon7spc.dax"));
-	getDaxManager().loadFile(Common::Path("mon8spc.dax"));
-	getDaxManager().loadFile(Common::Path("item1.dax"));
-	getDaxManager().loadFile(Common::Path("item2.dax"));
-	getDaxManager().loadFile(Common::Path("item3.dax"));
-	getDaxManager().loadFile(Common::Path("item4.dax"));
-	getDaxManager().loadFile(Common::Path("item5.dax"));
-	getDaxManager().loadFile(Common::Path("item6.dax"));
-	getDaxManager().loadFile(Common::Path("item7.dax"));
-	getDaxManager().loadFile(Common::Path("item8.dax"));
-	getDaxManager().loadFile(Common::Path("sprit1.dax"));
-	getDaxManager().loadFile(Common::Path("sprit2.dax"));
-	getDaxManager().loadFile(Common::Path("sprit3.dax"));
-	getDaxManager().loadFile(Common::Path("sprit4.dax"));
-	getDaxManager().loadFile(Common::Path("sprit5.dax"));
-	getDaxManager().loadFile(Common::Path("sprit6.dax"));
-	getDaxManager().loadFile(Common::Path("sprit7.dax"));
-	getDaxManager().loadFile(Common::Path("sprit8.dax"));
-
-	getDaxManager().loadFile(Common::Path("walldef1.dax"));
-	getDaxManager().loadFile(Common::Path("walldef2.dax"));
-	getDaxManager().loadFile(Common::Path("walldef3.dax"));
-	getDaxManager().loadFile(Common::Path("walldef4.dax"));
-	getDaxManager().loadFile(Common::Path("walldef5.dax"));
-	getDaxManager().loadFile(Common::Path("walldef6.dax"));
-	getDaxManager().loadFile(Common::Path("walldef7.dax"));
-	getDaxManager().loadFile(Common::Path("walldef8.dax"));
-
-	// Load ECL script DAX files
-	getDaxManager().loadFile(Common::Path("ecl1.dax"));
-	getDaxManager().loadFile(Common::Path("ecl2.dax"));
-	getDaxManager().loadFile(Common::Path("ecl3.dax"));
-	getDaxManager().loadFile(Common::Path("ecl4.dax"));
-	getDaxManager().loadFile(Common::Path("ecl5.dax"));
-	getDaxManager().loadFile(Common::Path("ecl6.dax"));
-	getDaxManager().loadFile(Common::Path("ecl7.dax"));
-	getDaxManager().loadFile(Common::Path("ecl8.dax"));
-
-	// Load DAX Pic files
-	getDaxManager().loadFile(Common::Path("body1.dax"));
-	getDaxManager().loadFile(Common::Path("body2.dax"));
-	getDaxManager().loadFile(Common::Path("body3.dax"));
-	getDaxManager().loadFile(Common::Path("body4.dax"));
-	getDaxManager().loadFile(Common::Path("body5.dax"));
-	getDaxManager().loadFile(Common::Path("body6.dax"));
-	getDaxManager().loadFile(Common::Path("body7.dax"));
-	getDaxManager().loadFile(Common::Path("body8.dax"));
-
-	getDaxManager().loadFile(Common::Path("head1.dax"));
-	getDaxManager().loadFile(Common::Path("head2.dax"));
-	getDaxManager().loadFile(Common::Path("head3.dax"));
-	getDaxManager().loadFile(Common::Path("head4.dax"));
-	getDaxManager().loadFile(Common::Path("head5.dax"));
-	getDaxManager().loadFile(Common::Path("head6.dax"));
-	getDaxManager().loadFile(Common::Path("head7.dax"));
-	getDaxManager().loadFile(Common::Path("head8.dax"));
-
-	getDaxManager().loadFile(Common::Path("title.dax"));
-
-	getDaxManager().loadFile(Common::Path("cbody.dax"));
-	getDaxManager().loadFile(Common::Path("chead.dax"));
-	getDaxManager().loadFile(Common::Path("comspr.dax"));
-}
-
-void PoolradEngine::loadAmigaDaxFiles() {
-	// The Amiga version keeps one file per DAX family in its data directory.
-	static const char *const kFiles[] = {
-		"8x8d.dax", "bacpac.dax", "dungcom.dax", "randcom.dax",
-		"sqrpaci.dax", "wildcom.dax", "geo.dax", "pic.dax",
-		"cpic.dax", "moncha.dax", "monitm.dax", "monspc.dax",
-		"item.dax", "sprit.dax", "walldef.dax", "ecl.dax",
-		"body.dax", "head.dax", "cbody.dax", "chead.dax",
-		"comspr.dax"
+void PoolradEngine::loadDaxFiles() {
+	// DAX families in load order; "%d" is the DOS area number. Each platform
+	// format maps a family to its own file names.
+	static const uint16 kAllAreas = 0x1FE; // areas 1-8
+	static const struct {
+		const char *pattern;
+		uint16 dosAreas;
+	} kFamilies[] = {
+		{ "8x8d%d", kAllAreas },
+		{ "bacpac", 0 },
+		{ "dungcom", 0 },
+		{ "randcom", 0 },
+		{ "sqrpaci", 0 },
+		{ "wildcom", 0 },
+		{ "geo%d", kAllAreas },
+		{ "pic%d", kAllAreas },
+		{ "cpic%d", kAllAreas },
+		{ "mon%dcha", kAllAreas },
+		{ "mon%ditm", kAllAreas },
+		{ "mon%dspc", 0x1F4 }, // areas 2, 4-8
+		{ "item%d", kAllAreas },
+		{ "sprit%d", kAllAreas },
+		{ "walldef%d", kAllAreas },
+		{ "ecl%d", kAllAreas },
+		{ "body%d", kAllAreas },
+		{ "head%d", kAllAreas },
+		{ "title", 0 },
+		{ "cbody", 0 },
+		{ "chead", 0 },
+		{ "comspr", 0 }
 	};
-	for (uint i = 0; i < ARRAYSIZE(kFiles); ++i)
-		getDaxManager().loadFile(Common::Path(kFiles[i]));
+
+	for (uint i = 0; i < ARRAYSIZE(kFamilies); ++i)
+		getDaxManager().loadFamily(kFamilies[i].pattern, kFamilies[i].dosAreas);
 }
 
 bool PoolradEngine::initializeRuntimeSystems() {

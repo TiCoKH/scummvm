@@ -19,7 +19,7 @@
  *
  */
 
-#include "goldbox/gfx/amiga_borders.h"
+#include "goldbox/gfx/backend/amiga_borders.h"
 #include "common/file.h"
 #include "common/textconsole.h"
 

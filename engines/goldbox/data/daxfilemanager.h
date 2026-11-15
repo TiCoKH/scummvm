@@ -38,9 +38,11 @@ namespace Data {
  *   8X8D1-8 (8x8 tiles), BACPAC/DUNGCOM/RANDCOM/SQRPACI (24x24 tiles),
  *   BODY1-8, CBODY, CHEAD, SPRIT1-8, WALLDEF1-8, etc.
  */
+class DaxFormat;
+
 class DaxFileManager {
 private:
-    Common::Platform _platform;
+    Common::ScopedPtr<DaxFormat> _format;
 
     // Containers for each content type
     DaxBlockContainer _container8x8d;
@@ -70,8 +72,15 @@ public:
     explicit DaxFileManager(Common::Platform platform = Common::kPlatformUnknown);
     ~DaxFileManager();
 
-    void setPlatform(Common::Platform platform) { _platform = platform; }
-    Common::Platform getPlatform() const { return _platform; }
+    /** Platform layout of the DAX files. */
+    const DaxFormat &getFormat() const { return *_format; }
+
+    /**
+     * Load every file of a DAX family, named for the platform.
+     * @param pattern DOS name with "%d" for the area number ("8x8d%d")
+     * @param dosIndices Bit set of DOS area numbers, 0 for a single file
+     */
+    void loadFamily(const char *pattern, uint16 dosIndices = 0);
 
     /**
      * Load DAX files from a directory or list of files.

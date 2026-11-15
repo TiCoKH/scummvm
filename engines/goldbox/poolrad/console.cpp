@@ -609,7 +609,8 @@ bool Console::cmdDumpPic(int argc, const char **argv) {
 			return true;
 		}
 
-		for (int f = 0; f < 16 && picBlock->hasFrame(f); ++f) {
+		const int frames = dataSize / ((width * height) / 2);
+		for (int f = 0; f < frames && f < 16; ++f) {
 			::Goldbox::Gfx::Pic *pic = ::Goldbox::Gfx::Pic::readFrame(picBlock, f);
 			if (!pic) {
 				debugPrintf("  frame %d: decode failed\n", f);

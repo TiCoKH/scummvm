@@ -40,6 +40,10 @@ MODULE_OBJS = \
 	data/daxfilemanager.o \
 	data/daxheadercontainer.o \
 	data/daxresourcefile.o \
+	data/format/amiga_dax_format.o \
+	data/format/dax_format.o \
+	data/format/dos_dax_format.o \
+	data/format/pc98_dax_format.o \
 	data/pascal_string_buffer.o \
 	data/strings.o \
 	data/strings_data.o \
@@ -66,7 +70,11 @@ MODULE_OBJS = \
 	spells/spell_registry.o \
 	spells/spell_targeter.o \
 	spells/spell_generic_handler.o \
-	gfx/amiga_borders.o \
+	gfx/backend/amiga_borders.o \
+	gfx/backend/amiga_gfx_backend.o \
+	gfx/backend/dos_gfx_backend.o \
+	gfx/backend/gfx_backend.o \
+	gfx/backend/pc98_gfx_backend.o \
 	gfx/dax_font.o \
 	gfx/dax_tile.o \
 	gfx/dax_renderer.o \

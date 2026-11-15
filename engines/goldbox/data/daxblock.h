@@ -114,7 +114,6 @@ public:
 
     // Common properties
     uint8 blockId = 0;
-    bool amigaPlanar = false; // Amiga: big-endian header, 4 bitplanes
     Common::Array<uint8> _data;
 
     static DaxBlock* createDaxBlock(ContentType contentType);
@@ -172,23 +171,6 @@ public:
     int frameCount;
 
     DaxBlockPic();
-
-    /** Color index (0-15) of a pixel; handles DOS nibbles and Amiga planes. */
-    uint8 pixelAt(int frameIdx, int x, int y) const;
-    bool hasFrame(int frameIdx) const;
-
-protected:
-    /**
-     * Amiga 12-byte header: height, char width, 2 unknown words, item count,
-     * plane size (all BE). Planes follow plane-major: plane p of item i is at
-     * (p * itemCount + i) * planeSize.
-     */
-    bool popAmigaHeader(int &charWidth);
-
-    int _rowBytes;
-    int _planeSize;
-    int _itemCount;
-    int _tilesPerItem; // Amiga tile sets pack two tiles per item
 
 private:
     void adjust() override;

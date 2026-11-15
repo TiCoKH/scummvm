@@ -59,7 +59,7 @@ namespace Runtime { class TreasurePool; }
 namespace Data { namespace Effects { class EffectHandlerBase; } }
 namespace Spells { class SpellCastingService; }
 namespace Combat { struct CombatContext; }
-namespace Gfx { class AmigaBorders; }
+namespace Gfx { class GfxBackend; }
 
 class Engine : public ::Engine, public Events {
 private:
@@ -82,6 +82,7 @@ protected:
 	Gfx::AreaMapCache _areaMapCache;
 	Gfx::EncounterSpriteCache _encounterSpriteCache;
 	Gfx::PictureDisplayCache _pictureDisplayCache;
+	Gfx::GfxBackend *_gfx = nullptr; ///< Platform screen, palette, font and artwork
 	// Engine APIs
 	Common::Error run() override;
 	void setup() override;
@@ -110,7 +111,6 @@ protected:
 
 public:
 	Graphics::Font * _font = nullptr;
-	Gfx::AmigaBorders *_amigaBorders = nullptr; ///< Amiga window border bitmaps
 	GameText _gameText;
 	Gfx::WalldefSlotCache _walldefSlotCache;
 	Gfx::Tile8x8Cache _tileCache;
@@ -288,6 +288,8 @@ public:
 	 * Returns the platform
 	 */
 	Common::Platform getPlatform() const;
+	/** Platform graphics backend (screen, palette, font, artwork). */
+	Gfx::GfxBackend &getGfx() const { return *_gfx; }
 
 	/**
 	 * Gets a random number

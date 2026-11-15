@@ -33,7 +33,7 @@
 #include "common/path.h"
 #include "engines/util.h"
 #include "graphics/palette.h"
-#include "goldbox/gfx/amiga_borders.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/sound/sound_driver.h"
@@ -49,6 +49,7 @@ Engine::Engine(OSystem *syst, const GoldboxGameDescription *gameDesc) : ::Engine
 	_soundDriver(nullptr), _soundMode(kSoundTandy), _gameText(this) {
 	g_engine = this;
 	_treasurePool = new Runtime::TreasurePool();
+	_gfx = Gfx::GfxBackend::create(gameDesc->desc.platform);
 }
 
 Engine::~Engine() {
@@ -58,7 +59,7 @@ Engine::~Engine() {
 	delete _soundDriver;
 	delete _fixedTileCacheSlot0;
 	delete _font;
-	delete _amigaBorders;
+	delete _gfx;
 	_daxManager.clear();
 	for (Common::List<Data::PlayerCharacter *>::iterator it = _party.begin(); it != _party.end(); ++it)
 		delete *it;
@@ -213,18 +214,7 @@ void Engine::setGameState(GameState state) {
 }
 
 Common::Error Engine::run() {
-	switch (getPlatform()) {
-		case Common::kPlatformDOS:
-		case Common::kPlatformAmiga:
-			initGraphics(320, 200);
-			break;
-		case Common::kPlatformPC98:
-			initGraphics(640, 400);
-			break;
-		default:
-			initGraphics(320, 200);
-			break;
-	}
+	_gfx->initScreen();
 
 	// Set the engine's debugger console
 	setDebugger(getConsole());

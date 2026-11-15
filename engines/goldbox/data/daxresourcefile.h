@@ -23,7 +23,6 @@
 #define GOLDBOX_DATA_DAXRESOURCEFILE_H
 
 #include "common/path.h"
-#include "common/platform.h"
 #include "goldbox/core/file.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxheadercontainer.h"
@@ -31,23 +30,21 @@
 namespace Goldbox {
 namespace Data {
 
+class DaxFormat;
+
 class DaxResourceFile {
 private:
     File _file;
     DaxHeaderContainer _headerContainer;
     ContentType _contentType;
-    Common::Platform _platform;
+    const DaxFormat *_format;
 
-    static void decodeRLE(int dataLength, uint8 *outputPtr, int outputLength,
-            const uint8 *inputPtr);
-    static bool unpackAmiga(const uint8 *src, uint srcLength, uint8 *dst,
-            uint dstLength);
     static ContentType determineContentType(const Common::Path &filename);
 
 public:
     DaxResourceFile();
 
-    bool open(const Common::Path &filename, Common::Platform platform);
+    bool open(const Common::Path &filename, const DaxFormat &format);
     void close();
     bool isOpen() const;
 

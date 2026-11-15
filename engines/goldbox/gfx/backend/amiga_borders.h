@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef GOLDBOX_GFX_AMIGA_BORDERS_H
-#define GOLDBOX_GFX_AMIGA_BORDERS_H
+#ifndef GOLDBOX_GFX_BACKEND_AMIGA_BORDERS_H
+#define GOLDBOX_GFX_BACKEND_AMIGA_BORDERS_H
 
 #include "common/path.h"
 #include "graphics/managed_surface.h"

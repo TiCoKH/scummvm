@@ -22,6 +22,7 @@
 #include "common/system.h"
 #include "graphics/paletteman.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/poolrad/views/title_view.h"
 #include "goldbox/poolrad/poolrad.h"
 
@@ -30,8 +31,8 @@ namespace Poolrad {
 namespace Views {
 
 bool TitleView::msgFocus(const FocusMessage &msg) {
-	// The Amiga title screens are in the separate "intro" program, not a DAX.
-	if (g_engine->getPlatform() == Common::kPlatformAmiga) {
+	// Some ports keep their title screens outside the DAX files.
+	if (!g_engine->getGfx().hasTitlePictures()) {
 		_pic1 = _pic2 = nullptr;
 		return true;
 	}
