@@ -41,6 +41,8 @@ public:
 		uint8 blockId, Common::Array<uint8> &data) const override;
 	void familyFiles(const char *pattern, uint16 dosIndices,
 		Common::Array<Common::Path> &files) const override;
+	void addAliases(const Common::Path &file,
+		DaxBlockContainer &container) const override;
 
 private:
 	/**

@@ -65,8 +65,8 @@ void Surface::writeString(const Common::String &str) {
         idString += mappedIndex; // Append the converted character
     }
 
-	_currentFont->drawString(this, idString, _textX * FONT_W, _textY * FONT_H,
-		this->w - (_textX * FONT_W), _textColor);
+	g_engine->getGfx().drawText(*this, *_currentFont, idString, _textX * FONT_W,
+		_textY * FONT_H, this->w - (_textX * FONT_W), _textColor);
 	_textX+=str.size();
 }
 
@@ -120,13 +120,15 @@ void Surface::writeCenteredString(const Common::String &str, int y) {
 void Surface::writeChar(unsigned char c) {
 	unsigned char f_id = mapCharToIndex(c);
 	setToText();
-	_currentFont->drawChar(this, f_id, _textX * FONT_W, _textY * FONT_H, _textColor);
+	g_engine->getGfx().drawGlyph(*this, *_currentFont, f_id, _textX * FONT_W,
+		_textY * FONT_H, _textColor);
 	++_textX;
 }
 
 void Surface::writeGlyph(unsigned char c) {
 	setToText();
-	_currentFont->drawChar(this, c, _textX * FONT_W, _textY * FONT_H, _textColor);
+	g_engine->getGfx().drawGlyph(*this, *_currentFont, c, _textX * FONT_W,
+		_textY * FONT_H, _textColor);
 	++_textX;
 }
 

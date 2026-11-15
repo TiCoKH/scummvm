@@ -59,7 +59,6 @@ public:
     static const int kLeft = 0;
     static const int kRight = 39;
     static const int kTextColor = 10;
-    static const uint8 kBackgroundColor = 8;
 
     explicit CombatInfoDialog(CombatInfoHost *host);
     ~CombatInfoDialog() override {}

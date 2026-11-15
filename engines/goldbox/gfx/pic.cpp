@@ -59,7 +59,8 @@ Pic *Pic::readFrame(Data::DaxBlockPic *daxBlock, int frameIdx) {
 	return pic;
 }
 
-Pic *Pic::readTileFrame(Data::DaxBlockPic *daxBlock, int frameIdx) {
+Pic *Pic::readTileFrame(Data::DaxBlockPic *daxBlock, int frameIdx,
+		int combatBlack) {
 	int width = daxBlock->width;
 	int height = daxBlock->height;
 	int frameSize = (width * height) / 2;
@@ -76,9 +77,9 @@ Pic *Pic::readTileFrame(Data::DaxBlockPic *daxBlock, int frameIdx) {
 			uint8 byte = *data++;
 			uint8 hi = (byte & 0xF0) >> 4;
 			uint8 lo = byte & 0x0F;
-			// Combat palette (SetCombatPalette): color 8 is shown as black.
-			pic->setPixel(x,     y, hi == 0 ? 255 : (hi == 8 ? 0 : hi));
-			pic->setPixel(x + 1, y, lo == 0 ? 255 : (lo == 8 ? 0 : lo));
+			// Combat palette: art color combatBlack is shown as black.
+			pic->setPixel(x,     y, hi == 0 ? 255 : (hi == combatBlack ? 0 : hi));
+			pic->setPixel(x + 1, y, lo == 0 ? 255 : (lo == combatBlack ? 0 : lo));
 		}
 	}
 	return pic;
@@ -167,7 +168,7 @@ Pic *Pic::readEgaPicFrame(Data::DaxBlockSprit *spritBlock, int frameIdx) {
 }
 
 Pic *Pic::readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint8 targetColor,
-                            bool combatPalette) {
+                            int combatBlack) {
 	int width = daxBlock->width;
 	int height = daxBlock->height;
 	Pic *pic = new Pic(width, height);
@@ -191,13 +192,13 @@ Pic *Pic::readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint
 	}
 
 	// Pass 2: Apply color remapping
-	if (sourceColor != targetColor || combatPalette) {
+	if (sourceColor != targetColor || combatBlack >= 0) {
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
 				uint8 pixel = pic->getPixel(x, y);
 				if (pixel == sourceColor)
 					pixel = targetColor;
-				if (combatPalette && pixel == 8)
+				if (pixel == combatBlack)
 					pixel = 0;
 				pic->setPixel(x, y, pixel);
 			}

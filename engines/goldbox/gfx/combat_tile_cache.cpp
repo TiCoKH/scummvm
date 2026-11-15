@@ -20,6 +20,8 @@
  */
 
 #include "goldbox/gfx/combat_tile_cache.h"
+#include "goldbox/engine.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/gfx/pic.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
@@ -127,7 +129,8 @@ void CombatTileCache::loadFromContainer(Data::DaxBlockContainer &container,
             if (frameSlot >= MAX_TILES)
                 break;
 
-            Pic *tilePic = Pic::readTileFrame(picBlock, frame);
+            Pic *tilePic = Pic::readTileFrame(picBlock, frame,
+                g_engine->getGfx().artColors().combatBlack);
             if (!tilePic)
                 continue;
 

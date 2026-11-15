@@ -22,6 +22,8 @@
 #include "goldbox/gfx/walldef_surface_builder.h"
 
 #include "common/bitarray.h"
+#include "goldbox/engine.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/gfx/pic.h"
 
@@ -55,17 +57,17 @@ void blitSymbol(const Graphics::ManagedSurface &symbol, Pic &dst, int dstX,
 	}
 }
 
-static const uint8 kWallTileTransparentColor = 13;
-
 Common::SharedPtr<Pic> buildRegionSurface(
 		const Data::DaxBlockWalldef::Slice &slice,
 		Data::WalldefRegionId regionId,
 		const Tile8x8Cache &tileCache, int symbolOffset) {
 	const int cols = slice.cols(regionId);
 	const int rows = slice.rows(regionId);
+	// Wall tiles see through a platform-specific art color.
+	const uint8 transparentColor = g_engine->getGfx().artColors().wallTransparent;
 	Common::SharedPtr<Pic> region(new Pic(cols * 8, rows * 8));
-	region->clear(kWallTileTransparentColor);
-	region->setTransparentIndex(kWallTileTransparentColor);
+	region->clear(transparentColor);
+	region->setTransparentIndex(transparentColor);
 
 	Common::BitArray *mask = region->ensureTransparencyMask();
 	for (uint i = 0; i < mask->size(); ++i)
@@ -85,7 +87,7 @@ Common::SharedPtr<Pic> buildRegionSurface(
 				continue;
 
 			blitSymbol(*tile, *region, col * 8, row * 8, mask,
-					kWallTileTransparentColor);
+					transparentColor);
 		}
 	}
 

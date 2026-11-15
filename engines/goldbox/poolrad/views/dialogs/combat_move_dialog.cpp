@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/poolrad/views/dialogs/prompt_message.h"
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/combat/combatant_table.h"
@@ -380,7 +381,7 @@ void CombatMoveDialog::drawMovementMenu() {
     // Displayed budget is half the stored value (mirrors move >> 1).
     const uint8 budget = _character->combatState->movePoints >> 1;
     Surface s = getSurface();
-    s.clearBox(0, 0, 39, 0, 8);
+    s.clearBox(0, 0, 39, 0, ::Goldbox::Gfx::combatBackgroundColor());
     s.writeStringC(0, 0, 10,
         Common::String::format("Move/Attack, Move Left = %d", budget));
 }

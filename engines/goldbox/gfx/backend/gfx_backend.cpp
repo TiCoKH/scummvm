@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/gfx/backend/gfx_backend.h"
+#include "goldbox/engine.h"
 #include "goldbox/gfx/backend/amiga_gfx_backend.h"
 #include "goldbox/gfx/backend/dos_gfx_backend.h"
 #include "goldbox/gfx/backend/pc98_gfx_backend.h"
@@ -36,6 +37,10 @@ GfxBackend *GfxBackend::create(Common::Platform platform) {
 	default:
 		return new DosGfxBackend();
 	}
+}
+
+uint8 combatBackgroundColor() {
+	return g_engine->getGfx().artColors().combatBackground;
 }
 
 } // namespace Gfx

@@ -49,6 +49,18 @@ Graphics::Font *DosGfxBackend::createFont(Data::DaxFileManager &dax) {
 	return new DaxFont(block);
 }
 
+const GfxBackend::ArtColors &DosGfxBackend::artColors() const {
+	// Walls see through LightMagenta. SetCombatPalette swaps EGA registers
+	// 0 and 8: the cleared background shows DarkGray and art color 8 shows
+	// as black. LoadIconAnim turns CPIC LightMagenta into DarkGray. Icon keys
+	// are GDConsts.defIconCol and +8.
+	static const ArtColors kColors = {
+		13, 8, 8, 13, 8,
+		{ 0x91, 0xA2, 0xB3, 0xC4, 0xE6, 0xF7 }
+	};
+	return kColors;
+}
+
 uint8 DosGfxBackend::mapChar(uint8 chr) const {
 	// The DOS font holds A-Z at 0x01-0x1A and punctuation and digits at
 	// their ASCII codes; '$' and '%' have no glyph.

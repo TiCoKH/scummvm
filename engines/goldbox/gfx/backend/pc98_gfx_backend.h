@@ -38,6 +38,7 @@ public:
 	Graphics::Font *createFont(Data::DaxFileManager &dax) override;
 	uint8 mapChar(uint8 chr) const override { return chr; }
 	bool hasTitlePictures() const override { return false; }
+	const ArtColors &artColors() const override;
 };
 
 } // namespace Gfx

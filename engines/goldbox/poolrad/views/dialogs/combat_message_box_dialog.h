@@ -61,7 +61,6 @@ public:
     static const int kDisabledNameColor = 12;
     static const int kWeaponTop = 7;
     static const int kWeaponBottom = 9;
-    static const uint8 kBackgroundColor = 8;
     static const uint8 kDefaultMessageRow = 10;
 
     CombatMessageBoxDialog();

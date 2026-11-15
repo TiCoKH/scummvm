@@ -68,6 +68,12 @@ public:
     DaxBlock *getBlockById(uint8 blockId);
 
     /**
+     * Make aliasId refer to the same block as blockId, unless aliasId
+     * already holds a block. Returns false when blockId isn't loaded.
+     */
+    bool addAlias(uint8 aliasId, uint8 blockId);
+
+    /**
      * Check if a block with the given ID exists.
      * @param blockId The ID to check
      * @return true if the block exists, false otherwise

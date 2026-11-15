@@ -80,6 +80,14 @@ DaxBlock *DaxBlockContainer::getBlockById(uint8 blockId) {
     return nullptr;
 }
 
+bool DaxBlockContainer::addAlias(uint8 aliasId, uint8 blockId) {
+    if (!_blocks.contains(blockId))
+        return false;
+    if (!_blocks.contains(aliasId))
+        _blocks[aliasId] = _blocks[blockId];
+    return true;
+}
+
 bool DaxBlockContainer::hasBlock(uint8 blockId) const {
     return _blocks.contains(blockId);
 }

@@ -41,6 +41,16 @@ void Pc98GfxBackend::setupPalette() {
 	g_system->getPaletteManager()->setPalette(pal);
 }
 
+const GfxBackend::ArtColors &Pc98GfxBackend::artColors() const {
+	// The PC-98 port is built from the same Pascal tables as DOS; these are
+	// unverified against its redrawn art.
+	static const ArtColors kColors = {
+		13, 8, 8, 13, 8,
+		{ 0x91, 0xA2, 0xB3, 0xC4, 0xE6, 0xF7 }
+	};
+	return kColors;
+}
+
 Graphics::Font *Pc98GfxBackend::createFont(Data::DaxFileManager &dax) {
 	error("PC-98 text output is not implemented yet");
 	return nullptr;

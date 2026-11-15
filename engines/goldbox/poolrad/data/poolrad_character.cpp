@@ -20,6 +20,8 @@
 
 #include "common/stream.h"
 #include "common/debug.h"
+#include "goldbox/engine.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/data/effects/effect_system.h"
@@ -688,6 +690,10 @@ void PoolradCharacter::rollAbilityScores() {
 }
 
 uint8 PoolradCharacter::getBaseIconColor(int index) {
+	// The defaults are the platform's own icon key colors, so a new icon
+	// keeps the colors of its art.
+	if (index >= 1 && index <= 6 && Goldbox::g_engine)
+		return Goldbox::g_engine->getGfx().artColors().iconColorKeys[index - 1];
 	if (index < 0 || index >= 7)
 		return 0;
 	uint8 base = BASE_ICON_VALUES[index];

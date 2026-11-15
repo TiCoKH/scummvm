@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/combat_submenu_dialog.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/views/dialogs/game_speed_dialog.h"
 #include "goldbox/combat/combat_session.h"
@@ -137,7 +138,7 @@ void CombatSubmenuDialog::draw() {
     if (!_horizontalMenu)
         return;
     Surface s = getSurface();
-    s.clearBox(0, 24, 39, 24, 8);
+    s.clearBox(0, 24, 39, 24, ::Goldbox::Gfx::combatBackgroundColor());
     _horizontalMenu->setRedraw();
     _horizontalMenu->draw();
 }

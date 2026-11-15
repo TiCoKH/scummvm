@@ -279,7 +279,6 @@ private:
     ::Goldbox::Data::PlayerCharacter *_aiFacingChar = nullptr;
     Direction _aiFacingDir = DIR_N;
 
-    static const uint8 kBackgroundColor = 8;
 
     // --- Window layout (character coords, matching original SCREEN_DrawWindow calls) ---
     static const int kWin1Left   = 1;

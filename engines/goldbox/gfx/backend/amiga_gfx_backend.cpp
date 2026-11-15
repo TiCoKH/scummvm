@@ -64,9 +64,59 @@ void AmigaGfxBackend::loadArtwork() {
 		warning("poolradamigagfx.dat not found; using the common frame tiles");
 }
 
+const GfxBackend::ArtColors &AmigaGfxBackend::artColors() const {
+	// Walls see through color 0. Combat screens are cleared to color 0, the
+	// palette has no combat swap and icons are loaded unchanged. Icon keys
+	// are the table read by CHARACTER_IconLoad (v1.3 program at 0x285043).
+	static const ArtColors kColors = {
+		0, 0, -1, -1, -1,
+		{ 0x19, 0x2A, 0x3B, 0x76, 0x85, 0xEF }
+	};
+	return kColors;
+}
+
 uint8 AmigaGfxBackend::mapChar(uint8 chr) const {
 	// The disk font is indexed by ASCII.
 	return (chr >= 0x20 && chr < 0x7F) ? chr : ' ';
+}
+
+uint32 AmigaGfxBackend::textPen(uint32 color) {
+	// Text pens are pairs in the upper half of the palette. The C port
+	// replaced the common DOS text colors at the call sites (matched calls
+	// of DisplayString, MenuHorizontal etc.); any other color below 16 is
+	// converted by DisplayString itself to 16 + (color & ~1).
+	switch (color) {
+	case 10: // LightGreen: normal text
+		return 28;
+	case 13: // LightMagenta: prompts
+		return 26;
+	case 14: // Yellow
+		return 24;
+	case 15: // White: highlights and hotkeys
+		return 16;
+	default:
+		return (color < 16) ? 16 + (color & ~1u) : color;
+	}
+}
+
+void AmigaGfxBackend::drawText(Graphics::ManagedSurface &dst,
+		const Graphics::Font &font, const Common::String &glyphs, int x, int y,
+		int maxWidth, uint32 color) const {
+	// DisplayString draws the text in the pen, then again one pixel to the
+	// right in the next pen.
+	const uint32 pen = textPen(color);
+	font.drawString(&dst, glyphs, x, y, maxWidth, pen);
+	if (pen >= 16 && pen < 31)
+		font.drawString(&dst, glyphs, x + 1, y, maxWidth, pen + 1);
+}
+
+void AmigaGfxBackend::drawGlyph(Graphics::ManagedSurface &dst,
+		const Graphics::Font &font, uint32 glyph, int x, int y,
+		uint32 color) const {
+	const uint32 pen = textPen(color);
+	font.drawChar(&dst, glyph, x, y, pen);
+	if (pen >= 16 && pen < 31)
+		font.drawChar(&dst, glyph, x + 1, y, pen + 1);
 }
 
 bool AmigaGfxBackend::drawFrame(Graphics::ManagedSurface &dst, int startX,

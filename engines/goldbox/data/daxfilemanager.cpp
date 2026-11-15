@@ -84,75 +84,80 @@ void DaxFileManager::loadFile(const Common::Path &path) {
     debug(1, "DaxFileManager: Loading file '%s'", filename.c_str());
 
     // Determine which container to load into based on filename
+    DaxBlockContainer *container = nullptr;
     if (filename.contains("8X8D")) {
         debug(1, "  - Detected 8X8D container");
-        _container8x8d.loadFromFile(&file);
+        container = &_container8x8d;
     } else if (filename.contains("BACPAC")) {
         debug(1, "  - Detected BACPAC container");
-        _containerBacpac.loadFromFile(&file);
+        container = &_containerBacpac;
     } else if (filename.contains("DUNGCOM")) {
         debug(1, "  - Detected DUNGCOM container");
-        _containerDungcom.loadFromFile(&file);
+        container = &_containerDungcom;
     } else if (filename.contains("RANDCOM")) {
         debug(1, "  - Detected RANDCOM container");
-        _containerRandcom.loadFromFile(&file);
+        container = &_containerRandcom;
     } else if (filename.contains("SQRPACI")) {
         debug(1, "  - Detected SQRPACI container");
-        _containerSqrpaci.loadFromFile(&file);
+        container = &_containerSqrpaci;
     } else if (filename.contains("CBODY")) {
         debug(1, "  - Detected CBODY container");
-        _containerCBody.loadFromFile(&file);
+        container = &_containerCBody;
     } else if (filename.contains("BODY")) {
         debug(1, "  - Detected BODY container");
-        _containerBody.loadFromFile(&file);
+        container = &_containerBody;
     } else if (filename.contains("CHEAD")) {
         debug(1, "  - Detected CHEAD container");
-        _containerCHead.loadFromFile(&file);
+        container = &_containerCHead;
     } else if (filename.contains("COMSPR")) {
         debug(1, "  - Detected COMSPR container (IMPORTANT!)");
-        _containerComSpr.loadFromFile(&file);
-        debug(1, "  - COMSPR loaded, block count: %zu", _containerComSpr.getBlockCount());
+        container = &_containerComSpr;
     } else if (filename.contains("CPIC")) {
         debug(1, "  - Detected CPIC container");
-        _containerCPic.loadFromFile(&file);
+        container = &_containerCPic;
     } else if (filename.contains("ECL")) {
         debug(1, "  - Detected ECL container");
-        _containerEcl.loadFromFile(&file);
+        container = &_containerEcl;
     } else if (filename.contains("GEO")) {
         debug(1, "  - Detected GEO container");
-        _containerGeo.loadFromFile(&file);
+        container = &_containerGeo;
     } else if (filename.contains("HEAD")) {
         debug(1, "  - Detected HEAD container");
-        _containerHead.loadFromFile(&file);
+        container = &_containerHead;
     } else if (filename.contains("MON") && filename.contains("CHA")) {
         debug(1, "  - Detected MONCHA container");
-        _containerMonCha.loadFromFile(&file);
+        container = &_containerMonCha;
     } else if (filename.contains("MON") && filename.contains("ITM")) {
         debug(1, "  - Detected MONITM container");
-        _containerMonItm.loadFromFile(&file);
+        container = &_containerMonItm;
     } else if (filename.contains("ITEM")) {
         debug(1, "  - Detected ITEM container");
-        _containerItem.loadFromFile(&file);
+        container = &_containerItem;
     } else if (filename.contains("MON") && filename.contains("SPC")) {
         debug(1, "  - Detected MONSPC container");
-        _containerMonSpc.loadFromFile(&file);
+        container = &_containerMonSpc;
     } else if (filename.contains("TITLE")) {
         debug(1, "  - Detected TITLE container");
-        _containerTitle.loadFromFile(&file);
+        container = &_containerTitle;
     } else if (filename.contains("SPRIT")) {
         debug(1, "  - Detected SPRIT container");
-        _containerSprit.loadFromFile(&file);
+        container = &_containerSprit;
     } else if (filename.contains("WALLDEF")) {
         debug(1, "  - Detected WALLDEF container");
-        _containerWalldef.loadFromFile(&file);
+        container = &_containerWalldef;
     } else if (filename.contains("PIC")) {
         debug(1, "  - Detected PIC container");
-        _containerPic.loadFromFile(&file);
+        container = &_containerPic;
     } else if (filename.contains("WILDCOM")) {
         debug(1, "  - Detected WILDCOM container");
-        _containerWildcom.loadFromFile(&file);
+        container = &_containerWildcom;
     } else {
         debug(1, "  - No matching container for filename");
+    }
+
+    if (container) {
+        container->loadFromFile(&file);
+        _format->addAliases(path, *container);
     }
 
     file.close();

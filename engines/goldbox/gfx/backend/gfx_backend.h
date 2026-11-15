@@ -41,6 +41,20 @@ namespace Gfx {
  */
 class GfxBackend {
 public:
+	/** Color conventions of the platform's DAX artwork. */
+	struct ArtColors {
+		uint8 wallTransparent;  ///< See-through color of 3D wall tiles
+		uint8 combatBackground; ///< Background of combat-style screens
+		int combatBlack;        ///< Art color shown as black in combat, -1 for none
+		int combatPicRemapFrom; ///< CPIC color recolored at load, -1 for none
+		int combatPicRemapTo;
+		/**
+		 * Key colors of the six character icon color bytes: the low nibble is
+		 * replaced by the byte's low color, the high nibble by its high color.
+		 */
+		uint8 iconColorKeys[6];
+	};
+
 	virtual ~GfxBackend() {}
 
 	/** Create the backend of a platform; DOS for any other platform. */
@@ -65,6 +79,22 @@ public:
 	virtual uint8 mapChar(uint8 chr) const = 0;
 
 	/**
+	 * Draw glyphs in a game text color (a DOS EGA color number) with the
+	 * platform's pens and text style.
+	 */
+	virtual void drawText(Graphics::ManagedSurface &dst, const Graphics::Font &font,
+		const Common::String &glyphs, int x, int y, int maxWidth,
+		uint32 color) const {
+		font.drawString(&dst, glyphs, x, y, maxWidth, color);
+	}
+
+	/** Draw one glyph in a game text color, see drawText(). */
+	virtual void drawGlyph(Graphics::ManagedSurface &dst, const Graphics::Font &font,
+		uint32 glyph, int x, int y, uint32 color) const {
+		font.drawChar(&dst, glyph, x, y, color);
+	}
+
+	/**
 	 * Draw the standard window frame around the interior character cells
 	 * startX..endX, startY..endY.
 	 * @return false to draw it with the common frame tiles.
@@ -76,7 +106,13 @@ public:
 
 	/** Whether the title screens are pictures in the title DAX family. */
 	virtual bool hasTitlePictures() const = 0;
+
+	/** Color conventions of the platform's artwork. */
+	virtual const ArtColors &artColors() const = 0;
 };
+
+/** Background color of combat-style screens on the running platform. */
+uint8 combatBackgroundColor();
 
 } // namespace Gfx
 } // namespace Goldbox

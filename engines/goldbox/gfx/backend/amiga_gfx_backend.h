@@ -39,11 +39,20 @@ public:
 	Graphics::Font *createFont(Data::DaxFileManager &dax) override;
 	void loadArtwork() override;
 	uint8 mapChar(uint8 chr) const override;
+	void drawText(Graphics::ManagedSurface &dst, const Graphics::Font &font,
+		const Common::String &glyphs, int x, int y, int maxWidth,
+		uint32 color) const override;
+	void drawGlyph(Graphics::ManagedSurface &dst, const Graphics::Font &font,
+		uint32 glyph, int x, int y, uint32 color) const override;
 	bool drawFrame(Graphics::ManagedSurface &dst, int startX, int startY,
 		int endX, int endY) const override;
 	bool hasTitlePictures() const override { return false; }
+	const ArtColors &artColors() const override;
 
 private:
+	/** Text pen for a DOS text color; the shadow pass uses the next pen. */
+	static uint32 textPen(uint32 color);
+
 	AmigaBorders _borders;
 };
 

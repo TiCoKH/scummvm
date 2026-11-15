@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/combat_message_box_dialog.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/items/character_item.h"
@@ -51,9 +52,9 @@ void CombatMessageBoxDialog::drawActorInfo(
     // message rows, which are not repainted from GameText.
     if (clearPanel) {
         clearMessage();
-        s.clearBox(kLeft, kTop, kRight, kBottom, kBackgroundColor);
+        s.clearBox(kLeft, kTop, kRight, kBottom, ::Goldbox::Gfx::combatBackgroundColor());
     } else {
-        s.clearBox(kLeft, kTop, kRight, kInfoBottom, kBackgroundColor);
+        s.clearBox(kLeft, kTop, kRight, kInfoBottom, ::Goldbox::Gfx::combatBackgroundColor());
     }
 
     // DisplayCreatureName

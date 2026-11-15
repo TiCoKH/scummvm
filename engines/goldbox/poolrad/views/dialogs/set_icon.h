@@ -75,7 +75,6 @@ private:
     };
 
     // UI constants
-    static const uint8 kBackgroundColor = 8;
     static const uint8 kWindowLeft      = 1;
     static const uint8 kWindowTop       = 1;
     static const uint8 kWindowRight     = 38;

@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/gfx/battlefield_tilemap.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 
 #include "goldbox/combat/battlefield_map.h"
 #include "goldbox/combat/tile_property_provider.h"
@@ -36,7 +37,7 @@ namespace Gfx {
 BattlefieldTilemap::BattlefieldTilemap()
         : _built(false) {
     _surface.create(kSurfaceWidth, kSurfaceHeight);
-    _surface.clear(kBackgroundColor);
+    _surface.clear(::Goldbox::Gfx::combatBackgroundColor());
 }
 
 BattlefieldTilemap::~BattlefieldTilemap() {
@@ -44,7 +45,7 @@ BattlefieldTilemap::~BattlefieldTilemap() {
 }
 
 void BattlefieldTilemap::clear() {
-    _surface.clear(kBackgroundColor);
+    _surface.clear(::Goldbox::Gfx::combatBackgroundColor());
     _built = false;
 }
 
@@ -64,7 +65,7 @@ Common::Rect BattlefieldTilemap::getActiveAreaRect(
 void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
                                 const CombatTileCache &tileCache,
                                 const Combat::TilePropertyProvider *tileProps) {
-    _surface.clear(kBackgroundColor);
+    _surface.clear(::Goldbox::Gfx::combatBackgroundColor());
 
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
@@ -110,7 +111,7 @@ int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
 
             Common::Rect tileRect(pixX, pixY,
                                   pixX + kIconSize, pixY + kIconSize);
-            _surface.fillRect(tileRect, kBackgroundColor);
+            _surface.fillRect(tileRect, ::Goldbox::Gfx::combatBackgroundColor());
 
             uint8 raw = map.getRawTile(TilePos((uint8)col, (uint8)row));
             if (raw != 0) {
@@ -135,7 +136,7 @@ int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
 
 void BattlefieldTilemap::render(const Combat::BattlefieldMap &map,
                                 const IconManager &iconMgr) {
-    _surface.clear(kBackgroundColor);
+    _surface.clear(::Goldbox::Gfx::combatBackgroundColor());
 
     for (int row = 0; row < kPlayfieldRows; row++) {
         for (int col = 0; col < kPlayfieldCols; col++) {
@@ -174,7 +175,7 @@ int BattlefieldTilemap::renderDirtyTiles(Combat::BattlefieldMap &map,
 
             Common::Rect tileRect(pixX, pixY,
                                   pixX + kIconSize, pixY + kIconSize);
-            _surface.fillRect(tileRect, kBackgroundColor);
+            _surface.fillRect(tileRect, ::Goldbox::Gfx::combatBackgroundColor());
 
             uint8 raw = map.getRawTile(TilePos((uint8)col, (uint8)row));
             if (raw != 0) {

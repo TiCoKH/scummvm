@@ -20,6 +20,8 @@
  */
 
 #include "goldbox/gfx/icon.h"
+#include "goldbox/engine.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/vm_interface.h"
 #include "common/debug.h"
@@ -264,15 +266,17 @@ Icon::Icon(uint16 blockId, IconKind kind)
 
 	// Create Pics from blocks with appropriate remapping for CTILE
 	const bool isCTile = (kind == ICON_KIND_CPIC || container->getContentType() == Data::ContentType::CTILE);
-	// LoadIconAnim: black is transparent; CPIC turns LightMagenta into
-	// DarkGray, COMSPR keeps every color. These icons are drawn under the
-	// combat palette, where color 8 shows as black.
-	const uint8 remapSource = 13;
-	const uint8 remapTarget = (kind == ICON_KIND_CPIC) ? 8 : 13;
+	// LoadIconAnim: black is transparent; CPIC may recolor one color at
+	// load, COMSPR keeps every color. These icons are drawn under the combat
+	// palette (see GfxBackend::ArtColors).
+	const GfxBackend::ArtColors &colors = g_engine->getGfx().artColors();
+	const bool cpicRemap = kind == ICON_KIND_CPIC && colors.combatPicRemapFrom >= 0;
+	const uint8 remapSource = cpicRemap ? colors.combatPicRemapFrom : 0;
+	const uint8 remapTarget = cpicRemap ? colors.combatPicRemapTo : 0;
 
 	if (isCTile) {
-		_readyIcon = Pic::readWithRemapping(readyPicBlock, remapSource, remapTarget, true);
-		_actionIcon = Pic::readWithRemapping(actionPicBlock, remapSource, remapTarget, true);
+		_readyIcon = Pic::readWithRemapping(readyPicBlock, remapSource, remapTarget, colors.combatBlack);
+		_actionIcon = Pic::readWithRemapping(actionPicBlock, remapSource, remapTarget, colors.combatBlack);
 	} else {
 		debug(8, "  - Loading without remapping (PIC mode)");
 		_readyIcon = Pic::read(readyPicBlock);
@@ -414,14 +418,13 @@ bool Icon::loadBaseSprites(uint8 readyHeadId, uint8 readyBodyId,
 	const bool headIsCTile = VmInterface::getDaxCHead().getContentType() == Data::ContentType::CTILE;
 	const bool bodyIsCTile = VmInterface::getDaxCBody().getContentType() == Data::ContentType::CTILE;
 	// CHEAD/CBODY: black is transparent, no color is remapped at load;
-	// drawn under the combat palette, where color 8 shows as black.
-	const uint8 remapSource = 13;
-	const uint8 remapTarget = 13;
+	// drawn under the combat palette (see GfxBackend::ArtColors).
+	const int combatBlack = g_engine->getGfx().artColors().combatBlack;
 
-	_readyHeadPic = headIsCTile ? Pic::readWithRemapping(readyHeadBlock, remapSource, remapTarget, true) : Pic::read(readyHeadBlock);
-	_readyBodyPic = bodyIsCTile ? Pic::readWithRemapping(readyBodyBlock, remapSource, remapTarget, true) : Pic::read(readyBodyBlock);
-	_actionHeadPic = headIsCTile ? Pic::readWithRemapping(actionHeadBlock, remapSource, remapTarget, true) : Pic::read(actionHeadBlock);
-	_actionBodyPic = bodyIsCTile ? Pic::readWithRemapping(actionBodyBlock, remapSource, remapTarget, true) : Pic::read(actionBodyBlock);
+	_readyHeadPic = headIsCTile ? Pic::readWithRemapping(readyHeadBlock, 0, 0, combatBlack) : Pic::read(readyHeadBlock);
+	_readyBodyPic = bodyIsCTile ? Pic::readWithRemapping(readyBodyBlock, 0, 0, combatBlack) : Pic::read(readyBodyBlock);
+	_actionHeadPic = headIsCTile ? Pic::readWithRemapping(actionHeadBlock, 0, 0, combatBlack) : Pic::read(actionHeadBlock);
+	_actionBodyPic = bodyIsCTile ? Pic::readWithRemapping(actionBodyBlock, 0, 0, combatBlack) : Pic::read(actionBodyBlock);
 
 	return true;
 }
@@ -481,41 +484,30 @@ void Icon::remapComposite(Pic *composite, const Data::CombatIconData &iconData) 
 	      (unsigned)iconData.iconColorWeapon1, (unsigned)iconData.iconColorWeapon2,
 	      (unsigned)iconData.iconColorHair, (unsigned)iconData.iconColorFace);
 
+	// Each color byte holds two colors; the platform's key table names the
+	// art colors they replace (CopyIconPics / CHARACTER_IconLoad).
+	const uint8 colorBytes[6][2] = {
+		{ iconData.iconColorBody1, iconData.iconColorBody2 },
+		{ iconData.iconColorArm1, iconData.iconColorArm2 },
+		{ iconData.iconColorLeg1, iconData.iconColorLeg2 },
+		{ iconData.iconColorHair, iconData.iconColorFace },
+		{ iconData.iconColorShield1, iconData.iconColorShield2 },
+		{ iconData.iconColorWeapon1, iconData.iconColorWeapon2 }
+	};
+	const uint8 *keys = g_engine->getGfx().artColors().iconColorKeys;
+
+	uint8 lookup[256];
+	for (int i = 0; i < 256; ++i)
+		lookup[i] = i;
+	for (int i = 0; i < 6; ++i) {
+		lookup[keys[i] & 0x0F] = colorBytes[i][0];
+		lookup[keys[i] >> 4] = colorBytes[i][1];
+	}
+
 	byte *pixels = (byte *)composite->getPixels();
 	const int pixelCount = composite->w * composite->h;
-
-	const uint8 BODY1   = iconData.iconColorBody1;
-	const uint8 BODY2   = iconData.iconColorBody2;
-	const uint8 ARM1    = iconData.iconColorArm1;
-	const uint8 ARM2    = iconData.iconColorArm2;
-	const uint8 LEG1    = iconData.iconColorLeg1;
-	const uint8 LEG2    = iconData.iconColorLeg2;
-	const uint8 SHIELD1 = iconData.iconColorShield1;
-	const uint8 SHIELD2 = iconData.iconColorShield2;
-	const uint8 WEAP1   = iconData.iconColorWeapon1;
-	const uint8 WEAP2   = iconData.iconColorWeapon2;
-	const uint8 HAIR    = iconData.iconColorHair;
-	const uint8 FACE    = iconData.iconColorFace;
-
-	for (int i = 0; i < pixelCount; ++i) {
-		const uint8 src = pixels[i];
-		switch (src) {
-		case 1:  pixels[i] = BODY1;   break;
-		case 9:  pixels[i] = BODY2;   break;
-		case 2:  pixels[i] = ARM1;    break;
-		case 10: pixels[i] = ARM2;    break;
-		case 3:  pixels[i] = LEG1;    break;
-		case 11: pixels[i] = LEG2;    break;
-		case 6:  pixels[i] = SHIELD1; break;
-		case 14: pixels[i] = SHIELD2; break;
-		case 7:  pixels[i] = WEAP1;   break;
-		case 15: pixels[i] = WEAP2;   break;
-		case 4:  pixels[i] = HAIR;    break;
-		case 12: pixels[i] = FACE;    break;
-		default:
-			break;
-		}
-	}
+	for (int i = 0; i < pixelCount; ++i)
+		pixels[i] = lookup[pixels[i]];
 }
 
 int Icon::getWidth() const {

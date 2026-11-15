@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/combat_view.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/poolrad/views/dialogs/combat_move_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_attack_dialog.h"
 #include "goldbox/poolrad/views/dialogs/combat_spell_dialog.h"
@@ -991,7 +992,7 @@ void CombatView::aimShowRange(const Common::String &text) {
 // TargetCommandMenu/manualAim: "Range = n" at the start of row 23.
 void CombatView::drawAimRange() {
     Surface s = getSurface(Window(0, 23, 39, 23));
-    s.clearBox(0, 0, 39, 0, kBackgroundColor);
+    s.clearBox(0, 0, 39, 0, ::Goldbox::Gfx::combatBackgroundColor());
     if (!_aimRangeText.empty())
         s.writeStringC(0, 0, 10, _aimRangeText);
 }
@@ -1116,7 +1117,7 @@ void CombatView::showItemUse(::Goldbox::Data::PlayerCharacter *user,
         const Common::String &itemName) {
     printCombatMessage(user, "uses an item", 10);
     Surface s = getSurface(Window(0, 23, 39, 23));
-    s.clearBox(0, 0, 39, 0, kBackgroundColor);
+    s.clearBox(0, 0, 39, 0, ::Goldbox::Gfx::combatBackgroundColor());
     s.writeStringC(0, 0, 10, "Item:");
     s.writeStringC(5, 0, 10, itemName);
 }
@@ -1148,9 +1149,9 @@ void CombatView::detachPromptContent(Dialogs::Dialog *content) {
 
 void CombatView::drawUI() {
     Surface s = getSurface();
-    s.clear(kBackgroundColor);
-    s.drawWindow(kWin1Left, kWin1Top, kWin1Right, kWin1Bottom, kBackgroundColor);
-    s.drawWindow(kWin2Left, kWin2Top, kWin2Right, kWin2Bottom, kBackgroundColor);
+    s.clear(::Goldbox::Gfx::combatBackgroundColor());
+    s.drawWindow(kWin1Left, kWin1Top, kWin1Right, kWin1Bottom, ::Goldbox::Gfx::combatBackgroundColor());
+    s.drawWindow(kWin2Left, kWin2Top, kWin2Right, kWin2Bottom, ::Goldbox::Gfx::combatBackgroundColor());
 }
 
 bool CombatView::centerCameraOn(::Goldbox::Data::PlayerCharacter *ch) {

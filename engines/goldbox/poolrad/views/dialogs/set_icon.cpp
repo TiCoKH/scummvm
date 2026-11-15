@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/set_icon.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/events.h"
 #include "goldbox/gfx/icon.h"
 #include "goldbox/gfx/icon_manager.h"
@@ -231,7 +232,7 @@ void SetIcon::setStage(IconMenuState stage) {
             _yesNoPrompt = nullptr;
         }
         {
-            HorizontalYesNoConfig ynCfg { "Is this Icon ok? ", kPromptColor, kTextColor, kSelectColor, kBackgroundColor };
+            HorizontalYesNoConfig ynCfg { "Is this Icon ok? ", kPromptColor, kTextColor, kSelectColor, ::Goldbox::Gfx::combatBackgroundColor() };
             _yesNoPrompt = new HorizontalYesNo(getName() + "_Confirm", ynCfg);
             _yesNoPrompt->setParent(this);
             _yesNoPrompt->activate();
@@ -303,7 +304,7 @@ void SetIcon::buildAndShowMenu(const Common::String &prompt) {
         kPromptColor,
         false,
 		true,
-        kBackgroundColor,
+        ::Goldbox::Gfx::combatBackgroundColor(),
         false
     };
 
@@ -354,7 +355,7 @@ void SetIcon::setMenuStage(IconMenuState stage) {
             kPromptColor,
             false,
 			true,
-            kBackgroundColor,
+            ::Goldbox::Gfx::combatBackgroundColor(),
             false
         };
 
@@ -463,9 +464,9 @@ void SetIcon::draw() {
 
 void SetIcon::drawEditorText() {
     Surface s = getSurface();
-    s.clearBox(0, 0, 40, 25, kBackgroundColor);
-    drawFrame(Common::Rect(kWindowLeft - 1, kWindowTop - 1, kWindowRight + 1, kWindowBottom + 1), kBackgroundColor);
-    s.clearBox(kWindowLeft, kWindowTop, kWindowRight, kWindowBottom, kBackgroundColor);
+    s.clearBox(0, 0, 40, 25, ::Goldbox::Gfx::combatBackgroundColor());
+    drawFrame(Common::Rect(kWindowLeft - 1, kWindowTop - 1, kWindowRight + 1, kWindowBottom + 1), ::Goldbox::Gfx::combatBackgroundColor());
+    s.clearBox(kWindowLeft, kWindowTop, kWindowRight, kWindowBottom, ::Goldbox::Gfx::combatBackgroundColor());
 
     // Static labels and layout
 	s.writeStringC(8, 6, 15, "old");
@@ -500,7 +501,7 @@ void SetIcon::redrawWorkingIcons() {
     // Icon coords (1,4) and (4,4) map to char coords:
     // charX = iconX * 3 + 1, charY = iconY * 3 + 1. Each icon spans 3 chars.
     // First icon: x 4..6, second icon: x 13..15, y 13..15.
-    s.clearBox(4, 13, 15, 15, kBackgroundColor);
+    s.clearBox(4, 13, 15, 15, ::Goldbox::Gfx::combatBackgroundColor());
     drawIconPair(1, 4, SLOT_EDITOR_WORKING);
 }
 

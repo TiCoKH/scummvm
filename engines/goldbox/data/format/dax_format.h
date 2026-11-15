@@ -32,6 +32,7 @@
 namespace Goldbox {
 namespace Data {
 
+class DaxBlockContainer;
 class DaxHeaderContainer;
 
 /**
@@ -69,6 +70,13 @@ public:
 	 */
 	virtual void familyFiles(const char *pattern, uint16 dosIndices,
 		Common::Array<Common::Path> &files) const = 0;
+
+	/**
+	 * Add block ids a DOS file has but this platform shares with another
+	 * block, after a file was loaded into the container.
+	 */
+	virtual void addAliases(const Common::Path &file,
+		DaxBlockContainer &container) const {}
 
 protected:
 	/** "8x8d%d" -> "8x8d.dax": the name of a family kept in one file. */

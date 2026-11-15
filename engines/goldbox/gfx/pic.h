@@ -54,10 +54,12 @@ public:
 	/**
 	 * Decode a TILE-format frame remapping for combat terrain tiles.
 	 * Index 0 = background (transparent) -> sentinel 255.
-	 * Index 8 = black art -> remapped to 0.
+	 * Index combatBlack = art shown as black in combat -> remapped to 0.
 	 * Drawn with trDraw(255) so background shows through.
+	 * @param combatBlack Art color shown as black in combat, -1 for none
 	 */
-	static Pic *readTileFrame(Data::DaxBlockPic *daxBlock, int frameIdx);
+	static Pic *readTileFrame(Data::DaxBlockPic *daxBlock, int frameIdx,
+		int combatBlack);
 
 	/**
 	 * Decode a single frame from a SPRIT DAX block's EGA planar data.
@@ -90,12 +92,12 @@ public:
 	 * @param daxBlock DAX block containing sprite data
 	 * @param sourceColor Source palette index to remap (usually 13 = bright magenta)
 	 * @param targetColor Target palette index for remapping
-	 * @param combatPalette Bake in SetCombatPalette, which swaps EGA registers
-	 *        0 and 8: art color 8 is shown as black
+	 * @param combatBlack Bake in the combat palette: this art color is shown
+	 *        as black (EGA SetCombatPalette swaps registers 0 and 8); -1 for none
 	 * @return Decoded Pic with transparency mask and applied remapping
 	 */
 	static Pic *readWithRemapping(Data::DaxBlockPic *daxBlock, uint8 sourceColor, uint8 targetColor,
-	                              bool combatPalette = false);
+	                              int combatBlack = -1);
 
 	/**
 	 * Render the picture at the given pixel coordinates

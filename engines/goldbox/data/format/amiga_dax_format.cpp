@@ -23,6 +23,7 @@
 #include "common/endian.h"
 #include "common/textconsole.h"
 #include "common/util.h"
+#include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/data/daxheadercontainer.h"
 
 namespace Goldbox {
@@ -135,6 +136,18 @@ void AmigaDaxFormat::familyFiles(const char *pattern, uint16 dosIndices,
 	if (!strcmp(pattern, "title"))
 		return;
 	files.push_back(Common::Path(singleFileName(pattern)));
+}
+
+void AmigaDaxFormat::addAliases(const Common::Path &file,
+		DaxBlockContainer &container) const {
+	// CHEAD has no action pictures (DOS ids + 128): LoadIconAnim loads the
+	// ready head for both frames.
+	Common::String name = file.baseName();
+	name.toLowercase();
+	if (!name.hasPrefix("chead"))
+		return;
+	for (uint id = 0; id < 128; ++id)
+		container.addAlias(id + 128, id);
 }
 
 bool AmigaDaxFormat::planarToDos(uint8 blockId, bool tilePairs,

@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/combat_info_dialog.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/gfx/surface.h"
 
 namespace Goldbox {
@@ -71,7 +72,7 @@ void CombatInfoDialog::showInfo(const Common::String &text) {
 
 void CombatInfoDialog::clearPrompt() {
     Surface s = getSurface();
-    s.clearBox(kLeft, kRow, kRight, kRow, kBackgroundColor);
+    s.clearBox(kLeft, kRow, kRight, kRow, ::Goldbox::Gfx::combatBackgroundColor());
 }
 
 void CombatInfoDialog::draw() {
