@@ -86,7 +86,8 @@ void TitleView::draw() {
 		case 4:
 			delete _pic1;
 			delete _pic2;
-			replaceView("Mainmenu"); //TODO Option to skip Copy Protection
+			// A key skips the title and credits, not the code wheel.
+			replaceView(viewAfterCredits());
 			break;
 		default:
 			debug(6, "Unknown state in TitleView");
@@ -95,8 +96,9 @@ void TitleView::draw() {
 }
 
 void TitleView::timeout() {
+	// Without title pictures (Amiga, PC-98) go on to the credits.
 	if (_state == 0 && !_pic1)
-		_state = 4;
+		_state = 3;
 	else
 		_state++;
 	redraw();

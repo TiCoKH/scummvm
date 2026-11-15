@@ -161,6 +161,11 @@ void Surface::setTextPos(int x, int y) {
 	_textY = y;
 }
 
+void Surface::writeRune(int x, int y, int color, unsigned char glyph) {
+	g_engine->getGfx().drawRune(*this, *_currentFont, glyph, x * FONT_W,
+		y * FONT_H, color);
+}
+
 void Surface::setTextColor(int color) {
 	_textColor = color;
 }

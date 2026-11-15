@@ -61,10 +61,21 @@ static const ADExtraGuiOptionsMap optionsList[] = {
 			0
 		}
 	},
+	{
+		GAMEOPTION_SKIP_CODEWHEEL,
+		{
+			_s("Skip the code wheel"),
+			_s("Skip the translation wheel copy protection at startup"),
+			"skip_codewheel",
+			false,
+			0,
+			0
+		}
+	},
 	AD_EXTRA_GUI_OPTIONS_TERMINATOR
 };
 
-/** Per-game sound selectors and the original save/load option. */
+/** Per-game sound selectors, the original save/load and code wheel options. */
 class GoldboxOptionsWidget : public GUI::OptionsContainerWidget {
 public:
     GoldboxOptionsWidget(GUI::GuiObject *boss, const Common::String &name,
@@ -86,6 +97,7 @@ private:
     GUI::RadiobuttonGroup _soundModeGroup;
     GUI::RadiobuttonGroup _soundVersionGroup;
     GUI::CheckboxWidget *_originalMenus;
+    GUI::CheckboxWidget *_skipCodewheel;
     GUI::SliderWidget *_soundTempo;
     GUI::StaticTextWidget *_soundTempoValue;
 
@@ -101,6 +113,9 @@ GoldboxOptionsWidget::GoldboxOptionsWidget(GUI::GuiObject *boss,
     _originalMenus = new GUI::CheckboxWidget(widgetsBoss(),
         _dialogLayout + ".original_menus", _("Use original save/load screens"),
         _("Use the original save/load screens instead of the ScummVM ones"));
+    _skipCodewheel = new GUI::CheckboxWidget(widgetsBoss(),
+        _dialogLayout + ".skip_codewheel", _("Skip the code wheel"),
+        _("Skip the translation wheel copy protection at startup"));
 
     new GUI::StaticTextWidget(widgetsBoss(), _dialogLayout + ".sound_device",
         _("Sound device:"));
@@ -138,6 +153,8 @@ GoldboxOptionsWidget::GoldboxOptionsWidget(GUI::GuiObject *boss,
 void GoldboxOptionsWidget::load() {
     _originalMenus->setState(ConfMan.hasKey("original_menus", _domain) &&
         ConfMan.getBool("original_menus", _domain));
+    _skipCodewheel->setState(ConfMan.hasKey("skip_codewheel", _domain) &&
+        ConfMan.getBool("skip_codewheel", _domain));
     const Common::String mode = ConfMan.get("sound_mode", _domain);
     _soundModeGroup.setValue(mode.equalsIgnoreCase("off") ? kSoundOff :
         mode.equalsIgnoreCase("speaker") ? kSoundPCSpeaker : kSoundTandy);
@@ -159,12 +176,15 @@ bool GoldboxOptionsWidget::save() {
         !ConfMan.hasKey("sound_tempo", _domain) ||
         ConfMan.getInt("sound_tempo", _domain) != _soundTempo->getValue() ||
         !ConfMan.hasKey("original_menus", _domain) ||
-        ConfMan.getBool("original_menus", _domain) != _originalMenus->getState();
+        ConfMan.getBool("original_menus", _domain) != _originalMenus->getState() ||
+        !ConfMan.hasKey("skip_codewheel", _domain) ||
+        ConfMan.getBool("skip_codewheel", _domain) != _skipCodewheel->getState();
 
     ConfMan.set("sound_mode", modeName, _domain);
     ConfMan.set("sound_version", version, _domain);
     ConfMan.setInt("sound_tempo", _soundTempo->getValue(), _domain);
     ConfMan.setBool("original_menus", _originalMenus->getState(), _domain);
+    ConfMan.setBool("skip_codewheel", _skipCodewheel->getState(), _domain);
     return changed;
 }
 
@@ -172,11 +192,13 @@ bool GoldboxOptionsWidget::hasKeys() {
     return ConfMan.hasKey("sound_mode", _domain) ||
         ConfMan.hasKey("sound_version", _domain) ||
         ConfMan.hasKey("sound_tempo", _domain) ||
-        ConfMan.hasKey("original_menus", _domain);
+        ConfMan.hasKey("original_menus", _domain) ||
+        ConfMan.hasKey("skip_codewheel", _domain);
 }
 
 void GoldboxOptionsWidget::setEnabled(bool enabled) {
     _originalMenus->setEnabled(enabled);
+    _skipCodewheel->setEnabled(enabled);
     _soundModeGroup.setEnabled(enabled);
     _soundVersionGroup.setEnabled(enabled);
     _soundTempo->setEnabled(enabled);
@@ -204,6 +226,7 @@ void GoldboxOptionsWidget::defineLayout(GUI::ThemeEval &layouts,
     layouts.addLayout(GUI::ThemeLayout::kLayoutVertical)
         .addPadding(16, 0, 0, 0);
     layouts.addWidget("original_menus", "Checkbox");
+    layouts.addWidget("skip_codewheel", "Checkbox");
     layouts.addSpace(8);
     layouts.addWidget("sound_device", "OptionsLabel");
     layouts.addWidget("tandy", "Radiobutton");

@@ -23,6 +23,7 @@
 #include "graphics/palette.h"
 //#include "goldbox/keymapping.h"
 #include "goldbox/poolrad/views/credits_view.h"
+#include "common/config-manager.h"
 #include "goldbox/vm_interface.h"
 
 namespace Goldbox {
@@ -34,10 +35,16 @@ static Common::String cr(const char *key) {
 	return VmInterface::getString(Common::String("credits.") + key);
 }
 
+const char *viewAfterCredits() {
+	const bool skip = ConfMan.hasKey("skip_codewheel")
+		&& ConfMan.getBool("skip_codewheel");
+	return skip ? "Mainmenu" : "Codewheel";
+}
+
 CreditsView::CreditsView() : View("Credits"){}
 
 bool CreditsView::msgKeypress(const KeypressMessage &msg) {
-	replaceView("Codewheel");
+	replaceView(viewAfterCredits());
 	return true;
 }
 
@@ -92,7 +99,7 @@ bool CreditsView::msgUnfocus(const UnfocusMessage &msg) {
 }
 
 void CreditsView::timeout() {
-	replaceView("Codewheel");
+	replaceView(viewAfterCredits());
 }
 
 } // namespace Views

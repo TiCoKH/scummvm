@@ -69,6 +69,10 @@ static void setAmigaColors(const uint16 *colors, uint start, uint count) {
 	g_system->getPaletteManager()->setPalette(pal, start);
 }
 
+AmigaGfxBackend::~AmigaGfxBackend() {
+	delete _runeFont;
+}
+
 void AmigaGfxBackend::initScreen() {
 	initGraphics(320, 200);
 }
@@ -89,6 +93,15 @@ Graphics::Font *AmigaGfxBackend::createFont(Data::DaxFileManager &dax) {
 	Common::File fontFile;
 	if (!fontFile.open(Common::Path("fonts/poolrad/8")))
 		error("Failed to open Amiga font fonts/poolrad/8");
+
+	// TextRend.PrintSpaces switches to the "protect" font for runes.
+	Common::File runeFile;
+	delete _runeFont;
+	_runeFont = nullptr;
+	if (runeFile.open(Common::Path("fonts/protect/8")))
+		_runeFont = new Graphics::AmigaFont(&runeFile);
+	else
+		warning("Amiga font fonts/protect/8 not found; runes use the game font");
 	return new Graphics::AmigaFont(&fontFile);
 }
 
@@ -150,6 +163,26 @@ void AmigaGfxBackend::drawGlyph(Graphics::ManagedSurface &dst,
 	font.drawChar(&dst, glyph, x, y, pen);
 	if (pen >= 16 && pen < 31)
 		font.drawChar(&dst, glyph, x + 1, y, pen + 1);
+}
+
+void AmigaGfxBackend::drawRune(Graphics::ManagedSurface &dst,
+		const Graphics::Font &font, uint32 glyph, int x, int y,
+		uint32 color) const {
+	if (!_runeFont) {
+		drawGlyph(dst, font, glyph, x, y, color);
+		return;
+	}
+	// One pass, no shadow. The C port passes its pens directly: the code
+	// wheel draws in 30 (DOS LightRed), PROTECTION text in 28 (White);
+	// other colors follow PrintSpaces' 16 - color / 2 + color.
+	uint32 pen;
+	if (color == 12)
+		pen = 30;
+	else if (color == 15)
+		pen = 28;
+	else
+		pen = color < 16 ? 16 - color / 2 + color : color;
+	_runeFont->drawChar(&dst, glyph, x, y, pen);
 }
 
 bool AmigaGfxBackend::drawFrame(Graphics::ManagedSurface &dst, int startX,

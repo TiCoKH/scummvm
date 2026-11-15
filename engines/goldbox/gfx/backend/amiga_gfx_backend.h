@@ -34,6 +34,8 @@ namespace Gfx {
  */
 class AmigaGfxBackend : public GfxBackend {
 public:
+	~AmigaGfxBackend() override;
+
 	void initScreen() override;
 	void setupPalette() override;
 	void setPaletteMode(PaletteMode mode) override;
@@ -48,6 +50,8 @@ public:
 		uint32 color) const override;
 	void drawGlyph(Graphics::ManagedSurface &dst, const Graphics::Font &font,
 		uint32 glyph, int x, int y, uint32 color) const override;
+	void drawRune(Graphics::ManagedSurface &dst, const Graphics::Font &font,
+		uint32 glyph, int x, int y, uint32 color) const override;
 	bool drawFrame(Graphics::ManagedSurface &dst, int startX, int startY,
 		int endX, int endY) const override;
 	bool hasTitlePictures() const override { return false; }
@@ -61,6 +65,8 @@ private:
 
 	AmigaBorders _borders;
 	int _paletteMode = -1;
+	/** The "protect" disk font: runes at the DOS game font indices. */
+	Graphics::Font *_runeFont = nullptr;
 };
 
 } // namespace Gfx

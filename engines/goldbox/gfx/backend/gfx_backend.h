@@ -108,6 +108,16 @@ public:
 	}
 
 	/**
+	 * Draw a rune (code wheel, PROTECTION text). The glyph is the DOS game
+	 * font index (rune + 0x40 on the code wheel); DOS and PC-98 keep the
+	 * runes in the game font.
+	 */
+	virtual void drawRune(Graphics::ManagedSurface &dst, const Graphics::Font &font,
+		uint32 glyph, int x, int y, uint32 color) const {
+		drawGlyph(dst, font, glyph, x, y, color);
+	}
+
+	/**
 	 * Draw the standard window frame around the interior character cells
 	 * startX..endX, startY..endY.
 	 * @return false to draw it with the common frame tiles.

@@ -24,6 +24,7 @@
 //#include "goldbox/keymapping.h"
 #include "goldbox/poolrad/views/codewheel_view.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/engine.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -72,18 +73,25 @@ void CodewheelView::draw() {
 
     _retry++;
     if (_retry >= 3) {/*TODO:Quit*/};
-    _code_index = getRandomNumber(12);
+    // GDConsts.wheel: 13 entries; the PC-98 table has no SAVIOR.
+    if (g_engine->getPlatform() == Common::kPlatformPC98) {
+        _code_index = getRandomNumber(11);
+        if (_code_index >= kSaviorIndex)
+            ++_code_index;
+    } else {
+        _code_index = getRandomNumber(12);
+    }
 
 	drawWindow( 1, 1, 38, 22);
 	s.writeStringC(1, 1, 10, VmInterface::getString("codewheel.1"));
 	s.writeStringC(1, 2, 10, VmInterface::getString("codewheel.2"));
 	s.writeStringC(1, 5, 10, VmInterface::getString("codewheel.3"));
-	s.writeGlyphC(8, 6, 12, passcodes [_code_index].outer[0] + 0x40);
-	s.writeGlyphC(9, 6, 12, passcodes [_code_index].outer[1] + 0x40);
+	s.writeRune(8, 6, 12, passcodes [_code_index].outer[0] + 0x40);
+	s.writeRune(9, 6, 12, passcodes [_code_index].outer[1] + 0x40);
 	s.writeStringC(1, 8, 10, VmInterface::getString("codewheel.4"));
-	s.writeGlyphC(8, 9, 12, passcodes [_code_index].inner[0] + 0x40);
+	s.writeRune(8, 9, 12, passcodes [_code_index].inner[0] + 0x40);
     if (passcodes[_code_index].inner[1] != 0xFF) {
-		s.writeGlyphC(9, 9, 12, passcodes [_code_index].inner[1] + 0x40);
+		s.writeRune(9, 9, 12, passcodes [_code_index].inner[1] + 0x40);
     }
 	s.writeStringC(1, 11, 10, VmInterface::getString("codewheel.5"));
 	s.writeStringC(6, 13, 12, passcodes [_code_index].path);

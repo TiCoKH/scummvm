@@ -28,6 +28,9 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
+/** The view after the credits: the code wheel, unless it is skipped. */
+const char *viewAfterCredits();
+
 class CreditsView : public View {
 private:
 

@@ -55,6 +55,9 @@ private:
 		{"WYVERN", {0x2C, 0x2D}, {0x47, 0xFF}, "- - - - -"}
 	};
 
+	/** SAVIOR, missing from the PC-98 table. */
+	static const int kSaviorIndex = 9;
+
 	Dialogs::HorizontalInput *_inputPrompt;
 	int _retry = 0;
 	int _code_index = 0;

@@ -127,6 +127,8 @@ public:
 	void writeCharC(unsigned char c, int color);
 	void writeCharC(int x, int y, int color, unsigned char c);
 	void writeGlyphC(int x, int y, int color, unsigned char g_id);
+	/** Draw a rune at a cell, see GfxBackend::drawRune(). */
+	void writeRune(int x, int y, int color, unsigned char glyph);
 	void setTextPos(int x, int y);
 	void setTextColor(int color);
 
