@@ -58,8 +58,8 @@ bool DosDaxFormat::unpack(const Common::Array<uint8> &packed,
 	return pos == outSize;
 }
 
-bool DosDaxFormat::normalize(ContentType type, uint8 blockId,
-		Common::Array<uint8> &data) const {
+bool DosDaxFormat::normalize(const Common::Path &file, ContentType type,
+		uint8 blockId, Common::Array<uint8> &data) const {
 	return true;
 }
 

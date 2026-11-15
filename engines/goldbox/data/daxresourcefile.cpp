@@ -38,6 +38,7 @@ bool DaxResourceFile::open(const Common::Path &filename,
     }
 
     _contentType = determineContentType(filename);
+    _path = filename;
     _format = &format;
     _format->parseHeaders(_file, _headerContainer);
 
@@ -82,7 +83,7 @@ DaxBlock *DaxResourceFile::loadBlock(const DaxHeader &header,
                     (int)header.id);
     }
 
-    if (!_format->normalize(contentType, header.id, daxBlock->_data)) {
+    if (!_format->normalize(_path, contentType, header.id, daxBlock->_data)) {
         delete daxBlock;
         return nullptr;
     }

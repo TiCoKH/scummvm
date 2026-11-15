@@ -56,11 +56,11 @@ public:
 		Common::Array<uint8> &out) const = 0;
 
 	/**
-	 * Convert an unpacked block to the common (DOS) layout.
+	 * Convert an unpacked block of a DAX file to the common (DOS) layout.
 	 * @return false when the block can't be used on this platform.
 	 */
-	virtual bool normalize(ContentType type, uint8 blockId,
-		Common::Array<uint8> &data) const = 0;
+	virtual bool normalize(const Common::Path &file, ContentType type,
+		uint8 blockId, Common::Array<uint8> &data) const = 0;
 
 	/**
 	 * Append the files of a DAX family. The pattern holds "%d" where DOS

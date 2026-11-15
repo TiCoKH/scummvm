@@ -37,6 +37,7 @@ private:
     File _file;
     DaxHeaderContainer _headerContainer;
     ContentType _contentType;
+    Common::Path _path;
     const DaxFormat *_format;
 
     static ContentType determineContentType(const Common::Path &filename);

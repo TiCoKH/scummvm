@@ -78,8 +78,8 @@ bool Pc98DaxFormat::unpack(const Common::Array<uint8> &packed,
 	return pos == outSize;
 }
 
-bool Pc98DaxFormat::normalize(ContentType type, uint8 blockId,
-		Common::Array<uint8> &data) const {
+bool Pc98DaxFormat::normalize(const Common::Path &file, ContentType type,
+		uint8 blockId, Common::Array<uint8> &data) const {
 	switch (type) {
 	case ContentType::TILE:
 	case ContentType::PIC:

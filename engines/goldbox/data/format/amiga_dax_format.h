@@ -37,8 +37,8 @@ public:
 		DaxHeaderContainer &headers) const override;
 	bool unpack(const Common::Array<uint8> &packed,
 		Common::Array<uint8> &out) const override;
-	bool normalize(ContentType type, uint8 blockId,
-		Common::Array<uint8> &data) const override;
+	bool normalize(const Common::Path &file, ContentType type,
+		uint8 blockId, Common::Array<uint8> &data) const override;
 	void familyFiles(const char *pattern, uint16 dosIndices,
 		Common::Array<Common::Path> &files) const override;
 
@@ -46,8 +46,9 @@ private:
 	/**
 	 * Rewrite a planar picture or tile block as a DOS block: 17-byte header
 	 * and 4-bit packed pixels. Tile sets hold two tiles per Amiga item.
+	 * Pictures narrower than padWidth are centered on a padWidth picture.
 	 */
-	static bool planarToDos(uint8 blockId, bool tilePairs,
+	static bool planarToDos(uint8 blockId, bool tilePairs, uint padWidth,
 		Common::Array<uint8> &data);
 };
 

@@ -22,6 +22,7 @@
 #include "goldbox/data/format/amiga_dax_format.h"
 #include "common/endian.h"
 #include "common/textconsole.h"
+#include "common/util.h"
 #include "goldbox/data/daxheadercontainer.h"
 
 namespace Goldbox {
@@ -29,6 +30,10 @@ namespace Data {
 
 static const uint kAmigaPicHeaderSize = 12;
 static const uint kDosPicHeaderSize = 17;
+
+// DOS portrait heads are 88 pixels wide; Amiga heads are 56 pixels and
+// DisplayPortraitHead draws them two cells right of the DOS position.
+static const uint kDosHeadWidth = 88;
 
 void AmigaDaxFormat::parseHeaders(Common::ReadStream &stream,
 		DaxHeaderContainer &headers) const {
@@ -104,14 +109,19 @@ bool AmigaDaxFormat::unpack(const Common::Array<uint8> &packed,
 	return checksum == 0;
 }
 
-bool AmigaDaxFormat::normalize(ContentType type, uint8 blockId,
-		Common::Array<uint8> &data) const {
+bool AmigaDaxFormat::normalize(const Common::Path &file, ContentType type,
+		uint8 blockId, Common::Array<uint8> &data) const {
 	switch (type) {
 	case ContentType::TILE:
-		return planarToDos(blockId, true, data);
-	case ContentType::PIC:
+		return planarToDos(blockId, true, 0, data);
+	case ContentType::PIC: {
+		Common::String name = file.baseName();
+		name.toLowercase();
+		const uint width = name.hasPrefix("head") ? kDosHeadWidth : 0;
+		return planarToDos(blockId, false, width, data);
+	}
 	case ContentType::CTILE:
-		return planarToDos(blockId, false, data);
+		return planarToDos(blockId, false, 0, data);
 	default:
 		// ECL, GEO and WALLDEF are identical to DOS. Animated pictures
 		// (EGAPIC, SPRIT) still use the Amiga layout.
@@ -128,7 +138,7 @@ void AmigaDaxFormat::familyFiles(const char *pattern, uint16 dosIndices,
 }
 
 bool AmigaDaxFormat::planarToDos(uint8 blockId, bool tilePairs,
-		Common::Array<uint8> &data) {
+		uint padWidth, Common::Array<uint8> &data) {
 	// Amiga header (BE): height, char width, 2 unknown words, item count,
 	// plane size. Planes are stored plane-major: plane p of item i is at
 	// (p * itemCount + i) * planeSize.
@@ -153,9 +163,13 @@ bool AmigaDaxFormat::planarToDos(uint8 blockId, bool tilePairs,
 		return false;
 	}
 
-	Common::Array<uint8> out(kDosPicHeaderSize + tileCount * tileWidth * height / 2, 0);
+	// A narrower picture is centered on whole cells of a padWidth picture.
+	const uint outWidth = MAX(tileWidth, padWidth);
+	const uint xPad = ((outWidth - tileWidth) / 2) & ~7u;
+
+	Common::Array<uint8> out(kDosPicHeaderSize + tileCount * outWidth * height / 2, 0);
 	WRITE_LE_UINT16(&out[0], height);
-	WRITE_LE_UINT16(&out[2], tileWidth / 8);
+	WRITE_LE_UINT16(&out[2], outWidth / 8);
 	out[8] = tileCount;
 
 	const uint8 *planes = &data[kAmigaPicHeaderSize];
@@ -164,14 +178,16 @@ bool AmigaDaxFormat::planarToDos(uint8 blockId, bool tilePairs,
 		const uint item = tile / tilesPerItem;
 		const uint xBase = (tile % tilesPerItem) * tileWidth;
 		for (uint y = 0; y < height; ++y) {
-			for (uint x = 0; x < tileWidth; ++x) {
-				const uint px = xBase + x;
-				const uint bit = 7 - (px & 7);
+			for (uint x = 0; x < outWidth; ++x) {
 				uint8 color = 0;
-				for (uint plane = 0; plane < 4; ++plane) {
-					const uint8 b = planes[(plane * itemCount + item) * planeSize
-						+ y * rowBytes + px / 8];
-					color |= ((b >> bit) & 1) << plane;
+				if (x >= xPad && x < xPad + tileWidth) {
+					const uint px = xBase + x - xPad;
+					const uint bit = 7 - (px & 7);
+					for (uint plane = 0; plane < 4; ++plane) {
+						const uint8 b = planes[(plane * itemCount + item) * planeSize
+							+ y * rowBytes + px / 8];
+						color |= ((b >> bit) & 1) << plane;
+					}
 				}
 				if (x & 1)
 					*dst++ |= color;

@@ -37,8 +37,8 @@ public:
 		DaxHeaderContainer &headers) const override;
 	bool unpack(const Common::Array<uint8> &packed,
 		Common::Array<uint8> &out) const override;
-	bool normalize(ContentType type, uint8 blockId,
-		Common::Array<uint8> &data) const override;
+	bool normalize(const Common::Path &file, ContentType type,
+		uint8 blockId, Common::Array<uint8> &data) const override;
 	void familyFiles(const char *pattern, uint16 dosIndices,
 		Common::Array<Common::Path> &files) const override;
 };
