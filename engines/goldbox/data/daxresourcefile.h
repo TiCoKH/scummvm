@@ -36,9 +36,12 @@ private:
     File _file;
     DaxHeaderContainer _headerContainer;
     ContentType _contentType;
+    Common::Platform _platform;
 
-    static void decodeRLE(int dataLength, uint8 *outputPtr,
+    static void decodeRLE(int dataLength, uint8 *outputPtr, int outputLength,
             const uint8 *inputPtr);
+    static bool unpackAmiga(const uint8 *src, uint srcLength, uint8 *dst,
+            uint dstLength);
     static ContentType determineContentType(const Common::Path &filename);
 
 public:

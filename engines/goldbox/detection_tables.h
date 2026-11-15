@@ -42,6 +42,19 @@ const GoldboxGameDescription gameDescriptions[] = {
 	},
 
 	{
+		{
+			"poolrad",
+			nullptr,
+			AD_ENTRY1s("data/8x8d.dax", "d4133c59ac11056f33b42cdec6a83178", 30720),
+			Common::EN_ANY,
+			Common::kPlatformAmiga,
+			ADGF_UNSTABLE,
+			GUIO1(GAMEOPTION_ORIGINAL_SAVELOAD)
+		},
+		GAMETYPE_POOLRAD
+	},
+
+	{
 		// Placeholder checksum: no real Curse of the Azure Bonds data files
 		// have been analyzed yet, so this entry cannot match a real install.
 		// It exists to exercise the GAMETYPE_CURSE -> GameFactory -> engine

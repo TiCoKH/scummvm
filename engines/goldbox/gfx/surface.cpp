@@ -23,6 +23,7 @@
 #include "graphics/palette.h"
 #include "graphics/paletteman.h"
 #include "goldbox/gfx/surface.h"
+#include "goldbox/gfx/amiga_borders.h"
 #include "goldbox/engine.h"
 
 namespace Goldbox {
@@ -41,15 +42,37 @@ Surface::Surface(ManagedSurface &surf, const Common::Rect &bounds) :
 	_currentFont = g_engine->_font;
 }
 
+// Amiga v1.3 screen palette (PAL_ARRAY, loaded by GFX_SetScreen), 0RGB.
+static const uint16 kAmigaPalette[32] = {
+	0x000, 0xdb9, 0xb97, 0x964, 0x521, 0x742, 0xa84, 0xcb6,
+	0xff9, 0x007, 0x44b, 0x444, 0x555, 0x777, 0xaaa, 0xfff,
+	0x444, 0x999, 0xba0, 0xdc0, 0xf1b, 0xf1b, 0x666, 0x888,
+	0x800, 0xc00, 0xb86, 0xeb9, 0x070, 0x0a0, 0xc70, 0xfa4
+};
+
 void Surface::setupPalette() {
-	const Graphics::Palette &ega = Graphics::Palette::createEGAPalette();
-	g_system->getPaletteManager()->setPalette(ega);
+	if (g_engine->getPlatform() == Common::kPlatformAmiga) {
+		Graphics::Palette pal(ARRAYSIZE(kAmigaPalette));
+		for (uint i = 0; i < ARRAYSIZE(kAmigaPalette); ++i) {
+			const uint16 c = kAmigaPalette[i];
+			pal.set(i, ((c >> 8) & 0xF) * 17, ((c >> 4) & 0xF) * 17,
+				(c & 0xF) * 17);
+		}
+		g_system->getPaletteManager()->setPalette(pal);
+	} else {
+		const Graphics::Palette &ega = Graphics::Palette::createEGAPalette();
+		g_system->getPaletteManager()->setPalette(ega);
+	}
 
 	uint32 white = 0xffffffff;
 	g_system->getPaletteManager()->setPalette((const byte *)&white, 255, 1);
 }
 
 unsigned char Surface::mapCharToIndex(unsigned char chr) const {
+	// The Amiga disk font is indexed by ASCII.
+	if (g_engine->getPlatform() == Common::kPlatformAmiga)
+		return (chr >= 0x20 && chr < 0x7F) ? chr : ' ';
+
     if (chr >= 'a' && chr <= 'z') {
         chr = chr - ('a' - 'A'); // Convert lowercase to uppercase
     }
@@ -219,6 +242,14 @@ void Surface::drawFrameTiles(int startX, int startY, int endX, int endY,
 	//   x_pos_00 = end_x   + 1
 	//   y_pos_00 = end_y   + 1
 
+	// The Amiga version blits its border bitmaps for the standard frame.
+	if (cornerTileId == kFrameCornerTile && sideTileId == kFrameSideTile
+			&& edgeTileId == kFrameEdgeTile && g_engine->_amigaBorders
+			&& g_engine->_amigaBorders->isLoaded()) {
+		g_engine->_amigaBorders->drawFrame(*this, startX, startY, endX, endY);
+		return;
+	}
+
 	const int x0 = startX - 1;  // x_pos
 	const int y0 = startY - 1;  // y_pos
 	const int x1 = endX   + 1;  // x_pos_00
@@ -245,14 +276,8 @@ void Surface::drawFrameTiles(int startX, int startY, int endX, int endY,
 
 void Surface::drawFrame(int startX, int startY, int endX, int endY,
 		uint32 bgColor, uint32 tpColorIndex) {
-	// Poolrad-compatible default style (slot 4, base 0x100; t_offs = 0):
-	//   0x114 = corner, 0x115 = vertical side, 0x116 = horizontal edge
-	static const uint16 kCornerTile = 0x114;
-	static const uint16 kSideTile   = 0x115;
-	static const uint16 kEdgeTile   = 0x116;
-
 	drawFrameTiles(startX, startY, endX, endY,
-		kCornerTile, kSideTile, kEdgeTile, bgColor, tpColorIndex);
+		kFrameCornerTile, kFrameSideTile, kFrameEdgeTile, bgColor, tpColorIndex);
 }
 
 void Surface::drawWindow(int startX, int startY, int endX, int endY, uint32 color) {

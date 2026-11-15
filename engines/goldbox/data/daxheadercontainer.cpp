@@ -54,8 +54,9 @@ namespace Data {
             DaxHeader header;
             header.id = stream.readUint16BE();
             header.offset = stream.readUint32BE();
-            header.rawSize = stream.readUint16BE();
+            // Amiga stores the packed size before the unpacked size.
             header.compSize = stream.readUint16BE();
+            header.rawSize = stream.readUint16BE();
             headers[i] = header;
         }
     }

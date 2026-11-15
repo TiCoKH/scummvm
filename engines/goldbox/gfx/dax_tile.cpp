@@ -44,6 +44,13 @@ void DaxTile::load() {
         Graphics::ManagedSurface &s = _chars[i];
         s.create(FONT_W, FONT_H);
 
+        if (_daxBlock->amigaPlanar) {
+            for (int y = 0; y < FONT_H; y++)
+                for (int x = 0; x < FONT_W; x++)
+                    s.setPixel(x, y, _daxBlock->pixelAt(i, x, y));
+            continue;
+        }
+
         for (int y = 0; y < FONT_H; y++) {
             for (int x = 0; x < FONT_W; x += 2) {
                 uint8 byte = *data++;

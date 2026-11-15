@@ -23,6 +23,8 @@
 #include "common/fs.h"
 #include "common/file.h"
 #include "common/str.h"
+#include "graphics/fonts/amigafont.h"
+#include "goldbox/gfx/amiga_borders.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"
@@ -240,6 +242,45 @@ bool PoolradEngine::initializeGameData() {
 bool PoolradEngine::loadGameAssets() {
 	Surface::setupPalette();
 
+	if (getPlatform() == Common::kPlatformAmiga)
+		loadAmigaDaxFiles();
+	else
+		loadDosDaxFiles();
+
+	// Initialize icon manager
+	_iconManager = new Gfx::IconManager();
+
+	if (getPlatform() == Common::kPlatformAmiga) {
+		// The Amiga version draws text with its "poolrad" 8-pixel disk font.
+		Common::File *fontFile = new Common::File();
+		if (!fontFile->open(Common::Path("fonts/poolrad/8"))) {
+			delete fontFile;
+			error("Failed to open Amiga font fonts/poolrad/8");
+		}
+		_font = new Graphics::AmigaFont(fontFile);
+		delete fontFile;
+
+		_amigaBorders = new Gfx::AmigaBorders();
+		if (!_amigaBorders->load(Common::Path("poolradamigagfx.dat")))
+			warning("poolradamigagfx.dat not found; using DOS frame tiles");
+	} else {
+		// Populate daxFont from container
+		Goldbox::Data::DaxBlock *pc_font = getDax8x8d().getBlockById(201);
+		if (!pc_font) {
+			error("Failed to load font block 201 from 8x8d container");
+		}
+		auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(pc_font));
+		_font = daxFont;
+	}
+
+	// Engine-wide fixed tile cache preload (original Goldbox behavior):
+	// slot 4 <- symbols block 202, slot 0 <- block 203.
+	initFixedTileCacheSlots(202, 203);
+
+	return true;
+}
+
+void PoolradEngine::loadDosDaxFiles() {
 	// Load all 8x8d files via DaxFileManager (auto-sorts to correct container)
 	getDaxManager().loadFile(Common::Path("8x8d1.dax"));
 	getDaxManager().loadFile(Common::Path("8x8d2.dax"));
@@ -364,23 +405,20 @@ bool PoolradEngine::loadGameAssets() {
 	getDaxManager().loadFile(Common::Path("cbody.dax"));
 	getDaxManager().loadFile(Common::Path("chead.dax"));
 	getDaxManager().loadFile(Common::Path("comspr.dax"));
+}
 
-	// Initialize icon manager
-	_iconManager = new Gfx::IconManager();
-
-	// Populate daxFont from container
-	Goldbox::Data::DaxBlock *pc_font = getDax8x8d().getBlockById(201);
-	if (!pc_font) {
-		error("Failed to load font block 201 from 8x8d container");
-	}
-	auto daxFont = new Goldbox::Gfx::DaxFont(dynamic_cast<Goldbox::Data::DaxBlock8x8D*>(pc_font));
-	_font = daxFont;
-
-	// Engine-wide fixed tile cache preload (original Goldbox behavior):
-	// slot 4 <- symbols block 202, slot 0 <- block 203.
-	initFixedTileCacheSlots(202, 203);
-
-	return true;
+void PoolradEngine::loadAmigaDaxFiles() {
+	// The Amiga version keeps one file per DAX family in its data directory.
+	static const char *const kFiles[] = {
+		"8x8d.dax", "bacpac.dax", "dungcom.dax", "randcom.dax",
+		"sqrpaci.dax", "wildcom.dax", "geo.dax", "pic.dax",
+		"cpic.dax", "moncha.dax", "monitm.dax", "monspc.dax",
+		"item.dax", "sprit.dax", "walldef.dax", "ecl.dax",
+		"body.dax", "head.dax", "cbody.dax", "chead.dax",
+		"comspr.dax"
+	};
+	for (uint i = 0; i < ARRAYSIZE(kFiles); ++i)
+		getDaxManager().loadFile(Common::Path(kFiles[i]));
 }
 
 bool PoolradEngine::initializeRuntimeSystems() {

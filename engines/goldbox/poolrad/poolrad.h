@@ -187,6 +187,8 @@ protected:
 	void setup() override;
 	bool initializeGameData() override;
 	bool loadGameAssets() override;
+	void loadDosDaxFiles();
+	void loadAmigaDaxFiles();
 	bool initializeRuntimeSystems() override;
 	GUI::Debugger *getConsole() override;
 	void onGameStateEnter(GameState prev, GameState next) override;

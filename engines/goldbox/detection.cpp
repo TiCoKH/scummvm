@@ -38,8 +38,17 @@ const DebugChannelDef GoldboxMetaEngineDetection::debugFlagList[] = {
 	DEBUG_CHANNEL_END
 };
 
+// The Amiga version keeps its game files in a "data" subdirectory.
+static const char *const kDirectoryGlobs[] = {
+	"data",
+	nullptr
+};
+
 GoldboxMetaEngineDetection::GoldboxMetaEngineDetection() : AdvancedMetaEngineDetection(
 	Goldbox::gameDescriptions, Goldbox::goldboxGames) {
+	_maxScanDepth = 2;
+	_directoryGlobs = kDirectoryGlobs;
+	_flags = kADFlagMatchFullPaths;
 }
 
 REGISTER_PLUGIN_STATIC(GOLDBOX_DETECTION, PLUGIN_TYPE_ENGINE_DETECTION, GoldboxMetaEngineDetection);

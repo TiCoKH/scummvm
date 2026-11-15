@@ -19,8 +19,10 @@
  *
  */
 
+#include "common/endian.h"
 #include "common/util.h"
 #include "common/memstream.h"
+#include "common/textconsole.h"
 #include "goldbox/data/daxblock.h"
 
 namespace {
@@ -92,6 +94,17 @@ namespace Data {
 	}
 
 	void DaxBlock8x8D::adjust() {
+		if (amigaPlanar) {
+			int charWidth = 0;
+			if (!popAmigaHeader(charWidth))
+				return;
+			// Each Amiga item holds two tiles side by side.
+			_tilesPerItem = 2;
+			width = charWidth * 8 / _tilesPerItem;
+			item_count = _itemCount * _tilesPerItem;
+			frameCount = item_count;
+			return;
+		}
 		if (blockId != 201) {
 			GfxDataHeader gfx_header = popGfxHeader();
 			height = gfx_header.height;
@@ -106,6 +119,61 @@ namespace Data {
 		height = 0;
 		width = 0;
 		frameCount = 0;
+		_rowBytes = 0;
+		_planeSize = 0;
+		_itemCount = 0;
+		_tilesPerItem = 1;
+	}
+
+	uint8 DaxBlockPic::pixelAt(int frameIdx, int x, int y) const {
+		if (!amigaPlanar) {
+			const uint frameSize = (width * height) / 2;
+			const uint pos = frameIdx * frameSize + (y * width + x) / 2;
+			if (pos >= _data.size())
+				return 0;
+			return (x & 1) ? (_data[pos] & 0x0F) : (_data[pos] >> 4);
+		}
+
+		const int item = frameIdx / _tilesPerItem;
+		const int px = (frameIdx % _tilesPerItem) * width + x;
+		const uint bit = 7 - (px & 7);
+		uint8 color = 0;
+		for (int plane = 0; plane < 4; ++plane) {
+			const uint pos = (plane * _itemCount + item) * _planeSize
+				+ y * _rowBytes + px / 8;
+			if (pos < _data.size() && ((_data[pos] >> bit) & 1))
+				color |= 1 << plane;
+		}
+		return color;
+	}
+
+	bool DaxBlockPic::hasFrame(int frameIdx) const {
+		if (frameIdx < 0)
+			return false;
+		if (!amigaPlanar) {
+			const uint frameSize = (width * height) / 2;
+			return (frameIdx + 1) * frameSize <= _data.size();
+		}
+		return frameIdx / _tilesPerItem < _itemCount
+			&& 4u * _itemCount * _planeSize <= _data.size();
+	}
+
+	bool DaxBlockPic::popAmigaHeader(int &charWidth) {
+		if (_data.size() < 12)
+			return false;
+
+		const uint8 *d = _data.data();
+		height = READ_BE_UINT16(d);
+		charWidth = READ_BE_UINT16(d + 2);
+		_itemCount = READ_BE_UINT16(d + 8);
+		_planeSize = READ_BE_UINT16(d + 10);
+		_rowBytes = ((charWidth + 1) / 2) * 2;
+		_data.erase(_data.begin(), _data.begin() + 12);
+
+		if (_planeSize != _rowBytes * height)
+			warning("DaxBlockPic: Amiga block %d plane size %d, expected %d",
+				blockId, _planeSize, _rowBytes * height);
+		return true;
 	}
 
 	DaxBlockSprit::DaxBlockSprit(bool xorDecode)
@@ -200,6 +268,14 @@ namespace Data {
 	}
 
 	void DaxBlockPic::adjust() {
+		if (amigaPlanar) {
+			int charWidth = 0;
+			if (!popAmigaHeader(charWidth))
+				return;
+			width = charWidth * 8;
+			frameCount = _itemCount;
+			return;
+		}
 		GfxDataHeader gfx_header = popGfxHeader();
 		height = gfx_header.height;
 		width = gfx_header.cwidth * 8;

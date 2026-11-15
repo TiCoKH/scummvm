@@ -30,6 +30,12 @@ namespace Poolrad {
 namespace Views {
 
 bool TitleView::msgFocus(const FocusMessage &msg) {
+	// The Amiga title screens are in the separate "intro" program, not a DAX.
+	if (g_engine->getPlatform() == Common::kPlatformAmiga) {
+		_pic1 = _pic2 = nullptr;
+		return true;
+	}
+
 	Goldbox::Data::DaxBlockContainer &titleContainer = VmInterface::getDaxManager().getTitle();
 
 	Goldbox::Data::DaxBlock *daxBlock = titleContainer.getBlockById(1);
@@ -88,7 +94,10 @@ void TitleView::draw() {
 }
 
 void TitleView::timeout() {
-	_state++;
+	if (_state == 0 && !_pic1)
+		_state = 4;
+	else
+		_state++;
 	redraw();
 }
 

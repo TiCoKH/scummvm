@@ -20,13 +20,15 @@
  */
 
 #include "common/array.h"
+#include "common/endian.h"
 #include "common/util.h"
 #include "goldbox/data/daxresourcefile.h"
 
 namespace Goldbox {
 namespace Data {
 
-DaxResourceFile::DaxResourceFile() : _contentType(ContentType::UNKNOWN) {
+DaxResourceFile::DaxResourceFile() : _contentType(ContentType::UNKNOWN),
+        _platform(Common::kPlatformUnknown) {
 }
 
 bool DaxResourceFile::open(const Common::Path &filename,
@@ -36,6 +38,7 @@ bool DaxResourceFile::open(const Common::Path &filename,
     }
 
     _contentType = determineContentType(filename);
+    _platform = platform;
     if (platform == Common::kPlatformAmiga) {
         _headerContainer.parseHeadersBE(_file);
     } else {
@@ -78,11 +81,20 @@ DaxBlock *DaxResourceFile::loadBlock(const DaxHeader &header,
         daxBlock->_data = daxData;
     } else {
         Common::Array<uint8> decodeData(header.rawSize);
-        decodeRLE(header.compSize, decodeData.data(), daxData.data());
+        if (_platform == Common::kPlatformAmiga) {
+            if (!unpackAmiga(daxData.data(), header.compSize,
+                    decodeData.data(), header.rawSize))
+                warning("DaxResourceFile::loadBlock: Amiga block %d failed to unpack",
+                        (int)header.id);
+        } else {
+            decodeRLE(header.compSize, decodeData.data(), header.rawSize,
+                    daxData.data());
+        }
         daxBlock->_data = decodeData;
     }
 
     daxBlock->blockId = header.id;
+    daxBlock->amigaPlanar = (_platform == Common::kPlatformAmiga);
     daxBlock->adjust();
     return daxBlock;
 }
@@ -107,26 +119,93 @@ DaxBlock *DaxResourceFile::getBlockById(uint8 blockId,
 }
 
 void DaxResourceFile::decodeRLE(int dataLength, uint8 *outputPtr,
-        const uint8 *inputPtr) {
+        int outputLength, const uint8 *inputPtr) {
     int inputIndex = 0;
     int outputIndex = 0;
 
-    while (inputIndex < dataLength) {
-        int8 runLength = static_cast<int8>(inputPtr[inputIndex]);
+    while (inputIndex + 1 < dataLength && outputIndex < outputLength) {
+        int runLength = static_cast<int8>(inputPtr[inputIndex]);
 
         if (runLength >= 0) {
-            memcpy(outputPtr + outputIndex, inputPtr + inputIndex + 1,
-                    runLength + 1);
+            int count = MIN(runLength + 1, outputLength - outputIndex);
+            count = MIN(count, dataLength - inputIndex - 1);
+            memcpy(outputPtr + outputIndex, inputPtr + inputIndex + 1, count);
             inputIndex += runLength + 2;
-            outputIndex += runLength + 1;
+            outputIndex += count;
         } else {
-            runLength = -runLength;
-            memset(outputPtr + outputIndex, inputPtr[inputIndex + 1],
-                    runLength);
+            const int count = MIN(-runLength, outputLength - outputIndex);
+            memset(outputPtr + outputIndex, inputPtr[inputIndex + 1], count);
             inputIndex += 2;
-            outputIndex += runLength;
+            outputIndex += count;
         }
     }
+}
+
+/**
+ * Amiga DAX blocks are packed with a ByteKiller-style cruncher: the bit stream
+ * is read backwards from the end and the output is written backwards. The last
+ * three BE longwords hold the first bit word, a checksum and the unpacked size.
+ */
+bool DaxResourceFile::unpackAmiga(const uint8 *src, uint srcLength, uint8 *dst,
+        uint dstLength) {
+    if (srcLength < 12 || READ_BE_UINT32(src + srcLength - 4) != dstLength)
+        return false;
+
+    uint srcPos = srcLength - 12;
+    uint32 bits = READ_BE_UINT32(src + srcPos);
+    uint32 checksum = READ_BE_UINT32(src + srcLength - 8) ^ bits;
+
+    auto getBit = [&]() -> uint {
+        uint bit = bits & 1;
+        bits >>= 1;
+        if (bits == 0 && srcPos >= 4) {
+            srcPos -= 4;
+            const uint32 word = READ_BE_UINT32(src + srcPos);
+            checksum ^= word;
+            bit = word & 1;
+            bits = 0x80000000 | (word >> 1);
+        }
+        return bit;
+    };
+    auto getBits = [&](int count) -> uint {
+        uint value = 0;
+        while (count-- > 0)
+            value = (value << 1) | getBit();
+        return value;
+    };
+
+    uint dstPos = dstLength;
+    auto literal = [&](uint count) {
+        while (count-- > 0 && dstPos > 0)
+            dst[--dstPos] = getBits(8);
+    };
+    auto copy = [&](uint count, uint offset) {
+        while (count-- > 0 && dstPos > 0) {
+            --dstPos;
+            dst[dstPos] = (dstPos + offset < dstLength) ? dst[dstPos + offset] : 0;
+        }
+    };
+
+    while (dstPos > 0) {
+        if (getBit()) {
+            const uint type = getBits(2);
+            if (type == 3) {
+                literal(getBits(8) + 9);
+            } else if (type < 2) {
+                const uint count = type + 3;
+                copy(count, getBits(9 + type));
+            } else {
+                const uint count = getBits(8) + 1;
+                copy(count, getBits(12));
+            }
+        } else if (getBit()) {
+            copy(2, getBits(8));
+        } else {
+            literal(getBits(3) + 1);
+        }
+    }
+
+    return checksum == 0;
 }
 
 ContentType DaxResourceFile::determineContentType(const Common::Path &filename) {

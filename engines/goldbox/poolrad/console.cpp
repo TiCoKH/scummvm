@@ -24,6 +24,8 @@
 
 #include "common/str.h"
 #include "common/file.h"
+#include "common/system.h"
+#include "graphics/paletteman.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/data/daxblockcontainer.h"
 #include "goldbox/gfx/dax_tile.h"
@@ -50,6 +52,14 @@ static const byte kEgaPalette[16 * 3] = {
 	0x55,0x55,0x55, 0x55,0x55,0xFF, 0x55,0xFF,0x55, 0x55,0xFF,0xFF,
 	0xFF,0x55,0x55, 0xFF,0x55,0xFF, 0xFF,0xFF,0x55, 0xFF,0xFF,0xFF
 };
+
+// Pictures are dumped with the active screen palette (EGA or Amiga).
+static void writePicBMP(Common::DumpFile &outFile,
+		const Goldbox::Gfx::Pic &pic) {
+	byte pal[32 * 3];
+	g_system->getPaletteManager()->grabPalette(pal, 0, 32);
+	Image::writeBMP(outFile, pic, pal, 32);
+}
 
 static void blitPic(Graphics::Screen *screen, const Goldbox::Gfx::Pic *pic,
 		int x, int y) {
@@ -493,7 +503,8 @@ bool Console::cmdWalldefstate(int argc, const char **argv) {
 bool Console::cmdDumpPic(int argc, const char **argv) {
 	if (argc < 2) {
 		debugPrintf("Usage: dumpPic <blockId> [container]\n");
-		debugPrintf("  container: PIC (default), HEAD, BODY, CPIC, TITLE\n");
+		debugPrintf("  container: PIC (default), HEAD, BODY, CPIC, TITLE,\n");
+		debugPrintf("  CBODY, CHEAD, COMSPR, 8X8D, SQRPACI, WILDCOM\n");
 		return true;
 	}
 
@@ -519,6 +530,18 @@ bool Console::cmdDumpPic(int argc, const char **argv) {
 		container = &g_engine->getDaxCPic();
 	else if (containerName == "TITLE")
 		container = &g_engine->getDaxTitle();
+	else if (containerName == "CBODY")
+		container = &g_engine->getDaxCBody();
+	else if (containerName == "CHEAD")
+		container = &g_engine->getDaxCHead();
+	else if (containerName == "COMSPR")
+		container = &g_engine->getDaxComSpr();
+	else if (containerName == "8X8D")
+		container = &g_engine->getDax8x8d();
+	else if (containerName == "SQRPACI")
+		container = &g_engine->getDaxSqrpaci();
+	else if (containerName == "WILDCOM")
+		container = &g_engine->getDaxWildcom();
 	else {
 		debugPrintf("Unknown container: %s\n", containerName.c_str());
 		return true;
@@ -556,7 +579,7 @@ bool Console::cmdDumpPic(int argc, const char **argv) {
 				containerName.c_str(), blockId, f);
 			Common::DumpFile outFile;
 			if (outFile.open(Common::Path(filename))) {
-				Image::writeBMP(outFile, *pic, kEgaPalette, 16);
+				writePicBMP(outFile, *pic);
 				outFile.close();
 				debugPrintf("  frame %d: saved %s (%dx%d)\n", f, filename.c_str(),
 					pic->w, pic->h);
@@ -586,11 +609,7 @@ bool Console::cmdDumpPic(int argc, const char **argv) {
 			return true;
 		}
 
-		const int frameSize = (width * height) / 2;
-		const int frames = dataSize / frameSize;
-		debugPrintf("frameSize=%d derivedFrames=%d\n", frameSize, frames);
-
-		for (int f = 0; f < frames && f < 16; ++f) {
+		for (int f = 0; f < 16 && picBlock->hasFrame(f); ++f) {
 			::Goldbox::Gfx::Pic *pic = ::Goldbox::Gfx::Pic::readFrame(picBlock, f);
 			if (!pic) {
 				debugPrintf("  frame %d: decode failed\n", f);
@@ -601,7 +620,7 @@ bool Console::cmdDumpPic(int argc, const char **argv) {
 				containerName.c_str(), blockId, f);
 			Common::DumpFile outFile;
 			if (outFile.open(Common::Path(filename))) {
-				Image::writeBMP(outFile, *pic, kEgaPalette, 16);
+				writePicBMP(outFile, *pic);
 				outFile.close();
 				debugPrintf("  frame %d: saved %s (%dx%d)\n", f, filename.c_str(),
 					pic->w, pic->h);

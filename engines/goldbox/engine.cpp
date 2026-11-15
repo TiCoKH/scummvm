@@ -211,7 +211,6 @@ void Engine::setGameState(GameState state) {
 }
 
 Common::Error Engine::run() {
-
 	switch (getPlatform()) {
 		case Common::kPlatformDOS:
 		case Common::kPlatformAmiga:
