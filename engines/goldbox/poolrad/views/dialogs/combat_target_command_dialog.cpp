@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/combat_target_command_dialog.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -58,13 +59,13 @@ void CombatTargetCommandDialog::deactivate() {
 
 void CombatTargetCommandDialog::buildMenu() {
     Common::Array<Common::String> labels;
-    labels.push_back("Next");
-    labels.push_back("Prev");
-    labels.push_back("Manual");
+    labels.push_back(VmInterface::getString("labels.next"));
+    labels.push_back(VmInterface::getString("labels.prev"));
+    labels.push_back(VmInterface::getString("labels.manual"));
     if (_targetOffered)
-        labels.push_back("Target");
-    labels.push_back("Center");
-    labels.push_back("Exit");
+        labels.push_back(VmInterface::getString("labels.target"));
+    labels.push_back(VmInterface::getString("labels.center"));
+    labels.push_back(VmInterface::getString("labels.exit"));
 
     _menuModel.items.clear();
     _menuModel.currentSelection = 0;
@@ -73,7 +74,7 @@ void CombatTargetCommandDialog::buildMenu() {
     delete _horizontalMenu;
 
     HorizontalMenuConfig cfg;
-    cfg.promptTxt             = "Aim:";
+    cfg.promptTxt             = VmInterface::getString("combat.aim");
     cfg.menuItemList          = &_menuModel;
     cfg.textColor             = 10;
     cfg.selectColor           = 15;

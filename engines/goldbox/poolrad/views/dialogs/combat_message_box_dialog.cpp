@@ -66,7 +66,7 @@ void CombatMessageBoxDialog::drawActorInfo(
     s.writeStringC(kLeft, 1, nameColor, ch->name);
 
     // PrintHitPoints: current only, yellow when injured.
-    s.writeStringC(kLeft, 3, kTextColor, "Hitpoints");
+    s.writeStringC(kLeft, 3, kTextColor, VmInterface::getString("combat.hitpoints"));
     const int hpColor = ch->hitPoints.current < ch->hitPoints.max
         ? kInjuredColor : kTextColor;
     s.writeStringC(33, 3, hpColor,
@@ -93,7 +93,7 @@ void CombatMessageBoxDialog::drawActorInfo(
             VmInterface::getString(Common::String::format(
                 "stats.conditions.%d", ch->healthStatus)));
     } else if (isHelpless(ch)) {
-        s.writeStringC(kLeft, statusRow, kStatusColor, "(Helpless)");
+        s.writeStringC(kLeft, statusRow, kStatusColor, VmInterface::getString("combat.helpless"));
     }
 }
 

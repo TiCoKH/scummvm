@@ -122,7 +122,7 @@ public:
     bool msgKeypress(const KeypressMessage &msg) override;
     void handleMenuResult(const MenuResultMessage &result) override;
 
-    static const char *getValuableName(Goldbox::Data::ValuableType type);
+    static Common::String getValuableName(Goldbox::Data::ValuableType type);
 
 private:
     enum Stage {

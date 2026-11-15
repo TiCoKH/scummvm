@@ -25,6 +25,7 @@
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/data/items/character_item.h"
+#include "goldbox/vm_interface.h"
 #include "common/keyboard.h"
 
 namespace Goldbox {
@@ -150,7 +151,7 @@ void CharacterProfile::drawName() {
     Surface s = getSurface(kPaneIdentity);
 	s.writeStringC(0, 0, _poolradPc->getNameColor(), _poolradPc->name);
     if (_poolradPc->npc < 0) {
-		s.writeStringC(_poolradPc->name.size() + 3, 0, 14, "(NPC)");
+		s.writeStringC(_poolradPc->name.size() + 3, 0, 14, VmInterface::getString("profile.npc"));
     }
 }
 
@@ -160,7 +161,7 @@ void CharacterProfile::drawIdentity() {
 	String raceClass = VmInterface::getString(String::format("stats.gender.%d", _poolradPc->gender));
     raceClass += " ";
     raceClass += VmInterface::getString(String::format("stats.races.%d", _poolradPc->race));
-    raceClass += " AGE ";
+    raceClass += VmInterface::getString("profile.age");
     raceClass += String::format("%d", _poolradPc->age);
     s.writeStringC(0, 2, 15, raceClass);
     s.writeStringC(0, 3, 15, VmInterface::getString(String::format("stats.alignments.%d", _poolradPc->alignment)));
@@ -175,7 +176,7 @@ void CharacterProfile::drawStats() {
     const int dexterityColor = _highlightedStat == 3 ? 15 : 10;
     const int constitutionColor = _highlightedStat == 4 ? 15 : 10;
     const int charismaColor = _highlightedStat == 5 ? 15 : 10;
-    s.writeStringC(0, 0, strengthColor, "STR");
+    s.writeStringC(0, 0, strengthColor, VmInterface::getString("profile.str"));
     s.writeStringC(4, 0, strengthColor, String::format("%d", _poolradPc->abilities.strength.current));
     uint8 strEx = _poolradPc->abilities.strException.current;
     if (strEx > 0 && strEx <= 100) {
@@ -186,15 +187,15 @@ void CharacterProfile::drawStats() {
             strExStr = String::format("(%02d)", strEx);
         s.writeStringC(6, 0, strengthColor, strExStr);
     }
-    s.writeStringC(0, 1, intelligenceColor, "INT");
+    s.writeStringC(0, 1, intelligenceColor, VmInterface::getString("profile.int"));
     s.writeStringC(4, 1, intelligenceColor, String::format("%d", _poolradPc->abilities.intelligence.current));
-    s.writeStringC(0, 2, wisdomColor, "WIS");
+    s.writeStringC(0, 2, wisdomColor, VmInterface::getString("profile.wis"));
     s.writeStringC(4, 2, wisdomColor, String::format("%d", _poolradPc->abilities.wisdom.current));
-    s.writeStringC(0, 3, dexterityColor, "DEX");
+    s.writeStringC(0, 3, dexterityColor, VmInterface::getString("profile.dex"));
     s.writeStringC(4, 3, dexterityColor, String::format("%d", _poolradPc->abilities.dexterity.current));
-    s.writeStringC(0, 4, constitutionColor, "CON");
+    s.writeStringC(0, 4, constitutionColor, VmInterface::getString("profile.con"));
     s.writeStringC(4, 4, constitutionColor, String::format("%d", _poolradPc->abilities.constitution.current));
-    s.writeStringC(0, 5, charismaColor, "CHA");
+    s.writeStringC(0, 5, charismaColor, VmInterface::getString("profile.cha"));
     s.writeStringC(4, 5, charismaColor, String::format("%d", _poolradPc->abilities.charisma.current));
 }
 
@@ -226,11 +227,11 @@ void CharacterProfile::drawLevelExp() {
         }
     }
     Surface s = getSurface(kPaneLevelExp);
-    s.writeStringC(0, 0, 15, "Level");
+    s.writeStringC(0, 0, 15, VmInterface::getString("profile.level"));
     if (!levelStr.empty())
         s.writeStringC(6, 0, 15, levelStr);
 
-    s.writeStringC(16, 0, 15, "Exp");
+    s.writeStringC(16, 0, 15, VmInterface::getString("profile.exp"));
     s.writeStringC(20, 0, 15, String::format("%u", _poolradPc->experiencePoints));
 }
 
@@ -241,13 +242,13 @@ void CharacterProfile::drawCombat() {
     const int hpColor = _highlightedStat == 6 ? 15 : 10;
     s.writeStringC(0, 1, hpColor, "HP");
     s.writeStringC(3, 1, hpColor, String::format("%d", _poolradPc->hitPoints.current));
-    s.writeStringC(8, 0, 15, "THAC0");
+    s.writeStringC(8, 0, 15, VmInterface::getString("profile.thac0"));
     s.writeStringC(14, 0, 10, String::format("%d", _poolradPc->thac0.getCurrent()));
-	s.writeStringC(7, 1, 15, "Damage");
+	s.writeStringC(7, 1, 15, VmInterface::getString("profile.damage"));
     s.writeStringC(14, 1, 10, formatDamageText());
-    s.writeStringC(21, 0, 15, "Encumbrance");
+    s.writeStringC(21, 0, 15, VmInterface::getString("profile.encumbrance"));
     s.writeStringC(33, 0, 10, String::format("%d", _poolradPc->encumbrance));
-    s.writeStringC(24, 1, 15, "Movement");
+    s.writeStringC(24, 1, 15, VmInterface::getString("profile.movement"));
     s.writeStringC(33, 1, 10, String::format("%d", _poolradPc->movement.base));
 }
 
@@ -256,20 +257,20 @@ void CharacterProfile::drawItems() {
     using Goldbox::Data::Items::Slot;
     const Goldbox::Data::Items::CharacterItem *weapon = _poolradPc->getEquippedItem(Slot::S_MAIN_HAND);
     if (weapon) {
-        s.writeStringC(0, 0, 15, "Weapon");
+        s.writeStringC(0, 0, 15, VmInterface::getString("profile.weapon"));
         s.writeStringC(7, 0, 10, weapon->getDisplayName());
     }
 
     const Goldbox::Data::Items::CharacterItem *armor = _poolradPc->getEquippedItem(Slot::S_BODY_ARMOR);
     if (armor) {
-        s.writeStringC(1, 1, 15, "Armor");
+        s.writeStringC(1, 1, 15, VmInterface::getString("profile.armor"));
         s.writeStringC(7, 1, 10, armor->getDisplayName());
     }
 }
 
 void CharacterProfile::drawStatus() {
     Surface s = getSurface(kPaneStatus);
-    s.writeStringC(0, 0, 15, "Status");
+    s.writeStringC(0, 0, 15, VmInterface::getString("profile.status"));
     s.writeStringC(7, 0, 10, VmInterface::getString(String::format("stats.conditions.%d", _poolradPc->healthStatus)));
 }
 

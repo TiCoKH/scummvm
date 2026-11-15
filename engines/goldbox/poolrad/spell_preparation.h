@@ -89,8 +89,9 @@ public:
     bool canDoActivity(Activity activity) const;
 
     /**
-     * Camp.CanDoSpellActivity: the refusal text shown after the character's
-     * name, or nullptr when the activity is allowed. Casting is refused in an
+     * Camp.CanDoSpellActivity: the global_strings.yml key of the refusal
+     * text shown after the character's name, or nullptr when the activity
+     * is allowed. Casting is refused in an
      * anti-magic area; an animated or disabled character can do nothing.
      */
     const char *activityRefusal(Activity activity, bool antimagicArea) const;

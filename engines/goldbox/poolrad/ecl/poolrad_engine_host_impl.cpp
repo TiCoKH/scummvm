@@ -207,9 +207,10 @@ public:
         if (!character)
             return;
 
-        const char *msg = (character->hitPoints.current >= character->hitPoints.max)
-            ? "is fully healed"
-            : "is partially healed";
+        const Common::String msg = ::Goldbox::VmInterface::getString(
+            (character->hitPoints.current >= character->hitPoints.max)
+            ? "encounter.fullyhealed"
+            : "encounter.partiallyhealed");
         postEffectMessage(character, msg, true);
 
         if (!character->combatState)
@@ -1157,7 +1158,7 @@ int16 PoolradEngineHostImpl::horizontalMenu(
         Common::String promptText = options[0];
         if (promptText.hasPrefix("PRESS <RETURN>") ||
                 promptText.hasPrefix("PRESS <ENTER>")) {
-            promptText = "PRESS <ENTER>/<RETURN> TO CONTINUE";
+            promptText = ::Goldbox::VmInterface::getString("prompts.continue");
         }
         cfg.promptTxt = promptText;
         cfg.textColor = 15;
@@ -1395,7 +1396,7 @@ VmResult PoolradEngineHostImpl::beginSelectPartyMemberAsync(
         return VM_ERROR;
 
     Views::Dialogs::PartySelectorConfig cfg;
-    cfg.promptText = message.empty() ? Common::String("WHO") : message;
+    cfg.promptText = message.empty() ? ::Goldbox::VmInterface::getString("prompts.who") : message;
     cfg.allowExit = true;
     cfg.excludedCharacter = nullptr;
 
@@ -2133,10 +2134,10 @@ VmResult PoolradEngineHostImpl::encounterMenu(
         _showEncounterMessage(msg, !msg.empty());
 
         Common::Array<Common::String> menuOptions;
-        menuOptions.push_back("COMBAT");
-        menuOptions.push_back("WAIT");
-        menuOptions.push_back("FLEE");
-        menuOptions.push_back(op.usesParleyMenu() ? "PARLAY" : "ADVANCE");
+        menuOptions.push_back(::Goldbox::VmInterface::getString("encounter.combat"));
+        menuOptions.push_back(::Goldbox::VmInterface::getString("encounter.waitlabel"));
+        menuOptions.push_back(::Goldbox::VmInterface::getString("encounter.fleelabel"));
+        menuOptions.push_back(::Goldbox::VmInterface::getString(op.usesParleyMenu() ? "encounter.parlay" : "encounter.advance"));
 
         const int16 rawSel = _runEncounterHotkeyMenu(menuOptions);
         if (rawSel < 0)
@@ -2148,9 +2149,9 @@ VmResult PoolradEngineHostImpl::encounterMenu(
 
         if (step.terminal) {
             if (step.outcome == ECL::kEncounterMonstersFlee)
-                _showEncounterMessage("The monsters flee.", true);
+                _showEncounterMessage(::Goldbox::VmInterface::getString("encounter.flee"), true);
         } else if (!step.redisplay) {
-            _showEncounterMessage("Both sides wait.", true);
+            _showEncounterMessage(::Goldbox::VmInterface::getString("encounter.wait"), true);
         } else if (step.monsterDist != prevDist) {
             _memory->write8(distAddr, step.monsterDist);
             redrawEncounterStage(step.monsterDist);
@@ -2179,7 +2180,7 @@ VmResult PoolradEngineHostImpl::beginDamageReport(
         _showEncounterMessage(messages, false);
 
     if (partyKilled) {
-        _showEncounterMessage("The entire party is killed!", true);
+        _showEncounterMessage(::Goldbox::VmInterface::getString("encounter.partykilled"), true);
         const uint32 endTime = g_system->getMillis() + 3000;
         while (g_events && g_system->getMillis() < endTime) {
             if (!g_events->pumpModalInputFrame())
@@ -2189,7 +2190,7 @@ VmResult PoolradEngineHostImpl::beginDamageReport(
 
     // DisplayAndPause: wait for any key; there is no result to store.
     Common::Array<Common::String> prompt;
-    prompt.push_back("PRESS <ENTER>/<RETURN> TO CONTINUE");
+    prompt.push_back(::Goldbox::VmInterface::getString("prompts.continue"));
     const VmResult r = beginHorizontalMenuAsync(0, prompt);
     if (r == VM_YIELD)
         _asyncMenuAnyKey = true;
@@ -2232,7 +2233,7 @@ VmResult PoolradEngineHostImpl::beginHorizontalMenuAsync(uint16 resultAddr,
         Common::String promptText = options[0];
         if (promptText.hasPrefix("PRESS <RETURN>") ||
                 promptText.hasPrefix("PRESS <ENTER>")) {
-            promptText = "PRESS <ENTER>/<RETURN> TO CONTINUE";
+            promptText = ::Goldbox::VmInterface::getString("prompts.continue");
         }
         cfg.promptTxt = promptText;
         cfg.textColor = 15;

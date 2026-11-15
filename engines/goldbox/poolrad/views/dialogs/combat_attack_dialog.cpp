@@ -26,6 +26,7 @@
 #include "goldbox/combat/combat_session.h"
 #include "goldbox/combat/combat_context.h"
 #include "goldbox/data/player_character.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -35,7 +36,7 @@ namespace Dialogs {
 namespace {
 
 Common::String rangeText(uint8 range) {
-    return Common::String::format("Range = %u  ", (unsigned)range);
+    return Common::String::format(VmInterface::getString("combat.range").c_str(), (unsigned)range);
 }
 
 } // namespace
@@ -48,7 +49,7 @@ CombatAttackDialog::CombatAttackDialog()
     _manualAim = new CombatManualAimDialog();
 
     HorizontalYesNoConfig cfg;
-    cfg.promptTxt       = "Attack Ally: ";
+    cfg.promptTxt       = VmInterface::getString("combat.attackally");
     cfg.promptColor     = 13;
     cfg.textColor       = 10;
     cfg.selectColor     = 15;

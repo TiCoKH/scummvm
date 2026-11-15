@@ -27,6 +27,7 @@
 #include "goldbox/data/items/character_item.h"
 #include "goldbox/data/rules/rules_types.h"
 #include "goldbox/engine.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Data {
@@ -79,7 +80,7 @@ static void handleHaste(const EffectCall &c) {
         c.effect.power |= 0x10;
         c.character.age++;
         if (c.bridge)
-            c.bridge->postEffectMessage(&c.character, "ages", true);
+            c.bridge->postEffectMessage(&c.character, VmInterface::getString("effects.ages"), true);
     }
     if (c.combat && !c.combat->effectSet18.isMovement)
         c.combat->effectSet18.value *= 2;
@@ -124,7 +125,7 @@ static void handleWeakened(const EffectCall &c) {
         return;
     }
     if (c.bridge)
-        c.bridge->postEffectMessage(&c.character, "is weakened", true);
+        c.bridge->postEffectMessage(&c.character, VmInterface::getString("effects.weakened"), true);
     c.character.abilities.strength.current--;
 }
 
@@ -414,7 +415,7 @@ void handleSpiritualHammer(const EffectCall &c) {
         item.effect3 = 137;
 
         if (character.addItem(item) && c.bridge)
-            c.bridge->postEffectMessage(&c.character, "Gains an item...", true);
+            c.bridge->postEffectMessage(&c.character, VmInterface::getString("effects.gainsitem"), true);
     }
 
     character.onEffectsChanged();
@@ -449,7 +450,7 @@ bool rollAvoid(Goldbox::Data::PlayerCharacter &targetChar,
         return false;
 
     if (bridge)
-        bridge->postEffectMessage(&targetChar, "Avoids it.", true);
+        bridge->postEffectMessage(&targetChar, VmInterface::getString("effects.avoids"), true);
 
     combat.damage = 0;
     combat.attackRoll = 0xff;

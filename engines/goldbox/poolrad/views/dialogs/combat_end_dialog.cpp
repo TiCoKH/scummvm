@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/views/dialogs/combat_end_dialog.h"
 #include "goldbox/events.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -32,7 +33,7 @@ CombatEndDialog::CombatEndDialog()
     setBounds(Window(0, 24, 39, 24));
 
     HorizontalYesNoConfig cfg;
-    cfg.promptTxt       = "Continue Battle? ";
+    cfg.promptTxt       = VmInterface::getString("combat.continue");
     cfg.promptColor     = 15;
     cfg.textColor       = 10;
     cfg.selectColor     = 15;

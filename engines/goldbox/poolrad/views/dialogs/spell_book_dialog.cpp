@@ -129,7 +129,7 @@ SpellBookDialog::SpellBookDialog(const Common::String &name)
 
     // YesNoMenu('Lose it? ', LightMagenta, White, LightGreen).
     HorizontalYesNoConfig loseCfg;
-    loseCfg.promptTxt = "Lose it? ";
+    loseCfg.promptTxt = VmInterface::getString("spellbook.lose");
     loseCfg.promptColor = 13;
     loseCfg.textColor = 15;
     loseCfg.selectColor = 10;
@@ -149,12 +149,12 @@ void SpellBookDialog::buildMainMenu() {
     _mainMenuModel.currentSelection = 0;
 
     Common::Array<Common::String> labels;
-    labels.push_back("Cast");
-    labels.push_back("Memorize");
-    labels.push_back("Scribe");
-    labels.push_back("Display");
-    labels.push_back("Rest");
-    labels.push_back("Exit");
+    labels.push_back(VmInterface::getString("labels.cast"));
+    labels.push_back(VmInterface::getString("labels.memorize"));
+    labels.push_back(VmInterface::getString("labels.scribe"));
+    labels.push_back(VmInterface::getString("labels.display"));
+    labels.push_back(VmInterface::getString("labels.rest"));
+    labels.push_back(VmInterface::getString("labels.exit"));
 
     _mainMenuModel.generateMenuItems(labels, true);
 }
@@ -358,7 +358,7 @@ void SpellBookDialog::draw() {
 
     if (_displayMenu && _displayMenu->isActive()) {
         Surface s = getSurface();
-        s.drawWindow(1, 1, 38, 22, 0, 15, "Display");
+        s.drawWindow(1, 1, 38, 22, 0, 15, VmInterface::getString("spellbook.display"));
         _displayMenu->draw();
     }
 
@@ -454,7 +454,7 @@ void SpellBookDialog::beginCast() {
     // A non-caster has nothing to cast.
     if (!Goldbox::Poolrad::SpellPreparation(_character)
             .canDoActivity(SpellPreparation::ACT_CAST)) {
-        showNameMessage("has no spells memorized");
+        showNameMessage(VmInterface::getString("spellbook.nomemorized"));
         _screenDirty = true;
         returnToMainMenu();
         return;
@@ -492,7 +492,7 @@ void SpellBookDialog::enterMemorizeSelection() {
     // Camp.DisplaySpellSlots: no spell allowance at all ends the menu.
     if (!Goldbox::Poolrad::SpellPreparation(_character)
             .canDoActivity(SpellPreparation::ACT_MEMORIZE)) {
-        showNameMessage("cannot memorize any spells");
+        showNameMessage(VmInterface::getString("spellbook.cannotmemorize"));
         finishPrep(true);
         return;
     }
@@ -532,7 +532,7 @@ void SpellBookDialog::beginScribe() {
 
 void SpellBookDialog::enterScribeSelection() {
     if (!Goldbox::Poolrad::SpellPreparation(_character).hasScrollSpells()) {
-        showNameMessage("has no copyable scrolls");
+        showNameMessage(VmInterface::getString("spellbook.noscrolls"));
         finishPrep(false);
         return;
     }
@@ -569,11 +569,11 @@ void SpellBookDialog::openPrepConfirm(bool memorize) {
     _stage = memorize ? STAGE_MEMORIZE_CONFIRM : STAGE_SCRIBE_CONFIRM;
     Common::String prompt;
     if (memorize)
-        prompt = _prepFinalPass ? "Memorize these spells? "
-                                : "Memorize These Spells? ";
+        prompt = VmInterface::getString(_prepFinalPass ? "spellbook.memorizefinal"
+                                : "spellbook.memorize");
     else
-        prompt = _prepFinalPass ? "Scribe these spells? "
-                                : "Scribe These Spells? ";
+        prompt = VmInterface::getString(_prepFinalPass ? "spellbook.scribefinal"
+                                : "spellbook.scribe");
     if (_confirmDialog) {
         _confirmDialog->setPrompt(prompt, 14);
         _confirmDialog->activate();
@@ -729,7 +729,7 @@ bool SpellBookDialog::refuseActivity(int activity) {
     if (!refusal)
         return false;
 
-    showNameMessage(refusal);
+    showNameMessage(VmInterface::getString(refusal));
     _screenDirty = true;
     returnToMainMenu();
     return true;
@@ -787,7 +787,7 @@ void SpellBookDialog::drawCastMessage() {
 
     if (_castMessage == CAST_MSG_COMBAT_ONLY) {
         s.writeStringC(1, 19, 10, spellName);
-        s.writeStringC(1, 20, 10, "is a combat-only spell...");
+        s.writeStringC(1, 20, 10, VmInterface::getString("spellbook.combatonly"));
         return;
     }
 
@@ -806,7 +806,7 @@ void SpellBookDialog::drawCastMessage() {
         // DisplayCreatureName: LightRed when disabled, else LightCyan.
         s.writeStringC(1, 19, _character->enabled ? 11 : 12,
             _character->name);
-        s.writeStringC(_character->name.size() + 2, 19, 10, "casts");
+        s.writeStringC(_character->name.size() + 2, 19, 10, VmInterface::getString("spellbook.casts"));
     }
     s.writeStringC(1, 20, 10, spellName);
 }
@@ -875,13 +875,13 @@ void SpellBookDialog::handleScribeResult(const MenuResultMessage &result) {
             Goldbox::Poolrad::Data::kPoolradSpellMapping[legacyIndex];
         Goldbox::Poolrad::SpellPreparation prep(_character);
         if (_character->spells.knownSpells[legacyIndex] != 0)
-            showBottomMessage("You already know that spell");
+            showBottomMessage(VmInterface::getString("spellbook.known"));
         else if (prep.isScribing(spell))
-            showBottomMessage("You are already scibing that spell");
+            showBottomMessage(VmInterface::getString("spellbook.scribing"));
         else if (prep.slotCapacity(spell) > 0)
             prep.markScribe(spell);
         else
-            showBottomMessage("You can not scribe that spell.");
+            showBottomMessage(VmInterface::getString("spellbook.cannotscribe"));
     }
 
     enterScribeSelection();
@@ -984,7 +984,7 @@ void SpellBookDialog::buildActiveEffectDisplay() {
             }
         }
         if (count == 0)
-            Local::add(_displayModel, false, " <No Spell Effects>");
+            Local::add(_displayModel, false, VmInterface::getString("spellbook.noeffects"));
         Local::add(_displayModel, false, " ");
     }
 }
@@ -992,20 +992,22 @@ void SpellBookDialog::buildActiveEffectDisplay() {
 // The name Camp.CampDisplayMenu shows for an effect, or empty to hide it.
 Common::String SpellBookDialog::effectDisplayName(uint8 id) {
     switch (id) {
-    case 4:  return "Studying Manual of Bodily Health";
-    case 7:  return "Training with Manual of Bodily Health";
-    case 27: return "Feather Fall";
-    case 31: return "Helpless";
-    case 35: return "Prayer";
-    case 44: return "Cause Disease";
-    case 50: return "Dreaded Mummy Disease";
-    case 54: return "Repulsed";
-    case 55: return "Poisoned";
-    case 59: return "Regenerating";
-    case 61: return "Fire Resistance";
-    case 71: return "Invisible";
-    case 72: return "Camouflaged";
-    case 89: return "Displaced";
+    case 4:
+    case 7:
+    case 27:
+    case 31:
+    case 35:
+    case 44:
+    case 50:
+    case 54:
+    case 55:
+    case 59:
+    case 61:
+    case 71:
+    case 72:
+    case 89:
+        return VmInterface::getString(
+            Common::String::format("spellbook.effects.%u", (unsigned)id));
     default:
         break;
     }
@@ -1027,7 +1029,7 @@ Common::String SpellBookDialog::effectDisplayName(uint8 id) {
             return Goldbox::Spells::getSpellName(
                 static_cast<Goldbox::Data::Spells::Spells>(k));
     }
-    return Common::String::format("Funky--%u", (unsigned)id);
+    return Common::String::format(VmInterface::getString("spellbook.funky").c_str(), (unsigned)id);
 }
 
 // Camp.DisplaySpellSlots: "<name> can memorize:" and the slots left per
@@ -1039,14 +1041,14 @@ void SpellBookDialog::drawSpellSlots() {
     drawWindow(1, 17, 38, 22);
     Surface s = getSurface();
     s.writeStringC(1, 18, _character->enabled ? 11 : 12, _character->name);
-    s.writeStringC(1, 19, 10, "can memorize:");
+    s.writeStringC(1, 19, 10, VmInterface::getString("spellbook.canmemorize"));
 
     Goldbox::Poolrad::SpellPreparation prep(_character);
     static const Goldbox::Data::Spells::SpellClass kClasses[2] = {
         Goldbox::Data::Spells::SC_CLERIC, Goldbox::Data::Spells::SC_MAGICUSER
     };
     static const char *const kLabels[2] = {
-        "    Cleric Spells:", "Magic-User Spells:"
+        "spellbook.clericspells", "spellbook.magespells"
     };
     int row = 20;
     for (int typ = 0; typ < 2; ++typ) {
@@ -1055,7 +1057,7 @@ void SpellBookDialog::drawSpellSlots() {
             any = any || prep.slotAllowance(kClasses[typ], lvl) != 0;
         if (!any)
             continue;
-        s.writeStringC(1, row, 10, kLabels[typ]);
+        s.writeStringC(1, row, 10, VmInterface::getString(kLabels[typ]));
         int col = 20;
         for (uint8 lvl = 1; lvl <= 3; ++lvl) {
             if (prep.slotAllowance(kClasses[typ], lvl) != 0)

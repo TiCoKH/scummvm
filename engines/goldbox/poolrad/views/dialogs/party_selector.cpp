@@ -83,9 +83,9 @@ PartySelector::~PartySelector() {
 
 void PartySelector::buildMenuItems() {
     Common::Array<Common::String> labels;
-    labels.push_back("Select");
+    labels.push_back(VmInterface::getString("labels.select"));
     if (_config.allowExit) {
-        labels.push_back("Exit");
+        labels.push_back(VmInterface::getString("labels.exit"));
     }
     _menuItems.generateMenuItems(labels, true);
 }

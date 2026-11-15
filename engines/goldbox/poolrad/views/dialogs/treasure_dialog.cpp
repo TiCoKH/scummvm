@@ -47,8 +47,8 @@ static ShopBaseConfig makeTreasureConfig() {
     ShopBaseConfig cfg;
     cfg.type = SHOP_TREASURE;
     cfg.menuPrompt = "";
-    cfg.exitConfirmLine1 = "There is still treasure left.  ";
-    cfg.exitConfirmLine2 = "Do you want to go back and claim your treasure?";
+    cfg.exitConfirmLine1 = VmInterface::getString("treasure.exit1");
+    cfg.exitConfirmLine2 = VmInterface::getString("treasure.exit2");
     cfg.exitConfirmColor2 = 15;
     return cfg;
 }
@@ -115,15 +115,15 @@ void TreasureDialog::openTakeChoice() {
     _takeStage = TAKE_CHOICE;
 
     Common::Array<Common::String> opts;
-    opts.push_back("Money");
-    opts.push_back("Items");
-    opts.push_back("Exit");
+    opts.push_back(VmInterface::getString("labels.money"));
+    opts.push_back(VmInterface::getString("labels.items"));
+    opts.push_back(VmInterface::getString("labels.exit"));
     _takeChoiceModel.items.clear();
     _takeChoiceModel.currentSelection = 0;
     _takeChoiceModel.generateMenuItems(opts, true);
 
     HorizontalMenuConfig cfg;
-    cfg.promptTxt = "Take: ";
+    cfg.promptTxt = VmInterface::getString("treasure.take");
     cfg.menuItemList = &_takeChoiceModel;
     cfg.textColor = 10;
     cfg.selectColor = 15;
@@ -232,10 +232,10 @@ void TreasureDialog::openLootSelector() {
     _takeStage = TAKE_ITEMS;
 
     _lootPromptOpts.clear();
-    _lootPromptOpts.push_back("Take");
+    _lootPromptOpts.push_back(VmInterface::getString("labels.take"));
 
     VerticalMenuConfig cfg;
-    cfg.promptTxt = "Items: ";
+    cfg.promptTxt = VmInterface::getString("treasure.items");
     cfg.promptOptions = &_lootPromptOpts;
     cfg.menuItemList = &_lootItems;
     cfg.headColor = 15;
@@ -376,7 +376,7 @@ void TreasureDialog::draw() {
     case TAKE_ITEMS:
         if (_lootSelector && _lootSelector->isActive()) {
             Surface s = getSurface();
-            s.drawWindow(1, 1, 38, 22, 0, 15, "Loot");
+            s.drawWindow(1, 1, 38, 22, 0, 15, VmInterface::getString("treasure.title"));
             _lootSelector->draw();
         }
         break;

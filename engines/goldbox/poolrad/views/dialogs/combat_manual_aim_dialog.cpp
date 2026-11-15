@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/views/dialogs/combat_manual_aim_dialog.h"
 #include "goldbox/combat/combat_session.h"
+#include "goldbox/vm_interface.h"
 #include "common/util.h"
 
 namespace Goldbox {
@@ -130,9 +131,9 @@ void CombatManualAimDialog::evaluateCursor() {
 void CombatManualAimDialog::buildCommandMenu() {
     Common::Array<Common::String> labels;
     if (_cell.valid)
-        labels.push_back("Target");
-    labels.push_back("Center");
-    labels.push_back("Exit");
+        labels.push_back(VmInterface::getString("labels.target"));
+    labels.push_back(VmInterface::getString("labels.center"));
+    labels.push_back(VmInterface::getString("labels.exit"));
 
     _menuModel.items.clear();
     _menuModel.currentSelection = 0;
@@ -141,7 +142,7 @@ void CombatManualAimDialog::buildCommandMenu() {
     delete _horizontalMenu;
 
     HorizontalMenuConfig cfg;
-    cfg.promptTxt             = "(Use Cursor keys) ";
+    cfg.promptTxt             = VmInterface::getString("combat.cursorkeys");
     cfg.menuItemList          = &_menuModel;
     cfg.textColor             = 10;
     cfg.selectColor           = 15;

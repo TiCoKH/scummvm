@@ -217,48 +217,25 @@ void ShopBaseDialog::buildMenuModel() {
 
     switch (_shopType) {
     case SHOP_STORE:
-        menuStrings.push_back("Buy");
-        menuStrings.push_back("View");
-        if (_hasMoney) {
-            menuStrings.push_back("Take");
-            menuStrings.push_back("Pool");
-            menuStrings.push_back("Share");
-        } else {
-            menuStrings.push_back("Pool");
-        }
-        menuStrings.push_back("Appraise");
-        menuStrings.push_back("Exit");
+        menuStrings = VmInterface::getStringTokens(
+            _hasMoney ? "store.menu2" : "store.menu1");
         break;
 
     case SHOP_TEMPLE:
-        menuStrings.push_back("Heal");
-        menuStrings.push_back("View");
-        if (_hasMoney) {
-            menuStrings.push_back("Take");
-            menuStrings.push_back("Pool");
-            menuStrings.push_back("Share");
-        } else {
-            menuStrings.push_back("Pool");
-        }
-        menuStrings.push_back("Appraise");
-        menuStrings.push_back("Exit");
+        menuStrings = VmInterface::getStringTokens(
+            _hasMoney ? "temple.menu2" : "temple.menu1");
         break;
 
     case SHOP_TREASURE:
-        menuStrings.push_back("View");
-        if (_hasMoney) {
-            menuStrings.push_back("Take");
-            menuStrings.push_back("Pool");
-            menuStrings.push_back("Share");
-        } else if (_hasItems) {
-            menuStrings.push_back("Take");
-            menuStrings.push_back("Pool");
-        } else {
-            menuStrings.push_back("Pool");
-        }
+        if (_hasMoney)
+            menuStrings = VmInterface::getStringTokens("treasure.menu2");
+        else if (_hasItems)
+            menuStrings = VmInterface::getStringTokens("treasure.menu3");
+        else
+            menuStrings = VmInterface::getStringTokens("treasure.menu1");
         if (hasDetectSpell())
-            menuStrings.push_back("Detect");
-        menuStrings.push_back("Exit");
+            menuStrings.push_back(VmInterface::getString("labels.detect"));
+        menuStrings.push_back(VmInterface::getString("labels.exit"));
         break;
     }
 
@@ -510,7 +487,7 @@ void ShopBaseDialog::actionAppraise() {
     uint16 jewelry = ch->valuableItems.values[Goldbox::Data::VAL_JEWELRY];
 
     if (gems == 0 && jewelry == 0) {
-        showPromptMessage("No Gems or Jewelry");
+        showPromptMessage(VmInterface::getString("shop.nogems"));
         return;
     }
 
@@ -772,16 +749,16 @@ void ShopBaseDialog::openAppraiseScreen() {
     Surface s = getSurface();
     s.clearBox(1, 1, 38, 22, 0);
     s.writeStringC(1, 1, 15, ch->name);
-    s.writeStringC(1, 7, 15, "You have a fine collection of:");
+    s.writeStringC(1, 7, 15, VmInterface::getString("shop.collection"));
 
     if (gems > 0) {
-        Common::String gemStr = Common::String::format("%u %s",
-            gems, (gems == 1) ? "Gem" : "Gems");
+        Common::String gemStr = Common::String::format(VmInterface::getString(
+            (gems == 1) ? "shop.gem" : "shop.gems").c_str(), gems);
         s.writeStringC(1, 9, 15, gemStr);
     }
     if (jewelry > 0) {
-        Common::String jewStr = Common::String::format("%u %s",
-            jewelry, (jewelry == 1) ? "piece of Jewelry" : "pieces of Jewelry");
+        Common::String jewStr = Common::String::format(VmInterface::getString(
+            (jewelry == 1) ? "shop.jewel" : "shop.jewels").c_str(), jewelry);
         s.writeStringC(1, 10, 15, jewStr);
     }
 
@@ -794,7 +771,7 @@ void ShopBaseDialog::openAppraiseScreen() {
     }
 
     HorizontalMenuConfig cfg;
-    cfg.promptTxt = "Appraise :";
+    cfg.promptTxt = VmInterface::getString("shop.appraise");
     cfg.menuItemList = &_appraiseMenuModel;
     cfg.textColor = 10;
     cfg.selectColor = 15;
@@ -822,10 +799,10 @@ void ShopBaseDialog::buildAppraiseMenuModel() {
 
     Common::Array<Common::String> opts;
     if (ch->valuableItems.values[Goldbox::Data::VAL_GEMS] > 0)
-        opts.push_back("Gems");
+        opts.push_back(VmInterface::getString("labels.gems"));
     if (ch->valuableItems.values[Goldbox::Data::VAL_JEWELRY] > 0)
-        opts.push_back("Jewelry");
-    opts.push_back("Exit");
+        opts.push_back(VmInterface::getString("labels.jewelry"));
+    opts.push_back(VmInterface::getString("labels.exit"));
 
     _appraiseMenuModel.generateMenuItems(opts, true);
 }
@@ -911,8 +888,9 @@ void ShopBaseDialog::appraiseItem(AppraiseType type) {
 
     // Display appraisal result
     Surface s = getSurface();
-    Common::String valueStr = Common::String::format("The %s is Valued at %u gp.",
-        (type == APPRAISE_GEM) ? "Gem" : "Jewel", _appraiseValue);
+    Common::String valueStr = Common::String::format(VmInterface::getString(
+        (type == APPRAISE_GEM) ? "shop.gemvalue" : "shop.jewelvalue").c_str(),
+        _appraiseValue);
     s.writeStringC(1, 12, 15, valueStr);
 
     // Determine keep/sell options
@@ -927,7 +905,7 @@ void ShopBaseDialog::appraiseItem(AppraiseType type) {
     }
 
     HorizontalMenuConfig cfg;
-    cfg.promptTxt = "You can :";
+    cfg.promptTxt = VmInterface::getString("shop.youcan");
     cfg.menuItemList = &_appraiseKSModel;
     cfg.textColor = 10;
     cfg.selectColor = 15;
@@ -978,9 +956,9 @@ void ShopBaseDialog::buildKeepSellModel() {
     }
 
     Common::Array<Common::String> opts;
-    opts.push_back("Sell");
+    opts.push_back(VmInterface::getString("labels.sell"));
     if (!_appraiseSellOnly)
-        opts.push_back("Keep");
+        opts.push_back(VmInterface::getString("labels.keep"));
     _appraiseKSModel.generateMenuItems(opts, true);
 }
 
@@ -1039,7 +1017,7 @@ void ShopBaseDialog::handleKeepSellResult(const MenuResultMessage &result) {
             const uint32 platinum = (uint32)(_appraiseValue / 5);
             Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
             if (pool.givePlatinum(*ch, platinum))
-                showPromptMessage("Overloaded.  Money will be put in Pool.");
+                showPromptMessage(VmInterface::getString("shop.overloaded"));
             debug(1, "[Shop:%s] appraise-sell: value=%u platinum=%u",
                 getName().c_str(), (unsigned)_appraiseValue,
                 (unsigned)platinum);

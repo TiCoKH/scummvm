@@ -19,6 +19,7 @@
  */
 
 #include "goldbox/poolrad/views/game_over_view.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -32,8 +33,8 @@ void GameOverView::draw() {
     Surface s = getSurface();
     s.clear(0);
     s.drawWindow(1, 1, 38, 22, 0);
-    s.writeCenteredString("The END!", 3);
-    s.writeCenteredString("Your party has been defeated.", 10);
+    s.writeCenteredString(VmInterface::getString("gameover.title"), 3);
+    s.writeCenteredString(VmInterface::getString("gameover.defeated"), 10);
 }
 
 } // namespace Views

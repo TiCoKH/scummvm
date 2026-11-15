@@ -75,7 +75,7 @@ MainmenuView::MainmenuView() : View("Mainmenu") {
     _loadSaveDialog->deactivate();
     _loadSaveDialog->setParent(nullptr);
 
-    Dialogs::HorizontalYesNoConfig exitCfg = { "Quit to DOS ", 13, 10, 15, 0 };
+    Dialogs::HorizontalYesNoConfig exitCfg = { VmInterface::getString("prompts.quitdos"), 13, 10, 15, 0 };
     _exitConfirmDialog = new Dialogs::HorizontalYesNo("MainmenuExitConfirm", exitCfg);
     _exitConfirmDialog->deactivate();
     _exitConfirmDialog->setParent(nullptr);
@@ -457,7 +457,7 @@ void MainmenuView::updateMenuState() {
 void MainmenuView::drawPrompt() {
     Surface s = getSurface();
     s.clearBox(0, 24, 39, 24, 0);
-    s.writeStringC(0, 24, 13, "Choose a function");
+    s.writeStringC(0, 24, 13, VmInterface::getString("prompts.choosefunction"));
 }
 
 } // namespace Views

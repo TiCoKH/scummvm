@@ -111,7 +111,7 @@ InGameView::InGameView() : View("InGame") {
 
 	// Attached on demand: PromptMessage detaches itself on timeout.
 	Dialogs::PromptMessageConfig notHereCfg;
-	notHereCfg.message = "Not Here";
+	notHereCfg.message = VmInterface::getString("prompts.nothere");
 	notHereCfg.textColor = 14;
 	_notHerePrompt = new Dialogs::PromptMessage("InGameNotHere", notHereCfg);
 	_notHerePrompt->deactivate();
@@ -850,13 +850,13 @@ void InGameView::castFromMap() {
 	case SpellPreparation::NCC_NOT_OKAY:
 		return;
 	case SpellPreparation::NCC_ANTIMAGIC_AREA:
-		refusal = "cannot cast spells in this area";
+		refusal = "spellbook.casthere";
 		break;
 	case SpellPreparation::NCC_NO_CONDITION:
-		refusal = "is in no condition to cast any spells";
+		refusal = "spellbook.nocast";
 		break;
 	case SpellPreparation::NCC_NOTHING_MEMORIZED:
-		refusal = "has no spells memorized";
+		refusal = "spellbook.nomemorized";
 		break;
 	case SpellPreparation::NCC_ALLOWED:
 	default:
@@ -864,7 +864,7 @@ void InGameView::castFromMap() {
 	}
 
 	if (refusal) {
-		showTimedNameMessage(sel, refusal);
+		showTimedNameMessage(sel, VmInterface::getString(refusal));
 		return;
 	}
 
@@ -889,11 +889,11 @@ void InGameView::finishMapCast() {
 
 	if (_mapCastDialog->castListEmptied() && g_engine)
 		showTimedNameMessage(g_engine->getSelectedCharacter(),
-			"has no spells memorized");
+			VmInterface::getString("spellbook.nomemorized"));
 }
 
 void InGameView::showTimedNameMessage(Goldbox::Data::PlayerCharacter *ch,
-		const char *text) {
+		const Common::String &text) {
 	if (!_textBoxDialog)
 		return;
 	if (!_textBoxDialog->isActive())

@@ -55,9 +55,9 @@ public:
         return g_engine->rollDice(number, sides);
     }
 
-    // Add getString method
+    // UI text from global_strings.yml; warns and returns empty for a missing key.
     static Common::String getString(const Common::String &key) {
-        return g_engine->_strings.getVal(key);
+        return g_engine->getString(key);
     }
 
     static Common::Array<Common::String> getStringTokens(const Common::String &key) {

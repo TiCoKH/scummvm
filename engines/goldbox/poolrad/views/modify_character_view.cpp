@@ -109,12 +109,12 @@ ModifyCharacterView::ModifyCharacterView()
 		  _horizontalMenu(nullptr), _selectedStat(0), _canModify(false),
 		  _menuActive(false) {
 	Common::Array<Common::String> menuOptions;
-	menuOptions.push_back("Keep");
-	menuOptions.push_back("Exit");
+	menuOptions.push_back(VmInterface::getString("labels.keep"));
+	menuOptions.push_back(VmInterface::getString("labels.exit"));
 	_menuItems.generateMenuItems(menuOptions, true);
 
 	Dialogs::HorizontalMenuConfig menuConfig = {
-		"Modify character: ",
+		VmInterface::getString("modify.prompt"),
 		&_menuItems,
 		10,
 		15,
@@ -179,8 +179,8 @@ void ModifyCharacterView::draw() {
 	if (!_character) {
 		drawWindow(1, 1, 38, 22);
 		Surface surface = getSurface();
-		surface.writeStringC(1, 2, 12, "No selected character to modify.");
-		surface.writeStringC(1, 24, 13, "Press Esc to return.");
+		surface.writeStringC(1, 2, 12, VmInterface::getString("modify.noselection"));
+		surface.writeStringC(1, 24, 13, VmInterface::getString("modify.escreturn"));
 		return;
 	}
 
@@ -193,7 +193,7 @@ void ModifyCharacterView::draw() {
 	} else {
 		surface.clearBox(0, 23, 39, 24, 0);
 		surface.writeStringC(0, 24, 12,
-			"Character cannot be modified (0 experience required).");
+			VmInterface::getString("modify.noexp"));
 	}
 }
 

@@ -114,7 +114,7 @@ static void setEffectLock(bool locked) {
 }
 
 static void say(const EffectCall &c, PlayerCharacter *ch,
-        const char *text, bool withDelay = true) {
+        const Common::String &text, bool withDelay = true) {
     if (c.bridge)
         c.bridge->postEffectMessage(ch, text, withDelay);
 }
@@ -197,7 +197,7 @@ static void nullifyAttack(const EffectCall &c, uint8 effectId) {
 
 // EffHndlr.InflictStatusMsg.
 static void inflictStatusMsg(const EffectCall &c, PlayerCharacter &ch,
-        uint8 status, const char *message) {
+        uint8 status, const Common::String &message) {
     effectSystemFor(c).setStatus(ch, status, message);
 }
 
@@ -355,14 +355,14 @@ static bool reviveDeadCreature(const EffectCall &c, PlayerCharacter &ch,
     ch.enabled = true;
     ch.hitPoints.current = hp;
     say(c, &ch, ch.combatSide == Goldbox::Data::CS_ENEMY ?
-        "stands up and grins" : "gets back up");
+        VmInterface::getString("effects.grins") : VmInterface::getString("effects.getsup"));
     countTeams();
     return true;
 }
 
 // FxEngine.PutOutOfPlayWithStatus.
 static void putOutOfPlayWithStatus(const EffectCall &c, PlayerCharacter &ch,
-        uint8 status, const char *message) {
+        uint8 status, const Common::String &message) {
     if (!ch.enabled)
         return;
     say(c, &ch, message);
@@ -400,7 +400,7 @@ static void avoidRanged(const EffectCall &c, uint8 percent) {
         return;
     if (rollDice(1, 100) > percent)
         return;
-    say(c, &c.character, "Avoids it");
+    say(c, &c.character, VmInterface::getString("effects.avoids2"));
     c.combat->damage = 0;
     c.combat->attackRoll = 0xFF;
     --c.combat->hitsMade[0];
@@ -510,7 +510,7 @@ static void handleUndeadSlayer(const EffectCall &c) {
 
 // Effect 4: start training with the Manual of Bodily Health.
 static void handleTrainStart(const EffectCall &c) {
-    say(c, &c.character, "starts to train");
+    say(c, &c.character, VmInterface::getString("effects.trains"));
     c.character.addEffect(E_POOLRAD_TRAIN_MANUAL, 43200, 0xFF, true);
 }
 
@@ -542,7 +542,7 @@ static void handleFlameTongue(const EffectCall &c) {
 // Effect 7: Manual of Bodily Health training done.
 static void handleTrainManual(const EffectCall &c) {
     Data::PoolradCharacter &ch = asPoolrad(c.character);
-    say(c, &ch, "is hardier");
+    say(c, &ch, VmInterface::getString("effects.hardier"));
     ++ch.abilities.constitution.current;
     const uint8 con = ch.abilities.constitution.current;
     if (con >= 20) {
@@ -728,7 +728,7 @@ static void handleSilence(const EffectCall &c) {
     if (!cs)
         return;
     if (cs->canUse)
-        say(c, &c.character, "is silenced");
+        say(c, &c.character, VmInterface::getString("effects.silenced"));
     cs->canUse = false;
     cs->canCast = false;
 }
@@ -737,7 +737,7 @@ static void handleSilence(const EffectCall &c) {
 static void handleSlowPoisonEnd(const EffectCall &c) {
     if (hasEffect(c.character, E_POOLRAD_POISONED))
         inflictStatusMsg(c, c.character, Goldbox::Data::S_DEAD,
-            "dies from poison");
+            VmInterface::getString("effects.poisondeath"));
     setEffectLock(true);
     removeEffect(c, c.character, E_POOLRAD_SLOW_POISON_HIT);
     setEffectLock(false);
@@ -767,7 +767,7 @@ static void handleSpiritHammer(const EffectCall &c) {
         item.effect2 = E_POOLRAD_SPIRIT_HAMMER;
         item.effect3 = E_POOLRAD_SPIRIT_HAMMER_GONE;
         if (ch.addItem(item))
-            say(c, &ch, "Gains an item");
+            say(c, &ch, VmInterface::getString("effects.gainsitem2"));
     }
     ch.recalcCombatStats();
 }
@@ -802,7 +802,7 @@ static void handleMirrorImage(const EffectCall &c) {
     if (!c.combat || c.combat->activeSpellId == 0 || c.combat->multiTarget)
         return;
     nullifyAttack(c, 0);
-    say(c, &c.character, "lost an image");
+    say(c, &c.character, VmInterface::getString("effects.lostimage"));
     --c.effect.power;
     if (c.effect.power == 0)
         removeEffect(c, c.character, E_POOLRAD_MIRROR_IMAGE);
@@ -819,7 +819,7 @@ static void handleStinkCough(const EffectCall &c) {
     Goldbox::Data::ADnDCharacter &ch = asAdnd(c.character);
     if (ch.combatState) {
         if (ch.combatState->canUse)
-            say(c, &ch, "is coughing");
+            say(c, &ch, VmInterface::getString("effects.coughing"));
         ch.combatState->canUse = false;
         ch.combatState->canCast = false;
     }
@@ -837,7 +837,7 @@ static void handleAnimateDead(const EffectCall &c) {
     const uint8 side = c.effect.power >> 4;
     Data::PoolradCharacter &ch = asPoolrad(c.character);
     if (!effectLocked())
-        inflictStatusMsg(c, ch, Goldbox::Data::S_DEAD, "collapses");
+        inflictStatusMsg(c, ch, Goldbox::Data::S_DEAD, VmInterface::getString("effects.collapses"));
     ch.combatSide = side ? Goldbox::Data::CS_ENEMY : Goldbox::Data::CS_PARTY;
     ch.ai_control = true;
     ch.levelUndead = 0;
@@ -895,7 +895,7 @@ static void handleBlinking(const EffectCall &c) {
 static void handleHasted(const EffectCall &c) {
     if (!(c.effect.power & 0x10)) {
         c.effect.power += 0x10;
-        say(c, &c.character, "ages");
+        say(c, &c.character, VmInterface::getString("effects.ages"));
         ++c.character.age;
     }
     if (c.combat)
@@ -934,7 +934,7 @@ static void handleDiseaseStr(const EffectCall &c) {
             c.effect.power, 60))
         return;
     if (c.character.abilities.strength.current > 3) {
-        say(c, &c.character, "is weakened");
+        say(c, &c.character, VmInterface::getString("effects.weakened"));
         --c.character.abilities.strength.current;
     } else {
         addHelplessOnce(c.character);
@@ -1013,7 +1013,7 @@ static void handleMummyRot(const EffectCall &c) {
     if (effectLocked())
         return;
     PlayerCharacter &ch = c.character;
-    say(c, &ch, "Rots...");
+    say(c, &ch, VmInterface::getString("effects.rots"));
     uint8 &cha = ch.abilities.charisma.current;
     cha = cha > 2 ? cha - 2 : 0;
     if (cha < 3)
@@ -1022,7 +1022,7 @@ static void handleMummyRot(const EffectCall &c) {
         c.effect.power -= 0x10;
         addEffectIfNoLock(ch, E_POOLRAD_MUMMY_ROT, c.effect.power, 43200);
     } else {
-        inflictStatusMsg(c, ch, Goldbox::Data::S_GONE, "Dies rots away");
+        inflictStatusMsg(c, ch, Goldbox::Data::S_GONE, VmInterface::getString("effects.rotsaway"));
     }
 }
 
@@ -1072,9 +1072,9 @@ static void poisonTouch(const EffectCall &c, int8 saveModifier) {
     if (rollSavingThrow(c, *target, Goldbox::Data::Spells::SVS_POISON,
             saveModifier))
         return;
-    say(c, target, "is Poisoned", false);
+    say(c, target, VmInterface::getString("effects.poisoned"), false);
     target->addEffect(E_POOLRAD_POISONED, 0, 0xFF, false);
-    inflictStatusMsg(c, *target, Goldbox::Data::S_DEAD, "is killed");
+    inflictStatusMsg(c, *target, Goldbox::Data::S_DEAD, VmInterface::getString("effects.killed"));
 }
 
 // EffHndlr.ParalysisTouch. The original takes a save modifier but never
@@ -1085,7 +1085,7 @@ static void paralysisTouch(const EffectCall &c, uint16 minutes) {
         return;
     if (rollSavingThrow(c, *target, Goldbox::Data::Spells::SVS_POISON, 0))
         return;
-    say(c, target, "is Paralyzed");
+    say(c, target, VmInterface::getString("effects.paralyzed"));
     target->addEffect(E_POOLRAD_PARALYSIS, minutes, 12, false);
 }
 
@@ -1171,7 +1171,7 @@ static void handleRearClawRake(const EffectCall &c) {
     PlayerCharacter *target = combatTarget(c.character);
     if (!target || !target->enabled)
         return;
-    say(c, &c.character, "Rakes...");
+    say(c, &c.character, VmInterface::getString("effects.rakes"));
     executeTemporaryAttack(c.character, target, 2, 2, 4);
     c.character.resetCombatAction();
 }
@@ -1214,7 +1214,7 @@ static void handleBloodDrain(const EffectCall &c) {
         return;
     }
 
-    say(c, &c.character, "Sucks some Blood");
+    say(c, &c.character, VmInterface::getString("effects.blood"));
     const uint8 damage = rollDamageDice(c, 1, 4);
     inflictNonWeaponDamage(c, *victim, damage, 0, 0, false);
     c.character.resetCombatAction();
@@ -1243,7 +1243,7 @@ static void handleBiteAttach(const EffectCall &c) {
     c.character.addEffect(E_POOLRAD_BITE_HOLD, 0, combatSlot(target), true);
     target->addEffect(E_POOLRAD_IMMOBILE, 0, 0xFF, false);
     callEffectHandler(c, E_POOLRAD_IMMOBILE, *target, nullptr, false);
-    say(c, target, "is held fast");
+    say(c, target, VmInterface::getString("effects.heldfast"));
 }
 
 // Effect 78: healed from unconscious; retry a minute later if blocked.
@@ -1273,7 +1273,7 @@ static void handleAcidSquirt(const EffectCall &c) {
 // permanent, and the new node is always added.
 static bool addEffectWithMessage(const EffectCall &c, PlayerCharacter &ch,
         uint8 effectId, uint16 minutes, uint8 strength, bool onRemove,
-        bool saveNegates, bool saved, const char *message) {
+        bool saveNegates, bool saved, const Common::String &message) {
     CombatGlobals local;
     CombatGlobals *globals = c.combat ? c.combat : &local;
     globals->pendingEffectId = effectId;
@@ -1286,7 +1286,7 @@ static bool addEffectWithMessage(const EffectCall &c, PlayerCharacter &ch,
     }
 
     if (globals->pendingEffectId == 0 || (saved && saveNegates)) {
-        say(c, &ch, "is Unaffected");
+        say(c, &ch, VmInterface::getString("effects.unaffected"));
         return false;
     }
 
@@ -1295,7 +1295,7 @@ static bool addEffectWithMessage(const EffectCall &c, PlayerCharacter &ch,
             minutes > existing->durationMin) || minutes == 0))
         removeEffect(c, ch, effectId, existing);
     ch.addEffect(effectId, minutes, strength, onRemove);
-    if (message && *message)
+    if (!message.empty())
         say(c, &ch, message);
     return true;
 }
@@ -1312,10 +1312,10 @@ static void handleDragonFear(const EffectCall &c) {
         const uint8 level = asPoolrad(*ch).highestLevel;
         if (level <= 3)
             addEffectWithMessage(c, *ch, E_POOLRAD_PARALYSIS, 0, 12, false,
-                true, saved, "is paralyzed with fear");
+                true, saved, VmInterface::getString("effects.fearparalyzed"));
         else if (level <= 5)
             addEffectWithMessage(c, *ch, E_POOLRAD_CURSE, 0, 12, false,
-                true, saved, "is weakened by fear");
+                true, saved, VmInterface::getString("effects.fearweakened"));
     }
 }
 
@@ -1339,7 +1339,7 @@ static void handleMummyFear(const EffectCall &c) {
         const bool saved = rollSavingThrow(c, *ch,
             Goldbox::Data::Spells::SVS_POISON, bonus);
         addEffectWithMessage(c, *ch, E_POOLRAD_PARALYSIS, rollDice(1, 4), 12,
-            false, true, saved, "is paralyzed with fear");
+            false, true, saved, VmInterface::getString("effects.fearparalyzed"));
     }
 }
 
@@ -1349,14 +1349,14 @@ static void handlePetrifyGaze(const EffectCall &c) {
     PlayerCharacter *target = combatTarget(c.character);
     if (!target)
         return;
-    say(c, &c.character, "gazes...", false);
+    say(c, &c.character, VmInterface::getString("effects.gazes"), false);
     if (hasEffect(c.character, E_POOLRAD_GAZE_REFLECTABLE) &&
             hasEquippedMirror(*target)) {
-        say(c, target, "reflects it!", false);
+        say(c, target, VmInterface::getString("effects.reflects"), false);
         target = &c.character;
     }
     if (!rollSavingThrow(c, *target, Goldbox::Data::Spells::SVS_PETRIFICATION, 0))
-        inflictStatusMsg(c, *target, Goldbox::Data::S_STONED, "is Stoned");
+        inflictStatusMsg(c, *target, Goldbox::Data::S_STONED, VmInterface::getString("effects.stoned"));
 }
 
 // Effect 84: Charm Person by gaze (save vs. spell at -2), no action used.
@@ -1375,7 +1375,7 @@ static void handleCharmGaze(const EffectCall &c) {
         if (!ctx->lineOfSightCheck(from, to, range))
             return;
     }
-    say(c, &c.character, "Gazes...", false);
+    say(c, &c.character, VmInterface::getString("effects.gazes2"), false);
     if (c.combat)
         c.combat->activeSpellId = 10;
     const uint8 strength = static_cast<uint8>(
@@ -1383,7 +1383,7 @@ static void handleCharmGaze(const EffectCall &c) {
     const bool saved = rollSavingThrow(c, *target,
         Goldbox::Data::Spells::SVS_SPELL, -2);
     addEffectWithMessage(c, *target, E_POOLRAD_CHARM, 0, strength, true, true,
-        saved, "is charmed");
+        saved, VmInterface::getString("effects.charmed"));
     CharacterEffects *fx = target->getEffects();
     Effect *charm = fx ? fx->findEffectById(E_POOLRAD_CHARM) : nullptr;
     if (charm)
@@ -1413,12 +1413,12 @@ static uint8 classToDrain(const Data::PoolradCharacter &ch, int32 &xp) {
 static void drainLevels(const EffectCall &c, Data::PoolradCharacter &ch,
         uint8 levels) {
     Common::String text = levels > 1 ?
-        Common::String::format("is drained %u levels", (unsigned)levels) :
-        Common::String("is drained a level");
+        Common::String::format(VmInterface::getString("effects.drainedn").c_str(), (unsigned)levels) :
+        VmInterface::getString("effects.drained");
     say(c, &ch, text.c_str());
 
     if (ch.healthStatus == Goldbox::Data::S_ANIMATED) {
-        inflictStatusMsg(c, ch, Goldbox::Data::S_GONE, "is dead forever");
+        inflictStatusMsg(c, ch, Goldbox::Data::S_GONE, VmInterface::getString("effects.deadforever"));
         ch.hitPoints.max = 0;
         return;
     }
@@ -1443,7 +1443,7 @@ static void drainLevels(const EffectCall &c, Data::PoolradCharacter &ch,
 
         int32 xp = 0;
         if (ch.highestLevel < 2) {
-            inflictStatusMsg(c, ch, Goldbox::Data::S_GONE, "is dead forever");
+            inflictStatusMsg(c, ch, Goldbox::Data::S_GONE, VmInterface::getString("effects.deadforever"));
             ch.hitPoints.max = 0;
             if (ch.levels.levels[classToDrain(ch, xp)] > 0 && levels == 2)
                 ch.levels.levels[classToDrain(ch, xp)] = 0;
@@ -1451,7 +1451,7 @@ static void drainLevels(const EffectCall &c, Data::PoolradCharacter &ch,
             --ch.levels.levels[classToDrain(ch, xp)];
             if (ch.hitPoints.current == 0 &&
                     ch.healthStatus != Goldbox::Data::S_DEAD)
-                inflictStatusMsg(c, ch, Goldbox::Data::S_DEAD, "is killed");
+                inflictStatusMsg(c, ch, Goldbox::Data::S_DEAD, VmInterface::getString("effects.killed"));
             ch.recalcCombatStats();
         }
         ch.highestLevel = ch.levels.levels[classToDrain(ch, xp)];
@@ -1481,7 +1481,7 @@ static void handleRotTouch(const EffectCall &c) {
     target->addEffect(E_POOLRAD_ROT_NO_HEAL, 14400, 0xFF, true);
     target->addEffect(E_POOLRAD_MUMMY_ROT, 43200,
         static_cast<uint8>(rollDice(1, 6) * 16 + 15), true);
-    say(c, target, "is Diseased");
+    say(c, target, VmInterface::getString("effects.diseased"));
 }
 
 // Effect 88 (Magic.DragonBreathHandler).
@@ -1489,7 +1489,7 @@ static void handleDragonBreath(const EffectCall &c) {
     if (c.combat && c.combat->turnCounter != 0 && rollDice(1, 100) <= 50)
         return;
 
-    say(c, &c.character, "Breathes!");
+    say(c, &c.character, VmInterface::getString("effects.breathes"));
 
     // FxEngine.RemoveInvisibility
     while (hasEffect(c.character, E_POOLRAD_INVISIBLE))
@@ -1545,7 +1545,7 @@ static void handleImmuneMM(const EffectCall &c) {
         return;
     if (c.combat->activeSpellId == 15) {
         nullifyAttack(c, 0);
-        say(c, &c.character, "is unaffected");
+        say(c, &c.character, VmInterface::getString("effects.unaffected2"));
     } else if (c.combat->behaviorFlags & CombatGlobals::DMG_ELECTRICITY) {
         nullifyAttack(c, 0);
     }
@@ -1569,7 +1569,7 @@ static void handleHalfBash(const EffectCall &c) {
 static void handleFightOn(const EffectCall &c) {
     c.effect.immediate = 0;
     if (c.character.enabled)
-        inflictStatusMsg(c, c.character, Goldbox::Data::S_DEAD, "Falls dead");
+        inflictStatusMsg(c, c.character, Goldbox::Data::S_DEAD, VmInterface::getString("effects.fallsdead"));
 }
 
 // Effect 96: only silver or magical weapons hurt it.
@@ -1641,7 +1641,7 @@ static void handleTrollReturn(const EffectCall &c) {
 static void handleGaseous(const EffectCall &c) {
     c.effect.immediate = 0;
     putOutOfPlayWithStatus(c, c.character, Goldbox::Data::S_RUNNING,
-        "Turns gaseous and escapes");
+        VmInterface::getString("effects.gaseous"));
 }
 
 // Effect 104: thri-kreen dodge missiles 60%.
@@ -1780,7 +1780,7 @@ static void handleAnhkhegAcid(const EffectCall &c) {
     if (calcDistance(c.character, *target) >= 4)
         return;
     c.character.resetCombatAction();
-    say(c, &c.character, "Spits Acid");
+    say(c, &c.character, VmInterface::getString("effects.acid"));
     const uint8 damage = rollDamageDice(c, 8, 4);
     const bool saved = rollSavingThrow(c, *target,
         Goldbox::Data::Spells::SVS_BREATH, 0);
@@ -1893,7 +1893,7 @@ static void handleGauntlets(const EffectCall &c) {
 
     uint8 encoded = 0;
     if (ch.applyStrengthChange(18, 100, encoded))
-        say(c, &ch, "is stronger");
+        say(c, &ch, VmInterface::getString("effects.stronger"));
     if (c.bridge)
         c.bridge->requestRefresh(EffectHostBridge::RF_CHARACTER_PANEL);
     ch.addEffect(E_POOLRAD_STRENGTH, 0, encoded, true);
@@ -1919,7 +1919,7 @@ static void handleBoulder(const EffectCall &c) {
         return;
     if (c.character.abilities.strength.current < 19) {
         c.item->readied = 0;
-        say(c, &c.character, "Must have Giant Strength");
+        say(c, &c.character, VmInterface::getString("effects.giantstrength"));
     }
 }
 
@@ -2078,12 +2078,12 @@ void checkCloudEffect(Goldbox::Data::PlayerCharacter &ch,
     CharacterEffects *fx = ch.getEffects();
     if (saved) {
         addEffectWithMessage(c, ch, E_POOLRAD_STINK_COUGH, 1, 0xFF, false,
-            false, saved, "starts to cough");
+            false, saved, VmInterface::getString("effects.cough"));
         callEffectHandler(c, E_POOLRAD_STINK_COUGH, ch,
             fx ? fx->findEffectById(E_POOLRAD_STINK_COUGH) : nullptr, false);
     } else {
         addEffectWithMessage(c, ch, E_POOLRAD_HELPLESS, rollDice(1, 4) + 1,
-            0xFF, false, false, saved, "chokes and gags from nausea");
+            0xFF, false, false, saved, VmInterface::getString("effects.nausea"));
         callEffectHandler(c, E_POOLRAD_HELPLESS, ch,
             fx ? fx->findEffectById(E_POOLRAD_HELPLESS) : nullptr, false);
     }
@@ -2104,7 +2104,7 @@ bool checkUnaffectedEffect(Goldbox::Data::PlayerCharacter &ch,
     Goldbox::Data::DamageSystem damageSystem(bridge);
     EffectCall c(EFF_ADD, none, ch, combat, bridge, &damageSystem, handler);
     return addEffectWithMessage(c, ch, effectId, duration, power, immediate,
-        checkSave, saved, message);
+        checkSave, saved, Common::String(message ? message : ""));
 }
 
 void inflictSpellDamage(Goldbox::Data::PlayerCharacter &target,

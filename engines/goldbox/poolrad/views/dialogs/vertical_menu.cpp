@@ -218,7 +218,7 @@ void VerticalMenu::updateHorizontalMenu() {
     if (_linesBelow > 0) {
         _hMenuList.items.push_back(MenuItem());
         int idx = (int)_hMenuList.items.size() - 1;
-        _hMenuList.items[idx].text = "Next";
+        _hMenuList.items[idx].text = VmInterface::getString("labels.next");
         _hMenuList.items[idx].active = true;
         _hMenuList.items[idx].shortcutFirst = true;
         _hMenuList.generateShortcut(idx);
@@ -226,7 +226,7 @@ void VerticalMenu::updateHorizontalMenu() {
     if (_selectMin < _linesAbove) {
         _hMenuList.items.push_back(MenuItem());
         int idx = (int)_hMenuList.items.size() - 1;
-        _hMenuList.items[idx].text = "Prev";
+        _hMenuList.items[idx].text = VmInterface::getString("labels.prev");
         _hMenuList.items[idx].active = true;
         _hMenuList.items[idx].shortcutFirst = true;
         _hMenuList.generateShortcut(idx);
@@ -236,7 +236,7 @@ void VerticalMenu::updateHorizontalMenu() {
     if (_addExit) {
         _hMenuList.items.push_back(MenuItem());
         int idx = (int)_hMenuList.items.size() - 1;
-        _hMenuList.items[idx].text = "Exit";
+        _hMenuList.items[idx].text = VmInterface::getString("labels.exit");
         _hMenuList.items[idx].active = true;
         _hMenuList.items[idx].shortcutFirst = true;
         _hMenuList.generateShortcut(idx);

@@ -190,11 +190,11 @@ void ItemsMenu::draw() {
 	drawWindow(1, 1, 38, 22);
 	s.writeStringC(1, 1, 11, _character->name);
 	s.writeString("'s");
-	s.writeStringC(1 + _character->name.size() + 3, 1, 10, "Items");
+	s.writeStringC(1 + _character->name.size() + 3, 1, 10, VmInterface::getString("items.title"));
 
 	// Draw column headers at row 5 (one row above menu which starts at yStart=6)
 	drawWindow(1, 3, 38, 22);
-	s.writeStringC(1, 3, 15, "Ready Item");
+	s.writeStringC(1, 3, 15, VmInterface::getString("items.ready"));
 
 	if (_verticalMenu)
 		_verticalMenu->draw();
@@ -336,7 +336,7 @@ void ItemsMenu::buildActionMenu() {
 
 	if (!_character)
 		return;
-	_horizontalMenuLabels.push_back("Ready");
+	_horizontalMenuLabels.push_back(VmInterface::getString("labels.ready"));
 
 	const int gameStatus = Goldbox::VmInterface::getGameStatus();
 
@@ -356,7 +356,7 @@ void ItemsMenu::buildActionMenu() {
 		 (gameStatus == GS_DUNGEON_MAP) ||
 		 ((gameStatus == GS_COMBAT) && combatAllowsUse &&
 		  itemUseAllowed(noCombatItems)))) {
-		_horizontalMenuLabels.push_back("Use");
+		_horizontalMenuLabels.push_back(VmInterface::getString("labels.use"));
 	}
 
 	// Trade/Sell eligibility: npc < 0x80 (player) OR disabled OR animated.
@@ -366,23 +366,23 @@ void ItemsMenu::buildActionMenu() {
 		 (_character->healthStatus == Goldbox::Data::S_ANIMATED));
 
 	if (tradeEligible && gameStatus != GS_COMBAT)
-		_horizontalMenuLabels.push_back("Trade");
+		_horizontalMenuLabels.push_back(VmInterface::getString("labels.trade"));
 
-	_horizontalMenuLabels.push_back("Drop");
+	_horizontalMenuLabels.push_back(VmInterface::getString("labels.drop"));
 
 	// Halve only when inventory has room for the split result (item_num < 16).
 	if (_character->numOfItems < 16)
-		_horizontalMenuLabels.push_back("Halve");
+		_horizontalMenuLabels.push_back(VmInterface::getString("labels.halve"));
 
-	_horizontalMenuLabels.push_back("Join");
+	_horizontalMenuLabels.push_back(VmInterface::getString("labels.join"));
 
 	if (tradeEligible && gameStatus == GS_SHOP)
-		_horizontalMenuLabels.push_back("Sell");
+		_horizontalMenuLabels.push_back(VmInterface::getString("labels.sell"));
 
 	if (gameStatus == GS_SHOP)
-		_horizontalMenuLabels.push_back("Id");
+		_horizontalMenuLabels.push_back(VmInterface::getString("labels.id"));
 
-	_horizontalMenuLabels.push_back("Exit");
+	_horizontalMenuLabels.push_back(VmInterface::getString("labels.exit"));
 }
 
 void ItemsMenu::buildItemList() {
@@ -457,12 +457,12 @@ void ItemsMenu::handleReadyItem(Goldbox::Data::Items::CharacterItem *item) {
 	// Original: if (BYTE_GAME_STATE != GS_COMBAT || character->ai_control == 0)
 	if (result == Goldbox::Poolrad::Data::PoolradCharacter::RIR_HANDS_FULL) {
 		if (!isCharacterInCombat() || !_character->ai_control)
-			displayMessage("Your hands are full!");
+			displayMessage(VmInterface::getString("items.handsfull"));
 		return;
 	}
 
 	if (result == Goldbox::Poolrad::Data::PoolradCharacter::RIR_CURSED) {
-		displayMessage("It's Cursed");
+		displayMessage(VmInterface::getString("items.cursed"));
 		return;
 	}
 
@@ -475,7 +475,7 @@ void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
 		return;
 
 	if (!isItemReadied(item)) {
-		displayMessage("Must be Readied");
+		displayMessage(VmInterface::getString("items.mustready"));
 		return;
 	}
 
@@ -488,7 +488,7 @@ void ItemsMenu::handleUseItem(Goldbox::Data::Items::CharacterItem *item) {
 	// the no-combat-items gate that hides the Use command entirely.
 	if (isCharacterInCombat() &&
 		!spellOriginUseAllowed(readNoMagicFlag(), readNoCombatItemsFlag())) {
-		displayMessage("No Magic Here");
+		displayMessage(VmInterface::getString("items.nomagic"));
 		return;
 	}
 
@@ -545,7 +545,7 @@ void ItemsMenu::handleHalveItem(Goldbox::Data::Items::CharacterItem *item) {
 		return;
 
 	if (!_character->inventory.halveItem(item)) {
-		displayMessage("Can't halve that");
+		displayMessage(VmInterface::getString("items.nohalve"));
 		return;
 	}
 
@@ -653,7 +653,7 @@ bool ItemsMenu::isFreeToRemove(Goldbox::Data::Items::CharacterItem *item) {
 		return false;
 
 	if (item->readied != 0) {
-		displayMessage("Must be unreadied");
+		displayMessage(VmInterface::getString("items.mustunready"));
 		return false;
 	}
 
@@ -676,7 +676,7 @@ void ItemsMenu::displayEquipError(uint8 errorCode, const Goldbox::Data::Items::C
 
 	switch (errorCode) {
 	case 1:
-		message = "Wrong Class";
+		message = VmInterface::getString("items.wrongclass");
 		break;
 	case 2: {
 		// "Already using [item name]"
@@ -697,9 +697,9 @@ void ItemsMenu::displayEquipError(uint8 errorCode, const Goldbox::Data::Items::C
 		}
 
 		if (equippedItem) {
-			message = Common::String::format("Already using %s", equippedItem->getDisplayName().c_str());
+			message = Common::String::format(VmInterface::getString("items.alreadyusing").c_str(), equippedItem->getDisplayName().c_str());
 		} else {
-			message = "Slot already in use";
+			message = VmInterface::getString("items.slotused");
 		}
 		break;
 	}
@@ -708,7 +708,7 @@ void ItemsMenu::displayEquipError(uint8 errorCode, const Goldbox::Data::Items::C
 		// This case should not be reached.
 		break;
 	default:
-		message = "Cannot equip this item";
+		message = VmInterface::getString("items.noequip");
 		break;
 	}
 
@@ -785,7 +785,7 @@ void ItemsMenu::executeItemUse(Goldbox::Data::Items::CharacterItem *item,
 		Goldbox::Data::Effects::EffectHostBridge *bridge =
 			getEffectHostBridge();
 		if (bridge && !item->isMissileOrScroll()) {
-			bridge->postEffectMessage(_character, "uses an item", false);
+			bridge->postEffectMessage(_character, VmInterface::getString("items.usesitem"), false);
 			bridge->postEffectMessage(nullptr, item->getDisplayName(), true);
 		}
 
@@ -854,7 +854,7 @@ void ItemsMenu::handleIdentifyConfirmResult(const MenuResultMessage &result) {
 			pool.setPoolFromGoldValue(poolGold - 200);
 			isPaid = true;
 		} else {
-			displayMessage("Not enough money.");
+			displayMessage(VmInterface::getString("items.nomoney"));
 		}
 	}
 
@@ -968,7 +968,7 @@ void ItemsMenu::handleSellConfirmResult(const MenuResultMessage &result) {
 				Goldbox::Data::VAL_PLATINUM,
 				(uint32)(platAmount - platCapacity));
 		}
-		displayMessage("Overloaded!");
+		displayMessage(VmInterface::getString("items.overloaded"));
 	} else {
 		_character->valuableItems[Goldbox::Data::VAL_PLATINUM] += platAmount;
 	}
@@ -1013,7 +1013,7 @@ void ItemsMenu::handleTradeSelectionResult(const MenuResultMessage &result) {
 
 	// CHARACTER_checkItemFit: true means item cannot be accepted.
 	if (tradeTarget->cannotAcceptItem(*itemToTrade)) {
-		displayMessage("Overloaded");
+		displayMessage(VmInterface::getString("items.overloaded2"));
 		return;
 	}
 
@@ -1105,7 +1105,7 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 		}
 		// Create and show drop confirmation dialog
 		if (_character && _pendingRemoveItem) {
-			HorizontalYesNoConfig ynCfg = {"Drop It?", 13, 10, 15, 0};
+			HorizontalYesNoConfig ynCfg = {VmInterface::getString("items.drop"), 13, 10, 15, 0};
 			_removeConfirm = new HorizontalYesNo("ItemsRemoveConfirm", ynCfg);
 			attachDialog(_removeConfirm);
 			_removeConfirm->activate();
@@ -1123,7 +1123,7 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 		}
 		if (_character && _pendingSellItem) {
 			Common::String prompt = Common::String::format(
-				"Sell for %u?", (unsigned)_pendingSellValue);
+				VmInterface::getString("items.sell").c_str(), (unsigned)_pendingSellValue);
 			HorizontalYesNoConfig ynCfg = {prompt, 13, 10, 15, 0};
 			_removeConfirm = new HorizontalYesNo("ItemsSellConfirm", ynCfg);
 			attachDialog(_removeConfirm);
@@ -1144,7 +1144,7 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 
 		// Create and show party selector
 		PartySelectorConfig config;
-		config.promptText = "Trade with Whom?";
+		config.promptText = VmInterface::getString("items.tradewho");
 		config.allowExit = true;
 		config.excludedCharacter = _character;
 		_partySelector = new PartySelector("ItemsTradeSelector", config);
@@ -1163,7 +1163,7 @@ void ItemsMenu::setStage(ItemsMenuStage stage) {
 		}
 		if (_character && _pendingIdentifyItem) {
 			const Common::String prompt = Common::String::format(
-				"Identify %s for 200gp?",
+				VmInterface::getString("items.identify").c_str(),
 				_pendingIdentifyItem->getDisplayName().c_str());
 			HorizontalYesNoConfig ynCfg = {prompt, 13, 10, 15, 0};
 			_removeConfirm = new HorizontalYesNo("ItemsIdentifyConfirm", ynCfg);

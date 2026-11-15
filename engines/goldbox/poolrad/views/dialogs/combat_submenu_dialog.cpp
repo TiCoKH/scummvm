@@ -29,6 +29,7 @@
 #include "goldbox/data/adnd_character.h"
 #include "goldbox/events.h"
 #include "goldbox/gfx/surface.h"
+#include "goldbox/vm_interface.h"
 #include "common/debug.h"
 
 namespace Goldbox {
@@ -79,15 +80,15 @@ void CombatSubmenuDialog::rebuild() {
     Common::Array<Common::String> labels;
 
     if (_hasGuard)
-        labels.push_back("Guard");   // G
+        labels.push_back(VmInterface::getString("labels.guard"));   // G
 
-    labels.push_back("Delay");       // D
-    labels.push_back("Quit");        // Q
+    labels.push_back(VmInterface::getString("labels.delay"));       // D
+    labels.push_back(VmInterface::getString("labels.quit"));        // Q
 
     if (_hasBandage)
-        labels.push_back("Bandage"); // B
+        labels.push_back(VmInterface::getString("labels.bandage")); // B
 
-    labels.push_back("Speed");       // S
+    labels.push_back(VmInterface::getString("labels.speed"));       // S
 
     _menuModel.generateMenuItems(labels, true);
 

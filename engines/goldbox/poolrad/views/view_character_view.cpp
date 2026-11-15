@@ -41,7 +41,7 @@ ViewCharacterView::ViewCharacterView()
             _activeSubView(nullptr) {
 
     Dialogs::HorizontalMenuConfig menuConfig = {
-        "View:", // promptTxt
+        VmInterface::getString("charview.prompt"), // promptTxt
         &_menuList,
         10, // textColor
         15, // selectColor
@@ -90,7 +90,7 @@ void ViewCharacterView::buildMenu() {
 
     // Add Items if character has any
     if (_character->hasItems()) {
-        labels.push_back("Items");
+        labels.push_back(VmInterface::getString("labels.items"));
     }
 
     // Check for memorized spells using PoolradCharacter helper
@@ -101,7 +101,7 @@ void ViewCharacterView::buildMenu() {
 
     // Add Spells if character has any memorized spells
     if (hasMemoSpells) {
-        labels.push_back("Spells");
+        labels.push_back(VmInterface::getString("labels.spells"));
     }
 
     // Add Trade if: has valuables AND not in combat AND
@@ -110,21 +110,21 @@ void ViewCharacterView::buildMenu() {
         (_character->healthStatus == Goldbox::Data::S_ANIMATED);
     if (hasValuables && tradeAllowed) {
         if (Goldbox::VmInterface::getGameStatus() != GS_COMBAT) {
-            labels.push_back("Trade");
+            labels.push_back(VmInterface::getString("labels.trade"));
         }
     }
 
     // Add Drop if character has valuables
     if (hasValuables) {
-        labels.push_back("Drop");
+        labels.push_back(VmInterface::getString("labels.drop"));
     }
 /* Addendum: For now, always show Rename for player characters, as it doesn't require a working prompt dialog yet
     // Add Rename if character is not NPC
     if (!_character->isNpc()) {
-        labels.push_back("Rename");
+        labels.push_back(VmInterface::getString("labels.rename"));
     }
 */
-    labels.push_back("Exit");
+    labels.push_back(VmInterface::getString("labels.exit"));
 
     _menuList.generateMenuItems(labels, true);
     if (_horizontalMenu) {
@@ -287,23 +287,23 @@ void ViewCharacterView::handleMenuResult(const MenuResultMessage &result) {
     if (!_character)
         return;
 
-    if (action == "Items") {
+    if (action == VmInterface::getString("labels.items")) {
         handleViewItems();
         return;
     }
-    if (action == "Spells") {
+    if (action == VmInterface::getString("labels.spells")) {
         handleViewSpells();
         return;
     }
-    if (action == "Trade") {
+    if (action == VmInterface::getString("labels.trade")) {
         handleTradeValuables();
         return;
     }
-    if (action == "Drop") {
+    if (action == VmInterface::getString("labels.drop")) {
         handleDropValuables();
         return;
     }
-    if (action == "Exit") {
+    if (action == VmInterface::getString("labels.exit")) {
         handleExit();
         return;
     }
@@ -416,7 +416,7 @@ void ViewCharacterView::handleDropValuables() {
 
 void ViewCharacterView::handleRenameCharacter() {
     // Prompt for new character name
-    Common::String prompt = "NEW NAME FOR " + _character->name;
+    Common::String prompt = Common::String::format(VmInterface::getString("charview.newname").c_str(), _character->name.c_str());
     // TODO: Implement PromptLine_TextInput equivalent
     // Should update character name and redraw profile
     if (_profileDialog) {

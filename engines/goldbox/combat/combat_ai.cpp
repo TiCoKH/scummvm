@@ -227,7 +227,8 @@ bool handleAiControlInput(Data::PlayerCharacter *actor,
     if (key == 'm' || key == 'M') {
         globals.magicEnabled = !globals.magicEnabled;
         if (view)
-            view->showMessage(globals.magicEnabled ? "Magic On" : "Magic Off");
+            view->showMessage(VmInterface::getString(
+                globals.magicEnabled ? "combat.magicon" : "combat.magicoff").c_str());
         return false;
     }
 

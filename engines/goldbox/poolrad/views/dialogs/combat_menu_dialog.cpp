@@ -31,6 +31,7 @@
 #include "goldbox/events.h"
 #include "goldbox/gfx/surface.h"
 #include "goldbox/engine.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -109,49 +110,49 @@ void CombatMenuDialog::buildMenuModel() {
 
     // Move — conditional on movement points.
     if (_hasMove) {
-        labels.push_back("Move");
+        labels.push_back(VmInterface::getString("labels.move"));
         _actions.push_back(Combat::CombatSession::PA_MOVE);
         _shortcuts.push_back('M');
     }
 
     // View — always present.
-    labels.push_back("View");
+    labels.push_back(VmInterface::getString("labels.view"));
     _actions.push_back(Combat::CombatSession::PA_VIEW);
     _shortcuts.push_back('V');
 
     // Aim — always present (select target and attack).
-    labels.push_back("Aim");
+    labels.push_back(VmInterface::getString("labels.aim"));
     _actions.push_back(Combat::CombatSession::PA_ATTACK);
     _shortcuts.push_back('A');
 
     // Use — conditional on inventory.
     if (_hasUse) {
-        labels.push_back("Use");
+        labels.push_back(VmInterface::getString("labels.use"));
         _actions.push_back(Combat::CombatSession::PA_USE);
         _shortcuts.push_back('U');
     }
 
     // Cast — conditional on spells + can_cast + magic allowed.
     if (_hasCast) {
-        labels.push_back("Cast");
+        labels.push_back(VmInterface::getString("labels.cast"));
         _actions.push_back(Combat::CombatSession::PA_CAST);
         _shortcuts.push_back('C');
     }
 
     // Turn — conditional on cleric level and not already turned.
     if (_hasTurn) {
-        labels.push_back("Turn");
+        labels.push_back(VmInterface::getString("labels.turn"));
         _actions.push_back(Combat::CombatSession::PA_TURN);
         _shortcuts.push_back('T');
     }
 
     // Quick — always present (auto-attack).
-    labels.push_back("Quick");
+    labels.push_back(VmInterface::getString("labels.quick"));
     _actions.push_back(Combat::CombatSession::PA_QUICK);
     _shortcuts.push_back('Q');
 
     // Done — opens submenu (Guard/Delay/Quit/Bandage/Speed).
-    labels.push_back("Done");
+    labels.push_back(VmInterface::getString("labels.done"));
     _actions.push_back(Combat::CombatSession::PA_SUBMENU);
     _shortcuts.push_back('D');
 

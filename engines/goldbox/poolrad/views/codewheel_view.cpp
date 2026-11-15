@@ -23,24 +23,17 @@
 #include "graphics/palette.h"
 //#include "goldbox/keymapping.h"
 #include "goldbox/poolrad/views/codewheel_view.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-const char USE_THE[] = "USE THE TRANSLATION WHEEL TO DECIPHER";
-const char THE_CODE[] = "THE CODE WORD.";
-const char OUTER_RING[] = "MATCH THE ESPRUAR RUNE (OUTER RING)";
-const char INNER_RING[] = "WITH THE DETHEK RUNE (INNER RING)";
-const char THE_PATH[] = "AND READ THE CODE WORD UNDER THE PATH:";
-const char READ_FROM[] = "READ FROM THE INSIDE TO THE OUTSIDE.";
-const char INPUT[] = "INPUT THE CODE WORD: ";
-const char INNCORRECT[] = "Sorry, that's incorrect.";
 
 CodewheelView::CodewheelView() : View("Codewheel"), _retry(0){
 
 	Dialogs::HorizontalInputConfig inputConfig = {
-        INPUT,
+        VmInterface::getString("codewheel.input"),
         13,
         6
     };
@@ -63,7 +56,7 @@ bool CodewheelView::msgKeypress(const KeypressMessage &msg) {
 		} else {
 			_inputPrompt->clearInput();
 			s.clearBox(0, 24, 39, 24, 0);
-			s.writeStringC(0, 24, 14, INNCORRECT);
+			s.writeStringC(0, 24, 14, VmInterface::getString("codewheel.incorrect"));
             delaySeconds(2);
 		}
     } else {
@@ -82,19 +75,19 @@ void CodewheelView::draw() {
     _code_index = getRandomNumber(12);
 
 	drawWindow( 1, 1, 38, 22);
-	s.writeStringC(1, 1, 10, USE_THE);
-	s.writeStringC(1, 2, 10, THE_CODE);
-	s.writeStringC(1, 5, 10, OUTER_RING);
+	s.writeStringC(1, 1, 10, VmInterface::getString("codewheel.1"));
+	s.writeStringC(1, 2, 10, VmInterface::getString("codewheel.2"));
+	s.writeStringC(1, 5, 10, VmInterface::getString("codewheel.3"));
 	s.writeGlyphC(8, 6, 12, passcodes [_code_index].outer[0] + 0x40);
 	s.writeGlyphC(9, 6, 12, passcodes [_code_index].outer[1] + 0x40);
-	s.writeStringC(1, 8, 10, INNER_RING);
+	s.writeStringC(1, 8, 10, VmInterface::getString("codewheel.4"));
 	s.writeGlyphC(8, 9, 12, passcodes [_code_index].inner[0] + 0x40);
     if (passcodes[_code_index].inner[1] != 0xFF) {
 		s.writeGlyphC(9, 9, 12, passcodes [_code_index].inner[1] + 0x40);
     }
-	s.writeStringC(1, 11, 10, THE_PATH);
+	s.writeStringC(1, 11, 10, VmInterface::getString("codewheel.5"));
 	s.writeStringC(6, 13, 12, passcodes [_code_index].path);
-	s.writeStringC(1, 14, 10, READ_FROM);
+	s.writeStringC(1, 14, 10, VmInterface::getString("codewheel.6"));
 
 	_inputPrompt->activate();
 	_inputPrompt->draw();

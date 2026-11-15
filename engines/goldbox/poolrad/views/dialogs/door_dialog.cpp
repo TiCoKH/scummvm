@@ -255,23 +255,23 @@ void DoorDialog::buildMenuModel() {
 
     Common::Array<Common::String> menuStrings;
     if (_bashAllowed)
-        menuStrings.push_back("Bash");
+        menuStrings.push_back(VmInterface::getString("labels.bash"));
 
     if (_pickAllowed) {
         if (_doorFlag == 2 && partyHasThiefClass())
-            menuStrings.push_back("Pick");
+            menuStrings.push_back(VmInterface::getString("labels.pick"));
         else if (_doorFlag == 3 && partyHasMageClass())
-            menuStrings.push_back("Pick");
+            menuStrings.push_back(VmInterface::getString("labels.pick"));
     }
 
     if (_knockAllowed) {
         if (_doorFlag == 2 && partyHasKnockSpell())
-            menuStrings.push_back("Knock");
+            menuStrings.push_back(VmInterface::getString("labels.knock"));
         else if (_doorFlag == 3 && partyHasMageClass())
-            menuStrings.push_back("Knock");
+            menuStrings.push_back(VmInterface::getString("labels.knock"));
     }
 
-    menuStrings.push_back("Exit");
+    menuStrings.push_back(VmInterface::getString("labels.exit"));
     _menuModel.generateMenuItems(menuStrings, true);
 }
 
@@ -319,7 +319,7 @@ void DoorDialog::activate() {
     buildMenuModel();
 
     HorizontalMenuConfig cfg;
-    cfg.promptTxt = "Locked!";
+    cfg.promptTxt = VmInterface::getString("door.locked");
     cfg.menuItemList = &_menuModel;
     cfg.textColor = 10;
     cfg.selectColor = 15;
@@ -459,7 +459,7 @@ void DoorDialog::handleMenuKey(char key) {
             _horizontalMenu = nullptr;
 
             HorizontalMenuConfig cfg;
-            cfg.promptTxt = "Locked!";
+            cfg.promptTxt = VmInterface::getString("door.locked");
             cfg.menuItemList = &_menuModel;
             cfg.textColor = 10;
             cfg.selectColor = 15;

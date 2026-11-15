@@ -23,6 +23,7 @@
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/views/dialogs/in_game_state_area_dialog.h"
 #include "goldbox/runtime/runtime_exchange.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -131,9 +132,9 @@ void InGameStateAreaDialog::draw() {
     line += twoDigits(minute);
 
     if (gameState == GS_CAMPING)
-        line += " CAMPING";
+        line += VmInterface::getString("prompts.camping");
     else if (runtimeSearch)
-        line += " SEARCH";
+        line += VmInterface::getString("prompts.searching");
 
     if (line.size() > 22)
         line = line.substr(0, 22);

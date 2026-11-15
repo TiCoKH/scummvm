@@ -38,9 +38,8 @@ static ShopBaseConfig makeStoreConfig() {
     ShopBaseConfig cfg;
     cfg.type = SHOP_STORE;
     cfg.menuPrompt = "";
-    cfg.exitConfirmLine1 = "As you Leave the Shopkeeper says,"
-        " \"Excuse me but you have Left Some Money here.\"  ";
-    cfg.exitConfirmLine2 = "Do you want to go back and get your Money?";
+    cfg.exitConfirmLine1 = VmInterface::getString("store.exit1");
+    cfg.exitConfirmLine2 = VmInterface::getString("store.exit2");
     cfg.exitConfirmColor2 = 15;
     return cfg;
 }
@@ -138,10 +137,10 @@ void StoreDialog::openBuySelector() {
     }
 
     _buyPromptOpts.clear();
-    _buyPromptOpts.push_back("Buy");
+    _buyPromptOpts.push_back(VmInterface::getString("labels.buy"));
 
     VerticalMenuConfig cfg;
-    cfg.promptTxt = "Items: ";
+    cfg.promptTxt = VmInterface::getString("store.items");
     cfg.promptOptions = &_buyPromptOpts;
     cfg.menuItemList = &_shopMenuItems;
     cfg.headColor = 13;
@@ -203,7 +202,7 @@ void StoreDialog::attemptBuy() {
         dynamic_cast<Goldbox::Poolrad::Data::PoolradCharacter *>(base);
     if (!ch) {
         warning("StoreDialog: no Poolrad character selected for purchase");
-        showMessage("No character selected");
+        showMessage(VmInterface::getString("store.nochar"));
         return;
     }
 
@@ -216,7 +215,7 @@ void StoreDialog::attemptBuy() {
         getName().c_str(), payFromCharacter ? "character" : "pool",
         (unsigned)charMoney, (unsigned)availableMoney, (unsigned)price);
     if (availableMoney < price) {
-        showMessage("Not enough Money.");
+        showMessage(VmInterface::getString("store.nomoney"));
         return;
     }
 
@@ -226,7 +225,7 @@ void StoreDialog::attemptBuy() {
         getName().c_str(), (int)received);
     debugShopMoney("buy:after-receive");
     if (!received) {
-        showMessage("OverLoaded");
+        showMessage(VmInterface::getString("store.overloaded"));
         return;
     }
 
@@ -324,7 +323,7 @@ void StoreDialog::draw() {
     case BUY_SELECTOR:
         if (_shopSelector && _shopSelector->isActive()) {
             Surface s = getSurface();
-            s.drawWindow(1, 1, 38, 22, 0, 15, "Shop");
+            s.drawWindow(1, 1, 38, 22, 0, 15, VmInterface::getString("store.title"));
             _shopSelector->draw();
         }
         break;

@@ -75,18 +75,18 @@ void GameSpeedDialog::rebuild() {
 
     // S increments (slower); available below the 0..9 maximum.
     if (_speed < kMaxSpeed)
-        labels.push_back("Slower");
+        labels.push_back(VmInterface::getString("labels.slower"));
 
     // F decrements (faster); available above the 0..9 minimum.
     if (_speed > kMinSpeed)
-        labels.push_back("Faster");
+        labels.push_back(VmInterface::getString("labels.faster"));
 
-    labels.push_back("Exit");
+    labels.push_back(VmInterface::getString("labels.exit"));
 
     _menuModel.generateMenuItems(labels, true);
 
     const Common::String prompt = Common::String::format(
-        "Game Speed: %d  ", _speed);
+        VmInterface::getString("speed.label").c_str(), _speed);
 
     HorizontalMenuConfig cfg;
     cfg.promptTxt             = prompt;

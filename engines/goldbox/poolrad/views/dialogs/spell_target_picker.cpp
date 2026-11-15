@@ -33,7 +33,7 @@ SpellTargetPicker::SpellTargetPicker(const Common::String &name)
 		: Dialog(name), _selector(nullptr), _castTarget(nullptr),
 		  _done(false), _picked(false), _partyIndex(-1) {
 	PartySelectorConfig cfg;
-	cfg.promptText = "Cast Spell on whom";
+	cfg.promptText = VmInterface::getString("spellbook.target");
 	cfg.allowExit = true;
 	_selector = new PartySelector(name + "Selector", cfg);
 	subView(_selector);

@@ -180,6 +180,10 @@ Common::Platform Engine::getPlatform() const {
 }
 
 Common::String Engine::getString(const Common::String &key) const {
+    if (!_strings.contains(key)) {
+        warning("global_strings.yml: missing key '%s'", key.c_str());
+        return Common::String();
+    }
     return _strings.getVal(key);
 }
 

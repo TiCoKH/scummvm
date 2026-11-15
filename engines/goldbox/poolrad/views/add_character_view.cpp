@@ -52,11 +52,11 @@ AddCharacterView::AddCharacterView()
             _rosterMenu(nullptr) {
 
     loadRosterList();
-    _promptOptions.push_back("Add");
-    _promptOptions.push_back("Exit");
+    _promptOptions.push_back(VmInterface::getString("labels.add"));
+    _promptOptions.push_back(VmInterface::getString("labels.exit"));
 
     Dialogs::VerticalMenuConfig menuConfig = {
-        "Add a character:",  // promptTxt
+        VmInterface::getString("addchar.prompt"),  // promptTxt
         &_promptOptions,     // promptOptions (pointer)
         _rosterList,         // menuItemList (initialized later)
         13,                  // headColor

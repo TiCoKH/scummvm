@@ -36,8 +36,6 @@ namespace {
 // GDConsts.unitScale: segment, minute, turn, hour, day, month, year.
 const uint16 kUnitScale[7] = { 10, 10, 6, 24, 30, 12, 256 };
 
-// The menu as GameTime.CampRestMenu shows it; capitals are the keys.
-const char *const kRestMenu = "Rest   daYs Hours Mins   Inc Dec   Exit";
 
 // GameTime.CampRest redraws the remaining time every fifth tick.
 const int kTicksPerDisplay = 5;
@@ -179,7 +177,7 @@ bool RestDialog::tick() {
         Surface s = getSurface();
         s.clearBox(1, 17, 38, 22, 0);
         drawRestTime(0);
-        s.writeStringC(1, 19, 15, "The Party is rudely interrupted!");
+        s.writeStringC(1, 19, 15, VmInterface::getString("rest.interrupted"));
         if (g_events) {
             const uint32 end = g_system->getMillis() +
                 VmInterface::getTextDelay() * 225;
@@ -201,7 +199,7 @@ bool RestDialog::msgKeypress(const KeypressMessage &msg) {
         // A key offers to stop.
         _state = STATE_STOP_CONFIRM;
         HorizontalYesNoConfig cfg;
-        cfg.promptTxt = "Stop Resting? ";
+        cfg.promptTxt = VmInterface::getString("rest.stop");
         cfg.promptColor = 13;
         cfg.textColor = 10;
         cfg.selectColor = 15;
@@ -312,7 +310,7 @@ void RestDialog::handleMenuResult(const MenuResultMessage &result) {
 // column in white.
 void RestDialog::drawRestTime(int highlight) {
     Surface s = getSurface();
-    s.writeStringC(1, 17, 10, "Rest Time:");
+    s.writeStringC(1, 17, 10, VmInterface::getString("rest.time"));
     s.writeStringC(12, 17, highlight == kDays ? 15 : 10,
         twoDigits(_time[kDays]));
     s.writeStringC(14, 17, 10, ":");
@@ -328,7 +326,9 @@ void RestDialog::drawMenu() {
     s.clearBox(0, 24, 39, 24, 0);
     // The current item (Rest) is highlighted; other items show their key.
     int col = 0;
-    for (const char *p = kRestMenu; *p; ++p, ++col) {
+    // The menu as GameTime.CampRestMenu shows it; capitals are the keys.
+    const Common::String restMenu = VmInterface::getString("rest.menu");
+    for (const char *p = restMenu.c_str(); *p; ++p, ++col) {
         const bool inRest = col < 4;
         const bool isKey = (*p >= 'A' && *p <= 'Z');
         s.writeStringC(col, 24, (inRest || isKey) ? 15 : 10,

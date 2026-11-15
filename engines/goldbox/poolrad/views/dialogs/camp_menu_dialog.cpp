@@ -107,12 +107,12 @@ void CampMenuDialog::buildMenuModel() {
     _menuModel.currentSelection = 0;
 
     Common::Array<Common::String> menuStrings;
-    menuStrings.push_back("Save");
-    menuStrings.push_back("View");
-    menuStrings.push_back("Magic");
-    menuStrings.push_back("Rest");
-    menuStrings.push_back("Alter");
-    menuStrings.push_back("Exit");
+    menuStrings.push_back(VmInterface::getString("labels.save"));
+    menuStrings.push_back(VmInterface::getString("labels.view"));
+    menuStrings.push_back(VmInterface::getString("labels.magic"));
+    menuStrings.push_back(VmInterface::getString("labels.rest"));
+    menuStrings.push_back(VmInterface::getString("labels.alter"));
+    menuStrings.push_back(VmInterface::getString("labels.exit"));
 
     _menuModel.generateMenuItems(menuStrings, true);
 }
@@ -169,7 +169,7 @@ void CampMenuDialog::activate() {
     buildMenuModel();
 
     HorizontalMenuConfig cfg;
-    cfg.promptTxt = "Camp: ";
+    cfg.promptTxt = VmInterface::getString("camp.prompt");
     cfg.menuItemList = &_menuModel;
     cfg.textColor = 10;
     cfg.selectColor = 15;
@@ -246,7 +246,7 @@ void CampMenuDialog::draw() {
             s.writeStringC(1, 19, 10, _messageText);
         }
     } else if (_showCampText) {
-        s.writeStringC(1, 18, 10, "The party makes camp...");
+        s.writeStringC(1, 18, 10, VmInterface::getString("camp.makescamp"));
     }
 
     if (_spellBookDialog && _spellBookDialog->isActive()) {
@@ -472,7 +472,7 @@ void CampMenuDialog::handleMenuResult(const MenuResultMessage &result) {
         // quit question follows either way.
         if (_loadSaveDialog && _loadSaveDialog->isActive())
             _loadSaveDialog->deactivate();
-        openYesNo(CAMP_QUIT_CONFIRM, "Quit TO DOS ");
+        openYesNo(CAMP_QUIT_CONFIRM, VmInterface::getString("camp.quitdos"));
         break;
     case CAMP_ICON:
         // SetIcon commits (Y) or reverts (cancel) by itself.
@@ -616,21 +616,21 @@ void CampMenuDialog::returnToCampMenu() {
 // Camp.CampAlterMenu.
 void CampMenuDialog::openAlterMenu() {
     Common::Array<Common::String> labels;
-    labels.push_back("Order");
-    labels.push_back("Drop");
-    labels.push_back("Speed");
-    labels.push_back("Icon");
-    labels.push_back("Pics");
-    labels.push_back("Exit");
-    openSubMenu(CAMP_ALTER, "Alter: ", labels);
+    labels.push_back(VmInterface::getString("labels.order"));
+    labels.push_back(VmInterface::getString("labels.drop"));
+    labels.push_back(VmInterface::getString("labels.speed"));
+    labels.push_back(VmInterface::getString("labels.icon"));
+    labels.push_back(VmInterface::getString("labels.pics"));
+    labels.push_back(VmInterface::getString("labels.exit"));
+    openSubMenu(CAMP_ALTER, VmInterface::getString("camp.alter"), labels);
 }
 
 // Camp.CampOrderMenu: Select mode picks the character, Place mode moves it.
 void CampMenuDialog::openOrderMenu() {
     Common::Array<Common::String> labels;
-    labels.push_back(_orderPlacing ? "Place" : "Select");
-    labels.push_back("Exit");
-    openSubMenu(CAMP_ORDER, "Party Order: ", labels);
+    labels.push_back(VmInterface::getString(_orderPlacing ? "labels.place" : "labels.select"));
+    labels.push_back(VmInterface::getString("labels.exit"));
+    openSubMenu(CAMP_ORDER, VmInterface::getString("camp.order"), labels);
 }
 
 // Camp.CampAlterMenu 'P': toggle monster pictures and portraits.
@@ -638,9 +638,9 @@ void CampMenuDialog::openPicsMenu() {
     const bool monsters = Poolrad::g_engine && Poolrad::g_engine->monsterPicsOn();
     const bool portraits = Poolrad::g_engine && Poolrad::g_engine->portraitsOn();
     Common::Array<Common::String> labels;
-    labels.push_back(monsters ? "Monsters on" : "Monsters off");
-    labels.push_back(portraits ? "Portraits on" : "Portraits off");
-    labels.push_back("Exit");
+    labels.push_back(VmInterface::getString(monsters ? "camp.monsterson" : "camp.monstersoff"));
+    labels.push_back(VmInterface::getString(portraits ? "camp.portraitson" : "camp.portraitsoff"));
+    labels.push_back(VmInterface::getString("labels.exit"));
     openSubMenu(CAMP_PICS, "", labels);
 }
 
@@ -678,7 +678,7 @@ void CampMenuDialog::handleSubMenuKey(char key) {
         if (key == 'S' || key == 'P') {
             _orderPlacing = !_orderPlacing;
             if (_orderPlacing)
-                showNameMessage("has been selected", false);
+                showNameMessage(VmInterface::getString("camp.selected"), false);
             else
                 _messageText.clear();
             openOrderMenu();
@@ -740,12 +740,12 @@ void CampMenuDialog::beginDrop() {
 
     // The last member can only quit the game.
     if (party->size() == 1) {
-        openYesNo(CAMP_DROP_QUIT, "quit TO DOS: ");
+        openYesNo(CAMP_DROP_QUIT, VmInterface::getString("camp.dropquit"));
         return;
     }
 
-    showNameMessage("will be gone", false);
-    openYesNo(CAMP_DROP_CONFIRM, "Drop from party? ");
+    showNameMessage(VmInterface::getString("camp.willbegone"), false);
+    openYesNo(CAMP_DROP_CONFIRM, VmInterface::getString("camp.dropconfirm"));
 }
 
 void CampMenuDialog::beginSpeed() {
@@ -803,12 +803,12 @@ void CampMenuDialog::handleYesNo(bool yes) {
     case CAMP_DROP_CONFIRM: {
         Goldbox::Data::PlayerCharacter *ch = selectedCharacter();
         if (yes && ch) {
-            showNameMessage(ch->enabled ? "bids you farewell"
-                                        : "is dumped in a ditch", true);
+            showNameMessage(VmInterface::getString(ch->enabled ? "camp.farewell"
+                                        : "camp.ditch"), true);
             RosterActions::removeSelectedFromParty(ch,
                 RosterActions::ACTION_DROP);
         } else {
-            showNameMessage("Breathes A sigh of relief", true);
+            showNameMessage(VmInterface::getString("camp.relief"), true);
         }
         openAlterMenu();
         break;

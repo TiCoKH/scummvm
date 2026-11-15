@@ -67,7 +67,7 @@ void TitleView::draw() {
 		case 0:
 			s.clear();
 			s.setToText();
-			s.writeStringC(0, 24, 10, "Loading...Please Wait");
+			s.writeStringC(0, 24, 10, VmInterface::getString("prompts.loading"));
 			delaySeconds(1);
 			break;
 		case 1:

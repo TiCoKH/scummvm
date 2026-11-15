@@ -46,7 +46,7 @@ SpellsMenu::SpellsMenu(const Common::String &name)
       _selectedSpell(Goldbox::Data::Spells::SP_NONE),
       _scribeSourceItem(nullptr) {
 
-    _menuConfig.promptTxt = "Choose Spell: ";
+    _menuConfig.promptTxt = VmInterface::getString("spellmenu.choose");
     _menuConfig.promptOptions = &_horizontalMenuLabels;
     _menuConfig.menuItemList = &_spellMenuList;
     _menuConfig.headColor = 13;
@@ -155,15 +155,15 @@ void SpellsMenu::draw() {
 
     Common::String suffix = getLocationSuffix();
     Common::String heading = suffix.empty()
-        ? "Spells"
-        : Common::String::format("Spells %s", suffix.c_str());
+        ? VmInterface::getString("spellmenu.title")
+        : Common::String::format(VmInterface::getString("spellmenu.titlewith").c_str(), suffix.c_str());
     s.writeStringC(1 + pc->name.size() + 3, 1, 10, heading);
 
     // Content window
     drawWindow(1, 3, 38, bottom);
 
     if (_spellEntries.empty()) {
-        s.writeStringC(2, 5, 10, "No spells available");
+        s.writeStringC(2, 5, 10, VmInterface::getString("spellmenu.none"));
     }
 
     if (_verticalMenu) {
@@ -409,7 +409,7 @@ void SpellsMenu::buildPromptOptions() {
         }
     }
 
-    _horizontalMenuLabels.push_back("Exit");
+    _horizontalMenuLabels.push_back(VmInterface::getString("labels.exit"));
 }
 
 void SpellsMenu::appendSpellEntry(int legacyIndex,
@@ -482,19 +482,19 @@ uint8 SpellsMenu::getAvailableSlotsForSpell(
 Common::String SpellsMenu::getLocationSuffix() const {
     switch (_location) {
     case SL_IN_MEMORY:
-        return "in Memory";
+        return VmInterface::getString("spellmenu.inmemory");
     case SL_IN_SPELL_BOOK:
-        return "in Spell Book";
+        return VmInterface::getString("spellmenu.inbook");
     case SL_ON_SCROLL:
-        return "on Scroll";
+        return VmInterface::getString("spellmenu.onscroll");
     case SL_ON_SCROLLS:
-        return "on Scrolls";
+        return VmInterface::getString("spellmenu.onscrolls");
     case SL_TO_CHOOSE_FROM:
-        return "to choose from";
+        return VmInterface::getString("spellmenu.choosefrom");
     case SL_TO_BE_MEMORIZED:
-        return "to be memorized";
+        return VmInterface::getString("spellmenu.tomemorize");
     case SL_TO_BE_SCRIBED:
-        return "to be scribed";
+        return VmInterface::getString("spellmenu.toscribe");
     default:
         return Common::String();
     }
@@ -503,13 +503,13 @@ Common::String SpellsMenu::getLocationSuffix() const {
 Common::String SpellsMenu::getActionLabel() const {
     switch (_action) {
     case SA_CAST:
-        return "Cast";
+        return VmInterface::getString("labels.cast");
     case SA_MEMORIZE:
-        return "Memorize";
+        return VmInterface::getString("labels.memorize");
     case SA_SCRIBE:
-        return "Scribe";
+        return VmInterface::getString("labels.scribe");
     case SA_LEARN:
-        return "Learn";
+        return VmInterface::getString("labels.learn");
     default:
         return Common::String();
     }
@@ -547,7 +547,7 @@ Common::String SpellsMenu::buildLevelSeparatorLabel(
     Common::String text = Goldbox::VmInterface::getString(key);
     if (text.empty()) {
         // Fallback if YML key not found
-        text = Common::String::format("Level %u", (unsigned)entry->spellLevel);
+        text = Common::String::format(VmInterface::getString("spellmenu.level").c_str(), (unsigned)entry->spellLevel);
     }
     return text;
 }

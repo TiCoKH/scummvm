@@ -46,9 +46,9 @@ SetPortrait::SetPortrait(const String &name,
     Dialog(name), _pc(pc), _characterProfile(profile) {
 
     Array<String> labels;
-    labels.push_back("Head");
-    labels.push_back("Body");
-    labels.push_back("Keep");
+    labels.push_back(VmInterface::getString("labels.head"));
+    labels.push_back(VmInterface::getString("labels.body"));
+    labels.push_back(VmInterface::getString("labels.keep"));
     _menuItems.generateMenuItems(labels, true);
 
     HorizontalMenuConfig cfg = {

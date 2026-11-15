@@ -92,26 +92,30 @@ const TempleDialog::HealService TempleDialog::kHealServices[] = {
     {"Stone to Flesh",       2000, nullptr,               0,    nullptr,                0,    0, 0, 0}
 };
 
-// "not affected" messages per service index.
+// global_strings.yml keys of the "not affected" messages per service index.
 static const char *kNotAffectedMsg[] = {
-    "is not blind.",
-    "is not Diseased.",
+    "temple.curen0",
+    "temple.curen1",
     nullptr,  // wound cures always proceed
     nullptr,
     nullptr,
-    "is not poisoned.",
-    "is not dead.",
-    "is not cursed.",
-    "is not stoned."
+    "temple.curen5",
+    "temple.curen6",
+    "temple.curen7",
+    "temple.curen8"
 };
+
+static Common::String serviceName(int index) {
+    return VmInterface::getString(
+        Common::String::format("temple.services.%d", index));
+}
 
 static ShopBaseConfig makeTempleConfig() {
     ShopBaseConfig cfg;
     cfg.type = SHOP_TEMPLE;
     cfg.menuPrompt = "";
-    cfg.exitConfirmLine1 = "As you leave a priest says, \"Excuse me"
-        " but you have left some money here\" ";
-    cfg.exitConfirmLine2 = "Do you want to go back and retrieve your money?";
+    cfg.exitConfirmLine1 = VmInterface::getString("temple.exit1");
+    cfg.exitConfirmLine2 = VmInterface::getString("temple.exit2");
     cfg.exitConfirmColor2 = 10;
     return cfg;
 }
@@ -284,13 +288,13 @@ void TempleDialog::showNotAffectedPrompt() {
     if (base && kNotAffectedMsg[_healSelectedIndex]) {
         Surface s = getSurface();
         Common::String msg = Common::String::format("%s %s",
-            base->name.c_str(), kNotAffectedMsg[_healSelectedIndex]);
+            base->name.c_str(), VmInterface::getString(kNotAffectedMsg[_healSelectedIndex]).c_str());
         s.drawWindow(1, 17, 38, 22, 0);
         s.writeStringC(2, 18, 28, msg);
     }
 
     HorizontalYesNoConfig cfg;
-    cfg.promptTxt = "cast cure anyway: ";
+    cfg.promptTxt = VmInterface::getString("temple.cureaw");
     cfg.promptColor = 28;
     cfg.textColor = 10;
     cfg.selectColor = 15;
@@ -309,15 +313,15 @@ void TempleDialog::showPayConfirmPrompt() {
     // Display: "<Service> will only cost <N> gold pieces."
     uint16 cost = kHealServices[_healSelectedIndex].cost;
     Common::String costMsg = Common::String::format(
-        "%s will only cost %u gold pieces.",
-        kHealServices[_healSelectedIndex].name, cost);
+        VmInterface::getString("temple.cost").c_str(),
+        serviceName(_healSelectedIndex).c_str(), cost);
 
     Surface s = getSurface();
     s.drawWindow(1, 17, 38, 22, 0);
     s.writeStringC(2, 18, 28, costMsg);
 
     HorizontalYesNoConfig cfg;
-    cfg.promptTxt = "pay for cure ";
+    cfg.promptTxt = VmInterface::getString("temple.curepa");
     cfg.promptColor = 16;
     cfg.textColor = 10;
     cfg.selectColor = 15;
@@ -399,7 +403,7 @@ void TempleDialog::handlePayConfirmResult(const MenuResultMessage &result) {
     case PaymentPlan::FUND_NONE:
     default:
         // Neither source alone is sufficient: no mutation, no cure.
-        showHealMessage("Not enough money.");
+        showHealMessage(VmInterface::getString("temple.curene"));
         _payment = PaymentPlan();
         _healStage = HEAL_SELECTOR;
         if (_healSelector)
@@ -420,9 +424,9 @@ void TempleDialog::completeHeal() {
     // Show "is cured" message
     Common::String msg;
     if (ch)
-        msg = Common::String::format("%s is cured.", ch->name.c_str());
+        msg = Common::String::format(VmInterface::getString("temple.cured").c_str(), ch->name.c_str());
     else
-        msg = "Is cured.";
+        msg = VmInterface::getString("temple.curedanon");
     showHealMessage(msg);
 
     // Return to heal selector
@@ -801,7 +805,7 @@ void TempleDialog::draw() {
                 VmInterface::getSelectedCharacter();
             if (base) {
                 Common::String greeting = Common::String::format(
-                    "%s, how can we help you?", base->name.c_str());
+                    VmInterface::getString("temple.ask").c_str(), base->name.c_str());
                 if (greeting.size() > 38)
                     greeting = greeting.substr(0, 38);
                 s.writeStringC(1, 1, 28, greeting);

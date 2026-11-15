@@ -104,12 +104,6 @@ static Common::Path getLegacySavePath() {
 }
 } // anonymous namespace
 
-const char PICK_RACE[]      = "Pick Race";
-const char PICK_GENDER[]    = "Pick Gender";
-const char PICK_CLASS[]     = "Pick Class";
-const char PICK_ALIGNMENT[] = "Pick Alignment";
-const char KEEP_CHARACTER[] = "Keep this character? ";
-const char CHAR_NAME[]      = "Character name: ";
 
 CreateCharacterView::CreateCharacterView() : View("CreatCharacter"), _stage(CC_STATE_RACE) {
 	_newCharacter = new PoolradCharacter();
@@ -349,7 +343,7 @@ void CreateCharacterView::chooseRace() {
 	for (int i = 0; i < 6; ++i)
 		_indexMap.push_back(raceIndices[i]);
 	Dialogs::VerticalMenu::fillMenuItemsFromYml(_menuItems, "stats.races", raceIndices, 6);
-	buildAndShowMenu(PICK_RACE);
+	buildAndShowMenu(VmInterface::getString("create.pickrace"));
 }
 
 void CreateCharacterView::chooseGender() {
@@ -359,7 +353,7 @@ void CreateCharacterView::chooseGender() {
 	_indexMap.clear();
 	for (int i = 0; i < 2; ++i) _indexMap.push_back(genderIndices[i]);
 	Dialogs::VerticalMenu::fillMenuItemsFromYml(_menuItems, "stats.gender", genderIndices, 2);
-	buildAndShowMenu(PICK_GENDER);
+	buildAndShowMenu(VmInterface::getString("create.pickgender"));
 }
 
 void CreateCharacterView::chooseClass() {
@@ -388,7 +382,7 @@ void CreateCharacterView::chooseClass() {
 		Dialogs::VerticalMenu::fillMenuItemsFromYml(_menuItems, "stats.classes", indices, (int)allowed.size());
 		delete[] indices;
 	}
-	buildAndShowMenu(PICK_CLASS);
+	buildAndShowMenu(VmInterface::getString("create.pickclass"));
 }
 
 void CreateCharacterView::chooseAlignment() {
@@ -415,7 +409,7 @@ void CreateCharacterView::chooseAlignment() {
 		Dialogs::VerticalMenu::fillMenuItemsFromYml(_menuItems, "stats.alignments", indices, (int)allowed.size());
 		delete[] indices;
 	}
-	buildAndShowMenu(PICK_ALIGNMENT);
+	buildAndShowMenu(VmInterface::getString("create.pickalignment"));
 }
 
 void CreateCharacterView::showProfileDialog() {
@@ -438,7 +432,7 @@ void CreateCharacterView::attachKeepCharacterPrompt() {
 	detachAndDelete(_yesNoPrompt);
 	// All 5 fields must be given explicitly: default member initializer on
 	// backgroundColor makes this a non-aggregate under C++11 aggregate rules.
-	Dialogs::HorizontalYesNoConfig ynCfg { KEEP_CHARACTER, kMenuHeadColor, kMenuTextColor, kMenuSelectColor, 0 };
+	Dialogs::HorizontalYesNoConfig ynCfg { VmInterface::getString("create.keep"), kMenuHeadColor, kMenuTextColor, kMenuSelectColor, 0 };
 	_yesNoPrompt = new Dialogs::HorizontalYesNo("ProfileYN", ynCfg);
 	if (_profileDialog)
 		setDialogParent(_yesNoPrompt, _profileDialog);
@@ -448,7 +442,7 @@ void CreateCharacterView::attachKeepCharacterPrompt() {
 void CreateCharacterView::chooseName() {
 	using namespace Goldbox::Poolrad::Views::Dialogs;
 	detachAndDelete(_nameInput);
-	HorizontalInputConfig cfg { CHAR_NAME, 13, 15 };
+	HorizontalInputConfig cfg { VmInterface::getString("create.name"), 13, 15 };
 	_nameInput = new HorizontalInput("NameInput", cfg);
 	// Attach the input dialog under the profile dialog so the profile stays visible
 	if (_profileDialog)
@@ -486,7 +480,7 @@ void CreateCharacterView::chooseIcon() {
 
 void CreateCharacterView::buildAndShowMenu(const Common::String &topline) {
 	_menuPromptOptions.clear();
-	_menuPromptOptions.push_back("Exit");
+	_menuPromptOptions.push_back(VmInterface::getString("labels.exit"));
     Dialogs::VerticalMenuConfig menuConfig = {
         "",                  // promptTxt
         &_menuPromptOptions, // promptOptions (pointer)

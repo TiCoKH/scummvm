@@ -28,6 +28,7 @@
 #include "goldbox/core/direction.h"
 #include "goldbox/runtime/effect_host_bridge.h"
 #include "goldbox/engine.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Combat {
@@ -129,7 +130,7 @@ void CloudEffectManager::expire(Data::PlayerCharacter *owner,
         return;
 
     if (bridge)
-        bridge->postEffectMessage(owner, "The air clears a little...", true);
+        bridge->postEffectMessage(owner, VmInterface::getString("effects.airclears"), true);
 
     // Restore the four cells covered by this cloud.
     const Common::Array<CombatGlobals::DownedMemberRecord> &downed =

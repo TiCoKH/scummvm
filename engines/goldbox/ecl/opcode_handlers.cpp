@@ -1702,7 +1702,7 @@ static int handle_0x2E_DAMAGE(EclVM &vm, AddressSpace &mem,
             return report;
     } else if (syscalls && outcome.partyDefeated) {
         const VmResult asyncStart =
-            syscalls->beginPrintAsync("The entire party is killed!", false);
+            syscalls->beginPrintAsync(VmInterface::getString("encounter.partykilled"), false);
         if (g_events) {
             g_events->postEclSyscallMessage(vm.getPC(), 0x2E,
                 EclVmMessage::SC_PRINT, static_cast<int16>(asyncStart));

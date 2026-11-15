@@ -232,7 +232,7 @@ void SetIcon::setStage(IconMenuState stage) {
             _yesNoPrompt = nullptr;
         }
         {
-            HorizontalYesNoConfig ynCfg { "Is this Icon ok? ", kPromptColor, kTextColor, kSelectColor, ::Goldbox::Gfx::combatBackgroundColor() };
+            HorizontalYesNoConfig ynCfg { VmInterface::getString("icon.ok"), kPromptColor, kTextColor, kSelectColor, ::Goldbox::Gfx::combatBackgroundColor() };
             _yesNoPrompt = new HorizontalYesNo(getName() + "_Confirm", ynCfg);
             _yesNoPrompt->setParent(this);
             _yesNoPrompt->activate();
@@ -254,7 +254,7 @@ void SetIcon::buildSizeMenu(bool saveInitialSize) {
     {
         // iconmenu.4 = "Keep Exit", prepend size toggle option
         Common::Array<String> labels;
-        labels.push_back((_pc->iconData.bodyType == 2) ? "Small" : "Large");
+        labels.push_back(VmInterface::getString((_pc->iconData.bodyType == 2) ? "labels.small" : "labels.large"));
         Common::Array<String> tail = VmInterface::getStringTokens("iconmenu.4");
         for (uint i = 0; i < tail.size(); ++i)
             labels.push_back(tail[i]);
@@ -267,18 +267,18 @@ Common::String SetIcon::getSubPartLabel(int index) const {
     // Dynamically choose 'Hair' or 'Face' based on _colorAdjustMode
     switch (index) {
     case SUBPART_BODY:
-        return "Body";
+        return VmInterface::getString("labels.body");
     case SUBPART_ARMS:
-        return "Arm";
+        return VmInterface::getString("labels.arm");
     case SUBPART_LEGS:
-        return "Leg";
+        return VmInterface::getString("labels.leg");
     case SUBPART_HEAD_FACE:
         // Dynamic: show Hair for color-1, Face for color-2
-        return (_colorAdjustMode == 0) ? "Hair" : "Face";
+        return VmInterface::getString((_colorAdjustMode == 0) ? "labels.hair" : "labels.face");
     case SUBPART_SHIELD:
-        return "Shield";
+        return VmInterface::getString("labels.shield");
     case SUBPART_WEAPON:
-        return "Weapon";
+        return VmInterface::getString("labels.weapon");
     default:
         return "";
     }
@@ -483,10 +483,10 @@ void SetIcon::drawEditorText() {
     s.clearBox(kWindowLeft, kWindowTop, kWindowRight, kWindowBottom, ::Goldbox::Gfx::combatBackgroundColor());
 
     // Static labels and layout
-	s.writeStringC(8, 6, 15, "old");
-	s.writeStringC(3, 10, 15, "ready   action");
-	s.writeStringC(8, 12, 15, "new");
-	s.writeStringC(3, 16, 15, "ready   action");
+	s.writeStringC(8, 6, 15, VmInterface::getString("icon.old"));
+	s.writeStringC(3, 10, 15, VmInterface::getString("icon.readyaction"));
+	s.writeStringC(8, 12, 15, VmInterface::getString("icon.new"));
+	s.writeStringC(3, 16, 15, VmInterface::getString("icon.readyaction"));
 }
 
 void SetIcon::drawEditorIcons() {

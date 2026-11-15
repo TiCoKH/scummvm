@@ -38,9 +38,11 @@ using Goldbox::Data::ValuableType;
 
 namespace {
 
-const char *const kValuableNames[Goldbox::Data::VALUABLE_COUNT] = {
-    "Copper", "Silver", "Electrum", "Gold", "Platinum", "Gems", "Jewelry"
-};
+// Valuable names come from global_strings.yml "stats.currencies.<type>".
+Common::String valuableName(int type) {
+    return VmInterface::getString(
+        Common::String::format("stats.currencies.%d", type));
+}
 
 } // namespace
 
@@ -59,7 +61,7 @@ Common::String TreasurePoolTakeSource::transfer(ValuableType type,
             VmInterface::getSelectedCharacter());
     if (!ch) {
         warning("TreasurePoolTakeSource: no character selected");
-        return "No character selected.";
+        return VmInterface::getString("transfer.nochar");
     }
 
     Runtime::TreasurePool &pool = VmInterface::getTreasurePool();
@@ -83,10 +85,10 @@ Common::String TreasurePoolTakeSource::transfer(ValuableType type,
     case Runtime::TreasurePool::MoneyTransfer::TRANSFER_OK:
         return Common::String();
     case Runtime::TreasurePool::MoneyTransfer::TRANSFER_OVERLOADED:
-        return "Overloaded";
+        return VmInterface::getString("transfer.overloaded");
     case Runtime::TreasurePool::MoneyTransfer::TRANSFER_INVALID_TYPE:
     default:
-        return "Invalid valuable type.";
+        return VmInterface::getString("transfer.invalid");
     }
 }
 
@@ -101,8 +103,8 @@ ValuableTransferConfig::ValuableTransferConfig()
 
 ValuableTransferConfig ValuableTransferConfig::takeFromMoneyPool() {
     ValuableTransferConfig cfg;
-    cfg.selectPrompt = "Select type of coin ";
-    cfg.amountPromptFormat = "How much %s will you take? ";
+    cfg.selectPrompt = VmInterface::getString("transfer.select");
+    cfg.amountPromptFormat = VmInterface::getString("transfer.amount");
     return cfg;
 }
 
@@ -143,10 +145,10 @@ ValuableTransferDialog::~ValuableTransferDialog() {
     delete _selector;
 }
 
-const char *ValuableTransferDialog::getValuableName(ValuableType type) {
+Common::String ValuableTransferDialog::getValuableName(ValuableType type) {
     if (type < 0 || type >= Goldbox::Data::VALUABLE_COUNT)
-        return "";
-    return kValuableNames[type];
+        return Common::String();
+    return valuableName(type);
 }
 
 bool ValuableTransferDialog::hasAnyBalance() const {
@@ -259,7 +261,7 @@ void ValuableTransferDialog::buildMenuItems() {
 
         const Common::String amountTxt =
             Common::String::format("%u", (unsigned)balance);
-        Common::String line = kValuableNames[i];
+        Common::String line = valuableName(i);
 
         // "Name    Amount" right-aligned in a 30-character field.
         const int fieldWidth = 30;
@@ -307,7 +309,7 @@ void ValuableTransferDialog::openAmountInput() {
 
     HorizontalInputConfig cfg;
     cfg.promptTxt = Common::String::format(_config.amountPromptFormat.c_str(),
-        kValuableNames[_selectedType]);
+        valuableName(_selectedType).c_str());
     cfg.promptColor = _config.textColor;
     cfg.maxInputLength = _config.maxDigits;
 
@@ -384,12 +386,12 @@ void ValuableTransferDialog::handleAmountResult(
     uint32 amount = 0;
     if (!cancelled) {
         if (!result._hasStringValue || inputStr.size() > _config.maxDigits) {
-            showMessage("Enter a number.");
+            showMessage(VmInterface::getString("transfer.number"));
             return;
         }
         for (uint i = 0; i < inputStr.size(); ++i) {
             if (inputStr[i] < '0' || inputStr[i] > '9') {
-                showMessage("Enter a number.");
+                showMessage(VmInterface::getString("transfer.number"));
                 return;
             }
             amount = amount * 10 + (uint32)(inputStr[i] - '0');

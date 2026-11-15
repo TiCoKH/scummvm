@@ -23,6 +23,7 @@
 #include "goldbox/poolrad/views/dialogs/horizontal_menu.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/events.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -47,20 +48,20 @@ void InGameMenuDialog::buildMenuModel() {
 
     Common::Array<Common::String> menuStrings;
     if (_mode == kModeCamping) {
-        menuStrings.push_back("Save");
-        menuStrings.push_back("View");
-        menuStrings.push_back("Magic");
-        menuStrings.push_back("Rest");
-        menuStrings.push_back("Alter");
-        menuStrings.push_back("Exit");
+        menuStrings.push_back(VmInterface::getString("labels.save"));
+        menuStrings.push_back(VmInterface::getString("labels.view"));
+        menuStrings.push_back(VmInterface::getString("labels.magic"));
+        menuStrings.push_back(VmInterface::getString("labels.rest"));
+        menuStrings.push_back(VmInterface::getString("labels.alter"));
+        menuStrings.push_back(VmInterface::getString("labels.exit"));
     } else {
         if (_mode == kModeDungeon)
-            menuStrings.push_back("Area");
-        menuStrings.push_back("Cast");
-        menuStrings.push_back("View");
-        menuStrings.push_back("Encamp");
-        menuStrings.push_back("Search");
-        menuStrings.push_back("Look");
+            menuStrings.push_back(VmInterface::getString("labels.area"));
+        menuStrings.push_back(VmInterface::getString("labels.cast"));
+        menuStrings.push_back(VmInterface::getString("labels.view"));
+        menuStrings.push_back(VmInterface::getString("labels.encamp"));
+        menuStrings.push_back(VmInterface::getString("labels.search"));
+        menuStrings.push_back(VmInterface::getString("labels.look"));
     }
 
     _menuModel.generateMenuItems(menuStrings, true);

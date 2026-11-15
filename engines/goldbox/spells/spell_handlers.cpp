@@ -44,6 +44,7 @@
 #include "goldbox/spells/spell_generic_handler.h"
 #include "goldbox/spells/spell_apply.h"
 #include "goldbox/spells/spell_aoe.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Spells {
@@ -160,7 +161,7 @@ SpellCastResult CharmPersonHandler::execute(const SpellContext &context,
     const uint8 charType = pc ? pc->monsterType : 0;
     if (charType > 1 || target->iconDimension > 1) {
         if (bridge)
-            bridge->postEffectMessage(target, "is unaffected", true);
+            bridge->postEffectMessage(target, VmInterface::getString("effects.unaffected2"), true);
         return SpellCastResult(CAST_OK);
     }
 
@@ -170,7 +171,7 @@ SpellCastResult CharmPersonHandler::execute(const SpellContext &context,
     params.effectPowerOverride =
         static_cast<uint8>(hostile * 128 + context.casterLevel);
     params.effectImmediate = true;
-    params.message = "is charmed";
+    params.message = VmInterface::getString("effects.charmed");
     applyOnTargets(context, definition, targets, params);
 
     Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
@@ -212,7 +213,7 @@ SpellCastResult EnlargeHandler::execute(const SpellContext &context,
         uint8 effectValue = 0;
         if (target->applyStrengthChange(18, extStr, effectValue)) {
             if (bridge)
-                bridge->postEffectMessage(target, "is stronger", true);
+                bridge->postEffectMessage(target, VmInterface::getString("effects.stronger"), true);
         }
 
         target->addEffect(
@@ -227,7 +228,7 @@ SpellCastResult EnlargeHandler::execute(const SpellContext &context,
 
 // --- Reduce (ID13) ---
 // Saving throw vs spell negates. If save fails, removes E_POOLRAD_ENLARGE
-// (0x0C) from the target and posts "has been reduced".
+// (0x0C) from the target and posts VmInterface::getString("effects.reduced").
 SpellCastResult ReduceHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -263,7 +264,7 @@ SpellCastResult ReduceHandler::execute(const SpellContext &context,
                 *target, *fx,
                 static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ENLARGE))) {
             if (bridge)
-                bridge->postEffectMessage(target, "has been reduced", true);
+                bridge->postEffectMessage(target, VmInterface::getString("effects.reduced"), true);
         }
     }
 
@@ -470,7 +471,7 @@ SpellCastResult HoldPersonHandler::execute(const SpellContext &context,
         // effect is added (not immediate) with the caster level as power.
         Goldbox::Poolrad::checkUnaffectedEffect(*target, handler, bridge,
             context.combat, definition.entry->effectId, duration,
-            context.casterLevel, false, usesSave, saved, "is held");
+            context.casterLevel, false, usesSave, saved, VmInterface::getString("effects.held").c_str());
     }
 
     return SpellCastResult(CAST_OK);
@@ -653,7 +654,7 @@ SpellCastResult MirrorImageHandler::execute(const SpellContext &context,
 // the effect ticks out. Then applies initial nausea to all combatants currently
 // occupying the four cloud cells.
 //
-// After the cloud is created the caster's "Creates a noxious cloud" message
+// After the cloud is created the caster's VmInterface::getString("effects.cloud") message
 // is shown through the cast observer (which also redraws the viewport).
 SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
@@ -714,7 +715,7 @@ SpellCastResult StinkingCloudHandler::execute(const SpellContext &context,
 
     if (context.observer)
         context.observer->onSpellMessage(context.caster,
-            "Creates a noxious cloud");
+            VmInterface::getString("effects.cloud"));
 
     return SpellCastResult(CAST_OK);
 }
@@ -772,7 +773,7 @@ SpellCastResult StrengthHandler::execute(const SpellContext &context,
         uint8 effectPower = 0;
         const bool changed = target->applyStrengthChange(newStr, newExtStr, effectPower);
         if (changed && bridge)
-            bridge->postEffectMessage(target, "is stronger", true);
+            bridge->postEffectMessage(target, VmInterface::getString("effects.stronger"), true);
 
         const uint16 duration = computeSpellDuration(
             static_cast<uint8>(Goldbox::Data::Spells::SP_MUL2_STRENGTH),
@@ -850,7 +851,7 @@ SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
         Goldbox::Poolrad::checkUnaffectedEffect(*ch, handler, bridge,
             context.combat,
             static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_ANIMATE_DEAD),
-            0, effectPower, true, false, false, "is animated");
+            0, effectPower, true, false, false, VmInterface::getString("effects.animated").c_str());
         ch->healthStatus = Goldbox::Data::S_ANIMATED;
     }
 
@@ -860,7 +861,7 @@ SpellCastResult AnimateDeadHandler::execute(const SpellContext &context,
 // --- Cure Blindness (ID37) ---
 // Removes E_POOLRAD_BLIND (0x21) from the target via removeEffectById,
 // which fires EFF_REMOVE on the effect handler before erasing the record.
-// Posts "can see" only when the effect was actually present and removed.
+// Posts VmInterface::getString("effects.cansee") only when the effect was actually present and removed.
 SpellCastResult CureBlindnessHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -885,7 +886,7 @@ SpellCastResult CureBlindnessHandler::execute(const SpellContext &context,
         if (context.effectSystem->removeEffectById(
                 *target, *fx,
                 static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_BLIND)) && bridge)
-            bridge->postEffectMessage(target, "can see", true);
+            bridge->postEffectMessage(target, VmInterface::getString("effects.cansee"), true);
     }
 
     return SpellCastResult(CAST_OK);
@@ -962,8 +963,8 @@ SpellCastResult PrayerHandler::execute(const SpellContext &context,
 }
 
 // --- Remove Curse (ID43) ---
-// 1. Try to remove E_POOLRAD_BESTOW_CURSE (0x24) from the target; post "is un-cursed" if removed.
-// 2. Otherwise scan inventory for the first cursed item, clear its flag, post "'s item is un-cursed".
+// 1. Try to remove E_POOLRAD_BESTOW_CURSE (0x24) from the target; post VmInterface::getString("effects.uncursed") if removed.
+// 2. Otherwise scan inventory for the first cursed item, clear its flag, post VmInterface::getString("effects.itemuncursed").
 SpellCastResult RemoveCurseHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -985,7 +986,7 @@ SpellCastResult RemoveCurseHandler::execute(const SpellContext &context,
             *target, *fx,
             static_cast<uint8>(Goldbox::Data::Effects::E_POOLRAD_BESTOW_CURSE))) {
         if (bridge)
-            bridge->postEffectMessage(target, "is un-cursed", true);
+            bridge->postEffectMessage(target, VmInterface::getString("effects.uncursed"), true);
         return SpellCastResult(CAST_OK);
     }
 
@@ -996,7 +997,7 @@ SpellCastResult RemoveCurseHandler::execute(const SpellContext &context,
             if (item.cursed) {
                 item.cursed = 0;
                 if (bridge)
-                    bridge->postEffectMessage(target, "'s item is un-cursed", true);
+                    bridge->postEffectMessage(target, VmInterface::getString("effects.itemuncursed"), true);
                 return SpellCastResult(CAST_OK);
             }
         }
@@ -1016,7 +1017,7 @@ SpellCastResult BestowCurseHandler::execute(const SpellContext &context,
 // --- Haste (ID48) / Slow (ID55) shared helper ---
 // Mirrors SPELL_ApplyEffectToLimitedTargets. Filters targets to casterLevel
 // slots on the requested side. A target that carries the opposing effect is
-// cured of it ("is Cured") and dropped; the rest get the spell via
+// cured of it (VmInterface::getString("effects.cured")) and dropped; the rest get the spell via
 // GenericSpellHandler::applyToTargets, followed by ES_COMBAT_RATE_MODIFIER
 // (set 18) on each retained target.
 SpellCastResult HasteSlowHandler::execute(const SpellContext &context,
@@ -1056,7 +1057,7 @@ SpellCastResult HasteSlowHandler::execute(const SpellContext &context,
         Goldbox::Data::Effects::CharacterEffects *fx = target->getEffects();
         if (fx && fx->hasEffect(_removeEffectId)) {
             if (bridge)
-                bridge->postEffectMessage(target, "is Cured", true);
+                bridge->postEffectMessage(target, VmInterface::getString("effects.cured"), true);
             context.effectSystem->removeEffectById(*target, *fx,
                 _removeEffectId);
             continue;
@@ -1184,7 +1185,7 @@ SpellCastResult FireballHandler::execute(const SpellContext &context,
 //   chance = 50 + (castingLevel - effectPowerNibble) * 5  if caster level > effect level
 //   chance = 50 - (effectPowerNibble - castingLevel) * 2  if effect level > caster level
 //   chance = 50                                           if equal
-// Rolls 1d100; removes effect on success. Posts "is affected" if any effect was removed.
+// Rolls 1d100; removes effect on success. Posts VmInterface::getString("effects.affected") if any effect was removed.
 SpellCastResult DispelMagicHandler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -1238,7 +1239,7 @@ SpellCastResult DispelMagicHandler::execute(const SpellContext &context,
         }
 
         if (effectRemoved && bridge)
-            bridge->postEffectMessage(target, "is affected", true);
+            bridge->postEffectMessage(target, VmInterface::getString("effects.affected"), true);
     }
 
     return SpellCastResult(CAST_OK);
@@ -1255,7 +1256,7 @@ SpellCastResult CauseDiseaseHandler::execute(const SpellContext &context,
 // --- Spell ID58 (SP_MI2) ---
 // 1. If effect 0x37 is present: remove it, silently erase 0x16, return.
 // 2. Else if afflictions present: remove them, return.
-// 3. Else: heal 1d4+8 HP and post "is Healed".
+// 3. Else: heal 1d4+8 HP and post VmInterface::getString("effects.healed").
 SpellCastResult SpellID58Handler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -1293,7 +1294,7 @@ SpellCastResult SpellID58Handler::execute(const SpellContext &context,
             (Goldbox::g_engine ? Goldbox::g_engine->rollDice(1, 4) : 2));
 
         if (target->healHp(amount, false) && bridge)
-            bridge->postEffectMessage(target, "is Healed", true);
+            bridge->postEffectMessage(target, VmInterface::getString("effects.healed"), true);
     }
 
     return SpellCastResult(CAST_OK);
@@ -1415,7 +1416,7 @@ SpellCastResult SpellID57Handler::execute(const SpellContext &context,
 }
 
 // --- Spell ID59 (SP_MI3) ---
-// Applies applyStrengthChange(21, 0); posts "is stronger"; adds
+// Applies applyStrengthChange(21, 0); posts VmInterface::getString("effects.stronger"); adds
 // E_POOLRAD_STRENGTH with duration from computeSpellDuration.
 SpellCastResult SpellID59Handler::execute(const SpellContext &context,
         const SpellDefinition &definition,
@@ -1435,7 +1436,7 @@ SpellCastResult SpellID59Handler::execute(const SpellContext &context,
 
         uint8 strengthChange = 0;
         if (target->applyStrengthChange(21, 0, strengthChange) && bridge)
-            bridge->postEffectMessage(target, "is stronger", true);
+            bridge->postEffectMessage(target, VmInterface::getString("effects.stronger"), true);
 
         const uint16 duration = computeSpellDuration(
             static_cast<uint8>(Goldbox::Data::Spells::SP_MI3),
@@ -1458,7 +1459,7 @@ SpellCastResult SpellID61Handler::execute(const SpellContext &context,
 }
 
 // --- Spell ID62 (SP_MI6) ---
-// Heals 2d4+2 HP; posts "is Healed".
+// Heals 2d4+2 HP; posts VmInterface::getString("effects.healed").
 SpellCastResult SpellID62Handler::execute(const SpellContext &context,
         const SpellDefinition &definition,
         const TargetSelection &targets) const {
@@ -1478,7 +1479,7 @@ SpellCastResult SpellID62Handler::execute(const SpellContext &context,
             (Goldbox::g_engine ? Goldbox::g_engine->rollDice(2, 4) : 5));
 
         if (target->healHp(amount, false) && bridge)
-            bridge->postEffectMessage(target, "is Healed", true);
+            bridge->postEffectMessage(target, VmInterface::getString("effects.healed"), true);
     }
 
     return SpellCastResult(CAST_OK);
@@ -1639,7 +1640,7 @@ SpellCastResult RestoreHandler::execute(const SpellContext &context,
     Goldbox::Data::Effects::EffectHostBridge *bridge =
         context.effectSystem ? context.effectSystem->getHostBridge() : nullptr;
     if (bridge)
-        bridge->postEffectMessage(target, "is restored", true);
+        bridge->postEffectMessage(target, VmInterface::getString("effects.restored"), true);
 
     return SpellCastResult(CAST_OK);
 }

@@ -64,7 +64,7 @@ struct CombatViewAiDelegate : public Combat::AiMoveViewDelegate {
 
     void drawMoveRemaining(uint8 moveHalf) override {
         _view->setAiMessage(
-            Common::String::format("Move/Attack, Move Left = %d", moveHalf));
+            Common::String::format(VmInterface::getString("combat.moveleft").c_str(), moveHalf));
         present();
     }
 
@@ -103,7 +103,7 @@ struct CombatViewAiDelegate : public Combat::AiMoveViewDelegate {
     }
 
     void showFleesInPanic(::Goldbox::Data::PlayerCharacter *ch) override {
-        _view->printCombatMessage(ch, "Flees in panic!", 1);
+        _view->printCombatMessage(ch, VmInterface::getString("combat.flees"), 1);
     }
 };
 
@@ -144,10 +144,10 @@ struct CombatViewAttackDelegate : public Combat::CombatViewDelegate {
                           uint8 /*facingMode*/, uint8 damage,
                           uint8 damageDisplay, uint8 resultType) override {
         if (resultType == 0) {
-            _view->printCombatMessage(attacker, "Misses!", 10);
+            _view->printCombatMessage(attacker, VmInterface::getString("combat.misses"), 10);
         } else {
             _view->printCombatMessage(attacker,
-                Common::String::format("Hits for %d!", damageDisplay), 10);
+                Common::String::format(VmInterface::getString("combat.hits").c_str(), damageDisplay), 10);
             if (damage > 0) {
                 const Combat::CombatContext *ctx =
                     VmInterface::getCombatContext();
@@ -200,7 +200,7 @@ CombatView::CombatView()
     _combatEnd     = new Dialogs::CombatEndDialog();
     {
         Dialogs::HorizontalYesNoConfig cfg;
-        cfg.promptTxt       = "Abort Spell? ";
+        cfg.promptTxt       = VmInterface::getString("combat.abortspell");
         cfg.promptColor     = 15;
         cfg.textColor       = 10;
         cfg.selectColor     = 15;
@@ -580,7 +580,7 @@ void CombatView::onUpdate() {
                     ctx->globals.magicEnabled = !ctx->globals.magicEnabled;
                 _autoSpell = ctx && ctx->globals.magicEnabled;
                 printCombatMessage(nullptr,
-                    _autoSpell ? "Magic On" : "Magic Off", 10);
+                    VmInterface::getString(_autoSpell ? "combat.magicon" : "combat.magicoff"), 10);
                 _session.submitPlayerAction(Combat::CombatSession::PA_AUTOSPELL);
                 _needsFullRedraw = true;
                 _messageBox->draw();
@@ -817,7 +817,7 @@ void CombatView::handleRoundEnd() {
 
     _messageBox->setActor(nullptr);
     if (info.teammateDying)
-        printCombatMessage(nullptr, "Your Teammate is Dying", 10);
+        printCombatMessage(nullptr, VmInterface::getString("combat.teammatedying"), 10);
     _needsFullRedraw = true;
     redraw();
 
@@ -1000,7 +1000,7 @@ void CombatView::drawAimRange() {
 }
 
 void CombatView::showAlreadyTargeted() {
-    _info->showInfo("Already been targeted");
+    _info->showInfo(VmInterface::getString("combat.targeted"));
     _needsFullRedraw = true;
     redraw();
 }
@@ -1036,7 +1036,7 @@ void CombatView::focusCaster(::Goldbox::Data::PlayerCharacter *caster) {
 }
 
 void CombatView::showBeginsCasting(::Goldbox::Data::PlayerCharacter *caster) {
-    printCombatMessage(caster, "Begins Casting!");
+    printCombatMessage(caster, VmInterface::getString("combat.begincast"));
 }
 
 void CombatView::showSpellCastEffect(::Goldbox::Data::PlayerCharacter *caster,
@@ -1117,10 +1117,10 @@ void CombatView::showSpellMessage(::Goldbox::Data::PlayerCharacter *caster,
 // ViewChar.UseItem in combat: "Item:" and the item name on row 23.
 void CombatView::showItemUse(::Goldbox::Data::PlayerCharacter *user,
         const Common::String &itemName) {
-    printCombatMessage(user, "uses an item", 10);
+    printCombatMessage(user, VmInterface::getString("combat.usesitem"), 10);
     Surface s = getSurface(Window(0, 23, 39, 23));
     s.clearBox(0, 0, 39, 0, ::Goldbox::Gfx::combatBackgroundColor());
-    s.writeStringC(0, 0, 10, "Item:");
+    s.writeStringC(0, 0, 10, VmInterface::getString("combat.item"));
     s.writeStringC(5, 0, 10, itemName);
 }
 

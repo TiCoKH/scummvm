@@ -28,6 +28,7 @@
 #include "goldbox/data/player_character.h"
 #include "goldbox/events.h"
 #include "goldbox/gfx/surface.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -49,14 +50,14 @@ CombatMoveDialog::CombatMoveDialog()
     setBounds(Window(0, 24, 39, 24));
 
     HorizontalYesNoConfig cfg;
-    cfg.promptTxt       = "Flee? ";
+    cfg.promptTxt       = VmInterface::getString("combat.flee");
     cfg.promptColor     = 15;
     cfg.textColor       = 10;
     cfg.selectColor     = 15;
     cfg.backgroundColor = 8;
     _fleeYesNo = new HorizontalYesNo("CombatMoveFleeYesNo", cfg);
 
-    cfg.promptTxt = "Attack Ally?";
+    cfg.promptTxt = VmInterface::getString("combat.attackally2");
     _allyConfirm = new HorizontalYesNo("CombatMoveAllyConfirm", cfg);
 }
 
@@ -302,7 +303,7 @@ void CombatMoveDialog::handleActionSelect(int occupantIndex) {
     if (adnd && adnd->hasRangedWeapon() &&
             !adnd->isEquippedRangedWeapon()) {
         PromptMessageConfig cfg;
-        cfg.message = "Equip ranged weapon first.";
+        cfg.message = VmInterface::getString("combat.equipranged");
         cfg.textColor = 15;
         cfg.backgroundColor = 8;
         attachDialog(new PromptMessage("CombatMoveEquipRanged", cfg));
@@ -369,7 +370,7 @@ void CombatMoveDialog::finishAction(bool actionComplete) {
 
 void CombatMoveDialog::showBlockedMessage() {
     PromptMessageConfig cfg;
-    cfg.message = "Blocked";
+    cfg.message = VmInterface::getString("combat.blocked");
     cfg.textColor = 15;
     cfg.backgroundColor = 8;
     attachDialog(new PromptMessage("CombatMoveBlocked", cfg));
@@ -383,7 +384,7 @@ void CombatMoveDialog::drawMovementMenu() {
     Surface s = getSurface();
     s.clearBox(0, 0, 39, 0, ::Goldbox::Gfx::combatBackgroundColor());
     s.writeStringC(0, 0, 10,
-        Common::String::format("Move/Attack, Move Left = %d", budget));
+        Common::String::format(VmInterface::getString("combat.moveleft").c_str(), budget));
 }
 
 } // namespace Dialogs

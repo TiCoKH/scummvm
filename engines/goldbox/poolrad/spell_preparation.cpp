@@ -137,16 +137,16 @@ const char *SpellPreparation::activityRefusal(Activity activity,
     if (!_character)
         return nullptr;
     if (activity == ACT_CAST && antimagicArea)
-        return "cannot cast spells in this area";
+        return "spellbook.casthere";
     if (_character->healthStatus == Goldbox::Data::S_ANIMATED ||
             !_character->enabled) {
         switch (activity) {
         case ACT_CAST:
-            return "is in no condition to cast any spells";
+            return "spellbook.nocast";
         case ACT_MEMORIZE:
-            return "is in no condition to memorize spells";
+            return "spellbook.nomemorize";
         case ACT_SCRIBE:
-            return "is in no condition to scribe any scrolls";
+            return "spellbook.noscribe";
         default:
             break;
         }

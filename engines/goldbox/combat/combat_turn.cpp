@@ -927,7 +927,7 @@ bool useSpell(Data::PlayerCharacter *actor,
     // Magic.CastSpellNC announces only memorized casts; item use is
     // announced by the caller (ViewChar.UseItem).
     if (view && !fromMagicItem)
-        view->showSpellMessage(actor, "Casts a Spell");
+        view->showSpellMessage(actor, VmInterface::getString("combat.castsspell"));
 
     Data::Effects::EffectSystem effectSystem(Data::Effects::g_effectHandler,
         cc->params.effectBridge, cc->params.effectRuntime);
@@ -1004,7 +1004,7 @@ bool useSpell(Data::PlayerCharacter *actor,
     // Targeting failed: ACTION_UseSpell aborts the cast and the spell is lost.
     if (result.status == Spells::CAST_ABORTED) {
         if (view)
-            view->showSpellMessage(nullptr, "Spell Aborted");
+            view->showSpellMessage(nullptr, VmInterface::getString("combat.spellaborted"));
         if (!fromMagicItem)
             actor->removeMemorizedSpell(spellId);
     }
@@ -1041,7 +1041,7 @@ bool castSpell(Data::PlayerCharacter *actor,
     // Reject spells that cannot be cast during combat (c_avail == 0).
     const bool campOnly = (spell.whenCast == Data::Spells::IN_CAMP);
     if (campOnly && view)
-        view->showSpellMessage(nullptr, "Camp Only Spell");
+        view->showSpellMessage(nullptr, VmInterface::getString("combat.camponly"));
 
     // Player-controlled casting refreshes the combat presentation.
     if (!aiControl && view)

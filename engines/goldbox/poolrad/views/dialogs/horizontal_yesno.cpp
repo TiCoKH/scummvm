@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/views/dialogs/horizontal_yesno.h"
 #include "goldbox/events.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -39,8 +40,8 @@ HorizontalYesNo::HorizontalYesNo(const String &name, const HorizontalYesNoConfig
             _backgroundColor(config.backgroundColor),
             _promptTxt(config.promptTxt) {
     Array<String> items;
-    items.push_back("YES");
-    items.push_back("NO");
+    items.push_back(VmInterface::getString("labels.yes"));
+    items.push_back(VmInterface::getString("labels.no"));
     _menuItems.generateMenuItems(items, true);
     _menuItems.currentSelection = 1;
 

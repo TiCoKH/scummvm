@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/views/dialogs/party_list.h"
+#include "goldbox/vm_interface.h"
 #include "common/keyboard.h"
 
 namespace Goldbox {
@@ -184,8 +185,8 @@ void PartyList::draw() {
     s.clearBox(_xName, _yStart, 0x26, maxY, 0);
 
     int y = _yStart;
-	s.writeStringC(_xName, y, 15, "Name");
-	s.writeStringC(0x21,   y, 15, "AC  HP");
+	s.writeStringC(_xName, y, 15, VmInterface::getString("party.name"));
+	s.writeStringC(0x21,   y, 15, VmInterface::getString("party.achp"));
     y += 2;
 
     uint _partyIndex = 0;

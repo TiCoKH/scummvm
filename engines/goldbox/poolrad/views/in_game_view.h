@@ -175,7 +175,7 @@ private:
 	void finishMapCast();
 	/** PrintNameString(curChar, text, row 18, pause). */
 	void showTimedNameMessage(Goldbox::Data::PlayerCharacter *ch,
-		const char *text);
+		const Common::String &text);
 	void syncDirectionAndRedraw();
 	/** 3D left/right turn plays the step sound; turning around does not. */
 	void playTurnSound();

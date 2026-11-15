@@ -133,7 +133,7 @@ DamageResult DamageSystem::apply(PlayerCharacter &target,
         target.combatState->spellId = 0;
 
         result.interruptedSpell = true;
-        result.spellLostMessage = "lost a spell";
+        result.spellLostMessage = VmInterface::getString("combat.lostspell");
     }
 
     if (result.wentDown)
@@ -146,10 +146,10 @@ Common::String DamageSystem::buildDownMessage(const PlayerCharacter &target) {
     if (target.enabled)
         return Common::String();
     if (isKilledStatus(target.healthStatus))
-        return "is killed";
+        return VmInterface::getString("combat.killed");
     if (target.healthStatus == Goldbox::Data::S_DYING)
-        return "Goes Down and is Dying";
-    return "Goes Down";
+        return VmInterface::getString("combat.dying");
+    return VmInterface::getString("combat.down");
 }
 
 DamageResult DamageSystem::applyLegacy(PlayerCharacter &target,

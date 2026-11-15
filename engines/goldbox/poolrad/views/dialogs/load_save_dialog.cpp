@@ -26,6 +26,7 @@
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/views/dialogs/load_save_dialog.h"
 #include "goldbox/poolrad/data/legacy_save_utils.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -69,10 +70,10 @@ Common::String LoadSaveDialog::slotName(char slotLetter) {
 }
 
 LoadSaveDialog::LoadSaveDialog(const Common::String &name)
-	: Dialog(name), _mode(kModeLoad), _statusText(), _titleText("Load Game"),
+	: Dialog(name), _mode(kModeLoad), _statusText(), _titleText(VmInterface::getString("loadsave.loadtitle")),
 	  _slotMenu(nullptr) {
 	setBounds(Window(0, 24, 39, 24));
-	setStatusText("Load Which Game:");
+	setStatusText(VmInterface::getString("loadsave.loadwhich"));
 	rebuildSlotMenu();
 }
 
@@ -86,8 +87,8 @@ LoadSaveDialog::~LoadSaveDialog() {
 
 void LoadSaveDialog::setMode(Mode mode) {
 	_mode = mode;
-	_titleText = (_mode == kModeSave) ? "Save Game" : "Load Game";
-	setStatusText((_mode == kModeSave) ? "Save Which Game:" : "Load Which Game:");
+	_titleText = VmInterface::getString((_mode == kModeSave) ? "loadsave.savetitle" : "loadsave.loadtitle");
+	setStatusText(VmInterface::getString((_mode == kModeSave) ? "loadsave.savewhich" : "loadsave.loadwhich"));
 	rebuildSlotMenu();
 }
 
@@ -135,7 +136,7 @@ void LoadSaveDialog::rebuildSlotMenu() {
 
 	if (_slotItems.items.empty()) {
 		if (_mode == kModeLoad)
-			setStatusText("Load Which Game: none");
+			setStatusText(VmInterface::getString("loadsave.loadnone"));
 		return;
 	}
 
@@ -260,9 +261,8 @@ void LoadSaveDialog::handleMenuResult(const MenuResultMessage &result) {
 
 	Poolrad::PoolradEngine *engine = Poolrad::g_engine;
 	if (!engine) {
-		setStatusText((_mode == kModeSave) ?
-			"Save failed: engine unavailable" :
-			"Load failed: engine unavailable");
+		setStatusText(VmInterface::getString((_mode == kModeSave) ?
+			"loadsave.savenoengine" : "loadsave.loadnoengine"));
 		g_events->postMenuResult(targetViewName, false, result._keyCode,
 			slotIndex, Common::String(), true, false);
 		return;
@@ -289,8 +289,9 @@ void LoadSaveDialog::handleMenuResult(const MenuResultMessage &result) {
 		warning("%s failed for slot %c: %s",
 			(_mode == kModeSave) ? "Save" : "Load",
 			slotLetter, errorMessage.c_str());
-		setStatusText(Common::String::format("%s failed: %s",
-			(_mode == kModeSave) ? "Save" : "Load", errorMessage.c_str()));
+		setStatusText(Common::String::format(VmInterface::getString(
+			(_mode == kModeSave) ? "loadsave.savefailed" : "loadsave.loadfailed").c_str(),
+			errorMessage.c_str()));
 		if (_slotMenu && !_slotMenu->isActive())
 			_slotMenu->activate();
 		redraw();

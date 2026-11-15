@@ -21,6 +21,7 @@
 #include "goldbox/spells/spell_registry.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/data/spells/spell_metadata.h"
+#include "goldbox/vm_interface.h"
 
 namespace Goldbox {
 namespace Spells {
@@ -79,47 +80,47 @@ Common::String SpellRegistry::effectMessageForSpell(
     using namespace Goldbox::Data::Spells;
     // The msg each Magic handler passes to ResolveSpell (InitSpellFns).
     switch (id) {
-    case SP_CL1_BLESS:            return "is Blessed";
-    case SP_CL1_CURSE:            return "is Cursed";
+    case SP_CL1_BLESS:            return VmInterface::getString("spelleffects.blessed");
+    case SP_CL1_CURSE:            return VmInterface::getString("spelleffects.cursed");
     case SP_CL1_DETECT_MAGIC:
     case SP_MUL1_DETECT_MAGIC:
     case SP_MUL1_READ_MAGIC:
     case SP_CL2_FIND_TRAPS:
     case SP_CL2_SLOW_POISON:
-    case SP_MUL2_DETECT_INVISIB:  return "is affected";
+    case SP_MUL2_DETECT_INVISIB:  return VmInterface::getString("spelleffects.affected");
     case SP_CL1_PROT_FROM_EVIL:
     case SP_CL1_PROT_FROM_GOOD:
     case SP_MUL1_PROT_FROM_EVIL:
     case SP_MUL1_PROT_FROM_GOOD:
     case SP_MUL3_PROT_F_EVIL_10R:
     case SP_MUL3_PROT_F_GOOD_10R:
-    case SP_MUL3_PROT_F_NORM_MSL: return "is protected";
-    case SP_CL1_RESIST_COLD:      return "is cold-resistant";
+    case SP_MUL3_PROT_F_NORM_MSL: return VmInterface::getString("spelleffects.protected");
+    case SP_CL1_RESIST_COLD:      return VmInterface::getString("spelleffects.coldresistant");
     case SP_MUL1_CHARM_PERSON:
-    case SP_CL2_SNAKE_CHARM:      return "is charmed";
-    case SP_MUL1_FRIENDS:         return "is friendly";
-    case SP_MUL1_SHIELD:          return "is shielded";
-    case SP_MUL1_SLEEP:           return "falls asleep";
+    case SP_CL2_SNAKE_CHARM:      return VmInterface::getString("spelleffects.charmed");
+    case SP_MUL1_FRIENDS:         return VmInterface::getString("spelleffects.friendly");
+    case SP_MUL1_SHIELD:          return VmInterface::getString("spelleffects.shielded");
+    case SP_MUL1_SLEEP:           return VmInterface::getString("spelleffects.asleep");
     case SP_CL2_HOLD_PERSON:
-    case SP_MUL3_HOLD_PERSON:     return "is held";
-    case SP_CL2_RESIST_FIRE:      return "is fire resistant";
-    case SP_CL2_SILENCE_15R:      return "is silenced";
+    case SP_MUL3_HOLD_PERSON:     return VmInterface::getString("spelleffects.held");
+    case SP_CL2_RESIST_FIRE:      return VmInterface::getString("spelleffects.fireresistant");
+    case SP_CL2_SILENCE_15R:      return VmInterface::getString("spelleffects.silenced");
     case SP_MUL2_INVISIBILITY:
     case SP_MUL3_INVIS_10R:
-    case SP_MI7:                  return "is invisible";
-    case SP_MUL2_KNOCK:           return "Knock-Knock";
-    case SP_MUL2_MIRROR_IMAGE:    return "is duplicated";
-    case SP_MUL2_RAY_ENFEEBLE:    return "is weakened";
-    case SP_CL3_CAUSE_BLINDNESS:  return "is blind";
-    case SP_CL3_CAUSE_DISEASE:    return "is diseased";
-    case SP_CL3_PRAYER:           return "is praying";
-    case SP_CL3_BESTOW_CURSE:     return "has been cursed!";
-    case SP_MUL3_BLINK:           return "is blinking";
-    case SP_MUL3_HASTE:           return "is Hasted";
-    case SP_MUL3_SLOW:            return "is Slowed";
-    case SP_MI1:                  return "is Speedy";
-    case SP_MI5:                  return "is paralyzed";
-    case SP_MI11:                 return "is Reading";
+    case SP_MI7:                  return VmInterface::getString("spelleffects.invisible");
+    case SP_MUL2_KNOCK:           return VmInterface::getString("spelleffects.knock");
+    case SP_MUL2_MIRROR_IMAGE:    return VmInterface::getString("spelleffects.duplicated");
+    case SP_MUL2_RAY_ENFEEBLE:    return VmInterface::getString("spelleffects.weakened");
+    case SP_CL3_CAUSE_BLINDNESS:  return VmInterface::getString("spelleffects.blind");
+    case SP_CL3_CAUSE_DISEASE:    return VmInterface::getString("spelleffects.diseased");
+    case SP_CL3_PRAYER:           return VmInterface::getString("spelleffects.praying");
+    case SP_CL3_BESTOW_CURSE:     return VmInterface::getString("spelleffects.bestowcurse");
+    case SP_MUL3_BLINK:           return VmInterface::getString("spelleffects.blinking");
+    case SP_MUL3_HASTE:           return VmInterface::getString("spelleffects.hasted");
+    case SP_MUL3_SLOW:            return VmInterface::getString("spelleffects.slowed");
+    case SP_MI1:                  return VmInterface::getString("spelleffects.speedy");
+    case SP_MI5:                  return VmInterface::getString("spelleffects.paralyzed");
+    case SP_MI11:                 return VmInterface::getString("spelleffects.reading");
     default:                      return Common::String();
     }
 }
