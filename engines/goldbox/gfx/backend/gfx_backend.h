@@ -55,6 +55,15 @@ public:
 		uint8 iconColorKeys[6];
 	};
 
+	/** What the screen shows, for platforms that change palette by screen. */
+	enum PaletteMode {
+		kPaletteNormal,    ///< Menus, portraits, character sheets
+		kPaletteCombat,    ///< Combat screen
+		kPaletteCharacter, ///< Character creation and icon editor
+		kPaletteView3D,    ///< 3D view, area and wilderness maps
+		kPalettePicture    ///< Encounter and event pictures
+	};
+
 	virtual ~GfxBackend() {}
 
 	/** Create the backend of a platform; DOS for any other platform. */
@@ -65,6 +74,10 @@ public:
 
 	/** Load the platform palette (entries 0-254). */
 	virtual void setupPalette() = 0;
+
+	/** Switch to the palette of a kind of screen; most platforms keep one. */
+	virtual void setPaletteMode(PaletteMode mode) {}
+	virtual PaletteMode paletteMode() const { return kPaletteNormal; }
 
 	/**
 	 * Create the game font from the loaded DAX data or platform files.
@@ -106,6 +119,12 @@ public:
 
 	/** Whether the title screens are pictures in the title DAX family. */
 	virtual bool hasTitlePictures() const = 0;
+
+	/**
+	 * Cursor frame under the icon editor's action icon (ShowIconFrames):
+	 * DOS uses the action frame, other ports may reuse the ready frame.
+	 */
+	virtual uint8 iconEditorActionCursorFrame() const { return 1; }
 
 	/** Color conventions of the platform's artwork. */
 	virtual const ArtColors &artColors() const = 0;

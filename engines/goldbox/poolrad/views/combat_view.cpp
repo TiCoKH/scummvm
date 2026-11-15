@@ -266,6 +266,8 @@ void CombatView::setup(const Combat::CombatParams &params) {
 
 bool CombatView::msgFocus(const FocusMessage &msg) {
     View::msgFocus(msg);
+    // DisplayCombatInterface: the combat palette.
+    ::Goldbox::g_engine->getGfx().setPaletteMode(::Goldbox::Gfx::GfxBackend::kPaletteCombat);
     if (g_engine)
         g_engine->getGameText().clearMessageArea();
     _needsFullRedraw = true;

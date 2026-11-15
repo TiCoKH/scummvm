@@ -40,6 +40,7 @@ MODULE_OBJS = \
 	data/daxfilemanager.o \
 	data/daxheadercontainer.o \
 	data/daxresourcefile.o \
+	data/record_io.o \
 	data/format/amiga_dax_format.o \
 	data/format/dax_format.o \
 	data/format/dos_dax_format.o \

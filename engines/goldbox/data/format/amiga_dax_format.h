@@ -43,6 +43,7 @@ public:
 		Common::Array<Common::Path> &files) const override;
 	void addAliases(const Common::Path &file,
 		DaxBlockContainer &container) const override;
+	const RecordLayout &recordLayout() const override;
 
 private:
 	/**

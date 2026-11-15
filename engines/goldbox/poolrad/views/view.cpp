@@ -22,6 +22,7 @@
 #include "goldbox/poolrad/views/view.h"
 #include "goldbox/poolrad/views/dialogs/dialog.h"
 #include "goldbox/engine.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -126,6 +127,8 @@ void View::detachDialog(Dialogs::Dialog *dialog) {
 
 bool View::msgFocus(const FocusMessage &msg) {
 	_focusedElement = nullptr;
+	// Views that show another kind of screen switch after this.
+	::Goldbox::g_engine->getGfx().setPaletteMode(::Goldbox::Gfx::GfxBackend::kPaletteNormal);
 	return UIElement::msgFocus(msg);
 }
 

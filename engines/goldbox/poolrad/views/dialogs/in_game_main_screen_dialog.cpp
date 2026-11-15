@@ -19,6 +19,7 @@
  *
  */
 
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/gfx/first_person_renderer.h"
 #include "goldbox/gfx/viewport_background.h"
 #include "goldbox/gfx/area_map_cache.h"
@@ -197,6 +198,14 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 	if (!::Goldbox::Poolrad::g_engine)
 		return;
 
+	// Some platforms change palette with what the viewport shows: the 3D
+	// view (DisplayMapView), pictures (EclPicture) or portraits
+	// (DisplayPortrait). Combat keeps the combat palette.
+	auto setPalette = [this](::Goldbox::Gfx::GfxBackend::PaletteMode mode) {
+		if (_mode != kModeCombat)
+			::Goldbox::g_engine->getGfx().setPaletteMode(mode);
+	};
+
 	// Camping mode: draw picture from PictureDisplayCache (PIC 29 campfire).
 	if (_mode == kModeCamping) {
 		const ::Goldbox::Gfx::PictureDisplayCache &picCache =
@@ -205,6 +214,7 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 		if (headPic) {
 			const int vpX = 3 * 8;
 			const int vpY = 3 * 8;
+			setPalette(::Goldbox::Gfx::GfxBackend::kPalettePicture);
 			headPic->draw(&s, vpX, vpY);
 			return;
 		}
@@ -218,6 +228,7 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 		if (picCache.isActive()) {
 			const int vpX = 3 * 8;
 			const int vpY = 3 * 8;
+			setPalette(picCache.bodyPic() ? ::Goldbox::Gfx::GfxBackend::kPaletteNormal : ::Goldbox::Gfx::GfxBackend::kPalettePicture);
 			if (picCache.headPic())
 				picCache.headPic()->draw(&s, vpX, vpY);
 			if (picCache.bodyPic())
@@ -245,6 +256,7 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 			const Gfx::AreaMapCache &areaMap =
 				::Goldbox::Poolrad::g_engine->getAreaMapCache();
 			if (areaMap.isBuilt()) {
+				setPalette(::Goldbox::Gfx::GfxBackend::kPaletteView3D);
 				areaMap.drawViewport(s, (int)mapX, (int)mapY, mapDir,
 					::Goldbox::Poolrad::g_engine->getTileCache());
 				return;
@@ -281,6 +293,7 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 			// PICTURE opcode portrait/scene — replaces 3D view.
 			const int vpX = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetX * 8;
 			const int vpY = ::Goldbox::Gfx::FirstPersonRenderer::k3dViewOffsetY * 8;
+			setPalette(picCache.bodyPic() ? ::Goldbox::Gfx::GfxBackend::kPaletteNormal : ::Goldbox::Gfx::GfxBackend::kPalettePicture);
 			if (picCache.headPic())
 				picCache.headPic()->draw(&s, vpX, vpY);
 			if (picCache.bodyPic())
@@ -290,6 +303,7 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 
 		// Renderer expects wire format: cardinal * 2 (0=N,2=E,4=S,6=W).
 		const uint8 wireDir = static_cast<uint8>((mapDir & 0x03) * 2);
+		setPalette(::Goldbox::Gfx::GfxBackend::kPaletteView3D);
 		Gfx::FirstPersonRenderer::draw3dWorld(&s, wireDir,
 			(int)mapX, (int)mapY, *geo,
 			::Goldbox::Poolrad::g_engine->getWalldefSlotCache());
@@ -325,10 +339,12 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 
 			if (headPicId == 0xFF) {
 				// Scene picture from PIC DAX (no body/head composite).
+				setPalette(::Goldbox::Gfx::GfxBackend::kPalettePicture);
 				if (spriteCache.headPic())
 					spriteCache.headPic()->draw(&s, vpX, vpY);
 			} else {
 				// Portrait composite: head at top, body 5 char rows below.
+				setPalette(::Goldbox::Gfx::GfxBackend::kPaletteNormal);
 				if (spriteCache.headPic())
 					spriteCache.headPic()->draw(&s, vpX, vpY);
 				::Goldbox::Data::DaxBlock *bodyRaw =
@@ -347,6 +363,7 @@ void InGameMainScreenDialog::drawMap3dIfNeeded(Surface &s) {
 	}
 
 	if (effectiveType > 1 && effectiveType < 5) {
+		setPalette(::Goldbox::Gfx::GfxBackend::kPaletteView3D);
 		const int wildX = static_cast<int>(snapshot.wildernessPos.col);
 		const int wildY = static_cast<int>(snapshot.wildernessPos.row);
 		const int mapType = (int)effectiveType;

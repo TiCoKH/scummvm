@@ -24,6 +24,7 @@
 #include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/data/pascal_string_buffer.h"
+#include "goldbox/data/record_io.h"
 #include "goldbox/data/effects/effect_system.h"
 #include "goldbox/data/rules/rules.h"
 #include "goldbox/data/spells/spell.h"
@@ -297,169 +298,175 @@ void PoolradCharacter::initializeNewCharacter() {
 }
 
 void PoolradCharacter::load(Common::SeekableReadStream &stream) {
+	load(stream, Goldbox::Data::RecordLayout::dos());
+}
 
-	name = Goldbox::Data::PascalStringBuffer<15>::read(stream); // 0x000-0x00F
-	abilities.strength.current     = stream.readByte(); // 0x010
-	abilities.intelligence.current = stream.readByte(); // 0x011
-	abilities.wisdom.current       = stream.readByte(); // 0x012
-	abilities.dexterity.current    = stream.readByte(); // 0x013
-	abilities.constitution.current = stream.readByte(); // 0x014
-	abilities.charisma.current     = stream.readByte(); // 0x015
-	abilities.strException.current = stream.readByte(); // 0x016
+void PoolradCharacter::load(Common::SeekableReadStream &stream,
+		const Goldbox::Data::RecordLayout &layout) {
+	Goldbox::Data::RecordReader in(stream, layout);
+
+	name = in.readName(); // 0x000-0x00F
+	abilities.strength.current     = in.readByte(); // 0x010
+	abilities.intelligence.current = in.readByte(); // 0x011
+	abilities.wisdom.current       = in.readByte(); // 0x012
+	abilities.dexterity.current    = in.readByte(); // 0x013
+	abilities.constitution.current = in.readByte(); // 0x014
+	abilities.charisma.current     = in.readByte(); // 0x015
+	abilities.strException.current = in.readByte(); // 0x016
 
 	// 0x017-x02B: memorized spells
-	stream.read(spells.memorizedSpells, 21);
-	spellRegainRate = stream.readByte(); // 0x02C
-	thac0.base = stream.readByte(); // 0x02D
+	in.read(spells.memorizedSpells, 21);
+	spellRegainRate = in.readByte(); // 0x02C
+	thac0.base = in.readByte(); // 0x02D
 
-	race       = stream.readByte(); // 0x02E
-	classType  = stream.readByte(); // 0x02F
-	age        = stream.readUint16LE(); // 0x030-x031
+	race       = in.readByte(); // 0x02E
+	classType  = in.readByte(); // 0x02F
+	age        = in.readUint16(); // 0x030-x031
 
-	hitPoints.max = stream.readByte(); // 0x032
+	hitPoints.max = in.readByte(); // 0x032
 
 	// 0x33-0x6A: known-spell field - 56 bytes
-	stream.read(spells.knownSpells, POOLRAD_KNOWN_FIELD_SIZE);
+	in.read(spells.knownSpells, POOLRAD_KNOWN_FIELD_SIZE);
 
 	// Poolrad memorized array stores spell IDs per slot with pending bit 7.
 	// SpellBook import maps all known-spell entries including monster-only 0x06A.
 	importSpellBookFromLegacyArrays();
 
-	attackLevel = stream.readByte();   // 0x06B
-	iconDimension = stream.readByte(); // 0x06C
+	attackLevel = in.readByte();   // 0x06B
+	iconDimension = in.readByte(); // 0x06C
 
-	savingThrows.vsParalysis     = stream.readByte(); // 0x06D
-	savingThrows.vsPetrification = stream.readByte(); // 0x06E
-	savingThrows.vsRodStaffWand  = stream.readByte(); // 0x06F
-	savingThrows.vsBreathWeapon  = stream.readByte(); // 0x070
-	savingThrows.vsSpell         = stream.readByte(); // 0x071
+	savingThrows.vsParalysis     = in.readByte(); // 0x06D
+	savingThrows.vsPetrification = in.readByte(); // 0x06E
+	savingThrows.vsRodStaffWand  = in.readByte(); // 0x06F
+	savingThrows.vsBreathWeapon  = in.readByte(); // 0x070
+	savingThrows.vsSpell         = in.readByte(); // 0x071
 
-	movement.base = stream.readByte();      // 0x072
-	highestLevel = stream.readByte();      // 0x073
-	drainedLevels = stream.readByte();     // 0x074
-	drainedHPs = stream.readByte();         // 0x075
-	undeadResistance = stream.readByte();  // 0x076
+	movement.base = in.readByte();      // 0x072
+	highestLevel = in.readByte();      // 0x073
+	drainedLevels = in.readByte();     // 0x074
+	drainedHPs = in.readByte();         // 0x075
+	undeadResistance = in.readByte();  // 0x076
 
-	thiefSkills.pickPockets      = stream.readByte(); // 0x077
-	thiefSkills.openLocks        = stream.readByte(); // 0x078
-	thiefSkills.findRemoveTraps  = stream.readByte(); // 0x079
-	thiefSkills.moveSilently     = stream.readByte(); // 0x07A
-	thiefSkills.hideInShadows    = stream.readByte(); // 0x07B
-	thiefSkills.hearNoise        = stream.readByte(); // 0x07C
-	thiefSkills.climbWalls       = stream.readByte(); // 0x07D
-	thiefSkills.readLanguages    = stream.readByte(); // 0x07E
+	thiefSkills.pickPockets      = in.readByte(); // 0x077
+	thiefSkills.openLocks        = in.readByte(); // 0x078
+	thiefSkills.findRemoveTraps  = in.readByte(); // 0x079
+	thiefSkills.moveSilently     = in.readByte(); // 0x07A
+	thiefSkills.hideInShadows    = in.readByte(); // 0x07B
+	thiefSkills.hearNoise        = in.readByte(); // 0x07C
+	thiefSkills.climbWalls       = in.readByte(); // 0x07D
+	thiefSkills.readLanguages    = in.readByte(); // 0x07E
 
-	// 0x07F-0x082: effects address (pointer)
-	stream.seek(0x84, SEEK_SET);
-	npc = stream.readSByte();     // 0x084 bit 7 = 1 → NPC, bit 6-0 morale (0-127)
-	modified = stream.readByte(); // 0x085
-	// 0x086-0x087: unknown
-	stream.seek(0x88, SEEK_SET);
+	in.readUint32(); // 0x07F-0x082: effects address (pointer)
+	in.readByte();   // 0x083: unknown
+	npc = in.readSByte();     // 0x084 bit 7 = 1 → NPC, bit 6-0 morale (0-127)
+	modified = in.readByte(); // 0x085
+	in.readByte(); // 0x086: unknown
+	in.readByte(); // 0x087: unknown
 	// 0x088-0x095: coin and item valuables
 	for (int i = 0; i < Goldbox::Data::VALUABLE_COUNT; ++i)
-		valuableItems.values[i] = stream.readUint16LE();
+		valuableItems.values[i] = in.readUint16();
 
 	// 0x096-0x09D: class levels
 	for (int i = 0; i < 8; ++i)
-		levels.levels[i] = stream.readByte();
+		levels.levels[i] = in.readByte();
 
 	// 0x09E-0x0A0: gender, type, alignment
-	gender    = (Goldbox::Data::Gender)stream.readByte(); // 0x09E
-	monsterType = stream.readByte();                     // 0x09F
-	alignment = stream.readByte();                       // 0x0A0
+	gender    = (Goldbox::Data::Gender)in.readByte(); // 0x09E
+	monsterType = in.readByte();                     // 0x09F
+	alignment = in.readByte();                       // 0x0A0
 
 	// 0x0A1-0x0A2: primary & secondary attacks x2
 	Goldbox::Data::CombatRoll basePri;
 	Goldbox::Data::CombatRoll baseSec;
-	basePri.attacks = stream.readByte();
-	baseSec.attacks = stream.readByte();
+	basePri.attacks = in.readByte();
+	baseSec.attacks = in.readByte();
 
 	// 0x0A3-0x0A8: unarmed combat data
-	basePri.action.roll.diceNum   = stream.readByte();
-	baseSec.action.roll.diceNum   = stream.readByte();
-	basePri.action.roll.diceSides = stream.readByte();
-	baseSec.action.roll.diceSides = stream.readByte();
-	basePri.action.modifier       = stream.readSByte();
-	baseSec.action.modifier       = stream.readSByte();
+	basePri.action.roll.diceNum   = in.readByte();
+	baseSec.action.roll.diceNum   = in.readByte();
+	basePri.action.roll.diceSides = in.readByte();
+	baseSec.action.roll.diceSides = in.readByte();
+	basePri.action.modifier       = in.readSByte();
+	baseSec.action.modifier       = in.readSByte();
 
 	setBasePrimaryRoll(basePri);
 	setBaseSecondaryRoll(baseSec);
 
-	armorClass.base = stream.readByte();          // 0x0A9
-	strengthBonusAllowed = stream.readByte();     // 0x0AA
-	combatIcon = stream.readByte();               // 0x0AB (confirmed combatIcon, GB13-034 B)
+	armorClass.base = in.readByte();          // 0x0A9
+	strengthBonusAllowed = in.readByte();     // 0x0AA
+	combatIcon = in.readByte();               // 0x0AB (confirmed combatIcon, GB13-034 B)
 
-	experiencePoints = stream.readUint32LE();     // 0x0AC-0x0AF
+	experiencePoints = in.readUint32();     // 0x0AC-0x0AF
 
-	itemsLimit = stream.readByte(); // 0x0B0:
-	hitPointsRolled = stream.readByte(); // 0x0B1
+	itemsLimit = in.readByte(); // 0x0B0:
+	hitPointsRolled = in.readByte(); // 0x0B1
 
 	// 0x0B2-0x0B7: spell slot capacities (how many can be memorized)
-	spellSlots.cleric.level1    = stream.readByte(); // cleric 1
-	spellSlots.cleric.level2    = stream.readByte(); // cleric 2
-	spellSlots.cleric.level3    = stream.readByte(); // cleric 3
-	spellSlots.magicUser.level1 = stream.readByte(); // magic-user 1
-	spellSlots.magicUser.level2 = stream.readByte(); // magic-user 2
-	spellSlots.magicUser.level3 = stream.readByte(); // magic-user 3
+	spellSlots.cleric.level1    = in.readByte(); // cleric 1
+	spellSlots.cleric.level2    = in.readByte(); // cleric 2
+	spellSlots.cleric.level3    = in.readByte(); // cleric 3
+	spellSlots.magicUser.level1 = in.readByte(); // magic-user 1
+	spellSlots.magicUser.level2 = in.readByte(); // magic-user 2
+	spellSlots.magicUser.level3 = in.readByte(); // magic-user 3
 
-	xpForDefeating = stream.readUint16LE(); // 0x0B8-0x0B9
-	bonusXpPerHp = stream.readByte();       // 0x0BA
+	xpForDefeating = in.readUint16(); // 0x0B8-0x0B9
+	bonusXpPerHp = in.readByte();       // 0x0BA
 
-	portrait.head = stream.readByte(); // 0x0BB
-	portrait.body = stream.readByte(); // 0x0BC
+	portrait.head = in.readByte(); // 0x0BB
+	portrait.body = in.readByte(); // 0x0BC
 
-	iconData.iconHead = stream.readByte();   // 0x0BD
-	iconData.iconBody = stream.readByte();   // 0x0BE
-	iconData.iconSlotId = stream.readByte(); // 0x0BF
-	iconData.bodyType = stream.readByte();   // 0x0C0
+	iconData.iconHead = in.readByte();   // 0x0BD
+	iconData.iconBody = in.readByte();   // 0x0BE
+	iconData.iconSlotId = in.readByte(); // 0x0BF
+	iconData.bodyType = in.readByte();   // 0x0C0
 
-	iconData.setBodyColor(stream.readByte());     // 0x0C1
-	iconData.setArmColor(stream.readByte());      // 0x0C2
-	iconData.setLegColor(stream.readByte());      // 0x0C3
-	iconData.setHairFaceColor(stream.readByte()); // 0x0C4
-	iconData.setShieldColor(stream.readByte());   // 0x0C5
-	iconData.setWeaponColor(stream.readByte());   // 0x0C6
+	iconData.setBodyColor(in.readByte());     // 0x0C1
+	iconData.setArmColor(in.readByte());      // 0x0C2
+	iconData.setLegColor(in.readByte());      // 0x0C3
+	iconData.setHairFaceColor(in.readByte()); // 0x0C4
+	iconData.setShieldColor(in.readByte());   // 0x0C5
+	iconData.setWeaponColor(in.readByte());   // 0x0C6
 
-	numOfItems = stream.readByte();          // 0x0C7
-	itemsAddress = stream.readUint32LE();    // 0x0C8-0x0CB - pointer
+	numOfItems = in.readByte();          // 0x0C7
+	itemsAddress = in.readUint32();    // 0x0C8-0x0CB - pointer
 
 	// 0x0CC-0x0FF: equipped items (all pointers)
 	for (int i = 0; i < EQUIPMENT_SLOT_COUNT; ++i)
-		equippedOffsets[i] = stream.readUint32LE();
+		equippedOffsets[i] = in.readUint32();
 
-	handsEquipped = stream.readByte();       // 0x100
-	saveBonus     = stream.readByte();       // 0x101
-	encumbrance   = stream.readUint16LE();   // 0x102-0x103
+	handsEquipped = in.readByte();       // 0x100
+	saveBonus     = in.readByte();       // 0x101
+	encumbrance   = in.readUint16();   // 0x102-0x103
 
-	stream.readUint32LE(); // 0x104-0x107: next character address (pointer)
-	stream.readUint32LE(); // 0x108-0x10B: combat address (pointer)
+	in.readUint32(); // 0x104-0x107: next character address (pointer)
+	in.readUint32(); // 0x108-0x10B: combat address (pointer)
 
-	healthStatus = stream.readByte();        // 0x10C
-	enabled      = (stream.readByte() != 0); // 0x10D
-	combatSide  = static_cast<Goldbox::Data::CombatSide>(stream.readByte()); // 0x10E
-	ai_control   = (stream.readByte() != 0); // 0x10F
+	healthStatus = in.readByte();        // 0x10C
+	enabled      = (in.readByte() != 0); // 0x10D
+	combatSide  = static_cast<Goldbox::Data::CombatSide>(in.readByte()); // 0x10E
+	ai_control   = (in.readByte() != 0); // 0x10F
 
-	thac0.current        = stream.readByte(); // 0x110
-	armorClass.current   = stream.readByte(); // 0x111
-	acRear.current       = stream.readByte(); // 0x112
+	thac0.current        = in.readByte(); // 0x110
+	armorClass.current   = in.readByte(); // 0x111
+	acRear.current       = in.readByte(); // 0x112
 
 	Goldbox::Data::CombatRoll curPri;
 	Goldbox::Data::CombatRoll curSec;
-	curPri.attacks = stream.readByte(); // 0x113
-	curSec.attacks = stream.readByte(); // 0x114
+	curPri.attacks = in.readByte(); // 0x113
+	curSec.attacks = in.readByte(); // 0x114
 
-	curPri.action.roll.diceNum   = stream.readByte(); // 0x115
-	curSec.action.roll.diceNum   = stream.readByte(); // 0x116
-	curPri.action.roll.diceSides = stream.readByte(); // 0x117
-	curSec.action.roll.diceSides = stream.readByte(); // 0x118
-	curPri.action.modifier       = stream.readSByte(); // 0x119
-	curSec.action.modifier       = stream.readSByte(); // 0x11A
+	curPri.action.roll.diceNum   = in.readByte(); // 0x115
+	curSec.action.roll.diceNum   = in.readByte(); // 0x116
+	curPri.action.roll.diceSides = in.readByte(); // 0x117
+	curSec.action.roll.diceSides = in.readByte(); // 0x118
+	curPri.action.modifier       = in.readSByte(); // 0x119
+	curSec.action.modifier       = in.readSByte(); // 0x11A
 
 	setCurrentPrimaryRoll(curPri);
 	setCurrentSecondaryRoll(curSec);
 
-	hitPoints.current = stream.readByte(); // 0x11B
-	movement.current  = stream.readByte(); // 0x11C
+	hitPoints.current = in.readByte(); // 0x11B
+	movement.current  = in.readByte(); // 0x11C
 	// No SpellBook import; legacy arrays already populated above
 }
 
@@ -784,100 +791,106 @@ int8 PoolradCharacter::getConHPModifier() const {
 }
 
 void PoolradCharacter::save(Common::WriteStream &stream) {
+	save(stream, Goldbox::Data::RecordLayout::dos());
+}
+
+void PoolradCharacter::save(Common::WriteStream &stream,
+		const Goldbox::Data::RecordLayout &layout) {
+	Goldbox::Data::RecordWriter out(stream, layout);
 
 	// Keep Poolrad slot-based memorized array as source of truth.
 	exportSpellBookToLegacyArrays();
 
 	// Write spells from legacy arrays
-	Goldbox::Data::PascalStringBuffer<15>::write(stream, name);
+	out.writeName(name);
 	// Ability scores
-	stream.writeByte(abilities.strength.current);
-	stream.writeByte(abilities.intelligence.current);
-	stream.writeByte(abilities.wisdom.current);
-	stream.writeByte(abilities.dexterity.current);
-	stream.writeByte(abilities.constitution.current);
-	stream.writeByte(abilities.charisma.current);
-	stream.writeByte(abilities.strException.current);
+	out.writeByte(abilities.strength.current);
+	out.writeByte(abilities.intelligence.current);
+	out.writeByte(abilities.wisdom.current);
+	out.writeByte(abilities.dexterity.current);
+	out.writeByte(abilities.constitution.current);
+	out.writeByte(abilities.charisma.current);
+	out.writeByte(abilities.strException.current);
 
 	// Spells memorized (21 bytes)
-	stream.write(spells.memorizedSpells, 21);
+	out.write(spells.memorizedSpells, 21);
 
-	stream.writeByte(spellRegainRate); // 0x02C
+	out.writeByte(spellRegainRate); // 0x02C
 
 	// Combat
-	stream.writeByte(thac0.base);
+	out.writeByte(thac0.base);
 
-	stream.writeByte(race);
-	stream.writeByte(classType);
-	stream.writeUint16LE(age);
+	out.writeByte(race);
+	out.writeByte(classType);
+	out.writeUint16(age);
 
-	stream.writeByte(hitPoints.max);
+	out.writeByte(hitPoints.max);
 
 	// Known-spell field (56 bytes in Poolrad layout, 0x033-0x06A).
 	// Last byte is preserved legacy/monster data.
-	stream.write(spells.knownSpells, POOLRAD_KNOWN_FIELD_SIZE);
+	out.write(spells.knownSpells, POOLRAD_KNOWN_FIELD_SIZE);
 
-	stream.writeByte(attackLevel);
-	stream.writeByte(iconDimension);
+	out.writeByte(attackLevel);
+	out.writeByte(iconDimension);
 
 	// Saving throws
-	stream.writeByte(savingThrows.vsParalysis);
-	stream.writeByte(savingThrows.vsPetrification);
-	stream.writeByte(savingThrows.vsRodStaffWand);
-	stream.writeByte(savingThrows.vsBreathWeapon);
-	stream.writeByte(savingThrows.vsSpell);
+	out.writeByte(savingThrows.vsParalysis);
+	out.writeByte(savingThrows.vsPetrification);
+	out.writeByte(savingThrows.vsRodStaffWand);
+	out.writeByte(savingThrows.vsBreathWeapon);
+	out.writeByte(savingThrows.vsSpell);
 
-	stream.writeByte(movement.base);
-	stream.writeByte(highestLevel);
-	stream.writeByte(drainedLevels);
-	stream.writeByte(drainedHPs);
-	stream.writeByte(undeadResistance);
+	out.writeByte(movement.base);
+	out.writeByte(highestLevel);
+	out.writeByte(drainedLevels);
+	out.writeByte(drainedHPs);
+	out.writeByte(undeadResistance);
 
 	// Thief skills
-	stream.writeByte(thiefSkills.pickPockets);
-	stream.writeByte(thiefSkills.openLocks);
-	stream.writeByte(thiefSkills.findRemoveTraps);
-	stream.writeByte(thiefSkills.moveSilently);
-	stream.writeByte(thiefSkills.hideInShadows);
-	stream.writeByte(thiefSkills.hearNoise);
-	stream.writeByte(thiefSkills.climbWalls);
-	stream.writeByte(thiefSkills.readLanguages);
+	out.writeByte(thiefSkills.pickPockets);
+	out.writeByte(thiefSkills.openLocks);
+	out.writeByte(thiefSkills.findRemoveTraps);
+	out.writeByte(thiefSkills.moveSilently);
+	out.writeByte(thiefSkills.hideInShadows);
+	out.writeByte(thiefSkills.hearNoise);
+	out.writeByte(thiefSkills.climbWalls);
+	out.writeByte(thiefSkills.readLanguages);
 
-	for (int i = 0; i < 4; ++i) stream.writeByte(0); // Skip effects address
+	out.writeUint32(0); // effects address
 
-	stream.writeByte(0); // Unknown at 0x083
-	stream.writeSByte(npc);
-	stream.writeByte(modified);
+	out.writeByte(0); // Unknown at 0x083
+	out.writeSByte(npc);
+	out.writeByte(modified);
 
-	for (int i = 0; i < 2; ++i) stream.writeByte(0);
+	for (int i = 0; i < 2; ++i) out.writeByte(0);
 
 	// Coins and valuables
 	for (int i = 0; i < Goldbox::Data::VALUABLE_COUNT; ++i)
-		stream.writeUint16LE(valuableItems.values[i]);
+		out.writeUint16(valuableItems.values[i]);
 
 	// Class levels
 	for (int i = 0; i < 8; ++i)
-		stream.writeByte(levels.levels[i]);
+		out.writeByte(levels.levels[i]);
 
 	// Gender, Monster type, Alignment
-	stream.writeByte(gender);
-	stream.writeByte(monsterType);
-	stream.writeByte(alignment);
+	out.writeByte(gender);
+	out.writeByte(monsterType);
+	out.writeByte(alignment);
 
 	// Attacks: write from base rolls
-	stream.writeByte(basePrimaryRoll.attacks);
-	stream.writeByte(baseSecondaryRoll.attacks);
+	out.writeByte(basePrimaryRoll.attacks);
+	out.writeByte(baseSecondaryRoll.attacks);
 
 	// Unarmed / base combat dice: write from base rolls
-	stream.writeByte(basePrimaryRoll.action.roll.diceNum);
-	stream.writeByte(baseSecondaryRoll.action.roll.diceNum);
-	stream.writeByte(basePrimaryRoll.action.roll.diceSides);
-	stream.writeByte(baseSecondaryRoll.action.roll.diceSides);
-	stream.writeSByte(basePrimaryRoll.action.modifier);
-	stream.writeSByte(baseSecondaryRoll.action.modifier);
+	out.writeByte(basePrimaryRoll.action.roll.diceNum);
+	out.writeByte(baseSecondaryRoll.action.roll.diceNum);
+	out.writeByte(basePrimaryRoll.action.roll.diceSides);
+	out.writeByte(baseSecondaryRoll.action.roll.diceSides);
+	out.writeSByte(basePrimaryRoll.action.modifier);
+	out.writeSByte(baseSecondaryRoll.action.modifier);
 
-	stream.writeByte(armorClass.base);
-	stream.writeByte(strengthBonusAllowed);
+	out.writeByte(armorClass.base);
+	out.writeByte(strengthBonusAllowed);
 	// combatIcon @0x0AB. GB13-034 B: confirmed by byte reads across genuine
 	// DOS 1.3 fixtures (ALDIA/AVAS-DST/BAKSHI/BERGOS/CIRIK/DARKSTAR/SIRHECTO/
 	// TALLUS/CHRDATA1-3/CHRDATJ1). 0x0A9 (armorClass.base=50) and 0x0AA
@@ -886,80 +899,81 @@ void PoolradCharacter::save(Common::WriteStream &stream) {
 	// 20, 53) even when monsterType@0x9F is 0 - matching the random 0..255 icon
 	// index set in initializeNewCharacter(). So 0x0AB is combatIcon; the byte
 	// is saved here. (See poolrad_legacy_layout.h kCharCombatIcon.)
-	stream.writeByte(combatIcon);
+	out.writeByte(combatIcon);
 
-	stream.writeUint32LE(experiencePoints);
+	out.writeUint32(experiencePoints);
 
-	stream.writeByte(itemsLimit);
-	stream.writeByte(hitPointsRolled);
+	out.writeByte(itemsLimit);
+	out.writeByte(hitPointsRolled);
 
 	// Spell slots (cleric L1-3, then magic-user L1-3)
-	stream.writeByte(spellSlots.cleric.level1);
-	stream.writeByte(spellSlots.cleric.level2);
-	stream.writeByte(spellSlots.cleric.level3);
-	stream.writeByte(spellSlots.magicUser.level1);
-	stream.writeByte(spellSlots.magicUser.level2);
-	stream.writeByte(spellSlots.magicUser.level3);
+	out.writeByte(spellSlots.cleric.level1);
+	out.writeByte(spellSlots.cleric.level2);
+	out.writeByte(spellSlots.cleric.level3);
+	out.writeByte(spellSlots.magicUser.level1);
+	out.writeByte(spellSlots.magicUser.level2);
+	out.writeByte(spellSlots.magicUser.level3);
 
-	stream.writeUint16LE(xpForDefeating);
-	stream.writeByte(bonusXpPerHp);
+	out.writeUint16(xpForDefeating);
+	out.writeByte(bonusXpPerHp);
 
-	stream.writeByte(portrait.head);
-	stream.writeByte(portrait.body);
+	out.writeByte(portrait.head);
+	out.writeByte(portrait.body);
 
-	stream.writeByte(iconData.iconHead);
-	stream.writeByte(iconData.iconBody);
-	stream.writeByte(iconData.iconSlotId);
-	stream.writeByte(iconData.bodyType);
+	out.writeByte(iconData.iconHead);
+	out.writeByte(iconData.iconBody);
+	out.writeByte(iconData.iconSlotId);
+	out.writeByte(iconData.bodyType);
 
 	// Icon color data
-	stream.writeByte((iconData.iconColorBody2 << 4) | iconData.iconColorBody1);
-	stream.writeByte((iconData.iconColorArm2 << 4) | iconData.iconColorArm1);
-	stream.writeByte((iconData.iconColorLeg2 << 4) | iconData.iconColorLeg1);
-	stream.writeByte((iconData.iconColorFace << 4) | iconData.iconColorHair);
-	stream.writeByte((iconData.iconColorShield2 << 4) | iconData.iconColorShield1);
-	stream.writeByte((iconData.iconColorWeapon2 << 4) | iconData.iconColorWeapon1);
+	out.writeByte((iconData.iconColorBody2 << 4) | iconData.iconColorBody1);
+	out.writeByte((iconData.iconColorArm2 << 4) | iconData.iconColorArm1);
+	out.writeByte((iconData.iconColorLeg2 << 4) | iconData.iconColorLeg1);
+	out.writeByte((iconData.iconColorFace << 4) | iconData.iconColorHair);
+	out.writeByte((iconData.iconColorShield2 << 4) | iconData.iconColorShield1);
+	out.writeByte((iconData.iconColorWeapon2 << 4) | iconData.iconColorWeapon1);
 
-	stream.writeByte(numOfItems);
-	stream.writeUint32LE(itemsAddress);
+	out.writeByte(numOfItems);
+	out.writeUint32(itemsAddress);
 
 	// Equipped items legacy pointers: build from current equippedItems
 	{
 		uint32 legacy[EQUIPMENT_SLOT_COUNT];
 		buildLegacyOffsetsFromEquipped(legacy);
 		for (int i = 0; i < EQUIPMENT_SLOT_COUNT; ++i)
-			stream.writeUint32LE(legacy[i]);
+			out.writeUint32(legacy[i]);
 	}
 
-	stream.writeByte(handsEquipped);
-	stream.writeByte(saveBonus);
-	stream.writeUint16LE(encumbrance);
+	out.writeByte(handsEquipped);
+	out.writeByte(saveBonus);
+	out.writeUint16(encumbrance);
 
-	stream.writeUint32LE(0); // next character address
-	stream.writeUint32LE(0); // combat address
+	out.writeUint32(0); // next character address
+	out.writeUint32(0); // combat address
 
-	stream.writeByte(healthStatus);
-	stream.writeByte(enabled ? 1 : 0);
-	stream.writeByte(static_cast<uint8>(combatSide)); // 0x10E
-	stream.writeByte(ai_control ? 1 : 0);    // 0x10F
+	out.writeByte(healthStatus);
+	out.writeByte(enabled ? 1 : 0);
+	out.writeByte(static_cast<uint8>(combatSide)); // 0x10E
+	out.writeByte(ai_control ? 1 : 0);    // 0x10F
 
-	stream.writeByte(thac0.current);
-	stream.writeByte(armorClass.current);
-	stream.writeByte(acRear.current);
+	out.writeByte(thac0.current);
+	out.writeByte(armorClass.current);
+	out.writeByte(acRear.current);
 
-	stream.writeByte(curPrimaryRoll.attacks);
-	stream.writeByte(curSecondaryRoll.attacks);
+	out.writeByte(curPrimaryRoll.attacks);
+	out.writeByte(curSecondaryRoll.attacks);
 
 	// Current combat dice (mirror from unified model to preserve save format)
-	stream.writeByte(curPrimaryRoll.action.roll.diceNum);
-	stream.writeByte(curSecondaryRoll.action.roll.diceNum);
-	stream.writeByte(curPrimaryRoll.action.roll.diceSides);
-	stream.writeByte(curSecondaryRoll.action.roll.diceSides);
-	stream.writeSByte(curPrimaryRoll.action.modifier);
-	stream.writeSByte(curSecondaryRoll.action.modifier);
+	out.writeByte(curPrimaryRoll.action.roll.diceNum);
+	out.writeByte(curSecondaryRoll.action.roll.diceNum);
+	out.writeByte(curPrimaryRoll.action.roll.diceSides);
+	out.writeByte(curSecondaryRoll.action.roll.diceSides);
+	out.writeSByte(curPrimaryRoll.action.modifier);
+	out.writeSByte(curSecondaryRoll.action.modifier);
 
-	stream.writeByte(hitPoints.current);
-	stream.writeByte(movement.current);
+	out.writeByte(hitPoints.current);
+	out.writeByte(movement.current);
+	out.finish();
 }
 
 bool PoolradCharacter::isSpellKnown(Goldbox::Data::Spells::Spells spell) const {

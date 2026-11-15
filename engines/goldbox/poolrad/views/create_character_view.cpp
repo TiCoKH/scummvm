@@ -26,6 +26,7 @@
 #include "graphics/palette.h"
 //#include "goldbox/keymapping.h"
 #include "goldbox/engine.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/vm_interface.h"
 #include "goldbox/core/menu_item.h"
 #include "goldbox/data/rules/rules.h"
@@ -292,6 +293,8 @@ void CreateCharacterView::draw() {
 }
 
 bool CreateCharacterView::msgFocus(const FocusMessage &msg) {
+	// CreateCharacterMenu: the character creation palette.
+	::Goldbox::g_engine->getGfx().setPaletteMode(::Goldbox::Gfx::GfxBackend::kPaletteCharacter);
 	if (_stage != CC_STATE_RACE) {
 		resetState();
 	}

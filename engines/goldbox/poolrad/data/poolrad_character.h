@@ -27,6 +27,7 @@
 #include "common/list.h"
 
 #include "goldbox/data/adnd_character.h"
+#include "goldbox/data/record_io.h"
 #include "goldbox/data/items/base_items.h"
 #include "goldbox/data/effects/character_effects.h"
 #include "goldbox/data/rules/rules_types.h"
@@ -134,6 +135,12 @@ public:
 
     void load(Common::SeekableReadStream &stream) override;
     void save(Common::WriteStream &stream) override;
+
+    /** Read or write the character record in a platform's layout. */
+    void load(Common::SeekableReadStream &stream,
+            const Goldbox::Data::RecordLayout &layout);
+    void save(Common::WriteStream &stream,
+            const Goldbox::Data::RecordLayout &layout);
 
     void initialize();
 

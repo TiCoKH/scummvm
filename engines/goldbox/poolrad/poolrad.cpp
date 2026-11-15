@@ -28,6 +28,7 @@
 #include "goldbox/gfx/dax_font.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
+#include "goldbox/data/format/dax_format.h"
 #include "goldbox/data/pascal_string_buffer.h"
 #include "goldbox/data/strings_data.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
@@ -647,7 +648,7 @@ bool PoolradEngine::saveGameSlotX86(char slotLetter,
 			out.close();
 			return false;
 		}
-		pc->save(charOut);
+		pc->save(charOut, getDaxManager().getFormat().recordLayout());
 		charOut.close();
 
 		const Common::Path itmPath = savePath / (base + ".ITM");
@@ -849,8 +850,9 @@ bool PoolradEngine::loadGameSlotX86(char slotLetter,
 			continue;
 		}
 
+		// Character files use the platform's record layout.
 		Data::PoolradCharacter *pc = new Data::PoolradCharacter();
-		pc->load(*charStream);
+		pc->load(*charStream, getDaxManager().getFormat().recordLayout());
 		delete charStream;
 
 		Common::Path itmResolvedPath;

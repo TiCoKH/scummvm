@@ -28,6 +28,7 @@
 #include "common/str.h"
 #include "common/stream.h"
 #include "goldbox/data/daxblock.h"
+#include "goldbox/data/record_io.h"
 
 namespace Goldbox {
 namespace Data {
@@ -70,6 +71,11 @@ public:
 	 */
 	virtual void familyFiles(const char *pattern, uint16 dosIndices,
 		Common::Array<Common::Path> &files) const = 0;
+
+	/** Layout of the game's records (characters, items, effects). */
+	virtual const RecordLayout &recordLayout() const {
+		return RecordLayout::dos();
+	}
 
 	/**
 	 * Add block ids a DOS file has but this platform shares with another

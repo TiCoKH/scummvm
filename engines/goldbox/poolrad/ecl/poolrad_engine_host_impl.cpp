@@ -20,6 +20,7 @@
  */
 
 #include "goldbox/poolrad/ecl/poolrad_engine_host_impl.h"
+#include "goldbox/data/format/dax_format.h"
 #include "common/debug.h"
 #include "common/list.h"
 #include "common/memstream.h"
@@ -374,7 +375,7 @@ static bool loadMonsterTemplate(Goldbox::Engine *engine, uint8 monsterId,
     }
 
     Common::MemoryReadStream stream(rawBlock->_data.data(), rawBlock->_data.size());
-    monster.load(stream);
+    monster.load(stream, engine->getDaxManager().getFormat().recordLayout());
     monster.inventory.clear();
     monster.effects.clear();
     monster.itemsAddress = 0;

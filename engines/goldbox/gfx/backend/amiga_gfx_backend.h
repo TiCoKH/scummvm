@@ -36,6 +36,10 @@ class AmigaGfxBackend : public GfxBackend {
 public:
 	void initScreen() override;
 	void setupPalette() override;
+	void setPaletteMode(PaletteMode mode) override;
+	PaletteMode paletteMode() const override {
+		return _paletteMode < 0 ? kPaletteNormal : (PaletteMode)_paletteMode;
+	}
 	Graphics::Font *createFont(Data::DaxFileManager &dax) override;
 	void loadArtwork() override;
 	uint8 mapChar(uint8 chr) const override;
@@ -47,6 +51,8 @@ public:
 	bool drawFrame(Graphics::ManagedSurface &dst, int startX, int startY,
 		int endX, int endY) const override;
 	bool hasTitlePictures() const override { return false; }
+	/** CustomizeIcon_ShowIconFrames draws the ready cursor frame twice. */
+	uint8 iconEditorActionCursorFrame() const override { return 0; }
 	const ArtColors &artColors() const override;
 
 private:
@@ -54,6 +60,7 @@ private:
 	static uint32 textPen(uint32 color);
 
 	AmigaBorders _borders;
+	int _paletteMode = -1;
 };
 
 } // namespace Gfx

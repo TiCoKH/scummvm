@@ -138,16 +138,30 @@ void AmigaDaxFormat::familyFiles(const char *pattern, uint16 dosIndices,
 	files.push_back(Common::Path(singleFileName(pattern)));
 }
 
+const RecordLayout &AmigaDaxFormat::recordLayout() const {
+	// 68000 build: big-endian, words and longs at even offsets, C strings.
+	static const RecordLayout kAmiga = { true, true, true };
+	return kAmiga;
+}
+
 void AmigaDaxFormat::addAliases(const Common::Path &file,
 		DaxBlockContainer &container) const {
-	// CHEAD has no action pictures (DOS ids + 128): LoadIconAnim loads the
-	// ready head for both frames.
 	Common::String name = file.baseName();
 	name.toLowercase();
-	if (!name.hasPrefix("chead"))
-		return;
-	for (uint id = 0; id < 128; ++id)
-		container.addAlias(id + 128, id);
+
+	// CHEAD has no action pictures (DOS ids + 128): LoadIconAnim loads the
+	// ready head for both frames.
+	if (name.hasPrefix("chead")) {
+		for (uint id = 0; id < 128; ++id)
+			container.addAlias(id + 128, id);
+	}
+
+	// The combat cursor is COMSPR 12 (GameInit: LoadIconAnim COMSPR 12 into
+	// slot 25), DOS COMSPR 25; its action frame is 140, DOS 153.
+	if (name.hasPrefix("comspr")) {
+		container.addAlias(25, 12);
+		container.addAlias(153, 140);
+	}
 }
 
 bool AmigaDaxFormat::planarToDos(uint8 blockId, bool tilePairs,

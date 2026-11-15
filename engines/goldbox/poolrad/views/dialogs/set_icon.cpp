@@ -441,7 +441,8 @@ void SetIcon::drawIconPair(int x, int y, uint8 slotId) {
     if (!mgr)
         return;
     mgr->drawAtPos(&s, x, y, 0, 0, SLOT_SELECTFRAME);
-    mgr->drawAtPos(&s, x + 3, y, 0, 1, SLOT_SELECTFRAME);
+    mgr->drawAtPos(&s, x + 3, y, 0,
+        ::Goldbox::g_engine->getGfx().iconEditorActionCursorFrame(), SLOT_SELECTFRAME);
     mgr->drawAtPos(&s, x, y, 0, 0, slotId);
     mgr->drawAtPos(&s, x + 3, y, 0, 1, slotId);
 }
@@ -458,8 +459,21 @@ bool SetIcon::msgKeypress(const KeypressMessage &msg) {
 }
 
 void SetIcon::draw() {
+    // CustomizeIcon: the character creation palette.
+    ::Goldbox::Gfx::GfxBackend &gfx = ::Goldbox::g_engine->getGfx();
+    if (_savedPaletteMode < 0)
+        _savedPaletteMode = gfx.paletteMode();
+    gfx.setPaletteMode(::Goldbox::Gfx::GfxBackend::kPaletteCharacter);
     drawEditorText();
     drawEditorIcons();
+}
+
+void SetIcon::restorePalette() {
+    if (_savedPaletteMode < 0)
+        return;
+    ::Goldbox::g_engine->getGfx().setPaletteMode(
+        static_cast< ::Goldbox::Gfx::GfxBackend::PaletteMode>(_savedPaletteMode));
+    _savedPaletteMode = -1;
 }
 
 void SetIcon::drawEditorText() {
@@ -512,6 +526,7 @@ void SetIcon::handleMenuResult(const MenuResultMessage &result) {
     if (!success) {
         // Cancel pressed - revert changes
         revertChanges();
+        restorePalette();
         if (_parent) {
 			g_events->postMenuResult(_parent->getName(), false,
 				key, value, Common::String(), true, false);
@@ -756,6 +771,7 @@ void SetIcon::handleMenuResult(const MenuResultMessage &result) {
         // HorizontalYesNo: Yes = commit and exit, No = go back to main menu
         if (key == Common::KEYCODE_y || (success && value == 1)) {
             commitChanges();
+            restorePalette();
             if (_parent)
 				g_events->postMenuResult(_parent->getName(), true,
 					key, 1, Common::String(), true, false);

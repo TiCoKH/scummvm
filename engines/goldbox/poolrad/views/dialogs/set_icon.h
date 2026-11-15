@@ -87,6 +87,10 @@ private:
     // Data
     Goldbox::Poolrad::Data::PoolradCharacter *_pc;
     HorizontalMenu *_menu = nullptr;
+    int _savedPaletteMode = -1; ///< Palette to restore on exit
+
+    /** Switch back to the palette that was active when the editor opened. */
+    void restorePalette();
     HorizontalYesNo *_yesNoPrompt = nullptr;
     Goldbox::MenuItemList _menuItems;
 

@@ -39,17 +39,50 @@ static const uint16 kAmigaPalette[32] = {
 	0x800, 0xc00, 0xb86, 0xeb9, 0x070, 0x0a0, 0xc70, 0xfa4
 };
 
+// Colors 0-15 of each screen kind, loaded into the ColorMap by the routines
+// misnamed Mouse_SetSprite1..5/SND_Dat (SPRITE_ARRAY_1..5 at 0x2534EC).
+// Normal is PAL_ARRAY: DisplayNoncombatInterface, DisplayPortrait.
+static const uint16 kAmigaSubPalettes[5][16] = {
+	// kPaletteNormal (SPRITE_ARRAY_3)
+	{ 0x000, 0xdb9, 0xb97, 0x964, 0x521, 0x742, 0xa84, 0xcb6,
+	  0xff9, 0x007, 0x44b, 0x444, 0x555, 0x777, 0xaaa, 0xfff },
+	// kPaletteCombat (SPRITE_ARRAY_1): DisplayCombatInterface, ViewCharMenu
+	{ 0x222, 0x06b, 0x096, 0x0aa, 0x000, 0x940, 0xb44, 0xfaa,
+	  0xfe9, 0x59f, 0x0d8, 0x5ff, 0x555, 0x777, 0xaaa, 0xfff },
+	// kPaletteCharacter (SPRITE_ARRAY_2): CreateCharacterMenu, CustomizeIcon
+	{ 0x000, 0x06b, 0x096, 0x0aa, 0x000, 0x940, 0xb44, 0xfaa,
+	  0xfe9, 0x59f, 0x0d8, 0x5ff, 0x555, 0x777, 0xaaa, 0xfff },
+	// kPaletteView3D (SPRITE_ARRAY_4): Display3DMapView, DisplayMapView
+	{ 0x000, 0x06b, 0x096, 0x0aa, 0x000, 0x940, 0xb44, 0xfaa,
+	  0xfe9, 0x59f, 0x0d8, 0x5ff, 0x555, 0x777, 0xaaa, 0xfff },
+	// kPalettePicture (SPRITE_ARRAY_5): EclPicture
+	{ 0x000, 0x124, 0x953, 0xb97, 0xecb, 0x710, 0xa42, 0xdb0,
+	  0xff5, 0x074, 0x053, 0x369, 0x555, 0x777, 0xaaa, 0xfff }
+};
+
+static void setAmigaColors(const uint16 *colors, uint start, uint count) {
+	Graphics::Palette pal(count);
+	for (uint i = 0; i < count; ++i) {
+		const uint16 c = colors[i];
+		pal.set(i, ((c >> 8) & 0xF) * 17, ((c >> 4) & 0xF) * 17, (c & 0xF) * 17);
+	}
+	g_system->getPaletteManager()->setPalette(pal, start);
+}
+
 void AmigaGfxBackend::initScreen() {
 	initGraphics(320, 200);
 }
 
 void AmigaGfxBackend::setupPalette() {
-	Graphics::Palette pal(ARRAYSIZE(kAmigaPalette));
-	for (uint i = 0; i < ARRAYSIZE(kAmigaPalette); ++i) {
-		const uint16 c = kAmigaPalette[i];
-		pal.set(i, ((c >> 8) & 0xF) * 17, ((c >> 4) & 0xF) * 17, (c & 0xF) * 17);
-	}
-	g_system->getPaletteManager()->setPalette(pal);
+	setAmigaColors(kAmigaPalette, 0, ARRAYSIZE(kAmigaPalette));
+	_paletteMode = kPaletteNormal;
+}
+
+void AmigaGfxBackend::setPaletteMode(PaletteMode mode) {
+	if (mode == _paletteMode)
+		return;
+	setAmigaColors(kAmigaSubPalettes[mode], 0, 16);
+	_paletteMode = mode;
 }
 
 Graphics::Font *AmigaGfxBackend::createFont(Data::DaxFileManager &dax) {
