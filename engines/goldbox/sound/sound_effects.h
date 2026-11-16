@@ -42,7 +42,11 @@ enum SoundEffect {
 	kSfxMiss = 10,
 	kSfxStep = 11,          ///< Party/creature step and turn
 	kSfxFireball = 12,      ///< Also the ECL sound cue
-	kSfxRangedEnd = 13
+	kSfxRangedEnd = 13,
+	// v1.0 only, played only in Tandy mode; v1.3 dropped both tunes and
+	// its table entries 12 and 13 are sound effects.
+	kSfxTitleMusicV10 = 14, ///< VIEW_Title, Tandy song 12
+	kSfxCombatMusicV10 = 15 ///< Combat setup (2D5F:1ED6), Tandy song 13
 };
 
 /** "sound_tempo" range and default, in percent of the original rate. */

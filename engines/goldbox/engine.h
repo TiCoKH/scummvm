@@ -168,6 +168,18 @@ public:
 	void playSfx(SoundEffect sfx) { soundPlay(static_cast<uint8>(sfx)); }
 
 	/**
+	 * Play a v1.0 Tandy tune (title, combat start). Does nothing with the
+	 * v1.3 sound data or the PC speaker, like the originals.
+	 */
+	void playV10TandyMusic(SoundEffect tune);
+
+	/**
+	 * v1.0 SOUND_Play(ARRAY_SOUND_MAP[1]) stop around the title; v1.3 has
+	 * no sound calls there.
+	 */
+	void stopV10Music();
+
+	/**
 	 * Play a sound that runs for ms before auto-stop cuts it, like a
 	 * SoundSetAutoStop(0) bracket around a pause that cannot block here.
 	 */

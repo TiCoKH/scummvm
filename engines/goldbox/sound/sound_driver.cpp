@@ -47,6 +47,14 @@ const int kBlipTicks = 20;
 /** Longest a sustained tune may run on after its animation (~2 s). */
 const int kMaxDrainTicks = 470;
 
+/**
+ * v1.0 SOUND_Play: 0 and 0xFF first start ARRAY_SOUND_MAP[11] (value 10,
+ * table entry 9, the step sound) and wait DELAY(50) / DELAY(30).
+ */
+const uint16 kV10StopSound = 9;
+const uint32 kV10StopDelayMs = 50;
+const uint32 kV10SilenceDelayMs = 30;
+
 // Channel structure field offsets
 enum {
     CH_DURATION = 0x00,
@@ -74,6 +82,8 @@ enum {
 
 GoldboxSoundDriver::GoldboxSoundDriver(Audio::Mixer *mixer, SoundMode mode)
         : _mixer(mixer), _mode(mode), _outputRate(0), _ready(false),
+        _v10(false), _resident(false), _pendingAction(kPendingNone),
+        _pendingSamples(0),
         _soundId(0), _speakerEnable(1), _curChannel(0), _subReturn(0),
         _soundFlag(0), _timerRunning(false), _timerAccumulator(0),
         _tempo(100),
@@ -90,11 +100,14 @@ GoldboxSoundDriver::~GoldboxSoundDriver() {
         _mixer->stopHandle(_handle);
 }
 
-bool GoldboxSoundDriver::init(const Common::Path &dataFile) {
+bool GoldboxSoundDriver::init(const Common::Path &dataFile, bool v10,
+        bool autoStop) {
     if (_mode == kSoundOff || !_mixer || !_outputRate)
         return false;
     if (!_seg.loadFromFile(dataFile))
         return false;
+    _v10 = v10;
+    _resident = v10 || !autoStop;
 
     _layout = _seg.getLayout();
     _speaker.freqBase = _layout.speakerFreq;
@@ -104,11 +117,30 @@ bool GoldboxSoundDriver::init(const Common::Path &dataFile) {
     _tandy.chanBase = _layout.tandyChannels;
     _tandy.soundTable = _layout.tandySounds;
 
-    // SetSound startup: start the timer, load silence, stop the timer
-    startTimer();
-    loadSound(_tandy, 0);
-    loadSound(_speaker, 0);
-    stopTimer();
+    if (_v10) {
+        // The v1.0 channel banks are uninitialized storage in the EXE and
+        // hold stale bytes (streams like 0x463B). The original runs them
+        // only until VIEW_Title's first SOUND_Play(0) reloads the bank a
+        // moment after startup; the music entries reset only channel 0, so
+        // start with idle channels instead.
+        byte *mem = _seg.data();
+        memset(mem + _speaker.chanBase, 0, kBankChannels * kChannelSize);
+        memset(mem + _tandy.chanBase, 0, kBankChannels * kChannelSize);
+
+        // SOUND_SetTimerHandler: the timer is installed once and stays
+        // resident; sounds play in the background until they end.
+        startTimer();
+    } else {
+        // SetSound startup: start the timer, load silence, stop the timer
+        startTimer();
+        loadSound(_tandy, 0);
+        loadSound(_speaker, 0);
+        stopTimer();
+        // Without auto-stop the v1.3 commands run like v1.3 continuous mode
+        // (SoundSetAutoStop(0)) for the whole game.
+        if (_resident)
+            startTimer();
+    }
 
     _ready = true;
     _mixer->playStream(Audio::Mixer::kSFXSoundType, &_handle, this, -1,
@@ -121,6 +153,11 @@ void GoldboxSoundDriver::play(uint8 sound, uint32 sustainMs) {
         return;
     Common::StackLock lock(_mutex);
 
+    if (_v10) {
+        playV10(sound);
+        return;
+    }
+
     if (_soundFlag > 0 && _blipTicks > 0 && sound >= 2 && sound != 0xFF) {
         _queuedSound = sound - 1;
         _queuedTicks = blipLength(sustainMs);
@@ -129,7 +166,7 @@ void GoldboxSoundDriver::play(uint8 sound, uint32 sustainMs) {
     _queuedSound = -1;
     _draining = false;
 
-    if (_soundFlag > 0)
+    if (_soundFlag > 0 || _resident)
         startTimer();
 
     switch (sound) {
@@ -155,6 +192,63 @@ void GoldboxSoundDriver::play(uint8 sound, uint32 sustainMs) {
     _blipTicks = (_soundFlag > 0) ? blipLength(sustainMs) : 0;
 }
 
+// v1.0 SOUND_Play (127F:0000). Sounds are not cut: the resident timer
+// runs every channel to its end.
+void GoldboxSoundDriver::playV10(uint8 sound) {
+    _pendingAction = kPendingNone;
+    switch (sound) {
+    case 0:
+        // Speaker off, SOUND_Play(10), DELAY(50), speaker on
+        _speakerEnable = 0;
+        startTimer();
+        loadActive(kV10StopSound);
+        schedule(kPendingEnable, kV10StopDelayMs);
+        break;
+    case 1:
+        _speakerEnable = 1;
+        break;
+    case 0xFF:
+        // SOUND_Play(10), DELAY(30), SOUND_SpeakerSet (timer removed)
+        startTimer();
+        loadActive(kV10StopSound);
+        schedule(kPendingStop, kV10SilenceDelayMs);
+        break;
+    default:
+        // The timer is always installed while sound is on; after a 0xFF
+        // (Ctrl-S off) the next sound brings it back like Ctrl-S on.
+        startTimer();
+        loadActive(sound - 1);
+        break;
+    }
+}
+
+void GoldboxSoundDriver::schedule(PendingAction action, uint32 ms) {
+    _pendingAction = action;
+    _pendingSamples = (uint32)((uint64)ms * _outputRate / 1000);
+    if (!_pendingSamples)
+        _pendingSamples = 1;
+}
+
+void GoldboxSoundDriver::resume() {
+    if (!_ready)
+        return;
+    Common::StackLock lock(_mutex);
+    if (_v10) {
+        // SOUND_SetTimerHandler
+        _pendingAction = kPendingNone;
+        _speakerEnable = 1;
+        startTimer();
+        return;
+    }
+    // SetSound: start the timer, load silence, stop the timer
+    loadSound(_tandy, 0);
+    loadSound(_speaker, 0);
+    if (_resident)
+        startTimer();
+    else if (_soundFlag > 0)
+        stopTimer();
+}
+
 // Blips and run-ons are real-time lengths, so they scale with the tempo.
 int GoldboxSoundDriver::blipLength(uint32 sustainMs) const {
     const int ticks = (sustainMs == 0) ? kBlipTicks * _tempo / 100 :
@@ -164,8 +258,8 @@ int GoldboxSoundDriver::blipLength(uint32 sustainMs) const {
 }
 
 void GoldboxSoundDriver::setup(uint16 flag) {
-    if (!_ready)
-        return;
+    if (!_ready || _resident)
+        return;     // v1.0 has no SOUND_Setup; no auto-stop was asked for
     Common::StackLock lock(_mutex);
 
     if (flag > 0 && _soundFlag == 0) {
@@ -194,6 +288,7 @@ void GoldboxSoundDriver::stopAll() {
     _blipTicks = 0;
     _queuedSound = -1;
     _draining = false;
+    _pendingAction = kPendingNone;
     stopTimer();
 }
 
@@ -591,6 +686,14 @@ int GoldboxSoundDriver::readBuffer(int16 *buffer, const int numSamples) {
     // One tick per kTimerDivisor PIT clocks, scaled by the tempo.
     const uint64 tickThreshold = (uint64)kTimerDivisor * _outputRate * 100;
     for (int i = 0; i < numSamples; ++i) {
+        if (_pendingAction != kPendingNone && --_pendingSamples == 0) {
+            if (_pendingAction == kPendingEnable)
+                _speakerEnable = 1;
+            else
+                stopTimer();
+            _pendingAction = kPendingNone;
+        }
+
         _timerAccumulator += (uint64)kPitClock * _tempo;
         while (_timerAccumulator >= tickThreshold) {
             _timerAccumulator -= tickThreshold;

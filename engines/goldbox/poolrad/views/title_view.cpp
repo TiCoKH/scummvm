@@ -72,11 +72,13 @@ void TitleView::draw() {
 		case 3:
 			delete _pic1;
 			delete _pic2;
+			g_engine->stopV10Music();
 			replaceView("Credits");
 			break;
 		case 4:
 			delete _pic1;
 			delete _pic2;
+			g_engine->stopV10Music();
 			// A key skips the title and credits, not the code wheel.
 			replaceView(viewAfterCredits());
 			break;
@@ -96,8 +98,12 @@ void TitleView::timeout() {
 		}
 		_state = 3;
 	}
-	else
-		_state++;
+	else if (++_state == 1) {
+		// v1.0 VIEW_Title: stop, then the title tune on Tandy, before the
+		// first picture.
+		g_engine->stopV10Music();
+		g_engine->playV10TandyMusic(kSfxTitleMusicV10);
+	}
 	redraw();
 }
 

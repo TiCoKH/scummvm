@@ -96,8 +96,6 @@ public:
     bool save() override;
     bool hasKeys() override;
     void setEnabled(bool enabled) override;
-    void handleCommand(GUI::CommandSender *sender, uint32 cmd,
-        uint32 data) override;
 
 protected:
     void defineLayout(GUI::ThemeEval &layouts,
@@ -109,12 +107,7 @@ private:
     GUI::RadiobuttonGroup _soundVersionGroup;
     GUI::CheckboxWidget *_originalMenus;
     GUI::CheckboxWidget *_skipCodewheel;
-    GUI::SliderWidget *_soundTempo;
-    GUI::StaticTextWidget *_soundTempoValue;
-
-    enum { kSoundTempoChanged = 'GBst' };
-
-    void updateSoundTempoValue();
+    GUI::CheckboxWidget *_fullSounds;
 };
 
 GoldboxOptionsWidget::GoldboxOptionsWidget(GUI::GuiObject *boss,
@@ -145,20 +138,10 @@ GoldboxOptionsWidget::GoldboxOptionsWidget(GUI::GuiObject *boss,
     new GUI::RadiobuttonWidget(widgetsBoss(), _dialogLayout + ".v10",
         &_soundVersionGroup, 10, _("v1.0"),
         _("Use the original v1.0 sounds from poolrad10sound.dat"));
-
-    GUI::StaticTextWidget *tempoLabel = new GUI::StaticTextWidget(
-        widgetsBoss(), _dialogLayout + ".sound_tempo_label",
-        _("Sound tempo:"));
-    tempoLabel->setAlign(Graphics::TextAlign::kTextAlignEnd);
-    _soundTempo = new GUI::SliderWidget(widgetsBoss(),
-        _dialogLayout + ".sound_tempo",
-        _("Speed of the sound effects; 100% is the original timer rate"),
-        kSoundTempoChanged);
-    _soundTempo->setMinValue(kMinSoundTempo);
-    _soundTempo->setMaxValue(kMaxSoundTempo);
-    _soundTempoValue = new GUI::StaticTextWidget(widgetsBoss(),
-        _dialogLayout + ".sound_tempo_value", Common::U32String());
-    _soundTempoValue->setFlags(GUI::WIDGET_CLEARBG);
+    _fullSounds = new GUI::CheckboxWidget(widgetsBoss(),
+        _dialogLayout + ".full_sounds", _("Play v1.3 sounds in full"),
+        _("The original v1.3 cuts most sound effects off after 1/10 s; "
+          "play them to the end like v1.0 does"));
 }
 
 void GoldboxOptionsWidget::load() {
@@ -171,9 +154,8 @@ void GoldboxOptionsWidget::load() {
         mode.equalsIgnoreCase("speaker") ? kSoundPCSpeaker : kSoundTandy);
     const Common::String version = ConfMan.get("sound_version", _domain);
     _soundVersionGroup.setValue(version == "1.0" ? 10 : 13);
-    _soundTempo->setValue(ConfMan.hasKey("sound_tempo", _domain) ?
-        ConfMan.getInt("sound_tempo", _domain) : kDefaultSoundTempo);
-    updateSoundTempoValue();
+    _fullSounds->setState(ConfMan.hasKey("sound_autostop", _domain) &&
+        !ConfMan.getBool("sound_autostop", _domain));
 }
 
 bool GoldboxOptionsWidget::save() {
@@ -184,8 +166,8 @@ bool GoldboxOptionsWidget::save() {
     const bool changed =
         ConfMan.get("sound_mode", _domain) != modeName ||
         ConfMan.get("sound_version", _domain) != version ||
-        !ConfMan.hasKey("sound_tempo", _domain) ||
-        ConfMan.getInt("sound_tempo", _domain) != _soundTempo->getValue() ||
+        !ConfMan.hasKey("sound_autostop", _domain) ||
+        ConfMan.getBool("sound_autostop", _domain) == _fullSounds->getState() ||
         !ConfMan.hasKey("original_menus", _domain) ||
         ConfMan.getBool("original_menus", _domain) != _originalMenus->getState() ||
         !ConfMan.hasKey("skip_codewheel", _domain) ||
@@ -193,7 +175,10 @@ bool GoldboxOptionsWidget::save() {
 
     ConfMan.set("sound_mode", modeName, _domain);
     ConfMan.set("sound_version", version, _domain);
-    ConfMan.setInt("sound_tempo", _soundTempo->getValue(), _domain);
+    ConfMan.setBool("sound_autostop", !_fullSounds->getState(), _domain);
+    // The sound tempo is no longer offered; drop an old setting so the
+    // original 100% rate applies.
+    ConfMan.removeKey("sound_tempo", _domain);
     ConfMan.setBool("original_menus", _originalMenus->getState(), _domain);
     ConfMan.setBool("skip_codewheel", _skipCodewheel->getState(), _domain);
     return changed;
@@ -202,7 +187,7 @@ bool GoldboxOptionsWidget::save() {
 bool GoldboxOptionsWidget::hasKeys() {
     return ConfMan.hasKey("sound_mode", _domain) ||
         ConfMan.hasKey("sound_version", _domain) ||
-        ConfMan.hasKey("sound_tempo", _domain) ||
+        ConfMan.hasKey("sound_autostop", _domain) ||
         ConfMan.hasKey("original_menus", _domain) ||
         ConfMan.hasKey("skip_codewheel", _domain);
 }
@@ -212,22 +197,7 @@ void GoldboxOptionsWidget::setEnabled(bool enabled) {
     _skipCodewheel->setEnabled(enabled);
     _soundModeGroup.setEnabled(enabled);
     _soundVersionGroup.setEnabled(enabled);
-    _soundTempo->setEnabled(enabled);
-    _soundTempoValue->setEnabled(enabled);
-}
-
-void GoldboxOptionsWidget::handleCommand(GUI::CommandSender *sender,
-        uint32 cmd, uint32 data) {
-    if (cmd == kSoundTempoChanged) {
-        updateSoundTempoValue();
-        return;
-    }
-    GUI::OptionsContainerWidget::handleCommand(sender, cmd, data);
-}
-
-void GoldboxOptionsWidget::updateSoundTempoValue() {
-    _soundTempoValue->setLabel(
-        Common::String::format("%d%%", _soundTempo->getValue()));
+    _fullSounds->setEnabled(enabled);
 }
 
 void GoldboxOptionsWidget::defineLayout(GUI::ThemeEval &layouts,
@@ -247,12 +217,7 @@ void GoldboxOptionsWidget::defineLayout(GUI::ThemeEval &layouts,
     layouts.addWidget("sound_version", "OptionsLabel");
     layouts.addWidget("v13", "Radiobutton");
     layouts.addWidget("v10", "Radiobutton");
-    layouts.addSpace(8);
-    layouts.addLayout(GUI::ThemeLayout::kLayoutHorizontal, 12)
-        .addWidget("sound_tempo_label", "OptionsLabel")
-        .addWidget("sound_tempo", "Slider")
-        .addWidget("sound_tempo_value", "ShortOptionsLabel")
-        .closeLayout();
+    layouts.addWidget("full_sounds", "Checkbox");
     layouts.closeLayout().closeDialog();
 }
 

@@ -57,18 +57,36 @@ public:
 
     /**
      * Load the sound data segment from a sound data file and start the
-     * output stream. Initializes like the original SetSound startup.
+     * output stream. Initializes like the original startup: v1.3 SetSound
+     * (start, silence and stop the timer) or v1.0 SOUND_SetTimerHandler
+     * (the timer stays installed for the whole game).
+     * @param v10       the data file is v1.0 data; use the v1.0 driver behavior
+     * @param autoStop  v1.3 only: false keeps the timer resident like v1.0,
+     *                  so SOUND_Setup is ignored and sounds play in full
      * @return false if the sound data could not be loaded
      */
-    bool init(const Common::Path &dataFile);
+    bool init(const Common::Path &dataFile, bool v10 = false,
+        bool autoStop = true);
 
-    /** SOUND_Play: 0 = sound off, 1 = sound on, 0xFF = silence,
-     *  n >= 2 = play sound table entry n - 1. In blip mode a nonzero
-     *  sustainMs replaces the blip length. */
+    /** True when running the v1.0 driver behavior. */
+    bool isV10() const { return _v10; }
+
+    /**
+     * SOUND_Play: 0 = stop, 1 = speaker on, 0xFF = silence (v1.0: and
+     * remove the timer), n >= 2 = play sound table entry n - 1. In v1.3
+     * blip mode a nonzero sustainMs replaces the blip length; v1.0 has no
+     * blip mode and lets every sound run to its end.
+     */
     void play(uint8 sound, uint32 sustainMs = 0);
 
-    /** SOUND_Setup: 0 = continuous mode, > 0 = short blip mode. */
+    /** SOUND_Setup (v1.3 only): 0 = continuous mode, > 0 = blip mode. */
     void setup(uint16 flag);
+
+    /**
+     * Ctrl-S turning sound back on: v1.0 reinstalls the timer
+     * (SOUND_SetTimerHandler), v1.3 does SetSound (silence).
+     */
+    void resume();
 
     void stopAll();
 
@@ -101,6 +119,15 @@ private:
     SoundMode _mode;
     uint32 _outputRate;
     bool _ready;
+    bool _v10;             ///< v1.0 driver: resident timer, no auto-stop
+    bool _resident;        ///< timer stays installed (v1.0 or no auto-stop)
+
+    // v1.0 SOUND_Play(0) / (0xFF) block on DELAY(50) / DELAY(30) before
+    // turning the speaker back on / removing the timer; the stream does
+    // that step after this many output samples (real time) instead.
+    enum PendingAction { kPendingNone, kPendingEnable, kPendingStop };
+    PendingAction _pendingAction;
+    uint32 _pendingSamples;
 
     Bank _speaker;
     Bank _tandy;
@@ -140,6 +167,8 @@ private:
 
     void loadSound(Bank &bank, uint16 id);
     void loadActive(uint16 id);
+    void playV10(uint8 sound);
+    void schedule(PendingAction action, uint32 ms);
     int blipLength(uint32 sustainMs) const;
     bool tuneActive() const;
     void timerTick();

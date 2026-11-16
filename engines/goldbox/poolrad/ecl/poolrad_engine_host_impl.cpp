@@ -520,6 +520,11 @@ VmResult PoolradEngineHostImpl::startCombat() {
     // consecutive fights each settle once.
     _combatSettled = false;
 
+    // v1.0 combat setup (2D5F:1ED6) starts the combat tune on Tandy before
+    // building the battlefield; v1.3 removed it.
+    if (_engine)
+        _engine->playV10TandyMusic(kSfxCombatMusicV10);
+
     Common::Array<Goldbox::Data::PlayerCharacter *> combatRoster;
     Common::List<Goldbox::Data::PlayerCharacter *> &party =
         _engine->getParty();

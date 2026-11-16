@@ -124,7 +124,11 @@ void Engine::setup() {
 			warning("Goldbox: invalid sound_version '%s'; using v1.3",
 				version.c_str());
 		_soundDriver = new GoldboxSoundDriver(_mixer, _soundMode);
-		if (_soundDriver->init(Common::Path(dataFile))) {
+		const bool v10 = Common::String(dataFile) == soundVersionDataFile("1.0");
+		// "sound_autostop" false: play v1.3 sounds in full (no 1/10 s cut)
+		const bool autoStop = !ConfMan.hasKey("sound_autostop") ||
+			ConfMan.getBool("sound_autostop");
+		if (_soundDriver->init(Common::Path(dataFile), v10, autoStop)) {
 			syncSoundSettings();
 			_soundDriver->setup(100);
 		} else {
@@ -362,8 +366,22 @@ void Engine::toggleSound() {
 		_soundEnabled = false;
 	} else {
 		_soundEnabled = true;
-		soundPlay(kSfxStop);
+		if (_soundDriver)
+			_soundDriver->resume();
+		else
+			soundPlay(kSfxStop);
 	}
+}
+
+void Engine::playV10TandyMusic(SoundEffect tune) {
+	// v1.0: if (BYTE_SOUND_MODE == SC_TANDY_SOUND) SOUND_Play(tune)
+	if (_soundDriver && _soundDriver->isV10() && _soundMode == kSoundTandy)
+		soundPlay(static_cast<uint8>(tune));
+}
+
+void Engine::stopV10Music() {
+	if (_soundDriver && _soundDriver->isV10())
+		soundPlay(1);
 }
 
 } // End of namespace Goldbox
