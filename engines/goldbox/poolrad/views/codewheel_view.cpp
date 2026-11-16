@@ -24,6 +24,7 @@
 //#include "goldbox/keymapping.h"
 #include "goldbox/poolrad/views/codewheel_view.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/poolrad/views/credits_view.h"
 #include "goldbox/engine.h"
 
 namespace Goldbox {
@@ -53,7 +54,7 @@ bool CodewheelView::msgKeypress(const KeypressMessage &msg) {
 		_inputPrompt->deactivate();
 		if (_inputPrompt->getInput() == passcodes[_code_index].answer) {
 			s.clearBox(0, 24, 39, 24, 0);
-			replaceView("Mainmenu");
+			replaceView(viewAfterCodewheel());
 		} else {
 			_inputPrompt->clearInput();
 			s.clearBox(0, 24, 39, 24, 0);

@@ -72,6 +72,7 @@ MODULE_OBJS = \
 	spells/spell_targeter.o \
 	spells/spell_generic_handler.o \
 	gfx/backend/amiga_borders.o \
+	gfx/backend/amiga_intro.o \
 	gfx/backend/amiga_gfx_backend.o \
 	gfx/backend/dos_gfx_backend.o \
 	gfx/backend/gfx_backend.o \
@@ -138,6 +139,7 @@ MODULE_OBJS = \
 	poolrad/data/poolrad_vm_layout.o \
 	poolrad/views/view.o \
 	poolrad/views/title_view.o \
+	poolrad/views/amiga/amiga_intro_view.o \
 	poolrad/views/credits_view.o \
 	poolrad/views/codewheel_view.o \
 	poolrad/views/mainmenu_view.o \

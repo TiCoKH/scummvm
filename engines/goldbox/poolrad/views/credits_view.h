@@ -28,8 +28,18 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Views {
 
-/** The view after the credits: the code wheel, unless it is skipped. */
+/**
+ * The view after the credits: the code wheel, unless it is skipped. The
+ * Amiga has no credits view (they are in its intro) and comes here from
+ * the title.
+ */
 const char *viewAfterCredits();
+
+/**
+ * The view after the code wheel: the Amiga intro when present and not
+ * skipped, otherwise the main menu.
+ */
+const char *viewAfterCodewheel();
 
 class CreditsView : public View {
 private:

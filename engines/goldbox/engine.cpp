@@ -107,8 +107,10 @@ void Engine::setup() {
 		_soundMode = kSoundTandy;
 	}
 
-	// Initialize sound driver (unless sound is off)
-	if (_soundMode != kSoundOff) {
+	// Initialize sound driver (unless sound is off). The Tandy and PC
+	// speaker sound data (poolrad*sound.dat) belong to the DOS version;
+	// the Amiga and PC-98 versions have their own sound hardware.
+	if (_soundMode != kSoundOff && getPlatform() == Common::kPlatformDOS) {
 		const Common::String version = ConfMan.get("sound_version");
 		bool versionRecognized = true;
 		const char *dataFile = soundVersionDataFile(version, &versionRecognized);

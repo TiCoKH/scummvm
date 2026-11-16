@@ -24,6 +24,7 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/poolrad/views/title_view.h"
+#include "goldbox/poolrad/views/credits_view.h"
 #include "goldbox/poolrad/poolrad.h"
 
 namespace Goldbox {
@@ -86,9 +87,15 @@ void TitleView::draw() {
 }
 
 void TitleView::timeout() {
-	// Without title pictures (Amiga, PC-98) go on to the credits.
-	if (_state == 0 && !_pic1)
+	// Without title pictures go on to the credits. The Amiga has its credits
+	// in the intro, which follows the code wheel.
+	if (_state == 0 && !_pic1) {
+		if (g_engine->getPlatform() == Common::kPlatformAmiga) {
+			replaceView(viewAfterCredits());
+			return;
+		}
 		_state = 3;
+	}
 	else
 		_state++;
 	redraw();

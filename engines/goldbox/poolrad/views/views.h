@@ -25,6 +25,8 @@
 #include "goldbox/poolrad/views/title_view.h"
 #include "goldbox/poolrad/views/credits_view.h"
 #include "goldbox/poolrad/views/codewheel_view.h"
+#include "goldbox/poolrad/views/amiga/amiga_intro_view.h"
+#include "goldbox/engine.h"
 #include "goldbox/poolrad/views/mainmenu_view.h"
 #include "goldbox/poolrad/views/create_character_view.h"
 #include "goldbox/poolrad/views/add_character_view.h"
@@ -39,7 +41,17 @@ namespace Poolrad{
 namespace Views {
 
 struct Views {
+	Views() {
+		// The Amiga version only: its intro program.
+		if (g_engine->getPlatform() == Common::kPlatformAmiga)
+			_amigaIntro = new AmigaIntroView();
+	}
+	~Views() {
+		delete _amigaIntro;
+	}
+
 	TitleView _title;
+	AmigaIntroView *_amigaIntro = nullptr;
 	CreditsView _credits;
 	CodewheelView _codewheel;
 	MainmenuView _mainmenu;

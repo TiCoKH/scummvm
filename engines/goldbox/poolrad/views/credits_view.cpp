@@ -25,6 +25,9 @@
 #include "goldbox/poolrad/views/credits_view.h"
 #include "common/config-manager.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/engine.h"
+#include "goldbox/events.h"
+#include "goldbox/poolrad/views/amiga/amiga_intro_view.h"
 
 namespace Goldbox {
 namespace Poolrad {
@@ -35,10 +38,23 @@ static Common::String cr(const char *key) {
 	return VmInterface::getString(Common::String("credits.") + key);
 }
 
+static bool optionSet(const char *key) {
+	return ConfMan.hasKey(key) && ConfMan.getBool(key);
+}
+
 const char *viewAfterCredits() {
-	const bool skip = ConfMan.hasKey("skip_codewheel")
-		&& ConfMan.getBool("skip_codewheel");
-	return skip ? "Mainmenu" : "Codewheel";
+	return optionSet("skip_codewheel") ? viewAfterCodewheel() : "Codewheel";
+}
+
+const char *viewAfterCodewheel() {
+	if (g_engine->getPlatform() == Common::kPlatformAmiga
+			&& !optionSet("skip_intro") && g_events) {
+		AmigaIntroView *intro = dynamic_cast<AmigaIntroView *>(
+			g_events->findView("AmigaIntro"));
+		if (intro && intro->loadIntro())
+			return "AmigaIntro";
+	}
+	return "Mainmenu";
 }
 
 CreditsView::CreditsView() : View("Credits"){}
