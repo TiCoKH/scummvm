@@ -106,6 +106,8 @@ public:
 	void writeStringC(int x, int y, int color, const Common::String &str);
 	void writeStringC(int x, int y, int color, const unsigned char *str);
 	void writeStringC(ScreenPos pos, int color, const Common::String &str) { writeStringC(pos.col, pos.row, color, str); }
+	/** The selected character's name in the party list, platform style. */
+	void writeSelectedName(int x, int y, const Common::String &str);
 	void writeCenteredString(const Common::String &str, int y);
 	void writeChar(unsigned char c);
 	void writeChar(int x, int y, unsigned char c);

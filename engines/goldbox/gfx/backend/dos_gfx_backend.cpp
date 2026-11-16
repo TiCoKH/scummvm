@@ -54,10 +54,17 @@ const GfxBackend::ArtColors &DosGfxBackend::artColors() const {
 	// Walls see through LightMagenta. SetCombatPalette swaps EGA registers
 	// 0 and 8: the cleared background shows DarkGray and art color 8 shows
 	// as black. LoadIconAnim turns CPIC LightMagenta into DarkGray. Icon keys
-	// are GDConsts.defIconCol and +8.
+	// are GDConsts.defIconCol and +8. 3D colors: DisplayMapView (54c1:016d)
+	// and SetView3DColors(6, 7, 0, 0xB) in FixMain.Init (EGA colors).
 	static const ArtColors kColors = {
 		13, 8, 8, 13, 8,
-		{ 0x91, 0xA2, 0xB3, 0xC4, 0xE6, 0xF7 }
+		{ 0x91, 0xA2, 0xB3, 0xC4, 0xE6, 0xF7 },
+		{
+			{ 0x00, 0x0F, 0x0C, 0x0B, 0x0D, 0x0A, 0x09, 0x0E,
+			  0x00, 0x0F, 0x0C, 0x0B, 0x0D, 0x0A, 0x09, 0x0E },
+			0x00, 0x0F, 0x08, 0x07, 0x08, 0x06, 0x01,
+			{ 0x0B, 0x00, 0x07, 0x06 }
+		}
 	};
 	return kColors;
 }

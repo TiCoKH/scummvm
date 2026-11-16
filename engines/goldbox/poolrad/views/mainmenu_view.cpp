@@ -22,6 +22,7 @@
 #include "goldbox/vm_interface.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/poolrad/data/poolrad_character.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/poolrad/training_rules.h"
 #include "goldbox/poolrad/views/mainmenu_view.h"
 
@@ -280,8 +281,12 @@ bool MainmenuView::msgKeypress(const KeypressMessage &msg) {
             break;
         case Common::KEYCODE_b:
             if (_menuItemList.isActive(BEGIN)) {
-                // Original: GFX_SetDefaultColors(11,4,14,5); GB_EngineMain();
-                Poolrad::g_engine->setColors(11, 0, 7, 6);
+                // Original: SetView3DColors before GB_EngineMain; DOS
+                // (sky 0xB, skyline 0, horizon 7, floor 6), Amiga (11, 4, 14, 5).
+                const uint8 *start = Poolrad::g_engine->getGfx().artColors()
+                    .view3D.startColors;
+                Poolrad::g_engine->setColors(start[0], start[1], start[2],
+                    start[3]);
                 // setGameState triggers onGameStateEnter → initializeMapRuntimeForState → replaceView("InGame")
                 VmInterface::setGameStatus(GS_DUNGEON_MAP);
             }

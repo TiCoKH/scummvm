@@ -50,6 +50,10 @@ public:
 		uint32 color) const override;
 	void drawGlyph(Graphics::ManagedSurface &dst, const Graphics::Font &font,
 		uint32 glyph, int x, int y, uint32 color) const override;
+	void drawSelectedName(Graphics::ManagedSurface &dst,
+		const Graphics::Font &font, const Common::String &glyphs, int x, int y,
+		int maxWidth) const override;
+	const PartyColors &partyColors() const override;
 	void drawRune(Graphics::ManagedSurface &dst, const Graphics::Font &font,
 		uint32 glyph, int x, int y, uint32 color) const override;
 	bool drawFrame(Graphics::ManagedSurface &dst, int startX, int startY,

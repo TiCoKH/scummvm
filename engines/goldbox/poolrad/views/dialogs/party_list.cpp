@@ -21,6 +21,7 @@
 
 #include "goldbox/poolrad/views/dialogs/party_list.h"
 #include "goldbox/vm_interface.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "common/keyboard.h"
 
 namespace Goldbox {
@@ -30,16 +31,8 @@ namespace Dialogs {
 
 namespace {
 
-// TEXT_NameToScreen color mapping
-static const int kNameColorDisabled = 0x0C; // Amiga: 0x18
-static const int kNameColorEnemy    = 0x0E; // Amiga: 0x12
-static const int kNameColorFriendly = 0x0B; // Amiga: 0x1C
-static const int kNameColorSelected = 15;
-
-// TEXT_HPToScreen color mapping
-static const int kHpColorInjured    = 14;   // Amiga: 8
-static const int kHpColorNormal     = 10;   // Amiga: 10
-static const int kHpColorList       = 13;   // Amiga: 7
+// Name, AC and HP colors come from GfxBackend::partyColors(): the Amiga
+// port passes its own pens to DisplayCreatureName/PrintArmorClass.
 
 static int acColumnOffset(int acCurrent) {
     if (acCurrent < -9)
@@ -195,15 +188,22 @@ void PartyList::draw() {
             // Clear row before redrawing to avoid stale wider values.
             s.clearBox(_xName, y, 0x26, y, 0);
 
+            const Gfx::GfxBackend::PartyColors &colors =
+                g_engine->getGfx().partyColors();
             const bool isSelected = (_partyIndex == _selectedCharIndex - 1);
-            int color;
-            if (!pc->enabled)
-                color = kNameColorDisabled;
-            else if (pc->combatSide == Data::CS_ENEMY)
-                color = kNameColorEnemy;
-            else
-                color = isSelected ? kNameColorSelected : kNameColorFriendly;
-            s.writeStringC(_xName, y, color, pc->name);
+            if (isSelected) {
+                // DisplayParty: the highlighted creature, whatever its state
+                s.writeSelectedName(_xName, y, pc->name);
+            } else {
+                int color;
+                if (!pc->enabled)
+                    color = colors.nameDisabled;
+                else if (pc->combatSide == Data::CS_ENEMY)
+                    color = colors.nameEnemy;
+                else
+                    color = colors.nameFriendly;
+                s.writeStringC(_xName, y, color, pc->name);
+            }
 
             // AC/HP column alignment matches original routine behavior.
             const int ac = pc->armorClass.getCurrent();
@@ -211,8 +211,10 @@ void PartyList::draw() {
             const int acCol = 0x20 + acColumnOffset(ac);
             const int hpCol = 0x24 + hpColumnOffset(hp);
 
-            const int acColor = (pc->hitPoints.current < pc->hitPoints.max) ? kHpColorInjured : kHpColorNormal;
-            const int hpColor = (pc->hitPoints.current < pc->hitPoints.max) ? kHpColorInjured : kHpColorNormal;
+            // PrintArmorClass uses one color; PrintHitPoints marks injuries.
+            const int acColor = colors.armorClass;
+            const int hpColor = (pc->hitPoints.current < pc->hitPoints.max)
+                ? colors.hpInjured : colors.hpFull;
             s.writeStringC(acCol, y, acColor, Common::String::format("%d", ac));
             s.writeStringC(hpCol, y, hpColor, Common::String::format("%d", hp));
             y ++;

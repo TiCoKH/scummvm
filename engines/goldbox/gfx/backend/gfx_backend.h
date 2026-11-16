@@ -43,6 +43,23 @@ class Pic;
  */
 class GfxBackend {
 public:
+	/**
+	 * 3D view backdrop colors (MapView.DisplayMapView and its nested
+	 * CeilColor/FloorColor/WallColor), in the platform's palette.
+	 */
+	struct View3DColors {
+		uint8 skyLookup[16];  ///< ARRAY_COLOR_LOOKUP: G_SkyColor/G_CeilingColor
+		uint8 skylineDark;    ///< COLOR_REG_FAR 0x08 or 0x41
+		uint8 skylineLight;   ///< any other COLOR_REG_FAR
+		uint8 horizonDark;    ///< COLOR_REG_FAR 0x08
+		uint8 horizonLight;   ///< any other COLOR_REG_FAR
+		uint8 floorGray;      ///< COLOR_REG_FLOOR 0x0B
+		uint8 floorBrown;     ///< COLOR_REG_FLOOR 0x09, 0xDB and any other
+		uint8 floorBlue;      ///< COLOR_REG_FLOOR 0x06
+		/** SetView3DColors before GB_EngineMain: sky, skyline, horizon, floor */
+		uint8 startColors[4];
+	};
+
 	/** Color conventions of the platform's DAX artwork. */
 	struct ArtColors {
 		uint8 wallTransparent;  ///< See-through color of 3D wall tiles
@@ -55,6 +72,7 @@ public:
 		 * replaced by the byte's low color, the high nibble by its high color.
 		 */
 		uint8 iconColorKeys[6];
+		View3DColors view3D;
 	};
 
 	/** What the screen shows, for platforms that change palette by screen. */
@@ -101,6 +119,33 @@ public:
 		const Common::String &glyphs, int x, int y, int maxWidth,
 		uint32 color) const {
 		font.drawString(&dst, glyphs, x, y, maxWidth, color);
+	}
+
+	/**
+	 * Draw the selected character's name in the party list (DisplayParty):
+	 * DOS writes it in White; the Amiga puts it on a green bar.
+	 */
+	virtual void drawSelectedName(Graphics::ManagedSurface &dst,
+		const Graphics::Font &font, const Common::String &glyphs, int x, int y,
+		int maxWidth) const {
+		drawText(dst, font, glyphs, x, y, maxWidth, 15);
+	}
+
+	/** Party list text colors (DisplayCreatureName, PrintArmorClass, PrintHitPoints). */
+	struct PartyColors {
+		uint8 nameDisabled;
+		uint8 nameEnemy;
+		uint8 nameFriendly;
+		uint8 armorClass;
+		uint8 hpFull;
+		uint8 hpInjured;
+	};
+
+	/** Party list colors; DOS colors unless the port chose its own pens. */
+	virtual const PartyColors &partyColors() const {
+		// LightRed, Yellow, LightCyan; AC LightGreen; HP LightGreen/Yellow
+		static const PartyColors kColors = { 0x0C, 0x0E, 0x0B, 10, 10, 14 };
+		return kColors;
 	}
 
 	/** Draw one glyph in a game text color, see drawText(). */

@@ -114,6 +114,16 @@ void Surface::writeStringC(int x, int y, int color, const unsigned char *str) {
 	writeString(s);
 }
 
+void Surface::writeSelectedName(int x, int y, const Common::String &str) {
+	Common::String idString;
+	for (size_t i = 0; i < str.size(); ++i)
+		idString += mapCharToIndex(str[i]);
+
+	g_engine->getGfx().drawSelectedName(*this, *_currentFont, idString,
+		x * FONT_W, y * FONT_H, this->w - (x * FONT_W));
+	setTextPos(x + (int)str.size(), y);
+}
+
 void Surface::writeCenteredString(const Common::String &str, int y) {
 	int x = ((this->w / FONT_W) - str.size()) / 2;
 	writeString(x, y, str);

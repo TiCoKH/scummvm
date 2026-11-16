@@ -114,9 +114,18 @@ const GfxBackend::ArtColors &AmigaGfxBackend::artColors() const {
 	// Walls see through color 0. Combat screens are cleared to color 0, the
 	// palette has no combat swap and icons are loaded unchanged. Icon keys
 	// are the table read by CHARACTER_IconLoad (v1.3 program at 0x285043).
+	// 3D colors are View3D palette entries: ARRAY_COLOR_LOOKUP (0x2327A7),
+	// DisplayMapView_CeilColor/FloorColor/WallColor (0x230A62..0x230AE2) and
+	// SetView3DColors(11, 4, 14, 5) before GB_EngineMain.
 	static const ArtColors kColors = {
 		0, 0, -1, -1, -1,
-		{ 0x19, 0x2A, 0x3B, 0x76, 0x85, 0xEF }
+		{ 0x19, 0x2A, 0x3B, 0x76, 0x85, 0xEF },
+		{
+			{ 0x04, 0x0F, 0x06, 0x0B, 0x07, 0x0A, 0x09, 0x08,
+			  0x04, 0x0F, 0x06, 0x0B, 0x07, 0x0A, 0x09, 0x08 },
+			0x04, 0x0F, 0x0C, 0x0E, 0x0C, 0x05, 0x01,
+			{ 0x0B, 0x04, 0x0E, 0x05 }
+		}
 	};
 	return kColors;
 }
@@ -163,6 +172,33 @@ void AmigaGfxBackend::drawGlyph(Graphics::ManagedSurface &dst,
 	font.drawChar(&dst, glyph, x, y, pen);
 	if (pen >= 16 && pen < 31)
 		font.drawChar(&dst, glyph, x + 1, y, pen + 1);
+}
+
+void AmigaGfxBackend::drawSelectedName(Graphics::ManagedSurface &dst,
+		const Graphics::Font &font, const Common::String &glyphs, int x, int y,
+		int maxWidth) const {
+	// CharHlp.DisplayParty (0x23DEA6): leading spaces are skipped, a bar
+	// in pen 28 (green) is filled under the name, then the name is drawn in
+	// pen 14 and again one pixel right in pen 15 (white), both JAM1.
+	uint skip = 0;
+	while (skip < glyphs.size() && glyphs[skip] == ' ')
+		++skip;
+	const Common::String name = glyphs.substr(skip);
+	const int nameX = x + (int)skip * 8;
+	const int width = MIN<int>((int)name.size() * 8 + 1, x + maxWidth - nameX);
+	if (width <= 0)
+		return;
+	dst.fillRect(Common::Rect(nameX, y, nameX + width, y + 8), 28);
+	font.drawString(&dst, name, nameX, y, width, 14);
+	font.drawString(&dst, name, nameX + 1, y, width - 1, 15);
+}
+
+const GfxBackend::PartyColors &AmigaGfxBackend::partyColors() const {
+	// DisplayCreatureName: disabled 24, enemy 18, friendly 28.
+	// PrintArmorClass: 28. PrintHitPoints passes DOS colors 10 (full) and 8
+	// (injured), which DisplayString turns into pens 26 and 24.
+	static const PartyColors kColors = { 24, 18, 28, 28, 26, 24 };
+	return kColors;
 }
 
 void AmigaGfxBackend::drawRune(Graphics::ManagedSurface &dst,

@@ -29,6 +29,7 @@
 #include "goldbox/engine.h"
 #include "goldbox/poolrad/poolrad.h"
 #include "goldbox/gfx/surface.h"
+#include "goldbox/gfx/backend/gfx_backend.h"
 #include "goldbox/gfx/icon.h"
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/gfx/encounter_sprite_cache.h"
@@ -3303,58 +3304,38 @@ void PoolradEngineHostImpl::playSound(uint8 soundId) {
         _engine->soundPlay(soundId);
 }
 
-/**
- * ARRAY_COLOR_LOOKUP: maps G_SkyColor / G_CeilingColor world bank
- * values to EGA palette indices. First 16 entries from x86 original.
- */
-static const uint8 kColorLookup[16] = {
-    0x00, 0x0F, 0x0C, 0x0B, 0x0D, 0x0A, 0x09, 0x0E,
-    0x00, 0x0F, 0x0C, 0x0B, 0x0D, 0x0A, 0x09, 0x0E
-};
+// The 3D color tables are per platform (GfxBackend::View3DColors): DOS uses
+// EGA colors, the Amiga its View3D palette entries.
+static const Gfx::GfxBackend::View3DColors &view3DColors() {
+    return g_engine->getGfx().artColors().view3D;
+}
 
+/** ARRAY_COLOR_LOOKUP: G_SkyColor / G_CeilingColor to a palette index. */
 static uint8 lookupSkyColor(uint8 index) {
     if (index < 16)
-        return kColorLookup[index];
+        return view3DColors().skyLookup[index];
     return index & 0x0F;
 }
 
-/**
- * GFX_Get3DDarkColor: COLOR_REG_FAR → skyline palette index.
- * Platform-identical on x86 and m68k.
- */
+/** GFX_Get3DDarkColor (CeilColor): COLOR_REG_FAR to the skyline color. */
 static uint8 get3DDarkColor(uint8 regFar) {
-    switch (regFar) {
-    case 0x08: return 0x00;
-    case 0x41: return 0x00;
-    case 0xE8: return 0x0F;
-    default:   return 0x0F;
-    }
+    const Gfx::GfxBackend::View3DColors &c = view3DColors();
+    return (regFar == 0x08 || regFar == 0x41) ? c.skylineDark : c.skylineLight;
 }
 
-/**
- * GFX_Get3DWallColor: COLOR_REG_FAR → horizon palette index.
- * Platform-identical on x86 and m68k.
- */
+/** GFX_Get3DWallColor (FloorColor): COLOR_REG_FAR to the horizon color. */
 static uint8 get3DWallColor(uint8 regFar) {
-    switch (regFar) {
-    case 0x08: return 0x08;
-    case 0x41: return 0x07;
-    case 0xE8: return 0x07;
-    default:   return 0x07;
-    }
+    const Gfx::GfxBackend::View3DColors &c = view3DColors();
+    return regFar == 0x08 ? c.horizonDark : c.horizonLight;
 }
 
-/**
- * GFX_Get3DFloorColor: COLOR_REG_FLOOR → floor palette index.
- * Uses x86 mapping (EGA palette).
- */
+/** GFX_Get3DFloorColor (WallColor): COLOR_REG_FLOOR to the floor color. */
 static uint8 get3DFloorColor(uint8 regFloor) {
+    const Gfx::GfxBackend::View3DColors &c = view3DColors();
     switch (regFloor) {
-    case 0x0B: return 0x08;
-    case 0x09: return 0x06;
-    case 0xDB: return 0x06;
-    case 0x06: return 0x01;
-    default:   return 0x06;
+    case 0x0B: return c.floorGray;
+    case 0x06: return c.floorBlue;
+    default:   return c.floorBrown;   // 0x09, 0xDB and any other value
     }
 }
 
