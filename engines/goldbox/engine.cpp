@@ -38,6 +38,8 @@
 #include "goldbox/gfx/dax_tile.h"
 #include "goldbox/data/daxblock.h"
 #include "goldbox/sound/sound_driver.h"
+#include "goldbox/sound/amiga_music.h"
+#include "goldbox/sound/amiga_sfx.h"
 
 namespace Goldbox {
 
@@ -60,6 +62,10 @@ Engine::~Engine() {
 	delete _effectHandler;
 	delete _spellCasting;
 	delete _soundDriver;
+	_mixer->stopHandle(_amigaMusicHandle);
+	_mixer->stopHandle(_amigaSfxHandle);
+	delete _amigaMusic;
+	delete _amigaSfx;
 	delete _fixedTileCacheSlot0;
 	delete _font;
 	delete _gfx;
@@ -125,6 +131,31 @@ void Engine::setup() {
 			warning("Goldbox: could not initialize sound using %s", dataFile);
 			delete _soundDriver;
 			_soundDriver = nullptr;
+		}
+	}
+
+	// The Amiga version: music and sound effects of poolradamigasound.dat
+	// (devtools/create_goldbox/poolrad/create_amiga_sound.py), one Paula
+	// stream each so that the music and effect volumes apply.
+	if (_soundMode != kSoundOff && getPlatform() == Common::kPlatformAmiga) {
+		const Common::Path dat("poolradamigasound.dat");
+		_amigaMusic = new AmigaMusic();
+		if (_amigaMusic->load(dat)) {
+			_mixer->playStream(Audio::Mixer::kMusicSoundType, &_amigaMusicHandle,
+				_amigaMusic, -1, Audio::Mixer::kMaxChannelVolume, 0,
+				DisposeAfterUse::NO);
+		} else {
+			delete _amigaMusic;
+			_amigaMusic = nullptr;
+		}
+		_amigaSfx = new AmigaSfx();
+		if (_amigaSfx->load(dat)) {
+			_mixer->playStream(Audio::Mixer::kSFXSoundType, &_amigaSfxHandle,
+				_amigaSfx, -1, Audio::Mixer::kMaxChannelVolume, 0,
+				DisposeAfterUse::NO);
+		} else {
+			delete _amigaSfx;
+			_amigaSfx = nullptr;
 		}
 	}
 
@@ -258,7 +289,27 @@ Common::Error Engine::syncGameState(Common::Serializer &s) {
 		"Goldbox: native save is not implemented for this game (GB13-033)");
 }
 
+void Engine::playMusic(int song) {
+	if (!_amigaMusic)
+		return;
+	if (_amigaSfx)
+		_amigaSfx->stopEffects();
+	_amigaMusic->playSong(_soundEnabled ? song : 0);
+}
+
 void Engine::soundPlay(uint8 soundIndex) {
+	if (_amigaSfx) {
+		// SOUND_Play: the effect number is the sound id, and starting an
+		// effect stops the music. 0 is silence.
+		if (soundIndex == 0 || !_soundEnabled) {
+			_amigaSfx->stopEffects();
+			return;
+		}
+		if (_amigaMusic)
+			_amigaMusic->playSong(0);
+		_amigaSfx->playEffect(soundIndex);
+		return;
+	}
 	if (_soundMode == kSoundOff || !_soundDriver || !_soundEnabled)
 		return;
 
@@ -267,6 +318,11 @@ void Engine::soundPlay(uint8 soundIndex) {
 }
 
 void Engine::playSfxFor(SoundEffect sfx, uint32 ms) {
+	if (_amigaSfx) {
+		// Amiga effects have their own length.
+		soundPlay(static_cast<uint8>(sfx));
+		return;
+	}
 	if (_soundMode == kSoundOff || !_soundDriver || !_soundEnabled)
 		return;
 	if (sfx == kSfxStop) {
@@ -301,6 +357,8 @@ void Engine::endSoundSustain() {
 void Engine::toggleSound() {
 	if (_soundEnabled) {
 		soundPlay(kSfxStop);
+		if (_amigaMusic)
+			_amigaMusic->playSong(0);
 		_soundEnabled = false;
 	} else {
 		_soundEnabled = true;

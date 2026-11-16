@@ -37,7 +37,7 @@ namespace Views {
 class AmigaIntroView : public View {
 public:
 	AmigaIntroView();
-	~AmigaIntroView() override {}
+	~AmigaIntroView() override;
 
 	bool msgFocus(const FocusMessage &msg) override;
 	bool msgUnfocus(const UnfocusMessage &msg) override;
@@ -55,6 +55,9 @@ private:
 	void startPhase(Phase phase);
 	void applyFade(int divisor);
 	void finish();
+	/** PlayMusic(1) before the intro program, PlayMusic(0) after it. */
+	void startMusic();
+	void stopMusic();
 
 	Gfx::AmigaIntro _intro;
 	bool _loaded = false;

@@ -24,6 +24,7 @@
 #ifndef GOLDBOX_ENGINE_H
 #define GOLDBOX_ENGINE_H
 
+#include "audio/mixer.h"
 #include "common/system.h"
 #include "common/error.h"
 #include "common/list.h"
@@ -60,6 +61,8 @@ namespace Data { namespace Effects { class EffectHandlerBase; } }
 namespace Spells { class SpellCastingService; }
 namespace Combat { struct CombatContext; }
 namespace Gfx { class GfxBackend; }
+class AmigaMusic;
+class AmigaSfx;
 
 class Engine : public ::Engine, public Events {
 private:
@@ -68,6 +71,10 @@ private:
 	GameState _gameState = GS_START_MENU;
 
 	GoldboxSoundDriver *_soundDriver;  ///< PC Speaker / Tandy sound driver
+	AmigaMusic *_amigaMusic = nullptr; ///< Amiga music (Wally Beben player)
+	AmigaSfx *_amigaSfx = nullptr;     ///< Amiga sound effects
+	Audio::SoundHandle _amigaMusicHandle;
+	Audio::SoundHandle _amigaSfxHandle;
 	SoundMode _soundMode;              ///< Current sound mode from config
 	bool _soundEnabled = true;         ///< Cleared by Ctrl-S
 	int _soundSustainDepth = 0;
@@ -150,6 +157,12 @@ public:
 	 * until the next non-zero setup); non-zero selects short blip mode.
 	 */
 	void soundSetup(uint16 flag);
+
+	/**
+	 * PlayMusic: start a song (1-6) or stop the music (0). Only the Amiga
+	 * version has music; like the original, it stops the sound effects.
+	 */
+	void playMusic(int song);
 
 	/** Play a sound effect from the original soundIds table. */
 	void playSfx(SoundEffect sfx) { soundPlay(static_cast<uint8>(sfx)); }

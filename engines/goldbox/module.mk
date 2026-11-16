@@ -111,6 +111,8 @@ MODULE_OBJS = \
 	combat/battlefield_map.o \
 	combat/cloud_effect_manager.o \
 	sound/sn76496.o \
+	sound/amiga_music.o \
+	sound/amiga_sfx.o \
 	sound/sound_driver.o \
 	sound/sound_segment.o \
 	poolrad/poolrad.o \

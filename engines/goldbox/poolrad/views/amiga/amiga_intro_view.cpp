@@ -74,6 +74,17 @@ const int kStepCount = ARRAYSIZE(kSteps);
 AmigaIntroView::AmigaIntroView() : View("AmigaIntro") {
 }
 
+AmigaIntroView::~AmigaIntroView() {
+}
+
+void AmigaIntroView::startMusic() {
+	g_engine->playMusic(1);
+}
+
+void AmigaIntroView::stopMusic() {
+	g_engine->playMusic(0);
+}
+
 bool AmigaIntroView::loadIntro() {
 	if (!_loaded && !_tried) {
 		_tried = true;
@@ -94,10 +105,12 @@ bool AmigaIntroView::msgFocus(const FocusMessage &msg) {
 	_step = 0;
 	applyFade(kFadeLevels);
 	startPhase(kWait);
+	startMusic();
 	return true;
 }
 
 bool AmigaIntroView::msgUnfocus(const UnfocusMessage &msg) {
+	stopMusic();
 	// Back to the game palette.
 	g_engine->getGfx().setupPalette();
 	return true;

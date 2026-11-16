@@ -51,13 +51,19 @@ public:
 	/** Palette 0 or 1, as 0RGB words. */
 	const uint16 *palette(int index) const { return _palettes[index]; }
 
-private:
+	/** One hunk of an Amiga program, without relocation. */
 	struct Hunk {
 		uint32 type;
 		Common::Array<uint8> data;
 	};
 
+	/**
+	 * Read the hunks of an AmigaDOS program (CODE, DATA, BSS; relocation,
+	 * symbol and debug blocks are skipped).
+	 */
 	static bool readHunks(const Common::Array<uint8> &file, Common::Array<Hunk> &hunks);
+
+private:
 	static bool decrunch(const Common::Array<uint8> &packed, const uint8 efficiency[4],
 		Common::Array<uint8> &out);
 	static void decodePlanar(const uint8 *src, int height, int planeStride,

@@ -33,6 +33,8 @@ static const uint32 kHunkData = 0x3EA;
 static const uint32 kHunkBss = 0x3EB;
 static const uint32 kHunkReloc32 = 0x3EC;
 static const uint32 kHunkEnd = 0x3F2;
+static const uint32 kHunkSymbol = 0x3F0;
+static const uint32 kHunkDebug = 0x3F1;
 
 // Unpacked program: hunk 5 is the chip data (CHIP DATA 0x1F5B0 bytes).
 static const uint kChipHunk = 5;
@@ -103,6 +105,15 @@ bool AmigaIntro::readHunks(const Common::Array<uint8> &file,
 				pos += 4 + offsets * 4;
 		} else if (type == kHunkEnd) {
 			++index;
+		} else if (type == kHunkSymbol) {
+			uint32 longs;
+			while (readLong(longs) && longs != 0)
+				pos += longs * 4 + 4;
+		} else if (type == kHunkDebug) {
+			uint32 longs;
+			if (!readLong(longs))
+				return false;
+			pos += longs * 4;
 		} else {
 			warning("AmigaIntro: unexpected hunk type 0x%x", type);
 			return false;
