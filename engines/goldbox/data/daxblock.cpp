@@ -251,7 +251,7 @@ uint8 DaxBlockWalldef::Slice::tileIndex(WalldefRegionId id, int row, int col) co
 		return 0;
 
 	int offset = row * c + col;
-	if (offset >= data.size())
+	if ((uint)offset >= data.size())
 		return 0;
 
 	return data[offset];
@@ -319,8 +319,8 @@ DaxBlockGeo::Walls DaxBlockGeo::wallsAt(int row, int col) const {
 	if (idx < 0)
 		return walls;
 
-		if (_northEastWalls.size() < CELL_COUNT
-			|| _southWestWalls.size() < CELL_COUNT)
+	if (_northEastWalls.size() < CELL_COUNT
+		|| _southWestWalls.size() < CELL_COUNT)
 		return walls;
 
 	uint8 ne = _northEastWalls[idx];

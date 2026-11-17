@@ -45,7 +45,6 @@ MODULE_OBJS = \
 	data/format/dax_format.o \
 	data/format/dos_dax_format.o \
 	data/format/pc98_dax_format.o \
-	data/pascal_string_buffer.o \
 	data/strings.o \
 	data/strings_data.o \
 	data/damage_system.o \

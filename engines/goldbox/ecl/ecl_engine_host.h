@@ -60,26 +60,26 @@ public:
      * @param text     Text to print
      * @param clearBox If true, clear text box before printing
      */
-    virtual void printText(const Common::String &text, bool clearBox = false) = 0;
+    void printText(const Common::String &text, bool clearBox = false) override = 0;
 
     /**
      * Clear the text/message box.
      */
-    virtual void clearTextBox() = 0;
+    void clearTextBox() override = 0;
 
     /**
      * Input a number from the player. Blocks until the player confirms.
      * @param maxDigits Maximum digits to accept
      * @return Value entered by the player (non-negative), or -1 on cancel
      */
-    virtual int16 inputNumber(uint8 maxDigits) = 0;
+    int16 inputNumber(uint8 maxDigits) override = 0;
 
     /**
      * Input a string from the player. Blocks until the player confirms.
      * @param maxLength Maximum characters to accept
      * @return String entered by the player (may be empty on cancel)
      */
-    virtual Common::String inputString(uint8 maxLength) = 0;
+    Common::String inputString(uint8 maxLength) override = 0;
 
     // -----------------------------------------------------------------------
     // Menus
@@ -92,8 +92,8 @@ public:
      * @param options Option strings (one per entry)
      * @return 0-based selection index, or -1 on cancel
      */
-    virtual int16 verticalMenu(const Common::String &message,
-            const Common::Array<Common::String> &options) = 0;
+    int16 verticalMenu(const Common::String &message,
+            const Common::Array<Common::String> &options) override = 0;
 
     /**
      * Display a horizontal (hotkey) menu and wait for selection. Blocks until
@@ -101,7 +101,7 @@ public:
      * @param options Option strings (one per key)
      * @return 0-based selection index, or -1 on cancel
      */
-    virtual int16 horizontalMenu(const Common::Array<Common::String> &options) = 0;
+    int16 horizontalMenu(const Common::Array<Common::String> &options) override = 0;
 
         /**
          * Start horizontal menu asynchronously for VM_YIELD flow.
@@ -244,7 +244,7 @@ public:
      * @param picID Picture/portrait ID; 0xFF = clear display and redraw 3D view
      * @return VmResult
      */
-    virtual VmResult displayPicture(uint8 picID) = 0;
+    VmResult displayPicture(uint8 picID) override = 0;
 
     /**
      * Display a picture with an extended variant parameter (0x4C PICTURE2).
@@ -263,14 +263,14 @@ public:
      * @param scriptID Script ID to load
      * @return VmResult
      */
-    virtual VmResult loadScript(uint8 scriptID) = 0;
+    VmResult loadScript(uint8 scriptID) override = 0;
 
     /**
         * Load a GEO dungeon map block by block ID (0x21 LOAD_AREA_GEO, indoor branch).
      * @param blockId DAX GEO block ID
      * @return VmResult
      */
-    virtual VmResult loadGeoBlock(uint8 blockId) { return VM_OK; }
+    VmResult loadGeoBlock(uint8 blockId) override { return VM_OK; }
 
     /**
      * Load a wallset definition and its 8x8 tile graphics into a cache slot
@@ -281,13 +281,13 @@ public:
      * @param setSlot Cache slot to populate (1, 2, or 3)
      * @return VmResult
      */
-    virtual VmResult loadWallSet(uint8 blockId, uint8 setSlot) { return VM_OK; }
+    VmResult loadWallSet(uint8 blockId, uint8 setSlot) override { return VM_OK; }
 
     /**
         * Load the outdoor/city icon strip (0x21 LOAD_AREA_GEO, outdoor branch).
      * @return VmResult
      */
-    virtual VmResult loadIconBlock() { return VM_OK; }
+    VmResult loadIconBlock() override { return VM_OK; }
 
     // -----------------------------------------------------------------------
     // Monsters / Encounter
@@ -322,8 +322,8 @@ public:
      * @param variantId Picture/portrait variant ID
      * @return VmResult
      */
-    virtual VmResult drawEncounterStage(uint8 resourceId, uint8 distanceCap,
-            uint8 variantId) { return VM_OK; }
+    VmResult drawEncounterStage(uint8 resourceId, uint8 distanceCap,
+            uint8 variantId) override { return VM_OK; }
 
     /**
      * Redraw encounter stage with new distance (0x0D SPRITE ADVANCE).
@@ -331,13 +331,13 @@ public:
      * @param newDistance New monster distance to display
      * @return VmResult
      */
-    virtual VmResult redrawEncounterStage(uint8 newDistance) { return VM_OK; }
+    VmResult redrawEncounterStage(uint8 newDistance) override { return VM_OK; }
 
         /**
          * Disable active encounter sprite overlay and refresh 3D area (0x31 SPRITE OFF).
          * Called only when runtime sprite-load flag is set.
          */
-        virtual VmResult spriteOff() { return VM_OK; }
+    VmResult spriteOff() override { return VM_OK; }
 
     /**
      * Start an async delay operation (0x3A DELAY).
@@ -345,7 +345,7 @@ public:
      * Delay time = gameSpeed * 5 milliseconds.
      * @return VM_YIELD to suspend VM, VM_OK if delay not supported
      */
-    virtual VmResult beginDelay() {
+    VmResult beginDelay() override {
         return VM_OK;
     }
 
@@ -391,7 +391,7 @@ public:
      * Start the main combat loop with currently loaded monsters (0x24 ENCOUNTER).
      * @return VM_YIELD while combat is in progress
      */
-    virtual VmResult startCombat() = 0;
+    VmResult startCombat() override = 0;
 
     /**
      * Enter a temple (0x24 ENCOUNTER with temple flag set).
@@ -622,7 +622,7 @@ public:
      * @param programID 0=main menu / training, 8=win screen, 9=encamp
      * @return VM_OK on completion, VM_HALTED if the program ends the game
      */
-    virtual VmResult executeProgram(uint8 programID) = 0;
+    VmResult executeProgram(uint8 programID) override = 0;
 };
 
 } // namespace ECL

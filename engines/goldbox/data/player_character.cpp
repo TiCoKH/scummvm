@@ -166,7 +166,7 @@ bool PlayerCharacter::isAlive() const {
 void PlayerCharacter::resetCombatAction() {
     if (!combatState)
         return;
-	combatState->initiative = 0;
+    combatState->initiative = 0;
     combatState->spellId = 0;
     combatState->guarding = false;
     combatState->movePoints = 0;

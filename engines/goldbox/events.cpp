@@ -519,7 +519,7 @@ void UIElement::setBounds(const Window &win) {
 	Common::Rect r(win.left * FONT_W, win.top * FONT_H, (win.right + 1) * FONT_W, (win.bottom + 1) * FONT_H);
 	r.translate(win._xOffset * Shared::Gfx::cellScale(), win._yOffset * Shared::Gfx::cellScale());
 	setBounds(r);
-};
+}
 
 Surface UIElement::getSurface() const {
 	return Surface(*g_events->getScreen(), _bounds);

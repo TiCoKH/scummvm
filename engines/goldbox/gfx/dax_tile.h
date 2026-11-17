@@ -77,6 +77,7 @@ public:
 	void drawChar(Graphics::Surface *dst, uint32 chr, int x, int y, uint32 color) const override;
 };
 
-}; //namespace Gfx
-};
-#endif // GOLDBOX_DAX_COLOR_FONT_H
+} // namespace Gfx
+} // namespace Goldbox
+
+#endif // GOLDBOX_GFX_DAX_TILE_H

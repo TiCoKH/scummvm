@@ -220,9 +220,9 @@ public:
 	// --------------------------------------------------------------------
 	// Pure virtual functions to be implemented by game–specific derived classes.
 	// These methods handle file–format specifics and game–rule calculations.
-	virtual void load(Common::SeekableReadStream &stream) = 0;
-	virtual void save(Common::WriteStream &stream) = 0;
-	virtual void rollAbilityScores() = 0;
+	void load(Common::SeekableReadStream &stream) override = 0;
+	void save(Common::WriteStream &stream) override = 0;
+	void rollAbilityScores() override = 0;
 
 	// Provide base forwarding hook for effects (optional override in concrete game classes)
 	virtual void addEffect(uint8 /*type*/, uint16 /*durationMin*/, uint8 /*power*/, bool /*immediate*/) override {}
