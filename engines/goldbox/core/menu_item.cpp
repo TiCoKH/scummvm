@@ -29,9 +29,11 @@ MenuItem MenuItemList::getCurrentSelection() const {
 
 void MenuItemList::generateMenuItems(const Common::Array<Common::String> &menuStrings, bool generateShortcuts) {
     for (uint8 i = 0; i < menuStrings.size(); i++) {
-        char shortcut = '\0';
-        Common::String menuText = menuStrings[i];
-        MenuItem item = {shortcut, menuText, true, generateShortcuts};
+        MenuItem item;
+        item.shortcut = '\0';
+        item.text = menuStrings[i];
+        item.active = true;
+        item.shortcutFirst = generateShortcuts;
         items.push_back(item);
     }
     if (generateShortcuts) {
@@ -51,7 +53,7 @@ void MenuItemList::generateShortcut(uint index) {
 }
 
 void MenuItemList::setShortcutToLast(uint index) {
-    if (index >= 0 && index < items.size()) {
+    if (index < items.size()) {
         MenuItem &item = items[index];
         size_t length = item.text.size();
 

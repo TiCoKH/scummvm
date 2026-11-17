@@ -34,6 +34,7 @@ namespace Gfx {
 class DaxRenderer {
 public:
     DaxRenderer() {}
+    virtual ~DaxRenderer() {}
 
     /**
      * Decode and return a head Pic for the given sprite ID.

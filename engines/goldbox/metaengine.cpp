@@ -241,7 +241,7 @@ GUI::OptionsContainerWidget *GoldboxMetaEngine::buildEngineOptionsWidget(
 }
 
 Common::Error GoldboxMetaEngine::createInstance(OSystem *syst, Engine **engine, const ADGameDescription *desc) const {
-	const auto *gd = (Goldbox::GoldboxGameDescription *)desc;
+	const auto *gd = (const Goldbox::GoldboxGameDescription *)desc;
 
 	Goldbox::Engine *goldboxEngine = Goldbox::GameFactory::create(gd->gameType, syst, gd);
 	if (!goldboxEngine)

@@ -35,7 +35,7 @@ namespace Gfx {
 class Pic : public Graphics::ManagedSurface {
 
 public:
-	Pic(int w, int h) : Graphics::ManagedSurface(w, h), _transparencyMask(nullptr), _transparentIndex(0) {}
+	Pic(int width, int height) : Graphics::ManagedSurface(width, height), _transparencyMask(nullptr), _transparentIndex(0) {}
 
 	~Pic();
 

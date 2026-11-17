@@ -136,7 +136,7 @@ void VmFlatMemory::writeByte(uint16 addr, uint8 value) {
 }
 
 uint16 VmFlatMemory::readWordLE(uint16 addr) const {
-	if (addr + 1 >= kMemorySize) {
+	if ((uint32)addr + 1 >= kMemorySize) {
 		warning("VmFlatMemory::readWordLE out of range addr=0x%04x", addr);
 		return 0;
 	}
@@ -145,7 +145,7 @@ uint16 VmFlatMemory::readWordLE(uint16 addr) const {
 }
 
 void VmFlatMemory::writeWordLE(uint16 addr, uint16 value) {
-	if (addr + 1 >= kMemorySize) {
+	if ((uint32)addr + 1 >= kMemorySize) {
 		warning("VmFlatMemory::writeWordLE out of range addr=0x%04x", addr);
 		return;
 	}

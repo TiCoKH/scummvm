@@ -73,9 +73,9 @@ struct Position : public Common::Point {
 
 	Position() : Common::Point() {
 	}
-	Position(int x, int y) : Common::Point(x, y) {
+	Position(int xPos, int yPos) : Common::Point(xPos, yPos) {
 	}
-	Position(int x, int y, int xOffset, int yOffset) : Common::Point(x, y),
+	Position(int xPos, int yPos, int xOffset, int yOffset) : Common::Point(xPos, yPos),
 		_xOffset(xOffset), _yOffset(yOffset) {
 	}
 };

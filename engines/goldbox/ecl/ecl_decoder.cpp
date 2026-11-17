@@ -24,10 +24,6 @@
 namespace Goldbox {
 namespace ECL {
 
-static uint32 getPackedStringSize(uint8 decodedLength) {
-    return (decodedLength * 3 + 3) / 4;
-}
-
 Common::String decompress6BitString(const uint8 *compressedData,
         uint8 packedSize, uint8 maxChars) {
     Common::String result;

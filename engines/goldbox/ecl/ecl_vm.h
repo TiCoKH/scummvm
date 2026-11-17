@@ -44,7 +44,7 @@ namespace ECL {
 class EclVM {
 public:
     explicit EclVM(GameConfig *config, SyscallHandler *syscalls = nullptr);
-    ~EclVM();
+    virtual ~EclVM();
 
     static const uint16 kEclHeaderWordCount = 5;
 

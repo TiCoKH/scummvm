@@ -31,7 +31,7 @@ namespace Goldbox {
 template<class T>
 class Array : public Common::Array<T> {
 public:
-	Array<T>() : Common::Array<T>() {}
+	Array() : Common::Array<T>() {}
 
 	int indexOf(T elem) const {
 		for (uint i = 0; i < this->size(); ++i) {
