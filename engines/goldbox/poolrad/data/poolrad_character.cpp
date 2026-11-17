@@ -38,6 +38,9 @@ namespace Goldbox {
 namespace Poolrad {
 namespace Data {
 
+// Out-of-class definition required for the odr-used constexpr array before C++17.
+constexpr uint8 PoolradCharacter::BASE_ICON_VALUES[7];
+
 namespace {
 
 void callItemReadyEffect(PoolradCharacter *character,
