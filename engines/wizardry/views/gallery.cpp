@@ -24,8 +24,8 @@
 
 namespace Wizardry {
 
-void Gallery::drawCells(TextWindow &window) {
-	_G(cells).clear();
+void Gallery::drawTiles(TextWindow &window) {
+	_G(tiles).clear();
 	window.clear();
 
 	switch (_page) {
@@ -52,7 +52,7 @@ void Gallery::drawPictures(TextWindow &window) {
 
 	window.printCentered(0, Common::String::format("PICTURE %u OF %u", _picture, pictures.size()));
 
-	CellImage image;
+	TileImage image;
 	if (pictures.load(_picture, image))
 		window.showImage(image, (window.width() - image.cols) / 2, 2);
 }
@@ -86,7 +86,7 @@ void Gallery::drawMessages(TextWindow &window) {
 bool Gallery::msgKeypress(const KeypressMessage &msg) {
 	const uint pictures = _G(pictures).size();
 	const uint messages = _G(messages).size();
-	const uint lines = getCellBounds().height() - 6;
+	const uint lines = getTileBounds().height() - 6;
 
 	switch (msg.keycode) {
 	case Common::KEYCODE_ESCAPE:

@@ -25,13 +25,13 @@
 
 namespace Wizardry {
 
-void Title::drawCells(TextWindow &window) {
-	_G(cells).clear();
+void Title::drawTiles(TextWindow &window) {
+	_G(tiles).clear();
 
-	// The IBM-PC driver puts the picture at cell (2, 2), which centres its
+	// The IBM-PC driver puts the picture at tile (2, 2), which centres its
 	// 35 columns. The Japanese titles are 40 columns wide. Their row is
 	// assumed to be the same; it has not been read from those drivers.
-	CellImage image;
+	TileImage image;
 	if (loadTitleImage(*g_engine->getProfile(), g_engine->getGfxSet(), image))
 		window.showImage(image, (window.width() - image.cols) / 2, 2);
 

@@ -53,7 +53,7 @@ public:
 private:
 	struct Item {
 		byte key;
-		int16 col, row;   ///< screen cell where the option starts
+		int16 col, row;   ///< screen tile where the option starts
 		int16 width;
 		int16 result;     ///< what choosing the option returns
 		bool party;       ///< the '#' option
@@ -64,7 +64,7 @@ private:
 
 public:
 	/**
-	 * Width in cells of the widest option
+	 * Width in tiles of the widest option
 	 */
 	static int textWidth(const Common::String &options);
 
@@ -84,7 +84,7 @@ public:
 	int choose(uint16 ascii, int partyCount) const;
 
 	/**
-	 * Returns the result for the option at a screen cell, or -1. The '#'
+	 * Returns the result for the option at a screen tile, or -1. The '#'
 	 * option cannot be chosen this way.
 	 */
 	int chooseAt(int col, int row) const;

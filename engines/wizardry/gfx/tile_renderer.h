@@ -23,32 +23,32 @@
 #define WIZARDRY_GFX_CELL_RENDERER_H
 
 #include "common/rect.h"
-#include "wizardry/gfx/cell_screen.h"
+#include "wizardry/gfx/tile_screen.h"
 #include "wizardry/profile.h"
 #include "wizardry/resources/charset.h"
 
 namespace Wizardry {
 
 /**
- * Turns the cell screen into pixels. This is the only place that knows the
+ * Turns the tile screen into pixels. This is the only place that knows the
  * display of a release:
  *
- *   IBM-PC "200" set    cell  8x8    320x200, four colours
- *   IBM-PC "400" set    cell 16x8    640x200, two colours, shown as 640x400
- *   PC-98 "200" set     cell 16x8    640x200, eight colours, shown as 640x400
- *   PC-98 "400" set     cell 16x16   640x400, eight colours
+ *   IBM-PC "200" set    tile  8x8    320x200, four colours
+ *   IBM-PC "400" set    tile 16x8    640x200, two colours, shown as 640x400
+ *   PC-98 "200" set     tile 16x8    640x200, eight colours, shown as 640x400
+ *   PC-98 "400" set     tile 16x16   640x400, eight colours
  *
  * The 640x200 screens are drawn with every row doubled, so that all modes
  * come out at the proportions of a 4:3 monitor.
  */
-class CellRenderer {
+class TileRenderer {
 private:
 	CharSet _charset;
-	uint8 _cellW = 0, _cellH = 0;
+	uint8 _tileW = 0, _tileH = 0;
 	uint8 _rowScale = 1;
 	uint8 _layout = kPixelsNone;
 
-	void drawCell(const CellScreen &screen, int col, int row, byte *dst, uint pitch) const;
+	void drawTile(const TileScreen &screen, int col, int row, byte *dst, uint pitch) const;
 
 public:
 	/**
@@ -56,17 +56,17 @@ public:
 	 */
 	bool open(const GfxSet &gfx);
 
-	/** Size of a cell in the output */
-	uint cellWidth() const { return _cellW; }
-	uint cellHeight() const { return _cellH * _rowScale; }
+	/** Size of a tile in the output */
+	uint tileWidth() const { return _tileW; }
+	uint tileHeight() const { return _tileH * _rowScale; }
 
 	/** Size of the output: 320x200 or 640x400 */
-	uint width() const { return CellScreen::COLS * cellWidth(); }
-	uint height() const { return CellScreen::ROWS * cellHeight(); }
+	uint width() const { return TileScreen::COLS * tileWidth(); }
+	uint height() const { return TileScreen::ROWS * tileHeight(); }
 
-	/** Size of a cell in the files; images shown must have cells of this size */
-	uint8 dataCellWidth() const { return _cellW; }
-	uint8 dataCellHeight() const { return _cellH; }
+	/** Size of a tile in the files; images shown must have tiles of this size */
+	uint8 dataTileWidth() const { return _tileW; }
+	uint8 dataTileHeight() const { return _tileH; }
 
 	const CharSet &charset() const { return _charset; }
 
@@ -75,12 +75,12 @@ public:
 	uint paletteSize() const;
 
 	/**
-	 * Draws the cells that changed since the last call.
+	 * Draws the tiles that changed since the last call.
 	 * @param dst    Top left of a buffer of width() x height() bytes
 	 * @param area   Receives the part of the buffer that was drawn to
 	 * @returns false if nothing had changed
 	 */
-	bool render(CellScreen &screen, byte *dst, uint pitch, Common::Rect &area) const;
+	bool render(TileScreen &screen, byte *dst, uint pitch, Common::Rect &area) const;
 };
 
 } // End of namespace Wizardry

@@ -97,7 +97,7 @@ void Globals::present() {
 	Graphics::Screen *screen = g_events->getScreen();
 	Common::Rect area;
 
-	if (screen && _renderer.render(_cells, (byte *)screen->getPixels(), screen->pitch, area))
+	if (screen && _renderer.render(_tiles, (byte *)screen->getPixels(), screen->pitch, area))
 		screen->addDirtyRect(area);
 }
 

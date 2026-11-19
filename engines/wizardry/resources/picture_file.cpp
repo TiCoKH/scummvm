@@ -34,8 +34,8 @@ bool PictureFile::open(const Profile &profile, const GfxSet &gfx) {
 
 	_cols = profile.pictureCols;
 	_rows = profile.pictureRows;
-	_cellW = gfx.cellW;
-	_cellH = gfx.cellH;
+	_tileW = gfx.tileW;
+	_tileH = gfx.tileH;
 	_planes = (gfx.layout == kPixelsPlanarBRG) ? 3 : 1;
 	_packed = profile.picturePacking != kPicturesPlain;
 
@@ -161,7 +161,7 @@ uint PictureFile::unpack(const byte *src, uint srcSize, Common::Array<byte> &dst
 	return pos;
 }
 
-bool PictureFile::load(uint id, CellImage &image) const {
+bool PictureFile::load(uint id, TileImage &image) const {
 	if (id < 1 || id > _index.size())
 		return false;
 
@@ -176,14 +176,14 @@ bool PictureFile::load(uint id, CellImage &image) const {
 		srcSize = unpacked.size();
 	}
 
-	image.create(_cols, _rows, _cellW, _cellH);
-	const uint cellBytes = cellDataSize(_cellH, _planes);
+	image.create(_cols, _rows, _tileW, _tileH);
+	const uint tileBytes = tileDataSize(_tileH, _planes);
 
-	for (uint cell = 0; cell < (uint)_cols * _rows; ++cell) {
-		const uint offset = cell * cellBytes;
-		decodeCell(src + MIN(offset, srcSize), (offset < srcSize) ? srcSize - offset : 0,
-			image.getBasePtr((cell % _cols) * _cellW, (cell / _cols) * _cellH),
-			image.width(), _cellW, _cellH, _planes);
+	for (uint tile = 0; tile < (uint)_cols * _rows; ++tile) {
+		const uint offset = tile * tileBytes;
+		decodeTile(src + MIN(offset, srcSize), (offset < srcSize) ? srcSize - offset : 0,
+			image.getBasePtr((tile % _cols) * _tileW, (tile / _cols) * _tileH),
+			image.width(), _tileW, _tileH, _planes);
 	}
 
 	return true;

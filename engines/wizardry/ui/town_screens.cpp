@@ -690,7 +690,7 @@ TextWindow TownScreens::battleWindow() {
 	return TextWindow(_screen, Common::Rect(0, 5, 40, 11), true);
 }
 
-void TownScreens::drawBattle(const Battle &battle, const CellImage *picture) {
+void TownScreens::drawBattle(const Battle &battle, const TileImage *picture) {
 	_screen.clear();
 	openWindow(1, 1, 38, 22);
 

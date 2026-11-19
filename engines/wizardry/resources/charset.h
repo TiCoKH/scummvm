@@ -23,26 +23,26 @@
 #define WIZARDRY_RESOURCES_CHARSET_H
 
 #include "wizardry/profile.h"
-#include "wizardry/resources/cell_image.h"
+#include "wizardry/resources/tile_image.h"
 
 namespace Wizardry {
 
 /**
  * The character set file of a graphics set: text glyphs, window borders,
  * the wall pieces of the maze view and, on the Japanese machines, kana.
- * Each glyph fills one screen cell.
+ * Each glyph fills one screen tile.
  */
 class CharSet {
 private:
-	uint8 _cellW = 0, _cellH = 0;
+	uint8 _tileW = 0, _tileH = 0;
 	uint _count = 0;
 	Common::Array<byte> _pixels;
 
 public:
 	bool open(const GfxSet &gfx);
 
-	uint8 cellWidth() const { return _cellW; }
-	uint8 cellHeight() const { return _cellH; }
+	uint8 tileWidth() const { return _tileW; }
+	uint8 tileHeight() const { return _tileH; }
 
 	/**
 	 * Number of glyphs: 512, or 256 in IBM-PC Wizardry IV
@@ -50,7 +50,7 @@ public:
 	uint size() const { return _count; }
 
 	/**
-	 * Pixels of a glyph, cellWidth() bytes per row. The colour numbers are
+	 * Pixels of a glyph, tileWidth() bytes per row. The colour numbers are
 	 * 0-3 on CGA four colours and 0-1 elsewhere.
 	 */
 	const byte *glyph(uint index) const;

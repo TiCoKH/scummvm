@@ -26,7 +26,7 @@
 #include "wizardry/game/maze.h"
 #include "wizardry/game/party.h"
 #include "wizardry/game/shop.h"
-#include "wizardry/gfx/cell_screen.h"
+#include "wizardry/gfx/tile_screen.h"
 #include "wizardry/resources/messages.h"
 #include "wizardry/ui/menu.h"
 
@@ -44,7 +44,7 @@ public:
 	};
 
 private:
-	CellScreen &_screen;
+	TileScreen &_screen;
 	const MessageFile &_messages;
 	const Party &_party;
 	const ItemList &_items;
@@ -55,7 +55,7 @@ private:
 	void printPartyLine(TextWindow &window, uint index);
 
 public:
-	TownScreens(CellScreen &screen, const MessageFile &messages, const Party &party, const ItemList &items) :
+	TownScreens(TileScreen &screen, const MessageFile &messages, const Party &party, const ItemList &items) :
 		_screen(screen), _messages(messages), _party(party), _items(items) {}
 
 	/**
@@ -193,7 +193,7 @@ public:
 	 * asked, the picture of the first group, and the party
 	 * @param picture  Picture of the monsters, or nullptr
 	 */
-	void drawBattle(const Battle &battle, const CellImage *picture);
+	void drawBattle(const Battle &battle, const TileImage *picture);
 
 	/**
 	 * The window in which the fight is told, as it is, to print into

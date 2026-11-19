@@ -23,21 +23,21 @@
 #define WIZARDRY_RESOURCES_TITLE_IMAGE_H
 
 #include "wizardry/profile.h"
-#include "wizardry/resources/cell_image.h"
+#include "wizardry/resources/tile_image.h"
 
 namespace Wizardry {
 
 /**
- * Loads the title picture of a graphics set. It is not stored in cells but
- * as plain screen rows of 80 bytes; its size is a whole number of cells all
+ * Loads the title picture of a graphics set. It is not stored in tiles but
+ * as plain screen rows of 80 bytes; its size is a whole number of tiles all
  * the same: 35 x 7 on the IBM-PC, 40 x 7 on the Japanese machines.
  *
- * The IBM-PC driver shows it at cell (2, 2). Where the Japanese drivers put
+ * The IBM-PC driver shows it at tile (2, 2). Where the Japanese drivers put
  * it has not been read from their code yet.
  *
  * @returns false if the set has no title
  */
-extern bool loadTitleImage(const Profile &profile, const GfxSet &gfx, CellImage &image);
+extern bool loadTitleImage(const Profile &profile, const GfxSet &gfx, TileImage &image);
 
 } // End of namespace Wizardry
 

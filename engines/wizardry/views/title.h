@@ -22,19 +22,19 @@
 #ifndef WIZARDRY_VIEWS_TITLE_H
 #define WIZARDRY_VIEWS_TITLE_H
 
-#include "wizardry/views/cell_view.h"
+#include "wizardry/views/tile_view.h"
 
 namespace Wizardry {
 
 /**
  * Shows the title picture of the release, if it has one
  */
-class Title : public CellView {
+class Title : public TileView {
 protected:
-	void drawCells(TextWindow &window) override;
+	void drawTiles(TextWindow &window) override;
 
 public:
-	Title() : CellView("Title", false) {}
+	Title() : TileView("Title", false) {}
 
 	/**
 	 * Goes on to the game, or to the gallery for releases whose game

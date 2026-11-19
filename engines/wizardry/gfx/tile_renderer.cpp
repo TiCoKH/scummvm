@@ -19,7 +19,7 @@
  *
  */
 
-#include "wizardry/gfx/cell_renderer.h"
+#include "wizardry/gfx/tile_renderer.h"
 
 namespace Wizardry {
 
@@ -40,18 +40,18 @@ static const byte PLANAR_PALETTE[8 * 3] = {
 	0x00, 0xff, 0x00,  0x00, 0xff, 0xff,  0xff, 0xff, 0x00,  0x00, 0x00, 0xff
 };
 
-bool CellRenderer::open(const GfxSet &gfx) {
+bool TileRenderer::open(const GfxSet &gfx) {
 	if (!_charset.open(gfx))
 		return false;
 
-	_cellW = gfx.cellW;
-	_cellH = gfx.cellH;
+	_tileW = gfx.tileW;
+	_tileH = gfx.tileH;
 	_layout = gfx.layout;
 	_rowScale = (gfx.screenW == 640 && gfx.screenH == 200) ? 2 : 1;
 	return true;
 }
 
-const byte *CellRenderer::palette() const {
+const byte *TileRenderer::palette() const {
 	switch (_layout) {
 	case kPixelsCGA2bpp:
 		return CGA_PALETTE;
@@ -62,7 +62,7 @@ const byte *CellRenderer::palette() const {
 	}
 }
 
-uint CellRenderer::paletteSize() const {
+uint TileRenderer::paletteSize() const {
 	switch (_layout) {
 	case kPixelsCGA2bpp:
 		return 4;
@@ -73,26 +73,26 @@ uint CellRenderer::paletteSize() const {
 	}
 }
 
-void CellRenderer::drawCell(const CellScreen &screen, int col, int row, byte *dst, uint pitch) const {
-	const CellScreen::Cell &cell = screen.cell(col, row);
+void TileRenderer::drawTile(const TileScreen &screen, int col, int row, byte *dst, uint pitch) const {
+	const TileScreen::Tile &tile = screen.tile(col, row);
 	const byte *src = nullptr;
-	uint srcPitch = _cellW;
+	uint srcPitch = _tileW;
 	byte fill = 0;
 
-	switch (cell.type) {
-	case CellScreen::kGlyph:
-		src = _charset.glyph(cell.value);
+	switch (tile.type) {
+	case TileScreen::kGlyph:
+		src = _charset.glyph(tile.value);
 		break;
 
-	case CellScreen::kSolid:
+	case TileScreen::kSolid:
 		// All bits set: the last colour of the CGA, the text colour elsewhere
 		fill = (_layout == kPixelsCGA2bpp) ? 3 : 1;
 		break;
 
-	case CellScreen::kImage: {
-		const CellImage &image = screen.image(cell.slot);
-		if (image.cellW == _cellW && image.cellH == _cellH && cell.value < (uint)image.cols * image.rows) {
-			src = image.getBasePtr((cell.value % image.cols) * _cellW, (cell.value / image.cols) * _cellH);
+	case TileScreen::kImage: {
+		const TileImage &image = screen.image(tile.slot);
+		if (image.tileW == _tileW && image.tileH == _tileH && tile.value < (uint)image.cols * image.rows) {
+			src = image.getBasePtr((tile.value % image.cols) * _tileW, (tile.value / image.cols) * _tileH);
 			srcPitch = image.width();
 		}
 		break;
@@ -102,25 +102,25 @@ void CellRenderer::drawCell(const CellScreen &screen, int col, int row, byte *ds
 		break;
 	}
 
-	dst += row * cellHeight() * pitch + col * _cellW;
+	dst += row * tileHeight() * pitch + col * _tileW;
 
-	for (uint y = 0; y < _cellH; ++y) {
+	for (uint y = 0; y < _tileH; ++y) {
 		for (uint repeat = 0; repeat < _rowScale; ++repeat, dst += pitch) {
-			for (uint x = 0; x < _cellW; ++x)
+			for (uint x = 0; x < _tileW; ++x)
 				dst[x] = src ? src[y * srcPitch + x] : fill;
 		}
 	}
 }
 
-bool CellRenderer::render(CellScreen &screen, byte *dst, uint pitch, Common::Rect &area) const {
-	int left = CellScreen::COLS, top = CellScreen::ROWS, right = -1, bottom = -1;
+bool TileRenderer::render(TileScreen &screen, byte *dst, uint pitch, Common::Rect &area) const {
+	int left = TileScreen::COLS, top = TileScreen::ROWS, right = -1, bottom = -1;
 
-	for (int row = 0; row < CellScreen::ROWS; ++row) {
-		for (int col = 0; col < CellScreen::COLS; ++col) {
+	for (int row = 0; row < TileScreen::ROWS; ++row) {
+		for (int col = 0; col < TileScreen::COLS; ++col) {
 			if (!screen.isDirty(col, row))
 				continue;
 
-			drawCell(screen, col, row, dst, pitch);
+			drawTile(screen, col, row, dst, pitch);
 			left = MIN(left, col);
 			top = MIN(top, row);
 			right = MAX(right, col);
@@ -132,8 +132,8 @@ bool CellRenderer::render(CellScreen &screen, byte *dst, uint pitch, Common::Rec
 	if (right < 0)
 		return false;
 
-	area = Common::Rect(left * cellWidth(), top * cellHeight(),
-		(right + 1) * cellWidth(), (bottom + 1) * cellHeight());
+	area = Common::Rect(left * tileWidth(), top * tileHeight(),
+		(right + 1) * tileWidth(), (bottom + 1) * tileHeight());
 	return true;
 }
 

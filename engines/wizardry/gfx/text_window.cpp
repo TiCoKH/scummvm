@@ -34,7 +34,7 @@ enum FrameGlyph {
 	kFrameBottomRight
 };
 
-TextWindow::TextWindow(CellScreen &screen, const Common::Rect &bounds, bool framed) :
+TextWindow::TextWindow(TileScreen &screen, const Common::Rect &bounds, bool framed) :
 		_screen(screen), _bounds(bounds), _inner(bounds) {
 	if (framed)
 		_inner.grow(-1);
@@ -124,7 +124,7 @@ void TextWindow::CLRRECT(int x1, int y1, int x2, int y2) {
 	}
 }
 
-int TextWindow::showImage(const CellImage &image, int x, int y) {
+int TextWindow::showImage(const TileImage &image, int x, int y) {
 	return _screen.addImage(image, _inner.left + x, _inner.top + y);
 }
 

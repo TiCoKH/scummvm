@@ -43,7 +43,7 @@ MazeViewDrawer::MazeViewDrawer(TextWindow &window, const MazeLevel &level, const
 }
 
 void MazeViewDrawer::run(int x, int y, int dx, int dy, int count, uint16 glyph) {
-	// As the display driver does it: a cell is drawn if its column lies
+	// As the display driver does it: a tile is drawn if its column lies
 	// within the limits, and the run ends at the edge of the view
 	for (; count > 0; --count) {
 		if (x >= _clipLeft && x <= _clipRight) {
@@ -65,18 +65,18 @@ void MazeViewDrawer::dark(int x, int y, int columns, int rows) {
 
 void MazeViewDrawer::slantDown(int x, int y, int columns, int rows, int clipLeft) {
 	for (int i = 0; i < columns; ++i, ++y, rows -= 2) {
-		cell(x + i, y, 0x68);
+		tile(x + i, y, 0x68);
 		run(x + i, y + 1, 0, 1, rows - 2, kDarkness);
-		cell(x + i, y + rows - 1, 0x6a);
+		tile(x + i, y + rows - 1, 0x6a);
 	}
 	_clipLeft = clipLeft;
 }
 
 void MazeViewDrawer::slantUp(int x, int y, int columns, int rows, int clipRight) {
 	for (int i = 0; i < columns; ++i, --y, rows += 2) {
-		cell(x + i, y, 0x66);
+		tile(x + i, y, 0x66);
 		run(x + i, y + 1, 0, 1, rows - 2, kDarkness);
-		cell(x + i, y + rows - 1, 0x69);
+		tile(x + i, y + rows - 1, 0x69);
 	}
 	_clipRight = clipRight;
 }
@@ -323,12 +323,12 @@ void MazeViewDrawer::depth2() {
 		run(15, 8, 0, 1, 4, kLeftEdge);
 		run(15, 12, -1, 1, 2, kSlantA);
 		if (_left == kDoor) {
-			cell(14, 7, 0x1a);
-			cell(15, 7, 0x1b);
+			tile(14, 7, 0x1a);
+			tile(15, 7, 0x1b);
 			run(14, 8, 0, 1, 5, 0x0f);
 			run(15, 8, 0, 1, 4, 0x1c);
-			cell(14, 13, 0x19);
-			cell(15, 12, 0x19);
+			tile(14, 13, 0x19);
+			tile(15, 12, 0x19);
 		}
 		_clipLeft = 16;
 	} else if (!_leftVisible) {
@@ -357,12 +357,12 @@ void MazeViewDrawer::depth2() {
 		run(20, 8, 0, 1, 4, kRightEdge);
 		run(21, 13, -1, -1, 2, kSlantB);
 		if (_right == kDoor) {
-			cell(21, 7, 0x1e);
-			cell(20, 7, 0x1f);
+			tile(21, 7, 0x1e);
+			tile(20, 7, 0x1f);
 			run(20, 8, 0, 1, 4, 0x80);
 			run(21, 8, 0, 1, 5, 0x13);
-			cell(20, 12, 0x1d);
-			cell(21, 13, 0x1d);
+			tile(20, 12, 0x1d);
+			tile(21, 13, 0x1d);
 		}
 		_clipRight = 19;
 	} else if (!_rightVisible) {
@@ -406,15 +406,15 @@ void MazeViewDrawer::depth2() {
 
 void MazeViewDrawer::depth3() {
 	if (_leftWall) {
-		cell(16, 8, kSlantB);
-		cell(16, 11, kSlantA);
+		tile(16, 8, kSlantB);
+		tile(16, 11, kSlantA);
 		run(15, 8, 0, 1, 4, kLeftEdge);
 		run(16, 9, 0, 1, 2, kLeftEdge);
 		if (_left == kDoor) {
-			cell(16, 8, 0x18);
-			cell(16, 9, 0x11);
-			cell(16, 10, 0x11);
-			cell(16, 11, 0x17);
+			tile(16, 8, 0x18);
+			tile(16, 9, 0x11);
+			tile(16, 10, 0x11);
+			tile(16, 11, 0x17);
 		}
 		_clipLeft = 17;
 	} else if (!_leftVisible) {
@@ -430,24 +430,24 @@ void MazeViewDrawer::depth3() {
 		run(14, 9, 0, 1, 2, kLeftEdge);
 		run(16, 9, 0, 1, 2, kLeftEdge);
 		if (_left == kDoor) {
-			cell(15, 9, 0x10);
-			cell(16, 9, 0x5e);
-			cell(15, 10, 0x0f);
-			cell(16, 10, 0x1c);
+			tile(15, 9, 0x10);
+			tile(16, 9, 0x5e);
+			tile(15, 10, 0x0f);
+			tile(16, 10, 0x1c);
 		}
 		_clipLeft = 17;
 	}
 
 	if (_rightWall) {
-		cell(19, 8, kSlantA);
-		cell(19, 11, kSlantB);
+		tile(19, 8, kSlantA);
+		tile(19, 11, kSlantB);
 		run(19, 9, 0, 1, 2, kRightEdge);
 		run(20, 8, 0, 1, 4, kRightEdge);
 		if (_right == kDoor) {
-			cell(19, 8, 0x16);
-			cell(19, 9, 0x15);
-			cell(19, 10, 0x15);
-			cell(19, 11, 0x14);
+			tile(19, 8, 0x16);
+			tile(19, 9, 0x15);
+			tile(19, 10, 0x15);
+			tile(19, 11, 0x14);
 		}
 		_clipRight = 18;
 	} else if (!_rightVisible) {
@@ -463,10 +463,10 @@ void MazeViewDrawer::depth3() {
 		run(19, 9, 0, 1, 2, kRightEdge);
 		run(21, 9, 0, 1, 2, kRightEdge);
 		if (_right == kDoor) {
-			cell(19, 9, 0x5c);
-			cell(19, 10, 0x5d);
-			cell(20, 9, 0x12);
-			cell(20, 10, 0x13);
+			tile(19, 9, 0x5c);
+			tile(19, 10, 0x5d);
+			tile(20, 9, 0x12);
+			tile(20, 10, 0x13);
 		}
 		_clipRight = 18;
 	}
@@ -480,10 +480,10 @@ void MazeViewDrawer::depth3() {
 		run(16, 9, 0, 1, 2, kLeftEdge);
 		run(19, 9, 0, 1, 2, kRightEdge);
 		if (_front == kDoor) {
-			cell(17, 9, 0x10);
-			cell(18, 9, 0x12);
-			cell(17, 10, 0x0f);
-			cell(18, 10, 0x13);
+			tile(17, 9, 0x10);
+			tile(18, 9, 0x12);
+			tile(17, 10, 0x0f);
+			tile(18, 10, 0x13);
 		}
 	}
 

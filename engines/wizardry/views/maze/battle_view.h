@@ -52,7 +52,7 @@ private:
 
 	EngineDice _dice;
 	Battle *_battle = nullptr;
-	CellImage _picture;
+	TileImage _picture;
 	State _state = kAnnounce;
 	uint _member = 0;
 	bool _dispelling = false;

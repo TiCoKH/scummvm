@@ -25,8 +25,8 @@
 namespace Wizardry {
 namespace Town {
 
-void TownView::drawCells(TextWindow &window) {
-	TownScreens screens(_G(cells), _G(messages), _G(party), _G(items));
+void TownView::drawTiles(TextWindow &window) {
+	TownScreens screens(_G(tiles), _G(messages), _G(party), _G(items));
 	drawBackground(screens);
 
 	// The menu is printed again by drawTown() where there is one
@@ -91,8 +91,8 @@ bool TownView::msgMouseDown(const MouseDownMessage &msg) {
 	if (!_notice.empty() || msg._button != MouseMessage::MB_LEFT)
 		return true;
 
-	const int col = msg._pos.x / _G(renderer).cellWidth();
-	const int row = msg._pos.y / _G(renderer).cellHeight();
+	const int col = msg._pos.x / _G(renderer).tileWidth();
+	const int row = msg._pos.y / _G(renderer).tileHeight();
 	const int result = _menu.chooseAt(col, row);
 	if (result >= 0)
 		choose(result, 0);

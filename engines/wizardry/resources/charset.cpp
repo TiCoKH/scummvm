@@ -32,18 +32,18 @@ bool CharSet::open(const GfxSet &gfx) {
 	if (!gfx.charset || !readFile(gfx.charset, data))
 		return false;
 
-	_cellW = gfx.cellW;
-	_cellH = gfx.cellH;
+	_tileW = gfx.tileW;
+	_tileH = gfx.tileH;
 
 	// Glyphs have one plane on every machine
-	const uint glyphBytes = cellDataSize(_cellH, 1);
-	const uint glyphPixels = _cellW * _cellH;
+	const uint glyphBytes = tileDataSize(_tileH, 1);
+	const uint glyphPixels = _tileW * _tileH;
 	_count = data.size() / glyphBytes;
 	_pixels.resize(_count * glyphPixels);
 
 	for (uint i = 0; i < _count; ++i)
-		decodeCell(&data[i * glyphBytes], glyphBytes, &_pixels[i * glyphPixels],
-			_cellW, _cellW, _cellH, 1);
+		decodeTile(&data[i * glyphBytes], glyphBytes, &_pixels[i * glyphPixels],
+			_tileW, _tileW, _tileH, 1);
 
 	return _count != 0;
 }
@@ -51,7 +51,7 @@ bool CharSet::open(const GfxSet &gfx) {
 const byte *CharSet::glyph(uint index) const {
 	if (index >= _count)
 		index = 0;
-	return &_pixels[index * _cellW * _cellH];
+	return &_pixels[index * _tileW * _tileH];
 }
 
 } // End of namespace Wizardry

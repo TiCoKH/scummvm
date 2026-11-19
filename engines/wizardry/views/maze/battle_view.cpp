@@ -66,7 +66,7 @@ void BattleView::start(int monsterId, bool canRun, int kind) {
 
 	// The picture of the first group. The number in the monster record
 	// is the picture's number as the game counts them, from 1.
-	view->_picture = CellImage();
+	view->_picture = TileImage();
 	if (monsterId >= 0 && monsterId < (int)_G(monsters).size())
 		_G(pictures).load(_G(monsters)[monsterId].pictureId & 0xff, view->_picture);
 

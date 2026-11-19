@@ -24,7 +24,7 @@
 
 namespace Wizardry {
 
-bool loadTitleImage(const Profile &profile, const GfxSet &gfx, CellImage &image) {
+bool loadTitleImage(const Profile &profile, const GfxSet &gfx, TileImage &image) {
 	const uint STRIDE = 80;
 	Common::Array<byte> data;
 
@@ -43,7 +43,7 @@ bool loadTitleImage(const Profile &profile, const GfxSet &gfx, CellImage &image)
 	height = MIN<uint>(height, data.size() / STRIDE);
 
 	const uint width = rowBytes * 8 / bitsPerPixel;
-	image.create(width / gfx.cellW, (height + gfx.cellH - 1) / gfx.cellH, gfx.cellW, gfx.cellH);
+	image.create(width / gfx.tileW, (height + gfx.tileH - 1) / gfx.tileH, gfx.tileW, gfx.tileH);
 
 	for (uint y = 0; y < height; ++y) {
 		byte *dst = image.getBasePtr(0, y);

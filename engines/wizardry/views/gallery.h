@@ -22,16 +22,16 @@
 #ifndef WIZARDRY_VIEWS_GALLERY_H
 #define WIZARDRY_VIEWS_GALLERY_H
 
-#include "wizardry/views/cell_view.h"
+#include "wizardry/views/tile_view.h"
 
 namespace Wizardry {
 
 /**
  * Stand-in for the game until its screens exist: pages through the
  * pictures of the release and shows its character set and the first
- * messages, all drawn through the cell screen.
+ * messages, all drawn through the tile screen.
  */
-class Gallery : public CellView {
+class Gallery : public TileView {
 private:
 	enum Page {
 		kPagePictures,
@@ -49,10 +49,10 @@ private:
 	void drawMessages(TextWindow &window);
 
 protected:
-	void drawCells(TextWindow &window) override;
+	void drawTiles(TextWindow &window) override;
 
 public:
-	Gallery() : CellView("Gallery", true) {}
+	Gallery() : TileView("Gallery", true) {}
 
 	bool msgKeypress(const KeypressMessage &msg) override;
 };

@@ -19,32 +19,42 @@
  *
  */
 
-#include "wizardry/views/cell_view.h"
-#include "wizardry/data/globals.h"
+#include "wizardry/resources/tile_image.h"
 
 namespace Wizardry {
 
-CellView::CellView(const Common::String &name, bool framed) :
-		View(name), _framed(framed) {
-	setCellBounds(Common::Rect(CellScreen::COLS, CellScreen::ROWS));
+void TileImage::create(uint16 cols_, uint16 rows_, uint8 tileW_, uint8 tileH_) {
+	cols = cols_;
+	rows = rows_;
+	tileW = tileW_;
+	tileH = tileH_;
+	pixels.clear();
+	pixels.resize(width() * height());
 }
 
-CellView::CellView(const Common::String &name, const Common::Rect &cells, bool framed) :
-		View(name), _framed(framed) {
-	setCellBounds(cells);
-}
+void decodeTile(const byte *src, uint srcSize, byte *dst, uint pitch,
+		uint8 tileW, uint8 tileH, uint8 planes) {
+	for (uint y = 0; y < tileH; ++y, dst += pitch) {
+		for (uint x = 0; x < tileW; ++x)
+			dst[x] = 0;
 
-void CellView::setCellBounds(const Common::Rect &cells) {
-	_cells = cells;
+		for (uint p = 0; p < planes; ++p) {
+			const uint offset = p * 2 * tileH + 2 * y;
+			uint bits = 0;
+			if (offset < srcSize)
+				bits = src[offset] << 8;
+			if (offset + 1 < srcSize)
+				bits |= src[offset + 1];
 
-	const int w = _G(renderer).cellWidth(), h = _G(renderer).cellHeight();
-	setBounds(Common::Rect(cells.left * w, cells.top * h, cells.right * w, cells.bottom * h));
-}
-
-void CellView::draw() {
-	TextWindow window(_G(cells), _cells, _framed);
-	drawCells(window);
-	g_globals->present();
+			if (tileW == 8) {
+				for (uint x = 0; x < 8; ++x)
+					dst[x] = (bits >> (14 - 2 * x)) & 3;
+			} else {
+				for (uint x = 0; x < 16; ++x)
+					dst[x] |= ((bits >> (15 - x)) & 1) << p;
+			}
+		}
+	}
 }
 
 } // End of namespace Wizardry

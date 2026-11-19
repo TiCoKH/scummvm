@@ -23,7 +23,7 @@
 #define WIZARDRY_VIEWS_TOWN_TOWN_VIEW_H
 
 #include "wizardry/ui/town_screens.h"
-#include "wizardry/views/cell_view.h"
+#include "wizardry/views/tile_view.h"
 
 namespace Wizardry {
 namespace Town {
@@ -33,7 +33,7 @@ namespace Town {
  * menu choices and shows short notices; what is on screen is drawn by
  * TownScreens.
  */
-class TownView : public CellView {
+class TownView : public TileView {
 private:
 	Common::String _notice;
 
@@ -82,11 +82,11 @@ protected:
 		kPauseFrames = FRAME_RATE * 40 / 18
 	};
 
-	void drawCells(TextWindow &window) override;
+	void drawTiles(TextWindow &window) override;
 	void timeout() override;
 
 public:
-	TownView(const Common::String &name) : CellView(name, false) {}
+	TownView(const Common::String &name) : TileView(name, false) {}
 
 	bool msgKeypress(const KeypressMessage &msg) override;
 

@@ -29,7 +29,7 @@ namespace Wizardry {
 
 /**
  * Draws the view into the maze as the original does: with glyphs of the
- * character set, into the 36 x 20 cells inside the main window. Up to four
+ * character set, into the 36 x 20 tiles inside the main window. Up to four
  * squares ahead are shown with light, two without.
  *
  * The lists of runs of glyphs are those of the original program, one list
@@ -66,7 +66,7 @@ private:
 	bool _done;
 
 	void run(int x, int y, int dx, int dy, int count, uint16 glyph);
-	void cell(int x, int y, uint16 glyph) { run(x, y, 0, 0, 1, glyph); }
+	void tile(int x, int y, uint16 glyph) { run(x, y, 0, 0, 1, glyph); }
 	void dark(int x, int y, int columns, int rows);
 	void slantDown(int x, int y, int columns, int rows, int clipLeft);
 	void slantUp(int x, int y, int columns, int rows, int clipRight);

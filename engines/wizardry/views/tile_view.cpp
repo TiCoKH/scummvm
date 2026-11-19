@@ -19,42 +19,32 @@
  *
  */
 
-#include "wizardry/resources/cell_image.h"
+#include "wizardry/views/tile_view.h"
+#include "wizardry/data/globals.h"
 
 namespace Wizardry {
 
-void CellImage::create(uint16 cols_, uint16 rows_, uint8 cellW_, uint8 cellH_) {
-	cols = cols_;
-	rows = rows_;
-	cellW = cellW_;
-	cellH = cellH_;
-	pixels.clear();
-	pixels.resize(width() * height());
+TileView::TileView(const Common::String &name, bool framed) :
+		View(name), _framed(framed) {
+	setTileBounds(Common::Rect(TileScreen::COLS, TileScreen::ROWS));
 }
 
-void decodeCell(const byte *src, uint srcSize, byte *dst, uint pitch,
-		uint8 cellW, uint8 cellH, uint8 planes) {
-	for (uint y = 0; y < cellH; ++y, dst += pitch) {
-		for (uint x = 0; x < cellW; ++x)
-			dst[x] = 0;
+TileView::TileView(const Common::String &name, const Common::Rect &tiles, bool framed) :
+		View(name), _framed(framed) {
+	setTileBounds(tiles);
+}
 
-		for (uint p = 0; p < planes; ++p) {
-			const uint offset = p * 2 * cellH + 2 * y;
-			uint bits = 0;
-			if (offset < srcSize)
-				bits = src[offset] << 8;
-			if (offset + 1 < srcSize)
-				bits |= src[offset + 1];
+void TileView::setTileBounds(const Common::Rect &tiles) {
+	_tiles = tiles;
 
-			if (cellW == 8) {
-				for (uint x = 0; x < 8; ++x)
-					dst[x] = (bits >> (14 - 2 * x)) & 3;
-			} else {
-				for (uint x = 0; x < 16; ++x)
-					dst[x] |= ((bits >> (15 - x)) & 1) << p;
-			}
-		}
-	}
+	const int w = _G(renderer).tileWidth(), h = _G(renderer).tileHeight();
+	setBounds(Common::Rect(tiles.left * w, tiles.top * h, tiles.right * w, tiles.bottom * h));
+}
+
+void TileView::draw() {
+	TextWindow window(_G(tiles), _tiles, _framed);
+	drawTiles(window);
+	g_globals->present();
 }
 
 } // End of namespace Wizardry

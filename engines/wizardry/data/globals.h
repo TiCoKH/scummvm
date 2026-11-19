@@ -30,8 +30,8 @@
 #include "wizardry/game/treasure.h"
 #include "wizardry/game/party.h"
 #include "wizardry/resources/scenario_file.h"
-#include "wizardry/gfx/cell_renderer.h"
-#include "wizardry/gfx/cell_screen.h"
+#include "wizardry/gfx/tile_renderer.h"
+#include "wizardry/gfx/tile_screen.h"
 #include "wizardry/gfx/wizardry_font.h"
 #include "wizardry/resources/messages.h"
 #include "wizardry/resources/picture_file.h"
@@ -42,9 +42,9 @@ struct Globals {
 	WizardryFont *_normalFont = nullptr;
 	WizardryFont *_gfxFont = nullptr;
 
-	// Releases that draw through the cell screen (all but the Apple II one)
-	CellScreen _cells;
-	CellRenderer _renderer;
+	// Releases that draw through the tile screen (all but the Apple II one)
+	TileScreen _tiles;
+	TileRenderer _renderer;
 	PictureFile _pictures;
 	MessageFile _messages;
 	ScenarioFile _scenario;
@@ -76,7 +76,7 @@ struct Globals {
 	void setup();
 
 	/**
-	 * Copies the cells that changed to the screen
+	 * Copies the tiles that changed to the screen
 	 */
 	void present();
 };

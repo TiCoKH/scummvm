@@ -61,8 +61,8 @@ bool Console::Cmd_profile(int argc, const char **argv) {
 
 	debugPrintf("%s, %s\n", g_engine->getGameId().c_str(),
 		Common::getPlatformDescription(p->platform));
-	debugPrintf("screen %dx%d, cells %dx%d, pictures %dx%d cells\n",
-		gfx.screenW, gfx.screenH, gfx.cellW, gfx.cellH, p->pictureCols, p->pictureRows);
+	debugPrintf("screen %dx%d, tiles %dx%d, pictures %dx%d tiles\n",
+		gfx.screenW, gfx.screenH, gfx.tileW, gfx.tileH, p->pictureCols, p->pictureRows);
 
 	for (uint i = 0; i < ARRAYSIZE(files); ++i) {
 		if (!files[i])

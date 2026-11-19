@@ -24,13 +24,13 @@
 
 #include "common/rect.h"
 #include "common/str.h"
-#include "wizardry/gfx/cell_screen.h"
+#include "wizardry/gfx/tile_screen.h"
 
 namespace Wizardry {
 
 /**
- * A rectangle of the cell screen to print into, like a window of the
- * original program. All positions are in cells and count from the top left
+ * A rectangle of the tile screen to print into, like a window of the
+ * original program. All positions are in tiles and count from the top left
  * of the inside of the window; what falls outside is not drawn.
  *
  * The frame uses glyphs 1 to 8 of the character set: top left corner, top
@@ -39,13 +39,13 @@ namespace Wizardry {
  */
 class TextWindow {
 private:
-	CellScreen &_screen;
-	Common::Rect _bounds;   ///< whole window, in screen cells
+	TileScreen &_screen;
+	Common::Rect _bounds;   ///< whole window, in screen tiles
 	Common::Rect _inner;    ///< the part inside the frame
 	Common::Point _cursor;
 
 public:
-	TextWindow(CellScreen &screen, const Common::Rect &bounds, bool framed);
+	TextWindow(TileScreen &screen, const Common::Rect &bounds, bool framed);
 
 	int width() const { return _inner.width(); }
 	int height() const { return _inner.height(); }
@@ -79,7 +79,7 @@ public:
 	int cursorX() const { return _cursor.x; }
 	int cursorY() const { return _cursor.y; }
 
-	/** Screen cell of the top left of the inside of the window */
+	/** Screen tile of the top left of the inside of the window */
 	int innerLeft() const { return _inner.left; }
 	int innerTop() const { return _inner.top; }
 
@@ -108,10 +108,10 @@ public:
 	void CLRRECT(int x1, int y1, int x2, int y2);
 
 	/**
-	 * Shows an image with its top left cell at the given position
-	 * @returns the slot, for CellScreen::removeImage()
+	 * Shows an image with its top left tile at the given position
+	 * @returns the slot, for TileScreen::removeImage()
 	 */
-	int showImage(const CellImage &image, int x, int y);
+	int showImage(const TileImage &image, int x, int y);
 };
 
 } // End of namespace Wizardry

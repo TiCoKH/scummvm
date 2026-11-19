@@ -19,49 +19,49 @@
  *
  */
 
-#include "wizardry/gfx/cell_screen.h"
+#include "wizardry/gfx/tile_screen.h"
 
 namespace Wizardry {
 
-CellScreen::CellScreen() {
+TileScreen::TileScreen() {
 	for (int row = 0; row < ROWS; ++row) {
 		for (int col = 0; col < COLS; ++col) {
-			Cell c = { kBlank, 0, 0 };
-			_cells[row][col] = c;
+			Tile c = { kBlank, 0, 0 };
+			_tiles[row][col] = c;
 			_dirty[row][col] = true;
 		}
 	}
 }
 
-void CellScreen::setCell(int col, int row, CellType type, uint16 value, uint8 slot) {
+void TileScreen::setTile(int col, int row, TileType type, uint16 value, uint8 slot) {
 	if (!contains(col, row))
 		return;
 
-	const Cell c = { (uint8)type, slot, value };
-	if (!(_cells[row][col] == c)) {
-		_cells[row][col] = c;
+	const Tile c = { (uint8)type, slot, value };
+	if (!(_tiles[row][col] == c)) {
+		_tiles[row][col] = c;
 		_dirty[row][col] = true;
 	}
 }
 
-void CellScreen::setGlyph(int col, int row, uint16 glyph) {
+void TileScreen::setGlyph(int col, int row, uint16 glyph) {
 	if (glyph == 0 || glyph == 32)
-		setCell(col, row, kBlank);
+		setTile(col, row, kBlank);
 	else
-		setCell(col, row, kGlyph, glyph);
+		setTile(col, row, kGlyph, glyph);
 }
 
-void CellScreen::clear() {
+void TileScreen::clear() {
 	for (int row = 0; row < ROWS; ++row) {
 		for (int col = 0; col < COLS; ++col)
-			setCell(col, row, kBlank);
+			setTile(col, row, kBlank);
 	}
 
 	for (uint i = 0; i < _images.size(); ++i)
 		_images[i].used = false;
 }
 
-int CellScreen::addImage(const CellImage &image, int col, int row) {
+int TileScreen::addImage(const TileImage &image, int col, int row) {
 	uint slot = 0;
 	while (slot < _images.size() && _images[slot].used)
 		++slot;
@@ -77,7 +77,7 @@ int CellScreen::addImage(const CellImage &image, int col, int row) {
 	for (int y = 0; y < image.rows; ++y) {
 		for (int x = 0; x < image.cols; ++x) {
 			if (contains(col + x, row + y)) {
-				setCell(col + x, row + y, kImage, y * image.cols + x, slot);
+				setTile(col + x, row + y, kImage, y * image.cols + x, slot);
 				// The slot may have held another image before
 				_dirty[row + y][col + x] = true;
 			}
@@ -87,7 +87,7 @@ int CellScreen::addImage(const CellImage &image, int col, int row) {
 	return slot;
 }
 
-void CellScreen::removeImage(int slot) {
+void TileScreen::removeImage(int slot) {
 	if (slot < 0 || slot >= (int)_images.size() || !_images[slot].used)
 		return;
 
@@ -95,22 +95,22 @@ void CellScreen::removeImage(int slot) {
 	for (int y = 0; y < entry.image.rows; ++y) {
 		for (int x = 0; x < entry.image.cols; ++x) {
 			const int col = entry.col + x, row = entry.row + y;
-			if (contains(col, row) && _cells[row][col].type == kImage && _cells[row][col].slot == slot)
-				setCell(col, row, kBlank);
+			if (contains(col, row) && _tiles[row][col].type == kImage && _tiles[row][col].slot == slot)
+				setTile(col, row, kBlank);
 		}
 	}
 
 	_images[slot].used = false;
 }
 
-void CellScreen::clearDirty() {
+void TileScreen::clearDirty() {
 	for (int row = 0; row < ROWS; ++row) {
 		for (int col = 0; col < COLS; ++col)
 			_dirty[row][col] = false;
 	}
 }
 
-void CellScreen::markAllDirty() {
+void TileScreen::markAllDirty() {
 	for (int row = 0; row < ROWS; ++row) {
 		for (int col = 0; col < COLS; ++col)
 			_dirty[row][col] = true;

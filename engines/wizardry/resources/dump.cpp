@@ -35,14 +35,14 @@ static void dumpGfxSet(const Profile &profile, const GfxSet &gfx, DumpTarget &ta
 
 	// The first three characters of the file name are "200" or "400"
 	const Common::String set(gfx.charset, 3);
-	summary.writeString(Common::String::format("set %s: screen %dx%d, cell %dx%d\n",
-		set.c_str(), gfx.screenW, gfx.screenH, gfx.cellW, gfx.cellH));
+	summary.writeString(Common::String::format("set %s: screen %dx%d, tile %dx%d\n",
+		set.c_str(), gfx.screenW, gfx.screenH, gfx.tileW, gfx.tileH));
 
 	CharSet charset;
 	if (charset.open(gfx)) {
 		Common::WriteStream *out = target.create(("charset_" + set + ".bin").c_str());
 		for (uint i = 0; i < charset.size(); ++i)
-			out->write(charset.glyph(i), gfx.cellW * gfx.cellH);
+			out->write(charset.glyph(i), gfx.tileW * gfx.tileH);
 		delete out;
 		summary.writeString(Common::String::format("  %s: %u glyphs\n", gfx.charset, charset.size()));
 	} else {
@@ -54,26 +54,26 @@ static void dumpGfxSet(const Profile &profile, const GfxSet &gfx, DumpTarget &ta
 		summary.writeString("  no picture file\n");
 	} else if (pictures.open(profile, gfx)) {
 		Common::WriteStream *out = target.create(("pictures_" + set + ".bin").c_str());
-		CellImage image;
+		TileImage image;
 		for (uint id = 1; id <= pictures.size(); ++id) {
 			pictures.load(id, image);
 			out->write(&image.pixels[0], image.pixels.size());
 		}
 		delete out;
-		summary.writeString(Common::String::format("  %s: %u pictures of %ux%u cells, %ux%u pixels\n",
+		summary.writeString(Common::String::format("  %s: %u pictures of %ux%u tiles, %ux%u pixels\n",
 			gfx.pictures, pictures.size(), image.cols, image.rows, image.width(), image.height()));
 	} else {
 		summary.writeString(Common::String::format("  %s: NOT LOADED\n", gfx.pictures));
 	}
 
-	CellImage title;
+	TileImage title;
 	if (!gfx.title) {
 		summary.writeString("  no title file\n");
 	} else if (loadTitleImage(profile, gfx, title)) {
 		Common::WriteStream *out = target.create(("title_" + set + ".bin").c_str());
 		out->write(&title.pixels[0], title.pixels.size());
 		delete out;
-		summary.writeString(Common::String::format("  %s: %ux%u cells, %ux%u pixels\n",
+		summary.writeString(Common::String::format("  %s: %ux%u tiles, %ux%u pixels\n",
 			gfx.title, title.cols, title.rows, title.width(), title.height()));
 	} else {
 		summary.writeString(Common::String::format("  %s: NOT LOADED\n", gfx.title));

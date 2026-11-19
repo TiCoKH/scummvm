@@ -26,7 +26,7 @@ MODULE_OBJS = \
 	game/treasure.o \
 	libs/memory.o \
 	libs/wizardry_archive.o \
-	resources/cell_image.o \
+	resources/tile_image.o \
 	resources/charset.o \
 	resources/dump.o \
 	resources/files.o \
@@ -34,15 +34,15 @@ MODULE_OBJS = \
 	resources/picture_file.o \
 	resources/scenario_file.o \
 	resources/title_image.o \
-	gfx/cell_renderer.o \
-	gfx/cell_screen.o \
+	gfx/tile_renderer.o \
+	gfx/tile_screen.o \
 	gfx/palette.o \
 	gfx/surface.o \
 	gfx/text_window.o \
 	gfx/wizardry_font.o \
 	views/view.o \
 	views/castle.o \
-	views/cell_view.o \
+	views/tile_view.o \
 	views/gallery.o \
 	views/title.o \
 	views/maze/battle_view.o \

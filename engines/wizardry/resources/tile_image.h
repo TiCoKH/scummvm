@@ -28,23 +28,23 @@
 namespace Wizardry {
 
 /**
- * An image measured in screen cells. Every release uses a screen of 40 x 25
- * cells; what differs is the size of a cell in pixels (8x8 on CGA 320x200,
+ * An image measured in screen tiles. Every release uses a screen of 40 x 25
+ * tiles; what differs is the size of a tile in pixels (8x8 on CGA 320x200,
  * 16x8 on the 640x200 screens, 16x16 on the PC-98 at 640x400). Glyphs,
- * pictures and the title are all whole cells, so code that places them works
- * in cells and only the final copy to the screen works in pixels.
+ * pictures and the title are all whole tiles, so code that places them works
+ * in tiles and only the final copy to the screen works in pixels.
  *
  * Pixels are colour numbers, one byte each, row after row.
  */
-struct CellImage {
+struct TileImage {
 	uint16 cols = 0, rows = 0;
-	uint8 cellW = 0, cellH = 0;
+	uint8 tileW = 0, tileH = 0;
 	Common::Array<byte> pixels;
 
-	void create(uint16 cols_, uint16 rows_, uint8 cellW_, uint8 cellH_);
+	void create(uint16 cols_, uint16 rows_, uint8 tileW_, uint8 tileH_);
 
-	uint width() const { return cols * cellW; }
-	uint height() const { return rows * cellH; }
+	uint width() const { return cols * tileW; }
+	uint height() const { return rows * tileH; }
 	bool empty() const { return pixels.empty(); }
 
 	byte *getBasePtr(uint x, uint y) { return &pixels[y * width() + x]; }
@@ -52,25 +52,25 @@ struct CellImage {
 };
 
 /**
- * Bytes one cell takes in a file: two bytes per row and plane
+ * Bytes one tile takes in a file: two bytes per row and plane
  */
-inline uint cellDataSize(uint8 cellH, uint8 planes) {
-	return 2 * cellH * planes;
+inline uint tileDataSize(uint8 tileH, uint8 planes) {
+	return 2 * tileH * planes;
 }
 
 /**
- * Decodes one cell.
- * @param src      Cell data. Each row is a big-endian word.
+ * Decodes one tile.
+ * @param src      Tile data. Each row is a big-endian word.
  * @param srcSize  Bytes available at src; what is missing reads as zero
- * @param dst      Top left pixel of the cell in the destination
+ * @param dst      Top left pixel of the tile in the destination
  * @param pitch    Bytes per row in the destination
- * @param cellW    8: the word holds eight pixels of two bits (CGA four colours).
+ * @param tileW    8: the word holds eight pixels of two bits (CGA four colours).
  *                 16: the word holds sixteen pixels of one bit per plane.
  * @param planes   1, or 3 for planes in the order blue, red, green; the
  *                 colour number is then blue + 2 * red + 4 * green
  */
-extern void decodeCell(const byte *src, uint srcSize, byte *dst, uint pitch,
-	uint8 cellW, uint8 cellH, uint8 planes);
+extern void decodeTile(const byte *src, uint srcSize, byte *dst, uint pitch,
+	uint8 tileW, uint8 tileH, uint8 planes);
 
 } // End of namespace Wizardry
 

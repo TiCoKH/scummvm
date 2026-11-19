@@ -23,13 +23,13 @@
 #define WIZARDRY_RESOURCES_PICTURE_FILE_H
 
 #include "wizardry/profile.h"
-#include "wizardry/resources/cell_image.h"
+#include "wizardry/resources/tile_image.h"
 
 namespace Wizardry {
 
 /**
  * The picture file of a graphics set (monsters, scenes, portraits).
- * A picture is 6 x 5 cells, or 12 x 14 cells in Wizardry V.
+ * A picture is 6 x 5 tiles, or 12 x 14 tiles in Wizardry V.
  */
 class PictureFile {
 private:
@@ -41,12 +41,12 @@ private:
 	Common::Array<byte> _data;
 	Common::Array<Entry> _index;
 	uint8 _cols = 0, _rows = 0;
-	uint8 _cellW = 0, _cellH = 0;
+	uint8 _tileW = 0, _tileH = 0;
 	uint8 _planes = 1;
 	bool _packed = false;
 
 	uint pictureDataSize() const {
-		return _cols * _rows * cellDataSize(_cellH, _planes);
+		return _cols * _rows * tileDataSize(_tileH, _planes);
 	}
 
 	bool readTable(const Common::Array<byte> &interp);
@@ -67,7 +67,7 @@ public:
 	 * Loads a picture.
 	 * @param id  The number the game uses, starting at 1
 	 */
-	bool load(uint id, CellImage &image) const;
+	bool load(uint id, TileImage &image) const;
 };
 
 } // End of namespace Wizardry

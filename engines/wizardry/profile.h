@@ -29,9 +29,9 @@ namespace Wizardry {
 
 enum PixelLayout {
 	kPixelsNone,
-	kPixelsCGA2bpp,    ///< 2 bits per pixel, 8 pixels per cell row
-	kPixelsMono,       ///< 1 bit per pixel, 16 pixels per cell row
-	kPixelsPlanarBRG   ///< glyphs 1 bit; picture cells are three planes: blue, red, green
+	kPixelsCGA2bpp,    ///< 2 bits per pixel, 8 pixels per tile row
+	kPixelsMono,       ///< 1 bit per pixel, 16 pixels per tile row
+	kPixelsPlanarBRG   ///< glyphs 1 bit; picture tiles are three planes: blue, red, green
 };
 
 enum PicturePacking {
@@ -48,7 +48,7 @@ struct GfxSet {
 	const char *charset;    ///< nullptr when the release has no such set
 	const char *pictures;   ///< nullptr when the set has no picture file
 	const char *title;      ///< nullptr when the set has no title picture
-	uint8 cellW, cellH;     ///< size of a screen cell in pixels
+	uint8 tileW, tileH;     ///< size of a screen tile in pixels
 	uint8 layout;           ///< PixelLayout
 	uint16 screenW, screenH;
 
@@ -70,7 +70,7 @@ struct Profile {
 	const char *huffman;       ///< decoding table for Wizardry IV and V text, else nullptr
 	GfxSet low;                ///< the "200" set
 	GfxSet high;               ///< the "400" set
-	uint8 pictureCols, pictureRows;   ///< picture size in cells
+	uint8 pictureCols, pictureRows;   ///< picture size in tiles
 	uint8 picturePacking;      ///< PicturePacking
 };
 

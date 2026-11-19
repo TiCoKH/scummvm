@@ -97,7 +97,7 @@ Common::Error WizardryEngine::run() {
 
 	if (_profile) {
 		// 320x200 for the four-colour CGA set. Everything else is 640
-		// wide and is shown at 640x400; see CellRenderer.
+		// wide and is shown at 640x400; see TileRenderer.
 		const GfxSet &gfx = getGfxSet();
 		initGraphics(gfx.screenW, gfx.screenW == 320 ? 200 : 400);
 	} else {
