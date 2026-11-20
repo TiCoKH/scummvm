@@ -22,14 +22,16 @@
 #ifndef WIZARDRY_VIEWS_GALLERY_H
 #define WIZARDRY_VIEWS_GALLERY_H
 
+#include "wizardry/game/maze.h"
 #include "wizardry/views/tile_view.h"
 
 namespace Wizardry {
 
 /**
- * Stand-in for the game until its screens exist: pages through the
- * pictures of the release and shows its character set and the first
- * messages, all drawn through the tile screen.
+ * A debug view, reached with M on the title: pages through the pictures
+ * of the release, its character set and messages, and the data of the
+ * scenario (items, monsters, spells and maze levels), all drawn through
+ * the tile screen.
  */
 class Gallery : public TileView {
 private:
@@ -37,12 +39,28 @@ private:
 		kPagePictures,
 		kPageCharset,
 		kPageMessages,
+		kPageItems,
+		kPageMonsters,
+		kPageSpells,
+		kPageMaze,
 		kPageCount
 	};
 
 	int _page = kPagePictures;
 	uint _picture = 1;
 	uint _firstMessage = 0;
+	uint _item = 0;
+	uint _monster = 0;
+	int _firstSpell = 1;
+	int _mazeLevel = 1;
+	int _mazeX = 0, _mazeY = 0;
+	Common::Array<MazeLevel> _levels;   ///< the levels as the scenario has them, when no game has loaded them
+
+	const Common::Array<MazeLevel> &levels();
+	void drawMaze(TextWindow &window);
+
+	/** Moves an index by a step, wrapping round within a count */
+	static uint step(uint value, int by, uint count);
 
 	void drawPictures(TextWindow &window);
 	void drawCharset(TextWindow &window);

@@ -63,6 +63,7 @@ MODULE_OBJS = \
 	views/town/utilities.o \
 	views/town/town_view.o \
 	ui/maze_view.o \
+	ui/data_pages.o \
 	ui/menu.o \
 	ui/town_screens.o
 

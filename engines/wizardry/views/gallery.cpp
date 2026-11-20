@@ -20,6 +20,8 @@
  */
 
 #include "wizardry/views/gallery.h"
+#include "wizardry/game/spells.h"
+#include "wizardry/ui/data_pages.h"
 #include "wizardry/wizardry.h"
 
 namespace Wizardry {
@@ -35,12 +37,57 @@ void Gallery::drawTiles(TextWindow &window) {
 	case kPageMessages:
 		drawMessages(window);
 		break;
+	case kPageItems:
+		DataPages::drawItem(window, _G(messages), _G(items), _item);
+		break;
+	case kPageMonsters:
+		DataPages::drawMonster(window, _G(messages), _G(monsters), _monster);
+		break;
+	case kPageSpells:
+		DataPages::drawSpells(window, _G(messages), _firstSpell);
+		break;
+	case kPageMaze:
+		drawMaze(window);
+		break;
 	default:
 		drawPictures(window);
 		break;
 	}
 
-	window.printCentered(window.height() - 1, "ARROWS:CHANGE  TAB:PAGE  ESC:QUIT");
+	window.printCentered(window.height() - 1, _page == kPageMaze ?
+		"ARROWS MOVE  PGUP/PGDN LEVEL  TAB  ESC" : "ARROWS:CHANGE  TAB:PAGE  ESC:QUIT");
+}
+
+const Common::Array<MazeLevel> &Gallery::levels() {
+	// The levels of a game being played, else as the scenario has them
+	if (!_G(mazeLevels).empty())
+		return _G(mazeLevels);
+
+	if (_levels.empty() && g_engine->hasTown()) {
+		for (int n = 1; n <= 64; ++n) {
+			MazeLevel one;
+			if (!one.load(_G(scenario), n))
+				break;
+			_levels.push_back(one);
+		}
+	}
+	return _levels;
+}
+
+void Gallery::drawMaze(TextWindow &window) {
+	const Common::Array<MazeLevel> &all = levels();
+	if (all.empty()) {
+		window.printCentered(1, "NO MAZE IN THIS SCENARIO");
+		return;
+	}
+	_mazeLevel = CLIP<int>(_mazeLevel, 1, all.size());
+	DataPages::drawMaze(window, all[_mazeLevel - 1], _mazeLevel, all.size(), _mazeX, _mazeY);
+}
+
+uint Gallery::step(uint value, int by, uint count) {
+	if (!count)
+		return 0;
+	return (uint)(((int)value + by % (int)count + (int)count) % (int)count);
 }
 
 void Gallery::drawPictures(TextWindow &window) {
@@ -97,20 +144,59 @@ bool Gallery::msgKeypress(const KeypressMessage &msg) {
 		_page = (_page + 1) % kPageCount;
 		break;
 
+	case Common::KEYCODE_PAGEUP:
+	case Common::KEYCODE_PAGEDOWN:
+		if (_page != kPageMaze || levels().empty())
+			return true;
+		_mazeLevel = 1 + step(_mazeLevel - 1, msg.keycode == Common::KEYCODE_PAGEUP ? -1 : 1, levels().size());
+		break;
+
 	case Common::KEYCODE_LEFT:
 	case Common::KEYCODE_UP:
+	case Common::KEYCODE_RIGHT:
+	case Common::KEYCODE_DOWN:
+		if (_page >= kPageItems) {
+			const bool back = msg.keycode == Common::KEYCODE_LEFT || msg.keycode == Common::KEYCODE_UP;
+			const bool vertical = msg.keycode == Common::KEYCODE_UP || msg.keycode == Common::KEYCODE_DOWN;
+			const int by = (back ? -1 : 1) * (vertical ? 10 : 1);
+
+			switch (_page) {
+			case kPageItems:
+				_item = step(_item, by, _G(items).size());
+				break;
+			case kPageMonsters:
+				_monster = step(_monster, by, _G(monsters).size());
+				break;
+			case kPageSpells: {
+				const int perPage = (getTileBounds().height() - 2 - 3) * 2;
+				_firstSpell = back ? MAX(1, _firstSpell - perPage) :
+					(_firstSpell + perPage <= kSpellCount ? _firstSpell + perPage : _firstSpell);
+				break;
+			}
+			case kPageMaze:
+				// North is up on the map
+				if (vertical)
+					_mazeY = step(_mazeY, back ? 1 : -1, MazeLevel::kSize);
+				else
+					_mazeX = step(_mazeX, back ? -1 : 1, MazeLevel::kSize);
+				break;
+			default:
+				break;
+			}
+			break;
+		}
+
+		if (msg.keycode == Common::KEYCODE_RIGHT || msg.keycode == Common::KEYCODE_DOWN) {
+			if (_page == kPagePictures && pictures)
+				_picture = (_picture < pictures) ? _picture + 1 : 1;
+			else if (_page == kPageMessages && _firstMessage + lines < messages)
+				_firstMessage += lines;
+			break;
+		}
 		if (_page == kPagePictures && pictures)
 			_picture = (_picture > 1) ? _picture - 1 : pictures;
 		else if (_page == kPageMessages)
 			_firstMessage = (_firstMessage >= lines) ? _firstMessage - lines : 0;
-		break;
-
-	case Common::KEYCODE_RIGHT:
-	case Common::KEYCODE_DOWN:
-		if (_page == kPagePictures && pictures)
-			_picture = (_picture < pictures) ? _picture + 1 : 1;
-		else if (_page == kPageMessages && _firstMessage + lines < messages)
-			_firstMessage += lines;
 		break;
 
 	default:
