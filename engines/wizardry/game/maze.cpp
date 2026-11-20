@@ -59,6 +59,10 @@ bool MazeLevel::load(const ScenarioFile &scenario, int level) {
 	return true;
 }
 
+void MazeLevel::synchronize(Common::Serializer &s) {
+	s.syncBytes(_data, kRecordSize);
+}
+
 uint MazeLevel::wall(int x, int y, int side) const {
 	return (word(WALL_OFFSETS[side & 3] + (x * 3 + y / 8) * 2) >> ((y % 8) * 2)) & 3;
 }
@@ -393,6 +397,162 @@ bool Maze::returnToTown(Party &party) {
 	}
 
 	return won;
+}
+
+Common::Array<uint> Maze::outCharacters(const Party &party) {
+	Common::Array<uint> result;
+
+	for (uint i = 0; i < party.rosterSize() && result.size() < Party::kMaxListed; ++i) {
+		const Character &c = party.rosterEntry(i);
+		if (c.status == kStatusOk && c.lostLevel > 0)
+			result.push_back(i);
+	}
+
+	return result;
+}
+
+void Maze::restartParty(Party &party, uint rosterIndex, MazeState &state) {
+	const Character &first = party.rosterEntry(rosterIndex);
+	party.add(rosterIndex);
+
+	const Common::Array<uint> out = outCharacters(party);
+	for (uint i = 0; i < out.size() && !party.isFull(); ++i) {
+		const Character &c = party.rosterEntry(out[i]);
+		if (out[i] != rosterIndex && party.memberIndexOf(out[i]) < 0 &&
+				c.lostPosition == first.lostPosition && c.lostLevel == first.lostLevel)
+			party.add(out[i]);
+	}
+
+	state = MazeState();
+	state.x = first.lostPosition / 100;
+	state.y = first.lostPosition % 100;
+	state.level = first.lostLevel;
+	state.facing = kNorth;
+}
+
+Common::Array<uint> Maze::bodiesHere(const Party &party, const MazeLevel &level, const MazeState &state) {
+	enum {
+		kMaxFound = 5
+	};
+
+	// Every square the party could walk to without passing a wall or a door
+	bool reached[MazeLevel::kSize][MazeLevel::kSize];
+	memset(reached, 0, sizeof(reached));
+	reached[state.x][state.y] = true;
+
+	for (bool grew = true; grew;) {
+		grew = false;
+		for (int x = 0; x < MazeLevel::kSize; ++x) {
+			for (int y = 0; y < MazeLevel::kSize; ++y) {
+				if (!reached[x][y])
+					continue;
+				for (int side = 0; side < 4; ++side) {
+					if (level.wall(x, y, side) != kOpen)
+						continue;
+					int nx = x, ny = y;
+					offset(nx, ny, side, 0, 1);
+					if (!reached[nx][ny])
+						reached[nx][ny] = grew = true;
+				}
+			}
+		}
+	}
+
+	Common::Array<uint> found;
+	for (uint i = 0; i < party.rosterSize() && found.size() < kMaxFound; ++i) {
+		const Character &c = party.rosterEntry(i);
+		const int x = c.lostPosition / 100, y = c.lostPosition % 100;
+		if (c.status != kStatusLost && !c.inMaze && c.lostLevel == state.level &&
+				x < MazeLevel::kSize && y < MazeLevel::kSize && reached[x][y])
+			found.push_back(i);
+	}
+
+	return found;
+}
+
+bool Maze::pickUp(Party &party, uint rosterIndex) {
+	if (party.isFull() || !party.size())
+		return false;
+
+	// Found where the party is
+	Character &c = party.rosterEntry(rosterIndex);
+	const Character &leader = party.member(party.size() - 1);
+	c.lostPosition = leader.lostPosition;
+	c.lostLevel = leader.lostLevel;
+	party.add(rosterIndex);
+	return true;
+}
+
+static Common::String fillIn(const Common::String &text, char mark, const Common::String &with) {
+	Common::String result;
+	for (uint i = 0; i < text.size(); ++i) {
+		if (text[i] == mark)
+			result += with;
+		else
+			result += text[i];
+	}
+	return result;
+}
+
+Common::Array<Common::String> Maze::locateBody(const MessageFile &messages, const Party &party,
+		const Common::String &name) {
+	enum {
+		kMsgInMorgue = 909,
+		kMsgInThe = 910,
+		kMsgNorth = 911,
+		kMsgSouth = 912,
+		kMsgEast = 913,
+		kMsgWest = 914,
+		kMsgOfLevel = 915,
+		kMsgIs = 918,
+		kMsgNotHere = 919
+	};
+
+	Common::Array<Common::String> lines;
+	lines.push_back(fillIn(messages.get(kMsgIs), '^', name));
+
+	// Those who are lost for good are not found
+	for (uint i = 0; i < party.rosterSize(); ++i) {
+		const Character &c = party.rosterEntry(i);
+		if (c.name != name || c.status == kStatusLost)
+			continue;
+
+		if (c.lostPosition == 0 && c.lostLevel == 0) {
+			lines.push_back(messages.get(kMsgInMorgue));
+		} else {
+			// Only the quarter of the level is told
+			const int x = c.lostPosition / 100, y = c.lostPosition % 100;
+			lines.push_back(messages.get(kMsgInThe) + messages.get(y < 10 ? kMsgSouth : kMsgNorth) +
+				messages.get(x < 10 ? kMsgWest : kMsgEast) +
+				fillIn(messages.get(kMsgOfLevel), '^', Common::String::format("%d", c.lostLevel)));
+		}
+		return lines;
+	}
+
+	lines.push_back(messages.get(kMsgNotHere));
+	return lines;
+}
+
+Common::Array<Common::String> Maze::position(const MessageFile &messages, const MazeState &state) {
+	enum {
+		kMsgPosition = 21,
+		kMsgFacing = 22,
+		kMsgDirections = 23,
+		kMsgPlace = 27      // "! EAST " NORTH # DOWN."
+	};
+
+	Common::Array<Common::String> lines;
+	lines.push_back(messages.get(kMsgPosition));
+	lines.push_back("");
+	lines.push_back(fillIn(messages.get(kMsgFacing), '^', messages.get(kMsgDirections + (state.facing & 3))));
+	lines.push_back("");
+
+	Common::String place = messages.get(kMsgPlace);
+	place = fillIn(place, '!', Common::String::format("%d", state.x));
+	place = fillIn(place, '"', Common::String::format("%d", state.y));
+	place = fillIn(place, '#', Common::String::format("%d", state.level));
+	lines.push_back(place);
+	return lines;
 }
 
 bool Maze::anyoneAlive(const Party &party) {

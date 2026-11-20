@@ -69,7 +69,8 @@ void Edge::choose(int result, uint16 ascii) {
 		break;
 
 	case kUtilities:
-		notice("NOT IN THIS VERSION YET");   // TODO
+		party.disband();
+		replaceView("Town.Utilities");
 		break;
 
 	case kLeaveGame:

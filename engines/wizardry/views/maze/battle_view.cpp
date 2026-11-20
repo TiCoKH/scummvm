@@ -20,6 +20,7 @@
  */
 
 #include "wizardry/views/maze/battle_view.h"
+#include "wizardry/game/inn.h"
 #include "wizardry/views/maze/rewards_view.h"
 #include "wizardry/wizardry.h"
 
@@ -211,10 +212,14 @@ void BattleView::finish() {
 	_ending.clear();
 
 	switch (_battle->outcome()) {
-	case Battle::kVictory:
+	case Battle::kVictory: {
 		// Experience, the chest and the treasure have their own view
-		RewardsView::start(_battle->awardExperience(), _monsterId, _kind);
+		Inn inn(_G(scenario), messages, _dice);
+		Common::Array<Common::String> drained;
+		_battle->fixDrained(inn, drained);
+		RewardsView::start(_battle->awardExperience(), _monsterId, _kind, drained);
 		return;
+	}
 
 	case Battle::kDefeat:
 		_ending.push_back(messages.get(kMsgSlaughtered));
@@ -226,11 +231,18 @@ void BattleView::finish() {
 		g_events->replaceView("Town.Castle", true);
 		return;
 
-	default:
+	default: {
 		// Ran away, or carried off by MALOR: back to the maze, which
-		// loads the level again when it gets the focus
-		close();
-		return;
+		// loads the level again when it gets the focus. Who was drained
+		// is told first, with their experience set for their new level.
+		Inn inn(_G(scenario), messages, _dice);
+		_battle->fixDrained(inn, _ending);
+		if (_ending.empty()) {
+			close();
+			return;
+		}
+		break;
+	}
 	}
 
 	_state = kOver;

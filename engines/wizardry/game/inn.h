@@ -75,9 +75,16 @@ public:
 	static bool restOneWeek(Character &c, const Room &room);
 
 	/**
+	 * Experience a character of a class needs to be of a level
+	 */
+	int64 experienceForLevel(int classType, int level) const;
+
+	/**
 	 * Experience needed for the level after the character's own
 	 */
-	int64 experienceForNextLevel(const Character &c) const;
+	int64 experienceForNextLevel(const Character &c) const {
+		return experienceForLevel(c.classType, c.level + 1);
+	}
 
 	/**
 	 * What follows a stay: a new level if there is experience enough (one

@@ -46,7 +46,9 @@ public:
 		kIsLost,          ///< raising someone who is gone for good: the same
 		kTryKadorto,      ///< DI on ashes
 		kRaised,
-		kRaiseFailed
+		kRaiseFailed,
+		kLocateBody,      ///< KANDI: ask whom to look for
+		kShowPosition     ///< DUMAPIC: show where the party is
 	};
 
 	/** True if the spell does something in camp */

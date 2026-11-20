@@ -22,8 +22,10 @@
 #ifndef WIZARDRY_GAME_MAZE_H
 #define WIZARDRY_GAME_MAZE_H
 
+#include "common/serializer.h"
 #include "wizardry/game/party.h"
 #include "wizardry/game/random.h"
+#include "wizardry/resources/messages.h"
 #include "wizardry/resources/scenario_file.h"
 
 namespace Wizardry {
@@ -65,6 +67,13 @@ public:
 	MazeLevel();
 
 	bool load(const ScenarioFile &scenario, int level);
+
+	/**
+	 * Saves or loads the level as it is now: encounters and events that
+	 * happen only so many times count down in it, as the original writes
+	 * them back into its scenario file
+	 */
+	void synchronize(Common::Serializer &s);
 
 	/**
 	 * The wall of a square on one side, as a Wall value
@@ -195,6 +204,46 @@ public:
 
 	/** True if anyone in the party can still walk */
 	static bool anyoneAlive(const Party &party);
+
+	// ---- a party left in the maze
+
+	/**
+	 * The characters a party left in the maze can be restarted with:
+	 * those in good health who lie in the maze, at most 20
+	 */
+	static Common::Array<uint> outCharacters(const Party &party);
+
+	/**
+	 * Puts together the party of a character left in the maze: everyone
+	 * in good health who lies at the same place joins, up to six, and the
+	 * party is there again, facing north.
+	 * @param party  An empty party
+	 */
+	static void restartParty(Party &party, uint rosterIndex, MazeState &state);
+
+	/**
+	 * The characters lying in the room the party stands in: every square
+	 * reached through open sides counts. At most five.
+	 */
+	static Common::Array<uint> bodiesHere(const Party &party, const MazeLevel &level, const MazeState &state);
+
+	/**
+	 * A character found lying in the maze joins the party as it is
+	 * @returns false if the party is full
+	 */
+	static bool pickUp(Party &party, uint rosterIndex);
+
+	/**
+	 * KANDI: where the body of a character lies. The first line is "^ IS...".
+	 */
+	static Common::Array<Common::String> locateBody(const MessageFile &messages, const Party &party,
+		const Common::String &name);
+
+	/**
+	 * DUMAPIC: which way the party faces, and where it is from the stairs
+	 * to the castle
+	 */
+	static Common::Array<Common::String> position(const MessageFile &messages, const MazeState &state);
 
 	/**
 	 * A fixed encounter on the party's square, if it is still there: its

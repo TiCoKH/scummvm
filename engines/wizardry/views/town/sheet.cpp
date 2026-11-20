@@ -107,7 +107,17 @@ void SheetView::castSpell(uint target) {
 		say(kMsgWhat, kMenu);
 		break;
 	case CampSpells::kNotYet:
-		sayText("NOT IN THIS VERSION YET", kMenu);   // TODO: KANDI, DUMAPIC, MALOR
+		sayText("NOT IN THIS VERSION YET", kMenu);   // TODO: MALOR
+		break;
+	case CampSpells::kLocateBody:
+		_input.clear();
+		_state = kKandiName;
+		redraw();
+		break;
+	case CampSpells::kShowPosition:
+		_report = Maze::position(messages, _G(mazeState));
+		_state = kReport;
+		redraw();
 		break;
 	case CampSpells::kFizzled:
 		say(kMsgFizzle, kMenu);
@@ -179,6 +189,14 @@ void SheetView::drawTown(TownScreens &screens) {
 		screens.drawSheetPopup(lines, &input);
 		break;
 	}
+
+	case kKandiName:
+		screens.drawKandiName(_input);
+		break;
+
+	case kReport:
+		screens.drawReport(_report);
+		break;
 
 	case kSpellTarget:
 		screens.drawParty();
@@ -341,6 +359,32 @@ void SheetView::choose(int result, uint16 ascii) {
 		_state = kSpellTarget;
 		break;
 	}
+
+	case kKandiName:
+		if (ascii == kKeyBackspace) {
+			if (!_input.empty())
+				_input.deleteLastChar();
+			break;
+		}
+		if (ascii != kKeyReturn) {
+			if (ascii >= ' ' && ascii < 127 && _input.size() < 15)
+				_input += (char)ascii;
+			break;
+		}
+		// No name: the casting is spent all the same
+		if (_input.empty()) {
+			_state = kMenu;
+			break;
+		}
+		_report = Maze::locateBody(_G(messages), party, _input);
+		_state = kReport;
+		break;
+
+	case kReport:
+		if (ascii != kKeyReturn)
+			return;
+		_state = kMenu;
+		break;
 
 	case kSpellTarget:
 		if (ascii == kKeyReturn || ascii == '0') {

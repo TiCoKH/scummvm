@@ -20,6 +20,7 @@
  */
 
 #include "wizardry/game/battle.h"
+#include "wizardry/game/inn.h"
 
 namespace Wizardry {
 
@@ -1279,6 +1280,22 @@ void Battle::applyPriest(int spell, int gi, int index, int targetGroup, int targ
 	}
 }
 
+void Battle::fixDrained(const Inn &inn, Common::Array<Common::String> &lines) {
+	enum {
+		kMsgWasDrained = 925
+	};
+
+	for (uint i = 0; i < _party.size(); ++i) {
+		if (!_drained[i])
+			continue;
+
+		Character &c = _party.member(i);
+		c.experience = inn.experienceForLevel(c.classType, c.level) + 1;
+		_drained[i] = false;
+		lines.push_back(format(kMsgWasDrained, c.name));
+	}
+}
+
 int64 Battle::awardExperience() {
 	uint survivors = 0;
 	for (uint i = 0; i < _party.size(); ++i)
@@ -1286,8 +1303,6 @@ int64 Battle::awardExperience() {
 	if (!survivors)
 		return 0;
 
-	// TODO: those drained in the fight have their experience set to the
-	// least for their new level
 
 	int64 total = 0;
 	for (int g = 1; g < kGroupCount; ++g) {

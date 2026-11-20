@@ -57,9 +57,8 @@ CampSpells::Result CampSpells::cast(Party &party, uint casterIndex, int spell, u
 	if (!isCampSpell(spell))
 		return kNotACampSpell;
 
-	// TODO: these need screens of their own: finding a body, the map
-	// position, and choosing where to teleport
-	if (spell == KANDI || spell == DUMAPIC || spell == MALOR)
+	// TODO: MALOR needs a screen of its own to choose where to go
+	if (spell == MALOR)
 		return kNotYet;
 
 	Character &caster = party.member(casterIndex);
@@ -115,6 +114,11 @@ CampSpells::Result CampSpells::cast(Party &party, uint casterIndex, int spell, u
 	case LATUMOFIS:
 		target.poison = 0;
 		return kDone;
+
+	case KANDI:
+		return kLocateBody;
+	case DUMAPIC:
+		return kShowPosition;
 
 	default:
 		break;

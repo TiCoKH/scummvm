@@ -130,16 +130,52 @@ Common::Error WizardryEngine::syncGame(Common::Serializer &s) {
 	}
 
 	// What the original writes back into its scenario file: the
-	// characters, who is in the party, and the stock of the trading post
-	const uint32 kSaveVersion = 1;
+	// characters, who is in the party, the stock of the trading post, and
+	// (from version 2) the maze levels as they are after what happened on
+	// them. Version 1 saves have no levels; the levels then start afresh.
+	enum {
+		kSaveVersion = 2,
+		kMaxLevels = 64
+	};
 	if (!s.syncVersion(kSaveVersion))
 		return Common::kReadingFailed;
 
-	if (!_globals._party.synchronize(s) || !_globals._items.synchronize(s))
+	if (s.isSaving()) {
+		_globals._party.synchronize(s);
+		_globals._items.synchronize(s);
+
+		uint16 count = _globals._mazeLevels.size();
+		s.syncAsUint16LE(count, 2);
+		for (uint i = 0; i < count; ++i)
+			_globals._mazeLevels[i].synchronize(s);
+		return Common::kNoError;
+	}
+
+	// Loading: everything is read into copies first, so a save that is
+	// damaged or does not belong to this game changes nothing
+	Party party;
+	ItemList items = _globals._items;
+	if (!party.synchronize(s) || !items.synchronize(s))
 		return Common::kReadingFailed;
 
+	uint16 count = 0;
+	s.syncAsUint16LE(count, 2);
+	if (count > kMaxLevels)
+		return Common::kReadingFailed;
+
+	Common::Array<MazeLevel> levels;
+	levels.resize(count);
+	for (uint i = 0; i < count; ++i)
+		levels[i].synchronize(s);
+	if (s.err())
+		return Common::kReadingFailed;
+
+	_globals._party = party;
+	_globals._items = items;
+	_globals._mazeLevels = levels;
+
 	// The view on screen may show what is no longer true
-	if (s.isLoading() && focusedView())
+	if (focusedView())
 		replaceView("Town.Castle", true);
 
 	return Common::kNoError;

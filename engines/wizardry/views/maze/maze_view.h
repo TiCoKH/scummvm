@@ -47,7 +47,9 @@ private:
 		kEventText,   ///< the text of a special square, page by page
 		kEventSearch, ///< search, yes or no
 		kEventFound,  ///< who got the item, until RETURN
-		kMainText     ///< the party wiped out, or the game won: until RETURN
+		kMainText,    ///< the party wiped out, or the game won: until RETURN
+		kInspect,     ///< those lying in the room: get one, or leave
+		kInspectWho   ///< which of them
 	};
 
 	State _state = kWalking;
@@ -64,6 +66,7 @@ private:
 	bool _eventRefusal = false;      ///< the text shown is that of being turned back
 	bool _canRun = true;
 	Common::Array<Common::String> _mainText;
+	Common::Array<uint> _found;   ///< those lying in the room; TownScreens::kNobody once picked up
 
 	void startEvent(uint index);
 	void showEventText(int text);
@@ -90,9 +93,12 @@ public:
 	bool msgFocus(const FocusMessage &msg) override;
 
 	/**
-	 * Sends the party into the maze: down the stairs to the first level
+	 * Sends the party into the maze
+	 * @param start  Where it comes back in, for a party restarted where it
+	 *               was left; nullptr to go down the stairs from the castle,
+	 *               with all spells
 	 */
-	static void enter();
+	static void enter(const MazeState *start = nullptr);
 };
 
 } // End of namespace InMaze

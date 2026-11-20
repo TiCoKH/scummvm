@@ -220,6 +220,33 @@ public:
 	 */
 	void drawChestWho(uint deed);
 
+	// ---- recovering a party
+
+	void drawUtilities(Menu &menu);
+
+	/**
+	 * The characters a party left in the maze can be restarted with
+	 */
+	void drawRestart(const Common::Array<uint> &out);
+
+	/**
+	 * The search of a room for those lying there
+	 * @param found     Roster numbers, kNobody where one was picked up
+	 * @param menu      The menu below, or nullptr while asking who
+	 */
+	void drawInspect(const Common::Array<uint> &found, Menu *menu);
+
+	/**
+	 * Lines centred in a window in the middle, with the prompt to go on
+	 * below them; for what KANDI and DUMAPIC tell
+	 */
+	void drawReport(const Common::Array<Common::String> &lines);
+
+	/**
+	 * KANDI asking for a name
+	 */
+	void drawKandiName(const Common::String &typed);
+
 	// ---- the title
 
 	enum {

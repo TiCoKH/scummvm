@@ -25,6 +25,10 @@
 #include "wizardry/game/maze.h"
 #include "wizardry/game/monsters.h"
 #include "wizardry/game/spells.h"
+
+namespace Wizardry {
+class Inn;
+}
 #include "wizardry/resources/messages.h"
 
 namespace Wizardry {
@@ -210,6 +214,13 @@ public:
 	 * @param lines  Receives what is told of it, in order
 	 */
 	void runRound(Common::Array<Common::String> &lines);
+
+	/**
+	 * After a victory or an escape: those who lost levels in the fight get
+	 * the experience of their new level, and one point more
+	 * @param lines  Receives "^ WAS DRAINED!" for each of them
+	 */
+	void fixDrained(const Inn &inn, Common::Array<Common::String> &lines);
 
 	/**
 	 * After a victory: shares the experience among those still standing

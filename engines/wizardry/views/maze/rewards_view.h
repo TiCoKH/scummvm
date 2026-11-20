@@ -81,7 +81,8 @@ public:
 	 * @param experience  What each survivor got
 	 * @param kind        The kind of fight it was, an EncounterKind
 	 */
-	static void start(int64 experience, int monsterId, int kind);
+	static void start(int64 experience, int monsterId, int kind,
+		const Common::Array<Common::String> &drained = Common::Array<Common::String>());
 };
 
 } // End of namespace InMaze

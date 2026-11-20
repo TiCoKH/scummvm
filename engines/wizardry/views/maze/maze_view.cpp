@@ -80,16 +80,18 @@ public:
 
 } // End of anonymous namespace
 
-void MazeView::enter() {
+void MazeView::enter(const MazeState *start) {
 	Party &party = _G(party);
 	MazeState &state = _G(mazeState);
 
-	state = MazeState();
+	state = start ? *start : MazeState();
 	static_cast<MazeView *>(g_events->findView("Maze"))->_loadedLevel = -1;
 
-	// Everyone goes in with all spells and with figures worked out afresh
+	// Everyone goes in with figures worked out afresh; from the castle
+	// also with all spells
 	for (uint i = 0; i < party.size(); ++i) {
-		Inn::setSpellSlots(party.member(i));
+		if (!start)
+			Inn::setSpellSlots(party.member(i));
 		Equip::recalc(party.member(i), _G(items));
 	}
 
@@ -201,6 +203,12 @@ void MazeView::drawTown(TownScreens &screens) {
 		break;
 	case kEventFound:
 		screens.drawEventLine(_said);
+		break;
+	case kInspect:
+		screens.drawInspect(_found, &_menu);
+		break;
+	case kInspectWho:
+		screens.drawInspect(_found, nullptr);
 		break;
 	case kSaid:
 		screens.drawMazePopup(_said, _said2);
@@ -486,6 +494,36 @@ void MazeView::choose(int result, uint16 ascii) {
 		redraw();
 		return;
 
+	case kInspect:
+		// "G)ET/l(EAVE": RETURN leaves
+		if (result == 0) {
+			bool anyone = false;
+			for (uint i = 0; i < _found.size(); ++i)
+				anyone |= _found[i] != TownScreens::kNobody;
+			if (anyone && !party.isFull())
+				_state = kInspectWho;
+		} else if (result == 1) {
+			_state = kWalking;
+		} else {
+			return;
+		}
+		redraw();
+		return;
+
+	case kInspectWho:
+		if (ascii == kKeyReturn || ascii == '0') {
+			_state = kInspect;
+		} else if (ascii >= '1' && ascii <= '0' + (int)_found.size() &&
+				_found[ascii - '1'] != TownScreens::kNobody) {
+			Maze::pickUp(party, _found[ascii - '1']);
+			_found[ascii - '1'] = TownScreens::kNobody;
+			_state = kInspect;
+		} else {
+			return;
+		}
+		redraw();
+		return;
+
 	case kMainText:
 		if (ascii != kKeyReturn)
 			return;
@@ -647,6 +685,10 @@ void MazeView::choose(int result, uint16 ascii) {
 	} else if (command == kCmdCamp) {
 		addView("Camp");
 		return;
+	} else if (command == kCmdInspect) {
+		// Who lies in the room, to be carried along
+		_found = Maze::bodiesHere(party, _G(mazeLevel), state);
+		_state = kInspect;
 	} else {
 		// TODO: the message delay and inspecting
 		notice("NOT IN THIS VERSION YET");

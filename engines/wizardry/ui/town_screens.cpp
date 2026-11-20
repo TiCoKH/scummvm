@@ -755,6 +755,111 @@ void TownScreens::drawChestWho(uint deed) {
 	window.printCenteredLine(_messages.get(kMsgChestReturn));
 }
 
+void TownScreens::drawUtilities(Menu &menu) {
+	enum {
+		kMsgTitle = 1250,
+		kMsgMenu = 1251       // and the next
+	};
+
+	drawTrainingBackground();
+
+	const Common::String &title = _messages.get(kMsgTitle);
+	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	heading.clear();
+	heading.PRINTSTR(title);
+
+	const Common::String options = _messages.get(kMsgMenu) + _messages.get(kMsgMenu + 1);
+	TextWindow window(_screen, TextWindow::centeredBounds(Menu::textWidth(options), 8, 6), true);
+	window.clear();
+	menu.print(window, options);
+}
+
+void TownScreens::drawRestart(const Common::Array<uint> &out) {
+	enum {
+		kMsgTitle = 1240,
+		kMsgSelect = 1241,    // and the two after it
+		kMsgNoneOut = 1244,   // and the one after it
+	};
+
+	drawTrainingBackground();
+
+	const Common::String &title = _messages.get(kMsgTitle);
+	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	heading.clear();
+	heading.PRINTSTR(title);
+
+	TextWindow prompt = openWindow(2, 5, 36, 5);
+	if (out.empty()) {
+		prompt.printCenteredLine(_messages.get(kMsgNoneOut));
+		prompt.printCenteredLine(_messages.get(kMsgNoneOut + 1));
+	} else {
+		for (uint i = 0; i < 3; ++i)
+			prompt.printCenteredLine(_messages.get(kMsgSelect + i));
+	}
+
+	drawLettered(out);
+}
+
+void TownScreens::drawInspect(const Common::Array<uint> &found, Menu *menu) {
+	enum {
+		kMsgFound = 6,
+		kMsgNoOne = 7,
+		kMsgGetWho = 8,
+		kMsgReturnToLeave = 9,
+		kMsgMenu = 11
+	};
+
+	TextWindow window = openWindow(9, 2, 22, 16);
+	window.PRINTSTR(_messages.get(kMsgFound));
+
+	bool anyone = false;
+	for (uint i = 0; i < found.size(); ++i) {
+		if (found[i] == kNobody)
+			continue;
+		anyone = true;
+		window.MVCURSOR(0, i + 2);
+		window.printInt(i + 1, 1);
+		window.PRINTSTR(") ");
+		window.PRINTSTR(_party.rosterEntry(found[i]).name);
+	}
+	if (found.empty())
+		window.PRINTSTR(0, 2, _messages.get(kMsgNoOne));
+	(void)anyone;
+
+	window.MVCURSOR(0, 12);
+	if (menu) {
+		menu->print(window, _messages.get(kMsgMenu));
+	} else {
+		window.PRINTSTR(_messages.get(kMsgGetWho));
+		window.PRINTSTR(0, 13, _messages.get(kMsgReturnToLeave));
+	}
+}
+
+void TownScreens::drawReport(const Common::Array<Common::String> &lines) {
+	enum {
+		kMsgPressReturn = 250
+	};
+
+	TextWindow window = openWindow(1, 7, 38, lines.size() + 4);
+	for (uint i = 0; i < lines.size(); ++i)
+		window.printCenteredLine(lines[i]);
+	window.newLine();
+	window.printCenteredLine(_messages.get(kMsgPressReturn));
+}
+
+void TownScreens::drawKandiName(const Common::String &typed) {
+	enum {
+		kMsgTitle = 916,
+		kMsgFindWhom = 917
+	};
+
+	TextWindow window = openWindow(1, 7, 38, 6);
+	window.printCenteredLine(_messages.get(kMsgTitle));
+	window.newLine();
+	window.PRINTSTR(_messages.get(kMsgFindWhom));
+	window.PRINTSTR(typed);
+}
+
 int TownScreens::titlePictureColumn(int count, int index) {
 	static const int8 COLUMNS[4][4] = {
 		{ 15, 0, 0, 0 }, { 11, 19, 0, 0 }, { 7, 15, 23, 0 }, { 3, 11, 19, 27 }

@@ -48,6 +48,8 @@ private:
 		kTradeItem,
 		kSpellName,     ///< typing the name of a spell to cast
 		kSpellTarget,   ///< whom the spell is for
+		kKandiName,     ///< KANDI: whom to look for
+		kReport,        ///< what KANDI or DUMAPIC tells, until RETURN
 		kSaid           ///< a notice in the small window, then on
 	};
 
@@ -59,6 +61,7 @@ private:
 	Common::String _input;
 	uint _receiver = 0;   ///< party member who gets what is traded
 	int _spell = 0;
+	Common::Array<Common::String> _report;
 
 	bool fullMenu() const;
 	void castSpell(uint target);

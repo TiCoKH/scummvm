@@ -71,24 +71,24 @@ bool Inn::restOneWeek(Character &c, const Room &room) {
 	return c.age % 52 == 1;
 }
 
-int64 Inn::experienceForNextLevel(const Character &c) const {
+int64 Inn::experienceForLevel(int classType, int level) const {
 	// Record type 7 has thirteen numbers for each class, each of three
 	// words of four decimal digits. Numbers 1 to 12 are the experience
 	// for levels 2 to 13; number 0 is what each further level costs.
 	const byte *table = _scenario.record(kRecordExperience, 0);
-	if (!table || c.classType < 0 || c.classType > kClassNinja)
+	if (!table || classType < 0 || classType > kClassNinja || level <= 1)
 		return 0;
-	table += c.classType * 13 * 6;
+	table += classType * 13 * 6;
 
-	const int index = CLIP<int>(c.level, 0, 12);
+	const int index = MIN(level - 1, 12);
 	const byte *entry = table + index * 6;
 	int64 needed = READ_LE_UINT16(entry) + READ_LE_UINT16(entry + 2) * (int64)10000 +
 		READ_LE_UINT16(entry + 4) * (int64)100000000;
 
-	if (c.level >= 13) {
+	if (level - 1 > 12) {
 		const int64 step = READ_LE_UINT16(table) + READ_LE_UINT16(table + 2) * (int64)10000 +
 			READ_LE_UINT16(table + 4) * (int64)100000000;
-		needed += step * (c.level - 12);
+		needed += step * (level - 1 - 12);
 	}
 
 	return needed;

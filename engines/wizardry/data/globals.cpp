@@ -78,8 +78,12 @@ void Globals::setup() {
 		if (!_messages.open(profile.asciiText, profile.huffman))
 			error("Could not load the messages from %s", profile.asciiText);
 
-		// Wizardry V keeps its data in a file this class cannot read yet
-		if (_scenario.open(profile.scenario) && g_engine->hasTown()) {
+		// The releases that can be played cannot do without their scenario.
+		// (Wizardry V keeps its data in a file this class cannot read yet.)
+		const bool hasScenario = _scenario.open(profile.scenario);
+		if (g_engine->hasTown() && !hasScenario)
+			error("Could not read %s: it is missing, or not a scenario file of the kind expected", profile.scenario);
+		if (hasScenario && g_engine->hasTown()) {
 			if (!_party.loadRoster(_scenario) || !_items.load(_scenario) || !_monsters.load(_scenario) ||
 					!_rewards.load(_scenario))
 				error("%s does not have the expected character, item and monster records", profile.scenario);

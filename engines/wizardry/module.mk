@@ -60,6 +60,7 @@ MODULE_OBJS = \
 	views/town/tavern.o \
 	views/town/temple.o \
 	views/town/training.o \
+	views/town/utilities.o \
 	views/town/town_view.o \
 	ui/maze_view.o \
 	ui/menu.o \

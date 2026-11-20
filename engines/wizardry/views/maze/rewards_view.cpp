@@ -45,7 +45,7 @@ uint RewardsView::EngineDice::roll(uint count) {
 	return g_engine->getRandomNumber(count - 1);
 }
 
-void RewardsView::start(int64 experience, int monsterId, int kind) {
+void RewardsView::start(int64 experience, int monsterId, int kind, const Common::Array<Common::String> &drained) {
 	RewardsView *view = static_cast<RewardsView *>(g_events->findView("Rewards"));
 	const MessageFile &messages = _G(messages);
 	const Monster &monster = _G(monsters)[monsterId];
@@ -60,6 +60,8 @@ void RewardsView::start(int64 experience, int monsterId, int kind) {
 	const int table = (kind == kEncounterGuardians) ? monster.rewardLair : monster.rewardWandering;
 	view->_reward = (table >= 0 && table < (int)_G(rewards).size()) ? &_G(rewards)[table] : nullptr;
 
+	// First who was drained
+	view->_lines = drained;
 	view->_lines.push_back(messages.get(kMsgEachSurvivorGetsXp) +
 		Common::String::format("%lld", (long long)experience) + messages.get(kMsgEachSurvivorGetsXp + 1));
 

@@ -38,6 +38,7 @@
 #include "wizardry/views/town/spell_books.h"
 #include "wizardry/views/town/temple.h"
 #include "wizardry/views/town/training.h"
+#include "wizardry/views/town/utilities.h"
 #include "wizardry/views/town/tavern.h"
 
 namespace Wizardry {
@@ -53,6 +54,7 @@ struct Views {
 	Town::ShopView _townShop;
 	Town::Edge _townEdge;
 	Town::TrainingView _townTraining;
+	Town::Utilities _townUtilities;
 	Town::SheetView _townSheet;
 	Town::SpellBooks _townSpellBooks;
 	Town::EquipView _townEquip;
