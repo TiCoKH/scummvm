@@ -86,6 +86,9 @@ private:
 	void goHome();
 	bool isJapanese() const;
 
+	/** Attributes back at the race's starting values and a new bonus */
+	void startPoints(int bonus);
+
 	void startCreate();
 	void startEdit();
 	void openClasses(bool *open) const;
@@ -102,6 +105,7 @@ public:
 	TrainingView() : TownView("Town.Training") {}
 
 	bool msgFocus(const FocusMessage &msg) override;
+	bool msgKeypress(const KeypressMessage &msg) override;
 
 protected:
 	void noticeDone() override;

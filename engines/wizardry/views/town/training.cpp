@@ -78,6 +78,29 @@ public:
 
 } // End of anonymous namespace
 
+void TrainingView::startPoints(int bonus) {
+	const int16 *base = Training::raceBase(_draft.race);
+	for (int a = 0; a < kAttributeCount; ++a)
+		_attributes[a] = base[a];
+	_bonus = bonus;
+	_cursor = 0;
+}
+
+bool TrainingView::msgKeypress(const KeypressMessage &msg) {
+	// Cheat: Ctrl+Alt+B gives the highest bonus.
+	enum {
+		kMaxBonus = 29
+	};
+	if (_state == kPoints && msg.keycode == Common::KEYCODE_b &&
+			(msg.flags & Common::KBD_CTRL) && (msg.flags & Common::KBD_ALT)) {
+		startPoints(kMaxBonus);
+		redraw();
+		return true;
+	}
+
+	return TownView::msgKeypress(msg);
+}
+
 bool TrainingView::msgFocus(const FocusMessage &msg) {
 	// Coming back from the character sheet goes on with the same character
 	_state = (msg._priorView && msg._priorView == g_events->findView("Town.Sheet")) ? kEditMenu : kMenu;
@@ -511,6 +534,9 @@ void TrainingView::choose(int result, uint16 ascii) {
 			adjust(1);
 		} else if (ascii == kKeyDown || ascii == '-') {
 			adjust(-1);
+		} else if (ascii == 'R') { // Cheat: bonus re-roll
+			EngineDice dice;
+			startPoints(Training::rollBonus(dice));
 		} else if (ascii == 'C' || ascii == kKeyEscape) {
 			// All points must be spent and some class must be open
 			if (_bonus != 0 || !anyClassOpen())
