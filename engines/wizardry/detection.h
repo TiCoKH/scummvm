@@ -71,6 +71,17 @@ extern const WizardryGameDescription gameDescriptions[];
 
 #define GAMEOPTION_ORIGINAL_SAVELOAD GUIO_GAMEOPTIONS1
 #define GAMEOPTION_HIRES             GUIO_GAMEOPTIONS2
+#define GAMEOPTION_CGA_PALETTE       GUIO_GAMEOPTIONS3
+
+/**
+ * The CGA palettes the IBM-PC releases can be shown in, all at high
+ * intensity. The number is the value of the game option "cga_palette".
+ */
+enum CgaPalette {
+	kCgaPalette0 = 0,   ///< green, red, yellow
+	kCgaPalette1 = 1,   ///< cyan, magenta, white: the original with Ctrl held at start-up
+	kCgaPalette3 = 3    ///< cyan, red, white: mode 5, the original's own choice
+};
 
 } // End of namespace Wizardry
 

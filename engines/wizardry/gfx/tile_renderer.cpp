@@ -23,7 +23,17 @@
 
 namespace Wizardry {
 
-// CGA palette 1 at high intensity
+// The CGA palettes at high intensity. Colour 0 is the background, black.
+static const byte CGA_PALETTE_0[4 * 3] = {
+	0x00, 0x00, 0x00,  0x55, 0xff, 0x55,  0xff, 0x55, 0x55,  0xff, 0xff, 0x55
+};
+
+// Video mode 5: the colour-burst bit off gives cyan, red and white on an
+// RGB monitor
+static const byte CGA_PALETTE_3[4 * 3] = {
+	0x00, 0x00, 0x00,  0x55, 0xff, 0xff,  0xff, 0x55, 0x55,  0xff, 0xff, 0xff
+};
+
 static const byte CGA_PALETTE[4 * 3] = {
 	0x00, 0x00, 0x00,  0x55, 0xff, 0xff,  0xff, 0x55, 0xff,  0xff, 0xff, 0xff
 };
@@ -51,10 +61,25 @@ bool TileRenderer::open(const GfxSet &gfx) {
 	return true;
 }
 
+void TileRenderer::setCgaPalette(int which) {
+	switch (which) {
+	case kCgaPalette0:
+		_cgaPalette = CGA_PALETTE_0;
+		break;
+	case kCgaPalette1:
+		_cgaPalette = CGA_PALETTE;
+		break;
+	default:
+		// The original's own choice
+		_cgaPalette = CGA_PALETTE_3;
+		break;
+	}
+}
+
 const byte *TileRenderer::palette() const {
 	switch (_layout) {
 	case kPixelsCGA2bpp:
-		return CGA_PALETTE;
+		return _cgaPalette ? _cgaPalette : CGA_PALETTE_3;
 	case kPixelsPlanarBRG:
 		return PLANAR_PALETTE;
 	default:

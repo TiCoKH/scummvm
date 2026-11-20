@@ -116,6 +116,11 @@ public:
 		    (f == kSupportsReturnToLauncher);
 	};
 
+	/**
+	 * After the options dialog: the CGA palette may have changed
+	 */
+	void applyGameSettings() override;
+
 	bool canLoadGameStateCurrently(Common::U32String *msg = nullptr) override {
 		return hasTown();
 	}

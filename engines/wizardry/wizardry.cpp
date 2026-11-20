@@ -116,6 +116,11 @@ Common::Error WizardryEngine::run() {
 	return Common::kNoError;
 }
 
+void WizardryEngine::applyGameSettings() {
+	if (_profile)
+		_globals.applyPalette();
+}
+
 Common::Error WizardryEngine::syncGame(Common::Serializer &s) {
 	// Only the releases with a game to play have anything to save
 	if (!hasTown()) {

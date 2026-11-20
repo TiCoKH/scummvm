@@ -76,6 +76,12 @@ struct Globals {
 	void setup();
 
 	/**
+	 * Sets the colours of the screen, with the CGA palette chosen in
+	 * the game options for the IBM-PC releases
+	 */
+	void applyPalette();
+
+	/**
 	 * Copies the tiles that changed to the screen
 	 */
 	void present();

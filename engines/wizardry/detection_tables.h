@@ -107,7 +107,7 @@ const WizardryGameDescription gameDescriptions[] = {
 			Common::EN_ANY,
 			Common::kPlatformDOS,
 			ADGF_UNSTABLE,
-			GUIO2(GUIO_RENDERCGA, GUIO_RENDERCGABW)
+			GUIO3(GUIO_RENDERCGA, GUIO_RENDERCGABW, GAMEOPTION_CGA_PALETTE)
 		},
 		kWizardry1, kFamilyIBM, 0
 	},
@@ -121,7 +121,7 @@ const WizardryGameDescription gameDescriptions[] = {
 			Common::EN_ANY,
 			Common::kPlatformDOS,
 			ADGF_UNSTABLE,
-			GUIO2(GUIO_RENDERCGA, GUIO_RENDERCGABW)
+			GUIO3(GUIO_RENDERCGA, GUIO_RENDERCGABW, GAMEOPTION_CGA_PALETTE)
 		},
 		kWizardry2, kFamilyIBM, 0
 	},
@@ -135,7 +135,7 @@ const WizardryGameDescription gameDescriptions[] = {
 			Common::EN_ANY,
 			Common::kPlatformDOS,
 			ADGF_UNSTABLE,
-			GUIO2(GUIO_RENDERCGA, GUIO_RENDERCGABW)
+			GUIO3(GUIO_RENDERCGA, GUIO_RENDERCGABW, GAMEOPTION_CGA_PALETTE)
 		},
 		kWizardry3, kFamilyIBM, 0
 	},
@@ -149,7 +149,7 @@ const WizardryGameDescription gameDescriptions[] = {
 			Common::EN_ANY,
 			Common::kPlatformDOS,
 			ADGF_UNSTABLE,
-			GUIO2(GUIO_RENDERCGA, GUIO_RENDERCGABW)
+			GUIO3(GUIO_RENDERCGA, GUIO_RENDERCGABW, GAMEOPTION_CGA_PALETTE)
 		},
 		kWizardry4, kFamilyIBM, 0
 	},
@@ -163,7 +163,7 @@ const WizardryGameDescription gameDescriptions[] = {
 			Common::EN_ANY,
 			Common::kPlatformDOS,
 			ADGF_UNSTABLE,
-			GUIO1(GUIO_RENDERCGA)
+			GUIO2(GUIO_RENDERCGA, GAMEOPTION_CGA_PALETTE)
 		},
 		kWizardry5, kFamilyIBM, 0
 	},

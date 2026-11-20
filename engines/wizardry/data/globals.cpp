@@ -22,6 +22,7 @@
 #include "wizardry/data/globals.h"
 #include "wizardry/libs/file.h"
 #include "wizardry/libs/memory.h"
+#include "common/config-manager.h"
 #include "common/system.h"
 #include "graphics/paletteman.h"
 #include "wizardry/gfx/palette.h"
@@ -68,7 +69,7 @@ void Globals::setup() {
 
 		if (!_renderer.open(gfx))
 			error("Could not load the character set %s", gfx.charset);
-		g_system->getPaletteManager()->setPalette(_renderer.palette(), 0, _renderer.paletteSize());
+		applyPalette();
 
 		// Not every graphics set has pictures
 		_pictures.open(profile, gfx);
@@ -91,6 +92,13 @@ void Globals::setup() {
 	UNITREAD(DRIVE1, _IOCACHE, sizeof(_IOCACHE), _SCNTOCBL);
 	_SCNTOC.load(_IOCACHE);
 #endif
+}
+
+void Globals::applyPalette() {
+	if (g_engine->getPlatform() == Common::kPlatformDOS)
+		_renderer.setCgaPalette(ConfMan.getInt("cga_palette"));
+
+	g_system->getPaletteManager()->setPalette(_renderer.palette(), 0, _renderer.paletteSize());
 }
 
 void Globals::present() {

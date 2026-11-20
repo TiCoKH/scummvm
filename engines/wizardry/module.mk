@@ -3,6 +3,7 @@ MODULE := engines/wizardry
 MODULE_OBJS = \
 	wizardry.o \
 	console.o \
+	dialogs.o \
 	events.o \
 	messages.o \
 	metaengine.o \

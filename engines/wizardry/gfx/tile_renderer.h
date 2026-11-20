@@ -47,6 +47,7 @@ private:
 	uint8 _tileW = 0, _tileH = 0;
 	uint8 _rowScale = 1;
 	uint8 _layout = kPixelsNone;
+	const byte *_cgaPalette = nullptr;
 
 	void drawTile(const TileScreen &screen, int col, int row, byte *dst, uint pitch) const;
 
@@ -69,6 +70,12 @@ public:
 	uint8 dataTileHeight() const { return _tileH; }
 
 	const CharSet &charset() const { return _charset; }
+
+	/**
+	 * Chooses the colours of the four-colour CGA set: a CgaPalette.
+	 * The original's palettes are all at high intensity.
+	 */
+	void setCgaPalette(int which);
 
 	/** Colours as red, green, blue bytes */
 	const byte *palette() const;

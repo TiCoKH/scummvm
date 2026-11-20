@@ -21,46 +21,28 @@
 
 #include "common/translation.h"
 
+#include "common/config-manager.h"
+#include "wizardry/dialogs.h"
 #include "wizardry/metaengine.h"
 #include "wizardry/detection.h"
 #include "wizardry/wizardry.h"
 
-namespace Wizardry {
-
-static const ADExtraGuiOptionsMap optionsList[] = {
-	{
-		GAMEOPTION_ORIGINAL_SAVELOAD,
-		{
-			_s("Use original save/load screens"),
-			_s("Use the original save/load screens instead of the ScummVM ones"),
-			"original_menus",
-			false,
-			0,
-			0
-		}
-	},
-	{
-		GAMEOPTION_HIRES,
-		{
-			_s("Use 400-line graphics"),
-			_s("Use the 640x400 character set and pictures instead of the 640x200 ones"),
-			"hires",
-			true,
-			0,
-			0
-		}
-	},
-	AD_EXTRA_GUI_OPTIONS_TERMINATOR
-};
-
-} // End of namespace Wizardry
 
 const char *WizardryMetaEngine::getName() const {
 	return "wizardry";
 }
 
-const ADExtraGuiOptionsMap *WizardryMetaEngine::getAdvancedExtraGuiOptions() const {
-	return Wizardry::optionsList;
+void WizardryMetaEngine::registerDefaultSettings(const Common::String &target) const {
+	for (const ADExtraGuiOptionsMap *entry = Wizardry::optionsList; entry->guioFlag; ++entry)
+		ConfMan.registerDefault(entry->option.configOption, entry->option.defaultState);
+
+	for (const Wizardry::PopUpOptionsMap *entry = Wizardry::popUpOptionsList; entry->guioFlag; ++entry)
+		ConfMan.registerDefault(entry->configOption, entry->defaultState);
+}
+
+GUI::OptionsContainerWidget *WizardryMetaEngine::buildEngineOptionsWidget(GUI::GuiObject *boss,
+		const Common::String &name, const Common::String &target) const {
+	return new Wizardry::OptionsWidget(boss, name, target);
 }
 
 Common::Error WizardryMetaEngine::createInstance(OSystem *syst, Engine **engine,
