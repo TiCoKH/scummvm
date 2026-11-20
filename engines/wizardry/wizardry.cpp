@@ -157,8 +157,10 @@ Common::Error WizardryEngine::run() {
 }
 
 void WizardryEngine::applyGameSettings() {
-	if (_profile)
+	if (_profile) {
 		_globals.applyPalette();
+		_globals.loadMessages();
+	}
 }
 
 Common::Error WizardryEngine::syncGame(Common::Serializer &s) {

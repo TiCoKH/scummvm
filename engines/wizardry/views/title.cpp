@@ -48,6 +48,14 @@ enum {
 	kMakeDiskRow = 23
 };
 
+uint16 Title::titleKey(uint id) const {
+	// The first letter of a choice, from the title's own lines: on the
+	// PC-98 those of its ASCII text, whatever text the game shows
+	const Common::String &line = hasJapaneseRules(g_engine->getProfile()) ?
+		_G(titleLines)[id - TownScreens::kTitleFirst] : _G(messages).get(id);
+	return line.empty() ? 0 : (byte)line[0];
+}
+
 bool Title::isOriginal() const {
 	const Profile *profile = g_engine->getProfile();
 	// Japanese Wizardry I builds its title the same way
@@ -121,9 +129,7 @@ void Title::timeout() {
 }
 
 void Title::keyAfterSlide(uint16 key) {
-	const MessageFile &messages = _G(messages);
-
-	if (key && key == (byte)messages.get(kMsgStart)[0]) {
+	if (key && key == titleKey(kMsgStart)) {
 		leave();
 		return;
 	}
@@ -132,7 +138,7 @@ void Title::keyAfterSlide(uint16 key) {
 	// There is nothing to make here, so the key opens the gallery of the
 	// game's pictures, character set and messages instead: a feature for
 	// debugging, not mentioned on screen. Escape there comes back here.
-	if (key && key == (byte)messages.get(kMsgMakeDisk)[0]) {
+	if (key && key == titleKey(kMsgMakeDisk)) {
 		addView("Gallery");
 		return;
 	}
@@ -153,6 +159,7 @@ void Title::drawTiles(TextWindow &window) {
 
 	TownScreens screens(_G(tiles), _G(messages), _G(party), _G(items));
 	screens.setJapanese(hasJapaneseRules(g_engine->getProfile()));
+	screens.setTitleText(_G(titleLines), _G(kanaText));
 	screens.drawTitle(_logo.empty() ? nullptr : &_logo, _pictures, _state == kSliding ? _slide : 0);
 }
 
@@ -196,10 +203,9 @@ bool Title::msgMouseDown(const MouseDownMessage &msg) {
 
 	// A click on one of the two choices is its key
 	const int row = msg._pos.y / _G(renderer).tileHeight();
-	const MessageFile &messages = _G(messages);
 	if (row == kStartRow || row == kMakeDiskRow) {
 		KeypressMessage key;
-		key.ascii = (byte)messages.get(row == kStartRow ? kMsgStart : kMsgMakeDisk)[0];
+		key.ascii = titleKey(row == kStartRow ? kMsgStart : kMsgMakeDisk);
 		msgKeypress(key);
 	}
 

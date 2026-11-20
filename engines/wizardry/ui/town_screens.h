@@ -49,6 +49,8 @@ private:
 	const Party &_party;
 	const ItemList &_items;
 	bool _japanese = false;
+	const Common::String *_titleLines = nullptr;
+	bool _kanaTitle = false;
 	Dice *_dice = nullptr;
 
 	TextWindow openWindow(int x, int y, int width, int height);
@@ -314,7 +316,24 @@ public:
 	 * @param pictures  The creatures shown, none to four
 	 * @param slide     How many rows they have slid down, 0 to 5
 	 */
-	/** A line of the title, in English where the release has kanji */
+	enum {
+		kTitleFirst = 2018,   ///< the lines of the title: 2018 to 2022
+		kTitleLines = 5
+	};
+
+	/**
+	 * The title's lines as the release has them where they differ from the
+	 * messages in use: Japanese Wizardry I reads them from its ASCII text
+	 * before it asks for a language, and there they are in kana
+	 * @param lines  kTitleLines lines, or nullptr for the messages in use
+	 * @param kana   Show the kana; otherwise English stands in for it
+	 */
+	void setTitleText(const Common::String *lines, bool kana) {
+		_titleLines = lines;
+		_kanaTitle = kana;
+	}
+
+	/** A line of the title, as setTitleText() says */
 	Common::String titleText(uint id) const;
 
 	void drawTitle(const TileImage *logo, const Common::Array<TileImage> &pictures, int slide);

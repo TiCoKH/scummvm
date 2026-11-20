@@ -74,9 +74,7 @@ void Globals::setup() {
 		// Not every graphics set has pictures
 		_pictures.open(profile, gfx);
 
-		// TODO: let the player choose kana or kanji text where there is any
-		if (!_messages.open(profile.asciiText, profile.huffman))
-			error("Could not load the messages from %s", profile.asciiText);
+		loadMessages();
 
 		// The releases that can be played cannot do without their scenario.
 		// (Wizardry V keeps its data in a file this class cannot read yet.)
@@ -96,6 +94,31 @@ void Globals::setup() {
 	UNITREAD(DRIVE1, _IOCACHE, sizeof(_IOCACHE), _SCNTOCBL);
 	_SCNTOC.load(_IOCACHE);
 #endif
+}
+
+void Globals::loadMessages() {
+	const Profile &profile = *g_engine->getProfile();
+
+	// The kana text where the release has it and the game option asks for
+	// it. Its two-byte characters are drawn from the character set, as the
+	// PC-98 driver does; the English text of the PC-98 has some too.
+	const bool kana = profile.kanaText && ConfMan.hasKey("text_language") &&
+		ConfMan.getInt("text_language") == kTextKana;
+	const char *name = kana ? profile.kanaText : profile.asciiText;
+	if (!_messages.open(name, profile.huffman))
+		error("Could not load the messages from %s", name);
+	_kanaText = kana;
+
+	// The title is shown before the original asks for a language, so its
+	// lines always come from the ASCII text
+	MessageFile ascii;
+	const MessageFile *source = &_messages;
+	if (kana && ascii.open(profile.asciiText, profile.huffman))
+		source = &ascii;
+	for (int i = 0; i < 5; ++i)
+		_titleLines[i] = source->get(2018 + i);   // TownScreens::kTitleFirst
+
+	_tiles.setTwoByteText(hasJapaneseRules(&profile));
 }
 
 void Globals::applyPalette() {

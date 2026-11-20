@@ -75,12 +75,19 @@ void TextWindow::PRINTCHR(uint16 glyph) {
 }
 
 void TextWindow::PRINTSTR(const Common::String &str) {
-	for (uint i = 0; i < str.size(); ++i)
-		PRINTCHR((byte)str[i]);
+	for (uint i = 0; i < str.size(); ++i) {
+		const byte b = str[i];
+		// A two-byte character takes one tile
+		if (_screen.twoByteText() && b >= 0x81 && b <= 0x9f && i + 1 < str.size()) {
+			PRINTCHR(TileScreen::twoByteGlyph(b, str[++i]));
+			continue;
+		}
+		PRINTCHR(b);
+	}
 }
 
 void TextWindow::printCentered(int y, const Common::String &str) {
-	PRINTSTR((width() - (int)str.size()) / 2, y, str);
+	PRINTSTR((width() - _screen.textWidth(str)) / 2, y, str);
 }
 
 void TextWindow::newLine() {
@@ -91,7 +98,7 @@ void TextWindow::newLine() {
 
 void TextWindow::printCenteredLine(const Common::String &str) {
 	const int row = _cursor.y;
-	PRINTSTR(width() / 2 - (1 + (int)str.size()) / 2, row, str);
+	PRINTSTR(width() / 2 - (1 + _screen.textWidth(str)) / 2, row, str);
 	MVCURSOR(0, row + 1);
 }
 

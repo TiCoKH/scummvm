@@ -23,6 +23,7 @@
 #define WIZARDRY_GFX_TILE_SCREEN_H
 
 #include "common/array.h"
+#include "common/str.h"
 #include "wizardry/resources/tile_image.h"
 
 namespace Wizardry {
@@ -65,6 +66,7 @@ private:
 	};
 
 	Tile _tiles[ROWS][COLS];
+	bool _twoByte = false;
 	bool _dirty[ROWS][COLS];
 	Common::Array<Image> _images;
 
@@ -76,6 +78,23 @@ public:
 	}
 
 	const Tile &tile(int col, int row) const { return _tiles[row][col]; }
+
+	/**
+	 * Whether text holds two-byte (Shift-JIS) characters, as in Japanese
+	 * Wizardry I. A byte 0x81 to 0x9F starts one, which takes one tile.
+	 */
+	void setTwoByteText(bool twoByte) { _twoByte = twoByte; }
+	bool twoByteText() const { return _twoByte; }
+
+	/** Tiles a string takes: a two-byte character counts once */
+	int textWidth(const Common::String &str) const;
+
+	/**
+	 * The glyph of a two-byte character, as the PC-98 driver finds it
+	 * (offset 0x10AA): hiragana from 0x81, katakana from 0xD4. Kanji, which
+	 * the PC-98 takes from its kanji ROM, show as '?'.
+	 */
+	static uint16 twoByteGlyph(byte lead, byte trail);
 
 	/**
 	 * Changes a tile. Positions outside the screen are ignored.

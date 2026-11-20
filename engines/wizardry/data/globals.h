@@ -47,6 +47,8 @@ struct Globals {
 	TileRenderer _renderer;
 	PictureFile _pictures;
 	MessageFile _messages;
+	Common::String _titleLines[5];             ///< the title's lines from the ASCII text
+	bool _kanaText = false;
 	ScenarioFile _scenario;
 	Party _party;
 	ItemList _items;
@@ -81,6 +83,9 @@ struct Globals {
 	 * the game options for the IBM-PC releases
 	 */
 	void applyPalette();
+
+	/** The text in the language the game options ask for */
+	void loadMessages();
 
 	/**
 	 * Copies the tiles that changed to the screen

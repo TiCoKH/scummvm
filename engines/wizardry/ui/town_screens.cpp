@@ -136,7 +136,7 @@ void TownScreens::drawCampBackground(bool withParty) {
 	openWindow(1, 1, 38, 22);
 
 	const Common::String &title = _messages.get(kMsgCamp);
-	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	TextWindow heading(_screen, TextWindow::centeredBounds(_screen.textWidth(title) - 1, 0, 3), true);
 	heading.clear();
 	heading.PRINTSTR(title);
 
@@ -177,7 +177,7 @@ void TownScreens::drawBackground(bool withParty) {
 	openWindow(1, 1, 38, 22);
 
 	const Common::String &title = _messages.get(kMsgCastle);
-	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	TextWindow heading(_screen, TextWindow::centeredBounds(_screen.textWidth(title) - 1, 0, 3), true);
 	heading.clear();
 	heading.PRINTSTR(title);
 
@@ -225,7 +225,7 @@ void TownScreens::printPartyLine(TextWindow &window, uint index) {
 }
 
 void TownScreens::drawNotice(const Common::String &text) {
-	TextWindow window(_screen, TextWindow::centeredBounds(text.size(), 9, 3), true);
+	TextWindow window(_screen, TextWindow::centeredBounds(_screen.textWidth(text), 9, 3), true);
 	window.clear();
 	window.printCenteredLine(text);
 }
@@ -241,7 +241,7 @@ void TownScreens::drawCastleMenu(Menu &menu) {
 void TownScreens::drawTavernMenu(Menu &menu) {
 	const Common::String &title = _messages.get(kMsgTavern);
 	const Common::String &options = _messages.get(kMsgTavernMenu);
-	const int width = MAX<int>(title.size() + 1, Menu::textWidth(options));
+	const int width = MAX<int>(_screen.textWidth(title) + 1, Menu::textWidth(options));
 
 	TextWindow window(_screen, TextWindow::centeredBounds(width, 4, 9), true);
 	window.clear();
@@ -357,7 +357,7 @@ void TownScreens::drawInnResult(const Common::Array<Common::String> &lines) {
 }
 
 void TownScreens::drawPopup(const Common::String &text, int y) {
-	TextWindow window(_screen, TextWindow::centeredBounds(text.size(), y, 3), true);
+	TextWindow window(_screen, TextWindow::centeredBounds(_screen.textWidth(text), y, 3), true);
 	window.clear();
 	window.printCenteredLine(text);
 }
@@ -383,7 +383,7 @@ void TownScreens::drawTrainingBackground() {
 
 void TownScreens::drawTrainingMenu(Menu &menu) {
 	const Common::String &title = _messages.get(kMsgTrainingGrounds);
-	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	TextWindow heading(_screen, TextWindow::centeredBounds(_screen.textWidth(title) - 1, 0, 3), true);
 	heading.clear();
 	heading.PRINTSTR(title);
 
@@ -400,7 +400,7 @@ void TownScreens::drawTrainingName(const Common::String &typed) {
 	};
 
 	const Common::String &title = _messages.get(kMsgTrainingGrounds);
-	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	TextWindow heading(_screen, TextWindow::centeredBounds(_screen.textWidth(title) - 1, 0, 3), true);
 	heading.clear();
 	heading.PRINTSTR(title);
 
@@ -704,7 +704,7 @@ void TownScreens::drawMaze(const MazeLevel &level, const MazeState &state, bool 
 }
 
 void TownScreens::drawMazePopup(const Common::String &text, const Common::String &second) {
-	const int width = MAX(text.size(), second.size());
+	const int width = MAX(_screen.textWidth(text), _screen.textWidth(second));
 	const int half = (width + 1) / 2;
 	const int rows = second.empty() ? 1 : 2;
 
@@ -840,7 +840,7 @@ void TownScreens::drawBattleOptions(const Character &c, const Common::String &op
 		rows += options[i] == '/';
 
 	const Common::String title = c.name + _messages.get(kMsgOptionsOf);
-	const int width = MAX<int>(title.size(), Menu::textWidth(options));
+	const int width = MAX<int>(_screen.textWidth(title), Menu::textWidth(options));
 
 	TextWindow window(_screen, TextWindow::centeredBounds(width, 8, rows + 4), true);
 	window.clear();
@@ -882,7 +882,7 @@ void TownScreens::drawRename(const Common::Array<uint> &listed, const Character 
 	drawTrainingBackground();
 
 	const Common::String &title = _messages.get(kMsgTitle);
-	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	TextWindow heading(_screen, TextWindow::centeredBounds(_screen.textWidth(title) - 1, 0, 3), true);
 	heading.clear();
 	heading.PRINTSTR(title);
 
@@ -912,7 +912,7 @@ void TownScreens::drawUtilities(Menu &menu) {
 	drawTrainingBackground();
 
 	const Common::String &title = _messages.get(kMsgTitle);
-	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	TextWindow heading(_screen, TextWindow::centeredBounds(_screen.textWidth(title) - 1, 0, 3), true);
 	heading.clear();
 	heading.PRINTSTR(title);
 
@@ -932,7 +932,7 @@ void TownScreens::drawRestart(const Common::Array<uint> &out) {
 	drawTrainingBackground();
 
 	const Common::String &title = _messages.get(kMsgTitle);
-	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	TextWindow heading(_screen, TextWindow::centeredBounds(_screen.textWidth(title) - 1, 0, 3), true);
 	heading.clear();
 	heading.PRINTSTR(title);
 
@@ -1016,18 +1016,23 @@ int TownScreens::titlePictureColumn(int count, int index) {
 }
 
 Common::String TownScreens::titleText(uint id) const {
-	// Japanese Wizardry I has these four lines in kanji, which the
-	// character set cannot show; the IBM-PC re-release says the same in
-	// English
+	// Japanese Wizardry I has these four lines in kana only. With the
+	// English text the IBM-PC re-release's lines are shown instead, written
+	// here: its message file is not there when the PC-98 release is played.
+	// Line 2018 above them, the subtitle, is English in the original.
 	static const char *const ENGLISH[] = {
-		"YOU CANNOT PLAY WITHOUT MAKING A", "SCENARIO DISK!", "S)TART GAME", "M)AKE SCENARIO DISK"
+		"YOU CANNOT PLAY WITHOUT MAKING A",
+		"SCENARIO DISK!",
+		"S)TART GAME",
+		"M)AKE SCENARIO DISK"
 	};
 	enum {
 		kFirst = 2019
 	};
 
-	const Common::String &text = _messages.get(id);
-	if (id >= kFirst && id < kFirst + ARRAYSIZE(ENGLISH)) {
+	const Common::String &text = (_titleLines && id >= kTitleFirst && id < kTitleFirst + kTitleLines) ?
+		_titleLines[id - kTitleFirst] : _messages.get(id);
+	if (!_kanaTitle && id >= kFirst && id < kFirst + ARRAYSIZE(ENGLISH)) {
 		for (uint i = 0; i < text.size(); ++i) {
 			if ((byte)text[i] >= 0x80)
 				return ENGLISH[id - kFirst];
@@ -1062,7 +1067,7 @@ void TownScreens::drawTitle(const TileImage *logo, const Common::Array<TileImage
 	}
 
 	main.MVCURSOR(0, 7);
-	main.printCenteredLine(_messages.get(kMsgWelcome));
+	main.printCenteredLine(titleText(kMsgWelcome));
 
 	// The creatures slide down a row at a time; what passes the last of
 	// their rows is gone
@@ -1120,7 +1125,7 @@ uint TownScreens::drawEventText(const Common::Array<Common::String> &lines, uint
 			line.deleteChar(0);
 			x = window.width() / 2 - (width + 1) / 2;
 		} else {
-			width = line.size();
+			width = _screen.textWidth(line);
 			x = window.width() / 2 - (width + 1) / 2;
 		}
 		window.PRINTSTR(x, i - first, line);
@@ -1235,8 +1240,8 @@ void TownScreens::drawSpellList(const Character &c, bool mage) {
 	// The heading sits at the lower right
 	const Common::String &title = _messages.get(mage ? kMsgMageSpells : kMsgPriestSpells);
 	const Common::String &press = _messages.get(kMsgPressReturn);
-	window.PRINTSTR(window.width() - title.size(), 13, title);
-	window.PRINTSTR(window.width() - press.size(), 14, press);
+	window.PRINTSTR(window.width() - _screen.textWidth(title), 13, title);
+	window.PRINTSTR(window.width() - _screen.textWidth(press), 14, press);
 }
 
 TextWindow TownScreens::templeWindow() {

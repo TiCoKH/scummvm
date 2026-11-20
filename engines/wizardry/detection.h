@@ -72,6 +72,7 @@ extern const WizardryGameDescription gameDescriptions[];
 #define GAMEOPTION_ORIGINAL_SAVELOAD GUIO_GAMEOPTIONS1
 #define GAMEOPTION_HIRES             GUIO_GAMEOPTIONS2
 #define GAMEOPTION_CGA_PALETTE       GUIO_GAMEOPTIONS3
+#define GAMEOPTION_TEXT_LANGUAGE     GUIO_GAMEOPTIONS4
 
 /**
  * The CGA palettes the IBM-PC releases can be shown in, all at high
@@ -81,6 +82,15 @@ enum CgaPalette {
 	kCgaPalette0 = 0,   ///< green, red, yellow
 	kCgaPalette1 = 1,   ///< cyan, magenta, white: the original with Ctrl held at start-up
 	kCgaPalette3 = 3    ///< cyan, red, white: mode 5, the original's own choice
+};
+
+/**
+ * The text of the Japanese releases, which the original asks for at every
+ * start. The number is the value of the game option "text_language".
+ */
+enum TextLanguage {
+	kTextEnglish = 0,
+	kTextKana = 1       ///< hiragana and katakana, from the character set
 };
 
 } // End of namespace Wizardry

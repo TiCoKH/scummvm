@@ -61,6 +61,38 @@ void TileScreen::clear() {
 		_images[i].used = false;
 }
 
+static bool isLeadByte(byte b) {
+	return b >= 0x81 && b <= 0x9f;
+}
+
+int TileScreen::textWidth(const Common::String &str) const {
+	int width = 0;
+	for (uint i = 0; i < str.size(); ++i, ++width) {
+		if (_twoByte && isLeadByte(str[i]) && i + 1 < str.size())
+			++i;
+	}
+	return width;
+}
+
+uint16 TileScreen::twoByteGlyph(byte lead, byte trail) {
+	// Shift-JIS to a JIS row and cell, counted from 0
+	int row = (lead - 0x81) * 2 + 1;
+	int cell = trail;
+	if (cell >= 0x7f)
+		--cell;
+	cell -= 0x40;
+	if (cell >= 0x5e) {
+		cell -= 0x5e;
+		++row;
+	}
+
+	if (row == 4 && cell >= 0)
+		return 0x81 + cell;   // hiragana
+	if (row == 5 && cell >= 0)
+		return 0xd4 + cell;   // katakana
+	return '?';
+}
+
 int TileScreen::addImage(const TileImage &image, int col, int row, bool skipBlank) {
 	uint slot = 0;
 	while (slot < _images.size() && _images[slot].used)

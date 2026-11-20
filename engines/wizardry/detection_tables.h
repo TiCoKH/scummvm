@@ -178,7 +178,7 @@ const WizardryGameDescription gameDescriptions[] = {
 			Common::JA_JPN,
 			Common::kPlatformPC98,
 			ADGF_UNSTABLE,
-			GUIO2(GUIO_RENDERPC98_8C, GAMEOPTION_HIRES)
+			GUIO3(GUIO_RENDERPC98_8C, GAMEOPTION_HIRES, GAMEOPTION_TEXT_LANGUAGE)
 		},
 		kWizardry1, kFamilyJapanese, 0
 	},

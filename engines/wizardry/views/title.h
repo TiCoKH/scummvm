@@ -56,6 +56,8 @@ private:
 	uint16 _key = 0;      ///< key pressed while the creatures were on show
 
 	bool isOriginal() const;
+	/** The key of a choice of the title: the first letter of its line */
+	uint16 titleKey(uint id) const;
 	void newPictures();
 	void startSlide();
 	void keyAfterSlide(uint16 key);
