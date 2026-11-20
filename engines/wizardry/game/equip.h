@@ -86,6 +86,21 @@ public:
 	 * @param member  Place of the character in the party
 	 */
 	static void invokePower(Party &party, uint member, uint slot, const ItemList &items, Dice &dice);
+
+	enum IdentifyResult {
+		kAlreadyKnown,   ///< nothing happens
+		kIdentified,
+		kNoClue
+	};
+
+	/**
+	 * A bishop tries to identify an item of the pack. It works if a roll
+	 * of 0 to 99 is above 90 - 5 x level. Whether it works or not, below
+	 * 35 - 3 x level the bishop touches the item, and a cursed one takes
+	 * hold.
+	 * @param cursed  Set if a curse took hold: the item must be equipped
+	 */
+	static IdentifyResult identify(Character &c, uint slot, const ItemList &items, Dice &dice, bool &cursed);
 };
 
 } // End of namespace Wizardry

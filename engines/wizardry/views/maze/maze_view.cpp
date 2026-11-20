@@ -85,6 +85,7 @@ void MazeView::enter(const MazeState *start) {
 	MazeState &state = _G(mazeState);
 
 	state = start ? *start : MazeState();
+	state.lastLevel = _G(scenario).type(kRecordMaze).count;
 	static_cast<MazeView *>(g_events->findView("Maze"))->_loadedLevel = -1;
 
 	// Everyone goes in with figures worked out afresh; from the castle
@@ -104,6 +105,18 @@ bool MazeView::msgFocus(const FocusMessage &msg) {
 
 	_state = kWalking;
 	_encounter = -1;
+
+	// MALOR in camp came out at the castle
+	if (state.toTown) {
+		state.toTown = false;
+		_said.clear();
+		_said2.clear();
+		_leaveAfterSaid = true;
+		_state = kSaid;
+		delayFrames(1);
+		return TownView::msgFocus(msg);
+	}
+
 	loadLevel();
 
 	// After a teleporter the party comes down on a plain square
@@ -211,7 +224,11 @@ void MazeView::drawTown(TownScreens &screens) {
 		screens.drawInspect(_found, nullptr);
 		break;
 	case kSaid:
-		screens.drawMazePopup(_said, _said2);
+		if (!_said.empty())
+			screens.drawMazePopup(_said, _said2);
+		break;
+	case kDelay:
+		screens.drawDelay(_typed);
 		break;
 	case kStairs:
 		screens.drawMazePopup(_said, _G(messages).get(kMsgTakeThem));
@@ -616,6 +633,28 @@ void MazeView::choose(int result, uint16 ascii) {
 	case kSaid:
 		return;
 
+	case kDelay:
+		if (ascii == kKeyBackspace) {
+			if (!_typed.empty())
+				_typed.deleteLastChar();
+		} else if (ascii != kKeyReturn) {
+			if (ascii >= ' ' && ascii < 127 && _typed.size() < 2)
+				_typed += (char)ascii;
+		} else {
+			// Only digits count, from 1 to 99
+			int delay = _typed.empty() ? 0 : 1;
+			if (delay) {
+				delay = 0;
+				for (uint i = 0; i < _typed.size() && delay >= 0; ++i)
+					delay = Common::isDigit(_typed[i]) ? delay * 10 + (_typed[i] - '0') : -1;
+			}
+			if (delay > 0 && delay < 100)
+				_G(messageDelay) = delay;
+			_state = kWalking;
+		}
+		redraw();
+		return;
+
 	default:
 		break;
 	}
@@ -642,9 +681,11 @@ void MazeView::choose(int result, uint16 ascii) {
 
 	if (command < kCmdLeft) {
 		if (!Maze::forward(state, _G(mazeLevel))) {
+			g_engine->speakerCue(WizardryEngine::kCueWall);
 			say(messages.get(kMsgWall));
 			return;
 		}
+		g_engine->speakerCue(WizardryEngine::kCueStep);
 
 		// A step taken: the square acts, poison and healing items work
 		enterSquare();
@@ -689,9 +730,10 @@ void MazeView::choose(int result, uint16 ascii) {
 		// Who lies in the room, to be carried along
 		_found = Maze::bodiesHere(party, _G(mazeLevel), state);
 		_state = kInspect;
+	} else if (command == kCmdDelay) {
+		_typed.clear();
+		_state = kDelay;
 	} else {
-		// TODO: the message delay and inspecting
-		notice("NOT IN THIS VERSION YET");
 		return;
 	}
 

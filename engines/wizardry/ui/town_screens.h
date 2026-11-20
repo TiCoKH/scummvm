@@ -201,6 +201,27 @@ public:
 	TextWindow battleWindow();
 
 	/**
+	 * The items that can be used in a fight, numbered by their places in
+	 * the pack; nothing if there are none
+	 */
+	void drawUsableItems(const Character &c, const Common::Array<uint> &slots);
+
+	/**
+	 * The known spells a typed name fits, lettered from A, each with the
+	 * castings left of its level
+	 */
+	void drawSpellPick(const Character &c, const Common::Array<int> &spells);
+
+	/** The boons the gods offer for HAMAN or MAHAMAN, numbered from 1 */
+	void drawBoons(const Common::Array<int> &boons);
+
+	/** MALOR in camp: the steps chosen so far, and the menu of steps */
+	void drawMalor(int east, int north, int up, Menu &menu);
+
+	/** The question for the delay of the lines of a fight, and what is typed */
+	void drawDelay(const Common::String &typed);
+
+	/**
 	 * A member's choices
 	 * @param options  The '/'-separated list built for this member
 	 */
@@ -223,6 +244,13 @@ public:
 	// ---- recovering a party
 
 	void drawUtilities(Menu &menu);
+
+	/**
+	 * Change name: the characters lettered to choose from; then, with one
+	 * chosen, the old name and the new one being typed; or what came of it
+	 */
+	void drawRename(const Common::Array<uint> &listed, const Character *chosen, const Common::String &typed,
+		const Common::String &said);
 
 	/**
 	 * The characters a party left in the maze can be restarted with

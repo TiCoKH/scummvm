@@ -48,6 +48,11 @@ private:
 		kTradeItem,
 		kSpellName,     ///< typing the name of a spell to cast
 		kSpellTarget,   ///< whom the spell is for
+		kSpellPick,     ///< several known spells fit the name typed: which one
+		kUseWhich,      ///< which item to use
+		kIdentifyWhich, ///< which item the bishop looks at
+		kMalor,         ///< MALOR: the steps to go
+		kMalorSaid,     ///< what came of it, for a moment
 		kKandiName,     ///< KANDI: whom to look for
 		kReport,        ///< what KANDI or DUMAPIC tells, until RETURN
 		kSaid           ///< a notice in the small window, then on
@@ -61,6 +66,17 @@ private:
 	Common::String _input;
 	uint _receiver = 0;   ///< party member who gets what is traded
 	int _spell = 0;
+	bool _fromItem = false;   ///< the spell is an item's: nothing is used up
+	Common::Array<int> _matches;   ///< the spells of the pick list
+
+	/** Casts a spell named or picked, asking for the target if needed */
+	void chooseSpell(int spell);
+	bool _equipAfter = false; ///< a curse took hold: the equipping follows the notice
+	int _malor[3] = {};       ///< MALOR: steps east, north and up
+	int _malorResult = 0;     ///< Maze::MalorResult
+
+	/** After MALOR: into the maze again, home, or lost */
+	void malorDone();
 	Common::Array<Common::String> _report;
 
 	bool fullMenu() const;

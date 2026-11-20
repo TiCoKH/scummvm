@@ -42,6 +42,7 @@ enum {
 	kOfsDoubleDamageVs = 44,
 	kOfsPrice = 12,   // three words of four decimal digits, lowest first
 	kOfsStock = 18,
+	kOfsSpellPower = 20,
 	kOfsClassUse = 22
 };
 
@@ -64,6 +65,7 @@ bool ItemList::load(const ScenarioFile &scenario) {
 			READ_LE_UINT16(src + kOfsPrice + 2) * (int64)10000 +
 			READ_LE_UINT16(src + kOfsPrice + 4) * (int64)100000000;
 		item.stock = READ_LE_INT16(src + kOfsStock);
+		item.spellPower = READ_LE_INT16(src + kOfsSpellPower);
 		item.classUse = READ_LE_UINT16(src + kOfsClassUse);
 		item.alignment = READ_LE_INT16(src + kOfsAlignment);
 		item.specialPower = READ_LE_INT16(src + kOfsSpecialPower);

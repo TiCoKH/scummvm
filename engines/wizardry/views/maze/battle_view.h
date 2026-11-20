@@ -35,11 +35,16 @@ namespace InMaze {
 class BattleView : public Town::TownView {
 private:
 	enum State {
+		kFriendly,     ///< friendly monsters: fight or leave
 		kAnnounce,     ///< who surprised whom, for a moment
 		kOptions,      ///< a member's choices
 		kWhichGroup,   ///< which group to fight or dispel
 		kSpellName,    ///< typing the name of a spell
 		kSpellTarget,  ///< whom, or which group, the spell is for
+		kSpellPick,    ///< several known spells fit the name typed: which one
+		kBoon,         ///< HAMAN or MAHAMAN: which boon of the gods
+		kUseWhich,     ///< which item of the pack to use
+		kItemTarget,   ///< whom, or which group, the item's spell is for
 		kConfirm,      ///< fight, or take the orders back
 		kTelling,      ///< the round, a line at a time
 		kOver          ///< how it ended, until RETURN
@@ -58,6 +63,16 @@ private:
 	bool _dispelling = false;
 	Common::String _typed;
 	int _spell = 0;
+	uint _itemSlot = 0;
+	Common::Array<int> _matches;   ///< the spells of the pick list
+
+	/** Orders a spell named or picked, asking for the target if needed */
+	void orderSpell(int spell);
+
+	/** The places in the member's pack of the items usable in a fight */
+	Common::Array<uint> usableItems() const;
+	/** Orders the item's spell, asking for the target first if needed */
+	void useItem();
 	Common::String _refusal;       ///< why the spell cannot be cast
 	Common::String _options;
 	Common::Array<Common::String> _lines;
@@ -70,6 +85,11 @@ private:
 	void askMember(uint member);
 	void nextMember();
 	void playRound();
+	/** Tells what happened, line by line; then the next round, or the choice of a boon */
+	void tellRound();
+	void roundTold();
+	/** How long a line of the fight stays: the delay set with T in the maze */
+	uint lineFrames() const;
 	void finish();
 
 protected:

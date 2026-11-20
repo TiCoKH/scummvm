@@ -48,7 +48,8 @@ public:
 		kRaised,
 		kRaiseFailed,
 		kLocateBody,      ///< KANDI: ask whom to look for
-		kShowPosition     ///< DUMAPIC: show where the party is
+		kShowPosition,    ///< DUMAPIC: show where the party is
+		kTeleport         ///< MALOR: ask where to go
 	};
 
 	/** True if the spell does something in camp */
@@ -59,9 +60,11 @@ public:
 
 	/**
 	 * Casts a spell the caster is able to cast
-	 * @param target  Place in the party of whom it is for, if it needs one
+	 * @param target    Place in the party of whom it is for, if it needs one
+	 * @param fromItem  The spell of an item: no casting is used up
 	 */
-	static Result cast(Party &party, uint caster, int spell, uint target, MazeState &maze, Dice &dice);
+	static Result cast(Party &party, uint caster, int spell, uint target, MazeState &maze, Dice &dice,
+		bool fromItem = false);
 };
 
 } // End of namespace Wizardry

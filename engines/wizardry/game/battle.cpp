@@ -52,6 +52,7 @@ enum {
 	kMsgHeld = 1125,
 	kMsgSilenced = 1126,
 	kMsgDoesNotWork = 1127,
+	kMsgGodsDoNotHear = 1063,
 	kMsgSlain = 1128,
 	kMsgSlept = 1129,
 	kMsgNothingHappens = 1130,
@@ -110,6 +111,8 @@ static Common::String isWord(const Common::String &text, const Common::String &n
 Battle::Battle(Party &party, const MonsterList &monsters, const MessageFile &messages,
 		MazeState &maze, Dice &dice) :
 		_party(party), _monsters(monsters), _messages(messages), _maze(maze), _dice(dice) {
+	for (int i = 0; i < kMaxInGroup; ++i)
+		_itemSlot[i] = _breakTo[i] = -1;
 	for (int g = 0; g < kGroupCount; ++g) {
 		_groups[g].identified = false;
 		_groups[g].aliveCount = _groups[g].startCount = 0;
@@ -235,7 +238,74 @@ void Battle::begin(int monsterId, bool canRun) {
 	else
 		_surprise = kPartySurprises;
 
-	// TODO: monsters that turn out to be friendly
+	// Sometimes the monsters are friendly, but never on the last level
+	_friendly = false;
+	if (_maze.level == _maze.lastLevel || _groups[1].monsterId < 0)
+		return;
+
+	// Not for those whose resistances have bit 0 set, nor for monster 96;
+	// and only for a party with someone good or evil in it
+	enum {
+		kNeverFriendly = 96
+	};
+	const Monster &first = _groups[1].enemy;
+	bool good = false, evil = false;
+	for (uint i = 0; i < _party.size(); ++i) {
+		good |= _party.member(i).alignment == kAlignGood;
+		evil |= _party.member(i).alignment == kAlignEvil;
+	}
+	if ((first.elementResist & 1) || _groups[1].monsterId == kNeverFriendly || (!good && !evil))
+		return;
+
+	// The chance in percent by the kind of monster
+	int chance;
+	switch (first.monsterClass) {
+	case 0:
+		chance = 10;
+		break;
+	case 1:
+		chance = 5;
+		break;
+	case 2:
+		chance = 15;
+		break;
+	case 3:
+		chance = 3;
+		break;
+	case 4:
+		chance = 30;
+		break;
+	case 7:
+		chance = 25;
+		break;
+	default:
+		chance = 50;
+		break;
+	}
+	if ((int)_dice.roll(100) > chance)
+		return;
+
+	_friendly = true;
+	_surprise = kNoSurprise;
+	for (int g = 1; g < kGroupCount; ++g)
+		_groups[g].identified = true;
+}
+
+void Battle::answerFriendly(bool fight) {
+	for (uint i = 0; i < _party.size(); ++i) {
+		Character &c = _party.member(i);
+		if (_dice.roll(100) >= 5)
+			continue;
+
+		if (fight && c.alignment == kAlignGood)
+			c.alignment = kAlignEvil;
+		else if (!fight && c.alignment == kAlignEvil)
+			c.alignment = kAlignGood;
+	}
+
+	_friendly = false;
+	if (!fight)
+		_outcome = kLeftInPeace;
 }
 
 int Battle::enemyGroups() const {
@@ -419,6 +489,7 @@ void Battle::startOrders() {
 		Fighter &f = _groups[0].members[i];
 		f.action = kNotChosen;
 		f.target = 0;
+		_itemSlot[i] = _breakTo[i] = -1;
 
 		if (!canOrder(i)) {
 			f.initiative = -1;
@@ -475,6 +546,14 @@ void Battle::orderParry(uint member) {
 void Battle::orderCast(uint member, int spell, int target) {
 	_groups[0].members[member].action = spell;
 	_groups[0].members[member].target = target;
+	_itemSlot[member] = _breakTo[member] = -1;
+}
+
+void Battle::orderUseItem(uint member, uint slot, const Item &item, int target) {
+	orderCast(member, item.spellPower, target);
+	_itemSlot[member] = slot;
+	if ((int)_dice.roll(100) < item.changeChance)
+		_breakTo[member] = item.changeTo;
 }
 
 bool Battle::tryRun() {
@@ -819,21 +898,124 @@ void Battle::breathe(int gi, int index) {
 void Battle::runRound(Common::Array<Common::String> &lines) {
 	_lines = &lines;
 
-	// The spells ordered are paid for now, cast or not
+	// The spells ordered are paid for now, cast or not; an item that
+	// breaks turns into another
 	for (uint i = 0; i < _party.size(); ++i) {
-		if (_groups[0].members[i].action > 0)
+		if (_groups[0].members[i].action <= 0)
+			continue;
+		if (_itemSlot[i] < 0) {
 			Spells::spend(_party.member(i), _groups[0].members[i].action);
+		} else if (_breakTo[i] >= 0) {
+			ItemSlot &slot = _party.member(i).items[_itemSlot[i]];
+			slot.id = _breakTo[i];
+			slot.identified = false;
+		}
 	}
 
 	enemiesChoose();
 
-	for (int step = 1; step <= 10; ++step) {
-		for (int gi = 0; gi < kGroupCount; ++gi) {
+	_step = 1;
+	_stepGroup = 0;
+	_stepIndex = 0;
+	continueRound();
+	_lines = nullptr;
+}
+
+void Battle::chooseBoon(uint which, Common::Array<Common::String> &lines) {
+	if (_boons.empty())
+		return;
+	const int boon = _boons[MIN<uint>(which, _boons.size() - 1)];
+	_boons.clear();
+	_lines = &lines;
+
+	switch (boon) {
+	case kBoonCure:
+		for (uint i = 0; i < _party.size(); ++i) {
+			if (_groups[0].members[i].status < kStatusDead)
+				_groups[0].members[i].status = kStatusOk;
+		}
+		break;
+	case kBoonSilence:
+		for (int gi = 1; gi <= 3; ++gi) {
+			for (int i = 0; i < _groups[gi].aliveCount; ++i)
+				_groups[gi].members[i].silencedRounds = _dice.roll(5) + 5;
+		}
+		break;
+	case kBoonWeaken:
+		for (int gi = 1; gi <= 3; ++gi) {
+			for (int i = 0; i < _groups[gi].aliveCount; ++i)
+				_groups[gi].members[i].level = 1;
+			_groups[gi].enemy.magicResistance = 0;
+		}
+		break;
+	case kBoonDestroy:
+		for (int gi = 1; gi < kGroupCount; ++gi) {
+			for (int i = 0; i < _groups[gi].aliveCount; ++i) {
+				_groups[gi].members[i].status = kStatusDead;
+				_groups[gi].members[i].hp = 0;
+			}
+		}
+		break;
+	case kBoonRaise:
+		for (uint i = 0; i < _party.size(); ++i) {
+			if (_groups[0].members[i].status != kStatusLost)
+				_groups[0].members[i].status = kStatusOk;
+		}
+		// fall through: and all are healed
+	case kBoonHeal:
+		for (uint i = 0; i < _party.size(); ++i) {
+			if (_groups[0].members[i].status < kStatusDead)
+				_groups[0].members[i].hp = _party.member(i).hpMax;
+		}
+		break;
+	case kBoonProtect:
+		_maze.acBonus = 20;
+		break;
+	default:
+		break;
+	}
+
+	continueRound();
+	_lines = nullptr;
+}
+
+void Battle::castWish(int spell, int member) {
+	Character &c = _party.member(member);
+	if (c.level < 13) {
+		say(_messages.get(kMsgGodsDoNotHear));
+		return;
+	}
+
+	// It costs a level, which is settled after the fight like a drain
+	--c.level;
+	_drained[member] = true;
+
+	// Three boons; HAMAN draws from the first four, though one already
+	// drawn moves on to the next free one, past them if need be
+	bool drawn[kBoonCount] = {};
+	for (int n = 0; n < 3; ++n) {
+		int b = _dice.roll(spell == MAHAMAN ? 7 : 4);
+		while (drawn[b])
+			b = (b + 1) % kBoonCount;
+		drawn[b] = true;
+	}
+	_boons.clear();
+	for (int b = 0; b < kBoonCount; ++b) {
+		if (drawn[b])
+			_boons.push_back(b);
+	}
+}
+
+void Battle::continueRound() {
+	for (; _step <= 10; ++_step, _stepGroup = 0) {
+		for (; _stepGroup < kGroupCount; ++_stepGroup, _stepIndex = 0) {
+			const int gi = _stepGroup;
 			Group &g = _groups[gi];
 
-			for (int i = 0; i < g.aliveCount; ++i) {
+			for (; _stepIndex < g.aliveCount; ++_stepIndex) {
+				const int i = _stepIndex;
 				const Fighter &f = g.members[i];
-				if (f.status != kStatusOk || f.initiative != step)
+				if (f.status != kStatusOk || f.initiative != _step)
 					continue;
 
 				if (_outcome != kUndecided)
@@ -864,12 +1046,17 @@ void Battle::runRound(Common::Array<Common::String> &lines) {
 						break;
 					}
 				}
+
+				// The gods offer their boons: the round waits for the choice
+				if (!_boons.empty()) {
+					++_stepIndex;
+					return;
+				}
 			}
 		}
 	}
 
 	writeBack();
-	_lines = nullptr;
 }
 
 Common::String Battle::fighterName(int group, int index) const {
@@ -1116,8 +1303,10 @@ void Battle::applyMage(int spell, int gi, int index, int targetGroup, int target
 		break;
 	case HAMAN:
 	case MAHAMAN:
-		// TODO: the boons of the gods
-		say(_messages.get(kMsgDoesNotWork));
+		if (gi == 0)
+			castWish(spell, index);
+		else
+			say(_messages.get(kMsgDoesNotWork));
 		break;
 	case MALOR:
 		// Out of the fight to a place at random, perhaps some levels down
@@ -1127,8 +1316,8 @@ void Battle::applyMage(int spell, int gi, int index, int targetGroup, int target
 			++_maze.level;
 		while (_dice.roll(100) <= 9)
 			++_maze.level;
-		// TODO: the original turns back to level 1 at the level of the last fight
-		if (_maze.level > 10)
+		// Not to the level of the last fight, nor below it
+		if (_maze.level >= _maze.lastLevel)
 			_maze.level = 1;
 		_outcome = kTeleported;
 		break;

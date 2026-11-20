@@ -56,10 +56,19 @@ struct Item {
 	uint16 doubleDamageVs = 0;
 	int64 price = 0;
 	int16 stock = 0;      ///< pieces at the trading post; below -1: not on sale yet
+	int16 spellPower = 0; ///< the spell it casts when used, or 0
 	uint16 classUse = 0;  ///< a bit for each class that can use it
 
 	bool usableBy(const Character &c) const {
 		return (classUse >> c.classType) & 1;
+	}
+
+	/**
+	 * True if it can be used in a fight: it holds a spell, and it is
+	 * equipped unless it is a special item or another thing
+	 */
+	bool usableInFight(const ItemSlot &slot) const {
+		return spellPower > 0 && (kind > 4 || slot.equipped);
 	}
 };
 

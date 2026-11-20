@@ -690,6 +690,93 @@ TextWindow TownScreens::battleWindow() {
 	return TextWindow(_screen, Common::Rect(0, 5, 40, 11), true);
 }
 
+void TownScreens::drawUsableItems(const Character &c, const Common::Array<uint> &slots) {
+	if (slots.empty())
+		return;
+
+	TextWindow window = openWindow(9, 13, 22, 10);
+	for (uint i = 0; i < slots.size(); ++i) {
+		const ItemSlot &slot = c.items[slots[i]];
+		window.printInt(slots[i] + 1, 1);
+		window.PRINTSTR(") ");
+		window.PRINTSTR(_messages.get(ItemList::nameMessage(slot.id, slot.identified)));
+		window.newLine();
+	}
+}
+
+void TownScreens::drawDelay(const Common::String &typed) {
+	enum {
+		kMsgDelay = 716
+	};
+
+	TextWindow window = openWindow(0, 10, 40, 3);
+	window.PRINTSTR(_messages.get(kMsgDelay));
+	window.PRINTSTR(typed);
+}
+
+void TownScreens::drawMalor(int east, int north, int up, Menu &menu) {
+	enum {
+		kMsgTitle = 207,
+		kMsgSteps = 208,
+		kMsgMenu = 209
+	};
+
+	TextWindow window = openWindow(0, 7, 40, 6);
+	window.printCenteredLine(_messages.get(kMsgTitle));
+	window.newLine();
+	window.PRINTSTR(_messages.get(kMsgSteps));
+	window.PRINTSTR(8, 2, Common::String::format("%4d", east));
+	window.PRINTSTR(22, 2, Common::String::format("%4d", north));
+	window.PRINTSTR(33, 2, Common::String::format("%4d", up));
+
+	TextWindow steps = openWindow(5, 12, 12, 10);
+	menu.print(steps, _messages.get(kMsgMenu));
+}
+
+void TownScreens::drawBoons(const Common::Array<int> &boons) {
+	enum {
+		kMsgWhichBoon = 1064,
+		kMsgFirstBoon = 1065
+	};
+
+	TextWindow window = openWindow(0, 9, 40, 8);
+	window.printCenteredLine(_messages.get(kMsgWhichBoon));
+	window.newLine();
+	for (uint i = 0; i < boons.size(); ++i) {
+		window.printInt(i + 1, 1);
+		window.PRINTSTR(") ");
+		window.PRINTSTR(_messages.get(kMsgFirstBoon + boons[i]));
+		window.newLine();
+	}
+}
+
+void TownScreens::drawSpellPick(const Character &c, const Common::Array<int> &spells) {
+	enum {
+		kMsgWhichSpell = 1040,
+		kMsgPickLeave = 1041,
+		kCountColumn = 21
+	};
+
+	const int n = spells.size();
+	TextWindow window = openWindow(7, 9 - (n + 1) / 2, 26, n + 6);
+	window.printCenteredLine(_messages.get(kMsgWhichSpell));
+
+	for (int i = 0; i < n; ++i) {
+		const int spell = spells[i];
+		const int level = Spells::level(spell);
+		const int left = Spells::isMage(spell) ? c.mageSlots[level - 1] : c.priestSlots[level - 1];
+
+		Common::String line = Common::String::format("%c) ", 'A' + i) + Spells::name(_messages, spell);
+		while (line.size() < kCountColumn)
+			line += ' ';
+		line += Common::String::format("(%d)", left);
+		window.PRINTSTR(0, i + 2, line);
+	}
+
+	window.PRINTSTR(0, n + 3, "");
+	window.printCenteredLine(_messages.get(kMsgPickLeave));
+}
+
 void TownScreens::drawBattle(const Battle &battle, const TileImage *picture) {
 	_screen.clear();
 	openWindow(1, 1, 38, 22);
@@ -753,6 +840,39 @@ void TownScreens::drawChestWho(uint deed) {
 	window.MVCURSOR(0, 2);
 	window.printCenteredLine(substCaret(_messages.get(kMsgWhoWill), _messages.get(deed)));
 	window.printCenteredLine(_messages.get(kMsgChestReturn));
+}
+
+void TownScreens::drawRename(const Common::Array<uint> &listed, const Character *chosen,
+		const Common::String &typed, const Common::String &said) {
+	enum {
+		kMsgTitle = 1200,
+		kMsgChoose = 1201,
+		kMsgOldName = 1202,
+		kMsgNewName = 1203
+	};
+
+	drawTrainingBackground();
+
+	const Common::String &title = _messages.get(kMsgTitle);
+	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	heading.clear();
+	heading.PRINTSTR(title);
+
+	TextWindow prompt = openWindow(2, 5, 36, 5);
+	if (!said.empty()) {
+		prompt.newLine();
+		prompt.printCenteredLine("** " + said + " **");
+	} else if (!chosen) {
+		prompt.PRINTSTR(0, 1, "");
+		prompt.printCenteredLine(_messages.get(kMsgChoose));
+		drawLettered(listed);
+	} else {
+		prompt.PRINTSTR(_messages.get(kMsgOldName));
+		prompt.PRINTSTR(chosen->name);
+		prompt.newLine();
+		prompt.PRINTSTR(_messages.get(kMsgNewName));
+		prompt.PRINTSTR(typed);
+	}
 }
 
 void TownScreens::drawUtilities(Menu &menu) {

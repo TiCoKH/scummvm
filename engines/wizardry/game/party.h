@@ -110,6 +110,15 @@ public:
 	 */
 	void disband();
 
+	/** The roster places of all characters not lost, for the change of names */
+	Common::Array<uint> namedCharacters() const;
+
+	/**
+	 * Gives a character of the roster a new name
+	 * @returns false if another character not lost has it already
+	 */
+	bool rename(uint rosterIndex, const Common::String &name);
+
 	/**
 	 * Puts the members in a new order
 	 * @param order  For each new place, the old place of the member

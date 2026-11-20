@@ -53,13 +53,9 @@ static void heal(Character &c, int dice, int sides, Dice &source) {
 }
 
 CampSpells::Result CampSpells::cast(Party &party, uint casterIndex, int spell, uint targetIndex,
-		MazeState &maze, Dice &dice) {
+		MazeState &maze, Dice &dice, bool fromItem) {
 	if (!isCampSpell(spell))
 		return kNotACampSpell;
-
-	// TODO: MALOR needs a screen of its own to choose where to go
-	if (spell == MALOR)
-		return kNotYet;
 
 	Character &caster = party.member(casterIndex);
 	Character &target = party.member(needsTarget(spell) ? targetIndex : casterIndex);
@@ -72,7 +68,12 @@ CampSpells::Result CampSpells::cast(Party &party, uint casterIndex, int spell, u
 			return kNotDead;
 	}
 
-	Spells::spend(caster, spell);
+	// DUMAPIC fizzles on the last level, before anything is used up
+	if (spell == DUMAPIC && maze.level == maze.lastLevel)
+		return kFizzled;
+
+	if (!fromItem)
+		Spells::spend(caster, spell);
 	if (maze.spellsFizzle)
 		return kFizzled;
 
@@ -119,6 +120,8 @@ CampSpells::Result CampSpells::cast(Party &party, uint casterIndex, int spell, u
 		return kLocateBody;
 	case DUMAPIC:
 		return kShowPosition;
+	case MALOR:
+		return kTeleport;
 
 	default:
 		break;

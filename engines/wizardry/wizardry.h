@@ -30,6 +30,7 @@
 #include "common/random.h"
 #include "common/serializer.h"
 #include "common/util.h"
+#include "audio/softsynth/pcspk.h"
 #include "engines/engine.h"
 #include "engines/savestate.h"
 #include "graphics/screen.h"
@@ -49,6 +50,7 @@ private:
 	Common::RandomSource _randomSource;
 	Globals _globals;
 	const Profile *_profile = nullptr;
+	Audio::PCSpeaker *_speaker = nullptr;
 
 protected:
 	// Engine APIs
@@ -66,6 +68,19 @@ public:
 	~WizardryEngine() override;
 
 	uint32 getFeatures() const;
+
+	enum SpeakerCue {
+		kCueBeep = 0,     ///< a key that is not taken
+		kCueStep = 1,     ///< a step forward in the maze
+		kCueWall = 2      ///< walking into a wall
+	};
+
+	/**
+	 * The sounds of the driver's speaker call. The game asks for others
+	 * too (3 to 7, for spells, deaths and the end), which the IBM-PC
+	 * driver leaves silent.
+	 */
+	void speakerCue(int cue);
 
 	GameType getGameType() const;
 	DataFamily getFamily() const;

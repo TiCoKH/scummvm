@@ -158,6 +158,15 @@ struct MazeState {
 	bool spellsFizzle = false;
 	bool randomPosition = false;   ///< after a teleporter: put down on a plain square
 	bool alarm = false;            ///< an alarm rang: a fight follows at once
+
+	/**
+	 * The deepest level, where the last fight of the scenario is: no
+	 * friendly monsters there, and MALOR cannot go to it. It is the
+	 * number of levels of the scenario.
+	 */
+	int16 lastLevel = 10;
+
+	bool toTown = false;   ///< MALOR in camp came out at the castle: back to town
 };
 
 /**
@@ -244,6 +253,23 @@ public:
 	 * to the castle
 	 */
 	static Common::Array<Common::String> position(const MessageFile &messages, const MazeState &state);
+
+	enum MalorResult {
+		kMalorMoved,        ///< somewhere else in the maze
+		kMalorBounced,      ///< not to the last level: back where the party was
+		kMalorToCastle,     ///< level 0 at the stairs: home
+		kMalorMoat,         ///< level 0 elsewhere: those who fail an agility roll drown
+		kMalorAboveGround,  ///< above the city: everyone dies, and is home
+		kMalorRock          ///< outside the maze: everyone is lost
+	};
+
+	/**
+	 * MALOR cast in camp: the party moves by the steps chosen. The
+	 * position and the party are changed as the result says.
+	 * @param lines  Receives what is told of it
+	 */
+	static MalorResult malor(const MessageFile &messages, Party &party, MazeState &state, int east, int north, int up,
+		Dice &dice, Common::Array<Common::String> &lines);
 
 	/**
 	 * A fixed encounter on the party's square, if it is still there: its

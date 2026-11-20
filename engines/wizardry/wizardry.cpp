@@ -41,6 +41,40 @@ WizardryEngine::WizardryEngine(OSystem *syst, const WizardryGameDescription *gam
 }
 
 WizardryEngine::~WizardryEngine() {
+	delete _speaker;
+}
+
+void WizardryEngine::speakerCue(int cue) {
+	// The IBM-PC driver's tone: timer divisor 533, about 2239 Hz. Its
+	// lengths are busy loops: 0x2000 and 0x400 rounds for the long and
+	// the short sound, 0x8000 between two short ones, here taken at the
+	// speed of a 4.77 MHz PC.
+	enum {
+		kDivisor = 533,
+		kLongUs = 29000,
+		kShortUs = 4000,
+		kGapUs = 117000
+	};
+	const float freq = 1193182.0f / kDivisor;
+
+	if (!_speaker)
+		return;
+
+	switch (cue) {
+	case kCueBeep:
+		_speaker->playQueue(Audio::PCSpeaker::kWaveFormSquare, freq, kLongUs);
+		break;
+	case kCueStep:
+		_speaker->playQueue(Audio::PCSpeaker::kWaveFormSquare, freq, kShortUs);
+		break;
+	case kCueWall:
+		_speaker->playQueue(Audio::PCSpeaker::kWaveFormSquare, freq, kShortUs);
+		_speaker->playQueue(Audio::PCSpeaker::kWaveFormSilence, 0, kGapUs);
+		_speaker->playQueue(Audio::PCSpeaker::kWaveFormSquare, freq, kShortUs);
+		break;
+	default:
+		break;
+	}
 }
 
 uint32 WizardryEngine::getFeatures() const {
@@ -106,6 +140,12 @@ Common::Error WizardryEngine::run() {
 
 	// Set the engine's debugger console
 	setDebugger(new Console());
+
+	// The speaker of the DOS and PC-98 versions
+	if (getPlatform() == Common::kPlatformDOS || getPlatform() == Common::kPlatformPC98) {
+		_speaker = new Audio::PCSpeaker();
+		_speaker->init();
+	}
 
 	// Setup globals
 	g_globals->setup();

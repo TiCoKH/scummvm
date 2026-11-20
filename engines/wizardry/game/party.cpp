@@ -172,6 +172,24 @@ void Party::disband() {
 	_members.clear();
 }
 
+Common::Array<uint> Party::namedCharacters() const {
+	Common::Array<uint> result;
+	for (uint i = 0; i < _roster.size(); ++i) {
+		if (_roster[i].status != kStatusLost)
+			result.push_back(i);
+	}
+	return result;
+}
+
+bool Party::rename(uint rosterIndex, const Common::String &name) {
+	for (uint i = 0; i < _roster.size(); ++i) {
+		if (i != rosterIndex && _roster[i].status != kStatusLost && _roster[i].name == name)
+			return false;
+	}
+	_roster[rosterIndex].name = name;
+	return true;
+}
+
 int Party::freeSlot() const {
 	for (uint i = 0; i < _roster.size(); ++i) {
 		if (_roster[i].isFree())

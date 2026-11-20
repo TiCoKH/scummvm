@@ -30,11 +30,19 @@ namespace InMaze {
 enum {
 	kMsgSlaughtered = 510,
 	kMsgLeaveCemetery = 511,
+	kMsgFriendly = 1000,
+	kMsgFightOrLeave = 1001,
+	kMsgFightKey = 1002,
+	kMsgLeaveKey = 1003,
 	kMsgPartySurprises = 1020,
 	kMsgMonstersSurprise = 1021,
 	kMsgOptFight = 1022,       // "f)IGHT/"
 	kMsgOptDispel = 1023,      // "D)ISPELL/"
 	kMsgOptSpell = 1024,       // "S)PELL/"
+	kMsgItemOnPerson = 1011,
+	kMsgItemOnGroup = 1012,
+	kMsgUseWhich = 1013,
+	kMsgUseLeave = 1014,
 	kMsgSpellPointsExhausted = 1015,
 	kMsgDontKnowSpell = 1016,
 	kMsgCastOnPerson = 1017,
@@ -72,7 +80,12 @@ void BattleView::start(int monsterId, bool canRun, int kind) {
 		_G(pictures).load(_G(monsters)[monsterId].pictureId & 0xff, view->_picture);
 
 	view->addView();
-	view->nextRound();
+	if (view->_battle->isFriendly()) {
+		view->_state = kFriendly;
+		view->redraw();
+	} else {
+		view->nextRound();
+	}
 }
 
 void BattleView::drawBackground(TownScreens &screens) {
@@ -86,6 +99,13 @@ void BattleView::drawTown(TownScreens &screens) {
 	TextWindow window = screens.battleWindow();
 
 	switch (_state) {
+	case kFriendly:
+		window.printCenteredLine(messages.get(kMsgFriendly));
+		window.printCenteredLine(messages.get(MonsterList::nameMessage(_monsterId, true, true)));
+		window.newLine();
+		window.printCenteredLine(messages.get(kMsgFightOrLeave));
+		break;
+
 	case kAnnounce:
 		window.printCenteredLine(messages.get(
 			_battle->surprise() == Battle::kPartySurprises ? kMsgPartySurprises : kMsgMonstersSurprise));
@@ -109,6 +129,29 @@ void BattleView::drawTown(TownScreens &screens) {
 	case kSpellTarget:
 		window.PRINTSTR(messages.get(Spells::target(_spell) == Spells::kTargetMember ?
 			kMsgCastOnPerson : kMsgCastOnGroup));
+		break;
+
+	case kBoon:
+		screens.drawBoons(_battle->boons());
+		break;
+
+	case kSpellPick:
+		window.PRINTSTR(messages.get(kMsgSpellName));
+		screens.drawSpellPick(_G(party).member(_member), _matches);
+		break;
+
+	case kUseWhich: {
+		window.printCenteredLine(messages.get(kMsgUseWhich));
+		window.printCenteredLine(messages.get(kMsgUseLeave));
+
+		// The usable items, by their places in the pack
+		screens.drawUsableItems(_G(party).member(_member), usableItems());
+		break;
+	}
+
+	case kItemTarget:
+		window.PRINTSTR(messages.get(Spells::target(_spell) == Spells::kTargetMember ?
+			kMsgItemOnPerson : kMsgItemOnGroup));
 		break;
 
 	case kConfirm:
@@ -148,6 +191,61 @@ void BattleView::nextRound() {
 
 	_battle->startOrders();
 	askMember(0);
+}
+
+void BattleView::orderSpell(int spell) {
+	const MessageFile &messages = _G(messages);
+	const Character &c = _G(party).member(_member);
+
+	// A refusal is shown below the name, which can then be typed again
+	if (!c.knowsSpell(spell)) {
+		_refusal = messages.get(kMsgDontKnowSpell);
+		return;
+	}
+	if (!Spells::canCast(c, spell)) {
+		_refusal = messages.get(kMsgSpellPointsExhausted);
+		return;
+	}
+
+	_spell = spell;
+	const Spells::Target target = Spells::target(_spell);
+	if (target == Spells::kTargetNone) {
+		_battle->orderCast(_member, _spell, 0);
+		nextMember();
+		return;
+	}
+	if (target == Spells::kTargetGroup && _battle->enemyGroups() == 1) {
+		_battle->orderCast(_member, _spell, 1);
+		nextMember();
+		return;
+	}
+	_state = kSpellTarget;
+	redraw();
+}
+
+Common::Array<uint> BattleView::usableItems() const {
+	Common::Array<uint> usable;
+	const Character &c = _G(party).member(_member);
+	for (int i = 0; i < c.itemCount; ++i) {
+		const ItemSlot &slot = c.items[i];
+		if (slot.id >= 0 && slot.id < (int)_G(items).size() && _G(items)[slot.id].usableInFight(slot))
+			usable.push_back(i);
+	}
+	return usable;
+}
+
+void BattleView::useItem() {
+	const Item &item = _G(items)[_G(party).member(_member).items[_itemSlot].id];
+	_spell = item.spellPower;
+
+	const Spells::Target target = Spells::target(_spell);
+	if (target == Spells::kTargetNone || (target == Spells::kTargetGroup && _battle->enemyGroups() == 1)) {
+		_battle->orderUseItem(_member, _itemSlot, item, target == Spells::kTargetNone ? 0 : 1);
+		nextMember();
+		return;
+	}
+	_state = kItemTarget;
+	redraw();
 }
 
 void BattleView::askMember(uint member) {
@@ -195,16 +293,33 @@ void BattleView::playRound() {
 	_lines.clear();
 	_battle->runRound(_lines);
 	_line = 0;
+	tellRound();
+}
 
+void BattleView::tellRound() {
 	if (_lines.empty()) {
-		nextRound();
+		roundTold();
 		return;
 	}
 	// What was told is shown before a spell carries the party away
 
 	_state = kTelling;
-	delayFrames(kPauseFrames);
+	delayFrames(lineFrames());
 	redraw();
+}
+
+uint BattleView::lineFrames() const {
+	return MAX<uint>(1, kPauseFrames * _G(messageDelay) / 20);
+}
+
+void BattleView::roundTold() {
+	// The round may be waiting for the choice of a boon
+	if (_battle->wishPending()) {
+		_state = kBoon;
+		redraw();
+	} else {
+		nextRound();
+	}
 }
 
 void BattleView::finish() {
@@ -258,10 +373,10 @@ void BattleView::timeout() {
 
 	case kTelling:
 		if (++_line < _lines.size()) {
-			delayFrames(kPauseFrames);
+			delayFrames(lineFrames());
 			redraw();
 		} else {
-			nextRound();
+			roundTold();
 		}
 		break;
 
@@ -327,7 +442,11 @@ void BattleView::choose(int result, uint16 ascii) {
 			return;
 
 		case 'U':
-			notice("NOT IN THIS VERSION YET");   // TODO: using items
+			// Nothing in the pack: nothing to ask
+			if (party.member(_member).itemCount == 0)
+				return;
+			_state = kUseWhich;
+			redraw();
 			return;
 
 		default:
@@ -347,6 +466,17 @@ void BattleView::choose(int result, uint16 ascii) {
 		return;
 	}
 
+	case kFriendly:
+		if (ascii == (byte)messages.get(kMsgFightKey)[0]) {
+			_battle->answerFriendly(true);
+			nextRound();
+		} else if (ascii == (byte)messages.get(kMsgLeaveKey)[0]) {
+			// Back to the maze in peace: nothing to win
+			_battle->answerFriendly(false);
+			close();
+		}
+		return;
+
 	case kSpellName: {
 		if (ascii == kKeyBackspace) {
 			if (!_typed.empty())
@@ -361,35 +491,95 @@ void BattleView::choose(int result, uint16 ascii) {
 			askMember(_member);
 			return;
 		} else {
-			// The name, or as much of it as tells it from the others known.
-			// TODO: the original lists the spells when several begin alike.
-			const Character &c = party.member(_member);
-			const Common::Array<int> found = Spells::find(messages, c, _typed);
+			// The name, or as much of it as tells it from the others known;
+			// when several known spells begin alike, a list to pick from
+			const Common::Array<int> found = Spells::find(messages, party.member(_member), _typed);
 			_typed.clear();
 
-			if (found.size() != 1 || !c.knowsSpell(found[0])) {
+			if (found.size() > 1) {
+				_matches = found;
+				_state = kSpellPick;
+				redraw();
+				return;
+			}
+			if (found.empty()) {
 				_refusal = messages.get(kMsgDontKnowSpell);
-			} else if (!Spells::canCast(c, found[0])) {
-				_refusal = messages.get(kMsgSpellPointsExhausted);
 			} else {
-				_spell = found[0];
-				const Spells::Target target = Spells::target(_spell);
-				if (target == Spells::kTargetNone) {
-					_battle->orderCast(_member, _spell, 0);
-					nextMember();
+				orderSpell(found[0]);
+				if (_state != kSpellName)
 					return;
-				}
-				if (target == Spells::kTargetGroup && _battle->enemyGroups() == 1) {
-					_battle->orderCast(_member, _spell, 1);
-					nextMember();
-					return;
-				}
-				_state = kSpellTarget;
 			}
 		}
 		if (ascii != kKeyReturn)
 			_refusal.clear();
 		redraw();
+		return;
+	}
+
+	case kBoon: {
+		const int number = ascii - '0';
+		if (number < 1 || number > (int)_battle->boons().size())
+			return;
+		_lines.clear();
+		_line = 0;
+		_battle->chooseBoon(number - 1, _lines);
+		tellRound();
+		return;
+	}
+
+	case kSpellPick: {
+		if (ascii == kKeyReturn) {
+			askMember(_member);
+			return;
+		}
+		const int which = ascii - 'A';
+		if (which < 0 || which >= (int)_matches.size()) {
+			g_engine->speakerCue(WizardryEngine::kCueBeep);
+			return;
+		}
+		_state = kSpellName;
+		_refusal.clear();
+		orderSpell(_matches[which]);
+		if (_state == kSpellName)
+			redraw();
+		return;
+	}
+
+	case kUseWhich: {
+		if (ascii == kKeyReturn || ascii == '0') {
+			askMember(_member);
+			return;
+		}
+		const int number = ascii - '0';
+		const Character &c = party.member(_member);
+		if (number < 1 || number > c.itemCount)
+			return;
+		const ItemSlot &slot = c.items[number - 1];
+		if (slot.id < 0 || slot.id >= (int)_G(items).size() || !_G(items)[slot.id].usableInFight(slot))
+			return;
+
+		_itemSlot = number - 1;
+		useItem();
+		return;
+	}
+
+	case kItemTarget: {
+		const Item &item = _G(items)[party.member(_member).items[_itemSlot].id];
+		if (ascii == kKeyReturn || ascii == '0') {
+			askMember(_member);
+			return;
+		}
+		const int number = ascii - '0';
+		if (Spells::target(_spell) == Spells::kTargetMember) {
+			if (number < 1 || number > (int)party.size())
+				return;
+			_battle->orderUseItem(_member, _itemSlot, item, number - 1);
+		} else {
+			if (number < 1 || number > _battle->enemyGroups())
+				return;
+			_battle->orderUseItem(_member, _itemSlot, item, number);
+		}
+		nextMember();
 		return;
 	}
 

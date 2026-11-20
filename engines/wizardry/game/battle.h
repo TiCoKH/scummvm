@@ -22,6 +22,7 @@
 #ifndef WIZARDRY_GAME_BATTLE_H
 #define WIZARDRY_GAME_BATTLE_H
 
+#include "wizardry/game/items.h"
 #include "wizardry/game/maze.h"
 #include "wizardry/game/monsters.h"
 #include "wizardry/game/spells.h"
@@ -41,9 +42,6 @@ namespace Wizardry {
  * its orders before the round; the monsters choose when it starts.
  *
  * An action above zero is the casting of the spell of that number.
- *
- * Not in yet: the use of items, friendly monsters, and the two spells that
- * ask the gods for a boon (HAMAN and MAHAMAN).
  */
 class Battle {
 public:
@@ -62,6 +60,18 @@ public:
 		kNotChosen = -999
 	};
 
+	/** The boons HAMAN and MAHAMAN offer three of; HAMAN mostly the first four */
+	enum Boon {
+		kBoonCure,       ///< everyone not dead is well again
+		kBoonSilence,    ///< the monsters of the first three groups cannot cast for a while
+		kBoonWeaken,     ///< they drop to level 1 and lose their magic resistance
+		kBoonDestroy,    ///< all monsters are gone
+		kBoonHeal,       ///< everyone not dead gets all hit points back
+		kBoonProtect,    ///< 20 off the party's armour class
+		kBoonRaise,      ///< everyone not lost lives again, with all hit points
+		kBoonCount
+	};
+
 	enum Surprise {
 		kNoSurprise,
 		kPartySurprises,     ///< the monsters do nothing in the first round
@@ -74,7 +84,8 @@ public:
 		kRanAway,
 		kDefeat,      ///< nobody in the party can act any more
 		kRecalled,    ///< LOKTOFEIT: back in the castle, without items and most gold
-		kTeleported   ///< MALOR: somewhere else in the maze
+		kTeleported,  ///< MALOR: somewhere else in the maze
+		kLeftInPeace  ///< the monsters were friendly and the party went its way
 	};
 
 	struct Fighter {
@@ -108,9 +119,19 @@ private:
 	int _surprise = kNoSurprise;
 	Outcome _outcome = kUndecided;
 	bool _canRun = true;
+	int16 _itemSlot[kMaxInGroup];   ///< the pack place of the item a member uses, or -1
+	int16 _breakTo[kMaxInGroup];    ///< what that item turns into, or -1 if it holds
+	bool _friendly = false;
 	bool _drained[Party::kMaxMembers];
 	int _partyStrength = 0, _enemyStrength = 0;
 	Common::Array<Common::String> *_lines = nullptr;
+
+	// Where the round stands, so it can wait for the choice of a boon
+	int _step = 11, _stepGroup = 0, _stepIndex = 0;
+	Common::Array<int> _boons;   ///< the three boons offered; empty if none is asked for
+
+	void castWish(int spell, int member);
+	void continueRound();
 
 	int rollDice(const Dice3 &dice);
 	void loadEnemyGroup(int monsterId, int group);
@@ -170,6 +191,19 @@ public:
 	void prepareRound();
 
 	Outcome outcome() const { return _outcome; }
+
+	/**
+	 * True if the monsters turned out to be friendly: the party is asked
+	 * whether to fight or leave before anything else happens
+	 */
+	bool isFriendly() const { return _friendly; }
+
+	/**
+	 * The answer to friendly monsters. One time in twenty each member's
+	 * alignment shifts: the good who fight turn evil, the evil who leave
+	 * turn good. Leaving ends the fight.
+	 */
+	void answerFriendly(bool fight);
 	int surprise() const { return _surprise; }
 	const Group &group(int index) const { return _groups[index]; }
 
@@ -204,6 +238,14 @@ public:
 	void orderCast(uint member, int spell, int target);
 
 	/**
+	 * Orders the spell of an item of the member's pack. Whether it breaks
+	 * is rolled now; it turns into its other item, not identified, when
+	 * the round starts.
+	 * @param target  A member or a group, as the spell needs; else ignored
+	 */
+	void orderUseItem(uint member, uint slot, const Item &item, int target);
+
+	/**
 	 * Tries to run. If it works the fight is over; if not, nobody in the
 	 * party does anything this round.
 	 */
@@ -214,6 +256,20 @@ public:
 	 * @param lines  Receives what is told of it, in order
 	 */
 	void runRound(Common::Array<Common::String> &lines);
+
+	/**
+	 * True while the round waits for the choice of a boon: HAMAN or
+	 * MAHAMAN was cast. The three offered are boons().
+	 */
+	bool wishPending() const { return !_boons.empty(); }
+	const Common::Array<int> &boons() const { return _boons; }
+
+	/**
+	 * Grants one of the boons offered, and plays the rest of the round
+	 * @param which  0 to 2
+	 * @param lines  Receives what is told of the rest of the round
+	 */
+	void chooseBoon(uint which, Common::Array<Common::String> &lines);
 
 	/**
 	 * After a victory or an escape: those who lost levels in the fight get

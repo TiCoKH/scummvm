@@ -36,16 +36,23 @@ class Utilities : public TownView {
 private:
 	enum State {
 		kMenu,
-		kRestart     ///< choosing whom to restart with
+		kRestart,      ///< choosing whom to restart with
+		kRenameWho,    ///< choosing whose name to change
+		kRenameTyping, ///< typing the new name
+		kRenameSaid    ///< what came of it, for a moment
 	};
 
 	State _state = kMenu;
 	Common::Array<uint> _out;
+	Common::Array<uint> _named;   ///< the characters whose names can be changed
+	uint _renamed = 0;            ///< roster place of the one chosen
+	Common::String _typed, _said;
 
 protected:
 	void drawBackground(TownScreens &screens) override;
 	void drawTown(TownScreens &screens) override;
 	void choose(int result, uint16 ascii) override;
+	void timeout() override;
 
 public:
 	Utilities() : TownView("Town.Utilities") {}

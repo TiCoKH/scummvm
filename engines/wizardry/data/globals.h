@@ -56,6 +56,7 @@ struct Globals {
 	MazeLevel _mazeLevel;                     ///< the level the party is on
 	Common::Array<MazeLevel> _mazeLevels;     ///< all levels, as they are after what happened on them
 	MazeState _mazeState;
+	int _messageDelay = 20;   ///< how long a line of a fight stays, in the original's units of 20
 
 	TSCNTOC _SCNTOC;
 	int _LLBASE04 = -1;

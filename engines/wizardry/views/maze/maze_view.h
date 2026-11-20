@@ -49,7 +49,8 @@ private:
 		kEventFound,  ///< who got the item, until RETURN
 		kMainText,    ///< the party wiped out, or the game won: until RETURN
 		kInspect,     ///< those lying in the room: get one, or leave
-		kInspectWho   ///< which of them
+		kInspectWho,  ///< which of them
+		kDelay        ///< typing the delay of the lines of a fight
 	};
 
 	State _state = kWalking;
@@ -67,6 +68,7 @@ private:
 	bool _canRun = true;
 	Common::Array<Common::String> _mainText;
 	Common::Array<uint> _found;   ///< those lying in the room; TownScreens::kNobody once picked up
+	Common::String _typed;
 
 	void startEvent(uint index);
 	void showEventText(int text);

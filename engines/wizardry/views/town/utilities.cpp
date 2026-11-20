@@ -26,6 +26,12 @@
 namespace Wizardry {
 namespace Town {
 
+enum {
+	kMsgNameUsed = 1205,
+	kMsgNameChanged = 1206,
+	kMaxName = 15
+};
+
 // Results of "C)HANGE NAME/M)OVE CHARACTERS/R)ESTART AN "OUT" PARTY/l)EAVE UTILITIES"
 enum {
 	kChangeName, kMoveCharacters, kRestartParty, kLeaveUtilities
@@ -41,10 +47,32 @@ void Utilities::drawBackground(TownScreens &screens) {
 }
 
 void Utilities::drawTown(TownScreens &screens) {
-	if (_state == kRestart)
+	switch (_state) {
+	case kRestart:
 		screens.drawRestart(_out);
-	else
+		break;
+	case kRenameWho:
+		screens.drawRename(_named, nullptr, "", "");
+		break;
+	case kRenameTyping:
+		screens.drawRename(_named, &_G(party).rosterEntry(_renamed), _typed, "");
+		break;
+	case kRenameSaid:
+		screens.drawRename(_named, nullptr, "", _said);
+		break;
+	default:
 		screens.drawUtilities(_menu);
+		break;
+	}
+}
+
+void Utilities::timeout() {
+	if (_state == kRenameSaid) {
+		_state = kMenu;
+		redraw();
+	} else {
+		TownView::timeout();
+	}
 }
 
 void Utilities::choose(int result, uint16 ascii) {
@@ -65,8 +93,51 @@ void Utilities::choose(int result, uint16 ascii) {
 		return;
 	}
 
+	if (_state == kRenameWho) {
+		if (ascii == kKeyReturn) {
+			_state = kMenu;
+			redraw();
+			return;
+		}
+		if (ascii < 'A' || ascii >= 'A' + (int)_named.size())
+			return;
+		_renamed = _named[ascii - 'A'];
+		_typed.clear();
+		_state = kRenameTyping;
+		redraw();
+		return;
+	}
+
+	if (_state == kRenameTyping) {
+		if (ascii == kKeyBackspace) {
+			if (!_typed.empty())
+				_typed.deleteLastChar();
+		} else if (ascii == kKeyEscape) {
+			_typed.clear();
+		} else if (ascii != kKeyReturn) {
+			if (ascii >= ' ' && ascii < 127 && _typed.size() < kMaxName)
+				_typed += (char)ascii;
+		} else if (_typed.empty()) {
+			// Nothing typed: the name stays
+			_state = kMenu;
+		} else {
+			_said = _G(messages).get(party.rename(_renamed, _typed) ? kMsgNameChanged : kMsgNameUsed);
+			_state = kRenameSaid;
+			delayFrames(kPauseFrames);
+		}
+		redraw();
+		return;
+	}
+
+	if (_state == kRenameSaid)
+		return;
+
 	switch (result) {
 	case kChangeName:
+		_named = party.namedCharacters();
+		_state = kRenameWho;
+		break;
+
 	case kMoveCharacters:
 		notice("NOT IN THIS VERSION YET");   // TODO
 		return;

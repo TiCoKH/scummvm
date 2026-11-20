@@ -22,9 +22,11 @@
 #include "wizardry/views/town/sheet.h"
 #include "wizardry/data/globals.h"
 #include "wizardry/game/camp_spells.h"
+#include "wizardry/game/equip.h"
 #include "wizardry/wizardry.h"
 #include "wizardry/views/town/equip.h"
 #include "wizardry/views/town/spell_books.h"
+#include "wizardry/views/maze/maze_view.h"
 
 namespace Wizardry {
 namespace Town {
@@ -44,6 +46,9 @@ enum {
 	kMsgSpellPrompt = 630,
 	kMsgWhat = 631,
 	kMsgDone = 632,
+	kMsgUseWhich = 633,
+	kMsgPowerless = 634,
+	kMsgNotEquipped = 635,
 	kMsgMenuCamp = 649,
 	kMsgDropWhich = 636,
 	kMsgCursed = 637,
@@ -60,6 +65,11 @@ enum {
 	kMsgTradeWithWhom = 648,
 	kMsgMenuTavern = 650,
 	kMsgMenuTraining = 651,
+	kMsgIdentifyWhat = 920,
+	kMsgIdentifyItem = 921,
+	kMsgIdentifyLeave = 922,
+	kMsgIdentified = 923,
+	kMsgNoClue = 924,
 
 	kMaxAmount = 12
 };
@@ -102,12 +112,17 @@ void SheetView::castSpell(uint target) {
 		return;
 
 	EngineDice dice;
-	switch (CampSpells::cast(party, member, _spell, target, _G(mazeState), dice)) {
+	switch (CampSpells::cast(party, member, _spell, target, _G(mazeState), dice, _fromItem)) {
 	case CampSpells::kNotACampSpell:
 		say(kMsgWhat, kMenu);
 		break;
 	case CampSpells::kNotYet:
-		sayText("NOT IN THIS VERSION YET", kMenu);   // TODO: MALOR
+		sayText("NOT IN THIS VERSION YET", kMenu);
+		break;
+	case CampSpells::kTeleport:
+		_malor[0] = _malor[1] = _malor[2] = 0;
+		_state = kMalor;
+		redraw();
 		break;
 	case CampSpells::kLocateBody:
 		_input.clear();
@@ -144,6 +159,49 @@ void SheetView::castSpell(uint target) {
 		break;
 	default:
 		say(kMsgDone, kMenu);
+		break;
+	}
+}
+
+void SheetView::chooseSpell(int spell) {
+	const Character &c = character();
+	if (!CampSpells::isCampSpell(spell)) {
+		say(kMsgWhat, kMenu);
+		return;
+	}
+	if (!Spells::canCast(c, spell)) {
+		say(kMsgCannotCast, kMenu);
+		return;
+	}
+
+	_spell = spell;
+	if (!CampSpells::needsTarget(_spell)) {
+		castSpell(0);
+		return;
+	}
+	_state = kSpellTarget;
+	redraw();
+}
+
+void SheetView::malorDone() {
+	Party &party = _G(party);
+	_state = kMenu;
+
+	switch (_malorResult) {
+	case Maze::kMalorMoved:
+	case Maze::kMalorBounced:
+		// Into the level again, where the party now is
+		InMaze::MazeView::enter(&_G(mazeState));
+		break;
+	case Maze::kMalorRock:
+		// Lost: the party is no more
+		party.disband();
+		g_events->replaceView("Town.Castle", true);
+		break;
+	default:
+		// Home, whoever is still alive
+		_G(mazeState).toTown = true;
+		g_events->replaceView("Maze", true);
 		break;
 	}
 }
@@ -190,6 +248,10 @@ void SheetView::drawTown(TownScreens &screens) {
 		break;
 	}
 
+	case kSpellPick:
+		screens.drawSpellPick(character(), _matches);
+		break;
+
 	case kKandiName:
 		screens.drawKandiName(_input);
 		break;
@@ -202,6 +264,28 @@ void SheetView::drawTown(TownScreens &screens) {
 		screens.drawParty();
 		lines.push_back("");
 		lines.push_back(messages.get(kMsgCastOnWhom));
+		lines.push_back(messages.get(kMsgReturnToLeave));
+		screens.drawSheetPopup(lines, nullptr);
+		break;
+
+	case kMalor:
+		screens.drawMalor(_malor[0], _malor[1], _malor[2], _menu);
+		break;
+
+	case kMalorSaid:
+		if (!_report.empty())
+			screens.drawSheetPopup(_report, nullptr);
+		break;
+
+	case kIdentifyWhich:
+		lines.push_back(messages.get(kMsgIdentifyWhat));
+		lines.push_back(messages.get(kMsgIdentifyItem));
+		lines.push_back(messages.get(kMsgIdentifyLeave));
+		screens.drawSheetPopup(lines, nullptr);
+		break;
+
+	case kUseWhich:
+		lines.push_back(messages.get(kMsgUseWhich));
 		lines.push_back(messages.get(kMsgReturnToLeave));
 		screens.drawSheetPopup(lines, nullptr);
 		break;
@@ -250,9 +334,20 @@ void SheetView::say(uint message, State next) {
 }
 
 void SheetView::timeout() {
+	if (_state == kMalorSaid) {
+		malorDone();
+		return;
+	}
+
 	if (_state == kSaid) {
 		_state = _afterSaid;
 		redraw();
+
+		// A curse that took hold puts the item on
+		if (_equipAfter) {
+			_equipAfter = false;
+			EquipView::open(_rosterIndex);
+		}
 	} else {
 		TownView::timeout();
 	}
@@ -280,11 +375,14 @@ void SheetView::choose(int result, uint16 ascii) {
 		switch (result) {
 		case kCastSpell:
 			_input.clear();
+			_fromItem = false;
 			_state = kSpellName;
 			break;
 		case kUseItem:
-			notice("NOT IN THIS VERSION YET");       // TODO: using items
-			return;
+			if (c.itemCount == 0)
+				return;
+			_state = kUseWhich;
+			break;
 		case kRead:
 			SpellBooks::open(_rosterIndex, false);
 			return;
@@ -293,8 +391,11 @@ void SheetView::choose(int result, uint16 ascii) {
 				EquipView::open(_rosterIndex);
 			return;
 		case kIdentify:
-			notice("NOT IN THIS VERSION YET");       // TODO
-			return;
+			// Only bishops can, and only with something to look at
+			if (c.classType != kClassBishop || c.itemCount == 0)
+				return;
+			_state = kIdentifyWhich;
+			break;
 		case kTrade:
 			// There must be someone else to trade with
 			if (party.size() < 2)
@@ -340,24 +441,31 @@ void SheetView::choose(int result, uint16 ascii) {
 			break;
 		}
 
-		// TODO: the original lists the spells when several begin alike
+		// When several known spells begin alike, a list to pick from
 		const Common::Array<int> found = Spells::find(_G(messages), c, _input);
-		if (found.size() != 1 || !CampSpells::isCampSpell(found[0])) {
+		if (found.size() > 1) {
+			_matches = found;
+			_state = kSpellPick;
+			break;
+		}
+		if (found.empty()) {
 			say(kMsgWhat, kMenu);
 			return;
 		}
-		if (!Spells::canCast(c, found[0])) {
-			say(kMsgCannotCast, kMenu);
-			return;
-		}
+		chooseSpell(found[0]);
+		return;
+	}
 
-		_spell = found[0];
-		if (!CampSpells::needsTarget(_spell)) {
-			castSpell(0);
-			return;
+	case kSpellPick: {
+		if (ascii == kKeyReturn) {
+			_state = kMenu;
+			break;
 		}
-		_state = kSpellTarget;
-		break;
+		const int which = ascii - 'A';
+		if (which < 0 || which >= (int)_matches.size())
+			return;
+		chooseSpell(_matches[which]);
+		return;
 	}
 
 	case kKandiName:
@@ -395,6 +503,93 @@ void SheetView::choose(int result, uint16 ascii) {
 			return;
 		castSpell(ascii - '1');
 		return;
+
+	case kMalor: {
+		// "E)AST/W)EST/N)ORTH/S)OUTH/U)P/D)OWN/T)ELEPORT/Q)UIT"
+		enum {
+			kTeleportNow = 6,
+			kQuit = 7
+		};
+		if (result >= 0 && result < kTeleportNow) {
+			_malor[result / 2] += (result % 2) ? -1 : 1;
+			break;
+		}
+		if (result == kQuit) {
+			_state = kMenu;
+			break;
+		}
+		if (result != kTeleportNow)
+			return;
+
+		EngineDice dice;
+		_report.clear();
+		_malorResult = Maze::malor(_G(messages), party, _G(mazeState), _malor[0], _malor[1], _malor[2], dice, _report);
+		_state = kMalorSaid;
+		delayFrames(_report.empty() ? 1 : kPauseFrames * 2);
+		break;
+	}
+
+	case kIdentifyWhich: {
+		if (ascii == kKeyReturn || ascii == '0') {
+			_state = kMenu;
+			break;
+		}
+		if (ascii < '1' || ascii > '0' + c.itemCount)
+			return;
+
+		EngineDice dice;
+		bool cursed = false;
+		switch (Equip::identify(c, ascii - '1', _G(items), dice, cursed)) {
+		case Equip::kAlreadyKnown:
+			_state = kMenu;
+			break;
+		case Equip::kIdentified:
+			_equipAfter = cursed;
+			say(kMsgIdentified, kMenu);
+			return;
+		case Equip::kNoClue:
+			_equipAfter = cursed;
+			say(kMsgNoClue, kMenu);
+			return;
+		}
+		break;
+	}
+
+	case kUseWhich: {
+		if (ascii == kKeyReturn || ascii == '0') {
+			_state = kMenu;
+			break;
+		}
+		if (ascii < '1' || ascii > '0' + c.itemCount)
+			return;
+
+		// It must hold a spell, and be equipped unless it is special
+		ItemSlot &slot = c.items[ascii - '1'];
+		if (slot.id < 0 || slot.id >= (int)_G(items).size())
+			return;
+		const Item &item = _G(items)[slot.id];
+		if (item.spellPower <= 0) {
+			say(kMsgPowerless, kMenu);
+			return;
+		}
+		if (item.kind != 5 && !slot.equipped) {
+			say(kMsgNotEquipped, kMenu);
+			return;
+		}
+
+		// It may break first; then its spell is cast
+		EngineDice dice;
+		_spell = item.spellPower;
+		if ((int)dice.roll(100) < item.changeChance)
+			slot.id = item.changeTo;
+		_fromItem = true;
+		if (!CampSpells::needsTarget(_spell)) {
+			castSpell(0);
+			return;
+		}
+		_state = kSpellTarget;
+		break;
+	}
 
 	case kDropWhich:
 		if (ascii == kKeyReturn || ascii == '0') {

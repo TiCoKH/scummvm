@@ -163,6 +163,23 @@ bool Equip::hasPower(const Character &c, uint slot, const ItemList &items) {
 	return id > 0 && id < (int)items.size() && items[id].specialPower > 0 && items[id].usableBy(c);
 }
 
+Equip::IdentifyResult Equip::identify(Character &c, uint slot, const ItemList &items, Dice &dice,
+		bool &cursed) {
+	cursed = false;
+	ItemSlot &s = c.items[slot];
+	if (s.identified)
+		return kAlreadyKnown;
+
+	s.identified = (int)dice.roll(100) > 90 - 5 * c.level;
+	const IdentifyResult result = s.identified ? kIdentified : kNoClue;
+
+	if ((int)dice.roll(100) < 35 - 3 * c.level && s.id >= 0 && s.id < (int)items.size()) {
+		s.cursed = items[s.id].cursed;
+		cursed = s.cursed;
+	}
+	return result;
+}
+
 void Equip::invokePower(Party &party, uint member, uint slot, const ItemList &items, Dice &dice) {
 	Character &c = party.member(member);
 	const Item &item = items[c.items[slot].id];

@@ -362,6 +362,62 @@ void Maze::wipedOut(Party &party, const MazeState &state, Dice &dice) {
 		party.remove(party.size() - 1);
 }
 
+Maze::MalorResult Maze::malor(const MessageFile &messages, Party &party, MazeState &state, int east,
+		int north, int up, Dice &dice, Common::Array<Common::String> &lines) {
+	enum {
+		kMsgRock = 200,
+		kMsgAboveGround = 201,   // and the two after it
+		kMsgMoat = 204,          // and the one after it
+		kMsgBounced = 206
+	};
+
+	// Never to the level of the last fight
+	if (state.level - up == state.lastLevel) {
+		lines.push_back(messages.get(kMsgBounced));
+		return kMalorBounced;
+	}
+
+	const int x = state.x + east, y = state.y + north, level = state.level - up;
+
+	// Outside the maze. The original lets a place west of the edge
+	// through; here it is rock, like the other sides.
+	if (level > 0 && (x < 0 || x >= MazeLevel::kSize || y < 0 || y >= MazeLevel::kSize || level > state.lastLevel)) {
+		lines.push_back(messages.get(kMsgRock));
+		for (uint i = 0; i < party.size(); ++i) {
+			party.member(i).inMaze = false;
+			party.member(i).status = kStatusLost;
+		}
+		return kMalorRock;
+	}
+
+	state.x = x;
+	state.y = y;
+	state.level = level;
+	if (level > 0)
+		return kMalorMoved;
+
+	state.x = state.y = state.level = 0;
+	if (level < 0) {
+		for (int i = 0; i < 3; ++i)
+			lines.push_back(messages.get(kMsgAboveGround + i));
+		for (uint i = 0; i < party.size(); ++i)
+			party.member(i).status = kStatusDead;
+		return kMalorAboveGround;
+	}
+
+	if (x == 0 && y == 0)
+		return kMalorToCastle;
+
+	lines.push_back(messages.get(kMsgMoat));
+	lines.push_back(messages.get(kMsgMoat + 1));
+	for (uint i = 0; i < party.size(); ++i) {
+		Character &c = party.member(i);
+		if (c.status < kStatusDead && c.attributes[kAgility] < (int)dice.roll(25))
+			c.status = kStatusDead;
+	}
+	return kMalorMoat;
+}
+
 bool Maze::returnToTown(Party &party) {
 	enum {
 		kAmulet = 94
