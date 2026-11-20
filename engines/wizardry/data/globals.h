@@ -48,7 +48,8 @@ struct Globals {
 	PictureFile _pictures;
 	MessageFile _messages;
 	Common::String _titleLines[5];             ///< the title's lines from the ASCII text
-	bool _kanaText = false;
+	bool _kanaText = false;   ///< kana or kanji: the title shows its kana lines
+	WideFont *_wideFont = nullptr;
 	ScenarioFile _scenario;
 	Party _party;
 	ItemList _items;

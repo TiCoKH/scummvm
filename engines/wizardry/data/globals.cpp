@@ -41,6 +41,7 @@ Globals::~Globals() {
 	g_globals = nullptr;
 	delete _normalFont;
 	delete _gfxFont;
+	delete _wideFont;
 }
 
 void Globals::setup() {
@@ -102,12 +103,28 @@ void Globals::loadMessages() {
 	// The kana text where the release has it and the game option asks for
 	// it. Its two-byte characters are drawn from the character set, as the
 	// PC-98 driver does; the English text of the PC-98 has some too.
-	const bool kana = profile.kanaText && ConfMan.hasKey("text_language") &&
-		ConfMan.getInt("text_language") == kTextKana;
-	const char *name = kana ? profile.kanaText : profile.asciiText;
+	const int language = ConfMan.hasKey("text_language") ? ConfMan.getInt("text_language") : kTextEnglish;
+	bool kanji = profile.kanjiText && language == kTextKanji;
+	const bool kana = profile.kanaText && (language == kTextKana || language == kTextKanji);
+
+	// Kanji needs a font of them; without one the kana text is shown
+	_renderer.setWideFont(nullptr);
+	if (kanji && !_wideFont) {
+#ifdef USE_SJIS
+		_wideFont = createPC98WideFont();
+#endif
+		if (!_wideFont) {
+			warning("No kanji font (FONT.ROM, FONT.BMP or SJIS.FNT): showing the kana text");
+			kanji = false;
+		}
+	}
+	if (kanji)
+		_renderer.setWideFont(_wideFont);
+
+	const char *name = kanji ? profile.kanjiText : (kana ? profile.kanaText : profile.asciiText);
 	if (!_messages.open(name, profile.huffman))
 		error("Could not load the messages from %s", name);
-	_kanaText = kana;
+	_kanaText = kanji || kana;
 
 	// The title is shown before the original asks for a language, so its
 	// lines always come from the ASCII text

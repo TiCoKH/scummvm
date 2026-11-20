@@ -160,6 +160,7 @@ void WizardryEngine::applyGameSettings() {
 	if (_profile) {
 		_globals.applyPalette();
 		_globals.loadMessages();
+		_globals._tiles.markAllDirty();
 	}
 }
 

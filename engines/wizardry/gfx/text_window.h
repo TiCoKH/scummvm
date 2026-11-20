@@ -66,6 +66,9 @@ public:
 	 */
 	void PRINTCHR(uint16 glyph);
 
+	/** Prints a two-byte character of the kanji font at the cursor */
+	void printWide(uint16 code);
+
 	/**
 	 * Prints a string; each byte is a glyph number
 	 */

@@ -75,12 +75,15 @@ const PopUpOptionsMap popUpOptionsList[] = {
 		GAMEOPTION_TEXT_LANGUAGE,
 		_s("Text:"),
 		_s("The language of the game's text. The original asks at every start; "
-			"names typed in one are shown as they were typed in the other."),
+			"names typed in one are shown as they were typed in the other. "
+			"Kanji needs FONT.ROM or FONT.BMP of a PC-98, or ScummVM's SJIS.FNT; "
+			"without one, kana is shown."),
 		"text_language",
 		kTextEnglish,
 		{
 			{ _s("English"), kTextEnglish },
 			{ _s("Hiragana/Katakana"), kTextKana },
+			{ _s("Kanji"), kTextKanji },
 			POPUP_OPTIONS_ITEMS_TERMINATOR
 		}
 	},

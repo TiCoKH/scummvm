@@ -45,7 +45,8 @@ public:
 		kBlank,
 		kGlyph,   ///< value is a glyph of the character set
 		kSolid,   ///< filled tile
-		kImage    ///< value is a tile of the image in the given slot, counted row by row
+		kImage,   ///< value is a tile of the image in the given slot, counted row by row
+		kWide     ///< value is a two-byte (Shift-JIS) character from the kanji font
 	};
 
 	struct Tile {
@@ -91,8 +92,9 @@ public:
 
 	/**
 	 * The glyph of a two-byte character, as the PC-98 driver finds it
-	 * (offset 0x10AA): hiragana from 0x81, katakana from 0xD4. Kanji, which
-	 * the PC-98 takes from its kanji ROM, show as '?'.
+	 * (offset 0x10AA): hiragana from 0x81, katakana from 0xD4
+	 * @returns 0 for any other: kanji and symbols, which the PC-98 takes from
+	 *          its kanji ROM (kWide tiles)
 	 */
 	static uint16 twoByteGlyph(byte lead, byte trail);
 

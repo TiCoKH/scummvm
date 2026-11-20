@@ -103,10 +103,19 @@ void TileRenderer::drawTile(const TileScreen &screen, int col, int row, byte *ds
 	const byte *src = nullptr;
 	uint srcPitch = _tileW;
 	byte fill = 0;
+	byte wide[32 * 32];
 
 	switch (tile.type) {
 	case TileScreen::kGlyph:
 		src = _charset.glyph(tile.value);
+		break;
+
+	case TileScreen::kWide:
+		// From the kanji font, in the colour of text; '?' without one
+		if (_wideFont && _tileW * _tileH <= sizeof(wide) && _wideFont->drawChar(tile.value, wide, _tileW, _tileW, _tileH))
+			src = wide;
+		else
+			src = _charset.glyph('?');
 		break;
 
 	case TileScreen::kSolid:

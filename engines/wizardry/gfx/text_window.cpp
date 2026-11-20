@@ -74,12 +74,23 @@ void TextWindow::PRINTCHR(uint16 glyph) {
 	++_cursor.x;
 }
 
+void TextWindow::printWide(uint16 code) {
+	if (_cursor.x >= 0 && _cursor.x < width() && _cursor.y >= 0 && _cursor.y < height())
+		_screen.setTile(_inner.left + _cursor.x, _inner.top + _cursor.y, TileScreen::kWide, code);
+	++_cursor.x;
+}
+
 void TextWindow::PRINTSTR(const Common::String &str) {
 	for (uint i = 0; i < str.size(); ++i) {
 		const byte b = str[i];
 		// A two-byte character takes one tile
 		if (_screen.twoByteText() && b >= 0x81 && b <= 0x9f && i + 1 < str.size()) {
-			PRINTCHR(TileScreen::twoByteGlyph(b, str[++i]));
+			const byte trail = str[++i];
+			const uint16 glyph = TileScreen::twoByteGlyph(b, trail);
+			if (glyph)
+				PRINTCHR(glyph);
+			else
+				printWide((b << 8) | trail);
 			continue;
 		}
 		PRINTCHR(b);

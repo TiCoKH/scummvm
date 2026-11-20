@@ -90,7 +90,8 @@ enum CgaPalette {
  */
 enum TextLanguage {
 	kTextEnglish = 0,
-	kTextKana = 1       ///< hiragana and katakana, from the character set
+	kTextKana = 1,      ///< hiragana and katakana, from the character set
+	kTextKanji = 2      ///< with kanji, from a PC-98 font ROM or ScummVM's Shift-JIS font
 };
 
 } // End of namespace Wizardry

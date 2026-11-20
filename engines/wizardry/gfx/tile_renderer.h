@@ -24,6 +24,7 @@
 
 #include "common/rect.h"
 #include "wizardry/gfx/tile_screen.h"
+#include "wizardry/gfx/wide_font.h"
 #include "wizardry/profile.h"
 #include "wizardry/resources/charset.h"
 
@@ -48,6 +49,7 @@ private:
 	uint8 _rowScale = 1;
 	uint8 _layout = kPixelsNone;
 	const byte *_cgaPalette = nullptr;
+	const WideFont *_wideFont = nullptr;
 
 	void drawTile(const TileScreen &screen, int col, int row, byte *dst, uint pitch) const;
 
@@ -70,6 +72,12 @@ public:
 	uint8 dataTileHeight() const { return _tileH; }
 
 	const CharSet &charset() const { return _charset; }
+
+	/**
+	 * The font of kanji and full-width symbols, or nullptr: then they show
+	 * as '?'. The caller keeps it.
+	 */
+	void setWideFont(const WideFont *font) { _wideFont = font; }
 
 	/**
 	 * Chooses the colours of the four-colour CGA set: a CgaPalette.

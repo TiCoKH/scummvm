@@ -36,6 +36,7 @@ MODULE_OBJS = \
 	resources/scenario_file.o \
 	resources/title_image.o \
 	gfx/tile_renderer.o \
+	gfx/wide_font.o \
 	gfx/tile_screen.o \
 	gfx/palette.o \
 	gfx/surface.o \

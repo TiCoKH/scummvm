@@ -90,7 +90,7 @@ uint16 TileScreen::twoByteGlyph(byte lead, byte trail) {
 		return 0x81 + cell;   // hiragana
 	if (row == 5 && cell >= 0)
 		return 0xd4 + cell;   // katakana
-	return '?';
+	return 0;
 }
 
 int TileScreen::addImage(const TileImage &image, int col, int row, bool skipBlank) {
