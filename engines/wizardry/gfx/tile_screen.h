@@ -95,9 +95,12 @@ public:
 	/**
 	 * Shows an image with its top left tile at the given position. The
 	 * screen keeps a copy. Tiles outside the screen are left out.
+	 * @param skipBlank  Leave the tiles below the image's empty ones as they
+	 *                   are: an image in a bit plane of its own, as the
+	 *                   PC-98 title, lets them show through
 	 * @returns the slot, for removeImage()
 	 */
-	int addImage(const TileImage &image, int col, int row);
+	int addImage(const TileImage &image, int col, int row, bool skipBlank = false);
 
 	/**
 	 * Takes an image off the screen. Its tiles that still show it turn blank.

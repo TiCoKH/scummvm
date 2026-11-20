@@ -38,6 +38,11 @@ bool loadTitleImage(const Profile &profile, const GfxSet &gfx, TileImage &image)
 	const uint rowBytes = isIBM ? 70 : STRIDE;
 	const uint bitsPerPixel = (gfx.layout == kPixelsCGA2bpp) ? 2 : 1;
 
+	// The PC-98 driver copies the rows into the red plane alone (segment
+	// B000h, driver offset 0x1930), so a set bit is colour 2: red
+	// (read in the Wizardry I driver only)
+	const byte ink = hasJapaneseRules(&profile) ? 2 : 1;
+
 	// The 640x400 title of the PC-98 has 112 rows; all others have 56
 	uint height = (data.size() > 5120) ? 112 : 56;
 	height = MIN<uint>(height, data.size() / STRIDE);
@@ -57,7 +62,7 @@ bool loadTitleImage(const Profile &profile, const GfxSet &gfx, TileImage &image)
 					*dst++ = (b >> (6 - 2 * k)) & 3;
 			} else {
 				for (uint k = 0; k < 8; ++k)
-					*dst++ = (b >> (7 - k)) & 1;
+					*dst++ = ((b >> (7 - k)) & 1) ? ink : 0;
 			}
 		}
 	}

@@ -61,7 +61,7 @@ void TileScreen::clear() {
 		_images[i].used = false;
 }
 
-int TileScreen::addImage(const TileImage &image, int col, int row) {
+int TileScreen::addImage(const TileImage &image, int col, int row, bool skipBlank) {
 	uint slot = 0;
 	while (slot < _images.size() && _images[slot].used)
 		++slot;
@@ -77,6 +77,8 @@ int TileScreen::addImage(const TileImage &image, int col, int row) {
 	for (int y = 0; y < image.rows; ++y) {
 		for (int x = 0; x < image.cols; ++x) {
 			if (contains(col + x, row + y)) {
+				if (skipBlank && image.isTileBlank(x, y))
+					continue;
 				setTile(col + x, row + y, kImage, y * image.cols + x, slot);
 				// The slot may have held another image before
 				_dirty[row + y][col + x] = true;

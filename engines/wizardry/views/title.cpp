@@ -152,6 +152,7 @@ void Title::drawTiles(TextWindow &window) {
 	}
 
 	TownScreens screens(_G(tiles), _G(messages), _G(party), _G(items));
+	screens.setJapanese(hasJapaneseRules(g_engine->getProfile()));
 	screens.drawTitle(_logo.empty() ? nullptr : &_logo, _pictures, _state == kSliding ? _slide : 0);
 }
 

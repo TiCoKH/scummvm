@@ -109,9 +109,10 @@ public:
 
 	/**
 	 * Shows an image with its top left tile at the given position
+	 * @param skipBlank  See TileScreen::addImage()
 	 * @returns the slot, for TileScreen::removeImage()
 	 */
-	int showImage(const TileImage &image, int x, int y);
+	int showImage(const TileImage &image, int x, int y, bool skipBlank = false);
 };
 
 } // End of namespace Wizardry

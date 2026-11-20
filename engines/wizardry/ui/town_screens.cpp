@@ -1049,8 +1049,17 @@ void TownScreens::drawTitle(const TileImage *logo, const Common::Array<TileImage
 	// main window's inside; the driver never paints over it as long as
 	// the tiles below it stay blank
 	TextWindow main = openWindow(1, 1, 38, 22);
-	if (logo && !logo->empty())
-		main.showImage(*logo, 0, 0);
+	if (logo && !logo->empty()) {
+		if (_japanese) {
+			// The PC-98 driver copies whole lines of the screen into the
+			// red plane from tile row 2: the logo's place across is in its
+			// data, and the frame, in another plane, shows through
+			TextWindow screen(_screen, Common::Rect(TileScreen::COLS, TileScreen::ROWS), false);
+			screen.showImage(*logo, 0, 2, true);
+		} else {
+			main.showImage(*logo, 0, 0);
+		}
+	}
 
 	main.MVCURSOR(0, 7);
 	main.printCenteredLine(_messages.get(kMsgWelcome));

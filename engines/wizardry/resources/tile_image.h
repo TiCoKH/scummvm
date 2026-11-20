@@ -47,6 +47,18 @@ struct TileImage {
 	uint height() const { return rows * tileH; }
 	bool empty() const { return pixels.empty(); }
 
+	/** True if every pixel of a tile is 0 */
+	bool isTileBlank(uint col, uint row) const {
+		for (uint y = 0; y < tileH; ++y) {
+			const byte *p = getBasePtr(col * tileW, row * tileH + y);
+			for (uint x = 0; x < tileW; ++x) {
+				if (p[x])
+					return false;
+			}
+		}
+		return true;
+	}
+
 	byte *getBasePtr(uint x, uint y) { return &pixels[y * width() + x]; }
 	const byte *getBasePtr(uint x, uint y) const { return &pixels[y * width() + x]; }
 };

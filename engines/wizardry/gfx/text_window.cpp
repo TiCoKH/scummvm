@@ -124,8 +124,8 @@ void TextWindow::CLRRECT(int x1, int y1, int x2, int y2) {
 	}
 }
 
-int TextWindow::showImage(const TileImage &image, int x, int y) {
-	return _screen.addImage(image, _inner.left + x, _inner.top + y);
+int TextWindow::showImage(const TileImage &image, int x, int y, bool skipBlank) {
+	return _screen.addImage(image, _inner.left + x, _inner.top + y, skipBlank);
 }
 
 } // End of namespace Wizardry
