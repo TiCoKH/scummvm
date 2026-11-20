@@ -34,7 +34,9 @@ namespace Wizardry {
  * 13 to 15): the logo, a welcome, and below it one to four creatures at
  * random. They stay about six and a half seconds, then slide down out of
  * sight and others come. A key cuts the wait short; after the slide,
- * S)TART GAME goes on and any other key brings new creatures.
+ * S)TART GAME goes on and any other key brings new creatures. M, which
+ * made a scenario disk in the original, opens the gallery instead, as a
+ * hidden feature for debugging; Escape there comes back to the title.
  *
  * The other releases build their title in code that has not been read
  * yet; for them only the logo is shown, and any key goes on.

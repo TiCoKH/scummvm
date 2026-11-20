@@ -126,8 +126,15 @@ void Title::keyAfterSlide(uint16 key) {
 		return;
 	}
 
-	// TODO: M)AKE SCENARIO DISK made a copy of the scenario disk to play
-	// on. There is nothing to make here, so it does what any other key does.
+	// M)AKE SCENARIO DISK made a copy of the scenario disk to play on.
+	// There is nothing to make here, so the key opens the gallery of the
+	// game's pictures, character set and messages instead: a feature for
+	// debugging, not mentioned on screen. Escape there comes back here.
+	if (key && key == (byte)messages.get(kMsgMakeDisk)[0]) {
+		addView("Gallery");
+		return;
+	}
+
 	newPictures();
 }
 
