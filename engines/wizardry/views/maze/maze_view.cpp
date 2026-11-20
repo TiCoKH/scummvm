@@ -403,7 +403,7 @@ void MazeView::enterSquare() {
 
 	case kSquareChute:
 		transfer(index);
-		if (g_events->focusedView() == this)
+		if (g_events->focusedView() == this && _state != kMainText)
 			say(messages.get(kMsgChute));
 		break;
 

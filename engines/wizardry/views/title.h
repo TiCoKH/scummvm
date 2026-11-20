@@ -22,16 +22,45 @@
 #ifndef WIZARDRY_VIEWS_TITLE_H
 #define WIZARDRY_VIEWS_TITLE_H
 
+#include "wizardry/resources/tile_image.h"
 #include "wizardry/views/tile_view.h"
 
 namespace Wizardry {
 
 /**
- * Shows the title picture of the release, if it has one
+ * The title screen.
+ *
+ * For IBM-PC Wizardry I to III it is the original's (KANJIREA procedures
+ * 13 to 15): the logo, a welcome, and below it one to four creatures at
+ * random. They stay about six and a half seconds, then slide down out of
+ * sight and others come. A key cuts the wait short; after the slide,
+ * S)TART GAME goes on and any other key brings new creatures.
+ *
+ * The other releases build their title in code that has not been read
+ * yet; for them only the logo is shown, and any key goes on.
  */
 class Title : public TileView {
+private:
+	enum State {
+		kStatic,     ///< only the logo
+		kShowing,    ///< creatures on show
+		kSliding     ///< creatures sliding away, a row each frame
+	};
+
+	State _state = kStatic;
+	TileImage _logo;
+	Common::Array<TileImage> _pictures;
+	int _slide = 0;
+	uint16 _key = 0;      ///< key pressed while the creatures were on show
+
+	bool isOriginal() const;
+	void newPictures();
+	void startSlide();
+	void keyAfterSlide(uint16 key);
+
 protected:
 	void drawTiles(TextWindow &window) override;
+	void timeout() override;
 
 public:
 	Title() : TileView("Title", false) {}
@@ -42,6 +71,7 @@ public:
 	 */
 	void leave();
 
+	bool msgFocus(const FocusMessage &msg) override;
 	bool msgKeypress(const KeypressMessage &msg) override;
 	bool msgMouseDown(const MouseDownMessage &msg) override;
 };

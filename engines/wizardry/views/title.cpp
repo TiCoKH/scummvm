@@ -21,25 +21,133 @@
 
 #include "wizardry/views/title.h"
 #include "wizardry/resources/title_image.h"
+#include "wizardry/ui/town_screens.h"
 #include "wizardry/wizardry.h"
 
 namespace Wizardry {
 
+enum {
+	kMsgStart = 2021,    // "S)TART GAME": its first letter is the key
+	kMsgMakeDisk = 2022,
+
+	// The creatures shown are the pictures from 4 to 29: the first three
+	// are the treasure, the chest and the grave
+	kFirstCreature = 4,
+	kCreatureCount = 26,
+
+	// The original waits 30 times for 4 ticks of the PC's timer, which
+	// runs at 18.2 a second: about 6.6 seconds
+	kShowFrames = FRAME_RATE * 30 * 4 * 10 / 182,
+
+	// Each row of the slide is one repaint, as fast as the PC could draw
+	// it. One frame is a guess at that.
+	kSlideFrames = 1,
+
+	// Rows of the screen with the two choices
+	kStartRow = 22,
+	kMakeDiskRow = 23
+};
+
+bool Title::isOriginal() const {
+	const Profile *profile = g_engine->getProfile();
+	return profile && profile->platform == Common::kPlatformDOS && profile->game <= kWizardry3;
+}
+
+bool Title::msgFocus(const FocusMessage &msg) {
+	_logo = TileImage();
+	loadTitleImage(*g_engine->getProfile(), g_engine->getGfxSet(), _logo);
+	_key = 0;
+
+	if (isOriginal()) {
+		newPictures();
+	} else {
+		_state = kStatic;
+		cancelDelay();
+	}
+
+	return TileView::msgFocus(msg);
+}
+
+void Title::newPictures() {
+	// One to four creatures, each picked at random; the same one may come twice
+	const int count = g_engine->getRandomNumber(3) + 1;
+
+	_pictures.clear();
+	for (int i = 0; i < count; ++i) {
+		TileImage image;
+		// The two-colour set of Wizardry II and III has no pictures: then
+		// there is nothing to show, but the cycle runs all the same
+		_G(pictures).load(kFirstCreature + g_engine->getRandomNumber(kCreatureCount - 1), image);
+		_pictures.push_back(image);
+	}
+
+	_slide = 0;
+	_state = kShowing;
+	delayFrames(kShowFrames);
+	redraw();
+}
+
+void Title::startSlide() {
+	_state = kSliding;
+	_slide = 1;
+	delayFrames(kSlideFrames);
+	redraw();
+}
+
+void Title::timeout() {
+	switch (_state) {
+	case kShowing:
+		startSlide();
+		break;
+
+	case kSliding:
+		if (_slide < TownScreens::kTitlePictureRows) {
+			++_slide;
+			delayFrames(kSlideFrames);
+			redraw();
+		} else {
+			const uint16 key = _key;
+			_key = 0;
+			keyAfterSlide(key);
+		}
+		break;
+
+	default:
+		TileView::timeout();
+		break;
+	}
+}
+
+void Title::keyAfterSlide(uint16 key) {
+	const MessageFile &messages = _G(messages);
+
+	if (key && key == (byte)messages.get(kMsgStart)[0]) {
+		leave();
+		return;
+	}
+
+	// TODO: M)AKE SCENARIO DISK made a copy of the scenario disk to play
+	// on. There is nothing to make here, so it does what any other key does.
+	newPictures();
+}
+
 void Title::drawTiles(TextWindow &window) {
-	_G(tiles).clear();
+	if (!isOriginal()) {
+		_G(tiles).clear();
 
-	// The IBM-PC driver puts the picture at tile (2, 2), which centres its
-	// 35 columns. The Japanese titles are 40 columns wide. Their row is
-	// assumed to be the same; it has not been read from those drivers.
-	TileImage image;
-	if (loadTitleImage(*g_engine->getProfile(), g_engine->getGfxSet(), image))
-		window.showImage(image, (window.width() - image.cols) / 2, 2);
+		// The Japanese titles are 40 columns wide. Their row is assumed;
+		// it has not been read from those drivers.
+		if (!_logo.empty())
+			window.showImage(_logo, (window.width() - _logo.cols) / 2, 2);
+		return;
+	}
 
-	// TODO: the text of the original title screen
-	window.printCentered(window.height() - 3, "PRESS ANY KEY");
+	TownScreens screens(_G(tiles), _G(messages), _G(party), _G(items));
+	screens.drawTitle(_logo.empty() ? nullptr : &_logo, _pictures, _state == kSliding ? _slide : 0);
 }
 
 void Title::leave() {
+	cancelDelay();
 	if (g_engine->hasTown())
 		replaceView("Town.Castle");
 	else
@@ -47,12 +155,44 @@ void Title::leave() {
 }
 
 bool Title::msgKeypress(const KeypressMessage &msg) {
-	leave();
+	if (_state == kStatic) {
+		leave();
+		return true;
+	}
+
+	uint16 key = msg.ascii;
+	if (key >= 'a' && key <= 'z')
+		key -= 0x20;
+	if (!key)
+		return true;
+
+	// The original reads the key once the creatures are gone: a key cuts
+	// the wait short, and one pressed during the slide waits for its end
+	if (!_key)
+		_key = key;
+	if (_state == kShowing) {
+		cancelDelay();
+		startSlide();
+	}
+
 	return true;
 }
 
 bool Title::msgMouseDown(const MouseDownMessage &msg) {
-	leave();
+	if (_state == kStatic) {
+		leave();
+		return true;
+	}
+
+	// A click on one of the two choices is its key
+	const int row = msg._pos.y / _G(renderer).tileHeight();
+	const MessageFile &messages = _G(messages);
+	if (row == kStartRow || row == kMakeDiskRow) {
+		KeypressMessage key;
+		key.ascii = (byte)messages.get(row == kStartRow ? kMsgStart : kMsgMakeDisk)[0];
+		msgKeypress(key);
+	}
+
 	return true;
 }
 

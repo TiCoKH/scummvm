@@ -755,6 +755,56 @@ void TownScreens::drawChestWho(uint deed) {
 	window.printCenteredLine(_messages.get(kMsgChestReturn));
 }
 
+int TownScreens::titlePictureColumn(int count, int index) {
+	static const int8 COLUMNS[4][4] = {
+		{ 15, 0, 0, 0 }, { 11, 19, 0, 0 }, { 7, 15, 23, 0 }, { 3, 11, 19, 27 }
+	};
+	return COLUMNS[CLIP(count, 1, 4) - 1][CLIP(index, 0, 3)];
+}
+
+void TownScreens::drawTitle(const TileImage *logo, const Common::Array<TileImage> &pictures, int slide) {
+	enum {
+		kMsgWelcome = 2018,
+		kMsgFirstLine = 2019,      // two lines, then a gap, then the two choices
+		kMsgChoices = 2021
+	};
+
+	_screen.clear();
+
+	// The logo goes straight into video memory at the top left of the
+	// main window's inside; the driver never paints over it as long as
+	// the tiles below it stay blank
+	TextWindow main = openWindow(1, 1, 38, 22);
+	if (logo && !logo->empty())
+		main.showImage(*logo, 0, 0);
+
+	main.MVCURSOR(0, 7);
+	main.printCenteredLine(_messages.get(kMsgWelcome));
+
+	// The creatures slide down a row at a time; what passes the last of
+	// their rows is gone
+	const int count = MIN<int>(pictures.size(), 4);
+	for (int i = 0; i < count; ++i) {
+		const TileImage &image = pictures[i];
+		if (image.empty())
+			continue;
+
+		const int col = titlePictureColumn(count, i);
+		main.showImage(image, col, kTitlePictureRow + slide);
+
+		const int lastRow = kTitlePictureRow + kTitlePictureRows - 1;
+		for (int row = lastRow + 1; row <= lastRow + slide; ++row)
+			main.CLRRECT(col, row, col + image.cols, row + 1);
+	}
+
+	TextWindow choices = openWindow(0, 18, 40, 7);
+	choices.printCenteredLine(_messages.get(kMsgFirstLine));
+	choices.printCenteredLine(_messages.get(kMsgFirstLine + 1));
+	choices.MVCURSOR(0, 3);
+	choices.printCenteredLine(_messages.get(kMsgChoices));
+	choices.printCenteredLine(_messages.get(kMsgChoices + 1));
+}
+
 uint TownScreens::drawEventText(const Common::Array<Common::String> &lines, uint first) {
 	// The page ends before a line that starts with '@', or after 13 lines
 	uint end = first;

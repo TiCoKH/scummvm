@@ -42,7 +42,7 @@ struct Globals {
 	WizardryFont *_normalFont = nullptr;
 	WizardryFont *_gfxFont = nullptr;
 
-	// Releases that draw through the tile screen (all but the Apple II one)
+	// The following members are used for releases that draw through the tile screen (all but the Apple II one):
 	TileScreen _tiles;
 	TileRenderer _renderer;
 	PictureFile _pictures;

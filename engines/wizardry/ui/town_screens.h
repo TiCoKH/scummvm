@@ -220,6 +220,29 @@ public:
 	 */
 	void drawChestWho(uint deed);
 
+	// ---- the title
+
+	enum {
+		kTitlePictureRow = 9,     ///< row of the main window's inside where the creatures stand
+		kTitlePictureRows = 5     ///< their height; they slide down out of these rows
+	};
+
+	/**
+	 * Column of the main window's inside where a creature of the title
+	 * stands, as the display driver places them: 1 to 4 side by side
+	 */
+	static int titlePictureColumn(int count, int index);
+
+	/**
+	 * The title screen of IBM-PC Wizardry I to III: the main window with
+	 * the logo and a welcome, the creatures, and a window below with the
+	 * choices.
+	 * @param logo      The title picture, or nullptr
+	 * @param pictures  The creatures shown, none to four
+	 * @param slide     How many rows they have slid down, 0 to 5
+	 */
+	void drawTitle(const TileImage *logo, const Common::Array<TileImage> &pictures, int slide);
+
 	// ---- special squares
 
 	/**
