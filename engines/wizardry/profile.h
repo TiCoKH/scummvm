@@ -79,6 +79,15 @@ struct Profile {
  */
 extern const Profile *findProfile(GameType game, Common::Platform platform);
 
+/**
+ * True for Japanese Wizardry I (PC-98 here): the 1985 program, older than
+ * the IBM-PC re-release. Its scenario records are those of the Apple II,
+ * and some screens and rules differ from the IBM-PC's.
+ */
+inline bool hasJapaneseRules(const Profile *profile) {
+	return profile && profile->game == kWizardry1 && profile->platform != Common::kPlatformDOS;
+}
+
 } // End of namespace Wizardry
 
 #endif // WIZARDRY_PROFILE_H

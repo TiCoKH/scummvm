@@ -21,12 +21,18 @@
 
 #include "wizardry/views/town/town_view.h"
 #include "wizardry/data/globals.h"
+#include "wizardry/wizardry.h"
 
 namespace Wizardry {
 namespace Town {
 
+uint TownView::DrawDice::roll(uint count) {
+	return g_engine->getRandomNumber(count - 1);
+}
+
 void TownView::drawTiles(TextWindow &window) {
 	TownScreens screens(_G(tiles), _G(messages), _G(party), _G(items));
+	screens.setJapanese(hasJapaneseRules(g_engine->getProfile()), &_drawDice);
 	drawBackground(screens);
 
 	// The menu is printed again by drawTown() where there is one

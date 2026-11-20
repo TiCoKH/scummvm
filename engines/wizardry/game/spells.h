@@ -72,6 +72,14 @@ public:
 	 * name, or else all those the character knows that begin with it
 	 */
 	static Common::Array<int> find(const MessageFile &messages, const Character &c, const Common::String &typed);
+
+	/**
+	 * Japanese Wizardry I's way: the spell with exactly that name, then
+	 * every spell, known or not, whose name is longer and begins with it,
+	 * in the order of their numbers. A fight takes the first; camp the
+	 * first that works in camp.
+	 */
+	static Common::Array<int> findJapanese(const MessageFile &messages, const Common::String &typed);
 };
 
 } // End of namespace Wizardry

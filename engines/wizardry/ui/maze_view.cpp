@@ -31,11 +31,13 @@ enum {
 	kLeftEdge = 12,
 	kSlantA = 13,       // the two slanting edges
 	kSlantB = 14,
-	kDarkness = 0x67
+	kDarkness = 0x67,
+	kJapaneseDarkness = 0x60
 };
 
-MazeViewDrawer::MazeViewDrawer(TextWindow &window, const MazeLevel &level, const MazeState &state, bool lit) :
-		_window(window), _level(level), _state(state), _lit(lit),
+MazeViewDrawer::MazeViewDrawer(TextWindow &window, const MazeLevel &level, const MazeState &state, bool lit,
+		bool japanese, Dice *dice) :
+		_window(window), _level(level), _state(state), _lit(lit), _japanese(japanese), _dice(dice),
 		_x(state.x), _y(state.y), _squareLit(true), _front(0), _left(0), _right(0),
 		_leftWall(false), _rightWall(false), _aheadVisible(true),
 		_leftVisible(true), _rightVisible(true), _leftAheadVisible(true), _rightAheadVisible(true),
@@ -81,7 +83,20 @@ void MazeViewDrawer::slantUp(int x, int y, int columns, int rows, int clipRight)
 	_clipRight = clipRight;
 }
 
+void MazeViewDrawer::fillDark() {
+	// Japanese Wizardry I: the rows that go with the columns still open,
+	// filled across them
+	for (int row = _clipLeft - 8; row <= _clipRight - 8; ++row) {
+		if (row >= 0 && row < kHeight)
+			run(_clipLeft, row, 1, 0, _clipRight - _clipLeft + 1, kJapaneseDarkness);
+	}
+	_done = true;
+}
+
 bool MazeViewDrawer::squareVisible(int right, int forward) const {
+	// Japanese Wizardry I does not shade dark squares beside or ahead
+	if (_japanese)
+		return true;
 	int x = _x, y = _y;
 	Maze::offset(x, y, _state.facing, right, forward);
 
@@ -100,8 +115,11 @@ uint MazeViewDrawer::wallAt(int right, int side) const {
 
 uint MazeViewDrawer::showHidden(uint wall) const {
 	// A hidden door shows as a door only with light, and not in darkness
-	if (wall == kHiddenDoor)
+	if (wall == kHiddenDoor) {
+		if (_japanese)
+			return (_squareLit && (_lit || (_dice && _dice->roll(6) == 3))) ? kDoor : kWall;
 		return (_squareLit && _lit) ? kDoor : kWall;
+	}
 	return wall;
 }
 
@@ -142,6 +160,10 @@ void MazeViewDrawer::advance() {
 	const uint type = _level.squareType(index);
 	if (type == kSquareDark) {
 		_squareLit = (_level.aux(0, index) == 1);
+		if (_japanese && _level.aux(2, index) == 0) {
+			fillDark();
+			return;
+		}
 	} else if (type == kSquareTransfer && _level.aux(0, index) == _state.level) {
 		// A transfer within the level is looked through to where it leads
 		_x = _level.aux(2, index);
@@ -493,8 +515,9 @@ void MazeViewDrawer::depth3() {
 void MazeViewDrawer::draw() {
 	_window.CLRRECT(0, 0, kWidth, kHeight);
 
-	// Standing in darkness there is nothing to see
-	if (!squareVisible(0, 0)) {
+	// Standing in darkness there is nothing to see. Japanese Wizardry I
+	// finds that out on its first advance.
+	if (!_japanese && !squareVisible(0, 0)) {
 		dark(0, 0, kWidth, kHeight);
 		return;
 	}
@@ -503,22 +526,26 @@ void MazeViewDrawer::draw() {
 	Maze::offset(_x, _y, _state.facing, 0, -1);
 
 	advance();
-	depth0();
+	if (!_done)
+		depth0();
 	if (_done)
 		return;
 
 	advance();
-	depth1();
+	if (!_done)
+		depth1();
 	if (_done || !_lit)
 		return;
 
 	advance();
-	depth2();
+	if (!_done)
+		depth2();
 	if (_done)
 		return;
 
 	advance();
-	depth3();
+	if (!_done)
+		depth3();
 }
 
 } // End of namespace Wizardry

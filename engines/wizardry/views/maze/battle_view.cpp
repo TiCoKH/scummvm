@@ -493,8 +493,22 @@ void BattleView::choose(int result, uint16 ascii) {
 		} else {
 			// The name, or as much of it as tells it from the others known;
 			// when several known spells begin alike, a list to pick from
-			const Common::Array<int> found = Spells::find(messages, party.member(_member), _typed);
+			const Common::String typed = _typed;
 			_typed.clear();
+			if (hasJapaneseRules(g_engine->getProfile())) {
+				// The first spell the name fits; with none, the choices again
+				const Common::Array<int> fits = Spells::findJapanese(messages, typed);
+				if (fits.empty()) {
+					askMember(_member);
+					return;
+				}
+				orderSpell(fits[0]);
+				if (_state != kSpellName)
+					return;
+				redraw();
+				return;
+			}
+			const Common::Array<int> found = Spells::find(messages, party.member(_member), typed);
 
 			if (found.size() > 1) {
 				_matches = found;
@@ -555,7 +569,11 @@ void BattleView::choose(int result, uint16 ascii) {
 		if (number < 1 || number > c.itemCount)
 			return;
 		const ItemSlot &slot = c.items[number - 1];
-		if (slot.id < 0 || slot.id >= (int)_G(items).size() || !_G(items)[slot.id].usableInFight(slot))
+		if (slot.id < 0 || slot.id >= (int)_G(items).size())
+			return;
+		// Japanese Wizardry I takes any item with a spell, equipped or not
+		const Item &item = _G(items)[slot.id];
+		if (_G(mazeState).japanese ? item.spellPower == 0 : !item.usableInFight(slot))
 			return;
 
 		_itemSlot = number - 1;

@@ -70,9 +70,11 @@ public:
 
 	/**
 	 * One week: older, healthier, poorer.
+	 * @param ages  False for Japanese Wizardry I, where nobody grows older
+	 *              at the inn
 	 * @returns true if the character had a birthday
 	 */
-	static bool restOneWeek(Character &c, const Room &room);
+	static bool restOneWeek(Character &c, const Room &room, bool ages = true);
 
 	/**
 	 * Experience a character of a class needs to be of a level

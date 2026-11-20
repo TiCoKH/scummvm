@@ -21,6 +21,7 @@
 
 #include "wizardry/views/town/shop.h"
 #include "wizardry/data/globals.h"
+#include "wizardry/wizardry.h"
 
 namespace Wizardry {
 namespace Town {
@@ -279,6 +280,11 @@ void ShopView::choose(int result, uint16 ascii) {
 			say(kMsgCannotAffordFee, kPack);
 			return;
 		case Shop::kEquipped:
+			// Japanese Wizardry I sells it without asking
+			if (hasJapaneseRules(g_engine->getProfile())) {
+				doService();
+				return;
+			}
 			_state = kSellConfirm;
 			break;
 		default:

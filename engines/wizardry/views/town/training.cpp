@@ -49,8 +49,13 @@ enum {
 	kMsgChooseRace = 331,
 	kMsgChooseAlignment = 332,
 	kMsgRosterFull = 335,
+	kMsgJapanesePassword = 317,
+	kMsgJapaneseRosterFull = 339,
 	kMsgNameInUse = 336,
 	kMsgEnterName = 337,
+	kMsgCreateThis = 326,       // Japanese Wizardry I
+	kMsgCreateYes = 327,
+	kMsgCreateNo = 328,
 	kMsgFirstRace = 10000,
 	kMsgFirstAlignment = 10010,
 
@@ -76,13 +81,25 @@ public:
 bool TrainingView::msgFocus(const FocusMessage &msg) {
 	// Coming back from the character sheet goes on with the same character
 	_state = (msg._priorView && msg._priorView == g_events->findView("Town.Sheet")) ? kEditMenu : kMenu;
+	if (_state == kMenu)
+		goHome();
 	return TownView::msgFocus(msg);
+}
+
+bool TrainingView::isJapanese() const {
+	return hasJapaneseRules(g_engine->getProfile());
+}
+
+void TrainingView::goHome() {
+	_input.clear();
+	_marks = 0;
+	_state = isJapanese() ? kJapaneseName : kMenu;
 }
 
 void TrainingView::noticeDone() {
 	// After a wrong password
 	if (_state == kEditPassword)
-		_state = kMenu;
+		goHome();
 }
 
 void TrainingView::startEdit() {
@@ -126,9 +143,29 @@ void TrainingView::drawTown(TownScreens &screens) {
 		screens.drawRoster();
 		return;
 	case kRosterFull:
+		if (isJapanese()) {
+			screens.drawTrainingName(_japaneseName);
+			screens.drawPopup(messages.get(kMsgJapaneseRosterFull), 12);
+			return;
+		}
 		screens.drawTrainingMenu(_menu);
 		screens.drawPopup(messages.get(kMsgRosterFull), 12);
 		return;
+	case kJapaneseName:
+		screens.drawTrainingName(_input);
+		return;
+	case kJapaneseCreate:
+		screens.drawTrainingName(_japaneseName);
+		screens.drawMainLine(15, messages.get(kMsgCreateThis), true);
+		return;
+	case kJapanesePassword: {
+		Common::String marks;
+		for (uint i = 0; i < _marks; ++i)
+			marks += 'X';
+		screens.drawTrainingName(_japaneseName);
+		screens.drawMainLine(14, messages.get(kMsgJapanesePassword) + marks, false, 9);
+		return;
+	}
 	default:
 		break;
 	}
@@ -324,7 +361,75 @@ void TrainingView::choose(int result, uint16 ascii) {
 	case kRosterFull:
 		if (ascii != kKeyReturn)
 			return;
-		_state = kMenu;
+		goHome();
+		break;
+
+	case kJapaneseName: {
+		if (ascii != kKeyReturn) {
+			typeInto(ascii, false);
+			break;
+		}
+		// Nothing: to the castle; "*": the roster
+		if (_input.empty()) {
+			close();
+			return;
+		}
+		if (_input == "*") {
+			_input.clear();
+			_state = kRoster;
+			break;
+		}
+
+		// A character of that name not lost is looked after; else one is
+		// made in the first free place, if there is one
+		_japaneseName = _input;
+		_input.clear();
+		int found = -1;
+		for (uint i = 0; i < party.rosterSize() && found < 0; ++i) {
+			if (!party.rosterEntry(i).isFree() && party.rosterEntry(i).name == _japaneseName)
+				found = i;
+		}
+		if (found >= 0) {
+			_edited = found;
+			_marks = 0;
+			_state = party.rosterEntry(_edited).password.empty() ? kEditMenu : kJapanesePassword;
+		} else if (party.freeSlot() >= 0) {
+			_state = kJapaneseCreate;
+		} else {
+			_state = kRosterFull;
+		}
+		break;
+	}
+
+	case kJapaneseCreate:
+		if (ascii == (byte)messages.get(kMsgCreateYes)[0]) {
+			startCreate();
+			if (_state != kName)
+				break;
+			// The name is the one typed: on to the password
+			_draft.name = _japaneseName;
+			_input.clear();
+			_marks = 0;
+			_state = kPassword;
+		} else if (ascii == (byte)messages.get(kMsgCreateNo)[0]) {
+			goHome();
+		} else {
+			return;
+		}
+		break;
+
+	case kJapanesePassword:
+		if (ascii != kKeyReturn) {
+			typeInto(ascii, true);
+			break;
+		}
+		// A wrong password goes back to the name, without a word
+		if (_input == party.rosterEntry(_edited).password) {
+			_input.clear();
+			_state = kEditMenu;
+		} else {
+			goHome();
+		}
 		break;
 
 	case kName:
@@ -334,7 +439,7 @@ void TrainingView::choose(int result, uint16 ascii) {
 		}
 		// No name: no character
 		if (_input.empty()) {
-			_state = kMenu;
+			goHome();
 		} else if (party.nameInUse(_input)) {
 			_state = kNameInUse;
 		} else {
@@ -428,7 +533,7 @@ void TrainingView::choose(int result, uint16 ascii) {
 
 	case kEditChoose: {
 		if (ascii == kKeyReturn) {
-			_state = kMenu;
+			goHome();
 			break;
 		}
 		if (ascii < 'A' || ascii >= 'A' + (int)_listed.size())
@@ -482,7 +587,7 @@ void TrainingView::choose(int result, uint16 ascii) {
 			_state = kEditNewPassword;
 			break;
 		case 4:
-			_state = kMenu;
+			goHome();
 			break;
 		default:
 			return;
@@ -492,7 +597,7 @@ void TrainingView::choose(int result, uint16 ascii) {
 	case kEditDelete:
 		if (ascii == (byte)messages.get(kMsgEditYes)[0]) {
 			party.deleteCharacter(_edited);
-			_state = kMenu;
+			goHome();
 		} else if (ascii == (byte)messages.get(kMsgEditNo)[0]) {
 			_state = kEditMenu;
 		} else {
@@ -561,7 +666,7 @@ void TrainingView::choose(int result, uint16 ascii) {
 		} else if (ascii != (byte)messages.get(kMsgNo)[0]) {
 			return;
 		}
-		_state = kMenu;
+		goHome();
 		break;
 
 	default:

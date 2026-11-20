@@ -36,6 +36,7 @@ namespace Wizardry {
 struct Item {
 	enum {
 		kRecordSize = 46,
+		kNameBytes = 32,      ///< two names of 16 bytes before the record in Japanese Wizardry I
 		kUnlimited = -1   ///< stock that never runs out
 	};
 

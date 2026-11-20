@@ -184,7 +184,9 @@ void Battle::loadEnemyGroup(int monsterId, int group) {
 
 	// A monster may bring another kind along, and that one another;
 	// the deeper the level, the more groups there can be
-	if (group < 4 && group - 1 < _maze.level && g.enemy.partnerId > 0 &&
+	// Japanese Wizardry I lets one group fewer come along
+	const int deepEnough = _maze.japanese ? group : group - 1;
+	if (group < 4 && deepEnough < _maze.level && g.enemy.partnerId > 0 &&
 			(int)_dice.roll(100) < g.enemy.partnerChance)
 		loadEnemyGroup(g.enemy.partnerId, group + 1);
 }

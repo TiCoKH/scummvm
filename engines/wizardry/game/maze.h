@@ -167,6 +167,12 @@ struct MazeState {
 	int16 lastLevel = 10;
 
 	bool toTown = false;   ///< MALOR in camp came out at the castle: back to town
+
+	/**
+	 * The rules of Japanese Wizardry I where they differ from the IBM-PC
+	 * re-release: fewer partner groups, harder mechanical traps
+	 */
+	bool japanese = false;
 };
 
 /**

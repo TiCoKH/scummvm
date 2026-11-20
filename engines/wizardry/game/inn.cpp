@@ -62,13 +62,14 @@ bool Inn::canRest(const Character &c, const Room &room) {
 	return c.gold >= room.cost && c.hp < c.hpMax;
 }
 
-bool Inn::restOneWeek(Character &c, const Room &room) {
-	++c.age;
+bool Inn::restOneWeek(Character &c, const Room &room, bool ages) {
+	if (ages)
+		++c.age;
 	c.hp = MIN<int>(c.hp + room.heal, c.hpMax);
 	c.gold = MAX<int64>(c.gold - room.cost, 0);
 
 	// Age is counted in weeks
-	return c.age % 52 == 1;
+	return ages && c.age % 52 == 1;
 }
 
 int64 Inn::experienceForLevel(int classType, int level) const {
@@ -95,7 +96,9 @@ int64 Inn::experienceForLevel(int classType, int level) const {
 }
 
 void Inn::checkLevel(Character &c, bool birthday, Common::Array<Common::String> &lines) {
-	if (birthday)
+	// Japanese Wizardry I has neither this line nor the one of the hit
+	// points gained, nor the messages for them
+	if (birthday && _messages.contains(kMsgBirthday))
 		lines.push_back(_messages.get(kMsgBirthday));
 
 	const int64 needed = experienceForNextLevel(c);
@@ -133,8 +136,9 @@ void Inn::gainLevel(Character &c, Common::Array<Common::String> &lines) {
 	if (hp <= c.hpMax)
 		hp = c.hpMax + 1;
 
-	lines.push_back(substCaret(_messages.get(kMsgGainedHitPoints),
-		Common::String::format("%d", hp - c.hpMax)));
+	if (_messages.contains(kMsgGainedHitPoints))
+		lines.push_back(substCaret(_messages.get(kMsgGainedHitPoints),
+			Common::String::format("%d", hp - c.hpMax)));
 	c.hp += hp - c.hpMax;
 	c.hpMax = hp;
 }

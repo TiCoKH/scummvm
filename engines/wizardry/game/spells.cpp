@@ -135,4 +135,22 @@ Common::Array<int> Spells::find(const MessageFile &messages, const Character &c,
 	return result;
 }
 
+Common::Array<int> Spells::findJapanese(const MessageFile &messages, const Common::String &typed) {
+	Common::Array<int> result;
+	if (typed.empty())
+		return result;
+
+	for (int spell = 1; spell <= kSpellCount; ++spell) {
+		if (name(messages, spell) == typed)
+			result.push_back(spell);
+	}
+	for (int spell = 1; spell <= kSpellCount; ++spell) {
+		const Common::String full = name(messages, spell);
+		if (full.size() > typed.size() && full.hasPrefix(typed))
+			result.push_back(spell);
+	}
+
+	return result;
+}
+
 } // End of namespace Wizardry

@@ -106,10 +106,12 @@ public:
 	const GfxSet &getGfxSet() const;
 
 	/**
-	 * True for the releases whose town can be entered so far
+	 * True for the releases whose town can be entered so far: Wizardry I
+	 * on the IBM-PC and the PC-98
 	 */
 	bool hasTown() const {
-		return getGameType() == kWizardry1 && getFamily() == kFamilyIBM;
+		return getGameType() == kWizardry1 &&
+			(getFamily() == kFamilyIBM || getPlatform() == Common::kPlatformPC98);
 	}
 
 	/**

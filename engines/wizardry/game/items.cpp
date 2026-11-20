@@ -50,13 +50,16 @@ bool ItemList::load(const ScenarioFile &scenario) {
 	_items.clear();
 
 	const ScenarioFile::Type &type = scenario.type(kRecordItem);
-	if (type.recordSize != Item::kRecordSize)
+	// Japanese Wizardry I keeps the two names in front, as on the Apple II
+	const uint names = (type.recordSize == Item::kRecordSize + Item::kNameBytes) ? Item::kNameBytes : 0;
+	if (type.recordSize != Item::kRecordSize + names)
 		return false;
 
 	for (uint i = 0; i < type.count; ++i) {
 		const byte *src = scenario.record(kRecordItem, i);
 		if (!src)
 			break;
+		src += names;
 
 		Item item;
 		item.kind = READ_LE_INT16(src + kOfsKind);

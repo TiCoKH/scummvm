@@ -49,12 +49,17 @@ bool ScenarioFile::open(const char *name) {
 		if (!t.perPair || t.perPair > 64 || t.firstBlock * BLOCK_SIZE > _data.size())
 			return false;
 
-		// The IBM-PC releases store the record size in the third word. On
-		// the Japanese machines it is a number of blocks, and all that is
-		// known is the room a record has.
+		// The IBM-PC releases, and II and III everywhere, store the record
+		// size in the third word. In Wizardry I on the Japanese machines it
+		// is a number of blocks, and the records are those of the Apple II
+		// original, where items and monsters carry their names in front;
+		// their sizes are known.
+		static const uint16 APPLE_SIZES[kRecordTypeCount] = { 0, 894, 158, 168, 78, 208, 0, 0 };
 		t.recordSize = 2 * BLOCK_SIZE / t.perPair;
 		if (t.third && t.third <= t.recordSize && (uint)t.third * t.perPair > 2 * BLOCK_SIZE - t.third)
 			t.recordSize = t.third;
+		else if (i < ARRAYSIZE(APPLE_SIZES) && APPLE_SIZES[i] && APPLE_SIZES[i] * t.perPair <= 2 * BLOCK_SIZE)
+			t.recordSize = APPLE_SIZES[i];
 	}
 
 	_title = Common::String((const char *)&_data[1], _data[0]);

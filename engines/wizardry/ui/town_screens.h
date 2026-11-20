@@ -48,6 +48,8 @@ private:
 	const MessageFile &_messages;
 	const Party &_party;
 	const ItemList &_items;
+	bool _japanese = false;
+	Dice *_dice = nullptr;
 
 	TextWindow openWindow(int x, int y, int width, int height);
 	void printLong(TextWindow &window, int64 value);
@@ -57,6 +59,16 @@ private:
 public:
 	TownScreens(TileScreen &screen, const MessageFile &messages, const Party &party, const ItemList &items) :
 		_screen(screen), _messages(messages), _party(party), _items(items) {}
+
+	/**
+	 * Draw as Japanese Wizardry I does where it differs
+	 * @param dice  For what that release leaves to chance in drawing
+	 */
+	void setJapanese(bool japanese, Dice *dice = nullptr) {
+		_japanese = japanese;
+		_dice = dice;
+	}
+	bool isJapanese() const { return _japanese; }
 
 	/**
 	 * What every place in town shows: the main window, the "CASTLE"
@@ -91,6 +103,12 @@ public:
 
 	void drawTrainingBackground();
 	void drawTrainingMenu(Menu &menu);
+
+	/**
+	 * Japanese Wizardry I: the grounds start with the name of a character
+	 * to look after or to create
+	 */
+	void drawTrainingName(const Common::String &typed);
 	void drawRoster();
 
 	/**
@@ -296,6 +314,9 @@ public:
 	 * @param pictures  The creatures shown, none to four
 	 * @param slide     How many rows they have slid down, 0 to 5
 	 */
+	/** A line of the title, in English where the release has kanji */
+	Common::String titleText(uint id) const;
+
 	void drawTitle(const TileImage *logo, const Common::Array<TileImage> &pictures, int slide);
 
 	// ---- special squares

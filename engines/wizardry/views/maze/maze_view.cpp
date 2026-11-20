@@ -86,6 +86,7 @@ void MazeView::enter(const MazeState *start) {
 
 	state = start ? *start : MazeState();
 	state.lastLevel = _G(scenario).type(kRecordMaze).count;
+	state.japanese = hasJapaneseRules(g_engine->getProfile());
 	static_cast<MazeView *>(g_events->findView("Maze"))->_loadedLevel = -1;
 
 	// Everyone goes in with figures worked out afresh; from the castle

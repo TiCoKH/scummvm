@@ -35,6 +35,7 @@ namespace Wizardry {
 struct Monster {
 	enum {
 		kRecordSize = 94,
+		kNameBytes = 64,     ///< four names of 16 bytes before the record in Japanese Wizardry I
 		kMaxAttacks = 7
 	};
 

@@ -314,9 +314,12 @@ void TownScreens::drawInnRooms(uint member) {
 		window.PRINTSTR(_messages.get(id));
 		window.newLine();
 	}
-	window.newLine();
-	window.PRINTSTR(substCaret(_messages.get(kMsgYouHaveGold),
-		Common::String::format("%lld", (long long)c.gold)));
+	// Japanese Wizardry I does not show the gold, and has no message for it
+	if (_messages.contains(kMsgYouHaveGold)) {
+		window.newLine();
+		window.PRINTSTR(substCaret(_messages.get(kMsgYouHaveGold),
+			Common::String::format("%lld", (long long)c.gold)));
+	}
 }
 
 void TownScreens::drawInnResting(uint member) {
@@ -388,6 +391,31 @@ void TownScreens::drawTrainingMenu(Menu &menu) {
 	TextWindow window(_screen, TextWindow::centeredBounds(Menu::textWidth(options), 8, 6), true);
 	window.clear();
 	menu.print(window, options);
+}
+
+void TownScreens::drawTrainingName(const Common::String &typed) {
+	enum {
+		kMsgFirstLine = 334,   // to 337
+		kMsgName = 338
+	};
+
+	const Common::String &title = _messages.get(kMsgTrainingGrounds);
+	TextWindow heading(_screen, TextWindow::centeredBounds(title.size() - 1, 0, 3), true);
+	heading.clear();
+	heading.PRINTSTR(title);
+
+	// Lines 1, 2, 4 and 5 of the window
+	TextWindow window = openWindow(0, 4, 40, 7);
+	window.PRINTSTR(_messages.get(kMsgFirstLine));
+	window.newLine();
+	window.PRINTSTR(_messages.get(kMsgFirstLine + 1));
+	window.newLine();
+	window.newLine();
+	window.PRINTSTR(_messages.get(kMsgFirstLine + 2));
+	window.newLine();
+	window.PRINTSTR(_messages.get(kMsgFirstLine + 3));
+
+	drawMainLine(13, _messages.get(kMsgName) + typed, false, 13);
 }
 
 void TownScreens::drawRoster() {
@@ -663,7 +691,7 @@ void TownScreens::drawMaze(const MazeLevel &level, const MazeState &state, bool 
 	_screen.clear();
 
 	TextWindow view = openWindow(1, 1, 38, 22);
-	MazeViewDrawer drawer(view, level, state, state.lightDuration > 0);
+	MazeViewDrawer drawer(view, level, state, state.lightDuration > 0, _japanese, _dice);
 	drawer.draw();
 
 	if (windows) {
@@ -987,6 +1015,27 @@ int TownScreens::titlePictureColumn(int count, int index) {
 	return COLUMNS[CLIP(count, 1, 4) - 1][CLIP(index, 0, 3)];
 }
 
+Common::String TownScreens::titleText(uint id) const {
+	// Japanese Wizardry I has these four lines in kanji, which the
+	// character set cannot show; the IBM-PC re-release says the same in
+	// English
+	static const char *const ENGLISH[] = {
+		"YOU CANNOT PLAY WITHOUT MAKING A", "SCENARIO DISK!", "S)TART GAME", "M)AKE SCENARIO DISK"
+	};
+	enum {
+		kFirst = 2019
+	};
+
+	const Common::String &text = _messages.get(id);
+	if (id >= kFirst && id < kFirst + ARRAYSIZE(ENGLISH)) {
+		for (uint i = 0; i < text.size(); ++i) {
+			if ((byte)text[i] >= 0x80)
+				return ENGLISH[id - kFirst];
+		}
+	}
+	return text;
+}
+
 void TownScreens::drawTitle(const TileImage *logo, const Common::Array<TileImage> &pictures, int slide) {
 	enum {
 		kMsgWelcome = 2018,
@@ -1023,11 +1072,11 @@ void TownScreens::drawTitle(const TileImage *logo, const Common::Array<TileImage
 	}
 
 	TextWindow choices = openWindow(0, 18, 40, 7);
-	choices.printCenteredLine(_messages.get(kMsgFirstLine));
-	choices.printCenteredLine(_messages.get(kMsgFirstLine + 1));
+	choices.printCenteredLine(titleText(kMsgFirstLine));
+	choices.printCenteredLine(titleText(kMsgFirstLine + 1));
 	choices.MVCURSOR(0, 3);
-	choices.printCenteredLine(_messages.get(kMsgChoices));
-	choices.printCenteredLine(_messages.get(kMsgChoices + 1));
+	choices.printCenteredLine(titleText(kMsgChoices));
+	choices.printCenteredLine(titleText(kMsgChoices + 1));
 }
 
 uint TownScreens::drawEventText(const Common::Array<Common::String> &lines, uint first) {
@@ -1284,15 +1333,20 @@ void TownScreens::drawShopPack(uint member, const Shop &shop, Shop::Service serv
 		const ItemSlot &slot = c.items[i];
 		window.MVCURSOR(0, i);
 		window.printInt(i + 1, 1);
-		window.PRINTCHR(')');
 
-		// * equipped, - equipped and cursed, ? not identified, # of no use to this class
-		if (slot.equipped)
-			window.PRINTCHR(slot.cursed ? '-' : '*');
-		else if (!slot.identified)
-			window.PRINTCHR('?');
-		else
-			window.PRINTCHR(_items[slot.id].usableBy(c) ? ' ' : '#');
+		// * equipped, - equipped and cursed, ? not identified, # of no use to
+		// this class. Japanese Wizardry I shows no marks here.
+		if (_japanese) {
+			window.PRINTSTR(") ");
+		} else {
+			window.PRINTCHR(')');
+			if (slot.equipped)
+				window.PRINTCHR(slot.cursed ? '-' : '*');
+			else if (!slot.identified)
+				window.PRINTCHR('?');
+			else
+				window.PRINTCHR(_items[slot.id].usableBy(c) ? ' ' : '#');
+		}
 
 		window.PRINTSTR(_messages.get(ItemList::nameMessage(slot.id, slot.identified)));
 		window.MVCURSOR(19, i);

@@ -55,7 +55,12 @@ private:
 		kEditNoClass,     ///< a notice, until RETURN
 		kEditNewPassword,
 		kEditNewPasswordAgain,
-		kEditPasswordResult   ///< until RETURN
+		kEditPasswordResult,  ///< until RETURN
+
+		// Japanese Wizardry I starts with a name instead of the menu
+		kJapaneseName,      ///< the name of a character to look after or create
+		kJapaneseCreate,    ///< create a character of that name, yes or no
+		kJapanesePassword   ///< the password of the character named
 	};
 
 	State _state = kMenu;
@@ -74,6 +79,12 @@ private:
 	uint _edited = 0;                 ///< roster number of the character looked after
 	uint _marks2 = 0;                 ///< marks of the second password typed
 	bool _passwordChanged = false;
+
+	Common::String _japaneseName;     ///< the name typed for a new character
+
+	/** Back to where the grounds start: the menu, or the name prompt */
+	void goHome();
+	bool isJapanese() const;
 
 	void startCreate();
 	void startEdit();

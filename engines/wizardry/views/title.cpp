@@ -50,7 +50,9 @@ enum {
 
 bool Title::isOriginal() const {
 	const Profile *profile = g_engine->getProfile();
-	return profile && profile->platform == Common::kPlatformDOS && profile->game <= kWizardry3;
+	// Japanese Wizardry I builds its title the same way
+	return profile && ((profile->platform == Common::kPlatformDOS && profile->game <= kWizardry3) ||
+		hasJapaneseRules(profile));
 }
 
 bool Title::msgFocus(const FocusMessage &msg) {

@@ -368,6 +368,10 @@ void SheetView::choose(int result, uint16 ascii) {
 			return;
 		}
 
+		// Japanese Wizardry I has no I)DENTIFY in the tavern's menu
+		if (!fullMenu() && result >= kIdentify && hasJapaneseRules(g_engine->getProfile()))
+			++result;
+
 		// With the long menu, casting and using come before leaving
 		if (fullMenu() && result >= kLeaveSheet)
 			result = (result == kLeaveSheet) ? kCastSpell : (result == kLeaveSheet + 1 ? kUseItem : kLeaveSheet);
@@ -439,6 +443,20 @@ void SheetView::choose(int result, uint16 ascii) {
 		if (_input.empty()) {
 			_state = kMenu;
 			break;
+		}
+
+		// Japanese Wizardry I: the first spell the name fits that works in
+		// camp; with none, "WHAT?"
+		if (hasJapaneseRules(g_engine->getProfile())) {
+			const Common::Array<int> fits = Spells::findJapanese(_G(messages), _input);
+			for (uint i = 0; i < fits.size(); ++i) {
+				if (CampSpells::isCampSpell(fits[i])) {
+					chooseSpell(fits[i]);
+					return;
+				}
+			}
+			say(kMsgWhat, kMenu);
+			return;
 		}
 
 		// When several known spells begin alike, a list to pick from

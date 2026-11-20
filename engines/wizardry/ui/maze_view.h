@@ -23,6 +23,7 @@
 #define WIZARDRY_UI_MAZE_VIEW_H
 
 #include "wizardry/game/maze.h"
+#include "wizardry/game/random.h"
 #include "wizardry/gfx/text_window.h"
 
 namespace Wizardry {
@@ -34,6 +35,12 @@ namespace Wizardry {
  *
  * The lists of runs of glyphs are those of the original program, one list
  * for each depth and for a wall, an opening or a door on each side.
+ *
+ * Japanese Wizardry I (PC-98 and the other Japanese machines) draws the
+ * same runs but knows no shading of dark squares beside or ahead: walking
+ * the view into a dark square whose third number is 0 fills what is left
+ * of the view with glyph 96 and ends it. A hidden door there shows as a
+ * door in a lit square with light, or one time in six without.
  *
  * Not drawn yet: the marks on floor and ceiling for stairs, elevators
  * and special squares.
@@ -50,6 +57,8 @@ private:
 	const MazeLevel &_level;
 	const MazeState &_state;
 	bool _lit;
+	bool _japanese;
+	Dice *_dice;
 
 	// The view point and what was found around it
 	int _x, _y;
@@ -70,6 +79,7 @@ private:
 	void dark(int x, int y, int columns, int rows);
 	void slantDown(int x, int y, int columns, int rows, int clipLeft);
 	void slantUp(int x, int y, int columns, int rows, int clipRight);
+	void fillDark();
 
 	bool squareVisible(int right, int forward) const;
 	uint wallAt(int right, int side) const;
@@ -83,7 +93,13 @@ private:
 	void depth3();
 
 public:
-	MazeViewDrawer(TextWindow &window, const MazeLevel &level, const MazeState &state, bool lit);
+	/**
+	 * @param japanese  Draw as Japanese Wizardry I does
+	 * @param dice      For Japanese Wizardry I's hidden doors; without
+	 *                  dice they never show by luck
+	 */
+	MazeViewDrawer(TextWindow &window, const MazeLevel &level, const MazeState &state, bool lit,
+		bool japanese = false, Dice *dice = nullptr);
 
 	void draw();
 };

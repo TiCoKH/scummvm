@@ -153,10 +153,12 @@ void Chest::spring(Party &party, uint member, MazeState &maze, const MessageFile
 		}
 		break;
 
-	case kMechanical:
+	case kMechanical: {
+		// Japanese Wizardry I rolls seven dice more than the level
+		const int count = maze.level + (maze.japanese ? 7 : 0);
 		if (_variant == kCrossbowBolt) {
 			int amount = 0;
-			for (int d = 0; d < maze.level; ++d)
+			for (int d = 0; d < count; ++d)
 				amount += dice.roll(8) + 1;
 			damage(opener, amount, messages, lines);
 		} else if (_variant == kExplodingBox) {
@@ -168,7 +170,7 @@ void Chest::spring(Party &party, uint member, MazeState &maze, const MessageFile
 					sides = 5;
 
 				int amount = 0;
-				for (int d = 0; sides && d < maze.level; ++d)
+				for (int d = 0; sides && d < count; ++d)
 					amount += dice.roll(sides) + 1;
 				if (amount)
 					damage(party.member(i), amount, messages, lines);
@@ -177,6 +179,7 @@ void Chest::spring(Party &party, uint member, MazeState &maze, const MessageFile
 			opener.status = MAX<int>(opener.status, kStatusParalysed);
 		}
 		break;
+	}
 
 	case kTeleporter:
 		// To a place at random on the level

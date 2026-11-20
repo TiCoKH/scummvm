@@ -33,13 +33,17 @@ bool MonsterList::load(const ScenarioFile &scenario) {
 	_monsters.clear();
 
 	const ScenarioFile::Type &type = scenario.type(kRecordMonster);
-	if (type.recordSize != Monster::kRecordSize)
+	// Japanese Wizardry I keeps the four names in front, as on the Apple II;
+	// the game takes them from its messages all the same
+	const uint names = (type.recordSize == Monster::kRecordSize + Monster::kNameBytes) ? Monster::kNameBytes : 0;
+	if (type.recordSize != Monster::kRecordSize + names)
 		return false;
 
 	for (uint i = 0; i < type.count; ++i) {
 		const byte *src = scenario.record(kRecordMonster, i);
 		if (!src)
 			break;
+		src += names;
 
 		Monster m;
 		m.pictureId = READ_LE_INT16(src);

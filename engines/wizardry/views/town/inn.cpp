@@ -150,7 +150,7 @@ void InnView::restStep() {
 		return;
 	}
 
-	_birthday |= Inn::restOneWeek(c, Inn::ROOMS[_room]);
+	_birthday |= Inn::restOneWeek(c, Inn::ROOMS[_room], !hasJapaneseRules(g_engine->getProfile()));
 	delayFrames(kWeekFrames);
 	redraw();
 }

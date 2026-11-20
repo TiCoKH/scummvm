@@ -37,6 +37,13 @@ class TownView : public TileView {
 private:
 	Common::String _notice;
 
+	/** The engine's random numbers, for what the drawing leaves to chance */
+	class DrawDice : public Dice {
+	public:
+		uint roll(uint count) override;
+	};
+	DrawDice _drawDice;
+
 protected:
 	Menu _menu;
 
